@@ -28,6 +28,8 @@ describe('normalizeMatrixFilter', () => {
       orientation: 'rows-as-subjects',
       subject:  { include: [{ kind: 'attribute', field: 'department', values: ['HR'] }], exclude: [] },
       resource: { include: [], exclude: [{ kind: 'attribute', field: 'resourceType', values: ['Group'] }] },
+      includeBusinessRoles: true,
+      includeInheritedAccess: true,
       rollup: 'department',
       rollupContent: 'roles-only',
       rollupMetric: 'percent',
@@ -40,6 +42,7 @@ describe('normalizeMatrixFilter', () => {
       sortAttributes: [{ attribute: 'jobTitle', dir: 'desc' }],
       sortHierarchy: { contextId: 'ctx-2' },
       foldOnLoad: true,
+      showTrends: true,
     };
     expect(normalizeMatrixFilter(full)).toEqual(full);
   });
@@ -50,6 +53,8 @@ describe('normalizeMatrixFilter', () => {
       orientation: 'diagonal',
       subject: 'nope',
       resource: { include: 'nope', exclude: null },
+      includeBusinessRoles: 'yes',   // not a real boolean → off
+      includeInheritedAccess: 1,     // not a real boolean → off
       rollup: 42,
       rollupContent: 'everything',
       rollupMetric: 'ratio',
@@ -62,10 +67,41 @@ describe('normalizeMatrixFilter', () => {
       sortAttributes: [],
       sortHierarchy: { contextId: 7 },
       foldOnLoad: 'sometimes',
+      showTrends: 'yes',             // not a real boolean → panel stays off
     });
     expect(out).toEqual({ ...EMPTY_FILTER, foldAttributes: true });
     expect(out.subject).toEqual({ include: [], exclude: [] });
     expect(out.resource).toEqual({ include: [], exclude: [] });
+  });
+
+  it('treats includeBusinessRoles strictly, like the API does', () => {
+    // The flag travels to /matrix/data, where parseFilter accepts only a real
+    // `true`. Coercing a JSONB round-trip's 'true' here would tick the wizard's
+    // checkbox while the server kept hiding the rows.
+    expect(normalizeMatrixFilter({ includeBusinessRoles: true }).includeBusinessRoles).toBe(true);
+    expect(normalizeMatrixFilter({ includeBusinessRoles: 'true' }).includeBusinessRoles).toBe(false);
+    expect(normalizeMatrixFilter({}).includeBusinessRoles).toBe(false);
+  });
+
+  it('keeps includeInheritedAccess through an adjust, strictly (#1202)', () => {
+    // The wizard's More options checkbox. Dropped by the normaliser, a matrix
+    // saved with it on reopened in the wizard with the box unticked, and the
+    // next save wrote it off.
+    expect(normalizeMatrixFilter({ includeInheritedAccess: true }).includeInheritedAccess).toBe(true);
+    expect(normalizeMatrixFilter({ includeInheritedAccess: 'true' }).includeInheritedAccess).toBe(false);
+    expect(normalizeMatrixFilter({}).includeInheritedAccess).toBe(false);
+  });
+
+  it('leaves the trends panel off unless the matrix asked for it (#1202)', () => {
+    // The scope-statistics panel is opt-in per matrix. Every filter that
+    // predates the flag — every saved matrix, every shared link, the seeded
+    // org default — must open WITHOUT it, so a truthy-but-not-true value
+    // cannot switch it on either.
+    expect(normalizeMatrixFilter({}).showTrends).toBe(false);
+    expect(normalizeMatrixFilter({ showTrends: 'true' }).showTrends).toBe(false);
+    expect(normalizeMatrixFilter({ showTrends: 1 }).showTrends).toBe(false);
+    expect(normalizeMatrixFilter({ showTrends: true }).showTrends).toBe(true);
+    expect(EMPTY_FILTER.showTrends).toBe(false);
   });
 
   it('caps sortAttributes at six levels', () => {
@@ -175,6 +211,9 @@ describe('matrixFilterFingerprint', () => {
     expect(matrixFilterFingerprint({ ...seeded, orientation: 'rows-as-subjects' })).not.toBe(base);
     expect(matrixFilterFingerprint({ ...seeded, rollup: 'department' })).not.toBe(base);
     expect(matrixFilterFingerprint({ ...seeded, foldOnLoad: true })).not.toBe(base);
+    // Row visibility is part of which matrix this is, not where you are in it —
+    // so a saved matrix that shows business-role rows keeps its own identity.
+    expect(matrixFilterFingerprint({ ...seeded, includeBusinessRoles: true })).not.toBe(base);
     expect(matrixFilterFingerprint({
       ...seeded, sortAttributes: [{ attribute: 'jobTitle', dir: 'asc' }],
     })).not.toBe(base);

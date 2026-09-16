@@ -5,7 +5,9 @@ import {
   parseDetailRoute,
   pickDisplayName,
   closeFallbackPage,
+  parseSharedRoute,
   detailTabIconBg,
+  wizardOpening,
 } from './App.helpers';
 
 describe('isDetailPage', () => {
@@ -20,6 +22,10 @@ describe('isDetailPage', () => {
     expect(isDetailPage('principals')).toBe(false);
     expect(isDetailPage('matrix')).toBe(false);
     expect(isDetailPage('user')).toBe(false); // no colon
+    // The Reports list page and a report's own tab are different routes — the
+    // prefix must not swallow the page it was opened from.
+    expect(isDetailPage('reports')).toBe(false);
+    expect(isDetailPage('report:orphaned-accounts')).toBe(true);
   });
 });
 
@@ -29,6 +35,10 @@ describe('parseDetailRoute', () => {
     expect(parseDetailRoute('access-package:ap-9')).toEqual({ type: 'access-package', id: 'ap-9' });
   });
 
+  it('reads a report tab as its report name', () => {
+    expect(parseDetailRoute('report:orphaned-accounts')).toEqual({ type: 'report', id: 'orphaned-accounts' });
+  });
+
   it('keeps colons inside the id', () => {
     expect(parseDetailRoute('resource:a:b:c')).toEqual({ type: 'resource', id: 'a:b:c' });
   });
@@ -36,6 +46,34 @@ describe('parseDetailRoute', () => {
   it('returns null for non-detail pages', () => {
     expect(parseDetailRoute('dashboard')).toBeNull();
     expect(parseDetailRoute('matrix')).toBeNull();
+  });
+});
+
+describe('parseSharedRoute', () => {
+  it('extracts the token from a #shared: hash', () => {
+    expect(parseSharedRoute('shared:fgs_abc123')).toBe('fgs_abc123');
+    // Tokens are base64url — '-' and '_' must survive intact.
+    expect(parseSharedRoute('shared:fgs_a-b_c')).toBe('fgs_a-b_c');
+    expect(parseSharedRoute('shared: fgs_padded ')).toBe('fgs_padded');
+  });
+
+  it('returns null for every other route, so the normal shell still renders', () => {
+    expect(parseSharedRoute('matrix')).toBeNull();
+    expect(parseSharedRoute('dashboard')).toBeNull();
+    expect(parseSharedRoute('user:abc')).toBeNull();
+    // A prefix that only looks like one must not open a shared view.
+    expect(parseSharedRoute('sharedreports:abc')).toBeNull();
+    expect(parseSharedRoute('x-shared:abc')).toBeNull();
+  });
+
+  it('returns null for an empty or whitespace-only token', () => {
+    expect(parseSharedRoute('shared:')).toBeNull();
+    expect(parseSharedRoute('shared:   ')).toBeNull();
+  });
+
+  it('returns null for a non-string page', () => {
+    expect(parseSharedRoute(null)).toBeNull();
+    expect(parseSharedRoute(undefined)).toBeNull();
   });
 });
 
@@ -62,6 +100,8 @@ describe('closeFallbackPage', () => {
     expect(closeFallbackPage('context')).toBe('contexts');
     expect(closeFallbackPage('identity')).toBe('identities');
     expect(closeFallbackPage('resource')).toBe('resources');
+    // Closing a report lands back on the list it was opened from.
+    expect(closeFallbackPage('report')).toBe('reports');
   });
 
   it('falls back to the matrix for everything else', () => {
@@ -78,11 +118,35 @@ describe('detailTabIconBg', () => {
     expect(detailTabIconBg('group')).toContain('purple');
     expect(detailTabIconBg('department')).toContain('green');
     expect(detailTabIconBg('context')).toContain('sky');
+    expect(detailTabIconBg('report')).toContain('amber');
   });
 
   it('falls back to indigo for identity / run / unknown types', () => {
     expect(detailTabIconBg('identity')).toContain('indigo');
     expect(detailTabIconBg('run')).toContain('indigo');
     expect(detailTabIconBg('access-package')).toContain('indigo');
+  });
+});
+
+describe('wizardOpening', () => {
+  it('opens the matrix on screen on the first step by default', () => {
+    expect(wizardOpening()).toEqual({ step: null, fresh: false });
+    expect(wizardOpening({})).toEqual({ step: null, fresh: false });
+  });
+
+  it('opens on the step asked for', () => {
+    expect(wizardOpening({ step: 'share' })).toEqual({ step: 'share', fresh: false });
+  });
+
+  it('opens a fresh matrix only for an explicit fresh: true', () => {
+    expect(wizardOpening({ fresh: true })).toEqual({ step: null, fresh: true });
+    // Truthy is not enough — a stray value must not throw the analyst's matrix away.
+    expect(wizardOpening({ fresh: 'yes' })).toEqual({ step: null, fresh: false });
+  });
+
+  it('ignores a click event passed straight through from an onClick', () => {
+    const clickEvent = { type: 'click', target: {}, step: undefined, detail: 1 };
+    expect(wizardOpening(clickEvent)).toEqual({ step: null, fresh: false });
+    expect(wizardOpening({ step: 3 })).toEqual({ step: null, fresh: false });
   });
 });

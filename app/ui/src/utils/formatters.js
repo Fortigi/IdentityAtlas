@@ -91,3 +91,9 @@ export function friendlyLabel(key) {
   if (key === 'id') return 'GUID';
   return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
 }
+
+// Server-resolved display name for an extendedAttributes key, or null. Re-exported
+// here so a label call site needs one import, and so it sits next to the humaniser
+// it overrides — an extension-derived name is shown VERBATIM (`sAMAccountName`),
+// never word-split by friendlyLabel into "S A M Account Name".
+export { attributeLabel } from './attributeLabels';

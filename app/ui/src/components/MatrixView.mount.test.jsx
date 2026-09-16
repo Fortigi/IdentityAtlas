@@ -5,7 +5,7 @@ import { render as rtlRender } from '@testing-library/react';
 import MatrixView from './MatrixView';
 import {
   renderWithProviders, makeAuthFetch, makeWrapper, jsonResponse,
-  screen, userEvent, waitFor,
+  screen, within, userEvent, waitFor, act,
 } from '@ui/test-utils/renderWithProviders';
 
 // Stub the lazy-loaded virtual/DnD body so the test runner never pulls in
@@ -13,9 +13,22 @@ import {
 // element MatrixView builds (exercising MatrixColumnHeaders) plus one labelled
 // row per visible resource, so the orchestrator's column/sort/grouping wiring
 // runs end to end.
+// `body.props` keeps the last props the grid body received, so tests can assert
+// on the derived structures MatrixView hands it (SOLL mapping, row marking,
+// folded-role tallies) without reimplementing the cell rendering here.
+const body = vi.hoisted(() => ({ props: null }));
+
+// Capture what the Excel exporter is handed, without pulling in ExcelJS.
+const excel = vi.hoisted(() => ({ calls: [] }));
+vi.mock('../utils/exportToExcel', () => ({
+  exportToExcel: (payload) => { excel.calls.push(payload); },
+}));
+
 vi.mock('./matrix/SortableMatrixBody', () => ({
-  default: ({ columnHeaders, orderedGroups = [] }) =>
-    h('table', null,
+  default: (props) => {
+    body.props = props;
+    const { columnHeaders, orderedGroups = [] } = props;
+    return h('table', null,
       columnHeaders,
       h('tbody', null,
         orderedGroups.map(g =>
@@ -26,7 +39,8 @@ vi.mock('./matrix/SortableMatrixBody', () => ({
           ),
         ),
       ),
-    ),
+    );
+  },
 }));
 
 // A small but realistic matrix dataset: two resources, three subjects across two
@@ -40,12 +54,65 @@ function makeData() {
   ];
 }
 
+// A matrix that contains a business role (br-1) granting one of the resource
+// rows (res-1) — the shape the business-role fold operates on. res-2 is granted
+// by no role, so it must survive every fold.
+function makeRoleData() {
+  return [
+    ...makeData(),
+    { memberId: 'u1', memberDisplayName: 'Alice Eng', department: 'Engineering', memberType: 'User', resourceId: 'br-1', resourceDisplayName: 'HR Manager Role', resourceType: 'BusinessRole', membershipType: 'Direct' },
+  ];
+}
+const roleProps = {
+  data: makeRoleData(),
+  accessPackageGroups: [
+    { accessPackageId: 'br-1', accessPackageName: 'HR Manager Role', resourceId: 'res-1', roleName: 'Member', totalAssignments: 1 },
+  ],
+  // Server-side business-role coverage: the role covers the resource it
+  // Contains AND its own membership row (migration 061).
+  managedByPackages: [
+    { resourceId: 'res-1', memberId: 'u1', accessPackageIds: ['br-1'] },
+    { resourceId: 'br-1', memberId: 'u1', accessPackageIds: ['br-1'] },
+  ],
+};
+
+// The same matrix plus Carol, who holds the role but not the resource it grants
+// — the "fewer than the role assigns" side. Its own filter, so the fold state a
+// previous test persisted (per filter) can't carry into it.
+const driftProps = {
+  ...roleProps,
+  data: [
+    ...makeRoleData(),
+    { memberId: 'u3', memberDisplayName: 'Carol Sales', department: 'Sales', memberType: 'User', resourceId: 'br-1', resourceDisplayName: 'HR Manager Role', resourceType: 'BusinessRole', membershipType: 'Direct' },
+  ],
+  managedByPackages: [
+    ...roleProps.managedByPackages,
+    { resourceId: 'res-1', memberId: 'u3', accessPackageIds: ['br-1'] },
+    { resourceId: 'br-1', memberId: 'u3', accessPackageIds: ['br-1'] },
+  ],
+};
+
+// Export lives in the toolbar's Export menu (#1202): open it, pick Excel.
+async function exportExcel(user) {
+  await user.click(await screen.findByRole('button', { name: /^Export/ }));
+  await user.click(screen.getByRole('menuitem', { name: 'Export Excel' }));
+}
+
+const rowLabels = () =>
+  screen.queryAllByTestId('row-label').filter(el => el.isConnected).map(el => el.textContent);
+
 const baseFilter = {
   rowType: 'user',
   subject: { include: [], exclude: [] },
   resource: { include: [], exclude: [] },
   sortAttributes: [{ attribute: 'department', dir: 'asc' }],
 };
+
+// A matrix that opted into business roles on its rows — the wizard's "Show
+// business roles as foldable rows". Everything below about folding, the role's
+// children and the folded tallies needs it; without it the server sends no
+// business-role rows and there is nothing to fold.
+const roleFilter = { ...baseFilter, includeBusinessRoles: true };
 
 const counts = {
   subjectCount: 3, subjectTotal: 10, resourceCount: 2, resourceTotal: 5,
@@ -94,6 +161,7 @@ function renderView(props = {}, authFetch = makeFetch()) {
       shareUrl: 'https://example.test/matrix',
       onOpenDetail,
       onAdjustFilter,
+      onLoadSaved: props.onLoadSaved,
       hasData: 'hasData' in props ? props.hasData : true,
     }),
     { auth: { authFetch } },
@@ -123,27 +191,35 @@ describe('MatrixView (mounted)', () => {
     expect(screen.getAllByText('Carol Sales').length).toBeGreaterThan(0);
   });
 
-  it('shows the filter summary and scope panel when a filter is applied', () => {
+  it('shows the strip — name, counts and Adjust — when a filter is applied', async () => {
+    const { onAdjustFilter } = renderView();
+    expect(screen.getByText(/users × \d+ resources · \d+ assignments/)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Unsaved matrix' })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Adjust matrix' }));
+    expect(onAdjustFilter).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows no "Open a matrix" list when a filter is applied', () => {
     renderView();
-    // Filter summary chip: rows axis label.
-    expect(screen.getByText(/× Resource/i)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Open a matrix' })).not.toBeInTheDocument();
   });
 
-  it('shows the legend and no empty-state when a filter is applied', () => {
-    renderView();
-    expect(screen.queryByText(/Pick a slice to inspect/i)).not.toBeInTheDocument();
+  it('renders the "Open a matrix" list when no filter is applied, and opens a saved matrix from it', async () => {
+    const onLoadSaved = vi.fn();
+    const authFetch = makeFetch({ '/api/matrix/saved-filters': [{ id: 'sf-1', name: 'HR users', filter: { rowType: 'principal', managed: 'managed' } }] });
+    renderView({ filter: null, onLoadSaved }, authFetch);
+    expect(screen.getByRole('heading', { name: 'Open a matrix' })).toBeInTheDocument();
+    // No matrix on screen: no lens to switch and nothing to export.
+    expect(screen.queryByRole('button', { name: 'Governed' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Export/ })).not.toBeInTheDocument();
+    await userEvent.setup().click(await screen.findByRole('button', { name: /HR users/ }));
+    expect(onLoadSaved).toHaveBeenCalledWith({ rowType: 'principal', savedFilterId: 'sf-1' }, 'managed');
   });
 
-  it('renders the "pick a slice" empty state when no filter is applied', () => {
-    renderView({ filter: null });
-    expect(screen.getByText(/Pick a slice to inspect/i)).toBeInTheDocument();
-  });
-
-  it('invokes onAdjustFilter from the empty-state Create matrix button', async () => {
+  it('opens the wizard for a FRESH matrix from the empty state\'s New matrix button', async () => {
     const { onAdjustFilter } = renderView({ filter: null });
-    const user = userEvent.setup();
-    await user.click(screen.getByText('Create matrix'));
-    expect(onAdjustFilter).toHaveBeenCalled();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'New matrix' }));
+    expect(onAdjustFilter).toHaveBeenCalledWith({ fresh: true });
   });
 
   it('renders the "no data available" empty state when hasData is false', () => {
@@ -209,7 +285,7 @@ describe('MatrixView (mounted)', () => {
     await expectRowVisible('Finance App');
   });
 
-  it('forwards the active resource filter to the nested-groups fetch on Expand All', async () => {
+  it('forwards the active resource filter to the nested-groups fetch when expanding all nested groups', async () => {
     // A resource-type-scoped matrix: expanding must POST that scope so the
     // backend constrains nested resources to it (regression: #674).
     const filter = {
@@ -218,9 +294,9 @@ describe('MatrixView (mounted)', () => {
     };
     const { authFetch } = renderView({ filter });
     const user = userEvent.setup();
-    // Wait for the mount-time groups-with-nested fetch so Expand All renders.
+    // Wait for the mount-time groups-with-nested fetch so the nested toggle renders.
     await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/groups-with-nested'));
-    await user.click(await screen.findByText('Expand All'));
+    await user.click(await screen.findByRole('button', { name: 'Expand nested groups' }));
     await waitFor(() =>
       expect(authFetch).toHaveBeenCalledWith(
         expect.stringContaining('/api/group/res-1/nested-groups'),
@@ -230,6 +306,163 @@ describe('MatrixView (mounted)', () => {
         }),
       ),
     );
+  });
+
+  // The default matrix is the one that was there before: no business-role rows,
+  // and therefore no fold layer at all. This is the promise the opt-in makes —
+  // a matrix that did not ask for business roles is not reshaped by the feature.
+  describe('without the business-role opt-in (the default matrix)', () => {
+    it('offers no fold controls and leaves the rows as they are', async () => {
+      // Same data, same coverage — only the flag differs. The rows arrive
+      // unchanged: no role parent, no injected copies, no corner buttons.
+      renderView({ ...roleProps, filter: baseFilter });
+      await expectRowVisible('Finance App');
+      expect(screen.queryByRole('button', { name: 'Fold business roles' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Unfold business roles' })).toBeNull();
+      const rows = new Map(body.props.orderedGroups.map(g => [g.displayName, g]));
+      expect(rows.get('Finance App').roleParentId).toBeUndefined();
+      expect(body.props.roleExtraCounts).toBeNull();
+      expect(body.props.roleMissingCounts).toBeNull();
+      expect(body.props.foldableRoles.size).toBe(0);
+    });
+
+    it('exports the plain row order, not the under-role layout', async () => {
+      excel.calls.length = 0;
+      renderView({ ...roleProps, filter: baseFilter });
+      await expectRowVisible('Finance App');
+      await exportExcel(userEvent.setup());
+      await waitFor(() => expect(excel.calls.length).toBe(1));
+      const exported = excel.calls[0].orderedGroups.map(g => g.displayName);
+      // Every row exactly once, and none of them filed under a role.
+      expect(exported.filter(n => n === 'Finance App')).toHaveLength(1);
+      expect(excel.calls[0].orderedGroups.every(g => !g.roleParentId)).toBe(true);
+    });
+  });
+
+  it('folds a business role\'s resources away and back from the grid corner', async () => {
+    renderView({ ...roleProps, filter: roleFilter });
+    const user = userEvent.setup();
+    await expectRowVisible('HR Manager Role');
+    await expectRowVisible('Finance App');
+
+    await user.click(await screen.findByRole('button', { name: 'Fold business roles' }));
+    // Only the role row and the resource no role grants remain.
+    await waitFor(() => expect(rowLabels()).not.toContain('Finance App'));
+    expect(rowLabels()).toContain('HR Manager Role');
+    expect(rowLabels()).toContain('HR Portal');
+
+    await user.click(await screen.findByRole('button', { name: 'Unfold business roles' }));
+    await expectRowVisible('Finance App');
+  });
+
+  it('promotes the business-role row directly above the resources it grants', async () => {
+    renderView({ ...roleProps, filter: roleFilter });
+    await expectRowVisible('HR Manager Role');
+    const labels = rowLabels();
+    expect(labels.indexOf('HR Manager Role')).toBe(labels.indexOf('Finance App') - 1);
+  });
+
+  it('grants a business role its own SOLL cell, so its column is not blank on its own row', async () => {
+    renderView({ ...roleProps, filter: roleFilter });
+    await expectRowVisible('HR Manager Role');
+    // Holding the role IS the assignment; the diagonal cell renders it as a
+    // Member (D) grant in the role's own column.
+    expect(body.props.apGroupMap.get('BR-1|br-1')).toBe('Member');
+    expect(body.props.apGroupMap.get('RES-1|br-1')).toBe('Member');
+  });
+
+  it('keeps a business role\'s column when only its own row is on screen', async () => {
+    renderView({
+      ...roleProps,
+      filter: roleFilter,
+      // The role grants a resource that is outside this matrix slice.
+      accessPackageGroups: [
+        { accessPackageId: 'br-1', accessPackageName: 'HR Manager Role', resourceId: 'res-99', roleName: 'Member', totalAssignments: 1 },
+      ],
+      managedByPackages: [{ resourceId: 'br-1', memberId: 'u1', accessPackageIds: ['br-1'] }],
+    });
+    await expectRowVisible('HR Manager Role');
+    expect(body.props.accessPackages.map(ap => ap.id)).toEqual(['br-1']);
+    expect(body.props.apGroupMap.get('BR-1|br-1')).toBe('Member');
+  });
+
+  it('shows the resources a role grants as that role\'s children', async () => {
+    renderView({ ...roleProps, filter: roleFilter });
+    await expectRowVisible('Finance App');
+    const rows = new Map(body.props.orderedGroups.map(g => [g.displayName, g]));
+    expect(rows.get('Finance App').roleParentId).toBe('BR-1');
+    // A resource no role grants stays a plain top-level row.
+    expect(rows.get('HR Portal').roleParentId).toBeUndefined();
+  });
+
+  it('tallies the access a folded role hides but does not grant', async () => {
+    renderView({ ...roleProps, filter: roleFilter });
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+    expect(body.props.roleExtraCounts).toBeNull();
+
+    await user.click(await screen.findByRole('button', { name: 'Fold business roles' }));
+    await waitFor(() => expect(body.props.roleExtraCounts).not.toBeNull());
+    // Alice holds Finance App through the role — covered, so not counted.
+    expect(body.props.roleExtraCounts.get('BR-1|u1')).toBeUndefined();
+    // Bob's Indirect membership on the same resource is not covered by it.
+    expect(body.props.roleExtraCounts.get('BR-1|u2')).toBe(1);
+  });
+
+  // Requestor feedback on #370: folding must summarise both directions of drift
+  // — Carol holds the role but not the resource it grants (fewer), while Bob
+  // holds that resource without the role (more).
+  it('tallies what a folded role assigns that the subject does not have', async () => {
+    renderView({ ...driftProps, filter: { ...roleFilter, sortAttributes: [{ attribute: 'jobTitle', dir: 'asc' }] } });
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+    expect(body.props.roleMissingCounts).toBeNull();
+
+    await user.click(await screen.findByRole('button', { name: 'Fold business roles' }));
+    await waitFor(() => expect(body.props.roleMissingCounts).not.toBeNull());
+    expect(body.props.roleMissingCounts.get('BR-1|u3')).toBe(1);
+    expect(body.props.roleMissingCounts.get('BR-1|u1')).toBeUndefined();
+    // ...and the opposite drift is still counted in the same folded row.
+    expect(body.props.roleExtraCounts.get('BR-1|u2')).toBe(1);
+  });
+
+  it('keeps only the rows a subject is short on in the Gaps view', async () => {
+    renderView({ ...driftProps, filter: roleFilter, managedFilter: 'gaps' });
+    // Carol holds the role but not the resource it grants — the only gap here.
+    await expectRowVisible('Finance App');
+    expect(rowLabels()).not.toContain('HR Portal');     // no role covers it
+    expect(rowLabels()).not.toContain('HR Manager Role'); // everyone holding it has it
+  });
+
+  // Main's #949 pinned "the export matches the matrix". #370 changed what the
+  // matrix shows, so the export follows the grid's row model — but never its
+  // fold state, or a folded role would silently drop resources from an
+  // access-review artifact.
+  it('exports the resources of a folded business role anyway', async () => {
+    excel.calls.length = 0;
+    // Its own filter: fold state is persisted per matrix, so this test must not
+    // inherit (or leave behind) a fold from another one.
+    renderView({ ...roleProps, filter: { ...roleFilter, sortAttributes: [{ attribute: 'email', dir: 'asc' }] } });
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+
+    await user.click(await screen.findByRole('button', { name: 'Fold business roles' }));
+    await waitFor(() => expect(rowLabels()).not.toContain('Finance App'));
+
+    await exportExcel(user);
+    await waitFor(() => expect(excel.calls).toHaveLength(1));
+
+    const exported = excel.calls[0].orderedGroups.map(g => g.displayName);
+    // On screen the role's resource is folded away; in the file it is not.
+    expect(exported).toContain('HR Manager Role');
+    expect(exported).toContain('Finance App');
+  });
+
+  it('offers no fold controls in a matrix without business-role rows', async () => {
+    renderView();
+    await expectRowVisible('Finance App');
+    expect(screen.queryByRole('button', { name: 'Fold business roles' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Unfold business roles' })).not.toBeInTheDocument();
   });
 
   it('threads the resourceContexts sidecar onto the matching resource rows', async () => {
@@ -251,6 +484,94 @@ describe('MatrixView (mounted)', () => {
     expect(screen.getAllByText('Contexts').length).toBeGreaterThan(0);
   });
 
+  // #1212 fixture: an identity matrix where Alice (id1) has one linked SAP
+  // account. `accountCount` is what the API ships with each identity row.
+  const aliceRow = { memberId: 'id1', memberDisplayName: 'Alice', department: 'Engineering', memberType: 'Identity', accountCount: 1, resourceId: 'res-1', resourceDisplayName: 'Finance App', membershipType: 'Direct' };
+  function renderIdentityMatrix(extraRows = []) {
+    const authFetch = makeFetch({
+      '/api/identities/id1/account-matrix': jsonResponse({
+        accounts: [{ id: 'acc1', displayName: 'A.Jansen', accountType: 'SAP' }],
+        memberships: [{ resourceId: 'res-1', principalId: 'acc1', membershipType: 'Direct' }],
+      }),
+    });
+    renderView({ data: [aliceRow, ...extraRows], filter: { ...baseFilter, rowType: 'identity' } }, authFetch);
+    return authFetch;
+  }
+
+  // The reporter's path in #1212: a matrix on identities, expand one into its
+  // linked accounts. The accounts belong under the identity, not beside it.
+  it('expands an identity into an accounts header row beneath it (#1212)', async () => {
+    const authFetch = renderIdentityMatrix([
+      { memberId: 'id2', memberDisplayName: 'Carol', department: 'Sales', memberType: 'Identity', resourceId: 'res-2', resourceDisplayName: 'HR Portal', membershipType: 'Direct' },
+    ]);
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+
+    const namesRow = () => screen.getByText('Alice').closest('tr');
+    const headerRows = () => [...screen.getByText('Alice').closest('thead').rows];
+    const rowsBefore = headerRows().length;
+
+    await user.click(within(namesRow()).getAllByTitle('Expand into linked accounts')[0]);
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/identities/id1/account-matrix'));
+    const accountCell = await screen.findByText('A.Jansen · SAP');
+
+    // One new header row, holding the account — and Alice's cell spans it rather
+    // than keeping a column of her own beside it.
+    expect(headerRows()).toHaveLength(rowsBefore + 1);
+    expect(screen.getByText('Alice').closest('th').colSpan).toBe(1);
+    expect(accountCell.closest('tr')).not.toBe(namesRow());
+    expect(headerRows().indexOf(accountCell.closest('tr')))
+      .toBeGreaterThan(headerRows().indexOf(namesRow()));
+    expect(screen.queryByText('All accounts')).toBeNull();
+
+    // The grid underneath swapped the identity's column for her account's —
+    // expanding drills in, it does not add a column.
+    expect(body.props.users.map(u => u.id)).toEqual(['acc1', 'id2']);
+
+    // Carol was never expanded, so she keeps a single cell spanning both rows.
+    expect(screen.getByText('Carol').closest('th').rowSpan).toBe(2);
+  });
+
+  it('brings the identity column back when its accounts are collapsed again (#1212)', async () => {
+    renderIdentityMatrix();
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+    const headerRows = () => [...screen.getByText('Alice').closest('thead').rows];
+    const rowsBefore = headerRows().length;
+
+    await user.click(screen.getAllByTitle('Expand into linked accounts')[0]);
+    await screen.findByText('A.Jansen · SAP');
+
+    // Collapsing is how the analyst gets the identity's combined "all accounts"
+    // column back — so the accounts row and the account column go away with it.
+    await user.click(screen.getAllByTitle('Collapse accounts')[0]);
+    await waitFor(() => expect(headerRows()).toHaveLength(rowsBefore));
+    expect(screen.queryByText('A.Jansen · SAP')).toBeNull();
+    expect(body.props.users.map(u => u.id)).toEqual(['id1']);
+  });
+
+  // #1212 follow-up: the point of the count is to be readable while still
+  // collapsed, so the analyst can see which identities are worth expanding.
+  it('shows an identity its linked-account count before it is expanded (#1212)', async () => {
+    const authFetch = renderIdentityMatrix([
+      { memberId: 'id2', memberDisplayName: 'Carol', department: 'Sales', memberType: 'Identity', accountCount: 0, resourceId: 'res-2', resourceDisplayName: 'HR Portal', membershipType: 'Direct' },
+    ]);
+    await expectRowVisible('Finance App');
+
+    // Nothing has been expanded, and the per-identity account fetch is what
+    // expanding triggers — so the count came in with the matrix rows, which is
+    // the only way it can be known this early.
+    const alice = screen.getByText('Alice').closest('th');
+    expect(alice).toHaveTextContent('1');
+    expect(alice.getAttribute('title')).toContain('1 linked account');
+    expect(authFetch).not.toHaveBeenCalledWith('/api/identities/id1/account-matrix');
+    expect(screen.getAllByTitle('Expand into linked accounts').length).toBeGreaterThan(0);
+
+    // Carol has no linked accounts, so she gets no count to mislead with.
+    const carol = screen.getByText('Carol').closest('th');
+    expect(carol.getAttribute('title')).not.toContain('linked account');
+  });
+
   it('clears expanded nesting when the matrix filter changes (#674)', async () => {
     // Nested data is scoped to the resource filter, so a filter change must drop
     // any expansion (else stale nested rows from the old scope would linger).
@@ -267,14 +588,92 @@ describe('MatrixView (mounted)', () => {
     const user = userEvent.setup();
     const { rerender } = rtlRender(el(baseFilter), { wrapper });
     await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/groups-with-nested'));
-    await user.click(await screen.findByText('Expand All'));
-    // Collapse All only renders while something is expanded.
-    await screen.findByText('Collapse All');
+    await user.click(await screen.findByRole('button', { name: 'Expand nested groups' }));
+    // The nested toggle flips to Collapse only while something is expanded.
+    await screen.findByRole('button', { name: 'Collapse nested groups' });
     // Change the filter → render-time reset collapses the nesting.
     rerender(el({
       ...baseFilter,
       resource: { include: [{ kind: 'attribute', field: 'resourceType', values: ['Group'] }] },
     }));
-    await waitFor(() => expect(screen.queryByText('Collapse All')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Collapse nested groups' })).not.toBeInTheDocument());
+  });
+
+  // ─── The toolbar row and the grid's corner controls (#1202) ───────────────
+  it('keeps only the lens and Export in the toolbar — no Copy link, no legend bar', async () => {
+    renderView();
+    await expectRowVisible('Finance App');
+    expect(screen.queryByRole('button', { name: /Copy link/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Export/ })).toBeInTheDocument();
+    // The legend is a "?" in the grid's corner now, closed until asked for.
+    const legend = screen.getByRole('button', { name: 'How to read this matrix' });
+    expect(legend.closest('thead')).not.toBeNull();
+    expect(legend).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText(/Cell badges — how the access is held/)).not.toBeInTheDocument();
+  });
+
+  it('shows no grid corner controls before a matrix is applied', () => {
+    renderView({ filter: null });
+    expect(screen.queryByRole('button', { name: 'How to read this matrix' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /all columns/ })).not.toBeInTheDocument();
+  });
+
+  // The requestor's bug: after folding, "Fold columns" was still offered. The
+  // corner toggle follows the real fold state instead — all, some or none.
+  it('folds and unfolds every column group from one corner toggle that follows the fold state', async () => {
+    renderView({ filter: { ...baseFilter, sortAttributes: [{ attribute: 'jobTitle', dir: 'asc' }] } });
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+    expect(screen.getAllByText('Carol Sales').length).toBeGreaterThan(0);
+
+    const fold = screen.getByRole('button', { name: 'Fold all columns' });
+    expect(fold).toHaveAttribute('aria-pressed', 'false');
+    expect(fold.closest('thead')).not.toBeNull();
+    await user.click(fold);
+
+    const unfold = await screen.findByRole('button', { name: 'Unfold all columns' });
+    expect(unfold).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'Fold all columns' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Carol Sales')).not.toBeInTheDocument();
+
+    await user.click(unfold);
+    expect(await screen.findByRole('button', { name: 'Fold all columns' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getAllByText('Carol Sales').length).toBeGreaterThan(0);
+  });
+
+  it('offers no column fold toggle when there is only one top-level group', async () => {
+    renderView({ filter: { ...baseFilter, sortAttributes: [{ attribute: 'memberType', dir: 'asc' }, { attribute: 'department', dir: 'asc' }] } });
+    await expectRowVisible('Finance App');
+    // One top-level group only (every subject is a User) — nothing to fold all.
+    expect(screen.queryByRole('button', { name: /all columns/ })).not.toBeInTheDocument();
+  });
+
+  it('marks the column toggle mixed when a single group header is folded', async () => {
+    renderView({ filter: { ...baseFilter, sortAttributes: [{ attribute: 'department', dir: 'desc' }] } });
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+    await user.click(screen.getByTitle('Collapse Sales into one column'));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Fold all columns' })).toHaveAttribute('aria-pressed', 'mixed'));
+  });
+
+  it('offers Reset row order in the row corner only after rows were reordered', async () => {
+    localStorage.clear();
+    const filter = { ...baseFilter, sortAttributes: [{ attribute: 'displayName', dir: 'asc' }] };
+    renderView({ filter });
+    const user = userEvent.setup();
+    await expectRowVisible('HR Portal');
+    expect(screen.queryByRole('button', { name: 'Reset row order' })).not.toBeInTheDocument();
+    const before = rowLabels();
+
+    act(() => body.props.onDragEnd({ active: { id: 'res-2' }, over: { id: 'res-1' } }));
+    const reset = await screen.findByRole('button', { name: 'Reset row order' });
+    // It sits in the header corner above the row labels, next to Resource Name.
+    expect(reset.closest('th')).toHaveTextContent('Resource Name');
+    expect(rowLabels()).toEqual([...before].reverse());
+
+    await user.click(reset);
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Reset row order' })).not.toBeInTheDocument());
+    expect(rowLabels()).toEqual(before);
   });
 });

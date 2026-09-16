@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ADMIN_TABS, visibleAdminTabs } from './adminTabs.js';
+import { ADMIN_TABS, visibleAdminTabs, shouldLeaveTab } from './adminTabs.js';
 
 describe('adminTabs', () => {
   it('keeps the Authentication tab, gated on admin.auth', () => {
@@ -29,13 +29,73 @@ describe('adminTabs', () => {
     expect(tabs.map(t => t.key)).not.toContain('auth');
   });
 
-  it('a wildcard user sees every tab', () => {
-    const tabs = visibleAdminTabs(new Set(), true);
+  it('hosts Shared Matrices as a data.share-gated sub-tab, not a top-level tab (#1166)', () => {
+    const shares = ADMIN_TABS.find(t => t.key === 'shares');
+    expect(shares).toBeTruthy();
+    expect(shares.label).toBe('Shared Matrices');
+    expect(shares.requires).toEqual(['data.share']);
+    const on = { matrixSharing: true };
+    // A RoleMiner has data.share but no admin.* — they must still reach it.
+    expect(visibleAdminTabs(new Set(['data.share']), false, ADMIN_TABS, on).map(t => t.key)).toContain('shares');
+    // …and an admin without it does not see a tab they cannot use.
+    expect(visibleAdminTabs(new Set(['admin.crawlers']), false, ADMIN_TABS, on).map(t => t.key)).not.toContain('shares');
+  });
+
+  it('hides Shared Matrices while the matrixSharing flag is off, whatever the permissions', () => {
+    const keys = (features) => visibleAdminTabs(new Set(['data.share']), false, ADMIN_TABS, features).map(t => t.key);
+    expect(keys({ matrixSharing: false })).not.toContain('shares');
+    expect(keys(undefined)).not.toContain('shares');          // flags not supplied → off
+    expect(keys({ matrixSharing: 'true' })).not.toContain('shares'); // only a real boolean true opens it
+    // A wildcard admin is no exception: there is no page to manage.
+    expect(visibleAdminTabs(new Set(), true).map(t => t.key)).not.toContain('shares');
+    // The flag only ever narrows: tabs without one are unaffected by it.
+    expect(keys({ matrixSharing: false })).toEqual(expect.arrayContaining(['performance', 'about']));
+  });
+
+  it('a wildcard user sees every tab once the flags they depend on are on', () => {
+    const tabs = visibleAdminTabs(new Set(), true, ADMIN_TABS, { matrixSharing: true });
     expect(tabs).toHaveLength(ADMIN_TABS.length);
+  });
+
+  it('gates the Experimental tab on admin.feature-flags — the permission that owns the toggle', () => {
+    const experimental = ADMIN_TABS.find(t => t.key === 'experimental');
+    expect(experimental).toBeTruthy();
+    expect(experimental.label).toBe('Experimental');
+    expect(experimental.requires).toEqual(['admin.feature-flags']);
+    expect(visibleAdminTabs(new Set(['admin.feature-flags']), false).map(t => t.key)).toContain('experimental');
+    // An admin who can run crawlers but not flip flags must not see it.
+    expect(visibleAdminTabs(new Set(['admin.crawlers']), false).map(t => t.key)).not.toContain('experimental');
   });
 
   it('always shows tabs with no `requires` (Performance, About)', () => {
     const tabs = visibleAdminTabs(new Set(), false);
     expect(tabs.map(t => t.key)).toEqual(expect.arrayContaining(['performance', 'about']));
+  });
+});
+
+describe('shouldLeaveTab', () => {
+  const visible = (features) => visibleAdminTabs(new Set(['data.share', 'admin.crawlers']), false, ADMIN_TABS, features);
+
+  it('waits on a flag /api/features has not reported yet, instead of bouncing', () => {
+    // The app's placeholder flags before /api/features answers: matrixSharing absent.
+    const early = { riskScoring: true, accountLinking: true };
+    expect(visible(early).map(t => t.key)).not.toContain('shares');
+    expect(shouldLeaveTab('shares', visible(early), early)).toBe(false);
+  });
+
+  it('leaves once the flag is reported off, and stays once it is reported on', () => {
+    expect(shouldLeaveTab('shares', visible({ matrixSharing: false }), { matrixSharing: false })).toBe(true);
+    expect(shouldLeaveTab('shares', visible({ matrixSharing: true }), { matrixSharing: true })).toBe(false);
+  });
+
+  it('leaves a permission-hidden tab straight away — only flags are waited on', () => {
+    const tabs = visibleAdminTabs(new Set(['data.share']), false, ADMIN_TABS, {});
+    expect(shouldLeaveTab('crawlers', tabs, {})).toBe(true);
+  });
+
+  it('never leaves when nothing is visible yet or the tab is visible', () => {
+    expect(shouldLeaveTab('crawlers', [], {})).toBe(false);
+    expect(shouldLeaveTab('about', visible({}), {})).toBe(false);
+    expect(shouldLeaveTab('about', visible({}), null)).toBe(false);
   });
 });

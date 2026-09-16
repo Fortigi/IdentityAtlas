@@ -5,6 +5,8 @@ import { buildOrderBy } from '../lib/listSort.js';
 import { getResourceColumns, getResourceColumnValues } from '../db/columnCache.js';
 import { ensureTagTables } from './tags.js';
 import { discoverReferenceFields } from '../lib/referenceFilters.js';
+import { withAttributeLabels } from '../lib/attributeLabels.js';
+import { addSystemColumn } from '../lib/systemFilter.js';
 import { UUID_RE, cleanRow, getPermissionTable } from './details/shared.js';
 import { isMissingSchema } from '../db/schemaErrors.js';
 import { buildResourceContextsSql } from '../matrix/resourceContexts.js';
@@ -308,6 +310,10 @@ router.get('/resource-columns', async (req, res) => {
       grouped['__resourceTag'] = schemaOnly ? [] : resourceTags;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* tag tables may not exist yet */ }
 
+    // Virtual __system column — system display names, sourced from the Systems
+    // table so a system with no resources is still offered.
+    await addSystemColumn(grouped, { schemaOnly });
+
     const columns = Object.entries(grouped).map(([column, values]) => ({ column, values }));
 
     // Reference-field (relationship) filters for resources — only offered where
@@ -319,7 +325,7 @@ router.get('/resource-columns', async (req, res) => {
       } catch (e) { console.error('resource reference-field discovery failed:', e.message); }
     }
 
-    return res.json(columns);
+    return res.json(await withAttributeLabels(columns, 'resource'));
   } catch (err) {
     console.error('resource-columns query failed:', err.message);
     return res.json([]);

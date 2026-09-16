@@ -166,6 +166,52 @@ The Web App restarts automatically (~30 seconds). Refresh the app URL — you'll
 
 ---
 
+## Microsoft Defender for Cloud: "App Service apps should have authentication enabled"
+
+If the subscription has Microsoft Defender for Cloud enabled, the `idatlas-<hash>-web` App Service is listed as **unhealthy** under **Recommendations → "App Service apps should have authentication enabled"** — even after Steps 1-3 are complete and Entra sign-in demonstrably works.
+
+**This is expected. It is not a sign that your deployment is unauthenticated.**
+
+### Why it appears
+
+That recommendation audits one specific thing: the App Service **platform** auth feature (App Service Authentication, a.k.a. *Easy Auth* — the `authSettingsV2` resource config). Identity Atlas deliberately never configures it. Steps 1-3 set the `AUTH_ENABLED` / `AUTH_TENANT_ID` / `AUTH_CLIENT_ID` app settings, and sign-in is then enforced **inside the application**: the API validates every Entra access token itself and rejects anything else with a 401.
+
+Defender reads the platform setting, not the application, so it correctly reports "no platform authentication configured" while the app is in fact fully authenticated. The recommendation is accurate about the layer it measures and blind to the layer we use.
+
+### Why it's by design
+
+- **The app registration is deliberately secret-less.** Identity Atlas is registered as a public SPA client (no client secret). Easy Auth's interactive login flow expects a *confidential* client with a secret, which would add a credential to store, rotate, and leak.
+- **Platform enforcement would have to be perforated anyway.** Easy Auth sits in front of *every* request, so enabling it in enforcing mode would require auth exclusions for the App Service health probe (`/api/health`), the Container App worker's ingest calls (which authenticate with an `fgc_` crawler API key against the public URL), and the `fgr_` read-token GETs used by Excel / Power Query. Those exclusions would carve unauthenticated tunnels through the write-heavy ingest surface — a worse posture than the one the finding complains about.
+- **In-app validation is stricter than the platform check.** The API pins the token audience to `api://<clientId>`, rejects id_tokens, verifies the issuing tenant, and applies the `AUTH_REQUIRED_ROLES` / role-to-permission mapping. Easy Auth does none of that.
+
+### How to confirm auth really is on
+
+Two checks, both from your own machine:
+
+1. Open `https://<your-app-url>` in a **private browser window** — you are redirected to Entra to sign in, and you never see application data before signing in.
+2. Call the API without a token — it must be rejected:
+   ```bash
+   curl -i https://<your-app-url>/api/auth-me
+   # HTTP/1.1 401 Unauthorized
+   ```
+   A `200` here would mean auth is genuinely off — check that `AUTH_ENABLED=true` and that `AUTH_TENANT_ID` / `AUTH_CLIENT_ID` are filled in (Step 3).
+
+### How to clear the marker (Defender exemption)
+
+Once you've confirmed the above, exempt the resource so the recommendation stops flagging it:
+
+1. Azure portal → **Microsoft Defender for Cloud** → **Recommendations**
+2. Open **"App Service apps should have authentication enabled"**
+3. Select the `idatlas-<hash>-web` App Service in the resource list → **Exempt**
+4. Scope: the resource (or the resource group, if you prefer it to survive a redeploy)
+5. Category: **Mitigated** — justification e.g. *"Authentication is enforced at the application layer (Entra ID JWT validation in the API); platform Easy Auth is intentionally not configured. See Identity Atlas docs."*
+
+Creating an exemption requires a role that can write policy exemptions at that scope — **Owner**, **Resource Policy Contributor**, or **Security Admin**. The exemption is recorded in Azure Policy, so it stays auditable.
+
+> Adding platform-level (Easy Auth) authentication as defence-in-depth is tracked as possible future Azure hardening, alongside the network/secret and container hardening work. It is not part of the current deployment shape.
+
+---
+
 ## Changing something later
 
 | Want to change | Do this |

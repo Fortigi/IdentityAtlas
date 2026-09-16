@@ -5,14 +5,17 @@ import { useState, useEffect, useReducer, useCallback, useMemo, useRef } from 'r
 // and matrix auto-open effects below can dispatch instead of setState.
 const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 import { useMatrix } from './hooks/useMatrix';
+import { useHashPage } from './hooks/useHashPage';
 import { useAuth } from './auth/AuthGate';
 import { useCanSeeAdminTab } from './auth/usePermissions';
 import { useTheme } from './hooks/useTheme';
+import { useAttributeLabels } from './hooks/useAttributeLabels';
 import { ThemeContext } from './contexts/ThemeContext';
+import { FeaturesContext } from './contexts/FeaturesContext';
 import { computeNavTabs, availableOptionalTabs } from './utils/navTabs';
 import ErrorBoundary from './components/ErrorBoundary';
 import { resolvePageRoute } from './pageRegistry';
-import { isDetailPage, parseDetailRoute, pickDisplayName, closeFallbackPage } from './App.helpers';
+import { isDetailPage, parseDetailRoute, pickDisplayName, closeFallbackPage, wizardOpening } from './App.helpers';
 import AppHeader from './components/app/AppHeader';
 import AppMain from './components/app/AppMain';
 import AppFooter from './components/app/AppFooter';
@@ -63,24 +66,6 @@ function buildMatrixUrl(state) {
   return `${window.location.origin}${window.location.pathname}#${hash}`;
 }
 
-// ─── Hash route hook ──────────────────────────────────────────────
-
-function useHashRoute() {
-  const getPage = () => {
-    const raw = decodeURIComponent(window.location.hash.replace('#', '') || 'dashboard');
-    const qIndex = raw.indexOf('?');
-    return qIndex >= 0 ? raw.substring(0, qIndex) : raw;
-  };
-  const [page, setPage] = useState(getPage());
-  useEffect(() => {
-    const onHash = () => setPage(getPage());
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
-  const navigate = useCallback((p) => { window.location.hash = p; }, []);
-  return [page, navigate];
-}
-
 export default function App() {
   // Parse initial state from URL (runs once — empty deps intentional)
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
@@ -94,10 +79,12 @@ export default function App() {
   const [matrixFilter, setMatrixFilter] = useReducer(setStateReducer, initial.filter);
   const [managedFilter, setManagedFilter] = useReducer(setStateReducer, initial.managed);
   const [wizardOpen, setWizardOpen] = useReducer(setStateReducer, false);
+  // How it opens this time: on which step, and whether as a fresh matrix (#1202).
+  const [wizardMode, setWizardMode] = useReducer(setStateReducer, wizardOpening());
 
   const { data, rollup, counts, accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, loading, refreshing, error, forceRefresh, hasData, defaultFilter, refetchPreChecks } = useMatrix(matrixFilter);
   const { account, logout, authFetch } = useAuth();
-  const [page, navigate] = useHashRoute();
+  const [page, navigate] = useHashPage();
   const [moduleVersion, setModuleVersion] = useState(null);
   const [features, setFeatures] = useState({ riskScoring: true, accountLinking: true });
   const [visibleTabs, setVisibleTabs] = useState(null); // null = loading, [] = loaded
@@ -105,6 +92,11 @@ export default function App() {
   const settingsRef = useRef(null);
   const [riskScoresRefreshKey, setRiskScoresRefreshKey] = useState(0);
   const { isDark, mode, setTheme } = useTheme();
+
+  // Warm the shared extendedAttributes display-name cache once for the whole app,
+  // so every attribute name — detail tables, filter menus, matrix headers and
+  // pickers, the xlsx export — reads the same server-resolved string (#872).
+  useAttributeLabels();
 
   // Hide the Admin tab from users with no admin.* permission. Clicking it
   // would 403 on every sub-page anyway — better not to advertise the door
@@ -246,8 +238,10 @@ export default function App() {
 
   // When the user lands on the matrix tab without an applied filter:
   //  - If a default filter is seeded (e.g. demo data): auto-apply it, no wizard.
-  //  - If there IS data but no default filter: open the wizard.
-  //  - If the DB is empty: do nothing (EmptyFilterState shows "no data" message).
+  //  - If there IS data but no default filter: do nothing — the empty state is
+  //    the "Open a matrix" list (saved matrices + New matrix), not a wizard
+  //    thrown open on arrival (#1202).
+  //  - If the DB is empty: do nothing (OpenMatrixList shows the "no data" message).
   // We wait until both hasData and defaultFilter have resolved (neither null/undefined
   // as "still loading") before acting. autoOpenFiredRef prevents re-firing after the
   // user closes the wizard or navigates away and back.
@@ -270,13 +264,13 @@ export default function App() {
     if (hasData === null || defaultFilter === undefined) return;
     if (hasData === false) return; // don't lock out — DB may get data after import
     autoOpenFiredRef.current = true;
-    if (defaultFilter !== null) {
+    if (defaultFilter) {
       // skip wizard, apply saved default — restore its managed-state toggle too
       const { managed: savedManaged, ...f } = defaultFilter.filter || {};
-      setMatrixFilter(f);
+      // Tagged with its id so a twin with identical content (a share made off
+      // the default) can't take over its name on the save bar.
+      setMatrixFilter({ ...f, savedFilterId: defaultFilter.id });
       if (savedManaged) setManagedFilter(savedManaged);
-    } else {
-      setWizardOpen(true); // no default — let user configure
     }
   }, [page, matrixFilter, wizardOpen, hasData, defaultFilter, refetchPreChecks]);
 
@@ -316,6 +310,14 @@ export default function App() {
     forceRefresh,
     riskScoresRefreshKey,
     onRiskScoresRefresh: () => setRiskScoresRefreshKey(k => k + 1),
+    // Fetched once here (and re-fetched on every navigation, so a runtime toggle
+    // is picked up) and handed down, rather than re-fetched per page. /api/features
+    // and /api/version sit behind the 30-req/min public rate limiter, so a page
+    // that fetched them on its own mount could get a 429 and silently render as
+    // though a feature were off — which is exactly how the Add-Crawler picker
+    // started dropping experimental types under load.
+    features,
+    version: moduleVersion,
   };
 
   const detailRouteProps = { page, detailCacheRef, onCacheData, openDetailTab, closeDetailTab };
@@ -324,13 +326,15 @@ export default function App() {
     shareUrl, refreshing, onOpenDetail: openDetailTab, setMatrixFilter,
     accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, hasData,
     wizardOpen,
-    onAdjustFilter: () => setWizardOpen(true),
+    wizardMode,
+    onAdjustFilter: (options) => { setWizardMode(wizardOpening(options)); setWizardOpen(true); },
     onWizardApply: (f, m) => { setMatrixFilter(f); if (m) setManagedFilter(m); setWizardOpen(false); },
     onWizardClose: () => setWizardOpen(false),
   };
 
   return (
     <ThemeContext.Provider value={{ isDark, mode }}>
+    <FeaturesContext.Provider value={features}>
     <ErrorBoundary>
     <div className="flex-1 min-h-0 flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Skip link — first focusable element, visible only when focused */}
@@ -373,6 +377,7 @@ export default function App() {
       <AppFooter moduleVersion={moduleVersion} navigate={navigate} />
     </div>
     </ErrorBoundary>
+    </FeaturesContext.Provider>
     </ThemeContext.Provider>
   );
 }

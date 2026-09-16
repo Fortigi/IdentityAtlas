@@ -50,6 +50,7 @@ describe('pageRegistry', () => {
     expect(resolvePageRoute('identities')(ctx).props.onOpenDetail).toBe(ctx.openDetailTab);
     expect(resolvePageRoute('contexts')(ctx).props.onNavigate).toBe(ctx.navigate);
     expect(resolvePageRoute('contexts')(ctx).props.onOpenDetail).toBe(ctx.openDetailTab);
+    expect(resolvePageRoute('reports')(ctx).props.onOpenDetail).toBe(ctx.openDetailTab);
   });
 
   it('renders the systems page without needing any context', () => {
@@ -68,6 +69,14 @@ describe('pageRegistry', () => {
     expect(admin.props.onNavigate).toBe(ctx.navigate);
     expect(admin.props.onRefresh).toBe(ctx.forceRefresh);
     expect(admin.props.onRiskScoresRefresh).toBe(ctx.onRiskScoresRefresh);
+  });
+
+  it('routes the legacy #shared-matrices hash into Admin (#1166)', () => {
+    // The page moved from the top nav to an Admin sub-tab; links already sent
+    // must still land on it, so the old hash renders AdminPage (which selects
+    // the Shared Matrices sub-tab) rather than 404-ing.
+    expect(resolvePageRoute('shared-matrices')).toBe(resolvePageRoute('admin'));
+    expect(isValidElement(resolvePageRoute('shared-matrices')(ctx))).toBe(true);
   });
 
   it('remounts the risk-scores page when the refresh key changes', () => {

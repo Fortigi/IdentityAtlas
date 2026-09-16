@@ -66,6 +66,58 @@ describe('ingest() — full-sync reconcile', () => {
   });
 });
 
+// An empty batch is how a crawler says one of two very different things, and the
+// difference decides whether rows are deleted. These drive the real ingest().
+describe('ingest() — an empty batch', () => {
+  const KEYS = ['identityId', 'principalId'];
+
+  it('reconciles a SCOPED full batch away — the source no longer serves that partition', async () => {
+    const res = await ingest(null, 'IdentityMembers', KEYS, [], {
+      syncMode: 'full', systemId: 7, scope: { linkConfidence: 'high' },
+    });
+    expect(res).toEqual({ inserted: 0, updated: 0, deleted: 4 });
+
+    const deleteSql = query.mock.calls.map(c => String(c[0])).find(s => /DELETE FROM "IdentityMembers"/.test(s));
+    expect(deleteSql).toBeTruthy();
+    // Scoped, so it cannot reach beyond the partition the crawler named.
+    expect(deleteSql).toContain('"linkConfidence"');
+    expect(deleteSql).toContain('"systemId" = $1');
+    // Nothing was inserted on the way — the temp table stays empty by design.
+    expect(query.mock.calls.some(c => /^\s*INSERT INTO "IdentityMembers"/.test(String(c[0])))).toBe(false);
+  });
+
+  it('does NOTHING for an UNSCOPED full batch — that would wipe the whole system', async () => {
+    // Crawlers post unscoped empty batches routinely; they were harmless while
+    // the API rejected them outright. Reading one as "this system has nothing"
+    // deletes every row the system owns in the table — and for ingest/systems
+    // that is the system row itself, which then breaks the foreign key on
+    // everything ingested afterwards. An absent scope means "nothing to say".
+    const res = await ingest(null, 'IdentityMembers', KEYS, [], { syncMode: 'full', systemId: 7 });
+    expect(res).toEqual({ inserted: 0, updated: 0, deleted: 0 });
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('does nothing for an empty full batch whose scope is an empty object', async () => {
+    const res = await ingest(null, 'IdentityMembers', KEYS, [], { syncMode: 'full', systemId: 7, scope: {} });
+    expect(res.deleted).toBe(0);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('does nothing for an empty DELTA batch, scope or no scope', async () => {
+    // Delta describes what changed and says nothing about what is absent.
+    const res = await ingest(null, 'IdentityMembers', KEYS, [], {
+      syncMode: 'delta', systemId: 7, scope: { linkConfidence: 'high' },
+    });
+    expect(res).toEqual({ inserted: 0, updated: 0, deleted: 0 });
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('treats null records the same as an empty array (PowerShell sends null)', async () => {
+    const res = await ingest(null, 'IdentityMembers', KEYS, null, { syncMode: 'full', systemId: 7 });
+    expect(res).toEqual({ inserted: 0, updated: 0, deleted: 0 });
+  });
+});
+
 describe('startSession — checkout path', () => {
   beforeEach(() => {
     // A session checks out a dedicated client from the pool for its lifetime.

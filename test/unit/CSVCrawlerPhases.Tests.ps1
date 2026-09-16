@@ -406,9 +406,11 @@ Describe 'Register-CsvFallbackSystem' {
         Register-CsvFallbackSystem | Should -Be 7
     }
 
-    It 'defaults to id 2 when the API returns neither' {
+    It 'throws when the API returns neither, instead of guessing a system to scope deletes to' {
+        # SEC-2026-09 M-11: this used to return a hard-coded id 2, so every scoped
+        # full-sync reconcile of the run would have targeted another system's rows.
         Mock Invoke-IngestAPI { @{} }
-        Register-CsvFallbackSystem | Should -Be 2
+        { Register-CsvFallbackSystem } | Should -Throw '*Could not resolve the CSV fallback system id*'
     }
 }
 

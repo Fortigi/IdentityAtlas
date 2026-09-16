@@ -12,7 +12,7 @@ This page is the reference for the permission model. The catalog below is kept i
 4. **Wildcard** — a role mapped to `*` is granted every permission (including ones added in future releases). The seed `Admin` role uses `*`.
 
 !!! note "Read & crawler API keys"
-    - **Read API keys (`fgr_…`)** are accepted only on `GET` requests to non-admin endpoints and resolve to `data.read`. They're used by the generated Excel/Power Query workbook.
+    - **Read API keys (`fgr_…`)** are accepted only on `GET` requests to non-admin endpoints (the `/api/admin/` check ignores path casing) and resolve to `data.read`. They're used by the generated Excel/Power Query workbook.
     - **Crawler API keys (`fgc_…`)** authenticate the worker on `/api/crawlers/*` and `/api/ingest/*` only, with their own per-crawler scope (`systemIds`) and permissions (`ingest`, `refreshViews`, `admin`). They are separate from the user-facing permission catalog below.
 
 ## Permission catalog
@@ -23,7 +23,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 
 | Permission | Label | Notes |
 |---|---|---|
-| `data.read` | Read all data | Effectively "can sign in at all." Enforced as authentication-required — any signed-in user can read; there is no per-route `requirePermission('data.read')` gate. `fgr_` read tokens are granted it implicitly. |
+| `data.read` | Read all data | Effectively "can sign in at all." Enforced as authentication-required — any signed-in user can read; there is no per-route `requirePermission('data.read')` gate. `fgr_` read tokens are granted it implicitly. The Dashboard reads (`GET /api/admin/dashboard-stats`, `/dashboard-timeseries`), run history (`GET /api/risk-scoring/runs`, `/api/context-plugins/runs`, `/api/account-linking/runs`) `GET /api/updates/intent` and the Performance request log (`GET /api/perf*`, which also refuses `fgr_` read tokens) additionally require **at least one** mapped permission, so a signed-in user whose roles map to nothing is refused. |
 
 ### Export
 
@@ -31,6 +31,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 |---|---|---|
 | `data.export.ui` | Export to Excel/CSV | `GET /api/admin/export/curated`, `POST /api/admin/data-export/workbook` |
 | `data.export.apikey` | Generate read-only API keys | `POST /api/admin/read-tokens` (mint your own `fgr_` token) |
+| `data.share` | Create matrix share links | `POST /api/matrix/shares` (also `GET /api/matrix/shares` and `POST /api/matrix/shares/:id/revoke` — the Shared matrices management page). Only takes effect while the experimental **Matrix sharing** feature is switched on — see [Experimental features](experimental-features.md#matrix-sharing). See [Sharing a matrix](../ui/sharing-a-matrix.md). |
 
 ### Write
 
@@ -46,9 +47,9 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 
 | Permission | Label | Gated endpoint (representative) |
 |---|---|---|
-| `admin.crawlers` | Crawler configuration | `GET/POST/PATCH/DELETE /api/admin/crawlers…`, crawler jobs, trigger risk-scoring runs, account-linking config + runs (`PUT /api/account-linking/config`, `POST /api/account-linking/runs`) |
-| `admin.systems` | Systems configuration | `PUT /api/systems/:id`, owners, clean-database, history-retention |
-| `admin.llm` | LLM configuration | `/api/admin/llm/*`, risk profiles/classifiers |
+| `admin.crawlers` | Crawler configuration | `GET/POST/PATCH/DELETE /api/admin/crawlers…`, crawler jobs, trigger risk-scoring runs, account-linking config + runs (`GET/PUT /api/account-linking/config`, `POST /api/account-linking/runs`), risk profile/classifier reads (`GET /api/admin/risk-profile`, `/api/admin/classifiers`) |
+| `admin.systems` | Systems configuration | `PUT /api/systems/:id`, owners, clean-database, history-retention (read + write), auto-update status/log/toggle (`/api/admin/updates/*`) |
+| `admin.llm` | LLM configuration | `/api/admin/llm/*`, risk profiles/classifiers (incl. `GET /api/admin/risk-profile`, `/api/admin/classifiers`) |
 | `admin.context-plugins` | Context plugins | `/api/context-plugins…` (run/configure clustering, manager-hierarchy, etc.) |
 | `admin.csv-import` | CSV import | `/api/admin/crawler-configs/:id/files` (any upload-supporting crawler type), custom-connector ingest |
 | `admin.read-tokens` | Manage read API keys | `GET/DELETE /api/admin/read-tokens` (list/revoke tokens minted by others) |
@@ -62,7 +63,7 @@ A fresh install ships with this mapping (customisable in the Admin UI):
 | Role | Permissions |
 |---|---|
 | `Admin` | `*` (all permissions) |
-| `RoleMiner` | `data.read`, `data.export.ui`, `data.export.apikey` |
+| `RoleMiner` | `data.read`, `data.export.ui`, `data.export.apikey`, `data.share` |
 | `Servicedesk` | `data.read` |
 
 ### No-role users fail closed

@@ -6,21 +6,37 @@
 import { getSecret } from '../../secrets/vault.js';
 import { compilePattern } from '../../riskscoring/engine.js';
 
+// Scraper credentials live in their own vault scope and always carry this id
+// prefix (see POST /risk-profiles/scraper-credentials). Both are enforced on
+// every read and delete so a scraper route can never resolve or remove a
+// secret that belongs to another feature (SEC-2026-09 H-01).
+export const SCRAPER_SECRET_SCOPE = 'scraper';
+const SCRAPER_ID_PREFIX = 'scraper.';
+
+export function isScraperCredentialId(id) {
+  return typeof id === 'string' && id.startsWith(SCRAPER_ID_PREFIX);
+}
+
+// Load one stored scraper credential: JSON {username,password} / {bearer}, or
+// a bare string treated as a bearer token. Null when the id is not a scraper
+// credential or does not exist in the scraper scope.
+async function loadScraperCredential(credentialId) {
+  if (!isScraperCredentialId(credentialId)) return null;
+  const secret = await getSecret(credentialId, SCRAPER_SECRET_SCOPE);
+  if (!secret) return null;
+  try { return JSON.parse(secret); }
+  catch { return { bearer: secret }; }
+}
+
 // Resolve each URL's optional stored/inline credentials into scrape targets.
-// One getSecret round-trip per credentialId; a non-JSON secret is treated as a
-// bearer token. Shared by /scrape and /generate.
+// One getSecret round-trip per credentialId. Shared by /scrape and /generate.
 export async function resolveScrapeTargets(urls) {
   const targets = [];
   for (const u of urls) {
     if (!u || typeof u !== 'object' || !u.url) continue;
     let credentials = null;
     if (u.credentialId) {
-      const secret = await getSecret(u.credentialId);
-      if (secret) {
-        // Stored as JSON: {username,password} or {bearer}
-        try { credentials = JSON.parse(secret); }
-        catch { credentials = { bearer: secret }; }
-      }
+      credentials = await loadScraperCredential(u.credentialId);
     } else if (u.credentials) {
       // Inline (one-off, never persisted)
       credentials = u.credentials;

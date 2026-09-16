@@ -1,0 +1,155 @@
+// @vitest-environment jsdom
+//
+// AppMain owns the share dialog (#1166, #1202), and these are the tests that
+// say why. Everything between the save bar's Share control and this level is
+// torn down and rebuilt while the app works:
+//
+//   * a matrix refetch flips `loading`, replacing the entire body with the
+//     loading pane;
+//   * MatrixArea then picks RollupMatrixView / RotatedMatrixView / MatrixView
+//     from the payload, so learning it is a roll-up swaps the view component.
+//
+// Either one destroyed a dialog living below it — which is exactly what an
+// analyst on a slow tenant hit: open sharing, start typing, and it vanished
+// when the matrix caught up.
+
+import { describe, it, expect, vi } from 'vitest';
+import { useState } from 'react';
+import { renderWithProviders, makeAuthFetch, screen, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
+
+// The views are heavy and irrelevant here; what matters is that they are
+// DIFFERENT components, so React unmounts one to mount another. Each stub hands
+// up the same share target the real save bar does — an unsaved matrix here, so
+// the dialog opens on the save-and-share form.
+function viewStub(testId) {
+  return {
+    default: ({ onShareView }) => (
+      <button type="button" onClick={() => onShareView({ savedFilterId: null, savedName: null })} data-testid={testId}>Share…</button>
+    ),
+  };
+}
+vi.mock('@ui/components/MatrixView', () => viewStub('grid-view'));
+vi.mock('@ui/components/RotatedMatrixView', () => viewStub('rotated-view'));
+vi.mock('@ui/components/RollupMatrixView', () => viewStub('rollup-view'));
+// A stub wizard that holds typed state of its own, so a remount (which resets
+// it) is visible — the bug an Adjust opened mid-load used to hit (#1202).
+vi.mock('@ui/components/matrix/MatrixFilterWizard', async () => {
+  const { useState } = await import('react');
+  function WizardStub({ open }) {
+    const [draft, setDraft] = useState('');
+    return open ? <input aria-label="Wizard draft" value={draft} onChange={e => setDraft(e.target.value)} /> : null;
+  }
+  return { default: WizardStub };
+});
+vi.mock('./DetailRoute', () => ({ default: () => <div data-testid="detail" /> }));
+
+import AppMain from './AppMain';
+
+const FILTER = { rowType: 'user', subject: { include: [] } };
+const ROLLUP = { attribute: 'department', resources: [], groupValues: [], cells: [] };
+
+// The load is driven from INSIDE the tree, the way the real app does it when a
+// matrix payload lands — re-rendering from the test would tear down the
+// providers too and prove nothing about the swap.
+function Shell({ matrixFilter = FILTER, nextRollup = ROLLUP, wizardOpenProp = false, ...rest }) {
+  const [state, setState] = useState({ loading: false, rollup: null });
+  return (
+    <>
+      <button type="button" onClick={() => setState({ loading: true, rollup: null })}>matrix refetches</button>
+      <button type="button" onClick={() => setState({ loading: false, rollup: nextRollup })}>matrix payload arrives</button>
+      <AppMain
+        loading={state.loading}
+        matrixProps={{ matrixFilter, managedFilter: 'all', rollup: state.rollup, wizardOpen: wizardOpenProp }}
+        {...rest}
+      />
+    </>
+  );
+}
+
+function renderShell(props = {}) {
+  return renderWithProviders(<Shell {...props} />, {
+    auth: {
+      authFetch: makeAuthFetch({ '/api/users': { data: [] } }),
+      permissions: new Set(['data.share']),
+      hasWildcard: false,
+      permissionsLoaded: true,
+    },
+  });
+}
+
+describe('AppMain', () => {
+  it('swaps the body for the loading pane and back to the roll-up view', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    expect(await screen.findByTestId('grid-view')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'matrix refetches' }));
+    expect(screen.getByText('Loading permission data...')).toBeInTheDocument();
+    expect(screen.queryByTestId('grid-view')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'matrix payload arrives' }));
+    expect(await screen.findByTestId('rollup-view')).toBeInTheDocument();
+  });
+
+  it('keeps an open share dialog — and what was typed into it — through a refetch and a view swap', async () => {
+    const user = userEvent.setup();
+    renderShell();
+
+    await user.click(await screen.findByTestId('grid-view'));
+    await user.type(await screen.findByRole('textbox', { name: /Name this matrix/i }), 'Sales team access');
+
+    // The matrix refetches: the body becomes the loading pane…
+    await user.click(screen.getByRole('button', { name: 'matrix refetches' }));
+    expect(screen.getByText('Loading permission data...')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /Name this matrix/i })).toHaveValue('Sales team access');
+
+    // …and comes back as a roll-up, a different view component entirely.
+    await user.click(screen.getByRole('button', { name: 'matrix payload arrives' }));
+    expect(await screen.findByTestId('rollup-view')).toBeInTheDocument();
+
+    expect(screen.getByText('Share this matrix')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /Name this matrix/i })).toHaveValue('Sales team access');
+  });
+
+  it('shares the matrix that is on screen, not a stale one', async () => {
+    const user = userEvent.setup();
+    const rotated = { ...FILTER, orientation: 'rows-as-subjects' };
+    renderShell({ matrixFilter: rotated });
+
+    await user.click(await screen.findByTestId('rotated-view'));
+    expect(await screen.findByText('Share this matrix')).toBeInTheDocument();
+  });
+
+  it('closes the dialog on Done', async () => {
+    const user = userEvent.setup();
+    renderShell();
+
+    await user.click(await screen.findByTestId('grid-view'));
+    expect(await screen.findByText('Share this matrix')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByText('Share this matrix')).not.toBeInTheDocument());
+  });
+
+  it('keeps an open wizard — and what was typed into it — through a refetch and a view swap', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Shell wizardOpenProp />, { auth: { authFetch: makeAuthFetch({}) } });
+    await screen.findByTestId('grid-view');
+    await user.type(await screen.findByRole('textbox', { name: 'Wizard draft' }), 'half-edited');
+
+    await user.click(screen.getByRole('button', { name: 'matrix refetches' }));
+    expect(screen.getByText('Loading permission data...')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Wizard draft' })).toHaveValue('half-edited');
+
+    await user.click(screen.getByRole('button', { name: 'matrix payload arrives' }));
+    expect(await screen.findByTestId('rollup-view')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Wizard draft' })).toHaveValue('half-edited');
+  });
+
+  it('renders a detail route instead of the matrix when one is open, with no wizard', () => {
+    renderShell({ isDetail: true, detailRouteProps: {}, wizardOpenProp: true });
+    expect(screen.getByTestId('detail')).toBeInTheDocument();
+    expect(screen.queryByTestId('grid-view')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Wizard draft' })).not.toBeInTheDocument();
+  });
+});

@@ -258,10 +258,24 @@ out="$(run_sweep "$(scenario "$TMP/alive" 'Building' 40 live)")"
 assert_lacks "a live build is not reported dead" "💀 #370" "$out"
 assert_lacks "a live build is not reported un-routed either" "🕳️ #370" "$out"
 
-# ── 3. Genuinely un-routed still flagged ────────────────────────────────────
-# No state label AND no board Status: nothing owns it, so the original 🕳️ rule must survive.
-out="$(run_sweep "$(scenario "$TMP/unrouted" '' 600)")"
-assert_contains "an issue nothing owns is still flagged un-routed" "🕳️ #370" "$out"
+# ── 3. Genuinely un-routed is now RE-DRIVEN, not just flagged ───────────────
+# No state label AND no board Status: nothing owns it. Reporting that was not enough — the sweep
+# said "the agent likely never ran" every hour for 20h+ on ten September slices while the model
+# outage that stranded them had long since passed, because acting on the line needed a human to
+# read it. It must now re-dispatch, and say that it did.
+dir="$(scenario "$TMP/unrouted" '' 600)"
+out="$(run_sweep "$dir")"
+assert_contains "an issue nothing owns is re-dispatched" "🚑 #370" "$out"
+assert_contains "…and the report says why it was" "the agent never routed it" "$out"
+assert_contains "…and says which attempt this is, so a loop is visible" "attempt 1/3" "$out"
+assert_lacks    "…and no longer merely reports it as un-routed" "🕳️ #370" "$out"
+# The trigger is the label write itself, and BOTH halves are load-bearing: re-adding a label an
+# issue already carries emits no `labeled` event, so without the remove the second attempt is a
+# silent no-op.
+assert_contains "the re-dispatch clears the marker first" \
+  "issue edit 370 --repo Fortigi/IdentityAtlas --remove-label dor-retry" "$(cat "$dir/writes.log")"
+assert_contains "…then re-applies it, which is what re-triggers the agent" \
+  "issue edit 370 --repo Fortigi/IdentityAtlas --add-label dor-retry" "$(cat "$dir/writes.log")"
 
 # ── 4. Un-routed age is measured from the last update, not from creation ────
 # Same ancient creation date, but touched 60 min ago and UNROUTED_HOURS defaults to 6. Pre-fix this
@@ -353,8 +367,8 @@ echo
 dir="$(scenario "$TMP/nochange" '' 600)"
 seed_health "$dir" OPEN "_Last swept 2026-01-01 00:00 UTC — 1 item(s) need attention:_
 
-- 🕳️ #370 is on the board (Status: none) with no \`state:*\` label and untouched for 999h — the agent likely never ran.
-<!-- dor-fingerprint: 🕳️#370 -->"
+- 🚑 #370 sat at **none** because it has no \`state:*\` label 999h after its last update — the agent never routed it — re-dispatched the agent (attempt 1/3).
+<!-- dor-fingerprint: 🚑#370 -->"
 run_sweep "$dir" >/dev/null
 assert_contains "the body is still refreshed every sweep" "EDIT:" "$(cat "$dir/writes.log")"
 assert_lacks    "…but an unchanged exception set posts no comment" "COMMENT:" "$(cat "$dir/writes.log")"

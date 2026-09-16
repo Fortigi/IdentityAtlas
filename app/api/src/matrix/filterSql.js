@@ -66,6 +66,10 @@ export function collectContextIds(filter) {
 // exactly the placeholders + params it references (the same subquery fragment
 // is embedded in several INDEPENDENT queries — the flat grid, the four scope
 // COUNTs, the roll-ups — and pg can't share params across queries).
+// `extraClauses` are caller-supplied, parameter-free SQL predicates AND'd onto
+// the WHERE — policy the entity carries regardless of what the user filtered on
+// (the default-hidden resource types). They alone are enough to render the
+// subquery, so a fragment with no user conditions is no longer null.
 export function buildEntitySubquery({
   entity,
   include = [],
@@ -73,6 +77,7 @@ export function buildEntitySubquery({
   validColumns,
   contextTypes,
   bind,
+  extraClauses = [],
 }) {
   const table = TABLE_BY_ENTITY[entity];
   if (!table) return { sql: null, warnings: ['unknown entity: ' + entity] };
@@ -135,7 +140,7 @@ export function buildEntitySubquery({
   handle(include, 'inc');
   handle(exclude, 'exc');
 
-  if (includeClauses.length === 0 && excludeClauses.length === 0) {
+  if (includeClauses.length === 0 && excludeClauses.length === 0 && extraClauses.length === 0) {
     return { sql: null, warnings };
   }
 
@@ -146,6 +151,7 @@ export function buildEntitySubquery({
   // falsy in WHERE — that would silently drop rows with empty attributes.
   // `(... ) IS NOT TRUE` evaluates to TRUE for both FALSE and NULL.
   if (excludeClauses.length) where.push(...excludeClauses.map(c => `(${c}) IS NOT TRUE`));
+  where.push(...extraClauses);
 
   const sql = `(SELECT id FROM "${table}" WHERE ${where.join(' AND ')})`;
   return { sql, warnings };
@@ -190,6 +196,9 @@ function buildContextClause({ entity, contextId, includeChildren, contextTargetT
           UNION ALL
           SELECT c.id FROM "Contexts" c JOIN scope ON c."parentContextId" = scope.id
         )
+        -- CYCLE guard: a corrupt parent chain must not recurse forever
+        -- (SEC-2026-09 I-08; same guard as routes/contexts/read.js).
+        CYCLE id SET "isCycle" USING "cyclePath"
         SELECT "memberId" FROM "ContextMembers"
          WHERE "memberType" = ${memPh}
            AND "contextId" IN (SELECT id FROM scope)

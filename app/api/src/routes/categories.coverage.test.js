@@ -201,6 +201,23 @@ describe('GET /access-packages', () => {
     expect(res.body.data[0]).toMatchObject({ id: RES, assignmentType: 'Auto-assigned', category: { id: 2, name: 'Finance' } });
   });
 
+  it('an inherited property name as sortCol falls back to displayName (SEC-2026-09 L-15)', async () => {
+    for (const sortCol of ['constructor', 'toString', '__proto__']) {
+      queryOne.mockReset();
+      query.mockReset();
+      queryOne.mockResolvedValueOnce(null);
+      query.mockResolvedValue({ rows: [] });
+      const res = await request(app).get(`/api/access-packages?sortCol=${sortCol}&sortDir=desc`);
+      expect(res.status, sortCol).toBe(200);
+      const sqls = query.mock.calls.map((c) => String(c[0])).filter((q) => /ORDER BY/.test(q));
+      expect(sqls.length, sortCol).toBeGreaterThan(0);
+      for (const q of sqls) {
+        expect(q, sortCol).toMatch(/ORDER BY ap."displayName" DESC/);
+        expect(q, sortCol).not.toMatch(/function|native code/);
+      }
+    }
+  });
+
   it('200 with review table present + uncategorized filter', async () => {
     queryOne.mockResolvedValueOnce({ t: 'CertificationDecisions' });
     query

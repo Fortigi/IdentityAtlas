@@ -17,8 +17,10 @@
 .PARAMETER ApiKey
     Crawler API key (fgc_...)
 
-.PARAMETER ConfigFile
-    Path to FortigiGraph config file (for Graph API credentials)
+.PARAMETER ConfigPath
+    Path to the JSON job config written by the dispatcher (tenantId, clientId,
+    clientSecret and the sync toggles). The Graph credentials are passed to
+    Get-FGAccessToken in memory; they are never written to another file.
 
 .PARAMETER SyncPrincipals
     Sync user principals (default: true)
@@ -92,7 +94,7 @@
     Refresh materialized SQL views after sync (default: true)
 
 .EXAMPLE
-    .\Start-EntraIDCrawler.ps1 -ApiBaseUrl "https://myapp.azurewebsites.net/api" -ApiKey "fgc_abc123..." -ConfigFile ".\Config\mycompany.json"
+    .\Start-EntraIDCrawler.ps1 -ApiBaseUrl "https://myapp.azurewebsites.net/api" -ApiKey "fgc_abc123..." -JobId 0 -ConfigPath ".\job-config.json"
 #>
 
 [CmdletBinding()]
@@ -107,21 +109,6 @@ Param(
 # This replaces the many named parameters previously splatted by the dispatcher.
 $RawConfig = Get-Content $ConfigPath -Raw | ConvertFrom-Json -AsHashtable
 
-# Build a synthetic ConfigFile so Get-FGAccessToken can be called with -ConfigFile.
-# The Graph SDK expects { Graph: { TenantId, ClientId, ClientSecret } }.
-$_graphConfigFile = [System.IO.Path]::GetTempFileName() -replace '\.tmp$', '.json'
-try {
-    @{ Graph = @{
-        TenantId     = $RawConfig['tenantId']
-        ClientId     = $RawConfig['clientId']
-        ClientSecret = $RawConfig['clientSecret']
-    }} | ConvertTo-Json -Depth 5 | Set-Content $_graphConfigFile -Encoding UTF8
-} catch {
-    Remove-Item $_graphConfigFile -Force -ErrorAction SilentlyContinue
-    throw
-}
-$ConfigFile = $_graphConfigFile  # used by Get-FGAccessToken and Graph SDK helpers
-
 $ErrorActionPreference = 'Stop'
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
@@ -134,6 +121,7 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AppPermissions.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.PrincipalRelationships.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Orchestration.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.AttributeLabels.ps1')
 
 # Resolve all sync toggles + attribute lists from the job config.
 $cfg = Resolve-EntraSyncConfig -RawConfig $RawConfig
@@ -175,9 +163,19 @@ $script:phaseErrors = [System.Collections.Generic.List[string]]::new()
 #   name, status ('ok' | 'failed'), durationMs, error?, records?
 $script:phases = [System.Collections.Generic.List[object]]::new()
 
-$systemId = Initialize-EntraCrawlerRun -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -ConfigFile $ConfigFile
+$systemId = Initialize-EntraCrawlerRun -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -TenantId ([string]$RawConfig['tenantId']) `
+    -ClientId ([string]$RawConfig['clientId']) -ClientSecret ([string]$RawConfig['clientSecret'])
 
 $syncStart = Get-Date
+
+# ─── Attribute display names ─────────────────────────────────────
+# Stamp the friendly name for every configured directory-extension attribute onto
+# the System, so a name like `extension_<appId>_sfTeamID` reads `sfTeamID` in the
+# UI and the Excel export while the stored key stays exactly what Entra calls it.
+# Runs before the data phases (it depends only on config) and no-ops when no
+# configured attribute is extension-shaped.
+Sync-EntraAttributeDisplayNames -TenantId $Global:TenantId `
+    -CustomUserAttributes $CustomUserAttributes -CustomGroupAttributes $CustomGroupAttributes | Out-Null
 
 # Sentinel resourceId for aggregate per-principal activity rows (the DEFAULT on
 # the PrincipalActivity.resourceId column). Shared by the Principals and Service
@@ -362,6 +360,3 @@ if ($script:phaseErrors.Count -gt 0) {
 }
 
 Complete-EntraDeltaModeFlip -SyncMode $SyncMode -RawConfig $RawConfig -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey
-
-# Clean up the temporary Graph credentials file (contains client secret)
-Remove-Item $_graphConfigFile -Force -ErrorAction SilentlyContinue

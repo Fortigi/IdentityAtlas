@@ -4,10 +4,13 @@ import { createElement as h } from 'react';
 import MatrixScopePanel from './MatrixScopePanel';
 import { renderWithProviders, makeAuthFetch, screen, userEvent } from '@ui/test-utils/renderWithProviders';
 
+// A matrix that asked for the panel. `showTrends` is what switches it on at
+// all (#1202) — the same filter without it is the "off" case below.
 const filter = {
   rowType: 'principal',
   subject: { include: [], exclude: [] },
   resource: { include: [], exclude: [] },
+  showTrends: true,
 };
 
 const statsBody = {
@@ -43,6 +46,27 @@ describe('MatrixScopePanel (mounted)', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  // #1202: the panel is opt-in per matrix. Same filter as every test below,
+  // minus the flag — so a panel that ignored it would fail here while the rest
+  // of the suite stayed green.
+  it('renders nothing, and fetches nothing, for a matrix that did not ask for it', async () => {
+    const authFetch = routes();
+    const { showTrends: _off, ...withoutFlag } = filter;
+    const { container } = renderWithProviders(h(MatrixScopePanel, { filter: withoutFlag }), { auth: { authFetch } });
+
+    expect(container).toBeEmptyDOMElement();
+    // The stats POST is debounced by 400ms; give it more than that to prove it
+    // never goes out, rather than just observing it hasn't yet.
+    await new Promise(r => setTimeout(r, 600));
+    expect(authFetch).not.toHaveBeenCalled();
+    expect(screen.queryByText('Trends & breakdown')).not.toBeInTheDocument();
+  });
+
+  it('renders the panel when the matrix asks for it', async () => {
+    renderWithProviders(h(MatrixScopePanel, { filter }), { auth: { authFetch: routes() } });
+    expect(await screen.findByText('Trends & breakdown')).toBeInTheDocument();
+  });
+
   it('loads and shows the live scope stats for the filter', async () => {
     renderWithProviders(h(MatrixScopePanel, { filter }), { auth: { authFetch: routes() } });
     // Debounced fetch resolves; the stat grid (— placeholder while loading) fills in.
@@ -50,6 +74,20 @@ describe('MatrixScopePanel (mounted)', () => {
     expect(screen.getByText('Principals')).toBeInTheDocument();
     expect(screen.getByText('Assignments')).toBeInTheDocument();
     expect(screen.getByText('900 governed')).toBeInTheDocument();
+  });
+
+  it('names each stat tile so its number is announced with its metric', async () => {
+    renderWithProviders(h(MatrixScopePanel, { filter }), { auth: { authFetch: routes() } });
+    await screen.findByText('120');
+
+    expect(screen.getByRole('group', { name: 'Principals' })).toHaveTextContent('120');
+    expect(screen.getByRole('group', { name: 'Resources' })).toHaveTextContent('30');
+    // The panel formats with toLocaleString() and no explicit locale, so the
+    // thousands separator follows the runner's locale ('1,500' on en-US CI,
+    // '1.500' on an en-NL box). Assert against the same formatter, not a
+    // hardcoded separator, so the suite is green off en-US too.
+    expect(screen.getByRole('group', { name: 'Assignments' }))
+      .toHaveTextContent((1500).toLocaleString());
   });
 
   it('expands to fetch the trends timeseries and department breakdown', async () => {

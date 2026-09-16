@@ -168,6 +168,7 @@ describe('recentlyQueuedJobExists', () => {
     await recentlyQueuedJobExists(42, 'omada');
     const [sql, params] = db.queryOne.mock.calls[0];
     expect(sql).toMatch(/"CrawlerJobs"/);
+    expect(sql).toContain('"configId" = $2');
     expect(params).toContain('omada');
     expect(params).toContain(42);
   });
@@ -227,6 +228,20 @@ describe('queueScheduledJob', () => {
     expect(call[1][0]).toBe('csv');
   });
 
+  // SEC-2026-09 H-02: the scheduler writes the configId column itself and never
+  // carries a _-prefixed key saved into the stored config.
+  it('writes the source config id to the configId column and drops stored _ keys', async () => {
+    const db = makeDb({ insertedId: 56 });
+    const { queueScheduledJob } = await loadScheduler(db);
+    await queueScheduledJob({ ...baseConfig, config: { ...baseConfig.config, _scheduledByConfigId: 3, _custom: 1 } }, 0);
+    const call = db.queryOne.mock.calls.find(c => /INSERT INTO "CrawlerJobs"/.test(c[0]));
+    expect(call[0]).toContain('"configId"');
+    expect(call[1][2]).toBe(7);
+    const stored = storedJobConfig(db);
+    expect(stored._scheduledByConfigId).toBe(7);
+    expect(stored).not.toHaveProperty('_custom');
+  });
+
   it('deletes clientSecret from the stored job config', async () => {
     const db = makeDb({ insertedId: 1 });
     const configWithSecret = {
@@ -280,6 +295,22 @@ describe('queueScheduledJob', () => {
     const { queueScheduledJob } = await loadScheduler(db);
     await queueScheduledJob(configWithNextRun, 0);
     expect(storedJobConfig(db)._syncMode).toBe('full');
+  });
+
+  // Both queue paths (Run Now and the scheduler) have to stamp the name, or a
+  // crawler's system is named after its type on scheduled runs only.
+  it('stamps the crawler name into the stored job config as _configName', async () => {
+    const db = makeDb({ insertedId: 1 });
+    const { queueScheduledJob } = await loadScheduler(db);
+    await queueScheduledJob(baseConfig, 0);
+    expect(storedJobConfig(db)._configName).toBe('Test CSV');
+  });
+
+  it('omits _configName when the config row has no displayName', async () => {
+    const db = makeDb({ insertedId: 1 });
+    const { queueScheduledJob } = await loadScheduler(db);
+    await queueScheduledJob({ ...baseConfig, displayName: null }, 0);
+    expect(storedJobConfig(db)).not.toHaveProperty('_configName');
   });
 
   it('updates lastRunAt on the config after queuing', async () => {

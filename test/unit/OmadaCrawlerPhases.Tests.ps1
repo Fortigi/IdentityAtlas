@@ -25,6 +25,8 @@ BeforeAll {
     . (Join-Path $script:omadaRoot 'OmadaCrawler.Functions.ps1')
     . (Join-Path $script:omadaRoot 'OmadaCrawler.Transform.ps1')
     . (Join-Path $script:omadaRoot 'OmadaCrawler.Phases.ps1')
+    # Get-FGUrlPolicyParam — in the worker it arrives with the odata dependency layer.
+    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Assert-FGPublicUrl.ps1')
 
     # Script-scope state the phases + shared helpers + shapers read at call time.
     $script:ApiKey     = 'fgc_test'
@@ -816,6 +818,21 @@ Describe 'Omada setup helpers' {
         Should -Invoke Connect-ODataAPI -Exactly 1
     }
 
+    It 'Connect-OmadaSession forwards the URL opt-ins only when the config sets them to a real boolean true' {
+        # The file-level Connect-ODataAPI stub takes no parameters, so a Mock of it
+        # cannot see what was bound. Shadow it here with the real parameter names.
+        function Connect-ODataAPI {
+            param([string]$BaseUrl, [string]$AuthMethod, [string]$ApiVersion, [int]$SessionTimeoutMinutes,
+                [string]$ApiToken, [switch]$AllowPrivateNetwork, [switch]$AllowInsecureHttp)
+            $script:odataBound = @{ BaseUrl = $BaseUrl; Private = [bool]$AllowPrivateNetwork; Insecure = [bool]$AllowInsecureHttp }
+        }
+        $script:odataBound = $null
+        Connect-OmadaSession -Cfg ([pscustomobject]@{ authMethod = 'ApiToken'; apiToken = 'tok'; allowPrivateNetwork = $true; allowInsecureHttp = 'true' }) -BaseUrl 'http://x' -ApiVersion 'v14' -SessionTimeoutMinutes 30
+        $script:odataBound.BaseUrl | Should -Be 'http://x'
+        $script:odataBound.Private | Should -BeTrue
+        $script:odataBound.Insecure | Should -BeFalse   # the string 'true' is not an opt-in
+    }
+
     It 'Connect-OmadaSession forwards username/password + OAuth client + cookie fields' {
         Mock Connect-ODataAPI -MockWith { }
         Connect-OmadaSession -Cfg ([pscustomobject]@{ authMethod = 'OAuth2'; username = 'u'; password = 'p'; clientId = 'cid'; clientSecret = 'sec'; tokenEndpoint = 'https://t'; cookieString = 'ck' }) `
@@ -987,17 +1004,40 @@ Describe 'Omada setup helpers' {
         $reg.systemId | Should -BeIn @(11, 12)
     }
 
-    It 'Register-OmadaSystems reports system id 0 when nothing could be mapped' {
-        # Neither branch fires: no main system and an empty map. 0 is the sentinel the
-        # caller checks; starting it anywhere else would name a real system that was never
-        # registered.
+    It 'Register-OmadaSystems registers the endpoint itself when Omada reports no systems' {
+        # An Omada that reports NO connected systems is not an error — a fresh or
+        # filtered tenant does exactly that — but it leaves nothing to attach
+        # accounts to, so the endpoint is registered as one system.
+        #
+        # This used to return 0, and every later ingest then failed on
+        # Principals_systemId_fkey. It only ever worked in practice by accident:
+        # zero systems meant an EMPTY ingest batch, the API rejected it with 400,
+        # and the exception fell into the catch where the fallback ran. The moment
+        # the API accepted an empty full sync, that accident stopped happening.
         Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/System' } -MockWith { @() }
-        Mock Invoke-IngestAPI -MockWith { @{ systemIds = @(1) } }
+        Mock Invoke-IngestAPI -MockWith { @{ systemIds = @(42) } }
         Mock Invoke-RestMethod -MockWith { @() }
 
         $reg = Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5
 
-        $reg.systemId | Should -Be 0
+        $reg.systemId | Should -Be 42
+    }
+
+    It 'Register-OmadaSystems does not re-register when a system WAS mapped' {
+        # The endpoint fallback is for the empty case only: a tenant that did report
+        # systems must keep the id it mapped, not get a second synthetic system.
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/System' } -MockWith {
+            @([pscustomobject]@{ DisplayName = 'Omada Identity'; UId = 'main-uid' })
+        }
+        Mock Invoke-IngestAPI -MockWith { @{ systemIds = @(99) } }
+        Mock Invoke-RestMethod -MockWith {
+            @([pscustomobject]@{ systemType = 'Omada'; tenantId = 'main-uid'; id = 7 })
+        }
+
+        $reg = Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5
+
+        $reg.systemId | Should -Be 7
+        Should -Invoke Invoke-IngestAPI -Times 1 -Exactly   # the systems batch only
     }
 
     It 'Register-OmadaSystems falls back to single-system registration on error' {

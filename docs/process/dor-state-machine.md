@@ -175,6 +175,7 @@ stateDiagram-v2
 | Awaiting functional acceptance | Building | build or rework finished | `dor_build_flow.sh` / `dor_feedback_flow.sh` |
 | Awaiting merge | Awaiting functional acceptance | requestor accepts | `dor-acceptance`, after the org-member + classify gate |
 | **Done** | Awaiting merge | PR **merged** | `dor-reset` — also closes the issue and drops every in-flight label |
+| **Done** | any non-Done column | a PR from any **other** branch that closes the issue (`Closes #N`) is merged | `dor-reset` → [`dor_finalize_merged_pr.sh`](https://github.com/Fortigi/IdentityAtlas/blob/main/.github/scripts/dor_finalize_merged_pr.sh). Only issues already on a DoR board are moved |
 | Out of pipeline | Awaiting merge | PR closed **unmerged** | `dor-reset`, with a comment explaining how to restart |
 | Paused | Building | Claude usage limit | `dor_build_lib.sh` → work saved on the branch, runner released |
 | Building | Paused | every 6h | `dor-resume` re-dispatches |
@@ -280,7 +281,7 @@ The new run parks at the gate exactly like the old one — this re-dispatches, i
 | **`dor-stuck` label + a 💀 comment** | The sidekick died mid-flight; the flow never reached its own error handling | Re-dispatch: remove and re-apply `ready-to-build` |
 | **Paused** | Usage limit, work is safe on the branch | Nothing — `dor-resume` picks it up within 6h. `workflow_dispatch` it if you are impatient |
 | **`needs-vouch`** | An external request nobody has accepted | Apply `dor-vouched` — *you become the requestor of record* — or close it |
-| **`sk:` label with no open PR** | A sidekick is reserved by nothing | Release the box: `~/.dor-reservation` + `~/stacks/dor-N`, then drop the label |
+| **`sk:` label with no open PR** | A sidekick is reserved by nothing | The hourly sidekick sweep (`dor-reconcile.yml` → `sweep-sidekick`) releases a closed or moved claim on every `DOR_POOL` box. If it persists, the box is offline or not in `DOR_POOL`: release it by hand (`~/.dor-reservation` + `~/stacks/dor-N`), then drop the label |
 
 ### If you are triaging a new issue
 

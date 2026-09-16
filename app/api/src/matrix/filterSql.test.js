@@ -82,6 +82,10 @@ describe('buildEntitySubquery', () => {
       includeChildren: true,
     }]);
     expect(out.sql).toMatch(/WITH RECURSIVE/);
+    // Cycle guard on the descent (SEC-2026-09 I-08): a corrupt parent chain
+    // must not recurse forever. Behaviour proven in contextScopeCycle.contract.test.js.
+    const flat = out.sql.replace(/--[^\n]*/g, '').replace(/\s+/g, ' ');
+    expect(flat).toContain(') CYCLE id SET "isCycle" USING "cyclePath" SELECT "memberId"');
   });
 
   it('warns and drops a context with an unknown id', () => {
@@ -268,6 +272,44 @@ describe('include and exclude routing', () => {
     expect(out.sql).toMatch(/"department"::text IN \([^)]*\) AND \("jobTitle"::text IN/);
     expect(out.sql).toContain('IS NOT TRUE');
     expect(out.sql.match(/IS NOT TRUE/g)).toHaveLength(1);
+  });
+});
+
+// ── extraClauses: standing policy, not a user condition ─────────────────────
+// Callers inject parameter-free predicates the entity carries regardless of the
+// user's filter (the default-hidden resource types, #937). They must render the
+// subquery on their own — that is what makes buildSubqueries a choke point for
+// row visibility instead of "only applies once you filter something".
+describe('extraClauses', () => {
+  const buildResource = (opts) => {
+    const { params, bind } = createParams();
+    const out = buildEntitySubquery({
+      entity: 'Resource', validColumns: new Set(['resourceType']), contextTypes: CONTEXT_TYPES, bind, ...opts,
+    });
+    return { ...out, params };
+  };
+  const VISIBLE = `("resourceType" IS NULL OR "resourceType" NOT IN ('BusinessRole'))`;
+
+  it('renders the subquery from an extra clause alone, binding nothing', () => {
+    const out = buildResource({ extraClauses: [VISIBLE] });
+    expect(out.sql).toBe(`(SELECT id FROM "Resources" WHERE ${VISIBLE})`);
+    expect(out.params).toEqual([]);
+  });
+
+  it('ANDs the extra clause after the user conditions', () => {
+    const out = buildResource({
+      include: [{ kind: 'attribute', field: 'resourceType', values: ['Group'] }],
+      extraClauses: [VISIBLE],
+    });
+    // One span, so a builder that emitted the two as separate statements — or
+    // dropped the separator — fails rather than passing on "contains both".
+    expect(out.sql).toBe(`(SELECT id FROM "Resources" WHERE "resourceType"::text IN ($1) AND ${VISIBLE})`);
+    expect(out.params).toEqual(['Group']);
+  });
+
+  it('stays null when the caller supplies no extra clauses', () => {
+    expect(buildResource({ extraClauses: [] }).sql).toBeNull();
+    expect(buildResource({}).sql).toBeNull();
   });
 });
 

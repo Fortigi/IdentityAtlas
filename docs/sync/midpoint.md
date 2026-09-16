@@ -73,9 +73,20 @@ The `ApiKey` is the worker API key shown on the **Admin → Settings** page.
 | `clientId` | OAuth2CC / OAuth2ROPC | OAuth2 client ID |
 | `clientSecret` | OAuth2CC / OAuth2ROPC | OAuth2 client secret |
 | `tokenEndpoint` | OAuth2CC / OAuth2ROPC | OAuth2 token endpoint URL |
+| `allowPrivateNetwork` | No (default `false`) | Allow `baseUrl` / `tokenEndpoint` to resolve to a private or loopback address — set this for a server on your own network. See [Network access](#network-access) |
+| `allowInsecureHttp` | No (default `false`) | Allow plain `http` for `baseUrl` / `tokenEndpoint`. Credentials are then sent unencrypted. See [Network access](#network-access) |
 | `pageSize` | No (default 100) | Number of records per REST page |
 | `syncShadows` | No (default true) | Set to `false` to skip account/entitlement shadow sync |
 | `selectedObjects` | No | Object with boolean flags to enable/disable individual sync phases (see below) |
+
+### Network access
+
+midPoint is usually installed on your own network, often as `http://midpoint:8080/midpoint`.
+Such a URL is refused until you tick **Allow private network** (the host resolves to a
+private address) and **Allow insecure HTTP** (plain `http`) on the wizard's Connection step —
+or set `allowPrivateNetwork` / `allowInsecureHttp` to `true` in the stored config. A midPoint
+reachable over public https needs neither. Details and the upgrade note:
+[Crawler URL rejected](../reference/troubleshooting.md#crawler-url-rejected).
 
 ### Sync phase toggles (`selectedObjects`)
 
@@ -149,6 +160,9 @@ Each sync run is **safely scoped**: the crawler only deletes data it owns (match
 
 **midPoint not visible in "Add Crawler"**
 The `CRAWLER_MANIFESTS_DIR` environment variable on the web container must point to the folder containing the crawler manifests. See [Docker setup](../architecture/docker-setup.md).
+
+**Save, discovery or the job fails with *baseUrl rejected* or *tokenEndpoint rejected***
+The URL uses `http` or resolves to a private, loopback or cloud-metadata address. midPoint usually runs on-premises: enable **Allow private network**, and **Allow insecure HTTP** only if it is served over plain http (e.g. `http://midpoint:8080`) — see [Network access](#network-access).
 
 **Shadow search returns 500**
 Shadow search requires `?options=raw`. This is handled automatically by the crawler; if you see 500 errors, check your midPoint version (4.x required).

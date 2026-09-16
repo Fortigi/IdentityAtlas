@@ -1,4 +1,5 @@
-// Scope Statistics panel for the Matrix view.
+// Scope Statistics panel for the Matrix view — opt-in per matrix, off by
+// default (see the export at the bottom half of this file).
 //
 // For the current matrix selection it shows live counts (principals / resources
 // / assignments) and the governed-vs-non-governed split, and — on expand —
@@ -15,6 +16,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
 import { clickableRowProps, FOCUS_RING } from '@ui/utils/keyActivate';
 import TimeSeriesChart from '@ui/components/TimeSeriesChart';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 
 // Aligned with the Dashboard Trends palette (TimeSeriesChart colours):
 //   governed → emerald, principals → blue, resources → violet, assignments → amber.
@@ -30,10 +32,11 @@ const UNGOV_TEXT = 'text-amber-700 dark:text-amber-400';
 function pct(n) { return `${Math.round((n + Number.EPSILON) * 10) / 10}%`; }
 function num(n) { return (n ?? 0).toLocaleString(); }
 
-// One headline number.
+// One headline number. The tile is a named group so the number is announced
+// with the metric it belongs to ("Resources, 39") instead of as a bare figure.
 function Stat({ label, value, sub }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" role="group" aria-label={label}>
       <span className="text-2xl font-semibold text-gray-900 dark:text-white tabular-nums">{value}</span>
       <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
       {sub && <span className="text-xs text-gray-500 dark:text-gray-400">{sub}</span>}
@@ -110,7 +113,21 @@ function trendsReducer(s, a) {
   }
 }
 
-export default function MatrixScopePanel({ filter }) {
+// Two reasons the panel renders nothing at all:
+//
+//   * it is off unless the matrix asks for it (`filter.showTrends`, ticked on
+//     the wizard's Sort step). Reporting tooling is not what most analysts open
+//     the matrix for, and four stacked bars above the grid pushed it off screen
+//     (#1202) — so it is opt-in per matrix, and travels with the saved one;
+//   * scope statistics are analysis tooling, not part of what a share recipient
+//     was sent: in a shared view the panel (and its fetches) is skipped (#1166).
+export default function MatrixScopePanel(props) {
+  if (useIsSharedView()) return null;
+  if (props.filter?.showTrends !== true) return null;
+  return <ScopePanel {...props} />;
+}
+
+function ScopePanel({ filter }) {
   const { authFetch } = useAuth();
   const debouncedFilter = useDebouncedValue(filter, 400);
   const filterKey = useMemo(() => JSON.stringify(debouncedFilter || null), [debouncedFilter]);
@@ -176,8 +193,8 @@ export default function MatrixScopePanel({ filter }) {
     trendsDispatch({ type: 'setDrill', drill: { key: groupKey, points: ts?.points || [] } });
   }, [drill, breakdown, debouncedFilter, post]);
 
-  if (!filter) return null;
-
+  // No `if (!filter)` guard — the export above only mounts this for a filter
+  // that asked for the panel.
   const s = stats || {};
   const subjectLabel = (s.rowType === 'identity') ? 'Identities' : 'Principals';
 

@@ -28,6 +28,7 @@
 import * as db from './db/connection.js';
 import { storeJobCredentials, OTHER_SECRET_FIELDS } from './secrets/crawlerSecrets.js';
 import { VALID_JOB_TYPES } from './routes/jobs.js';
+import { stampConfigName } from './lib/jobConfig.js';
 import { validateStoredCrawlerConfig } from './crawlerManifests.js';
 import { parseJsonbColumn } from './lib/jsonb.js';
 
@@ -78,7 +79,7 @@ export async function recentlyQueuedJobExists(configId, jobType) {
   const r = await db.queryOne(
     `SELECT 1 FROM "CrawlerJobs"
       WHERE "jobType" = $1
-        AND (config->>'_scheduledByConfigId')::int = $2
+        AND "configId" = $2
         AND "createdAt" > now() - interval '55 minutes'
       LIMIT 1`,
     [jobType, configId]
@@ -103,14 +104,20 @@ export async function queueScheduledJob(configRow, scheduleIndex) {
     || (['full', 'delta'].includes(configRow.nextRunMode) ? configRow.nextRunMode : null)
     || 'delta';
 
-  // Stamp the config with the schedule's configId so we can look it up later
-  // without adding a new column. Non-breaking: workers ignore unknown fields.
+  // Stamp the schedule metadata into the job config for the UI and the worker.
+  // Which config's credentials the job receives is decided by the "configId"
+  // column written below, never by these JSON fields (SEC-2026-09 H-02).
   const jobConfig = {
-    ...cfg,
+    // Drop any _-prefixed keys an admin saved into the config; only the
+    // scheduler sets those.
+    ...Object.fromEntries(Object.entries(cfg || {}).filter(([k]) => !k.startsWith('_'))),
     _scheduledByConfigId: configRow.id,
     _scheduleIndex: scheduleIndex,
     _syncMode: effectiveSyncMode,
   };
+  // Same stamp the Run Now path applies, so a scheduled run names the system it
+  // registers identically to a manual one.
+  stampConfigName(jobConfig, configRow.displayName);
   // The clientSecret lives in the vault (keyed by config id) and is injected at
   // claim time — never persisted in the job config.
   delete jobConfig.clientSecret;
@@ -139,10 +146,10 @@ export async function queueScheduledJob(configRow, scheduleIndex) {
   }
 
   const inserted = await db.queryOne(
-    `INSERT INTO "CrawlerJobs" ("jobType", config, "createdBy")
-     VALUES ($1, $2::jsonb, 'scheduler')
+    `INSERT INTO "CrawlerJobs" ("jobType", config, "createdBy", "configId")
+     VALUES ($1, $2::jsonb, 'scheduler', $3)
      RETURNING id`,
-    [jobType, JSON.stringify(jobConfig)]
+    [jobType, JSON.stringify(jobConfig), configRow.id]
   );
   if (inserted && Object.keys(extraCreds).length) {
     await storeJobCredentials(inserted.id, extraCreds).catch(err =>

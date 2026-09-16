@@ -18,7 +18,7 @@
 // onClick, and userEvent's pointer simulation over this component's large table
 // is orders of magnitude slower without testing anything extra.
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createElement as h } from 'react';
 import RollupMatrixView from './RollupMatrixView';
 import {
@@ -87,7 +87,6 @@ function renderView(props = {}, authFetch = makeFetch()) {
       filter: props.filter || baseFilter,
       counts: props.counts ?? null,
       managedFilter: props.managedFilter || 'all',
-      shareUrl: props.shareUrl ?? 'https://example.test/matrix',
       refreshing: false,
       ...spies,
       ...props.overrides,
@@ -167,34 +166,43 @@ describe('RollupMatrixView — percent mode', () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('RollupMatrixView — toolbar actions', () => {
-  const writeText = vi.fn(async () => {});
+  // Export is a menu in the toolbar (#1202): open it, then pick Excel.
+  const exportExcel = () => {
+    fireEvent.click(screen.getByRole('button', { name: /^Export/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Export Excel' }));
+  };
 
-  beforeEach(() => {
-    writeText.mockClear().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText }, configurable: true, writable: true,
-    });
-  });
-  afterEach(() => { delete navigator.clipboard; });
-
-  it('copies the share URL to the clipboard', async () => {
+  it('has no Copy link — sharing replaced it', () => {
     renderView();
-    fireEvent.click(screen.getByTitle(/Copy shareable link/i));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith('https://example.test/matrix'));
+    expect(screen.queryByRole('button', { name: /Copy link/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Gaps' })).not.toBeInTheDocument();
   });
 
-  it('survives a clipboard permission failure without throwing', async () => {
-    writeText.mockRejectedValue(new Error('denied'));
+  // The legend moved from a full-width bar into the grid's corner cell.
+  it('offers the legend as a "?" in the corner above the row labels', () => {
     renderView();
-    fireEvent.click(screen.getByTitle(/Copy shareable link/i));
-    await waitFor(() => expect(writeText).toHaveBeenCalled());
-    // The grid is still on screen — the rejection was swallowed.
-    expect(screen.getByText('Finance App')).toBeInTheDocument();
+    const legend = screen.getByRole('button', { name: 'How to read this matrix' });
+    expect(legend.closest('th')).toHaveTextContent('Resource');
+    expect(legend).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(legend);
+    expect(screen.getByRole('dialog', { name: 'How to read this matrix' })).toHaveTextContent('Provisioning gap');
+  });
+
+  it('puts exactly one legend button in a layered header — on the pinned bottom row', () => {
+    renderView({ rollup: makeRollup({
+      rollupKind: 'context', layered: true, maxDepth: 2, groupValues: ['n1'],
+      nodes: [{ id: 'n1', displayName: 'EMEA', depth: 2, pathIds: ['root', 'n1'], pathNames: ['Corp', 'EMEA'], total: 3, directMembers: 0, childCount: 0 }],
+    }) });
+    const legends = screen.getAllByRole('button', { name: 'How to read this matrix' });
+    expect(legends).toHaveLength(1);
+    const rows = [...document.querySelectorAll('thead tr')];
+    expect(rows).toHaveLength(2);
+    expect(rows[1].contains(legends[0])).toBe(true);
   });
 
   it('exports the on-screen grid, rows ordered busiest-first', async () => {
     renderView();
-    fireEvent.click(screen.getByTitle(/Export matrix to Excel/i));
+    exportExcel();
 
     await waitFor(() => expect(exportRollupToExcel).toHaveBeenCalledTimes(1));
     const payload = exportRollupToExcel.mock.calls[0][0];
@@ -213,7 +221,7 @@ describe('RollupMatrixView — toolbar actions', () => {
 
   it('sanitises the attribute name into the export filename', async () => {
     renderView({ rollup: makeRollup({ attribute: 'ext.cost centre/EU' }) });
-    fireEvent.click(screen.getByTitle(/Export matrix to Excel/i));
+    exportExcel();
     await waitFor(() => expect(exportRollupToExcel).toHaveBeenCalled());
     expect(exportRollupToExcel.mock.calls[0][0].fileName).toBe('matrix-rollup-ext.cost_centre_EU.xlsx');
   });

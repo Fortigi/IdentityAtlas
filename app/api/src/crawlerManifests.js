@@ -9,7 +9,7 @@ import { readdirSync, readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Ajv from 'ajv';
-import { hasConfigSecret } from './secrets/crawlerSecrets.js';
+import { vaultedConfigFields, CONFIG_SECRET_FIELDS } from './secrets/crawlerSecrets.js';
 
 // In Docker: manifests are at /app/crawlers/ (COPY'd from tools/crawlers/).
 // In local dev: resolve relative to the repo root via IA_APP_ROOT or __dirname.
@@ -20,8 +20,10 @@ export const CRAWLER_MANIFESTS_DIR = process.env.CRAWLER_MANIFESTS_DIR ||
     : path.resolve(__dirname, '../../../tools/crawlers'));
 
 const _ajv = new Ajv({ allErrors: true });
-export const _crawlerManifests = {};   // type → manifest object
-const _configValidators = {};          // type → compiled ajv validator (or null)
+// Null-prototype maps: lookups are keyed by request-supplied type names, and an
+// inherited name such as `constructor` must not resolve (SEC-2026-09 L-15).
+export const _crawlerManifests = Object.create(null);   // type → manifest object
+const _configValidators = Object.create(null);          // type → compiled ajv validator (or null)
 
 try {
   for (const dir of readdirSync(CRAWLER_MANIFESTS_DIR, { withFileTypes: true })) {
@@ -59,11 +61,31 @@ export function isPushModeType(type) {
   return !!_crawlerManifests[type]?.pushMode;
 }
 
+// An "experimental" crawler type is built and tested (unit + CI, against a mock
+// endpoint) but has had only limited exposure to real-world service providers.
+// It stays hidden from the Add-Crawler picker, and creating a config for it is
+// refused, unless the `experimentalCrawlers` feature flag is on. An already
+// configured experimental crawler keeps running either way — turning the flag
+// off stops new ones being added, it does not disable what exists. Manifest:
+// `"experimental": true`. See docs/reference/experimental-features.md.
+export function isExperimentalType(type) {
+  return !!_crawlerManifests[type]?.experimental;
+}
+
 // The crawler type that backs API-key registrations (POST /admin/crawlers).
 // Resolved from the manifest flag so the endpoint carries no hardcoded type.
 // Returns null if no push-mode crawler is installed.
 export function getPushModeType() {
   return Object.keys(_crawlerManifests).find(t => _crawlerManifests[t].pushMode) ?? null;
+}
+
+// Config fields that hold a URL the crawler (or its discover handler) will send
+// credentials to. The API runs the SSRF guard over each of them before a config
+// is saved or a job is queued (SEC-2026-09 M-03); the worker checks them again at
+// connect time. Manifest: `"urlFields": ["baseUrl", "tokenEndpoint"]`.
+export function getUrlFields(type) {
+  const fields = _crawlerManifests[type]?.urlFields;
+  return Array.isArray(fields) ? fields.filter(f => typeof f === 'string') : [];
 }
 
 export function validateCrawlerConfig(type, config) {
@@ -73,26 +95,36 @@ export function validateCrawlerConfig(type, config) {
   return _ajv.errorsText(validate.errors, { separator: '; ' });
 }
 
-// Some crawler types declare clientSecret as schema-required (directly, or
-// conditionally via an authMethod allOf/if-then — omada and midPoint both do
-// this for OAuth2CC/OAuth2ROPC). But clientSecret is deliberately stripped
-// out of CrawlerConfigs.config once saved — it lives only in the secrets
-// vault (see secrets/crawlerSecrets.js) — so a config freshly loaded from
-// storage (an edit, a "Run Now", a scheduled run) never has it, and a plain
-// validateCrawlerConfig() call on that config always fails the `required`
-// check, even though credentials are genuinely present. Any caller
-// validating a config that came from storage rather than a fresh wizard
-// submission must call this instead, passing the configId so the vault can
-// be checked. No crawler-type branching here — this generically applies to
-// whichever type's schema happens to require clientSecret.
+// Some crawler types declare credential fields as schema-required (directly,
+// like entra-id's clientSecret, or conditionally via an authMethod
+// allOf/if-then — omada, midPoint, OData and SCIM require clientSecret /
+// password / apiToken / cookieString depending on the auth method). But every
+// credential field is deliberately stripped out of CrawlerConfigs.config once
+// saved — it lives only in the secrets vault (see secrets/crawlerSecrets.js) —
+// so a config freshly loaded from storage (an edit, a "Run Now", a scheduled
+// run) never has it, and a plain validateCrawlerConfig() call on that config
+// fails the `required` check even though credentials are genuinely present.
+// Any caller validating a config that came from storage rather than a fresh
+// wizard submission must call this instead, passing the configId so the vault
+// can be checked. No crawler-type branching here.
 const VAULTED_SECRET_PLACEHOLDER = '__vaulted-secret-present__';
+
+// The credential fields the validation error names that the config lacks.
+function missingCredentialFields(config, err) {
+  return CONFIG_SECRET_FIELDS.filter(f => !config[f] && err.includes(f));
+}
+
 export async function validateStoredCrawlerConfig(type, config, configId) {
   const err = validateCrawlerConfig(type, config);
-  if (!err) return null;
-  // Only worth a vault round-trip if clientSecret is plausibly the reason
-  // this failed — every other type/config keeps the cheap synchronous path.
-  if (configId && config && !config.clientSecret && /clientSecret/.test(err) && await hasConfigSecret(configId)) {
-    return validateCrawlerConfig(type, { ...config, clientSecret: VAULTED_SECRET_PLACEHOLDER });
-  }
-  return err;
+  if (!err || !configId || !config) return err;
+  // Only worth a vault round-trip if a credential field is plausibly the
+  // reason this failed — every other failure keeps the cheap synchronous path.
+  const missing = missingCredentialFields(config, err);
+  if (missing.length === 0) return err;
+  const vaulted = await vaultedConfigFields(configId);
+  const fill = missing.filter(f => vaulted.includes(f));
+  if (fill.length === 0) return err;
+  const withPlaceholders = { ...config };
+  for (const f of fill) withPlaceholders[f] = VAULTED_SECRET_PLACEHOLDER;
+  return validateCrawlerConfig(type, withPlaceholders);
 }

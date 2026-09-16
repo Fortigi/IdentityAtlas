@@ -205,6 +205,7 @@ Key Vault has soft delete + purge protection (7-day retention). To redeploy with
 - **No custom domain on App Service.** Free `*.azurewebsites.net` cert covers v1. Custom domain + customer TLS cert is a 2-step manual setup post-deploy.
 - **No GitHub Actions deploy workflow.** Use Deploy-to-Azure button + `deploy.ps1` for now.
 - **No Entra App Registration auto-creation.** Done manually if/when enabling Entra auth.
+- **No platform-level App Service authentication (Easy Auth).** Entra sign-in is enforced inside the application, not by the App Service `authSettingsV2` config. Microsoft Defender for Cloud therefore flags the web app with *"App Service apps should have authentication enabled"* on every deployment — expected, and cleared with a Defender exemption. See [azure-deployment-walkthrough.md](./azure-deployment-walkthrough.md#microsoft-defender-for-cloud-app-service-apps-should-have-authentication-enabled).
 - **Public Postgres / KV endpoints.** A future "Isolated" template will add private endpoints when a customer wants them.
 
 ## File index

@@ -1,4 +1,4 @@
-﻿import { friendlyLabel } from '@ui/utils/formatters';
+﻿import { attributeLabel, friendlyLabel } from '@ui/utils/formatters';
 import { renderAttributeValue } from '@ui/utils/renderAttribute';
 
 // ─── EntityDetailLayout ────────────────────────────────────────────────
@@ -28,6 +28,11 @@ export default function EntityDetailLayout({ left, right, children }) {
 //
 // entries: [ [label, value, meta?] ]   meta.extended=true shows a faded
 // "ext" tag so readers can still distinguish JSON-derived fields.
+//
+// A key with a server-resolved display name (an Entra directory-extension
+// attribute, #872) renders that name VERBATIM — `sAMAccountName`, not the
+// humaniser's "S A M Account Name" — with the exact stored key kept as the row's
+// tooltip, so the original Entra name is still readable, not just still stored.
 
 export function AttributesTable({ title = 'Attributes', entries }) {
   const visible = entries.filter(([, v]) => v != null && v !== '');
@@ -58,7 +63,7 @@ export function AttributesTable({ title = 'Attributes', entries }) {
                 <tr key={key} className="border-b border-gray-50 dark:border-gray-700/50 last:border-b-0 hover:bg-gray-50/50 dark:hover:bg-gray-700/30">
                   <td className="py-1.5 pl-4 pr-3 text-gray-500 dark:text-gray-400 align-top break-words">
                     <span className="inline-flex items-start gap-1.5">
-                      <span className="break-all">{friendlyLabel(key)}</span>
+                      <span className="break-all" title={attributeLabel(key) ? key : undefined}>{attributeLabel(key) || friendlyLabel(key)}</span>
                       {meta?.extended && (
                         <span className="inline-block px-1 py-0 rounded text-[9px] font-mono text-gray-600 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 shrink-0" title="From extendedAttributes">ext</span>
                       )}

@@ -1,5 +1,276 @@
 ## Changes in this PR
 
+- Fixed autonomous builds failing with an authentication error ("Invalid username or token") and landing in Exceptions when the build ran longer than one hour; long builds now pick up a fresh bot credential and continue where they stopped, without extra fix attempts
+- Fixed a usage-limit pause on a long build silently losing its saved work-in-progress when the bot credential had already expired
+
+## Changes in this PR
+
+- Fixed pipeline board cards staying at "Awaiting merge" after their fix was merged. When a pull request from any branch closes a Feature or Bug Pipeline issue, that issue now moves to Done automatically — previously only the pipeline's own build branches did this.
+
+## Changes in this PR
+
+- Fixed automated builds overwriting another request's test environment: a new build could be sent to a sidekick that was still holding a feature in functional acceptance, which wiped that environment and silently disconnected the feature from its sidekick
+- Automated builds now go to a sidekick that no open request holds (set by the `DOR_POOL` repository variable), and a request that is rebuilt goes back to its own sidekick
+- A build that still lands on a sidekick in use now waits and retries automatically instead of taking it over, and puts back the holder's sidekick label if it was missing
+- Sidekicks left holding the test environment of a closed request, or of a request that has since moved to another sidekick, are now released automatically every hour and returned to the build pool
+- Leftover test environments of closed requests and merged pull requests are removed from the sidekicks during the same hourly check, freeing their disk space
+
+## Changes in this PR
+
+- Hardened the credential vault: every secret is now read and deleted only through the feature it belongs to, so risk-profile scraper credentials can no longer be used to reach any other stored secret.
+- Hardened crawler jobs: a job now only receives the stored credentials of the crawler configuration it was actually created from.
+- Hardened crawler configurations: changing a crawler's base URL, token endpoint or other endpoint host now asks you to re-enter its stored credentials before the change is saved.
+- Crawler passwords, API tokens and cookie strings are now stored encrypted in the vault like client secrets; existing plaintext values are moved into the vault automatically on upgrade.
+- Hardened crawler API keys: admin-created crawlers can only be granted the `ingest` and `refreshViews` permissions, and the Built-in Worker can no longer be renamed, disabled, deleted or given different permissions (it is identified by a dedicated flag, not its name, and is re-enabled on startup if an earlier version disabled it).
+- Stored secrets are now cryptographically bound to their own vault entry, so a secret copied onto another entry no longer decrypts; existing secrets are re-bound automatically on startup.
+- Added a `rotate-master-key` command for rotating the vault master key without ever printing a stored secret (see the LLM & risk scoring architecture docs).
+- Crawler API keys are no longer kept in memory in plaintext by the authentication cache.
+
+## Changes in this PR
+
+- Fixed automated bug builds being sent to Exceptions when a fix touched more than one PowerShell test file; the test run was refused before any test ran, so a correct fix was reported as not passing its regression test
+
+## Changes in this PR
+
+- Fixed issues keeping their workflow labels (such as "awaiting approval" or "build done") after their pull request was merged or closed; the cleanup silently did nothing whenever one of the labels it clears did not exist yet
+
+## Changes in this PR
+
+- Expanding an identity in the matrix now drills into its linked accounts: the identity's column is replaced by one column per account, shown in a second header row beneath the identity, which spans them. It reads like an organizational expand — collapsing the identity again brings back its combined all-accounts column.
+- The new accounts row stays pinned with the column names while you scroll the grid, and disappears again as soon as the last expanded identity is collapsed.
+- Identity column headers in the matrix now show how many accounts are linked to that identity, so you can see which identities are worth expanding before you expand them. The count sits next to the name as a small grey number, with the full wording in the header tooltip, and stays visible while the identity is expanded. Identities without linked accounts, and plain account columns, show no count.
+- Fixed the account count staying blank on identities that do have several accounts. It is now counted from the identity's actual linked accounts, so it always matches the number of columns you get when you expand — previously it was read from a stored total that is only filled in for identities the account-linking job has processed, leaving it empty for identities loaded by a crawler or a CSV import.
+
+## Changes in this PR
+
+- Saving and sharing a matrix are now one experience: a matrix always has a name on screen, sharing an unsaved matrix saves it under one name in the same step, and sharing an already-saved matrix never asks for a name again.
+- The matrix has a single strip above it: the matrix's name (or "Unsaved matrix"), "Unsaved changes" when you changed a saved matrix, "Shared with N" when it is shared, the live users × resources · assignments counts (the assignment count used to read 0), and **Adjust**.
+- The matrix's name is a menu: open any saved matrix, start a **New matrix…**, or **Rename…**, **Duplicate…** or **Delete…** the one on screen. Renaming or deleting a shared matrix warns that its recipients are affected, and a name that is already taken is shown right away. Clicking "Unsaved changes" takes you straight to saving them.
+- Opening the Matrix tab without a matrix no longer throws the wizard at you: it shows **Open a matrix** — every saved matrix, marked when it is the org default or shared, with when it last changed — and a **New matrix** button. The org default still opens automatically when there is one.
+- The matrix wizard now has four steps, each answering one question: **Subjects** (user accounts or identities, and which ones), **Resources** (resources alone or with business roles, and which ones), **Layout** (grouping and sorting, roll-up, and what the matrix opens with) and **Save & share**. Click any step to jump to it; the live counts stay visible on every step.
+- Roll-up now has a home in the wizard: on the Layout step choose Off, By attribute or By context, and what the roll-up shows. Grouping and sorting stay visible but disabled while a roll-up is on, with the reason next to them.
+- On the Layout step you can pick the lens a matrix opens with — All, Governed, Non-governed or Gaps — and whether it shows **trends & breakdown** above the grid. Trends & breakdown is now off by default, so the matrix starts at the top of the page. Both choices are saved and shared with the matrix.
+- Saving happens in the wizard's last step: give the matrix a name to save it, or leave the name empty to just show it. One button says what will happen — **Show matrix**, **Save & show**, **Save changes & show** (with **Save as a copy instead**), or **Share & show** when you only add people. A saved matrix can also carry a description.
+- "Include inherited access" moved under **More options** on the Resources step, and is now kept when you adjust a matrix that has it switched on (it used to be silently switched off).
+- The toolbar above the grid is now just the view lens and an **Export** menu. The **Copy link** button is gone — sharing replaces it, and the page address still opens the same matrix.
+- Grid controls now sit in the grid's own header corner, next to what they act on: one **Fold / Unfold all columns** toggle above the column groups, and **Expand / collapse nested groups**, **Fold / unfold business roles** and **Reset row order** above the row labels. Each toggle shows the state the grid is actually in.
+- "How to read this matrix" is now a **?** button in the grid's corner that opens the legend as a popover, instead of a full-width bar above the grid.
+- You can add or remove recipients, copy the share link again, or stop sharing from the matrix itself, from the wizard's Save & share step, and from Admin → Shared Matrices. Changing who a matrix is shared with keeps the same link, and somebody you remove loses access immediately.
+- Recipients now always see the current saved matrix rather than a frozen copy; saving a change to a shared matrix tells you how many people will see it. Stopping sharing revokes the link but keeps the saved matrix, and sharing it again later issues a new link.
+- Saved-matrix names stay unique across the organisation: a name that is already taken comes back as an error instead of being silently accepted.
+- Existing share links, their recipients and their usage history keep working — every active share becomes a saved matrix, with a numbered suffix if its name was already taken.
+- When two saved matrices have exactly the same filter, the matrix now shows the one you actually opened, with its own name and sharing.
+- Adjusting a matrix while it is still loading no longer throws away your changes in the wizard and sends you back to the first step.
+- Fixed a direct link to Admin → Shared Matrices (including old shared-matrices links) sometimes opening the Crawlers tab instead.
+
+## Changes in this PR
+
+- Fixed the SCIM 2.0 crawler not storing extra attributes that a provider serves under a schema-extension URN. Attributes picked in the wizard — including every group attribute, since the standard group schema offers none of its own — now sync their values instead of arriving empty.
+- Documented how extension attributes are matched (plain name in the picker, extension URN in the data, base schema wins a name clash) and added a troubleshooting entry for an attribute a provider only returns on a single-resource request.
+
+## Changes in this PR
+
+- The Identity Atlas system a crawler registers is now named after the crawler itself instead of the crawler type, so several crawlers of the same type no longer collapse into one identically-named system. Renaming a crawler renames its system on the next run.
+- The SCIM wizard's "System name" field is now a genuine override: leave it blank to use the crawler's name, or fill it in to label the system something else.
+
+## Changes in this PR
+
+- Added a **System** filter to the Principals and Resources pages, so you can see and list only the users or resources that came from one connected system.
+- Every connected system is offered as a filter value by its display name — including a system that has no principals or resources yet.
+- Added two context plugins, **Principals by System** and **Resources by System**, that generate one context per connected system, named after the system. Use them to scope the matrix to a single system's users and/or resources.
+- Re-running either plugin keeps the contexts in step with the connected systems: a new system gets its own context, a removed system's context disappears, and renaming a system renames its context without losing your edits.
+
+## Changes in this PR
+
+- Published the September 2026 security re-assessment in the documentation: scope, method, all findings by severity with their remediation pull requests, a regression check against June 2026, and confirmed strengths
+
+## Changes in this PR
+
+- Hardened the outbound-URL safety check so every spelling of an internal, loopback, or cloud-metadata address (including IPv6 forms that embed an IPv4 address) is refused (SEC-2026-09 H-03)
+- Hardened the Risky Consent context plugin's threat-feed download: the feed URL must be https on a public host, redirects are not followed, and oversized responses are refused (SEC-2026-09 M-12)
+- Crawler base URLs and OAuth2 token endpoints are now checked when a crawler is saved, run, or used for live discovery: they must use https and point at a public address. On-premises systems can be reached by enabling the new "Allow private network" option, and plain http by enabling "Allow insecure HTTP"; cloud-metadata and link-local addresses are always refused (SEC-2026-09 M-02, M-03)
+- Live discovery in the crawler wizards no longer follows HTTP redirects, and the Omada wizard no longer shows internal error details when the server cannot be reached (SEC-2026-09 M-02, I-05)
+- Added "Allow private network" and "Allow insecure HTTP" options to the Omada, midPoint and SCIM crawler wizards, and documented them on each crawler's page
+- The worker now also refuses a crawler base URL or token endpoint that uses http or points at an internal address (unless the matching option is enabled), and stops paging if an OData server returns a next-page link on a different host (SEC-2026-09 M-03)
+- Fixed live discovery in the Omada wizard when adding a new crawler, which always reported that metadata could not be fetched
+
+## Changes in this PR
+
+- Hardened the SCIM crawler: when reading users or groups from the SCIM endpoint fails, the run no longer reconciles group memberships and nesting, so existing assignments are kept instead of being removed before the job is marked failed.
+- Hardened the midPoint crawler: phases that depend on an earlier read (resources, accounts and entitlements, role assignments, role nesting) are skipped, and the job fails, when that read failed, instead of reconciling over incomplete data.
+- Fixed the OData library (used by the Omada crawler) treating an empty response body as the end of the data; the read now fails instead of returning a silently truncated result.
+- Fixed the CSV, Azure RM and Entra ID crawlers continuing with a guessed system id when system registration returned none; the run now stops instead of syncing into another system.
+- Hardened the Entra ID crawler so the client secret is no longer written to a temporary file (a failed run used to leave it behind); credentials are passed in memory.
+- Hardened the worker so each crawler job runs in its own PowerShell process: credentials and tokens from one job are no longer available to the next.
+- Hardened the worker and the desktop launcher so a job's configuration (including credentials) and the worker API key are never passed on a process command line, and job logs no longer record the command line in their header.
+- Reduced the Entra ID access-review diagnostic log line to the review definition's id and name instead of the full object.
+- Removed the unused worker crontab file and its scheduler support; crawler schedules are managed in the web app. Recurring non-crawler tasks can be scheduled from the host (see the Docker setup docs).
+- Fixed the context-refresh post-sync step reading an outdated API URL setting; it now uses the same setting as the rest of the worker.
+
+## Changes in this PR
+
+- Hardened the automated issue-to-PR build pipeline: the build agent now only receives issue text written by the requestor, organisation members and the pipeline itself, and the spec records how many other comments were left out
+- Hardened the automated build pipeline so the build agent no longer has access to the pipeline's GitHub credentials, and so an automated change to CI configuration is stopped for human review instead of being pushed
+- Automated pull requests now point out changes to container images, compose files and package dependencies for the reviewer
+- Reduced the default permissions of the pull-request CI workflows and removed an unused site deployment workflow
+- Updated the `uuid` dependency used by the Excel export to a patched version and removed two unused API dependencies
+
+## Changes in this PR
+
+- Hardened access control on the API: the check that keeps read-only API keys away from admin endpoints can no longer be sidestepped by changing the letter case of the URL.
+- Dashboard statistics, run history (risk scoring, context plugins, account linking) and the update intent now require a signed-in user whose roles map to at least one permission; risk profile/classifier settings, history-retention settings, update status/history and the account-linking configuration now require the same admin permission as the screen that shows them.
+- The Performance page's request log no longer records query strings (search terms and filters), and is no longer readable with a read-only API key or by users without any mapped permission.
+- Fixed the role-mapping self-lockout guard so it also protects administrators holding the wildcard (`*`) permission; role-mapping changes are now recorded with the editor's immutable object id as well as their display name.
+- Hardened sign-in token validation against floods of tokens carrying unknown signing-key ids (rate-limited and time-bounded key lookups).
+- The update agent's reported versions are validated, and an agent's apply report can no longer make the update check believe a newer version is waiting.
+- Fixed searches treating `%` and `_` as wildcards; they now match literally.
+- Fixed a server error when a sort column, entity type or feature name matched a built-in JavaScript property name such as `constructor`.
+- Fixed "include child contexts" filters so a corrupt, circular context hierarchy can no longer make matrix and scope queries run until they time out.
+- Replaced example tenant and client ids in the `auth-config` CLI help with placeholders.
+
+## Changes in this PR
+
+- The matrix wizard now ends with a **Share** step: name the view, pick the colleagues it is for, and copy the link without leaving the wizard. The step is optional — **Apply** still commits the matrix from it.
+- A matrix is shared with **specific people**. Search the directory by name or e-mail and add one or more recipients; only they (and you) can open the link, so forwarding it to anybody else gets them nowhere. A share with no recipients cannot be created.
+- Added **Share view…** to the matrix toolbar for the same form, for when you are already looking at the matrix you want to send. The link captures the matrix exactly as it looks at that moment — the filter, the Governed/Non-governed/Gaps toggle and the display mode — while the access data behind it stays up to date.
+- Recipients open the link, sign in with their normal Microsoft account (no Identity Atlas role needed) and land on a stripped-back, read-only view: the matrix and nothing else — no navigation, no dashboard, no export and no way to change the matrix. They can still click through to a resource, group or person for details and come straight back.
+- A share now captures the matrix exactly as **Apply** would load it, including the folded, server-aggregated form a very large matrix needs, so a recipient never opens a view their browser cannot render. A matrix that is too large to load cannot be shared at all — the wizard says so and points you back to narrowing it down.
+- **Shared matrices** moved out of the top navigation to **Admin → Shared Matrices**, since revoking somebody else's link is an administrative act. Links to the old `#shared-matrices` address still work and land on the Admin tab.
+- The Shared matrices overview lists every share in the organisation, who created it, who it was shared with, and who has opened it and how often, so links that were never used are easy to spot. Any share can be revoked; the person opening a revoked link is told plainly that it is no longer shared, and the usage history is kept.
+- Added a **Create matrix share links** permission (`data.share`) that gates the wizard's Share step, the Share view button, the Shared matrices page and the share APIs.
+- The people search says **Searching…** while it looks somebody up, instead of briefly claiming nobody matched.
+- Renamed the matrix toolbar's existing **Share Link** button to **Copy link**, so it no longer reads as the same action as the new **Share view…** — one copies the current URL for a colleague who already uses Identity Atlas, the other creates a read-only link for someone who does not.
+- Fixed the share dialog closing itself, and throwing away what had been typed into it, when the matrix behind it finished loading or switched to a roll-up view.
+- Renamed the share dialog's copy control to "Copy share link", so it is no longer confusable with the matrix toolbar's "Copy link" (which copies the current URL for a colleague who already has access).
+- The shared view is even more focused: the scope strip above the matrix (rows, subject/resource/cell counts) and the scope statistics bar (totals, governed vs non-governed, Trends & breakdown) are no longer shown to recipients.
+- Matrix sharing is an **experimental feature, switched off by default**. Turn it on under **Admin → Experimental → Matrix sharing** (or set `FEATURE_MATRIX_SHARING=true`). While it is off, the wizard's Share step, the Share view… button and the Shared Matrices tab are hidden and share links do not open; existing shares are kept and work again once it is switched back on.
+
+## Changes in this PR
+
+- Documented why Microsoft Defender for Cloud reports the Azure web app as unauthenticated ("App Service apps should have authentication enabled") even when Entra sign-in is working: the recommendation audits platform-level App Service authentication, while Identity Atlas enforces Entra sign-in inside the application.
+- Added a walkthrough section explaining why this is by design, two checks to confirm authentication really is on, and step-by-step instructions for creating a Defender for Cloud exemption to clear the marker.
+- Noted the same limitation in the Azure deployment architecture notes.
+
+## Changes in this PR
+
+- Entra directory-extension attributes are now shown by their readable name (e.g. `sAMAccountName`) instead of the tenant-specific wire name (`extension_<appId>_sAMAccountName`) everywhere a name is rendered — principal, resource and identity detail pages, filter menus, the matrix attribute picker, grouping headers and roll-up captions, context schema forms, and both the matrix Excel export and the Power Query workbook.
+- Where two applications define an attribute with the same name, the label keeps a short application suffix (e.g. `employeeID (8ce8d3db)`) so the two stay distinguishable.
+- The original Entra attribute name is still available as a tooltip on detail pages, so nothing is hidden — only moved out of the way.
+- Filtering, sorting, grouping and API requests continue to use the full stored attribute key, so saved views, saved filters and shared links keep working unchanged.
+- The Entra ID crawler now records the friendly names it discovers for a tenant's extension attributes, so labels stay correct even when the same attribute name is defined by more than one application.
+
+## Changes in this PR
+
+- Added a **Reports** tab: pick a report, see its content, and refresh it against the latest data at any time. Like Systems and Logs it is optional and off by default — switch it on per user under Settings → Visible Tabs.
+- First report: **Orphaned Accounts** — every account that belongs to no identity, with its detected account type and source system. Service principals, managed identities and AI agents are excluded. Click a row to open that account's detail page.
+- Reports are pluggable: each one supplies its own query and its own presentation, so a new report can be added without touching the Reports page or the API around it.
+- The Settings → Visible Tabs controls are now announced as on/off switches named for what they do ("Show Reports tab"), so screen readers no longer read a toggle and the tab it controls as the same thing.
+
+## Changes in this PR
+
+- Fixed sorting the matrix by a manager-hierarchy context, which silently did nothing. The request behind it failed on every call, and the matrix quietly fell back to no hierarchy instead of showing the org levels.
+
+## Changes in this PR
+
+- Fixed the matrix showing stale data after classifying business-role assignments. The classify step reported success but never actually refreshed the matrix views, so newly governed assignments only appeared once something else happened to refresh them.
+
+## Changes in this PR
+
+- Fixed the Worker showing a development version (and an amber "Mismatch" warning on Admin → Updates) after a fresh stable or beta install. The published worker image was never stamped with the release version, so it reported the in-development version instead of the one Web and Database showed. All three components now report the same version on a released deployment.
+
+## Changes in this PR
+
+- Added a generic **SCIM 2.0 crawler**: point Identity Atlas at any SCIM 2.0 endpoint and sync its users, groups and group memberships — no system-specific connector needed.
+- The crawler asks the endpoint what it serves (`/ServiceProviderConfig`, `/ResourceTypes`, `/Schemas`) and shows it in the wizard, so you pick the objects and attributes you want instead of guessing at field names.
+- Extra attributes are opt-in: the core mapping (user name, display name, active, e-mail, user type; group display name) is always synced, and anything else you tick is stored alongside it. A **Select all** action per object type is there when you want everything.
+- Group memberships are imported as direct assignments, and nested groups become both a containment link and inherited memberships, so the matrix shows people who get access through a nested group.
+- Map a SCIM `userType` onto an Identity Atlas principal type (for example, `technical` → Service Principal), with a catch-all row for everything else.
+- Supports HTTP Basic, a static API token, and OAuth2 client credentials. Secrets are stored in the vault, never in the crawler's saved configuration.
+- Schedules work as they do for any pull crawler. SCIM has no standard change feed, so every run is a full sync — a delta-mode run executes as a full sync and says so in the job log.
+- A full sync removes accounts and groups the endpoint no longer serves, scoped so it can never touch another connector's data.
+- Added documentation for the SCIM crawler covering what gets imported, configuration, limitations and troubleshooting.
+- Added **Admin → Experimental**: a place to see and switch on capabilities that are built and tested but have not yet had much exposure to real-world systems. Everything there is off by default, including after an upgrade, and your choice survives restarts.
+- The first experimental feature is **Experimental crawlers**. With it off, an experimental connector is not offered in Add Crawler and cannot be created; with it on, it appears in the picker with an "Experimental" badge.
+- Turning the switch off never disables an experimental crawler you already configured — it keeps its schedule, keeps syncing and can still be edited, run and removed. Only adding a *new* one is blocked.
+- The SCIM 2.0 crawler ships as the first experimental crawler, so it must be switched on in Admin → Experimental before it can be added.
+- Added a documentation page explaining what the experimental label means, what the switch does and does not do, and how a feature either graduates to a regular connector or is withdrawn.
+- Fixed a rate limit that could make the app hide its own features: the endpoints every page load needs (version, feature settings, sign-in config) were capped at 30 requests a minute per address, so clicking through more than about seven pages a minute started failing them — and a feature whose settings failed to load reads as switched off. Raised to a level a browser cannot reach by normal use.
+
+## Changes in this PR
+
+- Matrix: **"Show business roles as foldable rows"** in the wizard's Resources step turns the whole business-role row view on for a matrix. It is off by default, and it is saved with the matrix, so a shared or saved matrix looks the same for everyone who opens it. Without it the matrix is unchanged from before.
+- Matrix: with the option on, each business role gets a row of its own and the resources it grants are drawn underneath it — indented, with the same triangle and elbow that expanding a nested group already used — and the role sits directly above them in the row order.
+- Matrix: a business role row can be folded to hide the resources it grants, leaving just the role plus an "N resources folded" chip — click the chevron again to bring them back. New "Fold roles" / "Unfold roles" toolbar buttons do it for every role at once, reducing the grid to business roles plus the resources no role grants.
+- Matrix: business roles arrive expanded, and your fold choices are remembered per matrix so they are still there when you come back to the same slice.
+- Matrix: a resource that more than one business role grants is shown under every one of those roles, and each of its rows carries a short "BR" / "BR+3" chip that counts and names the others — hover it for the names, click it to open the role. Folding a role takes away only its own rows.
+- Matrix: a business role's own row shows the "D" badge in its own column and its cells are coloured as governed, like any other access a business role hands out. Business-role memberships count as governed in the scope statistics, and the governed trend line counts them too — historical points read higher than before because they were understating governance, not because anything changed in your data.
+- Matrix: a folded business role shows, per subject, a red count of the folded resources that subject holds outside the role and an amber count of the resources the role assigns that the subject does not have — so folding shows both when someone has more than the role hands out and when they have less, and a subject can carry both at once.
+- Matrix: on the row of a resource a business role hands out, someone who holds it without that role is marked with a red count on their cell — the same finding the folded role shows, so unfolding a role never makes it disappear. The marker is not shown when a business role outside the current matrix slice already accounts for the access, and its tooltip says whether the subject holds a granting role. Hover it for the roles that grant the resource; the "How to read this matrix" legend explains every marker.
+- Matrix: a cell is marked when someone holds a permanent membership on a resource their business role only makes them eligible for — more access than the role assigns.
+- Matrix: cell markers now sit in a strip along the top of their own cell, so they no longer overlap each other, the D/I/E badge, or the labels of the cells around them.
+- Matrix Excel export: with business-role rows on, the exported file matches the grid — a resource appears under each business role that grants it. Folding only tidies the screen: the export always contains every resource, so a folded role can never leave access out of an export used for review.
+- Matrix: the "How to read this matrix" legend now lists only the markers the matrix you are looking at can actually draw.
+- Matrix: the grid can now be resized — drag the grip under it (or use the arrow keys) to give it more or less of the window, and it stays that height until you pick "Fit to window". Works in every matrix orientation.
+- Matrix scope statistics: each headline number is now announced together with the metric it belongs to (e.g. "Resources, 39") by screen readers.
+- Demo data: added a service desk business role whose holders show the full picture — one person short of what the role assigns, one both short on one group and over-provisioned on another, one holding a group of the role without holding the role, and two holding exactly what the role assigns. An IT operations role shares a group and an application role with it, so the "same resource in two roles" case is visible too.
+- Demo data: the engineering business role now actually hands its holders the VPN group it grants, so they no longer show up as provisioning gaps on a group their role does give them. The two system administrators keep that group directly, without the role — the example of access no business role accounts for.
+- Business roles and access packages no longer appear as rows in the matrix. They are governance intent and are already shown as the business-role columns, so the same role no longer shows up on both axes at once.
+- Added a **Show business roles as foldable rows** option to the matrix wizard's resource step for the cases where you do want them on the rows. It is off by default and is saved with the matrix, so everyone opening a shared or saved matrix sees the same rows.
+- Scoping a matrix to `resourceType = BusinessRole` still puts business roles on the rows without needing the option — a matrix of which access packages people hold remains buildable.
+- The wizard's resource and assignment counts, the scope panel and the scope timeline now count exactly the rows the matrix renders, instead of counting business roles that never appear.
+- Expanding a group row into its nested resources no longer reveals business roles either.
+- Owner rows are unchanged: ownership is still shown as its own row, because it is the only place the matrix shows who controls a group.
+- The "Business roles only" roll-up is unchanged — business roles are the rows there by design.
+
+## Changes in this PR
+
+- Linked Accounts on the identity detail page is now a table with System | Account | Enabled | Type columns, so you can see at a glance which source system each account came from and whether it is still enabled — without opening every account.
+- The Enabled column reflects the account's current state from the last crawl, falling back to the state recorded when the account was linked only when the account itself is no longer present.
+- Confirm / Remove / Undo, the correlation confidence bar, override badges and the "Linked from source" note are unchanged and stay on every row.
+
+## Changes in this PR
+
+- Fixed the AI issue-review silently doing nothing when it could not reach a model: a review that fails on every model now ends in a visibly failed run naming the likely cause, instead of a green run that leaves the issue parked in its entry column as if someone had been asked a question.
+- Fixed an AI review that finishes without choosing a route being reported as success — it now fails, so the issue is not left looking as though it is waiting on a person.
+- AI review comments now carry an invisible marker, so the pipeline health sweep can tell an agent comment from a human reply regardless of which account posted it.
+- The hourly pipeline health sweep now re-starts the AI review on issues it finds stranded, instead of only reporting them. An issue that was never reviewed, or whose review died partway, is picked up again automatically rather than waiting for someone to notice the health report.
+- The sweep now also re-starts the review when the requestor has already answered and nothing came back, so an answer can no longer go unread indefinitely.
+- Re-starts are budgeted: at most three attempts per issue and three issues per sweep. An issue that burns its budget is reported as needing a person, and the cap stops a large backlog from being re-driven all at once.
+- "Awaiting requestor" and "Awaiting design" no longer imply that somebody was actually asked something — the sweep now reads the thread before treating an issue as waiting on a human, and stays quiet when it cannot tell.
+
+## Changes in this PR
+
+- Upgraded the test runner (Vitest) and its coverage reporter to 5.0 across both the API and the UI, keeping the matched pair in lockstep.
+- Fixed the automated dependency updater so the test runner and its coverage reporter are always proposed together — previously they were offered as separate updates that could never be installed side by side, leaving their update requests permanently stuck.
+- Added tests for the matrix legend's "How to read this matrix" panel, covering the collapse/expand toggle and that the open/closed choice is remembered between visits — including browsers that block local storage, where the legend now stays readable instead of failing.
+
+## Changes in this PR
+
+- Added `docs/architecture/decision-principles.md` — a ratified, testable checklist for the "does this fit the existing architecture" judgment call, with confidence ratings and cited example issues, to help the Definition-of-Ready pipeline resolve more `awaiting-design`/`decompose` issues without a human round-trip.
+- Added `docs/architecture/architecture-guidance-review-2026-09.md`, a read-only audit of the current architecture documentation and backlog: contradictions found between docs (and between docs and precedent), an impact estimate, and backlog restructuring proposals (merges, epics, cross-item contradictions).
+- Flagged `docs/risk-scoring/plugin-architecture.md` as a speculative, unreconciled alternative to the in-tree risk-scoring plugin proposal, with a status banner pointing to the real one.
+- Sharpened the Definition of Ready's "Architect / tech lead" gate criteria and added a pointer from `CLAUDE.md`'s Coding Principles to the new decision-principles checklist.
+- Fixed the documentation link checker reporting false broken cross-links for markdown that only appears inside a fenced code block — a design doc quoting a snippet of another file no longer fails CI.
+- Documented the new epic layer above the feature backlog: how epics, sub-epics and decision issues are wired, which board and fields carry them, and the conventions that keep them out of the Definition-of-Ready pipeline.
+- Added an autonomy roadmap that measures the current process against the Fortigi implementation approach, records four deliberate deviations, and sets out the phased plan towards more autonomous feature delivery.
+- Added a session log recording what changed when the epic layer was introduced, including the corrections made along the way and the process lessons worth keeping.
+- Recorded the review finding that the 22 groupings are not one kind of thing (13 goals, 9 features with slices) and that the epic status field mixed a parent-level property with a roll-up of its children, together with the agreed fix: add issue types rather than re-parent anything.
+- Corrected the Key Result Review record: the cadence was agreed (monthly, all Key Results at once) but the roadmap still described it as undecided in four places.
+
+## Changes in this PR
+
+- Added `docs/architecture/decision-principles.md` — a ratified, testable checklist for the "does this fit the existing architecture" judgment call, with confidence ratings and cited example issues, to help the Definition-of-Ready pipeline resolve more `awaiting-design`/`decompose` issues without a human round-trip.
+- Added `docs/architecture/architecture-guidance-review-2026-09.md`, a read-only audit of the current architecture documentation and backlog: contradictions found between docs (and between docs and precedent), an impact estimate, and backlog restructuring proposals (merges, epics, cross-item contradictions).
+- Flagged `docs/risk-scoring/plugin-architecture.md` as a speculative, unreconciled alternative to the in-tree risk-scoring plugin proposal, with a status banner pointing to the real one.
+- Sharpened the Definition of Ready's "Architect / tech lead" gate criteria and added a pointer from `CLAUDE.md`'s Coding Principles to the new decision-principles checklist.
+- Fixed the documentation link checker reporting false broken cross-links for markdown that only appears inside a fenced code block — a design doc quoting a snippet of another file no longer fails CI.
+
+## Changes in this PR
+
+- Updated bundled third-party dependencies to pick up security fixes for newly published high-severity advisories in `browserslist` (unbounded memory growth, untrusted-stats crash) and `fast-uri` (host confusion and server-side request forgery), plus moderate fixes in `qs` and `@humanfs/node`.
+
+## Changes in this PR
+
 - Fixed the `azure/deploy.ps1` CLI deployment failing immediately with `ERROR: unrecognized template parameter 'namePrefix'` — the script and the example parameters file still passed parameters (`namePrefix`, `location`, `webImage`, `workerImage`, and others) that the deployment template no longer declares.
 - The CLI deploy can now select the `stable` / `edge` image channel via `-ImageChannel`, matching the Deploy-to-Azure portal form, and prints the generated resource-name prefix after a successful deploy.
 - Added a regression test (`test/unit/AzureDeployParameters.Tests.ps1`) that fails if the CLI deploy path ever passes a parameter the template doesn't declare, and wired `azure/**` into the CI test/coverage path filters so it actually runs when the template or deploy script changes.

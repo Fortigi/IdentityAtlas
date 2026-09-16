@@ -36,17 +36,6 @@ describe('EntityDetailPage scaffold', () => {
   });
 });
 
-describe('LinkedAccountsPanel', () => {
-  const panelSrc = readFileSync(join(here, 'LinkedAccountsPanel.jsx'), 'utf8');
-
-  it('renders a confidence bar for each member', () => {
-    expect(panelSrc).toContain('ConfidenceBar');
-  });
-
-  it('offers Confirm, Remove, and Undo action buttons', () => {
-    expect(panelSrc).toContain("'confirmed'");
-    expect(panelSrc).toContain('>Confirm<');
-    expect(panelSrc).toContain('>Remove<');
-    expect(panelSrc).toContain('>Undo<');
-  });
-});
+// LinkedAccountsPanel used to be asserted here by reading its source text —
+// a test that executed nothing and left the component at 0% coverage. It is
+// now mounted for real in LinkedAccountsPanel.mount.test.jsx.

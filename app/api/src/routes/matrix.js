@@ -19,13 +19,16 @@ import { timedQuery } from '../perf/sqlTimer.js';
 import { createParams } from '../db/sqlParams.js';
 import { buildAssignmentExprs } from '../db/matrixHelpers.js';
 import { UUID_RE } from '../matrix/filterSql.js';
+import { isUuid } from '../matrix/contextRollup.js';
 import {
   getPrincipalColumns, getResourceColumns,
   getPrincipalColumnValuesMeta, getResourceColumnValuesMeta,
   searchColumnValues, VALUE_SEARCH_LIMIT,
 } from '../db/columnCache.js';
 import { explainInheritance } from '../matrix/inheritedAccess.js';
+import { withAttributeLabels } from '../lib/attributeLabels.js';
 import savedFiltersRouter from './matrix/savedFilters.js';
+import sharesRouter from './matrix/shares.js';
 import scopeRouter from './matrix/scope.js';
 import dataRouter from './matrix/data.js';
 import { getIdentityColumns, getIdentityColumnValuesMeta, parseFilter, buildSubqueries, runCount, subjectScopeClauses } from './matrix/shared.js';
@@ -37,6 +40,9 @@ const router = Router();
 // Saved-filter CRUD + the org-wide default filter live in their own module
 // (routes/matrix/savedFilters.js) — part of the matrix.js split (Q1).
 router.use(savedFiltersRouter);
+// Share links (routes/matrix/shares.js) — create/list/revoke are data.share
+// gated; resolve is auth-only so a signed-in recipient can open a shared view.
+router.use(sharesRouter);
 router.use(scopeRouter);
 router.use(dataRouter);
 const useSql = process.env.USE_SQL === 'true';
@@ -83,7 +89,7 @@ router.post('/matrix/preview', async (req, res) => {
         `SELECT COUNT(*)::int AS c FROM "Resources"${rcResourceSql ? ` WHERE id IN ${rcResourceSql}` : ''}`,
         rcp.params),
       runCount(p, 'matrix-preview-resource-total', res,
-        `SELECT COUNT(*)::int AS c FROM "Resources"`,
+        `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceTotalWhere || ''}`,
         []),
       runCount(p, 'matrix-preview-assignments', res,
         `SELECT COUNT(*)::int AS c FROM (
@@ -219,7 +225,7 @@ router.get('/matrix/columns', async (req, res) => {
     // subset — and the rest is reachable via /matrix/column-values (#928).
     const { values, truncated } = await entityColumnValues(entity);
     // Preserve column order from the schema, fold in values when present.
-    return res.json(
+    return res.json(await withAttributeLabels(
       cols.map(c => ({
         column:    c.name,
         type:      c.type,
@@ -230,8 +236,9 @@ router.get('/matrix/columns', async (req, res) => {
         Object.entries(values)
           .filter(([k]) => k.startsWith('ext.'))
           .map(([k, vals]) => ({ column: k, type: 'text', values: vals, truncated: !!truncated[k] }))
-      )
-    );
+      ),
+      entity.toLowerCase()
+    ));
   } catch (err) {
     console.error('matrix/columns failed:', err.message);
     return res.json([]);

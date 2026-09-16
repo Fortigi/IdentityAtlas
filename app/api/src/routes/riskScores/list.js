@@ -6,7 +6,7 @@
 // behaviour change — pure code move.
 
 import { Router } from 'express';
-import { createParams } from '../../db/sqlParams.js';
+import { createParams, likeContains } from '../../db/sqlParams.js';
 import { queryRiskScoresPage } from '../../db/queryHelpers.js';
 import { useSql, db, riskTableExists, parseJsonColumns, TEMPORAL_FILTER } from './shared.js';
 import { fetchRiskOverview, buildRiskSummary } from './summary.js';
@@ -64,7 +64,7 @@ function defineListRoute({ name, entityType, fromClause, selectCols, searchColum
       const { params, bind } = createParams();
       let whereClause = `WHERE rs."entityType" = '${entityType}'`;
       if (tier)   whereClause += ` AND rs."riskTier" = ${bind(tier)}`;
-      if (search) whereClause += ` AND ${searchColumns(bind(`%${search}%`))}`;
+      if (search) whereClause += ` AND ${searchColumns(bind(likeContains(search)))}`;
       if (extraFilter) {
         const value = req.query[extraFilter.name] || '';
         if (value) whereClause += ` AND ${extraFilter.clause(bind(value))}`;
@@ -92,7 +92,7 @@ const RISK_LIST_TYPES = [
     entityType: 'Principal',
     fromClause: `INNER JOIN "Principals" p ON rs."entityId" = p.id AND ${TEMPORAL_FILTER}`,
     selectCols: `p."displayName", p.email AS "userPrincipalName", p.department, p."jobTitle", p."companyName"`,
-    searchColumns: (s) => `(p."displayName" ILIKE ${s} OR p.email ILIKE ${s} OR p.department ILIKE ${s})`,
+    searchColumns: (s) => `(p."displayName" ILIKE ${s} ESCAPE '\\' OR p.email ILIKE ${s} ESCAPE '\\' OR p.department ILIKE ${s} ESCAPE '\\')`,
     extraFilter: { name: 'department', clause: (ph) => `p.department = ${ph}` },
   },
   {
@@ -100,7 +100,7 @@ const RISK_LIST_TYPES = [
     entityType: 'Resource',
     fromClause: `INNER JOIN "Resources" r ON rs."entityId" = r.id AND ${TEMPORAL_FILTER}`,
     selectCols: `r."displayName", r.description, r."resourceType", r.mail`,
-    searchColumns: (s) => `(r."displayName" ILIKE ${s} OR r.description ILIKE ${s})`,
+    searchColumns: (s) => `(r."displayName" ILIKE ${s} ESCAPE '\\' OR r.description ILIKE ${s} ESCAPE '\\')`,
     extraFilter: { name: 'resourceType', clause: (ph) => `r.resourceType = ${ph}` },
     responseExtra: { useResources: true },
   },
@@ -110,7 +110,7 @@ const RISK_LIST_TYPES = [
     fromClause: `INNER JOIN "Resources" br ON rs."entityId" = br.id AND br."resourceType" = 'BusinessRole' AND ${TEMPORAL_FILTER}
       LEFT JOIN "GovernanceCatalogs" c ON br."catalogId" = c.id AND ${TEMPORAL_FILTER}`,
     selectCols: `br."displayName", br.description, br."catalogId", c."displayName" AS "catalogName"`,
-    searchColumns: (s) => `(br."displayName" ILIKE ${s} OR br.description ILIKE ${s})`,
+    searchColumns: (s) => `(br."displayName" ILIKE ${s} ESCAPE '\\' OR br.description ILIKE ${s} ESCAPE '\\')`,
   },
   {
     name: 'contexts',
@@ -118,14 +118,14 @@ const RISK_LIST_TYPES = [
     fromClause: `INNER JOIN "Contexts" ou ON rs."entityId" = ou.id AND ${TEMPORAL_FILTER}
       LEFT JOIN "Principals" p ON ou."managerId" = p.id AND ${TEMPORAL_FILTER}`,
     selectCols: `ou."displayName", ou.department, ou."memberCount", ou."managerId", p."displayName" AS "managerName"`,
-    searchColumns: (s) => `(ou."displayName" ILIKE ${s} OR ou.department ILIKE ${s})`,
+    searchColumns: (s) => `(ou."displayName" ILIKE ${s} ESCAPE '\\' OR ou.department ILIKE ${s} ESCAPE '\\')`,
   },
   {
     name: 'identities',
     entityType: 'Identity',
     fromClause: `INNER JOIN "Identities" i ON rs."entityId" = i.id AND ${TEMPORAL_FILTER}`,
     selectCols: `i."displayName", i."accountCount", i."linkConfidence", i.department, i."jobTitle", i.email`,
-    searchColumns: (s) => `(i."displayName" ILIKE ${s} OR i.department ILIKE ${s} OR i.email ILIKE ${s})`,
+    searchColumns: (s) => `(i."displayName" ILIKE ${s} ESCAPE '\\' OR i.department ILIKE ${s} ESCAPE '\\' OR i.email ILIKE ${s} ESCAPE '\\')`,
   },
 ];
 

@@ -25,12 +25,26 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 comment=".dor/out/comment.md"
 routefile=".dor/out/route.txt"
-route="$(tr -d '[:space:]' < "$routefile" 2>/dev/null || true)"
+# 2>/dev/null on tr does not cover a missing routefile: the failed *redirect* is reported by the
+# shell, not by tr, so an absent file printed a bare "line 28: .dor/out/route.txt: No such file or
+# directory" into the run log. That line was the only visible trace of the #1132 class of failure,
+# and it reads like a bug in this script rather than a missing agent decision. Test for the file.
+route=""
+[ -f "$routefile" ] && route="$(tr -d '[:space:]' < "$routefile")"
 
 # 1. Route must be exactly one allowed state label (or 'none' = take no action this run).
 case "$route" in
-  none|"")
+  none)
     echo "::notice::Agent chose no action this run."; exit 0 ;;
+  "")
+    # NOT the same as `none`. `none` is a decision the model wrote down; an empty or missing
+    # route.txt means the reasoning step finished WITHOUT writing one. The two used to share this
+    # branch, so a run that reasoned for 12 turns and $3.64 (#1132) exited 0 with a notice: green
+    # check, no comment, no label, and an issue left in its entry column looking as though a human
+    # had been asked something. The hourly sweep then reported it as "the agent likely never ran".
+    # The reasoning is lost either way; only a red run says so.
+    echo "::error::Agent wrote no .dor/out/route.txt — the reasoning step produced no decision for #${ISSUE}. Nothing was posted; re-run it by editing the issue or commenting on it."
+    exit 1 ;;
   state:awaiting-requestor|state:awaiting-design|state:decompose|state:blocked-external|state:out-of-pipeline|state:awaiting-approval)
     : ;;
   *)
@@ -74,6 +88,15 @@ fi
 if [ ! -s "$comment" ]; then echo "::error::No comment body produced."; exit 1; fi
 
 # 3. Post the comment, then set exactly one state:* label (remove all the others).
+
+# Mark every agent comment invisibly first. Any sweep that wants to tell "still waiting on a person"
+# apart from "the pipeline dropped this thread" has to answer "did the AGENT speak last, or a human?"
+# — and authorship cannot answer it. This posts under whichever account owns GH_TOKEN, and for most
+# of the pipeline's life that was a maintainer's own: the last comments on #762 and #680 read as
+# WimvandenHeijkant and are agent output. An HTML comment renders as nothing, survives edits, and is
+# the same trick the health issue's dor-fingerprint already uses.
+printf '\n\n<!-- dor-agent-comment route:%s -->\n' "$route" >> "$comment"
+
 gh issue comment "$ISSUE" --repo "$REPO" --body-file "$comment"
 all="state:awaiting-requestor state:awaiting-design state:ready-to-probe state:awaiting-approval state:decompose state:blocked-external state:out-of-pipeline"
 remove=""
@@ -101,6 +124,12 @@ if [ "$route" = state:awaiting-approval ]; then
 else
   gh issue edit "$ISSUE" --repo "$REPO" --add-label "$route" --remove-label "$remove"
 fi
+
+# Consume the reconcile re-dispatch marker — the agent has produced a decision, so this retry is
+# over. Left in place when the run FAILS, on purpose: it is then both the visible record that the
+# issue is being re-driven and, through its timeline events, the budget that stops it being
+# re-driven for ever. Removing a label that is not there is a no-op.
+gh issue edit "$ISSUE" --repo "$REPO" --remove-label dor-retry >/dev/null 2>&1 || true
 
 # Sync the board Status to the chosen route (board-scoped BOT token, NOT the model's). The target
 # board is whichever PROJECT_ID / STATUS_FIELD_ID are in env (Feature board by default).

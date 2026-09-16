@@ -21,6 +21,7 @@
 export const GATED_ENDPOINTS = {
   'data.export.ui':        { method: 'GET',  path: '/api/admin/export/curated' },
   'data.export.apikey':    { method: 'POST', path: '/api/admin/read-tokens', body: { name: 'matrix-test' } },
+  'data.share':            { method: 'POST', path: '/api/matrix/shares', body: { name: 'matrix-test', filter: {} } },
   'data.write.tags':       { method: 'POST', path: '/api/tags', body: { name: 'matrix-test' } },
   'data.write.categories': { method: 'POST', path: '/api/categories', body: { name: 'matrix-test' } },
   'data.write.risk':       { method: 'PUT',  path: '/api/risk-scores/identity/1/override', body: { decision: 'accept' } },

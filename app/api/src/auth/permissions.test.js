@@ -87,15 +87,18 @@ describe('seed mapping — the exact grants shipped on a fresh install', () => {
     expect(SEED_ROLE_PERMISSIONS.Admin).toEqual(['*']);
   });
 
-  it('gives RoleMiner read plus both export permissions and nothing more', () => {
+  it('gives RoleMiner read, both export permissions and sharing — nothing more', () => {
     // Widening this on a fresh install hands out access nobody asked for;
     // emptying it locks the role out. Neither is visible from a count.
     expect(SEED_ROLE_PERMISSIONS.RoleMiner)
-      .toEqual(['data.read', 'data.export.ui', 'data.export.apikey']);
+      .toEqual(['data.read', 'data.export.ui', 'data.export.apikey', 'data.share']);
   });
 
-  it('gives Servicedesk read only', () => {
+  it('gives Servicedesk read only — sharing is opt-in per install (#1166)', () => {
+    // data.share is seeded to RoleMiner alone; an operator grants it to
+    // Servicedesk from Admin → Roles & Permissions when they want that.
     expect(SEED_ROLE_PERMISSIONS.Servicedesk).toEqual(['data.read']);
+    expect(SEED_ROLE_PERMISSIONS.Servicedesk).not.toContain('data.share');
   });
 
   it('never seeds a role with admin.auth, which would let it re-grant itself', () => {

@@ -57,6 +57,12 @@ concurrency:
   group: pr-checks-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege for GITHUB_TOKEN (SEC-2026-09 L-19). Every job reads the repository; the one that
+# needs more asks for it itself. Today that is only the path filter, which lists the PR's changed
+# files through the API. Artifacts and the Actions cache use the runner's own token, not this one.
+permissions:
+  contents: read
+
 env:
   DOTNET_NOLOGO: true
   POWERSHELL_TELEMETRY_OPTOUT: 1
@@ -117,6 +123,9 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read   # dorny/paths-filter reads the PR's changed-file list via the API
     outputs:
       ps:      ${{ steps.f.outputs.ps }}
       pester:  ${{ steps.f.outputs.pester }}
@@ -144,6 +153,8 @@ jobs:
               - 'tools/powershell-sdk/**'
               - 'tools/crawlers/shared/**'
               - 'setup/docker/Invoke-CrawlerJob.ps1'
+              - 'setup/docker/Invoke-CrawlerJobProcess.ps1'
+              - 'setup/docker/Build-FGContexts.ps1'
               - 'setup/IdentityAtlas.psm1'
               - 'test/unit/**'
               - 'azure/**'
@@ -166,6 +177,9 @@ jobs:
               - 'app/api/vitest.config.js'
               - 'app/api/vitest.contract.config.js'
               - 'app/api/eslint.config.js'
+              # The desktop job worker's tests run in the API Vitest suite.
+              - 'app/desktop/*.cjs'
+              - 'app/desktop/*.test.js'
             ui:
               - 'app/ui/src/**'
               - 'app/ui/package.json'
@@ -255,7 +269,6 @@ jobs:
             'PSUseProcessBlockForPipelineCommand'      # these functions are not designed for pipeline use
             'PSAvoidUsingEmptyCatchBlock'              # empty catches are intentional for non-critical operations
             'PSUseDeclaredVarsMoreThanAssignments'     # investigate separately; too noisy for CI gate
-            'PSAvoidUsingInvokeExpression'             # scheduler crontab is image-baked, not dynamic user input
             'PSReviewUnusedParameter'                  # some parameters are kept for dispatcher API compatibility
           )
           $results = @()
@@ -922,7 +935,15 @@ jobs:
           bash test/ci-scripts/test-commit-range.sh
           bash test/ci-scripts/test-dor-gate-notice.sh
           bash test/ci-scripts/test-dor-reconcile-liveness.sh
+          bash test/ci-scripts/test-dor-reconcile-selfheal.sh
           bash test/ci-scripts/test-dor-push-lease.sh
+          bash test/ci-scripts/test-dor-finalize-merged-pr.sh
+          bash test/ci-scripts/test-dor-sidekick-claim.sh
+          bash test/ci-scripts/test-dor-run-touched-tests.sh
+          bash test/ci-scripts/test-dor-drop-workflow-labels.sh
+          bash test/ci-scripts/test-dor-trusted-spec.sh
+          bash test/ci-scripts/test-dor-agent-sandbox.sh
+          bash test/ci-scripts/test-dor-token-checkpoint.sh
           bash test/ci-scripts/test-gate-wiring.sh
 
       # The two Python tools that render and feed the Test Coverage docs page.

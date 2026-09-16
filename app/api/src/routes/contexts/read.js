@@ -7,6 +7,7 @@
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
+import { likeContains } from '../../db/sqlParams.js';
 import { useSql, UUID_RE, TARGET_TYPES } from './shared.js';
 
 const router = Router();
@@ -225,8 +226,8 @@ async function loadMembers(contextId, targetType, { limit = 100, offset = 0, sea
   const params = [contextId];
   let searchClause = '';
   if (search) {
-    params.push(`%${search}%`);
-    searchClause = ` AND m."displayName" ILIKE $${params.length}`;
+    params.push(likeContains(search));
+    searchClause = ` AND m."displayName" ILIKE $${params.length} ESCAPE '\\'`;
   }
 
   const contextFilter = includeDescendants
