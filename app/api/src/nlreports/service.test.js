@@ -92,7 +92,8 @@ describe('prompt-cache warm-up', () => {
     const first = ensureWarm();
     expect(ensureWarm()).toBe(first);   // a second caller joins the one in flight
     expect(warmupState()).toBe('warming');
-    expect(warm).toHaveBeenCalledTimes(1);
+    // The warm-up looks the model up first, so let those microtasks run.
+    await vi.waitFor(() => expect(warm).toHaveBeenCalledTimes(1));
     release();
     await expect(first.promise).resolves.toMatchObject({ restored: false });
     expect(warmupState()).toBe('ready');
