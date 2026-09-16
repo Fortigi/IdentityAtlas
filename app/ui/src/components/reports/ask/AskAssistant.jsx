@@ -110,7 +110,7 @@ export default function AskAssistant({ currentSpec, onReport }) {
   const [history, setHistory] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const elapsed = useElapsed(busy || warm === 'warming');
+  const elapsed = useElapsed(busy || warm === 'warming' || warm === 'preparing');
   const warmed = useRef(false);
   const lastQuestion = useRef('');
 
@@ -119,10 +119,16 @@ export default function AskAssistant({ currentSpec, onReport }) {
   useEffect(() => {
     if (!status?.available || warmed.current) return;
     warmed.current = true;
-    setWarm(status.loaded ? 'ready' : 'warming');
-    postJson(authFetch, '/api/nl-reports/warm', {})
-      .then(() => setWarm('ready'))
+    setWarm(status.loaded && status.promptCache === 'ready' ? 'ready' : 'warming');
+    // The first warm-up after an install or update prepares the prompt cache and can
+    // take minutes; the API answers 'preparing' straight away, so poll until it is done.
+    const poll = () => postJson(authFetch, '/api/nl-reports/warm', {})
+      .then((r) => {
+        if (r.state === 'preparing') { setWarm('preparing'); setTimeout(poll, 10000); return; }
+        setWarm('ready');
+      })
       .catch(() => setWarm('error'));
+    poll();
   }, [status, authFetch]);
 
   if (statusLoading) return null;
@@ -193,7 +199,7 @@ export default function AskAssistant({ currentSpec, onReport }) {
           {turns.map((t, i) => <Turn key={i} turn={t} busy={busy} isLast={i === turns.length - 1} onAnswer={ask} onConfirm={confirmChoice} />)}
         </div>
       )}
-      {busy && <p className={MUTED} aria-live="polite">Thinking… {elapsed}s{warm === 'warming' ? ' (the model is still warming up)' : ''}</p>}
+      {busy && <p className={MUTED} aria-live="polite">Thinking… {elapsed}s{warm === 'warming' || warm === 'preparing' ? ' (the model is still warming up)' : ''}</p>}
       {error && <p className="text-sm text-red-700 dark:text-red-300" role="alert">{error}</p>}
 
       <form className="space-y-2" onSubmit={e => { e.preventDefault(); ask(input); }}>
@@ -209,6 +215,7 @@ export default function AskAssistant({ currentSpec, onReport }) {
           <button type="submit" className={PRIMARY} disabled={busy || !input.trim()}>{currentSpec ? 'Update' : 'Generate'}</button>
           <span className={MUTED} aria-live="polite">
             {warm === 'warming' && `model warming up… ${elapsed}s`}
+            {warm === 'preparing' && `the model is preparing its prompt cache (first time after an update) — questions work but are slow… ${elapsed}s`}
             {warm === 'error' && 'model server did not respond'}
           </span>
           {!currentSpec && turns.length === 0 && EXAMPLES.map(ex => (

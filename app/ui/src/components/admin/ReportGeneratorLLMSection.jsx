@@ -21,6 +21,10 @@ export default function ReportGeneratorLLMSection() {
       const res = await authFetch('/api/nl-reports/warm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      if (body.state === 'preparing') {
+        setResult({ kind: 'ok', text: body.message });
+        return;
+      }
       setResult({
         kind: 'ok',
         text: body.restored === false

@@ -101,12 +101,10 @@ const CLARIFY_REPLY = {
 export const RESPONSE_SCHEMA = { anyOf: [REPORT_REPLY, CLARIFY_REPLY] };
 export const REPORT_ONLY_SCHEMA = REPORT_REPLY;
 
-function describeEntity(name, entity, values) {
+function describeEntity(name, entity) {
   const lines = [`## ${name}`, entity.description, 'fields:'];
   for (const [fname, f] of Object.entries(entity.fields)) {
-    let t = f.type;
-    if (f.type === 'enum' && f.valuesFrom && values[f.valuesFrom]?.length) t = `enum: ${values[f.valuesFrom].join(' | ')}`;
-    lines.push(`- ${fname} (${t})${f.description ? ` — ${f.description}` : ''}`);
+    lines.push(`- ${fname} (${f.type})${f.description ? ` — ${f.description}` : ''}`);
   }
   lines.push('relations:');
   for (const [rname, r] of Object.entries(entity.relations)) {
@@ -201,14 +199,35 @@ const EXAMPLES = [
   },
 ];
 
-/** @param {object} values known enum values keyed by catalog valuesFrom */
-export function buildSystemPrompt(values) {
+/**
+ * The values that exist in THIS deployment (account types, resource types, system
+ * names). Sent with each question instead of baked into the system prompt, so the
+ * system prompt — and therefore the saved prompt cache — is the same for every
+ * deployment of a release and can be prepared once at build time.
+ * @param {object} values known enum values keyed by catalog valuesFrom
+ */
+export function buildValuesBlock(values) {
+  const byList = new Map(); // valuesFrom → { fields, list } — one line per list, not per entity
+  for (const entity of Object.values(ENTITIES)) {
+    for (const [fname, f] of Object.entries(entity.fields)) {
+      if (f.type !== 'enum' || !f.valuesFrom || !values[f.valuesFrom]?.length) continue;
+      if (!byList.has(f.valuesFrom)) byList.set(f.valuesFrom, { fields: new Set(), list: values[f.valuesFrom] });
+      byList.get(f.valuesFrom).fields.add(fname);
+    }
+  }
+  if (byList.size === 0) return '';
+  const lines = [...byList.values()].map(v => `- ${[...v.fields].join(' / ')}: ${v.list.join(' | ')}`);
+  return `Values that exist in this deployment (use these exact strings):\n${lines.join('\n')}`;
+}
+
+/** The system prompt. Identical for every deployment of a release — no data in it. */
+export function buildSystemPrompt() {
   const ops = Object.entries(OPERATORS_BY_TYPE).map(([t, list]) => `- ${t}: ${list.join(', ')}`).join('\n');
   const examples = EXAMPLES.map(e => `Request: ${e.q}\nReply: ${JSON.stringify(e.a)}`).join('\n\n');
   return `You translate an analyst's request into a JSON report definition for Identity Atlas, an identity and access governance tool. You never write SQL and you never see data. Reply with JSON only.
 
 # Entities
-${Object.entries(ENTITIES).map(([n, e]) => describeEntity(n, e, values)).join('\n\n')}
+${Object.entries(ENTITIES).map(([n, e]) => describeEntity(n, e)).join('\n\n')}
 
 # Glossary — these words mean the same thing
 ${GLOSSARY.map(g => `- ${g.terms.map(t => `"${t}"`).join(', ')} → ${g.means}`).join('\n')}

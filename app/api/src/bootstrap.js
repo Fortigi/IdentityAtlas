@@ -404,6 +404,18 @@ export async function bootstrapWorker() {
     } catch (err) {
       console.warn('Matrix-view refresh skipped:', err.message);
     }
+    // PROTOTYPE (report generator): prepare the model's prompt cache in the
+    // background. The first run after an install or update reads the whole system
+    // prompt (minutes on a small CPU box) and saves it; every later start restores
+    // it in milliseconds. Never blocks startup, and is harmless without a model server.
+    try {
+      const { ensureWarm } = await import('./nlreports/service.js');
+      ensureWarm().promise
+        .then(r => console.log(`Report generator: prompt cache ${r.restored ? 'restored' : 'prepared'} in ${(r.ms / 1000).toFixed(1)}s`))
+        .catch(err => console.warn('Report generator: prompt cache not ready —', err.message));
+    } catch (err) {
+      console.warn('Report generator warm-up skipped:', err.message);
+    }
     console.log('Bootstrap complete');
   } catch (err) {
     console.error('Bootstrap failed (will retry on next request):', err.message);

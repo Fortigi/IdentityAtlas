@@ -10,8 +10,9 @@ import { ENTITIES, VALUE_QUERIES } from './catalog.js';
 import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
-import { buildSystemPrompt, RESPONSE_SCHEMA, REPORT_ONLY_SCHEMA } from './prompt.js';
-import { chat, DEFAULT_MODEL } from './llm.js';
+import { buildSystemPrompt, buildValuesBlock, RESPONSE_SCHEMA, REPORT_ONLY_SCHEMA } from './prompt.js';
+import { chat, DEFAULT_MODEL, warm } from './llm.js';
+import { getReportModel } from './settings.js';
 import { resolveNamedObjects } from './references.js';
 
 const VALUES_TTL_MS = 5 * 60 * 1000;
@@ -19,6 +20,37 @@ const MAX_CLARIFY_ROUNDS = 2;
 const STATEMENT_TIMEOUT = '15s';
 
 let valuesCache = { at: 0, values: null };
+
+// One warm-up at a time. The first one after an install or update reads the whole
+// system prompt (minutes on a small CPU box) and saves the cache that every later
+// start restores in milliseconds. Callers that must not block ignore the promise.
+let warmup = null;
+
+export function warmupState() {
+  return warmup ? warmup.state : 'cold';
+}
+
+/**
+ * @param {boolean} [force] start again even when a warm-up already succeeded (used to verify a saved cache)
+ * @returns {{ state: string, promise: Promise<object> }} the warm-up in flight, started if needed
+ */
+export function ensureWarm(force = false) {
+  if (force) warmup = null;
+  if (warmup && warmup.state !== 'failed') return warmup;
+  const entry = { state: 'warming', promise: null };
+  entry.promise = (async () => {
+    try {
+      const result = await warm(await getReportModel(), buildSystemPrompt());
+      entry.state = 'ready';
+      return result;
+    } catch (err) {
+      entry.state = 'failed';
+      throw err;
+    }
+  })();
+  warmup = entry;
+  return entry;
+}
 
 export async function loadValues() {
   if (valuesCache.values && Date.now() - valuesCache.at < VALUES_TTL_MS) return valuesCache.values;
@@ -69,10 +101,11 @@ export async function interpret({ question, history = [], model = DEFAULT_MODEL 
   const clarifyRounds = history.filter(h => h.role === 'assistant' && parseReply(h.content)?.kind === 'clarify').length;
   const schema = clarifyRounds >= MAX_CLARIFY_ROUNDS ? REPORT_ONLY_SCHEMA : RESPONSE_SCHEMA;
 
+  const valuesBlock = buildValuesBlock(values);
   const messages = [
-    { role: 'system', content: buildSystemPrompt(values) },
+    { role: 'system', content: buildSystemPrompt() },
     ...history,
-    { role: 'user', content: question },
+    { role: 'user', content: valuesBlock ? `${valuesBlock}\n\nRequest: ${question}` : question },
   ];
 
   const first = await chat({ model, messages, schema });

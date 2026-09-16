@@ -20,9 +20,8 @@ import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
 import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE } from '../nlreports/catalog.js';
 import { availableColumns } from '../nlreports/spec.js';
-import { interpret, loadValues, runSpec } from '../nlreports/service.js';
-import { MODEL_IS_FIXED, listModels, warm } from '../nlreports/llm.js';
-import { buildSystemPrompt } from '../nlreports/prompt.js';
+import { ensureWarm, interpret, loadValues, runSpec, warmupState } from '../nlreports/service.js';
+import { MODEL_IS_FIXED, listModels } from '../nlreports/llm.js';
 import { getReportModel, setReportModel } from '../nlreports/settings.js';
 import { MEASURES, manyRelationsOf } from '../nlreports/compare.js';
 import { applyChoice, resolveNamedObjects, searchNames } from '../nlreports/references.js';
@@ -89,16 +88,26 @@ router.get('/nl-reports/status', async (req, res) => {
   try {
     const models = await listModels();
     const found = models.find(m => m.name === model);
-    res.json({ available: !!found, model, loaded: !!found?.loaded, reason: found ? null : 'model-not-installed' });
+    res.json({ available: !!found, model, loaded: !!found?.loaded, promptCache: warmupState(), reason: found ? null : 'model-not-installed' });
   } catch {
-    res.json({ available: false, model, loaded: false, reason: 'server-unreachable' });
+    res.json({ available: false, model, loaded: false, promptCache: warmupState(), reason: 'server-unreachable' });
   }
 });
 
+// Never blocks for minutes: the first warm-up after an install or update prepares the
+// prompt cache in the background, and this answers `state: "preparing"` meanwhile.
+const WARM_WAIT_MS = 3000;
+
 router.post('/nl-reports/warm', async (req, res) => {
   try {
-    const model = await getReportModel();
-    res.json(await warm(model, buildSystemPrompt(await loadValues())));
+    const entry = ensureWarm(req.body?.force === true);
+    const ready = await Promise.race([
+      entry.promise.then(r => r, () => null),
+      new Promise(resolve => setTimeout(() => resolve(undefined), WARM_WAIT_MS)),
+    ]);
+    if (ready) return res.json({ ...ready, state: 'ready' });
+    if (warmupState() === 'failed') return fail(res, 'warm', new Error('the model server did not answer'), 502);
+    res.json({ state: 'preparing', message: 'The model is preparing its prompt cache. The first time after an install or update this takes a few minutes; questions asked now will be slow.' });
   } catch (err) {
     fail(res, 'warm', err, 502);
   }

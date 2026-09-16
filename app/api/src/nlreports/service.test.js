@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../db/connection.js');
-vi.mock('./llm.js', () => ({ chat: vi.fn(), DEFAULT_MODEL: 'test-model' }));
+vi.mock('./llm.js', () => ({ chat: vi.fn(), warm: vi.fn(), DEFAULT_MODEL: 'test-model' }));
 
 import { query } from '../db/connection.js';
-import { chat } from './llm.js';
-import { hasAnyMatch, needsOrRepair, interpret } from './service.js';
+import { chat, warm } from './llm.js';
+import { buildSystemPrompt } from './prompt.js';
+import { ensureWarm, hasAnyMatch, interpret, needsOrRepair, warmupState } from './service.js';
 
 const AND_SPEC = { entity: 'user', match: 'all', conditions: [
   { type: 'field', field: 'userType', op: 'eq', value: 'Guest' },
@@ -17,6 +18,8 @@ const reply = (spec) => ({ content: JSON.stringify({ kind: 'report', assumptions
 
 beforeEach(() => {
   chat.mockReset();
+  warm.mockReset();
+  warm.mockResolvedValue({ model: 'test-model', ms: 5, restored: true });
   query.mockReset();
   query.mockResolvedValue({ rows: [{ v: 'Guest' }, { v: 'Member' }] });
 });
@@ -67,5 +70,45 @@ describe('interpret — OR repair round', () => {
     chat.mockResolvedValueOnce({ content: JSON.stringify({ kind: 'clarify', question: 'There is no last sign-in information. Which field holds it?', options: [] }), timing: {} });
     const r = await interpret({ question: 'users that have not signed in for 90 days', model: 'm' });
     expect(r).toMatchObject({ kind: 'clarify', question: expect.stringMatching(/sign-in/) });
+  });
+});
+
+describe('deployment values travel with the question, not in the system prompt', () => {
+  it('keeps the system prompt free of data and lists the values with the request', async () => {
+    chat.mockResolvedValueOnce(reply(AND_SPEC));
+    await interpret({ question: 'all guests', model: 'm' });
+    const [system, user] = chat.mock.calls[0][0].messages;
+    expect(system.content).toBe(buildSystemPrompt());
+    expect(system.content).not.toMatch(/Guest \| Member/);
+    expect(user.content).toMatch(/Values that exist in this deployment[\s\S]*Guest \| Member[\s\S]*Request: all guests/);
+  });
+});
+
+describe('prompt-cache warm-up', () => {
+  it('runs one warm-up at a time and reports its state', async () => {
+    let release;
+    warm.mockImplementationOnce(() => new Promise(r => { release = () => r({ model: 'test-model', ms: 200000, restored: false }); }));
+    const first = ensureWarm();
+    expect(ensureWarm()).toBe(first);   // a second caller joins the one in flight
+    expect(warmupState()).toBe('warming');
+    expect(warm).toHaveBeenCalledTimes(1);
+    release();
+    await expect(first.promise).resolves.toMatchObject({ restored: false });
+    expect(warmupState()).toBe('ready');
+
+    expect(ensureWarm()).toBe(first);   // already prepared: the prompt is not read again
+    expect(warm).toHaveBeenCalledTimes(1);
+    const forced = ensureWarm(true);    // ... unless asked to verify the saved cache
+    await forced.promise;
+    expect(warm).toHaveBeenCalledTimes(2);
+    expect(warm.mock.calls[1]).toEqual(['test-model', buildSystemPrompt()]);
+  });
+
+  it('retries after a failed warm-up', async () => {
+    warm.mockRejectedValueOnce(new Error('connection refused'));
+    await expect(ensureWarm(true).promise).rejects.toThrow('connection refused');
+    expect(warmupState()).toBe('failed');
+    await expect(ensureWarm().promise).resolves.toMatchObject({ restored: true });
+    expect(warmupState()).toBe('ready');
   });
 });
