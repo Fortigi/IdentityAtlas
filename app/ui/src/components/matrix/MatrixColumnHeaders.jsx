@@ -1,7 +1,9 @@
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import { computeAttributeSpans } from './sortUsers';
 import { GROUP_ROW_H, splitAccountColumns } from './MatrixColumnHeaders.helpers';
+import { buildCrossRows, computeHeaderMode, crossGroupingHeight } from './headerMode';
 import MatrixGroupingRow from './MatrixGroupingRow';
+import MatrixCrossTableRows from './MatrixCrossTableRows';
 import MatrixNamesRow from './MatrixNamesRow';
 import MatrixAccountsRow from './MatrixAccountsRow';
 
@@ -20,22 +22,36 @@ export default function MatrixColumnHeaders({
   onToggleCollapse,
   onToggleMembers,
   maxHeaderDepth,
+  headerMode,
   columnCorner = null,
   rowCorner = null,
 }) {
   const isDark = useIsDark();
 
-  // One merged header row per sort attribute (default: department), each
+  // One grouping header level per sort attribute (default: department), each
   // grouping consecutive columns that share the same value (read from each
   // user's precomputed sortKeys[index]). In hierarchy sort, maxHeaderDepth caps
-  // the rows to the unfolded depth so the next org level only appears once a
+  // the levels to the unfolded depth so the next org level only appears once a
   // group is expanded into it.
   const attrs = (Array.isArray(sortAttributes) && sortAttributes.length)
     ? sortAttributes.map(s => s.attribute)
     : ['department'];
   const shown = (typeof maxHeaderDepth === 'number' && maxHeaderDepth > 0)
     ? Math.min(maxHeaderDepth, attrs.length) : attrs.length;
-  const attrRows = attrs.slice(0, shown).map((attribute, index) => ({ attribute, spans: computeAttributeSpans(users, index) }));
+  const attrRows = attrs.slice(0, shown).map((attribute, index) => ({ attribute, level: index }));
+
+  // Cross-table mode renders each level as thin per-value rows instead of one
+  // tall rotated row — far shorter on the small screens the grid has to fit. The
+  // mode comes from the caller (MatrixView), which derives it from the matrix
+  // DEFINITION so folding a group never re-styles the header under the click;
+  // standalone callers fall back to deciding it from what they render.
+  const mode = headerMode || computeHeaderMode(users, shown);
+  const crossLevels = mode === 'cross'
+    ? attrRows.map(row => ({ ...row, ...buildCrossRows(users, row.level) }))
+    : null;
+  const rotatedRows = crossLevels
+    ? []
+    : attrRows.map(row => ({ ...row, spans: computeAttributeSpans(users, row.level) }));
 
   // An expanded identity's account columns move into an accounts row underneath
   // the names row, where the identity itself is drawn as the cell spanning them
@@ -58,11 +74,26 @@ export default function MatrixColumnHeaders({
   // (issue: multi-header matrix "grey area" on scroll). A sticky <thead> is
   // constrained to the whole table instead, so it stays pinned through the
   // entire body scroll.
-  const groupingOffset = attrRows.length * GROUP_ROW_H;
+  const groupingOffset = crossLevels
+    ? crossGroupingHeight(crossLevels, { withCorner: !!columnCorner })
+    : attrRows.length * GROUP_ROW_H;
   return (
     <thead className="sticky z-30" style={{ top: `-${groupingOffset}px` }}>
-      {/* One merged row per sort attribute */}
-      {attrRows.map((row, rowIdx) => (
+      {crossLevels ? (
+        <MatrixCrossTableRows
+          levels={crossLevels}
+          users={users}
+          infoColumnCount={infoColumnCount}
+          accessPackages={accessPackages}
+          isDark={isDark}
+          onToggleCollapse={onToggleCollapse}
+          onToggleMembers={onToggleMembers}
+          corner={columnCorner}
+        />
+      ) : null}
+
+      {/* Rotated fallback: one merged row per sort attribute */}
+      {rotatedRows.map((row, rowIdx) => (
         <MatrixGroupingRow
           key={row.attribute + rowIdx}
           row={row}

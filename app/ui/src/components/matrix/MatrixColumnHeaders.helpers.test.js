@@ -115,6 +115,11 @@ describe('computeGroupingCell', () => {
     expect(onToggleCollapse).toHaveBeenCalledWith(['Ops'], 0);
   });
 
+  it('offers no click on an aggregate when the header is read-only', () => {
+    const col = { isAggregateCol: true, level: 0, value: 'Ops', sortKeys: ['Ops'] };
+    expect(computeGroupingCell({ col, rowIdx: 0, span }).onClick).toBeUndefined();
+  });
+
   it('shows a child count on the rows below an aggregate fold', () => {
     const col = { isAggregateCol: true, level: 0, value: 'Ops', sortKeys: ['Ops'], childCounts: [0, 5] };
     const cell = computeGroupingCell({ col, rowIdx: 1, span, onToggleCollapse: vi.fn() });

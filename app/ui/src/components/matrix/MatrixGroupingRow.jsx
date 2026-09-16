@@ -1,6 +1,6 @@
 import { attributeLabel, friendlyLabel } from '@ui/utils/formatters';
 import MatrixGroupingCell from './MatrixGroupingCell';
-import MatrixApBandCell from './MatrixApBandCell';
+import MatrixHeaderRowTail from './MatrixHeaderRowTail';
 
 // One merged header row for a single sort attribute: a corner cell spanning the
 // info columns, one grouping cell per span, the access-package band placeholders
@@ -36,15 +36,8 @@ export default function MatrixGroupingRow({
         />
       ))}
 
-      {/* Access Package color bands — placeholders on the attribute rows. */}
-      {accessPackages.map((ap, idx) => (
-        <MatrixApBandCell key={ap.id} accessPackages={accessPackages} idx={idx} isDark={isDark} />
-      ))}
-
-      {/* Right metadata column placeholders (#, Type, Description) */}
-      <th className="border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800" style={{ minWidth: '40px' }} />
-      <th className="border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800" style={{ minWidth: '180px' }} />
-      <th className="border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800" style={{ minWidth: '500px' }} />
+      {/* Access-package band placeholders + right metadata placeholders (#, Type, Description). */}
+      <MatrixHeaderRowTail accessPackages={accessPackages} isDark={isDark} />
     </tr>
   );
 }

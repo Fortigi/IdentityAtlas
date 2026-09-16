@@ -652,7 +652,8 @@ describe('MatrixView (mounted)', () => {
     renderView({ filter: { ...baseFilter, sortAttributes: [{ attribute: 'department', dir: 'desc' }] } });
     const user = userEvent.setup();
     await expectRowVisible('Finance App');
-    await user.click(screen.getByTitle('Collapse Sales into one column'));
+    // A small matrix gets the cross-table header, where each group is a real button.
+    await user.click(screen.getByRole('button', { name: 'Collapse Sales into one column' }));
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Fold all columns' })).toHaveAttribute('aria-pressed', 'mixed'));
   });

@@ -61,7 +61,7 @@ export function spanState(col, rowIdx) {
 function spanClick(s, collapsible, col, rowIdx, onToggleCollapse, onToggleMembers) {
   if (s.memberOwn && onToggleMembers) return () => onToggleMembers(col.sortKeys, col.memberLevel);
   if (collapsible) return () => onToggleCollapse(col.sortKeys, rowIdx);
-  if (s.aggHere) return () => onToggleCollapse(col.sortKeys, col.level);
+  if (s.aggHere && onToggleCollapse) return () => onToggleCollapse(col.sortKeys, col.level);
   return undefined;
 }
 
