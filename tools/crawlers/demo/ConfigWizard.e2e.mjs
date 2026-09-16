@@ -9,6 +9,8 @@
 // Requires the full Docker stack (USE_SQL=true + worker). Skipped in mock mode.
 
 const API = 'http://localhost:3001/api';
+// The API refuses a database wipe without this explicit confirmation body.
+const CLEAN_DATABASE_CONFIRM = { confirm: 'DELETE ALL DATA' };
 
 /** @param {import('@playwright/test').TestType} test @param {import('@playwright/test').Expect} expect */
 export function register(test, expect) {
@@ -19,7 +21,7 @@ export function register(test, expect) {
       // The reload below polls for up to 2 minutes; without this the hook runs under
       // the default 30 s timeout and fails whenever the demo import takes longer.
       test.setTimeout(150000);
-      const cleanRes = await request.post(`${API}/admin/clean-database`);
+      const cleanRes = await request.post(`${API}/admin/clean-database`, { data: CLEAN_DATABASE_CONFIRM });
       if (!cleanRes.ok()) return; // mock mode — nothing to restore
       const jobRes = await request.post(`${API}/admin/crawler-jobs`, { data: { jobType: 'demo' } });
       if (!jobRes.ok()) return;
@@ -36,7 +38,7 @@ export function register(test, expect) {
     test('matrix renders without error after importing demo data from empty DB', async ({ page, request }) => {
       test.setTimeout(180000); // demo import + polling can take up to 2 min
       // Only runs against the Docker stack — clean-database requires USE_SQL=true.
-      const cleanRes = await request.post(`${API}/admin/clean-database`);
+      const cleanRes = await request.post(`${API}/admin/clean-database`, { data: CLEAN_DATABASE_CONFIRM });
       if (cleanRes.status() === 503) {
         test.skip(true, 'clean-database not available in mock mode — skipping Docker-only test');
         return;

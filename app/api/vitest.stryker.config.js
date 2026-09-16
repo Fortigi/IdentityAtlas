@@ -36,6 +36,9 @@ export default defineConfig({
       // and vault; files only under os.tmpdir(), which exists inside the sandbox.
       'src/secrets/masterKeyStore.test.js',
       'src/config/fileSecrets.test.js',
+      'src/middleware/requestOriginGuard.test.js',
+      'src/middleware/rateLimitKeys.test.js',
+      'src/middleware/crawlerAuthFailureLimiter.test.js',
     ],
     exclude: ['**/node_modules/**'],
     coverage: { ...base.test.coverage, thresholds: undefined },

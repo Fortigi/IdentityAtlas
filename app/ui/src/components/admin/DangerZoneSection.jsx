@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { WarningIcon } from './adminIcons';
+
+// Must match CLEAN_DATABASE_CONFIRMATION in app/api/src/routes/admin/maintenance.js.
+const CLEAN_DATABASE_CONFIRMATION = 'DELETE ALL DATA';
 export default function DangerZoneSection({ onRefresh }) {
   const { authFetch } = useAuth();
   const [confirmStep, setConfirmStep] = useState(0); // 0=idle, 1=confirm, 2=type-confirm
@@ -13,7 +16,12 @@ export default function DangerZoneSection({ onRefresh }) {
     setCleaning(true);
     setError(null);
     try {
-      const r = await authFetch('/api/admin/clean-database', { method: 'POST' });
+      // The API refuses the wipe without this explicit confirmation body.
+      const r = await authFetch('/api/admin/clean-database', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: CLEAN_DATABASE_CONFIRMATION }),
+      });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
         throw new Error(err.error || `HTTP ${r.status}`);
@@ -119,13 +127,13 @@ export default function DangerZoneSection({ onRefresh }) {
               type="text"
               value={typedConfirm}
               onChange={e => setTypedConfirm(e.target.value)}
-              placeholder="DELETE ALL DATA"
+              placeholder={CLEAN_DATABASE_CONFIRMATION}
               className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded mb-3 text-sm font-mono dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
             />
             <div className="flex gap-2">
               <button
                 onClick={handleClean}
-                disabled={cleaning || typedConfirm !== 'DELETE ALL DATA'}
+                disabled={cleaning || typedConfirm !== CLEAN_DATABASE_CONFIRMATION}
                 className="px-3 py-1.5 bg-red-600 text-white rounded text-sm hover:bg-red-700 disabled:opacity-50"
               >
                 {cleaning ? 'Cleaning...' : 'Clean Database'}
