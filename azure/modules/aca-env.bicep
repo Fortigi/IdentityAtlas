@@ -26,6 +26,9 @@ param storageAccountName string
 @description('File share name')
 param uploadsShareName string
 
+@description('Private network mode: /23 subnet for the environment. Empty = no VNet (public mode). The VNet of an existing environment cannot be changed, so this is for new deployments only.')
+param infrastructureSubnetId string = ''
+
 // Reference the LA workspace + storage account so we can read their secrets
 // locally via listKeys(), instead of receiving them as params/outputs (outputs
 // persist in ARM deployment history — audit H-1). Same deploy principal as the
@@ -50,7 +53,9 @@ resource stg 'Microsoft.Storage/storageAccounts@2024-01-01' existing = {
 resource env 'Microsoft.App/managedEnvironments@2024-10-02-preview' = {
   name: '${namePrefix}-cae'
   location: location
-  properties: {
+  // vnetConfiguration is added only in the private network mode, so the public
+  // shape sends exactly the same properties as before.
+  properties: union({
     appLogsConfiguration: {
       destination: 'log-analytics'
       logAnalyticsConfiguration: {
@@ -58,7 +63,14 @@ resource env 'Microsoft.App/managedEnvironments@2024-10-02-preview' = {
         sharedKey: law.listKeys().primarySharedKey
       }
     }
-  }
+  }, empty(infrastructureSubnetId) ? {} : {
+    // Consumption-only environment inside the given subnet; still has public
+    // outbound access, and no ingress is exposed (the worker has none).
+    vnetConfiguration: {
+      infrastructureSubnetId: infrastructureSubnetId
+      internal: false
+    }
+  })
 }
 
 resource uploadsStorage 'Microsoft.App/managedEnvironments/storages@2024-10-02-preview' = {
