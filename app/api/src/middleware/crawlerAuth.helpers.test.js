@@ -73,20 +73,26 @@ describe('expiryDenial', () => {
 
 describe('effectiveRateLimit', () => {
   it('defaults to 100 when no limit is configured', () => {
-    expect(effectiveRateLimit(0, 'Ext')).toBe(100);
-    expect(effectiveRateLimit(undefined, 'Ext')).toBe(100);
+    expect(effectiveRateLimit(0, false)).toBe(100);
+    expect(effectiveRateLimit(undefined, false)).toBe(100);
   });
 
   it('keeps an external crawler configured limit', () => {
-    expect(effectiveRateLimit(250, 'Ext')).toBe(250);
+    expect(effectiveRateLimit(250, false)).toBe(250);
   });
 
   it('floors the built-in worker at 2000', () => {
-    expect(effectiveRateLimit(100, 'Built-in Worker')).toBe(2000);
-    expect(effectiveRateLimit(undefined, 'Built-in Worker')).toBe(2000);
+    expect(effectiveRateLimit(100, true)).toBe(2000);
+    expect(effectiveRateLimit(undefined, true)).toBe(2000);
   });
 
   it('lets the built-in worker exceed the floor', () => {
-    expect(effectiveRateLimit(5000, 'Built-in Worker')).toBe(5000);
+    expect(effectiveRateLimit(5000, true)).toBe(5000);
+  });
+
+  // SEC-2026-09 M-06: privilege follows the bootstrap-owned flag, not the name.
+  it('does not treat a crawler merely named "Built-in Worker" as the worker', () => {
+    expect(effectiveRateLimit(100, 'Built-in Worker')).toBe(100);
+    expect(effectiveRateLimit(100, undefined)).toBe(100);
   });
 });

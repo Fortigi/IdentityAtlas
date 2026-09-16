@@ -30,10 +30,12 @@ export GIT_CONFIG_KEY_1=core.fsmonitor GIT_CONFIG_VALUE_1=false
 # Exporting a variable AFTER exec does not appear there. So the workflow stages GH_TOKEN/BOARD_TOKEN
 # in DOR_CRED_DIR in an earlier step, and the flow takes them into its memory and deletes the files
 # before any agent runs. Without DOR_CRED_DIR (a direct invocation, the tests) env tokens are used.
+# `board-minted-at` is not a secret: it is when BOARD_TOKEN was minted (epoch seconds), which is how
+# the flow knows to checkpoint before the token's 1h life runs out (dor_token_checkpoint.sh).
 load_flow_credentials() {
   local dir="${DOR_CRED_DIR:-}" pair name file value
   [ -n "$dir" ] || return 0
-  for pair in GH_TOKEN:gh BOARD_TOKEN:board; do
+  for pair in GH_TOKEN:gh BOARD_TOKEN:board BOARD_TOKEN_MINTED_AT:board-minted-at; do
     name="${pair%%:*}"; file="$dir/${pair#*:}"
     [ -f "$file" ] || continue
     value=""

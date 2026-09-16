@@ -313,13 +313,17 @@ paths:
       responses:
         '201':
           description: Crawler created with one-time API key
+        '400':
+          description: Missing displayName or permissions outside the allowed set
 
   /admin/crawlers/{id}:
     patch:
       tags: [Admin]
       summary: Update crawler
       operationId: updateCrawler
-      description: Update a crawler's metadata, permissions, or system scope.
+      description: >-
+        Update a crawler's metadata, permissions, or system scope. The built-in
+        worker crawler only accepts description and rateLimit changes.
       security:
         - EntraIdBearer: []
       parameters:
@@ -331,11 +335,19 @@ paths:
       responses:
         '200':
           description: Updated
+        '400':
+          description: Permissions outside the allowed set
+        '403':
+          description: The built-in worker crawler cannot be changed this way
+        '404':
+          description: Crawler not found
     delete:
       tags: [Admin]
       summary: Disable crawler
       operationId: disableCrawler
-      description: Disable a crawler (soft delete; its API key stops working).
+      description: >-
+        Disable a crawler (soft delete; its API key stops working). The built-in
+        worker crawler cannot be disabled or deleted.
       security:
         - EntraIdBearer: []
       parameters:
@@ -347,6 +359,10 @@ paths:
       responses:
         '200':
           description: Disabled
+        '403':
+          description: The built-in worker crawler cannot be disabled or deleted
+        '404':
+          description: Crawler not found
 
   /admin/crawlers/{id}/reset:
     post:
@@ -800,9 +816,15 @@ components:
           description: Allowed system IDs (null = all)
         permissions:
           type: array
+          minItems: 1
           items:
             type: string
+            enum: [ingest, refreshViews]
           default: [ingest]
+          description: >-
+            Crawler permissions. Only ingest and refreshViews can be granted
+            through the API; the worker-class admin permission belongs to the
+            built-in worker alone.
         rateLimit:
           type: integer
           default: 100
