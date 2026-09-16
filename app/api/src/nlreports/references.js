@@ -18,6 +18,7 @@
 
 import { ENTITIES } from './catalog.js';
 import { baseEntityOf, humanType } from './compare.js';
+import { likeContains } from '../db/sqlParams.js';
 
 const TYPE_COLUMN = { Resources: 'resourceType', Principals: 'principalType' };
 const MIN_SIMILARITY = 0.25;
@@ -25,7 +26,6 @@ const MIN_WORD_SIMILARITY = 0.6;
 const MAX_CHOICES = 5;
 
 const typeSelect = (entity, t) => (TYPE_COLUMN[entity.table] ? `${t}."${TYPE_COLUMN[entity.table]}"` : 'NULL');
-const escapeLike = (s) => s.replace(/[\\%_]/g, (m) => `\\${m}`);
 
 export const normalizeName = (s) => String(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 
@@ -53,11 +53,11 @@ async function fuzzyMatches(query, entityName, name) {
     `SELECT ${t}."id", ${t}."displayName", ${typeSelect(entity, t)} AS type,
        round((similarity(${dn}, lower($1)) * 0.6 + word_similarity(lower($1), ${dn}) * 0.4)::numeric, 2) AS score
      FROM "${entity.table}" ${t}
-     WHERE ${entity.where(t)} AND (${t}."displayName" ILIKE $2
+     WHERE ${entity.where(t)} AND (${t}."displayName" ILIKE $2 ESCAPE '\\'
        OR similarity(${dn}, lower($1)) >= ${MIN_SIMILARITY}
        OR word_similarity(lower($1), ${dn}) >= ${MIN_WORD_SIMILARITY})
      ORDER BY score DESC, ${t}."displayName" LIMIT ${MAX_CHOICES}`,
-    [name, `%${escapeLike(name)}%`],
+    [name, likeContains(name)],
   );
   return rows.map(r => ({ id: r.id, name: r.displayName, type: r.type, score: Number(r.score) }));
 }

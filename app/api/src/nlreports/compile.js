@@ -6,16 +6,13 @@
 // yields the same SQL, which is what makes a saved report trustworthy.
 
 import { ENTITIES } from './catalog.js';
+import { likeContains, likeEndsWith, likeStartsWith } from '../db/sqlParams.js';
 import { resolveColumn } from './spec.js';
 import {
   COMPARE_COLUMNS, compareColumnLabel, compareColumnSql, compareConditions, comparePredicate,
 } from './compare.js';
 
 const CAST = { number: '::numeric', boolean: '::boolean', date: '', text: '', enum: '' };
-
-function escapeLike(s) {
-  return String(s).replace(/[\\%_]/g, (m) => `\\${m}`);
-}
 
 function createContext() {
   let n = 0;
@@ -41,10 +38,12 @@ function fieldPredicate(field, expr, op, value, ctx) {
       return field.type === 'text'
         ? `(${expr} IS NULL OR lower(${expr}) <> lower(${ctx.param(value)}))`
         : `(${expr} IS NULL OR ${expr} <> ${ctx.param(value)}${cast})`;
-    case 'contains': return `${expr} ILIKE ${ctx.param(`%${escapeLike(value)}%`)}`;
-    case 'notContains': return `(${expr} IS NULL OR ${expr} NOT ILIKE ${ctx.param(`%${escapeLike(value)}%`)})`;
-    case 'startsWith': return `${expr} ILIKE ${ctx.param(`${escapeLike(value)}%`)}`;
-    case 'endsWith': return `${expr} ILIKE ${ctx.param(`%${escapeLike(value)}`)}`;
+    // ESCAPE '\\' + the shared like* helpers: a value containing % or _ matches
+    // literally (routes/likeAudit.test.js enforces this across src/).
+    case 'contains': return `${expr} ILIKE ${ctx.param(likeContains(value))} ESCAPE '\\'`;
+    case 'notContains': return `(${expr} IS NULL OR ${expr} NOT ILIKE ${ctx.param(likeContains(value))} ESCAPE '\\')`;
+    case 'startsWith': return `${expr} ILIKE ${ctx.param(likeStartsWith(value))} ESCAPE '\\'`;
+    case 'endsWith': return `${expr} ILIKE ${ctx.param(likeEndsWith(value))} ESCAPE '\\'`;
     case 'isEmpty': return isText ? `(${expr} IS NULL OR ${expr} = '')` : `${expr} IS NULL`;
     case 'isNotEmpty': return isText ? `(${expr} IS NOT NULL AND ${expr} <> '')` : `${expr} IS NOT NULL`;
     case 'gt': return `${expr} > ${ctx.param(value)}::numeric`;

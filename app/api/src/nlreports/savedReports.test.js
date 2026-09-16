@@ -17,7 +17,13 @@ const ID = '3f1c2a9e-6b1d-4c2e-9a7b-1234567890ab';
 const DEFINITION = { entity: 'user', conditions: [{ field: 'userType', op: 'eq', value: 'guest' }], columns: ['displayName'] };
 const ROW = { id: ID, name: 'Guests', description: null, definition: DEFINITION, question: 'all guests' };
 
-beforeEach(() => { query.mockReset(); queryOne.mockReset(); });
+beforeEach(() => {
+  query.mockReset();
+  queryOne.mockReset();
+  // Custom reports are experimental: the report source only answers while the
+  // flag is on (USE_SQL is off in unit tests, so the env default decides).
+  process.env.FEATURE_CUSTOM_REPORTS = 'true';
+});
 
 describe('prepareSavedReport', () => {
   it('trims, normalises the definition and drops empty optional text', async () => {
@@ -79,6 +85,14 @@ describe('saved reports in the report registry', () => {
   it('a saved report that no longer validates fails loudly when run', async () => {
     runSpec.mockResolvedValueOnce({ ok: false, errors: ['"gone" is not a field of user'] });
     await expect(toReportTemplate(ROW).run()).rejects.toThrow(/no longer validates/);
+  });
+
+  it('is invisible while the feature is switched off', async () => {
+    process.env.FEATURE_CUSTOM_REPORTS = 'false';
+    query.mockResolvedValueOnce({ rows: [ROW] });
+    expect((await listAllReports()).map(r => r.name)).not.toContain(`custom-${ID}`);
+    queryOne.mockResolvedValueOnce(ROW);
+    expect(await resolveReport(`custom-${ID}`)).toBeNull();
   });
 
   it('is listed next to the built-ins and resolved by name', async () => {
