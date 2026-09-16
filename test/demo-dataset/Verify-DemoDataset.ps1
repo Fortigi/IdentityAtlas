@@ -85,7 +85,7 @@ function Invoke-RowCountChecks {
         'Systems'                = @{ Min = 5;  Max = 5 }   # EntraID + HR + IGA + SAP + AzureRM (#705)
         'Principals'             = @{ Min = 49; Max = 49 }  # 26 employees + 5 edge cases + IGA acct + 10 SAP + 3 app SPs + 4 audit cast (2 guests, 1 disabled admin, 1 second admin account)
         'Resources'              = @{ Min = 47; Max = 47 }  # Entra 10 + ownership 3 + business roles 7 + Sales 4 + role drift 3 + shared grants 2 + consent 4 + SAP 4 + Azure 9 + 1 empty group
-        'ResourceAssignments'    = @{ Min = 181; Max = 181 }
+        'ResourceAssignments'    = @{ Min = 180; Max = 180 }
         'ResourceRelationships'  = @{ Min = 27; Max = 27 }  # 21 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope
         'Identities'             = @{ Min = 27; Max = 27 }  # 26 employees + the leaver
         'IdentityMembers'        = @{ Min = 39; Max = 39 }  # 27 Entra + 1 IGA + 10 SAP + the CTO's second admin account

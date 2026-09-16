@@ -190,13 +190,20 @@ Invoke-IngestPost -Endpoint 'ingest/governance/policies' -Records $dataset.assig
 Write-Host "[12/13] Certification Decisions ($($dataset.certificationDecisions.Count))..." -ForegroundColor Cyan
 Invoke-IngestPost -Endpoint 'ingest/governance/certifications' -Records $dataset.certificationDecisions -SystemId $sysIga -SyncMode 'full' | Out-Null
 
-# 13. Principal activity. No systemId: PrincipalActivity has no systemId column
-# (activity belongs to the principal, whichever system that principal came
-# from), and the endpoint reconciles the whole table by key. Posted last because
-# every row references a principal.
+# 13. Principal activity. The table has no systemId column, but every ingest
+# envelope requires one — so each row goes up under the system of the principal
+# it belongs to. Delta, exactly as the Entra crawler sends it: an activity
+# snapshot is an upsert, never a reconcile that could drop other rows. Posted
+# last because every row references a principal.
 Write-Host "[13/13] Principal Activity ($($dataset.principalActivity.Count))..." -ForegroundColor Cyan
-if ($dataset.principalActivity.Count -gt 0) {
-    Invoke-IngestPost -Endpoint 'ingest/principal-activity' -Records $dataset.principalActivity -SyncMode 'full' | Out-Null
+$systemOfPrincipal = @{}
+foreach ($p in $dataset.principals) { $systemOfPrincipal[$p.id] = [int]$p.systemId }
+foreach ($g in @($dataset.principalActivity | Group-Object -Property { $systemOfPrincipal[$_.principalId] })) {
+    if (-not $g.Name) {
+        throw "Principal activity references principal(s) not in the dataset: $(($g.Group.principalId | Select-Object -Unique) -join ', ')"
+    }
+    Write-Host "  activity — system $($g.Name): $($g.Count) record(s)" -ForegroundColor DarkGray
+    Invoke-IngestPost -Endpoint 'ingest/principal-activity' -Records $g.Group -SystemId ([int]$g.Name) -SyncMode 'delta' | Out-Null
 }
 
 # Refresh views

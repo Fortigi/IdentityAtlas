@@ -199,9 +199,9 @@ function Add-DemoAuditCast {
 
     # ── Disabled, but still entitled ─────────────────────────────────────────
     # The leaver kept his access: disabling blocked his sign-in and stripped
-    # nothing, which is the finding.
+    # nothing, which is the finding. Not SG-VPN-Access: the role-drift scenario
+    # (#370) pins exactly two VPN holders outside BR-Engineering-Tools.
     Add-DemoAssignment $State -ResourceId $res.AllEmp -PrincipalId $State.EdgeCaseIds.Disabled -AssignmentType 'Direct'
-    Add-DemoAssignment $State -ResourceId $res.VPN    -PrincipalId $State.EdgeCaseIds.Disabled -AssignmentType 'Direct'
 
     $disabledAdmin = New-DemoGuid 'principal-ADM-002'
     $null = Add-DemoPrincipal $State -Record @{
