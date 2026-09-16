@@ -41,17 +41,37 @@ async function ok(method, path, body) {
   return r.json;
 }
 
-/** The model the server was started with (its --alias). */
-export async function servedModel() {
+async function firstModel() {
   const j = await ok('GET', '/v1/models');
   const m = (j.data || j.models || [])[0];
   if (!m) throw new Error('LLM server reports no model');
+  return m;
+}
+
+/** The model the server was started with (its --alias). */
+export async function servedModel() {
+  const m = await firstModel();
   return m.id || m.name || m.model;
 }
 
+/**
+ * The model, and whether it is in memory right now. The report generator's
+ * supervisor answers this without loading the model and says `loaded: false` while
+ * it is unloaded; a plain llama-server does not say, and is loaded by definition.
+ */
 export async function listModels() {
-  const name = await servedModel();
-  return [{ name, loaded: true }];
+  const m = await firstModel();
+  return [{ name: m.id || m.name || m.model, loaded: m.loaded !== false }];
+}
+
+/**
+ * 'unloaded' | 'starting' | 'ready', from the supervisor's /health — which never
+ * wakes the model. A server that does not report it (plain llama-server) is 'ready'.
+ */
+export async function modelState() {
+  const r = await call('GET', '/health');
+  const state = r.json?.model;
+  return ['unloaded', 'starting', 'ready'].includes(state) ? state : 'ready';
 }
 
 /**

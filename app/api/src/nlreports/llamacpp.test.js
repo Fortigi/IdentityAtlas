@@ -105,6 +105,28 @@ describe('llama.cpp client', () => {
     expect(await serverFingerprint()).not.toBe(base);
   });
 
+  it('reads from the supervisor whether the model is in memory, without waking it', async () => {
+    const { listModels, modelState } = await client();
+    // Plain llama-server: no loaded flag, no model state — it is loaded, it is ready.
+    routes['GET /health'] = () => [200, { status: 'ok' }];
+    expect(await listModels()).toEqual([{ name: 'qwen3-4b-instruct', loaded: true }]);
+    expect(await modelState()).toBe('ready');
+
+    // The supervisor, with the model unloaded, then starting.
+    routes['GET /v1/models'] = () => [200, { data: [{ id: 'qwen3-4b-instruct', loaded: false, state: 'unloaded' }] }];
+    routes['GET /health'] = () => [200, { status: 'ok', model: 'unloaded' }];
+    expect(await listModels()).toEqual([{ name: 'qwen3-4b-instruct', loaded: false }]);
+    expect(await modelState()).toBe('unloaded');
+    routes['GET /health'] = () => [200, { status: 'ok', model: 'starting' }];
+    expect(await modelState()).toBe('starting');
+    // Neither question may reach anything that loads the model.
+    expect(calls.map(c => c.url)).not.toContain('/props');
+
+    // An unrecognised answer is not trusted as a state.
+    routes['GET /health'] = () => [200, { status: 'ok', model: 'exploded' }];
+    expect(await modelState()).toBe('ready');
+  });
+
   it('surfaces server errors and a server without a model', async () => {
     routes['POST /v1/chat/completions'] = () => [500, { error: { message: 'context size exceeded' } }];
     routes['GET /v1/models'] = () => [200, { data: [] }];

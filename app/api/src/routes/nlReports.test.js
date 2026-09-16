@@ -12,6 +12,7 @@ vi.mock('../nlreports/service.js', () => ({
 }));
 vi.mock('../nlreports/llm.js', () => ({
   listModels: vi.fn(async () => [{ name: 'test-model', loaded: true }]),
+  modelState: vi.fn(async () => 'ready'),
   MODEL_IS_FIXED: true,
 }));
 vi.mock('../nlreports/settings.js', () => ({
@@ -32,6 +33,7 @@ vi.mock('../nlreports/savedReports.js', () => ({
 }));
 
 import { interpret, runSpec, ensureWarm } from '../nlreports/service.js';
+import { modelState } from '../nlreports/llm.js';
 import { applyChoice, resolveNamedObjects } from '../nlreports/references.js';
 import { createSavedReport, deleteSavedReport, prepareSavedReport } from '../nlreports/savedReports.js';
 import router from './nlReports.js';
@@ -176,6 +178,22 @@ describe('warm-up', () => {
     const res = await api().post('/api/nl-reports/warm').send({});
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ state: 'preparing' });
+  }, 10000);
+
+  it('says the model is being loaded — not preparing its cache — while the server reports it starting', async () => {
+    // Loading takes seconds and happens every time the model was unloaded; preparing
+    // the cache takes minutes, once per release. Telling them apart is what lets the
+    // builder show an honest wait.
+    ensureWarm.mockReturnValue({ state: 'warming', promise: new Promise(() => {}) });
+    modelState.mockResolvedValueOnce('starting');
+    const res = await api().post('/api/nl-reports/warm').send({});
+    expect(res.body).toMatchObject({ state: 'starting', message: expect.stringMatching(/being loaded/) });
+  }, 10000);
+
+  it('falls back to preparing when the server cannot say what it is doing', async () => {
+    ensureWarm.mockReturnValue({ state: 'warming', promise: new Promise(() => {}) });
+    modelState.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    expect((await api().post('/api/nl-reports/warm').send({})).body).toMatchObject({ state: 'preparing' });
   }, 10000);
 
   it('reports the result once it is ready, and ignores the retired force flag', async () => {

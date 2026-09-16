@@ -66,17 +66,30 @@ ENV LLAMA_ARG_THREADS=2
 #   --slot-save-path  where the processed system prompt is saved and restored
 #   --no-slots        turns OFF the slots monitoring endpoint, which would let a
 #                     caller read the current prompt. Save/restore still work.
+#
+# The model is loaded ONLY WHILE IT IS USED. llama-server holds ~3 GB it cannot give
+# back for as long as it runs, so it is not the container's main process: the
+# supervisor is. The supervisor listens on 8080, starts llama-server (bound to
+# 127.0.0.1:8081, unreachable from outside the container) on the first request that
+# needs it, passes every request through unchanged, and stops it after
+# REPORT_GENERATOR_IDLE_SECONDS without use. 0 keeps the model loaded from boot.
+# The supervisor checks the API key before it starts anything, and needs no
+# privileges — it only starts and stops its own child. Python is already in the
+# base image; the supervisor uses nothing but its standard library.
+COPY setup/docker/report-generator/supervisor.py /app/supervisor.py
+ENV REPORT_GENERATOR_IDLE_SECONDS=900
+
 EXPOSE 8080
-HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=5 \
+# /health is answered by the supervisor, so an unloaded model is still a healthy container.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
   CMD ["/bin/sh", "-c", "curl -fsS -o /dev/null http://127.0.0.1:8080/health || exit 1"]
 
 USER 1000
-ENTRYPOINT ["/app/llama-server"]
-CMD ["-m", "/models/model.gguf", \
+ENTRYPOINT ["python3", "/app/supervisor.py"]
+CMD ["/app/llama-server", \
+     "-m", "/models/model.gguf", \
      "--alias", "qwen3:4b-instruct-2507-q4_K_M", \
      "-c", "8192", \
      "-np", "1", \
-     "--host", "0.0.0.0", \
-     "--port", "8080", \
      "--slot-save-path", "/slots", \
      "--no-slots"]

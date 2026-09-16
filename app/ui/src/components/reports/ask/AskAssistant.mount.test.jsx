@@ -139,6 +139,32 @@ describe('AskAssistant', () => {
     await waitFor(() => expect(bodiesFor(authFetch, '/nl-reports/interpret')).toHaveLength(1));
   });
 
+  it('loads an unloaded model as soon as the builder opens, shows the wait, and clears it once loaded', async () => {
+    // The model is unloaded after a while unused, so opening the builder is what
+    // brings it back. The first answers say it is loading; then it is ready.
+    const answers = [{ state: 'starting' }, { state: 'starting' }, { state: 'ready', model: 'm', ms: 9000, restored: true }];
+    const { authFetch } = renderAsk({
+      status: { ...READY_STATUS, loaded: false, promptCache: 'ready' },
+      warm: () => answers.shift() ?? { state: 'ready' },
+    });
+
+    expect(await screen.findByText(/loading the model into memory — usually under a minute… \d+s/)).toBeInTheDocument();
+    // Not the minutes-long cache message: this wait is seconds.
+    expect(screen.queryByText(/preparing its prompt cache/)).not.toBeInTheDocument();
+
+    // It polls quickly while loading (every 2 s), and the message goes once it is in.
+    await waitFor(() => expect(screen.queryByText(/loading the model/)).not.toBeInTheDocument(), { timeout: 8000 });
+    expect(bodiesFor(authFetch, '/nl-reports/warm')).toHaveLength(3);
+  }, 15000);
+
+  it('does not load the model when it is already in memory', async () => {
+    const { authFetch } = renderAsk({ status: { ...READY_STATUS, loaded: true, promptCache: 'ready' } });
+    await screen.findByRole('button', { name: 'Generate' });
+    expect(screen.queryByText(/loading the model/)).not.toBeInTheDocument();
+    // One cheap warm call still re-checks the cache; it never shows a wait.
+    await waitFor(() => expect(bodiesFor(authFetch, '/nl-reports/warm').length).toBeLessThanOrEqual(1));
+  });
+
   it('says the model server did not respond when warming it up fails', async () => {
     renderAsk({ warm: jsonResponse({ error: 'The local model server is not reachable or failed.' }, { ok: false, status: 502 }) });
 

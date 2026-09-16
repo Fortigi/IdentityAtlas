@@ -49,6 +49,28 @@ describe('report-generator container start-up', () => {
     expect(read(DOCKERFILE)).toMatch(/"--no-slots"/);
   });
 
+  it('runs the supervisor as the main process, and never exposes llama-server itself', () => {
+    const dockerfile = withoutComments(read(DOCKERFILE));
+    // The supervisor loads the model on demand and checks the API key before it
+    // starts anything; llama-server behind it must only be reachable from inside.
+    expect(dockerfile).toMatch(/^COPY setup\/docker\/report-generator\/supervisor\.py \/app\/supervisor\.py$/m);
+    expect(dockerfile).toMatch(/^ENTRYPOINT \["python3", "\/app\/supervisor\.py"\]$/m);
+    expect(dockerfile, 'llama-server must not be given a host/port: the supervisor binds it to loopback')
+      .not.toMatch(/"--host"|"--port"/);
+    expect(read('setup/docker/report-generator/supervisor.py')).toMatch(/^CHILD_HOST = "127\.0\.0\.1"$/m);
+  });
+
+  it('runs the supervisor tests in CI, since they are Python and outside both test suites', () => {
+    expect(read('.github/workflows/pr.yml')).toMatch(/python3 -m pytest setup\/docker\/report-generator\/test_supervisor\.py/);
+  });
+
+  it('lets a deployment choose how long an unused model stays loaded', () => {
+    expect(read(DOCKERFILE)).toMatch(/^ENV REPORT_GENERATOR_IDLE_SECONDS=\d+$/m);
+    for (const file of ['docker-compose.prod.yml', 'docker-compose.nl-reports.yml']) {
+      expect(read(file), file).toMatch(/REPORT_GENERATOR_IDLE_SECONDS: "\$\{REPORT_GENERATOR_IDLE_SECONDS:-\d+\}"/);
+    }
+  });
+
   it('never spells the api key LLAMA_ARG_API_KEY, in any deployment file', () => {
     for (const file of [DOCKERFILE, BICEP, ARM, 'docker-compose.prod.yml', 'docker-compose.nl-reports.yml']) {
       expect(withoutComments(read(file)), `${file} must not use LLAMA_ARG_API_KEY — llama-server ignores it`)

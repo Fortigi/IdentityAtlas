@@ -27,7 +27,7 @@ import { requireFeature } from '../featureFlags.js';
 import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE } from '../nlreports/catalog.js';
 import { availableColumns } from '../nlreports/spec.js';
 import { ensureWarm, interpret, loadValues, runSpec, warmupState } from '../nlreports/service.js';
-import { MODEL_IS_FIXED, listModels } from '../nlreports/llm.js';
+import { MODEL_IS_FIXED, listModels, modelState } from '../nlreports/llm.js';
 import { getReportModel, setReportModel } from '../nlreports/settings.js';
 import { MEASURES, manyRelationsOf } from '../nlreports/compare.js';
 import { applyChoice, resolveNamedObjects, searchNames } from '../nlreports/references.js';
@@ -133,6 +133,12 @@ router.post('/nl-reports/warm', analystGate, async (req, res) => {
     ]);
     if (ready) return res.json({ ...ready, state: 'ready' });
     if (warmupState() === 'failed') return fail(res, 'warm', new Error('the model server did not answer'), 502);
+    // Two different waits look the same from here: the model loading into memory
+    // (seconds, every time it has been unloaded) and the one-off prompt-cache
+    // preparation after an install or update (minutes). The server knows which.
+    if (await modelState().catch(() => 'ready') === 'starting') {
+      return res.json({ state: 'starting', message: 'The model is being loaded. This usually takes less than a minute.' });
+    }
     res.json({ state: 'preparing', message: 'The model is preparing its prompt cache. The first time after an install or update this takes a few minutes; questions asked now will be slow.' });
   } catch (err) {
     fail(res, 'warm', err, 502);

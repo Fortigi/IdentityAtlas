@@ -110,7 +110,8 @@ export default function AskAssistant({ currentSpec, onReport }) {
   const [history, setHistory] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const elapsed = useElapsed(busy || warm === 'warming' || warm === 'preparing');
+  const loading = warm === 'warming' || warm === 'starting' || warm === 'preparing';
+  const elapsed = useElapsed(busy || loading);
   const warmed = useRef(false);
   const lastQuestion = useRef('');
 
@@ -120,11 +121,17 @@ export default function AskAssistant({ currentSpec, onReport }) {
     if (!status?.available || warmed.current) return;
     warmed.current = true;
     setWarm(status.loaded && status.promptCache === 'ready' ? 'ready' : 'warming');
-    // The first warm-up after an install or update prepares the prompt cache and can
-    // take minutes; the API answers 'preparing' straight away, so poll until it is done.
+    // Two waits, told apart by the server: loading the model into memory ('starting',
+    // seconds — it is unloaded after a while unused) and the one-off prompt-cache
+    // preparation after an install or update ('preparing', minutes). Poll until done;
+    // quickly while loading, so the page flips to ready as soon as the model is in.
     const poll = () => postJson(authFetch, '/api/nl-reports/warm', {})
       .then((r) => {
-        if (r.state === 'preparing') { setWarm('preparing'); setTimeout(poll, 10000); return; }
+        if (r.state === 'starting' || r.state === 'preparing') {
+          setWarm(r.state);
+          setTimeout(poll, r.state === 'starting' ? 2000 : 10000);
+          return;
+        }
         setWarm('ready');
       })
       .catch(() => setWarm('error'));
@@ -199,7 +206,7 @@ export default function AskAssistant({ currentSpec, onReport }) {
           {turns.map((t, i) => <Turn key={i} turn={t} busy={busy} isLast={i === turns.length - 1} onAnswer={ask} onConfirm={confirmChoice} />)}
         </div>
       )}
-      {busy && <p className={MUTED} aria-live="polite">Thinking… {elapsed}s{warm === 'warming' || warm === 'preparing' ? ' (the model is still warming up)' : ''}</p>}
+      {busy && <p className={MUTED} aria-live="polite">Thinking… {elapsed}s{loading ? ' (the model is still loading)' : ''}</p>}
       {error && <p className="text-sm text-red-700 dark:text-red-300" role="alert">{error}</p>}
 
       <form className="space-y-2" onSubmit={e => { e.preventDefault(); ask(input); }}>
@@ -214,7 +221,8 @@ export default function AskAssistant({ currentSpec, onReport }) {
         <div className="flex flex-wrap items-center gap-2">
           <button type="submit" className={PRIMARY} disabled={busy || !input.trim()}>{currentSpec ? 'Update' : 'Generate'}</button>
           <span className={MUTED} aria-live="polite">
-            {warm === 'warming' && `model warming up… ${elapsed}s`}
+            {warm === 'warming' && `loading the model… ${elapsed}s`}
+            {warm === 'starting' && `loading the model into memory — usually under a minute… ${elapsed}s`}
             {warm === 'preparing' && `the model is preparing its prompt cache (first time after an update) — questions work but are slow… ${elapsed}s`}
             {warm === 'error' && 'model server did not respond'}
           </span>

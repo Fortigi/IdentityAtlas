@@ -31,6 +31,9 @@ services:
     environment:
       # Threads = the CPUs this container may use. Keep the two in step.
       LLAMA_ARG_THREADS: "${REPORT_GENERATOR_CPUS:-2}"
+      # The model is loaded on the first question and unloaded after this many seconds
+      # unused, returning ~3 GB to the host. 0 keeps it loaded all the time.
+      REPORT_GENERATOR_IDLE_SECONDS: "${REPORT_GENERATOR_IDLE_SECONDS:-900}"
     volumes:
       - report_generator_slots:/slots
     networks: [report-generator]
