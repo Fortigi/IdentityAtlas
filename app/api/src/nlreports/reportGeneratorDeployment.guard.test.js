@@ -72,6 +72,19 @@ describe('report-generator container start-up', () => {
     expect(dockerfile, 'an empty checksum must fail the build, not warn').toMatch(/MODEL_SHA256:-.*exit 1/s);
   });
 
+  it("ships the model's licence and attribution from the repo, not from a build-time fetch", () => {
+    const dockerfile = read(DOCKERFILE);
+    // Apache-2.0 requires the licence to accompany the work. This used to be fetched
+    // at build time from a URL that 404'd, leaving a placeholder note in the image.
+    expect(dockerfile).toMatch(/^COPY setup\/docker\/report-generator\/MODEL-LICENSE\.txt .*MODEL-NOTICE\.txt \/models\/$/m);
+    expect(dockerfile, 'a licence must not depend on the network at build time').not.toMatch(/MODEL_LICENSE_URL/);
+    expect(read('setup/docker/report-generator/MODEL-LICENSE.txt')).toMatch(/Apache License\s+Version 2\.0/);
+    // The notice is what tells a reader which model this is and where it came from.
+    const notice = read('setup/docker/report-generator/MODEL-NOTICE.txt');
+    expect(notice).toMatch(/Qwen3-4B-Instruct-2507/);
+    expect(notice).toMatch(/Apache License 2\.0/);
+  });
+
   it('runs as a non-root user that can write the prompt cache', () => {
     const dockerfile = read(DOCKERFILE);
     expect(dockerfile).toMatch(/^USER 1000$/m);

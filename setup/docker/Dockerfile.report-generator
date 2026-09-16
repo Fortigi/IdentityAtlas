@@ -23,7 +23,6 @@ FROM ghcr.io/ggml-org/llama.cpp@sha256:b15cd87030b2eb8a284d398c095e03c6ba8baf386
 ARG MODEL_URL=https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf
 ARG MODEL_SHA256=3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597
 ARG MODEL_NAME=qwen3:4b-instruct-2507-q4_K_M
-ARG MODEL_LICENSE_URL=https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/raw/main/LICENSE
 
 # Bake the release version in, like the web and worker images, so all three
 # report the same version (imageVersionStamp.guard.test.js checks this).
@@ -37,8 +36,13 @@ RUN set -eux; \
     curl -fsSL -o /models/model.gguf "$MODEL_URL"; \
     if [ -z "${MODEL_SHA256:-}" ]; then echo "ERROR: MODEL_SHA256 is empty — refusing to ship an unverified model" >&2; exit 1; fi; \
     echo "${MODEL_SHA256}  /models/model.gguf" | sha256sum -c -; \
-    curl -fsSL -o /models/MODEL-LICENSE.txt "$MODEL_LICENSE_URL" || echo "licence not fetched at build time: see $MODEL_LICENSE_URL" > /models/MODEL-LICENSE.txt; \
     chown -R 1000:1000 /slots
+
+# The model's licence and attribution travel WITH the model. Kept in the repo and
+# copied in rather than downloaded: Apache-2.0 requires the licence to accompany
+# the work, and the previous build-time fetch quietly 404'd and left a placeholder
+# note in its place. A guard test checks these two files are here.
+COPY setup/docker/report-generator/MODEL-LICENSE.txt setup/docker/report-generator/MODEL-NOTICE.txt /models/
 
 # The processed system prompt is written here (~600 MB) so a restart is instant.
 # Mount a volume to keep it across container replacements.

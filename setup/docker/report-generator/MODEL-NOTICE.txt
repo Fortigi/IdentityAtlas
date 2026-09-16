@@ -1,0 +1,26 @@
+Identity Atlas report generator — third-party model notice
+==========================================================
+
+This container image contains a language model that is NOT part of Identity
+Atlas and is NOT covered by Identity Atlas' own licence:
+
+  Model    Qwen3-4B-Instruct-2507
+  Weights  Qwen3-4B-Instruct-2507-Q4_K_M.gguf (4-bit quantised, GGUF)
+  Author   Qwen team, Alibaba Cloud
+  Upstream https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507
+  Build    quantised GGUF conversion redistributed by Unsloth at
+           https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF
+  Licence  Apache License 2.0 — full text in MODEL-LICENSE.txt, next to this
+           file. Commercial use is permitted.
+
+The exact file shipped here is pinned by URL and SHA-256 in
+setup/docker/Dockerfile.report-generator; the build fails if the downloaded
+file does not match, so a given Identity Atlas release always contains the
+model it was measured against.
+
+The server that runs the model is llama.cpp (MIT), used unmodified from the
+upstream image ghcr.io/ggml-org/llama.cpp, pinned by digest:
+https://github.com/ggml-org/llama.cpp
+
+Identity Atlas itself is MIT licensed — see the LICENSE file in the source
+repository at https://github.com/Fortigi/IdentityAtlas.
