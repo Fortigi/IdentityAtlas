@@ -11,9 +11,29 @@
 
 import { ENTITIES, GLOSSARY, OPERATORS_BY_TYPE, OPERATORS } from './catalog.js';
 import { MEASURES } from './compare.js';
+import { MAX_COLUMNS, MAX_CONDITIONS } from './spec.js';
 
 const allFieldNames = [...new Set(Object.values(ENTITIES).flatMap(e => Object.keys(e.fields)))];
 const allRelationNames = [...new Set(Object.values(ENTITIES).flatMap(e => Object.keys(e.relations)))];
+
+// Every array and every free-text string in the reply is bounded, because the
+// grammar is the only thing that stops a small model at temperature 0 from
+// repeating itself. Unbounded, it did: asked for "groups with more than 10 members,
+// biggest first", the model wrote the right condition and then listed the same ten
+// columns over and over until the 1,200-token cap — 570 s of CPU, and a reply that
+// was no longer valid JSON. The array limits are the validator's own, so the
+// grammar never allows what validation would reject anyway; the prose limits are
+// generous next to anything a useful reply says.
+export const REPLY_LIMITS = {
+  conditions: MAX_CONDITIONS,
+  columns: MAX_COLUMNS,
+  assumptions: 5,
+  options: 6,
+  prose: 300,      // an assumption, a clarifying question
+  option: 120,     // one clarifying option
+  value: 200,      // a text value or a referenced record's name
+};
+const boundedList = (items, maxItems) => ({ type: 'array', items, maxItems });
 
 const FIELD_CONDITION = {
   type: 'object',
@@ -21,7 +41,14 @@ const FIELD_CONDITION = {
     type: { type: 'string', enum: ['field'] },
     field: { type: 'string', enum: allFieldNames },
     op: { type: 'string', enum: Object.keys(OPERATORS) },
-    value: { type: ['string', 'number', 'boolean', 'null'] },
+    // Spelled out as anyOf rather than a type list, so the length limit is attached
+    // to the string branch — a type list gives the grammar nowhere to put it.
+    value: { anyOf: [
+      { type: 'string', maxLength: REPLY_LIMITS.value },
+      { type: 'number' },
+      { type: 'boolean' },
+      { type: 'null' },
+    ] },
   },
   required: ['type', 'field', 'op', 'value'],
 };
@@ -33,7 +60,7 @@ const RELATION_CONDITION = {
     relation: { type: 'string', enum: allRelationNames },
     quantifier: { type: 'string', enum: ['some', 'none'] },
     match: { type: 'string', enum: ['all', 'any'] },
-    conditions: { type: 'array', items: FIELD_CONDITION },
+    conditions: boundedList(FIELD_CONDITION, REPLY_LIMITS.conditions),
   },
   required: ['type', 'relation', 'quantifier', 'match', 'conditions'],
 };
@@ -49,7 +76,7 @@ const COMPARE_CONDITION = {
       type: 'object',
       properties: {
         entity: { type: 'string', enum: Object.keys(ENTITIES) },
-        name: { type: 'string' },
+        name: { type: 'string', maxLength: REPLY_LIMITS.value },
       },
       required: ['entity', 'name'],
     },
@@ -62,7 +89,7 @@ const GROUP_CONDITION = {
   properties: {
     type: { type: 'string', enum: ['group'] },
     match: { type: 'string', enum: ['all', 'any'] },
-    conditions: { type: 'array', items: { anyOf: [FIELD_CONDITION, RELATION_CONDITION, COMPARE_CONDITION] } },
+    conditions: boundedList({ anyOf: [FIELD_CONDITION, RELATION_CONDITION, COMPARE_CONDITION] }, REPLY_LIMITS.conditions),
   },
   required: ['type', 'match', 'conditions'],
 };
@@ -72,8 +99,8 @@ const SPEC = {
   properties: {
     entity: { type: 'string', enum: Object.keys(ENTITIES) },
     match: { type: 'string', enum: ['all', 'any'] },
-    conditions: { type: 'array', items: { anyOf: [FIELD_CONDITION, RELATION_CONDITION, COMPARE_CONDITION, GROUP_CONDITION] } },
-    columns: { type: 'array', items: { type: 'string' } },
+    conditions: boundedList({ anyOf: [FIELD_CONDITION, RELATION_CONDITION, COMPARE_CONDITION, GROUP_CONDITION] }, REPLY_LIMITS.conditions),
+    columns: boundedList({ type: 'string', maxLength: REPLY_LIMITS.option }, REPLY_LIMITS.columns),
   },
   required: ['entity', 'match', 'conditions', 'columns'],
 };
@@ -82,7 +109,7 @@ const REPORT_REPLY = {
   type: 'object',
   properties: {
     kind: { type: 'string', enum: ['report'] },
-    assumptions: { type: 'array', items: { type: 'string' } },
+    assumptions: boundedList({ type: 'string', maxLength: REPLY_LIMITS.prose }, REPLY_LIMITS.assumptions),
     spec: SPEC,
   },
   required: ['kind', 'assumptions', 'spec'],
@@ -92,8 +119,8 @@ const CLARIFY_REPLY = {
   type: 'object',
   properties: {
     kind: { type: 'string', enum: ['clarify'] },
-    question: { type: 'string' },
-    options: { type: 'array', items: { type: 'string' } },
+    question: { type: 'string', maxLength: REPLY_LIMITS.prose },
+    options: boundedList({ type: 'string', maxLength: REPLY_LIMITS.option }, REPLY_LIMITS.options),
   },
   required: ['kind', 'question', 'options'],
 };
