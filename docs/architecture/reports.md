@@ -103,6 +103,14 @@ description says so.
   listed and served, with zero engine edits.
 - `app/api/contract-tests/reports.contract.test.js` — the orphan anti-join against real PostgreSQL.
 
+## Custom reports
+
+Analysts can also build their own reports; a saved one is served through this same
+registry as a `list` report named `custom-<id>`, so the report tab, refresh and
+download work for it with no engine change. The engine still never names a report.
+The definition language, the local model that fills one in, and the seams are in
+[Custom Reports Internals](custom-reports.md).
+
 ## Not in scope yet
 
 Export and sharing, deep links to a specific report, stored report runs, a parameters UI, and

@@ -112,6 +112,7 @@ nav:
           - Reading the Matrix: architecture/matrix.md
           - Scope Statistics: architecture/matrix-scope-statistics.md
           - Sharing a Matrix: ui/sharing-a-matrix.md
+      - Custom Reports: ui/custom-reports.md
       - Contexts: ui/contexts.md
       - Effective Access (Who Can Access X): ui/effective-access.md
       - Entity Detail Pages: architecture/entity-detail-pages.md
@@ -157,6 +158,7 @@ nav:
           - Ingest API: architecture/ingest-api.md
       - Configuration: reference/config.md
       - Experimental Features: reference/experimental-features.md
+      - Report Generator (local LLM): reference/report-generator.md
       - Permissions & Roles: reference/permissions.md
       - Database Views: reference/sql-views.md
       - CSV Schema Reference: architecture/csv-import-schema.md
@@ -165,6 +167,7 @@ nav:
       - Under the hood:
           - Crawler Architecture: architecture/crawler-architecture.md
           - Reports: architecture/reports.md
+          - Custom Reports Internals: architecture/custom-reports.md
           - Audit History: architecture/audit-history.md
           - Soft-Delete & Tombstones: architecture/soft-delete.md
           - Effective Access Engine: architecture/effective-access-engine.md
