@@ -78,6 +78,16 @@ renaming a business role does not break the report; the name is refreshed on eac
 feature flag off → the API answers 404 and saved reports are not listed (but kept). No
 `data.write.reports` → 403.
 
+**The prompt cache is re-checked, never remembered.** Reading the ~4k-token system prompt costs
+minutes on a small CPU; llama.cpp can save the processed result and restore it in ~0.1 s. The catch is
+that the model server is a separate container with its own lifecycle — Azure scales it to zero between
+questions, Docker restarts it with the host — so "we warmed it up once" says nothing about whether it
+still holds the prompt. `ensureWarm()` therefore re-restores on every call rather than short-circuiting
+on an earlier success, and `interpret()` calls it before asking. A hit is ~0.1 s, a miss is no worse
+than asking cold and leaves the cache saved. Remembering the state instead is how this optimisation
+silently did nothing in the one case it was built for: a restarted generator, an API that still said
+"ready", and a 266 s answer where 76 s was expected.
+
 ## Limits (and why)
 
 - **One relation hop.** A condition can reach a related record but not that record's relations.

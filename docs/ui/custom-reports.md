@@ -1,3 +1,9 @@
+---
+type: task
+prereq: architecture/reports.md
+outcome: You can build a report of your own — describing it in plain language or setting its criteria by hand — check what it will actually ask before you run it, and save it so it answers again after the next crawl.
+---
+
 # Custom Reports
 
 !!! note "Experimental"
