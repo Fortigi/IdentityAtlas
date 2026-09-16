@@ -203,7 +203,7 @@ services:
       - no-new-privileges:true
     cap_drop: [ALL]
     pids_limit: 512
-    mem_limit: "${REPORT_GENERATOR_MEMORY:-5g}"
+    mem_limit: "${REPORT_GENERATOR_MEMORY:-4g}"
     cpus: "${REPORT_GENERATOR_CPUS:-2}"
     restart: unless-stopped
 

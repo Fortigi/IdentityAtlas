@@ -141,7 +141,7 @@ Measured on a 2-vCPU VM (shared Proxmox host, Intel Core Ultra 5), with the ship
 | | Value |
 |---|---|
 | CPU | **2**. Only 2 CPUs were measured; answer time scales roughly with CPUs, so fewer is slower |
-| Memory | **3.2 GB** in use and not reclaimable after all 56 questions; 3.65 GB peak including file cache. Limit **5 GB** on Docker, **4 GiB** on Azure — the five heaviest questions were re-run at exactly 4 GiB with identical results and no out-of-memory kill |
+| Memory | **3.2 GB** in use and not reclaimable after all 56 questions; 3.65 GB peak including file cache. Limit **4 GiB** on both Docker and Azure — the five heaviest questions were re-run at exactly 4 GiB with identical results and no out-of-memory kill. Lower is not measured |
 | Disk | 2.76 GB image + 561 MB prompt cache |
 | Restart → first answer | **76 s** measured for "guest accounts without a manager, or whose manager is disabled": prompt cache restored in 0.1 s, 203 of 4,000 prompt tokens actually read, the rest is the answer being written. On Azure add the container start |
 | Question once warm | median **49 s**, p90 **107 s**, slowest **156 s** over the tuning set (held-out: median 48 s, p90 78 s). The slow ones are the questions that needed a correction round |
@@ -200,7 +200,7 @@ FEATURE_CUSTOM_REPORTS=true        # or switch it on in Admin → Experimental
 docker compose -f docker-compose.prod.yml up -d --pull always
 ```
 
-Optional knobs (defaults shown): `REPORT_GENERATOR_CPUS=2`, `REPORT_GENERATOR_MEMORY=5g`.
+Optional knobs (defaults shown): `REPORT_GENERATOR_CPUS=2`, `REPORT_GENERATOR_MEMORY=4g`.
 
 Leave `COMPOSE_PROFILES` unset and nothing extra is pulled or started; the builder then reports the
 generator as unavailable and the definition editor still works.
