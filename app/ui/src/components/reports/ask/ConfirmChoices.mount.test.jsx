@@ -53,13 +53,14 @@ describe('ConfirmChoices', () => {
     expect(onChoose).toHaveBeenCalledWith({ path: [0], name: 'Fortigi - Algemeen - Maten', id: undefined });
   });
 
-  it('offers "keep as written" for a name condition only', async () => {
+  it('offers "keep as written" for a name condition', async () => {
     const onChoose = render(value);
     await userEvent.click(screen.getByRole('button', { name: /Keep/ }));
     expect(onChoose).toHaveBeenCalledWith({ path: [0], name: 'Algemene maten', keep: true });
+  });
 
-    renderWithProviders(<ConfirmChoices confirm={reference} onChoose={vi.fn()} />);
-    // A comparison needs a real record: keeping an unmatched name would not run.
+  it('never offers it for a comparison reference, which cannot run without a record', () => {
+    render(reference);
     expect(screen.queryByRole('button', { name: /Keep/ })).not.toBeInTheDocument();
   });
 

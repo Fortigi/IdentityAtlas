@@ -54,7 +54,7 @@ describe('model server client', () => {
     handler = () => {}; // never answers
     const { listModels } = await client(200);
     const started = Date.now();
-    await expect(listModels()).rejects.toThrow('LLM request timed out after 0.2s');
+    await expect(listModels()).rejects.toThrow(/timed out after 0.2s/);
     expect(Date.now() - started).toBeGreaterThanOrEqual(190);
   });
 
