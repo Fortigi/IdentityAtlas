@@ -410,9 +410,21 @@ export async function bootstrapWorker() {
     // it in milliseconds. Never blocks startup, and is harmless without a model server.
     try {
       const { ensureWarm } = await import('./nlreports/service.js');
-      ensureWarm().promise
-        .then(r => console.log(`Report generator: prompt cache ${r.restored ? 'restored' : 'prepared'} in ${(r.ms / 1000).toFixed(1)}s`))
-        .catch(err => console.warn('Report generator: prompt cache not ready —', err.message));
+      // The model server may still be starting (or scaling up from zero on Azure),
+      // so give it a few tries before leaving the cache unprepared. Whoever opens
+      // the report builder triggers another attempt anyway.
+      void (async () => {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const r = await ensureWarm().promise;
+            console.log(`Report generator: prompt cache ${r.restored ? 'restored' : 'prepared'} in ${(r.ms / 1000).toFixed(1)}s`);
+            return;
+          } catch (err) {
+            console.warn(`Report generator: prompt cache attempt ${attempt}/3 failed — ${err.message}`);
+            await new Promise(resolve => setTimeout(resolve, 30_000));
+          }
+        }
+      })();
     } catch (err) {
       console.warn('Report generator warm-up skipped:', err.message);
     }
