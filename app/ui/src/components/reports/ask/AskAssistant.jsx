@@ -25,7 +25,7 @@ export { postJson } from './AskAssistant.api';
 
 const EXAMPLES = [
   'Guest accounts that don\'t have a manager, or whose manager is disabled',
-  'Groups that have HAMIS in the name',
+  'Groups that have "Finance" in the name',
   'Disabled users that are still member of a group that contains LIC',
 ];
 

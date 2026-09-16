@@ -351,8 +351,8 @@
     }
   },
   {
-    "id": "hamis",
-    "question": "I want a list of all groups that have HAMIS in the name",
+    "id": "finance-groups",
+    "question": "I want a list of all groups that have Finance in the name",
     "expected": {
       "entity": "resource",
       "conditions": [
@@ -364,11 +364,11 @@
         {
           "field": "displayName",
           "op": "contains",
-          "value": "HAMIS"
+          "value": "Finance"
         }
       ]
     },
-    "note": "no such group in this tenant: empty result, pass is weak"
+    "note": "one matching group in the Fortigi tenant"
   },
   {
     "id": "license-groups",

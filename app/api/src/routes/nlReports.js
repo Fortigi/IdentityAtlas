@@ -68,12 +68,15 @@ function fail(res, route, err, status = 500) {
 }
 
 // Values written into a log line. The question and the user label are free text (a
-// token's name claim is not validated), so control characters — including CR/LF,
-// which would let a caller forge extra log lines — are replaced, and the length is
-// capped. The model name is already validated, but goes through the same path.
+// token's name claim is not validated), so line breaks — which would let a caller
+// forge extra log lines — are removed, other control characters are replaced, and the
+// length is capped. The model name is already validated, but goes through the same
+// path. Line breaks are removed rather than replaced: that is the form CodeQL's log
+// injection check recognises as a sanitiser, and the check blocks merges.
 const forLog = (value, max = 300) => String(value ?? '')
   .slice(0, max)
-  .replace(/\n|\r/g, ' ')
+  .replace(/\n/g, '')
+  .replace(/\r/g, '')
   .replace(/[\u2028\u2029\p{Cc}]/gu, ' ');
 
 const userOf = (req) => (req.user && (req.user.email || req.user.upn || req.user.preferred_username || req.user.name)) || 'unknown';

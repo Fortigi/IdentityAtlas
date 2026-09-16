@@ -182,7 +182,7 @@ describe('interpret — audit trail', () => {
     // Exactly two audit lines — the injected text stays inside the first one.
     expect(auditLines(log)).toHaveLength(2);
     expect(all.split('\n').filter(l => l.includes('user=admin'))).toHaveLength(1);
-    expect(auditLines(log)[0]).toMatch(/question="all guests nl-reports interpret: user=admin outcome=report  end"$/);
+    expect(auditLines(log)[0]).toMatch(/question="all guestsnl-reports interpret: user=admin outcome=report end"$/);
     log.mockRestore();
   });
 

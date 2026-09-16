@@ -132,7 +132,7 @@ describe('AskAssistant', () => {
 
     expect(await screen.findByText(/preparing its prompt cache .* questions work but are slow/)).toBeInTheDocument();
 
-    await userEvent.type(questionBox(), 'groups with HAMIS in the name');
+    await userEvent.type(questionBox(), 'groups with Finance in the name');
     expect(screen.getByRole('button', { name: 'Generate' })).toBeEnabled();
     await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
 
@@ -311,14 +311,14 @@ describe('AskAssistant', () => {
   it('asks an example question straight away, then stops offering the examples', async () => {
     const { authFetch } = renderAsk({ interpret: REPORT_REPLY });
 
-    const example = await screen.findByRole('button', { name: 'Groups that have HAMIS in the name' });
+    const example = await screen.findByRole('button', { name: 'Groups that have "Finance" in the name' });
     await userEvent.click(example);
 
     await waitFor(() => expect(bodiesFor(authFetch, '/nl-reports/interpret')).toEqual([
-      { question: 'Groups that have HAMIS in the name', history: [] },
+      { question: 'Groups that have "Finance" in the name', history: [] },
     ]));
     await waitFor(() => expect(
-      screen.queryByRole('button', { name: 'Groups that have HAMIS in the name' })).not.toBeInTheDocument());
+      screen.queryByRole('button', { name: 'Groups that have "Finance" in the name' })).not.toBeInTheDocument());
   });
 
   it('submits on Enter and keeps Shift+Enter for a second line', async () => {
