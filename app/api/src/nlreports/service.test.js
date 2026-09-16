@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../db/connection.js');
-vi.mock('./llm.js', () => ({ chat: vi.fn(), warm: vi.fn(), DEFAULT_MODEL: 'test-model' }));
+// The whole module surface: settings.js imports MODEL_IS_FIXED from here as well.
+vi.mock('./llm.js', () => ({ chat: vi.fn(), warm: vi.fn(), DEFAULT_MODEL: 'test-model', MODEL_IS_FIXED: false }));
 
 import { query } from '../db/connection.js';
 import { chat, warm } from './llm.js';
