@@ -38,6 +38,10 @@ BeforeAll {
     . (Join-Path $script:entraDir 'EntraIDCrawler.Transform.ps1')
     # App-role record shapers live in their own file (extracted for the ratchets).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppRoles.ps1')
+    # Get-EntraDeltaSelect — builds the $select the full fetches prime their
+    # delta tokens with. Without it the priming call throws inside the phase's
+    # try/catch and the token silently never gets primed.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.DeltaSelect.ps1')
     # Get-FGServicePrincipalType (pure SDK classifier) — used by
     # ConvertTo-EntraServicePrincipalRecord inside the ServicePrincipals phase.
     . (Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'helpers' 'Get-FGServicePrincipalType.ps1')
@@ -1134,6 +1138,12 @@ Describe 'Sync-EntraServicePrincipals' {
         @($returned).Count | Should -Be 2
         @($returned).id | Should -Contain 'sp1'
         Should -Invoke Set-FGDeltaToken -Exactly 1 -ParameterFilter { $Token -eq 'primed-tok' }
+        # Every SP property is delta-trackable, so the priming select must carry
+        # the whole fetch select — not `$select=id`, which would leave later
+        # delta runs blind to a renamed or re-tagged service principal.
+        Should -Invoke Invoke-FGGetDeltaRequest -Exactly 1 -ParameterFilter {
+            $URI -eq 'https://graph.microsoft.com/beta/servicePrincipals/delta?$select=id,appId,displayName,servicePrincipalType,accountEnabled,tags,appOwnerOrganizationId,createdDateTime,notes,servicePrincipalNames,homepage,publisherName'
+        }
         $timings.Contains('ServicePrincipals') | Should -BeTrue
         $script:phaseErrors.Count | Should -Be 0
     }
@@ -1706,6 +1716,21 @@ Describe 'Get-EntraUserData' {
         $data.deltaHit | Should -BeFalse
         @($data.users).Count | Should -Be 1
         $data.newUsersToken | Should -Be 'primed'
+    }
+
+    It 'primes the token with the full select minus the properties delta cannot track' {
+        # A token primed with `$select=id` only ever reports membership and
+        # tombstone changes, so every later delta run silently misses a renamed
+        # department or a flipped accountEnabled. signInActivity is the one
+        # property /users/delta will not serve and must be the only one dropped.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/users\?\$select' } -MockWith { @() }
+        Mock Invoke-FGGetDeltaRequest -MockWith { @{ value = @(); deltaToken = 'primed' } }
+
+        Get-EntraUserData -SystemId 1 -SyncMode 'full' -UserSelect 'id,displayName,department,signInActivity,userType' | Out-Null
+
+        Should -Invoke Invoke-FGGetDeltaRequest -Exactly 1 -ParameterFilter {
+            $URI -eq 'https://graph.microsoft.com/beta/users/delta?$select=id,displayName,department,userType'
+        }
     }
 
     It 'delta mode returns changed users and @removed tombstones' {

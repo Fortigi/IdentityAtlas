@@ -633,7 +633,20 @@ Describe 'Demo dataset — every ingest envelope carries a system (#1222)' {
     BeforeAll {
         $script:ingestScript  = Join-Path $script:repoRoot 'test' 'demo-dataset' 'Ingest-DemoDataset.ps1'
         $script:activityCount = @($script:data.principalActivity).Count
+        # Record every record batch's endpoint as it is posted. A call-count
+        # assertion can't express "every section was posted": the per-system
+        # endpoints send one batch per system, so the total moves whenever the
+        # dataset gains a system — while a section silently dropping out of the
+        # seed would not move it at all.
+        #
+        # Global rather than $script: — the mock body runs in the caller's scope,
+        # which here is Ingest-DemoDataset.ps1, so a $script: variable declared
+        # in this file is not the one the mock would write to.
+        $global:FGDemoPostedEndpoints = [System.Collections.Generic.List[string]]::new()
         Mock Invoke-RestMethod {
+            if ($Body -is [string] -and $Body -like '*"records":*') {
+                $global:FGDemoPostedEndpoints.Add(($Uri.AbsolutePath -replace '^/api/', ''))
+            }
             if ($Uri -like '*/ingest/systems') {
                 # Real ids deliberately not 1..N, so a missing remap shows.
                 return [pscustomobject]@{ inserted = 5; updated = 0; systemIds = @(501, 502, 503, 504, 505) }
@@ -641,12 +654,32 @@ Describe 'Demo dataset — every ingest envelope carries a system (#1222)' {
             return [pscustomobject]@{ inserted = 1; updated = 0; deleted = 0 }
         }
         & $script:ingestScript -ApiKey 'fgc_test' -DatasetPath $script:datasetPath *> $null
+        $script:postedEndpoints = @($global:FGDemoPostedEndpoints)
     }
 
-    It 'posts a record batch for every section' {
-        Should -Invoke Invoke-RestMethod -Scope Describe -Times 13 -ParameterFilter {
-            $Uri -like '*/ingest/*' -and $Body -is [string] -and $Body -like '*"records":*'
-        }
+    AfterAll { Remove-Variable -Name FGDemoPostedEndpoints -Scope Global -ErrorAction SilentlyContinue }
+
+    It 'posts a record batch for every section, and to no other endpoint' {
+        $expected = @(
+            'ingest/systems'
+            'ingest/contexts'
+            'ingest/principals'
+            'ingest/context-members'
+            'ingest/resources'
+            'ingest/resource-assignments'
+            'ingest/resource-relationships'
+            'ingest/identities'
+            'ingest/identity-members'
+            'ingest/governance/catalogs'
+            'ingest/governance/policies'
+            'ingest/governance/certifications'
+            'ingest/principal-activity'
+        ) | Sort-Object
+
+        # Set equality in both directions: a missing section means the seed no
+        # longer loads it, an extra one means a batch is going somewhere this
+        # test has never checked the envelope of.
+        (@($script:postedEndpoints) | Sort-Object -Unique) | Should -Be $expected
     }
 
     It 'never sends a record batch without a systemId (systems itself excepted)' {
