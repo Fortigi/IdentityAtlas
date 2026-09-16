@@ -13,6 +13,7 @@
 //   node tools/nl-reports/eval.mjs --models qwen2.5-coder:3b,qwen3:4b [--file holdout.json] [--only id1,id2] [--out file.json]
 
 import { readFileSync, writeFileSync } from 'node:fs';
+import http from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,13 +30,33 @@ if (args.only) questions = questions.filter(q => args.only.split(',').includes(q
 for (const q of questions.filter(x => x.pending)) console.log(`SKIP ${q.id}: ${q.pending}`);
 questions = questions.filter(q => !q.pending);
 
-async function post(path, body) {
-  const r = await fetch(`${BASE}/api/nl-reports/${path}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+// node:http, not fetch(): fetch gives up after 300 s waiting for response headers,
+// and a cold model answering a hard question can take longer than that.
+function post(path, body) {
+  const payload = JSON.stringify(body);
+  const url = new URL(`${BASE}/api/nl-reports/${path}`);
+  return new Promise((resolve, reject) => {
+    const req = http.request(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+    }, (res) => {
+      let text = '';
+      res.on('data', (c) => { text += c; });
+      res.on('end', () => {
+        let json = null;
+        try { json = JSON.parse(text); } catch { /* not JSON */ }
+        if (res.statusCode < 200 || res.statusCode >= 300 || !json) {
+          reject(new Error(`${path} ${res.statusCode}: ${text.slice(0, 400)}`));
+          return;
+        }
+        resolve(json);
+      });
+    });
+    req.setTimeout(1_200_000, () => req.destroy(new Error(`${path} timed out`)));
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
   });
-  const json = await r.json();
-  if (!r.ok) throw new Error(`${path} ${r.status}: ${JSON.stringify(json).slice(0, 400)}`);
-  return json;
 }
 
 async function ids(spec) {
