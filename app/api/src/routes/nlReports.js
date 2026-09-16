@@ -34,6 +34,10 @@ import {
 
 const router = Router();
 const adminGate = requirePermission('admin.llm');
+// Building a report is a write action: it saves definitions and spends the
+// model's CPU. Running an existing report is a read action and goes through
+// /api/reports, which needs only data.read.
+const buildGate = requirePermission('data.write.reports');
 
 const MAX_QUESTION = 2000;
 const MAX_HISTORY = 12;
@@ -46,7 +50,7 @@ function fail(res, route, err, status = 500) {
 
 const userOf = (req) => (req.user && (req.user.email || req.user.upn || req.user.preferred_username || req.user.name)) || 'unknown';
 
-router.get('/nl-reports/catalog', async (req, res) => {
+router.get('/nl-reports/catalog', buildGate, async (req, res) => {
   try {
     const values = await loadValues();
     const entities = Object.fromEntries(Object.entries(ENTITIES).map(([name, e]) => [name, {
@@ -71,7 +75,7 @@ router.get('/nl-reports/catalog', async (req, res) => {
 });
 
 // GET /api/nl-reports/lookup?entity=resource&q=mat — names for the compare reference picker
-router.get('/nl-reports/lookup', async (req, res) => {
+router.get('/nl-reports/lookup', buildGate, async (req, res) => {
   const entity = String(req.query.entity || '');
   const text = String(req.query.q || '').trim();
   if (!Object.hasOwn(ENTITIES, entity)) return res.status(400).json({ error: 'Unknown entity' });
@@ -83,7 +87,7 @@ router.get('/nl-reports/lookup', async (req, res) => {
   }
 });
 
-router.get('/nl-reports/status', async (req, res) => {
+router.get('/nl-reports/status', buildGate, async (req, res) => {
   const model = await getReportModel().catch(() => null);
   try {
     const models = await listModels();
@@ -98,7 +102,7 @@ router.get('/nl-reports/status', async (req, res) => {
 // prompt cache in the background, and this answers `state: "preparing"` meanwhile.
 const WARM_WAIT_MS = 3000;
 
-router.post('/nl-reports/warm', async (req, res) => {
+router.post('/nl-reports/warm', buildGate, async (req, res) => {
   try {
     const entry = ensureWarm(req.body?.force === true);
     const ready = await Promise.race([
@@ -113,7 +117,7 @@ router.post('/nl-reports/warm', async (req, res) => {
   }
 });
 
-router.post('/nl-reports/interpret', async (req, res) => {
+router.post('/nl-reports/interpret', buildGate, async (req, res) => {
   const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
   const history = Array.isArray(req.body?.history) ? req.body.history : [];
   if (!question || question.length > MAX_QUESTION) return res.status(400).json({ error: `Question is required (max ${MAX_QUESTION} characters)` });
@@ -139,7 +143,7 @@ router.post('/nl-reports/interpret', async (req, res) => {
 
 // POST /api/nl-reports/resolve { spec, choice? } — apply the answer to a "did you mean"
 // confirmation and look the named objects up again. No model involved.
-router.post('/nl-reports/resolve', async (req, res) => {
+router.post('/nl-reports/resolve', buildGate, async (req, res) => {
   if (!req.body?.spec || typeof req.body.spec !== 'object') return res.status(400).json({ error: 'spec is required' });
   try {
     const { ok, spec, errors } = validateSpec(req.body.spec, await loadValues());
@@ -154,7 +158,7 @@ router.post('/nl-reports/resolve', async (req, res) => {
   }
 });
 
-router.post('/nl-reports/run', async (req, res) => {
+router.post('/nl-reports/run', buildGate, async (req, res) => {
   if (!req.body?.spec || typeof req.body.spec !== 'object') return res.status(400).json({ error: 'spec is required' });
   try {
     const result = await runSpec(req.body.spec);
@@ -167,7 +171,7 @@ router.post('/nl-reports/run', async (req, res) => {
 
 // ── Saved reports ────────────────────────────────────────────────────────────
 
-router.get('/nl-reports/saved/:id', async (req, res) => {
+router.get('/nl-reports/saved/:id', buildGate, async (req, res) => {
   try {
     const row = await getSavedReport(req.params.id);
     if (!row) return res.status(404).json({ error: 'Report not found' });
@@ -190,10 +194,10 @@ async function saveReport(req, res, id) {
   }
 }
 
-router.post('/nl-reports/saved', (req, res) => saveReport(req, res, null));
-router.put('/nl-reports/saved/:id', (req, res) => saveReport(req, res, req.params.id));
+router.post('/nl-reports/saved', buildGate, (req, res) => saveReport(req, res, null));
+router.put('/nl-reports/saved/:id', buildGate, (req, res) => saveReport(req, res, req.params.id));
 
-router.delete('/nl-reports/saved/:id', async (req, res) => {
+router.delete('/nl-reports/saved/:id', buildGate, async (req, res) => {
   try {
     if (!(await deleteSavedReport(req.params.id))) return res.status(404).json({ error: 'Report not found' });
     res.json({ ok: true });

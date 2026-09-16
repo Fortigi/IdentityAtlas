@@ -15,7 +15,7 @@
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useDialog } from '@ui/components/dialogContext';
-import { useFeatureFlags } from '@ui/contexts/FeaturesContext';
+import { useCanBuildReports } from '@ui/hooks/useCanBuildReports';
 import EmptyState from '@ui/components/EmptyState';
 import ReportError from './reports/ReportError';
 
@@ -24,7 +24,7 @@ const SECONDARY = 'rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray
 export default function ReportsPage({ onOpenDetail }) {
   const { authFetch } = useAuth();
   const dialog = useDialog();
-  const canBuild = useFeatureFlags().customReports === true;
+  const canBuild = useCanBuildReports();
 
   const { data: reports, loading, error, reload } = useFetch('/api/reports', {
     authFetch,

@@ -39,6 +39,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 |---|---|---|
 | `data.write.tags` | Manage tags | `POST/PATCH/DELETE /api/tags…` |
 | `data.write.categories` | Manage categories | `POST/PATCH/DELETE /api/categories…` |
+| `data.write.reports` | Build custom reports | `POST/PUT/DELETE /api/nl-reports/saved…`, and the report builder (`/api/nl-reports/*`). Running or downloading a report needs only Read data. |
 | `data.write.risk` | Risk score overrides | `PUT/DELETE /api/risk-scores/:type/:id/override` |
 | `data.write.identity` | Identity link decisions | `PUT/DELETE /api/identities/:id/members/:userId/override` (confirm / reject / clear an account-linking decision) |
 | `data.write.certifications` | Certification decisions | **Reserved** — no interactive endpoint yet. Certification decisions are currently ingested via the crawler (`POST /api/ingest/governance/certifications`). When an approve/revoke endpoint is added it will be gated by this permission. |
@@ -63,7 +64,7 @@ A fresh install ships with this mapping (customisable in the Admin UI):
 | Role | Permissions |
 |---|---|
 | `Admin` | `*` (all permissions) |
-| `RoleMiner` | `data.read`, `data.export.ui`, `data.export.apikey`, `data.share` |
+| `RoleMiner` | `data.read`, `data.export.ui`, `data.export.apikey`, `data.share`, `data.write.reports` |
 | `Servicedesk` | `data.read` |
 
 ### No-role users fail closed

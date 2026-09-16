@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useDialog } from '@ui/components/dialogContext';
-import { useFeatureFlags } from '@ui/contexts/FeaturesContext';
+import { useCanBuildReports } from '@ui/hooks/useCanBuildReports';
 import ListReportRenderer from '@ui/components/reports/ListReportRenderer';
 import ReportError from '@ui/components/reports/ReportError';
 import SpecEditor from './SpecEditor';
@@ -45,7 +45,7 @@ function Interpretation({ explanation }) {
 export default function ReportBuilderPage({ builderId, onClose, onOpenDetail, onCacheData }) {
   const { authFetch } = useAuth();
   const dialog = useDialog();
-  const enabled = useFeatureFlags().customReports === true;
+  const enabled = useCanBuildReports();
   const isNew = builderId.startsWith('new-');
 
   const { data: catalog, error: catalogError } = useFetch('/api/nl-reports/catalog', { authFetch });
@@ -165,8 +165,8 @@ export default function ReportBuilderPage({ builderId, onClose, onOpenDetail, on
   if (!enabled) {
     return (
       <ReportError
-        title="Custom reports are not enabled"
-        message="An administrator can switch custom reports on under Admin → Experimental."
+        title="You cannot build reports here"
+        message="Custom reports are either switched off for this install (Admin → Experimental) or your role does not include Build custom reports."
         onClose={onClose}
       />
     );
