@@ -76,6 +76,10 @@ Two failure modes are handled in code rather than left to the model:
   generator asks the model once to correct it, and keeps the original if the correction is no better.
 - **Invented values** — a definition with an unknown field, operator or type value is rejected, the
   validator's own message is handed back to the model, and it gets one attempt to fix it.
+- **Repeating itself** — at temperature 0 a small model that starts repeating does not stop. Every list
+  and every piece of free text in the reply has a hard length in the output grammar, so a loop ends
+  where validation would have cut it anyway. Before that limit existed, one question listed the same ten
+  columns until the token cap: 570 seconds and a reply that was no longer JSON. It now answers in 46.
 
 ## Privacy
 

@@ -107,6 +107,9 @@ Combine it with an ordinary condition to get the question a role-mining analyst 
 - **One step at a time** in a relation: "groups whose owner is disabled" works; "groups whose owner's
   manager is disabled" does not.
 - **Only data Identity Atlas holds.** If a crawler does not collect it, no report can show it.
+- **No chosen sort order.** "Biggest first" or "newest first" is not something a definition can say,
+  and the report tab does not sort either — download the result and sort it there. Comparisons are the
+  exception: they always come back closest match first.
 
 ## Editing, deleting and sharing
 
