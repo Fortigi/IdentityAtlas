@@ -3,8 +3,8 @@
 //
 // Only the web App Service talks to it. There is no VNet in this deployment shape,
 // so ingress is public and an API key is REQUIRED: llama-server refuses every
-// request without it (LLAMA_ARG_API_KEY), and the web app sends it as a bearer
-// token. The container holds no data, no database credentials and no identity.
+// request without it (LLAMA_API_KEY — see the env block), and the web app sends it
+// as a bearer token. The container holds no data, no credentials and no identity.
 //
 // Cost shape: minReplicas 0, so it runs only while a report is being described.
 // Azure bills per second of activity; idle costs nothing.
@@ -43,6 +43,9 @@ param memory string = '4Gi'
 @description('Seconds of inactivity before the app scales back to zero.')
 param scaleToZeroAfterSeconds int = 300
 
+@description('Caller IPs allowed to reach the ingress (the web app outbound set). Empty = any IP, and the API key is the only control.')
+param allowedCallerIps array = []
+
 resource app 'Microsoft.App/containerApps@2024-10-02-preview' = {
   name: '${namePrefix}-report-generator'
   location: location
@@ -51,12 +54,18 @@ resource app 'Microsoft.App/containerApps@2024-10-02-preview' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
-        // Public, because a Consumption-only environment has no VNet. Protected by
-        // the API key; the app answers nothing without it.
+        // Public, because a Consumption-only environment has no VNet. The API key is
+        // the control; the IP rules below narrow it further to the web app outbound
+        // addresses (shared Azure ranges, so defence in depth rather than a boundary).
         external: true
         targetPort: 8080
         transport: 'auto'
         allowInsecure: false
+        ipSecurityRestrictions: [for (cidr, i) in allowedCallerIps: {
+          name: 'allow-web-${i}'
+          action: 'Allow'
+          ipAddressRange: cidr
+        }]
       }
       secrets: [
         { name: 'api-key', value: apiKey }
@@ -72,7 +81,10 @@ resource app 'Microsoft.App/containerApps@2024-10-02-preview' = {
             memory: memory
           }
           env: [
-            { name: 'LLAMA_ARG_API_KEY', secretRef: 'api-key' }
+            // LLAMA_API_KEY, not LLAMA_ARG_API_KEY: --api-key reads only this name.
+            // With the wrong name the server starts with authentication OFF, and this
+            // ingress is public. A guard test pins the spelling.
+            { name: 'LLAMA_API_KEY', secretRef: 'api-key' }
             // Threads must match the CPUs the container may use.
             { name: 'LLAMA_ARG_THREADS', value: cpu }
           ]

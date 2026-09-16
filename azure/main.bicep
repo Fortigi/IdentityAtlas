@@ -50,6 +50,9 @@ param deployReportGenerator bool = false
 @secure()
 param reportGeneratorApiKey string = newGuid()
 
+@description('Optional: CIDRs allowed to reach the report generator, e.g. ["20.1.2.3/32"]. The report generator has public ingress (there is no VNet in this shape) and the API key is what protects it; this narrows it further to the web app\'s outbound addresses. deploy.ps1 fills this in from the existing web app, so a first deployment leaves it empty and a re-run narrows it. Empty = any IP may connect, and must still present the key.')
+param reportGeneratorAllowedCallerIps array = []
+
 @description('Optional: FULL ARM resource ID of an existing Log Analytics workspace to forward logs to. Leave empty to create a new workspace (~€3/mo). Must look like /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name> — copy it from the workspace\'s Overview → JSON View, NOT the parent resource group. The deployer needs Log Analytics Reader on the workspace.')
 param existingLogAnalyticsWorkspaceId string = ''
 
@@ -279,6 +282,9 @@ module reportGenerator 'modules/aca-app-report-generator.bicep' = if (deployRepo
     promptCacheStorageName: cae.outputs.promptCacheStorageName
     image: reportGeneratorImage
     apiKey: reportGeneratorApiKey
+    // Only the web app should reach it. These are shared Azure outbound addresses,
+    // so this narrows the exposure without being a boundary — the API key is that.
+    allowedCallerIps: reportGeneratorAllowedCallerIps
   }
 }
 

@@ -7,4 +7,5 @@
 - Prototype: the report generator understands interchangeable terms — person and identity, account, principal and user, business role and access package — and reports can now be about persons (identities) and their linked accounts.
 - Prototype: custom reports and the report generator are an experimental feature, switched on under Admin → Experimental (off by default).
 - Prototype: the report generator ships as its own optional container with one model built in — a compose profile for Docker, and an opt-in Azure Container App that scales to zero so it only costs while in use.
+- Prototype: on Azure the report generator now requires its API key (it was being started without one, which left its endpoint open), keeps its monitoring endpoint off, runs as an unprivileged user, and can be limited to the addresses the web app calls out from. On Docker it has no reachable endpoint at all.
 - Documentation: Custom Reports (how to build one), Report Generator (the model, what it was measured at, privacy, licence, sizing, Docker and Azure deployment, and what an existing installation has to do), and the internals for maintainers.

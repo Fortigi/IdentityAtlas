@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.47.16.16243",
-      "templateHash": "3429897396500066293"
+      "version": "0.43.8.12551",
+      "templateHash": "1447780407666820124"
     }
   },
   "parameters": {
@@ -46,6 +46,13 @@
       "defaultValue": "[newGuid()]",
       "metadata": {
         "description": "API key the web app uses to reach the report generator. Generated per deployment; you never need to set this."
+      }
+    },
+    "reportGeneratorAllowedCallerIps": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Optional: CIDRs allowed to reach the report generator, e.g. [\"20.1.2.3/32\"]. The report generator has public ingress (there is no VNet in this shape) and the API key is what protects it; this narrows it further to the web app's outbound addresses. deploy.ps1 fills this in from the existing web app, so a first deployment leaves it empty and a re-run narrows it. Empty = any IP may connect, and must still present the key."
       }
     },
     "existingLogAnalyticsWorkspaceId": {
@@ -136,8 +143,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.47.16.16243",
-              "templateHash": "12538785124691129588"
+              "version": "0.43.8.12551",
+              "templateHash": "526043258497844453"
             }
           },
           "parameters": {
@@ -227,8 +234,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.47.16.16243",
-              "templateHash": "17974614994489791630"
+              "version": "0.43.8.12551",
+              "templateHash": "4214351496393657936"
             }
           },
           "parameters": {
@@ -352,8 +359,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.47.16.16243",
-              "templateHash": "13819158250942573331"
+              "version": "0.43.8.12551",
+              "templateHash": "14956609084503564297"
             }
           },
           "parameters": {
@@ -440,8 +447,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.47.16.16243",
-              "templateHash": "8303365323556892594"
+              "version": "0.43.8.12551",
+              "templateHash": "5519073651961053323"
             }
           },
           "parameters": {
@@ -572,8 +579,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.47.16.16243",
-              "templateHash": "5738833299814591373"
+              "version": "0.43.8.12551",
+              "templateHash": "10669901437913345982"
             }
           },
           "parameters": {
@@ -700,8 +707,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.47.16.16243",
-              "templateHash": "70643710033213736"
+              "version": "0.43.8.12551",
+              "templateHash": "12932658018546021402"
             }
           },
           "parameters": {
@@ -939,8 +946,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.47.16.16243",
-              "templateHash": "3089963509082045877"
+              "version": "0.43.8.12551",
+              "templateHash": "10718296127241243597"
             }
           },
           "parameters": {
@@ -1161,6 +1168,10 @@
             "appUrl": {
               "type": "string",
               "value": "[format('https://{0}', reference(resourceId('Microsoft.Web/sites', format('{0}-web', parameters('namePrefix'))), '2024-04-01').defaultHostName)]"
+            },
+            "possibleOutboundIps": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Web/sites', format('{0}-web', parameters('namePrefix'))), '2024-04-01').possibleOutboundIpAddresses]"
             }
           }
         }
@@ -1213,8 +1224,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.47.16.16243",
-              "templateHash": "3933294987251973430"
+              "version": "0.43.8.12551",
+              "templateHash": "11333950768152025661"
             }
           },
           "parameters": {
@@ -1382,8 +1393,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.47.16.16243",
-              "templateHash": "4495354783951239286"
+              "version": "0.43.8.12551",
+              "templateHash": "1125172534652634110"
             }
           },
           "parameters": {
@@ -1534,6 +1545,9 @@
           },
           "apiKey": {
             "value": "[parameters('reportGeneratorApiKey')]"
+          },
+          "allowedCallerIps": {
+            "value": "[parameters('reportGeneratorAllowedCallerIps')]"
           }
         },
         "template": {
@@ -1542,8 +1556,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.47.16.16243",
-              "templateHash": "372757582958838973"
+              "version": "0.43.8.12551",
+              "templateHash": "2932284995967627565"
             }
           },
           "parameters": {
@@ -1605,6 +1619,13 @@
               "metadata": {
                 "description": "Seconds of inactivity before the app scales back to zero."
               }
+            },
+            "allowedCallerIps": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "Caller IPs allowed to reach the ingress (the web app outbound set). Empty = any IP, and the API key is the only control."
+              }
             }
           },
           "resources": [
@@ -1618,6 +1639,17 @@
                 "configuration": {
                   "activeRevisionsMode": "Single",
                   "ingress": {
+                    "copy": [
+                      {
+                        "name": "ipSecurityRestrictions",
+                        "count": "[length(parameters('allowedCallerIps'))]",
+                        "input": {
+                          "name": "[format('allow-web-{0}', copyIndex('ipSecurityRestrictions'))]",
+                          "action": "Allow",
+                          "ipAddressRange": "[parameters('allowedCallerIps')[copyIndex('ipSecurityRestrictions')]]"
+                        }
+                      }
+                    ],
                     "external": true,
                     "targetPort": 8080,
                     "transport": "auto",
@@ -1641,7 +1673,7 @@
                       },
                       "env": [
                         {
-                          "name": "LLAMA_ARG_API_KEY",
+                          "name": "LLAMA_API_KEY",
                           "secretRef": "api-key"
                         },
                         {

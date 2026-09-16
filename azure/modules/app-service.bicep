@@ -206,3 +206,10 @@ output appId string = web.id
 output appName string = web.name
 output appHostname string = web.properties.defaultHostName
 output appUrl string = 'https://${web.properties.defaultHostName}'
+
+// Every address this app may call out from, comma-separated, exactly as Azure
+// reports it. `deploy.ps1` turns this into the report generator's ingress
+// allow-list on a later run — it cannot be wired module-to-module, because an
+// ARM loop needs its length before the deployment starts and this value only
+// exists once the app does. Not secret: published per App Service plan.
+output possibleOutboundIps string = web.properties.possibleOutboundIpAddresses

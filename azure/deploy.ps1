@@ -23,6 +23,13 @@
 .PARAMETER ExistingLogAnalyticsWorkspaceId
     Optional: ARM ID of an existing Log Analytics workspace.
 
+.PARAMETER DeployReportGenerator
+    Also deploy the experimental report generator: a small local model in its own
+    container that turns a plain-language question into a report definition. Scales
+    to zero, so it only costs while in use. Its ingress is protected by a
+    per-deployment API key; re-running this script also narrows it to the web app's
+    outbound addresses.
+
 .PARAMETER SubscriptionId
     Subscription ID. Optional — uses the current `az account` if omitted.
 
@@ -111,6 +118,26 @@ $deployArgs = @(
 )
 if ($DeployReportGenerator) {
     $deployArgs += @('--parameters', 'deployReportGenerator=true')
+
+    # The report generator has public ingress (no VNet in this deployment shape) and
+    # its API key is what protects it. Narrow it further to the addresses the web app
+    # can call out from — but only if that app already exists, because those
+    # addresses do not exist until it does. So a first deployment ships key-only and
+    # any later run adds the allow-list. Deliberately not derived inside the
+    # template: an ARM loop needs its length before the deployment starts.
+    # This shape deploys exactly one App Service into the group.
+    $webAppName = az webapp list -g $ResourceGroup --query "[0].name" -o tsv 2>$null
+    if ($webAppName) {
+        $outboundIps = az webapp show -g $ResourceGroup -n $webAppName --query possibleOutboundIpAddresses -o tsv 2>$null
+        if ($outboundIps) {
+            $cidrs = @($outboundIps -split ',' | Where-Object { $_ } | ForEach-Object { "$($_.Trim())/32" })
+            $deployArgs += @('--parameters', "reportGeneratorAllowedCallerIps=$($cidrs | ConvertTo-Json -Compress)")
+            Write-Host "  ReportGen ingress    : limited to $($cidrs.Count) web-app address(es)" -ForegroundColor DarkGray
+        }
+    }
+    else {
+        Write-Host "  ReportGen ingress    : API key only on this first deployment; re-run to add the IP allow-list" -ForegroundColor DarkGray
+    }
 }
 if ($ExistingLogAnalyticsWorkspaceId) {
     $deployArgs += @('--parameters', "existingLogAnalyticsWorkspaceId=$ExistingLogAnalyticsWorkspaceId")
