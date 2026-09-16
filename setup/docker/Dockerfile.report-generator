@@ -18,11 +18,12 @@
 # build is only guaranteed to be readable by the same build.
 FROM ghcr.io/ggml-org/llama.cpp@sha256:b15cd87030b2eb8a284d398c095e03c6ba8baf386b68e1b83ab8b46e9555ffe8
 
-# Qwen3-4B-Instruct-2507, 4-bit (Q4_K_M) — Apache-2.0.
-ARG MODEL_URL=https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf
-ARG MODEL_SHA256
+# Qwen3-4B-Instruct-2507, 4-bit (Q4_K_M) — Apache-2.0. URL and checksum are pinned
+# here, in the repo, so a release ships and verifies the exact file we measured.
+ARG MODEL_URL=https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf
+ARG MODEL_SHA256=3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597
 ARG MODEL_NAME=qwen3:4b-instruct-2507-q4_K_M
-ARG MODEL_LICENSE_URL=https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/raw/main/LICENSE
+ARG MODEL_LICENSE_URL=https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/raw/main/LICENSE
 
 # Bake the release version in, like the web and worker images, so all three
 # report the same version (imageVersionStamp.guard.test.js checks this).
