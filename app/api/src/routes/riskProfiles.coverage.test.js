@@ -78,12 +78,39 @@ describe('POST /risk-profiles/scrape', () => {
     getSecret.mockResolvedValueOnce(JSON.stringify({ username: 'u', password: 'p' }));
     scrapeAll.mockResolvedValueOnce([{ url: 'https://a.com', ok: true, status: 200, bytes: 5, text: 'secret-text' }]);
     const res = await request(app).post('/api/risk-profiles/scrape').send({
-      urls: [{ url: 'https://a.com', credentialId: 'cred1' }, { url: 'https://b.com', credentials: { bearer: 'tok' } }, { nope: true }],
+      urls: [{ url: 'https://a.com', credentialId: 'scraper.cred1' }, { url: 'https://b.com', credentials: { bearer: 'tok' } }, { nope: true }],
     });
     expect(res.status).toBe(200);
     expect(res.body.count).toBe(1);
     expect(res.body.results[0].text).toBeUndefined();
-    expect(scrapeAll).toHaveBeenCalled();
+    expect(getSecret).toHaveBeenCalledWith('scraper.cred1', 'scraper');
+    expect(scrapeAll.mock.calls[0][0]).toEqual([
+      { url: 'https://a.com', credentials: { username: 'u', password: 'p' } },
+      { url: 'https://b.com', credentials: { bearer: 'tok' } },
+    ]);
+  });
+
+  // SEC-2026-09 H-01: a credentialId naming another feature's vault row must
+  // never be resolved — the vault is not even asked for it.
+  it('does not resolve a credentialId outside the scraper scope', async () => {
+    getSecret.mockResolvedValue('crawler-client-secret');
+    scrapeAll.mockResolvedValueOnce([{ url: 'https://a.com', ok: true }]);
+    const res = await request(app).post('/api/risk-profiles/scrape').send({
+      urls: [{ url: 'https://a.com', credentialId: 'crawler-config:1:clientSecret' }, { url: 'https://b.com', credentialId: 'llm.apikey' }],
+    });
+    expect(res.status).toBe(200);
+    expect(getSecret).not.toHaveBeenCalled();
+    expect(scrapeAll.mock.calls[0][0]).toEqual([
+      { url: 'https://a.com', credentials: null },
+      { url: 'https://b.com', credentials: null },
+    ]);
+  });
+
+  it('asks the vault for the scraper scope only, so a scraper.-prefixed id stored elsewhere stays unresolved', async () => {
+    getSecret.mockImplementation(async (_id, scope) => (scope === 'scraper' ? null : 'other-scope-value'));
+    scrapeAll.mockResolvedValueOnce([{ url: 'https://a.com', ok: true }]);
+    await request(app).post('/api/risk-profiles/scrape').send({ urls: [{ url: 'https://a.com', credentialId: 'scraper.planted' }] });
+    expect(scrapeAll.mock.calls[0][0]).toEqual([{ url: 'https://a.com', credentials: null }]);
   });
 
   it('200 — includeText=true keeps the scraped text', async () => {
@@ -96,8 +123,9 @@ describe('POST /risk-profiles/scrape', () => {
   it('200 — bearer-fallback when a stored secret is not JSON', async () => {
     getSecret.mockResolvedValueOnce('raw-bearer-token');
     scrapeAll.mockResolvedValueOnce([{ url: 'https://a.com', ok: true }]);
-    const res = await request(app).post('/api/risk-profiles/scrape').send({ urls: [{ url: 'https://a.com', credentialId: 'c' }] });
+    const res = await request(app).post('/api/risk-profiles/scrape').send({ urls: [{ url: 'https://a.com', credentialId: 'scraper.c' }] });
     expect(res.status).toBe(200);
+    expect(scrapeAll.mock.calls[0][0]).toEqual([{ url: 'https://a.com', credentials: { bearer: 'raw-bearer-token' } }]);
   });
 
   it('500 when scrapeAll rejects', async () => {
@@ -130,7 +158,7 @@ describe('POST /risk-profiles/generate', () => {
     chatWithSavedConfig.mockResolvedValueOnce({ text: '{"customer_profile":{"industry":"x"}}', model: 'gpt', usage: { outputTokens: 100 } });
     extractJson.mockReturnValueOnce({ customer_profile: { industry: 'x' } });
     const res = await request(app).post('/api/risk-profiles/generate').send({
-      domain: 'acme.com', organizationName: 'Acme', hints: 'h', urls: [{ url: 'https://a.com', credentialId: 'c' }, { bad: 1 }],
+      domain: 'acme.com', organizationName: 'Acme', hints: 'h', urls: [{ url: 'https://a.com', credentialId: 'scraper.c' }, { bad: 1 }],
     });
     expect(res.status).toBe(200);
     expect(res.body.profile).toMatchObject({ industry: 'x' });
@@ -318,11 +346,25 @@ describe('scraper-credentials', () => {
     expect(res.status).toBe(500);
   });
 
-  it('DELETE 200 — removes a credential', async () => {
-    deleteSecret.mockResolvedValueOnce();
+  it('DELETE 200 — removes a credential from the scraper scope', async () => {
+    deleteSecret.mockResolvedValueOnce(true);
     const res = await request(app).delete('/api/risk-profiles/scraper-credentials/scraper.x');
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
+    expect(deleteSecret).toHaveBeenCalledWith('scraper.x', 'scraper');
+  });
+
+  // SEC-2026-09 H-01: the scraper route cannot remove another feature's secret.
+  it('DELETE 404 — refuses an id outside the scraper namespace without touching the vault', async () => {
+    const res = await request(app).delete('/api/risk-profiles/scraper-credentials/crawler-config:1:clientSecret');
+    expect(res.status).toBe(404);
+    expect(deleteSecret).not.toHaveBeenCalled();
+  });
+
+  it('DELETE 404 — nothing removed in the scraper scope', async () => {
+    deleteSecret.mockResolvedValueOnce(false);
+    const res = await request(app).delete('/api/risk-profiles/scraper-credentials/scraper.gone');
+    expect(res.status).toBe(404);
   });
 
   it('DELETE 500 when deleteSecret rejects', async () => {

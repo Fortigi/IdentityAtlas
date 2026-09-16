@@ -16,6 +16,9 @@ export PATH="$HOME/.local/bin:$PATH"
 # shellcheck source=dor_agent_sandbox.sh
 source "$(dirname "${BASH_SOURCE[0]}")/dor_agent_sandbox.sh"
 load_flow_credentials
+# Checkpoint + continue across workflow steps when BOARD_TOKEN nears its 1h expiry.
+# shellcheck source=dor_token_checkpoint.sh
+source "$(dirname "${BASH_SOURCE[0]}")/dor_token_checkpoint.sh"
 
 # ── Derived config (identical across both flows) ──────────────────────────────────────────────────
 BRANCH="dor/issue-${ISSUE}"
@@ -164,6 +167,14 @@ prove_red_against_main() {  # $1 = git range
   esac
 }
 
+# Paths on stdin (one per line) -> a PowerShell array literal: 'a.Tests.ps1','b.Tests.ps1'.
+# Invoke-Pester's -Path takes ONE value; space-separated paths leave every path after the first as a
+# stray positional, and Pester refuses the whole call before running a single test. #1216 went to
+# Exceptions that way: its fix was correct, but it touched two .Tests.ps1 files.
+pester_path_list() {
+  grep -v '^$' | sed -e "s/'/''/g" -e "s/.*/'&'/" | paste -sd, - || true
+}
+
 # Run the unit tests a range touched, each in its own suite. Output -> /tmp/unit.log
 #   0 = all passed   1 = something failed   3 = the range contains no unit test
 #   4 = there are tests but this box cannot run them (Pester-only change; the pool has no pwsh)
@@ -173,7 +184,7 @@ run_touched_tests() {  # $1 = git range
   [ -n "$files" ] || return 3
   ui="$(printf '%s\n' "$files"  | grep '^app/ui/'  | sed 's#^app/ui/##'  | tr '\n' ' ')"
   api="$(printf '%s\n' "$files" | grep '^app/api/' | sed 's#^app/api/##' | tr '\n' ' ')"
-  ps="$(printf '%s\n' "$files"  | grep -E '\.Tests\.ps1$' | tr '\n' ' ')"
+  ps="$(printf '%s\n' "$files"  | grep -E '\.Tests\.ps1$' | pester_path_list)"
   : > /tmp/unit.log
   if [ -n "${ps// }" ] && [ -z "${ui// }" ] && [ -z "${api// }" ] && ! command -v pwsh >/dev/null 2>&1; then
     echo "The only tests in this change are PowerShell (Pester), and this sidekick has no pwsh installed." >> /tmp/unit.log
@@ -187,49 +198,16 @@ run_touched_tests() {  # $1 = git range
   if [ -n "${api// }" ]; then
     ( cd "$WORK/app/api" && { [ -d node_modules ] || npm ci >/dev/null 2>&1; }; npx vitest run $api ) >>/tmp/unit.log 2>&1 || rc=1
   fi
-  # shellcheck disable=SC2086
   if [ -n "${ps// }" ] && command -v pwsh >/dev/null 2>&1; then
     ( cd "$WORK" && pwsh -NoProfile -Command "Invoke-Pester -Path $ps -CI" ) >>/tmp/unit.log 2>&1 || rc=1
   fi
   return $rc
 }
 
-# This sidekick's stable runner label, derived from its hostname: dev-docker-08 -> sk8 (10# strips
-# the leading zero, so 03 -> sk3 and 10 -> sk10 both work).
-sk_label() { local n; n="$(hostname)"; n="${n##*-}"; printf 'sk%d' "$((10#$n))"; }
-
-# Claim this box for the issue, recording the holder in BOTH places that need to know:
-#   ~/.dor-reservation   the box's own authority ("<PR> <ISSUE>"), read once a job is ON the box;
-#   sk:<label> on the ISSUE   the GitHub-readable mirror, so reset/feedback can dispatch STRAIGHT
-#                             to the holder instead of fanning a job out to every sidekick.
-# The label is a routing hint and never the authority — the job that lands still verifies against
-# the file, so a stale label costs one no-op rather than the wrong box being wiped. $1 = PR number.
-claim_sidekick() {
-  echo "$1 $ISSUE" > "$HOME/.dor-reservation"
-  local mine="sk:$(sk_label)" stale
-  # The claim is EXCLUSIVE. A re-dispatched build (infra death, usage-limit resume) is scheduled by
-  # POOL label, so it can land on a different box than the attempt before it — and two sk:* labels on
-  # one issue would leave the resolver picking whichever the API returned first. Drop any other claim
-  # as we take ours.
-  stale="$(gh issue view "$ISSUE" --repo "$REPO" --json labels \
-           --jq "[.labels[].name | select(startswith(\"sk:\")) | select(. != \"$mine\")] | join(\",\")" 2>/dev/null || true)"
-  # shellcheck disable=SC2086  # label names never contain spaces; this expansion must stay unquoted
-  gh issue edit "$ISSUE" --repo "$REPO" --add-label "$mine" ${stale:+--remove-label "$stale"} >/dev/null 2>&1 \
-    || echo "::warning::could not label #$ISSUE with $mine — its sidekick will need releasing by hand"
-  [ -n "$stale" ] && echo "::notice::claim moved to $mine (dropped $stale) — the old box may still hold a stale stack"
-  # Exclusive to the BOX, not just to this issue. The line above only clears OTHER boxes claimed by
-  # THIS issue; a previous holder of this box keeps its label, and two open issues then name one
-  # sidekick. That is silent, not loud: dor-acceptance dispatches the stale claimant's next
-  # `/rework` here, this box answers "not my issue", and the job exits without a word to the
-  # requestor. We hold the reservation now, so any other claim on it is stale by construction (#1011).
-  local other
-  for other in $(gh issue list --repo "$REPO" --state open --label "$mine" --json number \
-                 --jq ".[].number | select(. != $ISSUE)" 2>/dev/null || true); do
-    gh issue edit "$other" --repo "$REPO" --remove-label "$mine" >/dev/null 2>&1 \
-      && echo "::notice::dropped the stale $mine claim from #$other — this box now holds #$ISSUE"
-  done
-  return 0
-}
+# sk_label / sidekick_holder / require_free_sidekick / claim_sidekick: which box a build may take,
+# and how it takes one without wiping another issue's env.
+# shellcheck source=dor_sidekick_claim.sh
+source "$(dirname "${BASH_SOURCE[0]}")/dor_sidekick_claim.sh"
 
 # The config key actions/checkout stores its token in. An HTTP Authorization header set here BEATS
 # the userinfo in a push URL, so while it is live nothing the flow does can choose its own identity.
@@ -411,10 +389,13 @@ pause_and_exit() {
   # A paused branch is resumed from later, so it gets the same guard as every other push. Checked
   # BEFORE the pause marker: a refusal here is an Exception, not a pause.
   guard_protected_paths
-  touch "${RUNNER_TEMP:-/tmp}/dor-paused"   # tell the workflow's failure backstop this is a pause
   git -C "$WORK" restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
   git -C "$WORK" add -A 2>/dev/null || true
   git -C "$WORK" diff --cached --quiet 2>/dev/null || git -C "$WORK" commit -q -m "wip: paused on usage limit (#${ISSUE})" 2>/dev/null || true
+  # An expired token would silently lose the WIP push; hand over to a fresh-token step instead, which
+  # comes back here. Before the pause marker, so a run that ends up bailing is not reconciled as paused.
+  board_token_stale && checkpoint_and_exit pause "" 0 "$reason"
+  touch "${RUNNER_TEMP:-/tmp}/dor-paused"   # tell the workflow's failure backstop this is a pause
   # origin is anonymous, so the WIP goes out as the app like every other push.
   push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" >/dev/null 2>&1 || true
   GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" paused 2>/dev/null || true
@@ -550,8 +531,10 @@ ci_state() {
 # The verify loop shared by both flows: deploy+seed → e2e on live env → CI. The AI fixer is invoked
 # ONLY on a REAL failure (e2e failed, or a required check is red) — never merely because CI hasn't
 # reported yet (that spin is what burned a week of budget). $1 = the open PR number.
+# $2 = fix attempts already spent — non-zero only when resuming after a token refresh, so a
+# continuation never gets fresh attempts on top of MAX_ATTEMPTS.
 verify_loop() {
-  local pr="$1" attempt=0 e2e_rc ci ctx infra_waits=0
+  local pr="$1" attempt="${2:-0}" e2e_rc ci ctx infra_waits=0
   while : ; do
     deploy_and_seed || bail "deploy/seed of the live env failed on $HOST (infra)"
     run_feature_e2e; e2e_rc=$?
@@ -602,6 +585,6 @@ verify_loop() {
       git commit -q -m "fix: address e2e/CI failures (attempt ${attempt}, #${ISSUE})" || bail "git commit failed during fix (attempt ${attempt})"
     fi
     guard_protected_paths
-    push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" || bail "could not push fix on attempt ${attempt}"
+    push_or_checkpoint verify "$pr" "$attempt" || bail "could not push fix on attempt ${attempt}"
   done
 }

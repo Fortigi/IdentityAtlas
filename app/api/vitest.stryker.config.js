@@ -30,6 +30,8 @@ export default defineConfig({
     include: [
       'src/auth/**/*.test.js',
       'src/routes/matrix/shareRecipients.test.js',
+      // SEC-2026-09 M-06: crawler permission whitelist + built-in worker guards.
+      'src/routes/crawlers/crawlerGuards.test.js',
       'src/middleware/requestOriginGuard.test.js',
       'src/middleware/rateLimitKeys.test.js',
       'src/middleware/crawlerAuthFailureLimiter.test.js',

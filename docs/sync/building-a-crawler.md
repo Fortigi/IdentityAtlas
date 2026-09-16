@@ -313,12 +313,14 @@ Don't render `lastRunAt`/`lastRunStatus` — the card already shows those generi
 If your wizard needs to validate credentials or populate a dropdown from the live source system (entity sets, role archetypes, available attributes, …), drop a `discover.js` and the API exposes `POST /api/admin/crawlers/<type>/discover` automatically — no route changes needed:
 
 ```js
-export default async function handler(req, res, { db, getConfigSecret, assertConnectorUrl }) {
+export default async function handler(req, res, { db, getConfigSecret, getConfigCredentials, assertConnectorUrl }) {
   // req.body — whatever the wizard sent (credentials, or { configId } in edit
   //            mode when the user hasn't re-entered a secret)
-  // getConfigSecret(configId) — resolves a vaulted secret in edit mode; never
-  //            trust req.body.clientSecret alone, it's stripped from storage
-  //            on every save (see app/api/CLAUDE.md re: secrets/vault.js)
+  // getConfigSecret(configId) — resolves a vaulted clientSecret in edit mode
+  // getConfigCredentials(configId) — resolves every vaulted credential field
+  //            (clientSecret, password, apiToken, cookieString). All of them
+  //            are stripped from storage on every save (see app/api/CLAUDE.md
+  //            re: secrets/vault.js), so never expect them in the stored config
   // db — the pg pool (via getPool())
   // assertConnectorUrl(url, config, label) — the SSRF guard. Call it on every
   //            URL you are about to send a credential to, BEFORE fetching; it

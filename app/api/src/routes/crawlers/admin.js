@@ -11,6 +11,9 @@ import * as db from '../../db/connection.js';
 import { createParams } from '../../db/sqlParams.js';
 import { getPushModeType } from '../../crawlerManifests.js';
 import { useSql, generateApiKey, hashKey } from './shared.js';
+import {
+  validateCrawlerPermissions, touchesProtectedBuiltinField, respondBuiltinOrNotFound,
+} from './crawlerGuards.js';
 
 const adminCrawlersRouter = Router();
 const gate = requirePermission('admin.crawlers');
@@ -29,7 +32,8 @@ adminCrawlersRouter.get('/admin/crawlers', gate, async (req, res) => {
     await ensureCrawlerTables(pool);
     const result = await pool.query(`
       SELECT id, "displayName", description, "apiKeyPrefix", "systemIds", permissions,
-             enabled, "createdAt", "createdBy", "lastUsedAt", "lastRotatedAt", "expiresAt", "rateLimit"
+             enabled, "createdAt", "createdBy", "lastUsedAt", "lastRotatedAt", "expiresAt", "rateLimit",
+             "isBuiltIn"
       FROM "Crawlers"
       ORDER BY "createdAt" DESC
     `);
@@ -48,6 +52,8 @@ adminCrawlersRouter.post('/admin/crawlers', gate, async (req, res) => {
   if (!displayName || typeof displayName !== 'string' || displayName.trim().length === 0) {
     return res.status(400).json({ error: 'displayName is required' });
   }
+  const perms = validateCrawlerPermissions(permissions);
+  if (perms.error) return res.status(400).json({ error: perms.error });
 
   try {
     const pool = await db.getPool();
@@ -85,7 +91,7 @@ adminCrawlersRouter.post('/admin/crawlers', gate, async (req, res) => {
         salt,
         prefix,
         systemIds ? JSON.stringify(systemIds) : null,
-        JSON.stringify(permissions || ['ingest']),
+        JSON.stringify(perms.permissions || ['ingest']),
         createdBy,
         expiresAt || null,
         rateLimit || 100,
@@ -126,15 +132,20 @@ adminCrawlersRouter.patch('/admin/crawlers/:id', gate, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid crawler ID' });
 
+  const perms = validateCrawlerPermissions(req.body?.permissions);
+  if (perms.error) return res.status(400).json({ error: perms.error });
+
   const pool = await db.getPool();
   const { params, bind } = createParams();
-  const sets = buildCrawlerUpdate(req.body, bind);
+  const sets = buildCrawlerUpdate({ ...req.body, permissions: perms.permissions }, bind);
 
   if (sets.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
+  // The built-in worker row only accepts description / rateLimit edits.
+  const builtinGuard = touchesProtectedBuiltinField(req.body) ? ' AND NOT "isBuiltIn"' : '';
   try {
-    const result = await pool.query(`UPDATE "Crawlers" SET ${sets.join(', ')} WHERE id = ${bind(id)} RETURNING *`, params);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Crawler not found' });
+    const result = await pool.query(`UPDATE "Crawlers" SET ${sets.join(', ')} WHERE id = ${bind(id)}${builtinGuard} RETURNING *`, params);
+    if (result.rows.length === 0) return respondBuiltinOrNotFound(pool, id, res);
     const row = result.rows[0];
     // Strip sensitive fields
     const { apiKeyHash, apiKeySalt, ...safe } = row;
@@ -162,20 +173,23 @@ adminCrawlersRouter.delete('/admin/crawlers/:id', gate, async (req, res) => {
       // (see POST handler above) so the card disappears from the UI too —
       // mirrors the same cleanup DELETE /admin/crawler-configs/:id does in
       // the other direction (routes/jobs.js).
+      // The built-in worker row is never deletable (SEC-2026-09 M-06).
       const result = await pool.query(
-        `WITH del_config AS (
+        `WITH target AS (
+                  SELECT id FROM "Crawlers" WHERE id = $2 AND NOT "isBuiltIn"
+                ), del_config AS (
                   DELETE FROM "CrawlerConfigs"
-                  WHERE "crawlerType" = $1 AND (config->>'crawlerId')::int = $2
+                  WHERE "crawlerType" = $1 AND (config->>'crawlerId')::int IN (SELECT id FROM target)
                 )
-                DELETE FROM "Crawlers" WHERE id = $2`,
+                DELETE FROM "Crawlers" WHERE id IN (SELECT id FROM target)`,
         [getPushModeType(), id]
       );
-      if (result.rowCount === 0) return res.status(404).json({ error: 'Crawler not found' });
+      if (result.rowCount === 0) return respondBuiltinOrNotFound(pool, id, res);
       res.json({ message: 'Crawler permanently removed' });
     } else {
       // Soft delete — just disable
-      const result = await pool.query('UPDATE "Crawlers" SET enabled = false WHERE id = $1', [id]);
-      if (result.rowCount === 0) return res.status(404).json({ error: 'Crawler not found' });
+      const result = await pool.query('UPDATE "Crawlers" SET enabled = false WHERE id = $1 AND NOT "isBuiltIn"', [id]);
+      if (result.rowCount === 0) return respondBuiltinOrNotFound(pool, id, res);
       res.json({ message: 'Crawler disabled' });
     }
   } catch (err) {

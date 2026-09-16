@@ -7,9 +7,10 @@
 // endpoint in routes/jobs.js. Dependencies are injected via the third
 // argument so this file has no hard-coded paths into the API source tree.
 //
-// handler(req, res, { db, assertConnectorUrl })
-//   db                 — app/api/src/db/connection.js pool wrapper
-//   assertConnectorUrl — app/api/src/routes/jobs/urlPolicy.js SSRF guard
+// handler(req, res, { db, getConfigCredentials, assertConnectorUrl })
+//   db                   — app/api/src/db/connection.js pool wrapper
+//   getConfigCredentials — every vaulted credential field of a stored config
+//   assertConnectorUrl   — app/api/src/routes/jobs/urlPolicy.js SSRF guard
 
 import { timedFetch } from '../shared/discoverAuth.js';
 
@@ -22,7 +23,7 @@ function fetchOmadaMetadata(metaUrl, headers) {
   return timedFetch(metaUrl, opts, 10_000);
 }
 
-export default async function handler(req, res, { db, assertConnectorUrl }) {
+export default async function handler(req, res, { db, getConfigCredentials, assertConnectorUrl }) {
   const { configId, config: inlineConfig } = req.body;
 
   let c;
@@ -33,6 +34,9 @@ export default async function handler(req, res, { db, assertConnectorUrl }) {
       const row = await db.queryOne(`SELECT config FROM "CrawlerConfigs" WHERE id = $1`, [id]);
       if (!row) return res.status(404).json({ error: 'Config not found' });
       c = typeof row.config === 'string' ? JSON.parse(row.config) : row.config;
+      // Credentials (password, apiToken, cookieString) live in the vault, not
+      // in the stored JSON.
+      if (getConfigCredentials) c = { ...c, ...(await getConfigCredentials(id)) };
     } else if (inlineConfig && typeof inlineConfig === 'object') {
       c = inlineConfig;
     } else {

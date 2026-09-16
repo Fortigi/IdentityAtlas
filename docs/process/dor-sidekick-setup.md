@@ -78,6 +78,10 @@ Adding a box to the pool means teaching the workflows about it. Update, on a bra
 - Create the label **`sk:skN`** in the repo (`gh label create "sk:skN" -c ededed -d "DoR: sidekick
   skN holds this issue's build env"`). A build stamps this label on the issue it is holding, and the
   reset / feedback workflows dispatch off it.
+- Add **`skN`** to the **`DOR_POOL`** repo variable (space-separated, e.g. `sk3 sk5 sk6 sk7 sk8`). New
+  builds are routed only to pool boxes no open issue claims. Take a box **out** of `DOR_POOL` while its
+  runner is offline: GitHub can't tell the workflow which runners are up without an Administration
+  credential, so a build routed to an offline box just queues.
 
 That is the whole list — there is no reset or feedback *matrix* to extend any more. Both workflows
 resolve the holder from the issue's `sk:*` label and send a single job to that box, so a new sidekick
@@ -106,6 +110,7 @@ Provided by the workflow at run time — **do not** store these on the sidekick:
 | `BOT_APP_ID` / `BOT_PRIVATE_KEY` | repo secrets | mint the BOT app token (PR open + board moves + org-member gate) |
 | `DOR_ENABLED` | repo variable | master switch — every DoR workflow is inert unless `true` |
 | `DOR_BUILD_MODEL` | repo variable | optional model override (defaults to `claude-fable-5`) |
+| `DOR_POOL` | repo variable | the sidekicks new builds may be routed to (`sk3 sk5 …`). Unset = any `dor-build` runner, with only the on-box check protecting a held env |
 
 ## What isolates the build agent, and what does not
 

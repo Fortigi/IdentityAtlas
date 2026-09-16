@@ -29,6 +29,7 @@ import {
 import { putSecret, deleteSecret } from '../secrets/vault.js';
 import {
   resolveScrapeTargets, buildLlmJsonError, buildProfileInsertParams, findInvalidClassifierPatterns,
+  SCRAPER_SECRET_SCOPE, isScraperCredentialId,
 } from './riskProfiles/helpers.js';
 
 const router = Router();
@@ -260,7 +261,7 @@ router.post('/risk-profiles/scraper-credentials', gate, async (req, res) => {
   try {
     const id = `scraper.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 8)}`;
     const value = bearer ? JSON.stringify({ bearer }) : JSON.stringify({ username, password: password || '' });
-    await putSecret(id, 'scraper', value, label);
+    await putSecret(id, SCRAPER_SECRET_SCOPE, value, label);
     res.status(201).json({ id, label });
   } catch (err) {
     console.error('scraper-credential create failed:', err.message);
@@ -270,8 +271,11 @@ router.post('/risk-profiles/scraper-credentials', gate, async (req, res) => {
 
 router.delete('/risk-profiles/scraper-credentials/:id', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  // Only scraper credentials are deletable here (SEC-2026-09 H-01).
+  if (!isScraperCredentialId(req.params.id)) return res.status(404).json({ error: 'Credential not found' });
   try {
-    await deleteSecret(req.params.id);
+    const removed = await deleteSecret(req.params.id, SCRAPER_SECRET_SCOPE);
+    if (!removed) return res.status(404).json({ error: 'Credential not found' });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Delete failed' });
