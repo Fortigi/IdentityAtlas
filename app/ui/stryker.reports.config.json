@@ -18,8 +18,11 @@
     "src/components/reports/ListReportRenderer.jsx",
     "src/components/reports/ReportError.jsx",
     "src/components/reports/ReportViewPage.jsx",
+    "src/components/reports/ask/CompareCondition.jsx",
+    "src/components/reports/ask/ConfirmChoices.jsx",
     "src/components/reports/formRenderers.js",
     "src/components/reports/reportExport.js",
+    "src/hooks/useCanBuildReports.js",
     "src/utils/download.js"
   ],
   "thresholds": {
@@ -34,5 +37,11 @@
     "excludedMutations": [
       "StringLiteral"
     ]
+  },
+  "mutationExclusions": {
+    "src/components/reports/ask/SpecEditor.jsx": "A form that draws whatever the API catalog declares — selects for fields, operators and values, plus the add/remove wiring. Its behaviour IS the report definition it produces, and that is asserted where it is enforced: validateSpec / compileSpec on the API side (both mutated), and end-to-end in app/ui/e2e/custom-reports.spec.js, which builds a report by hand and runs it. Mutating the JSX and Tailwind here measures markup.",
+    "src/components/reports/ask/AskAssistant.jsx": "Conversation shell around POST /api/nl-reports/interpret: it renders turns, polls while the model prepares its prompt cache, and hands a definition to the builder. The decisions it makes are the API contract (report / clarify / confirm), asserted in routes/nlReports.test.js and service.test.js; the model half cannot be exercised in a sandbox without a model server.",
+    "src/components/reports/ask/ReportBuilderPage.jsx": "Page composition: name and description fields, the assistant, the editor, the preview and save/delete. Every behaviour it has is an API call whose contract is mutated API-side, and the whole path is covered end-to-end (new → criteria → preview → save → run → edit → delete).",
+    "src/components/admin/ReportGeneratorLLMSection.jsx": "Read-only status card in Admin → LLM: the shipped model name, whether the server answers, and a Test button that calls the warm-up endpoint. No state of its own beyond the button; the endpoint it reports on is mutated API-side."
   }
 }

@@ -27,8 +27,9 @@ const DEFAULT_MAX_BYTES = 16 * 1024 * 1024;
 export function httpJson({ url, method = 'POST', body, headers = {}, timeoutMs, maxBytes = DEFAULT_MAX_BYTES }) {
   const target = new URL(url);
   const payload = body === undefined ? null : JSON.stringify(body);
-  // Destructured so this file carries no `.request(` — the native-pg guard bans
-  // that spelling anywhere in production code (it was the MSSQL shim's surface).
+  // Destructured deliberately: the native-pg guard (db/nativePg.guard.test.js) bans
+  // the dotted request-method spelling anywhere in production code, because that was
+  // the MSSQL shim surface it exists to keep out.
   const { request: send } = target.protocol === 'https:' ? https : http;
 
   return new Promise((resolve, reject) => {

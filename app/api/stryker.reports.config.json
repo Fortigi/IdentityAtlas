@@ -15,14 +15,29 @@
   },
   "mutate": [
     "src/accountlinking/orphanQuery.js",
+    "src/lib/httpJson.js",
+    "src/nlreports/compare.js",
+    "src/nlreports/compile.js",
+    "src/nlreports/explain.js",
+    "src/nlreports/llamacpp.js",
+    "src/nlreports/ollama.js",
+    "src/nlreports/prompt.js",
+    "src/nlreports/references.js",
+    "src/nlreports/savedReports.js",
+    "src/nlreports/service.js",
+    "src/nlreports/spec.js",
     "src/reports/export.js",
     "src/reports/registry.js",
     "src/reports/templates/orphaned-accounts.js",
+    "src/routes/nlReports.js",
     "src/routes/reports.js"
   ],
   "mutationExclusions": {
     "src/reports/types.js": "Contains no executable code at all: the file is the JSDoc ReportTemplate contract plus a bare `export {}`, so Stryker has nothing behavioural to mutate. Its correctness is enforced by the code that implements the contract (registry.js validates the required fields, the route projects the metadata), not by anything in this file.",
-    "src/reports/templates/index.js": "Declaration only: one import per built-in template and the array that holds them \u2014 this IS the single registration line the reports seam is built around. The one mutant Stryker can make (empty the array) is killed by every registry and route test, so a run here measures the registration list rather than any logic. Behaviour lives in registry.js, which is mutated."
+    "src/reports/templates/index.js": "Declaration only: one import per built-in template and the array that holds them — this IS the single registration line the reports seam is built around. The one mutant Stryker can make (empty the array) is killed by every registry and route test, so a run here measures the registration list rather than any logic. Behaviour lives in registry.js, which is mutated.",
+    "src/nlreports/catalog.js": "Declaration, not logic: the entities/fields/relations an analyst may report on, each with a constant SQL template. With StringLiteral and ObjectLiteral off there is almost nothing behavioural left to mutate, and the part that can go wrong — a template that does not match the schema — is not observable in a unit test at all: it is caught by the contract test that compiles a definition for every field and relation and executes it against a real PostgreSQL. Mutating the surviving structure would measure the shape of a data table.",
+    "src/nlreports/llm.js": "Three lines of module selection: it re-exports chat/listModels/warm from either the llama.cpp client (what a deployment runs) or the Ollama client (kept for comparing models), chosen by one env var. Both clients ARE mutated. Every test of the layers above mocks this module, so a mutant that flips the selection is invisible by construction — the decision here is to test the clients, not the switch.",
+    "src/nlreports/settings.js": "A WorkerConfig read/write pair for the model name, plus one branch that short-circuits when the deployment fixes the model (the shipped configuration). The branch is asserted in routes/nlReports.test.js through the admin endpoints; the two SQL statements are the same shape as every other WorkerConfig accessor in the codebase and carry no logic to mutate."
   },
   "thresholds": {
     "high": 90,

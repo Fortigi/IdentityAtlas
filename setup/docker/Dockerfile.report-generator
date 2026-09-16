@@ -24,6 +24,11 @@ ARG MODEL_SHA256
 ARG MODEL_NAME=qwen3:4b-instruct-2507-q4_K_M
 ARG MODEL_LICENSE_URL=https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/raw/main/LICENSE
 
+# Bake the release version in, like the web and worker images, so all three
+# report the same version (imageVersionStamp.guard.test.js checks this).
+ARG MODULE_VERSION=""
+ENV MODULE_VERSION=$MODULE_VERSION
+
 USER root
 RUN set -eux; \
     apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*; \

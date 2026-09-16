@@ -150,11 +150,10 @@ jobs:
           load: true
           tags: identity-atlas-report-generator:qa
           # Stamped from the same version expression as web and worker
-          # (imageVersionStamp.guard.test.js checks that), plus the pinned model
-          # and its checksum so a release always ships the model we tested.
-          build-args: |
-            MODULE_VERSION=${{ steps.version.outputs.version }}
-            MODEL_SHA256=${{ vars.REPORT_GENERATOR_MODEL_SHA256 }}
+          # (imageVersionStamp.guard.test.js checks that). The model URL and its
+          # SHA-256 are pinned in the Dockerfile, so a release always ships — and
+          # verifies — the exact model file we measured.
+          build-args: MODULE_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=report-generator
           cache-to: type=gha,mode=min,scope=report-generator,ignore-error=true
 

@@ -14,54 +14,26 @@
 // The cache file name is a hash of model name + prompt text, so any change to
 // either (new release, new catalog values) automatically gets a fresh cache.
 
-import http from 'node:http';
-import https from 'node:https';
 import { createHash } from 'node:crypto';
+import { httpJson } from '../lib/httpJson.js';
 
 const BASE_URL = (process.env.NL_REPORTS_LLM_URL || 'http://llm:8080').replace(/\/$/, '');
 const TIMEOUT_MS = Number(process.env.NL_REPORTS_LLM_TIMEOUT_MS) || 900_000;
 // Set where the model server is reachable over a network the deployment does not
 // control (Azure: no VNet, so the Container App has public ingress).
 const API_KEY = process.env.NL_REPORTS_LLM_API_KEY || '';
-const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 const SLOT = 0;
 
-function request(method, path, body) {
-  const url = new URL(`${BASE_URL}${path}`);
-  const payload = body === undefined ? null : JSON.stringify(body);
-  const client = url.protocol === 'https:' ? https : http;
-  return new Promise((resolve, reject) => {
-    const req = client.request(url, {
-      method,
-      headers: {
-        ...(payload ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } : {}),
-        ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
-      },
-    }, (res) => {
-      const chunks = [];
-      let size = 0;
-      res.on('data', (chunk) => {
-        size += chunk.length;
-        if (size > MAX_RESPONSE_BYTES) { req.destroy(new Error('LLM response too large')); return; }
-        chunks.push(chunk);
-      });
-      res.on('end', () => {
-        const text = Buffer.concat(chunks).toString('utf8');
-        let json = null;
-        try { json = JSON.parse(text); } catch { /* not JSON */ }
-        resolve({ status: res.statusCode, json, text });
-      });
-      res.on('error', reject);
-    });
-    req.setTimeout(TIMEOUT_MS, () => req.destroy(new Error(`LLM request timed out after ${TIMEOUT_MS / 1000}s`)));
-    req.on('error', reject);
-    if (payload) req.write(payload);
-    req.end();
-  });
-}
+const call = (method, path, body) => httpJson({
+  url: `${BASE_URL}${path}`,
+  method,
+  body,
+  headers: API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {},
+  timeoutMs: TIMEOUT_MS,
+});
 
 async function ok(method, path, body) {
-  const r = await request(method, path, body);
+  const r = await call(method, path, body);
   if (r.status < 200 || r.status >= 300) {
     throw new Error(`LLM server returned ${r.status}: ${(r.json?.error?.message || r.text).slice(0, 300)}`);
   }
@@ -121,7 +93,7 @@ export async function warm(_model, systemPrompt) {
   const model = await servedModel();
   const filename = cacheFileName(model, systemPrompt);
 
-  const restore = await request('POST', `/slots/${SLOT}?action=restore`, { filename });
+  const restore = await call('POST', `/slots/${SLOT}?action=restore`, { filename });
   if (restore.status === 200) return { model, ms: Date.now() - started, restored: true };
 
   await ok('POST', '/v1/chat/completions', completionBody(

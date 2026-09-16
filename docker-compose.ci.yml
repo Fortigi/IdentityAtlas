@@ -36,6 +36,9 @@ services:
       # in isolation — shares.test.js (every share route 404s) and the UI mount
       # tests for the wizard step, toolbar button and Admin tab.
       FEATURE_MATRIX_SHARING: "true"
+      # Custom reports on, but no model server in this stack: the e2e suite proves
+      # the builder works by hand and that the assistant reports itself unavailable.
+      FEATURE_CUSTOM_REPORTS: "true"
       PORT: "3001"
     ports: ["3001:3001"]
     volumes:
