@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Fixed a full sync sent to the systems ingest endpoint being able to remove other registered systems and all of their data; systems are now always registered as a delta, and the Omada crawler no longer requests a full sync for them.
+- Hardened crawler API keys that are restricted to specific systems: they can no longer create, overwrite, tombstone or delete data belonging to other systems, and cannot write server-managed fields such as risk scores, deletion stamps or analyst decisions.
+- Hardened the crawler data-plane endpoints: business-role classification now needs the refresh-views permission and only touches the caller's systems, matrix view refreshes run one at a time, the default matrix filter can only be set by the built-in worker, sync-log entries record which crawler wrote them, principal presence lookups are limited to the caller's systems, and job progress can only be reported by the worker.
+- Hardened the API against a crawler key holding database connections: open multi-batch ingest sessions are now capped per crawler and in total, and connections left idle inside a transaction are closed.
+- Hardened ingest against very large attribute sets: a record's extended attributes are limited in key count and size, and filter-column discovery only surfaces the most common attribute keys.
+
+## Changes in this PR
+
 - Hardened Azure deployments: the Postgres admin password is now random and kept in Key Vault instead of being derived from resource names. Existing deployments keep their current password until you rotate it with the new `rotatePostgresPassword` deployment parameter.
 - Hardened Azure deployments: Postgres now only accepts connections from the web app's own outbound IP addresses instead of from every Azure service.
 - Added an opt-in private network mode for new Azure deployments (`networkMode=private`): a virtual network with private endpoints for Key Vault, Storage and Postgres.
