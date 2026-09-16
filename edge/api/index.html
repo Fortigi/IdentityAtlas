@@ -5311,12 +5311,22 @@
 <tr>
 <td><code>ALLOWED_ORIGINS</code></td>
 <td>No</td>
-<td>Comma-separated allowed CORS origins. Defaults to same-origin in production.</td>
+<td>Comma-separated allowed CORS origins. Defaults to same-origin in production. The host names in these origins are also allowed hosts (see <code>ALLOWED_HOSTS</code>).</td>
+</tr>
+<tr>
+<td><code>ALLOWED_HOSTS</code></td>
+<td>No</td>
+<td>Comma-separated host names users type to reach Identity Atlas (e.g. <code>atlas.corp.example.com</code>). <strong>While authentication is disabled</strong>, a request for a dotted host name that is not allowed is answered <code>421 Misdirected Request</code> (protection against DNS rebinding), and the name is logged once with this hint. Always allowed without configuration: <code>localhost</code>, <code>127.0.0.1</code>, <code>[::1]</code>, any IP address, single-label names (<code>web</code>, <code>atlas-vm</code>) and <code>.local</code> names, plus the host of <code>PUBLIC_BASE_URL</code>, the hosts in <code>ALLOWED_ORIGINS</code> and Azure's <code>WEBSITE_HOSTNAME</code>. With authentication enabled the list is not enforced. <code>/api/health</code> and the crawler endpoints are never blocked.</td>
 </tr>
 <tr>
 <td><code>BEHIND_TLS</code></td>
 <td>No</td>
-<td>Set to <code>true</code> when a TLS terminator (Caddy, nginx, Azure Front Door) sits in front. Enables HSTS/CSP upgrades and makes the Excel workbook export embed <code>https://</code> URLs.</td>
+<td>Set to <code>true</code> when a TLS terminator (Caddy, nginx, Azure Front Door) sits in front. Enables HSTS/CSP upgrades and makes the Excel workbook export embed <code>https://</code> URLs. Also trusts one proxy hop for the client address (see <code>TRUST_PROXY_HOPS</code>).</td>
+</tr>
+<tr>
+<td><code>TRUST_PROXY_HOPS</code></td>
+<td>No</td>
+<td>Number of reverse proxies in front of the container whose <code>X-Forwarded-For</code> is trusted to identify the client (used for rate limiting and audit logs). Defaults to <code>1</code> when <code>BEHIND_TLS=true</code> or <code>TRUST_PROXY=true</code>, otherwise <code>0</code> (the connection address is the client). Set it to the real hop count, e.g. <code>2</code> for Front Door in front of App Service; set <code>0</code> to turn it off.</td>
 </tr>
 <tr>
 <td><code>PUBLIC_BASE_URL</code></td>
@@ -5327,6 +5337,21 @@
 <td><code>TRUST_PROXY</code></td>
 <td>No</td>
 <td>Set to <code>true</code> only when a trusted reverse proxy in front overwrites <code>X-Forwarded-Host</code>/<code>X-Forwarded-Proto</code>. Off by default, so forwarded headers are ignored when resolving the workbook export URL (prevents token exfiltration via header spoofing). Prefer <code>PUBLIC_BASE_URL</code> where possible.</td>
+</tr>
+<tr>
+<td><code>UPLOAD_MIN_FREE_BYTES</code></td>
+<td>No</td>
+<td>Free space (bytes) that must remain on the upload volume after a crawler file upload; larger uploads are refused with <code>507</code>. Default <code>1073741824</code> (1 GiB). The 1 GB per-file limit is unchanged.</td>
+</tr>
+<tr>
+<td><code>UPLOAD_CONFIG_QUOTA_BYTES</code></td>
+<td>No</td>
+<td>Optional storage quota (bytes) per crawler configuration's upload folder; an upload that would exceed it is refused with <code>413</code>. Default <code>0</code> (no quota).</td>
+</tr>
+<tr>
+<td><code>CRAWLER_AUDIT_LOG_MAX_ROWS</code></td>
+<td>No</td>
+<td>Rows of crawler audit log kept per crawler (newest first); older rows are trimmed by the periodic maintenance job. Default <code>10000</code>; <code>0</code> keeps everything.</td>
 </tr>
 <tr>
 <td><code>USE_MOCK</code></td>
