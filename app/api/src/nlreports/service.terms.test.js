@@ -15,14 +15,14 @@ import { chat, warm } from './llm.js';
 import { buildSystemPrompt } from './prompt.js';
 import { interpret } from './service.js';
 
-const QUESTION = 'Can you give me a list of all guest accounts from the RDW?';
+const QUESTION = 'Can you give me a list of all guest accounts from the ACME?';
 const GUEST = { type: 'field', field: 'userType', op: 'eq', value: 'Guest' };
 const SYSTEM_GUESS = { type: 'field', field: 'system', op: 'eq', value: 'Azure RM (3c4f204d)' };
-const BY_COMPANY = { type: 'field', field: 'companyName', op: 'contains', value: 'RDW' };
+const BY_COMPANY = { type: 'field', field: 'companyName', op: 'contains', value: 'ACME' };
 const spec = (...conditions) => ({ entity: 'user', match: 'all', conditions, columns: [] });
 const reply = (s, assumptions = []) => ({ content: JSON.stringify({ kind: 'report', assumptions, spec: s }), timing: { totalMs: 10 } });
 
-// Where "RDW" is (user email + company) is decided per EXISTS clause; everything else is a value list.
+// Where "ACME" is (user email + company) is decided per EXISTS clause; everything else is a value list.
 let occursOn;
 beforeEach(() => {
   chat.mockReset();
@@ -46,8 +46,8 @@ describe('interpret — names from the question', () => {
 
     const [system, user] = chat.mock.calls[0][0].messages;
     expect(system.content).toBe(buildSystemPrompt());
-    expect(system.content).not.toContain('RDW');
-    expect(user.content).toMatch(/- "RDW": user\.email, user\.companyName — not a system name\n\nRequest: Can you give/);
+    expect(system.content).not.toContain('ACME');
+    expect(user.content).toMatch(/- "ACME": user\.email, user\.companyName — not a system name\n\nRequest: Can you give/);
     expect(r).toMatchObject({ kind: 'report', repaired: false });
     expect(chat).toHaveBeenCalledTimes(1);
   });
@@ -57,13 +57,13 @@ describe('interpret — names from the question', () => {
     const r = await interpret({ question: QUESTION, model: 'm' });
 
     expect(chat).toHaveBeenCalledTimes(2);
-    expect(chat.mock.calls[1][0].messages.at(-1).content).toMatch(/mentions "RDW", but your definition does not use it\. "RDW" occurs in: user\.email, user\.companyName/);
+    expect(chat.mock.calls[1][0].messages.at(-1).content).toMatch(/mentions "ACME", but your definition does not use it\. "ACME" occurs in: user\.email, user\.companyName/);
     expect(r).toMatchObject({ kind: 'report', repaired: true });
     expect(r.spec.conditions).toEqual([GUEST, BY_COMPANY]);
   });
 
   it('asks the analyst when the correction still ignores the name, without the model\'s story about it', async () => {
-    const assumptions = ['"RDW" is assumed to refer to the system Azure RM.', 'Guest accounts are userType Guest.'];
+    const assumptions = ['"ACME" is assumed to refer to the system Azure RM.', 'Guest accounts are userType Guest.'];
     // The correction is valid but ignores the name just as much: the first definition stays.
     chat.mockResolvedValueOnce(reply(spec(GUEST, SYSTEM_GUESS), assumptions)).mockResolvedValueOnce(reply(spec(SYSTEM_GUESS), assumptions));
     const r = await interpret({ question: QUESTION, model: 'm' });
@@ -71,14 +71,14 @@ describe('interpret — names from the question', () => {
     expect(chat).toHaveBeenCalledTimes(2);
     expect(r.kind).toBe('confirm');
     expect(r.spec.conditions).toEqual([GUEST, SYSTEM_GUESS]);
-    expect(r.confirm).toMatchObject({ kind: 'term', name: 'RDW', drop: [[1]] });
+    expect(r.confirm).toMatchObject({ kind: 'term', name: 'ACME', drop: [[1]] });
     expect(r.confirm.choices.map(c => c.fields)).toEqual([['email'], ['companyName'], ['email', 'companyName']]);
     expect(r.assumptions).toEqual(['Guest accounts are userType Guest.']);
     expect(r.sql).toBeUndefined();   // nothing runs on the guess
   });
 
   it('keeps the first definition when the correction is not valid', async () => {
-    const broken = spec(GUEST, { type: 'field', field: 'noSuchField', op: 'eq', value: 'RDW' });
+    const broken = spec(GUEST, { type: 'field', field: 'noSuchField', op: 'eq', value: 'ACME' });
     chat.mockResolvedValueOnce(reply(spec(GUEST, SYSTEM_GUESS))).mockResolvedValueOnce(reply(broken));
     const r = await interpret({ question: QUESTION, model: 'm' });
     expect(r.kind).toBe('confirm');
@@ -92,7 +92,7 @@ describe('interpret — names from the question', () => {
 
     expect(chat).toHaveBeenCalledTimes(2);   // the correction round was still tried
     expect(r.kind).toBe('report');
-    expect(r.assumptions).toEqual(['“RDW” from the request is not used in this report.']);
+    expect(r.assumptions).toEqual(['“ACME” from the request is not used in this report.']);
   });
 
   it('looks nothing up and adds no hint when the question names nothing', async () => {

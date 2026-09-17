@@ -12,7 +12,7 @@ function humanType(type) {
 }
 
 /**
- * A name from the question the report does not use ("RDW"): which field it should
+ * A name from the question the report does not use ("ACME"): which field it should
  * match, or leave it out. Nothing is typed here — the choices are the fields the
  * name was actually found in.
  * @param {object} props.confirm  { kind: 'term', name, message, drop, choices: [{ name, fields }] }

@@ -111,7 +111,7 @@ for (const model of models) {
         timing = addTiming(timing, reply.timing || {});
         // A question whose right answer IS a clarification must not be answered for the model.
         // A "did you mean" confirmation: the simulated analyst accepts the first suggestion.
-        // For a name the report did not use ("RDW"), that is the first field it was found in.
+        // For a name the report did not use ("ACME"), that is the first field it was found in.
         while (reply.kind === 'confirm' && reply.confirm.choices.length && confirmations.length < 3) {
           const { confirm } = reply;
           const pick = confirm.choices[0];

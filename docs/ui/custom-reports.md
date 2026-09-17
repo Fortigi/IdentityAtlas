@@ -94,8 +94,8 @@ The generator may answer with a question instead of a report:
 
 ### Names in your question
 
-Names are recognised when they are clearly names: text in quotes, codes in capitals (*RDW*, *SAP*),
-and capitalised words that do not start a sentence (*Contoso*, *Maastricht UMC+*). Before the model
+Names are recognised when they are clearly names: text in quotes, codes in capitals (*ACME*, *SAP*),
+and capitalised words that do not start a sentence (*Contoso*, *Northwind Health+*). Before the model
 answers, Identity Atlas looks each one up as a whole word and tells the model where it is — so *"guests
 from Contoso"* filters on the company rather than on something the model guessed. A lower-case name
 (*"guests from contoso"*) is not recognised this way: put it in quotes, or capitalise it, when the

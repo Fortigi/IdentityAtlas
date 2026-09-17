@@ -1,16 +1,16 @@
 // Natural-language reports (PROTOTYPE) — the names a question mentions, and where
 // they occur in the data.
 //
-// "Guest accounts from the RDW" names an organisation. The model had no way to know
-// where "RDW" lives, so it grabbed the one list of names it is shown — the connected
-// systems — and filtered on a system that has nothing to do with RDW: 0 rows, with a
-// confident assumption. The data did know: RDW is in the company and email of the
+// "Guest accounts from the ACME" names an organisation. The model had no way to know
+// where "ACME" lives, so it grabbed the one list of names it is shown — the connected
+// systems — and filtered on a system that has nothing to do with ACME: 0 rows, with a
+// confident assumption. The data did know: ACME is in the company and email of the
 // guests.
 //
 // So names are looked up in code, the same way named objects are (references.js):
 //
 //   findTerms()      picks out what is clearly a name: quoted text, all-caps words
-//                    ("RDW", "SAP"), capitalised words that do not start a sentence
+//                    ("ACME", "SAP"), capitalised words that do not start a sentence
 //   locateTerms()    per name, the searchable fields it occurs in (EXISTS, no rows)
 //   termHint()       one line per name for the model — field names only, never data
 //   unusedTerms()    names found in the data that the definition does not use
@@ -101,7 +101,7 @@ function* namePhrases(text) {
   if (phrase) yield text.slice(phrase.start, phrase.end);
 }
 
-/** A comma joins "Folkertsma, Sipke", but separates a list of codes ("RDW, MUMC"). */
+/** A comma joins "Folkertsma, Sipke", but separates a list of codes ("ACME, NWH"). */
 const commaSeparates = (text, phrase, m) =>
   text.slice(phrase.end, m.index).includes(',') && (isAllCaps(m[0]) || isAllCaps(phrase.last));
 
@@ -130,9 +130,10 @@ export async function locateTerms(terms, query, values) {
       const entity = ENTITIES[entityName];
       const t = 'tm';
       const where = `${entity.where(t)}${exclude ? ` AND ${t}.${exclude}` : ''}`;
-      // As a whole word: "RDW" is in "@rdw.nl" and in the company "RDW", but a plain
-      // substring search also found it inside "Forwarding" — and pointed the model at
-      // every name field there is. ILIKE narrows cheaply first; the regex decides.
+      // As a whole word: "ACME" is in "@acme.example" and in the company "ACME". A plain
+      // substring search also finds a three-letter code inside ordinary words — on a real
+      // tenant it did, and pointed the model at every name field there is, which it then
+      // ANDed together into 0 rows. ILIKE narrows cheaply first; the regex decides.
       const checks = fields.map((f, i) => {
         const sql = entity.fields[f].sql(t);
         return `EXISTS (SELECT 1 FROM "${entity.table}" ${t} WHERE ${where} AND ${sql} ILIKE $1 ESCAPE '\\' AND ${sql} ~* $2) AS f${i}`;

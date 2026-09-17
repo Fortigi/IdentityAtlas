@@ -76,28 +76,28 @@ describe('ConfirmChoices', () => {
 // A name from the question the report does not use: which field, or leave it out.
 describe('ConfirmChoices — a name the report does not use', () => {
   const term = {
-    kind: 'term', path: [], name: 'RDW', label: 'user', drop: [[1]],
-    message: '“RDW” is not a system — it appears in Email and Company. Which should the report match?',
+    kind: 'term', path: [], name: 'ACME', label: 'user', drop: [[1]],
+    message: '“ACME” is not a system — it appears in Email and Company. Which should the report match?',
     choices: [
-      { name: 'Email contains “RDW”', fields: ['email'] },
-      { name: 'Company contains “RDW”', fields: ['companyName'] },
+      { name: 'Email contains “ACME”', fields: ['email'] },
+      { name: 'Company contains “ACME”', fields: ['companyName'] },
     ],
   };
 
   it('answers with the chosen fields, the name and the system condition it replaces', async () => {
     const onChoose = render(term);
     expect(screen.getByText(term.message)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Company contains “RDW”' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Company contains “ACME”' }));
     expect(onChoose).toHaveBeenCalledWith({
-      kind: 'term', path: [], term: 'RDW', drop: [[1]], name: 'Company contains “RDW”', fields: ['companyName'],
+      kind: 'term', path: [], term: 'ACME', drop: [[1]], name: 'Company contains “ACME”', fields: ['companyName'],
     });
   });
 
   it('can leave the name out, and offers no typed name', async () => {
     const onChoose = render(term);
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Leave “RDW” out' }));
-    expect(onChoose).toHaveBeenCalledWith({ kind: 'term', path: [], term: 'RDW', drop: [[1]], name: 'Leave “RDW” out', skip: true });
+    await userEvent.click(screen.getByRole('button', { name: 'Leave “ACME” out' }));
+    expect(onChoose).toHaveBeenCalledWith({ kind: 'term', path: [], term: 'ACME', drop: [[1]], name: 'Leave “ACME” out', skip: true });
   });
 
   it('disables every choice while busy', () => {

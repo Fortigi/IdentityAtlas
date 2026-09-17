@@ -221,7 +221,7 @@ function termCheck(ctx, spec, assumptions) {
   for (const unused of unusedTerms(spec, ctx.located)) {
     const confirm = termConfirmation(spec, unused, ctx.question);
     if (confirm) {
-      // The model's own story about the name ("RDW is the system …") is what the analyst is correcting.
+      // The model's own story about the name ("ACME is the system …") is what the analyst is correcting.
       const n = unused.term.toLowerCase();
       assumptions.splice(0, assumptions.length, ...assumptions.filter(a => !a.toLowerCase().includes(n)));
       return confirm;
