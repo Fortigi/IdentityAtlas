@@ -310,6 +310,45 @@ class ProxyTest(ModelTestCase):
         self.assertEqual(model.popen_counter.started, 0)
 
 
+class RefusedBodyTest(ModelTestCase):
+    """A refused request is answered cleanly, not with a broken pipe — the CI flake."""
+
+    def start_proxy(self):
+        model = self.make_model()
+        port = free_port()
+        server = supervisor.http.server.ThreadingHTTPServer(
+            ("127.0.0.1", port), supervisor.make_handler(model, "", "qwen-test"))
+        server.daemon_threads = True
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        return model, port
+
+    def test_an_oversized_body_is_read_and_answered_413_on_a_connection_that_stays_usable(self):
+        model, port = self.start_proxy()
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=30)
+        self.addCleanup(conn.close)
+        for _ in range(3):   # repeated, because the flake was a race
+            conn.request("POST", "/v1/chat/completions", body=b"x" * (supervisor.MAX_BODY_BYTES + 1))
+            resp = conn.getresponse()
+            resp.read()
+            self.assertEqual(resp.status, 413)
+        # The same connection still carries a normal request afterwards.
+        conn.request("GET", "/health")
+        self.assertEqual(conn.getresponse().status, 200)
+        self.assertEqual(model.popen_counter.started, 0)
+
+    def test_a_body_to_an_unknown_endpoint_is_read_before_the_404(self):
+        model, port = self.start_proxy()
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=30)
+        self.addCleanup(conn.close)
+        conn.request("POST", "/completion", body=b"y" * 500_000)
+        resp = conn.getresponse()
+        resp.read()
+        self.assertEqual(resp.status, 404)
+        self.assertEqual(model.popen_counter.started, 0)
+
+
 class HelpersTest(unittest.TestCase):
     def test_the_model_server_listens_on_loopback_only(self):
         cmd = supervisor.child_command(["/app/llama-server", "--alias", "m"])

@@ -38,6 +38,12 @@ LISTEN_PORT = 8080
 CHILD_HOST = "127.0.0.1"
 CHILD_PORT = 8081
 MAX_BODY_BYTES = 1_000_000
+# A refused request's body is read and thrown away up to this size before the
+# answer is sent. Answering while the client is still sending makes it see a broken
+# pipe instead of the 413 or 404 — and CI's fast runners did. Beyond this size the
+# connection is simply closed, so a huge upload is not read just to refuse it.
+MAX_DISCARD_BYTES = 8_000_000
+DISCARD_CHUNK_BYTES = 65_536
 # Longer than the web app waits (15 minutes), so the web app gives up first; but
 # finite, so a hung model server cannot stay "in flight" and block unloading forever.
 FORWARD_TIMEOUT_SECONDS = 1800
@@ -193,7 +199,7 @@ def make_handler(model, api_key, alias):
             elif path in ("/v1/models", "/models"):
                 self._json(200, model_list(alias, model.current_state()))
             elif upstream is None:
-                self.close_connection = True   # any body was not read
+                self._discard_body()
                 self._json(404, {"error": {"message": "Not found"}})
             else:
                 body = self._read_body()
@@ -208,10 +214,23 @@ def make_handler(model, api_key, alias):
                 return None
             length = int(self.headers.get("Content-Length") or 0)
             if length > MAX_BODY_BYTES:
-                self.close_connection = True
+                self._discard_body()
                 self._json(413, {"error": {"message": "Request body too large"}})
                 return None
             return self.rfile.read(length) if length else b""
+
+        def _discard_body(self):
+            """Read and drop the body of a refused request, or close when it is too big to bother."""
+            length = int(self.headers.get("Content-Length") or 0)
+            if length > MAX_DISCARD_BYTES or "chunked" in (self.headers.get("Transfer-Encoding") or "").lower():
+                self.close_connection = True
+                return
+            while length > 0:
+                chunk = self.rfile.read(min(DISCARD_CHUNK_BYTES, length))
+                if not chunk:
+                    self.close_connection = True
+                    return
+                length -= len(chunk)
 
         def _proxy(self, upstream, body):
             try:
