@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/operations/nightly-review/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/reference/report-generator/">
       
       
-        <link rel="prev" href="../../admin/auto-updates/">
+        <link rel="prev" href="../experimental-features/">
       
       
-        <link rel="next" href="../../reference/troubleshooting/">
+        <link rel="next" href="../permissions/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Nightly Review - Identity Atlas</title>
+        <title>Report Generator (local LLM) - Identity Atlas</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#nightly-tests-automated-claude-review" class="md-skip">
+        <a href="#report-generator-local-llm" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Nightly Review
+              Report Generator (local LLM)
             
           </span>
         </div>
@@ -307,8 +307,6 @@
   
   
   
-    
-  
   
     
     
@@ -316,12 +314,10 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
+      <li class="md-tabs__item">
         <a href="../../architecture/docker-setup/" class="md-tabs__link">
           
   
@@ -341,6 +337,8 @@
   
   
   
+    
+  
   
     
     
@@ -348,10 +346,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../../api/" class="md-tabs__link">
           
   
@@ -1599,31 +1599,26 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
             
   
   
@@ -1641,7 +1636,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1665,20 +1660,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" >
         
           
-          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
             
   
   
@@ -1868,20 +1860,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
         
           
-          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
             
   
   
@@ -2174,31 +2163,26 @@
                 
   
   
-    
   
   
-  
     
     
     
     
       
       
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
         
           
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
             
   
   
@@ -2216,7 +2200,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2315,37 +2299,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Nightly Review
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../operations/nightly-review/" class="md-nav__link">
         
   
   
@@ -2361,170 +2318,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#what-gets-tested" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What gets tested
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="What gets tested">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#deep-assertions-added-april-2026" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deep assertions added April 2026
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#scheduling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Scheduling
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-review-pass" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The review pass
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The review pass">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#path-a-claude-code-in-headless-fix-it-mode-preferred" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path A — Claude Code in headless fix-it mode (preferred)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#path-b-anthropic-api-analysis-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path B — Anthropic API analysis only
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#path-c-no-llm-available" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path C — No LLM available
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#cost-shape" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cost shape
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#safety-constraints" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Safety constraints
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#testing-the-wrapper-without-scheduling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Testing the wrapper without scheduling
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#where-to-look-in-the-morning" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Where to look in the morning
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#limitations" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Limitations
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -2545,7 +2338,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/troubleshooting/" class="md-nav__link">
+      <a href="../troubleshooting/" class="md-nav__link">
         
   
   
@@ -2577,26 +2370,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
         
           
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
             
   
   
@@ -2614,7 +2412,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2638,17 +2436,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
         
           
-          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="">
             
   
   
@@ -2860,7 +2661,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/config/" class="md-nav__link">
+      <a href="../config/" class="md-nav__link">
         
   
   
@@ -2888,7 +2689,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/experimental-features/" class="md-nav__link">
+      <a href="../experimental-features/" class="md-nav__link">
         
   
   
@@ -2913,10 +2714,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../reference/report-generator/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report Generator (local LLM)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -2932,6 +2760,204 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-this-exists" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this exists
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#models-we-evaluated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Models we evaluated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-mistakes-look-like" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the mistakes look like
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#privacy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Privacy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sizing-and-consumption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sizing and consumption
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sizing and consumption">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-the-cold-start-was-made-survivable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the cold start was made survivable
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deploying-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deploying it
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deploying it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#docker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#azure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Azure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#updating-an-existing-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Updating an existing installation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security notes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security notes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#if-you-deploy-it-on-azure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        If you deploy it on Azure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#measuring-it-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measuring it yourself
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2944,7 +2970,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/permissions/" class="md-nav__link">
+      <a href="../permissions/" class="md-nav__link">
         
   
   
@@ -2972,7 +2998,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/sql-views/" class="md-nav__link">
+      <a href="../sql-views/" class="md-nav__link">
         
   
   
@@ -3028,7 +3054,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/sbom/" class="md-nav__link">
+      <a href="../sbom/" class="md-nav__link">
         
   
   
@@ -3056,7 +3082,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/coverage/" class="md-nav__link">
+      <a href="../coverage/" class="md-nav__link">
         
   
   
@@ -3090,17 +3116,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_10" >
         
           
-          <label class="md-nav__link" for="__nav_6_10" id="__nav_6_10_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6_10" id="__nav_6_10_label" tabindex="">
             
   
   
@@ -5094,22 +5123,44 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-gets-tested" class="md-nav__link">
+  <a href="#why-this-exists" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What gets tested
+        Why this exists
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="What gets tested">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The model">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#deep-assertions-added-april-2026" class="md-nav__link">
+  <a href="#models-we-evaluated" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Deep assertions added April 2026
+        Models we evaluated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-mistakes-look-like" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the mistakes look like
       
     </span>
   </a>
@@ -5122,10 +5173,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#scheduling" class="md-nav__link">
+  <a href="#privacy" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Scheduling
+        Privacy
       
     </span>
   </a>
@@ -5133,44 +5184,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-review-pass" class="md-nav__link">
+  <a href="#sizing-and-consumption" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The review pass
+        Sizing and consumption
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="The review pass">
+    <nav class="md-nav" aria-label="Sizing and consumption">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#path-a-claude-code-in-headless-fix-it-mode-preferred" class="md-nav__link">
+  <a href="#how-the-cold-start-was-made-survivable" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Path A — Claude Code in headless fix-it mode (preferred)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#path-b-anthropic-api-analysis-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path B — Anthropic API analysis only
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#path-c-no-llm-available" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path C — No LLM available
+        How the cold start was made survivable
       
     </span>
   </a>
@@ -5183,54 +5212,88 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#cost-shape" class="md-nav__link">
+  <a href="#deploying-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Cost shape
+        Deploying it
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deploying it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#docker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#safety-constraints" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#azure" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Safety constraints
+        Azure
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#testing-the-wrapper-without-scheduling" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#updating-an-existing-installation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Testing the wrapper without scheduling
+        Updating an existing installation
       
     </span>
   </a>
   
 </li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
-  <a href="#where-to-look-in-the-morning" class="md-nav__link">
+  <a href="#security-notes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Where to look in the morning
+        Security notes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security notes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#if-you-deploy-it-on-azure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        If you deploy it on Azure
       
     </span>
   </a>
   
 </li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
-  <a href="#limitations" class="md-nav__link">
+  <a href="#measuring-it-yourself" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Limitations
+        Measuring it yourself
       
     </span>
   </a>
@@ -5285,10 +5348,10 @@
     
     
       <li class="md-path__item">
-        <a href="../../architecture/docker-setup/" class="md-path__link">
+        <a href="../../api/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Set up & run
+    Reference
   </span>
 
         </a>
@@ -5296,24 +5359,6 @@
     
   
 
-    
-  
-
-      
-        
-  
-  
-    
-    
-      <li class="md-path__item">
-        <a href="../../admin/authentication/" class="md-path__link">
-          
-  <span class="md-ellipsis">
-    Administer
-  </span>
-
-        </a>
-      </li>
     
   
 
@@ -5331,252 +5376,451 @@
   
 
 
-<h1 id="nightly-tests-automated-claude-review">Nightly tests + automated Claude review<a class="headerlink" href="#nightly-tests-automated-claude-review" title="Permanent link">&para;</a></h1>
-<p>This document covers the automated nightly suite that runs at 04:00 daily on
-the developer workstation, plus the optional Claude-driven review pass that
-fires only when something fails.</p>
-<h2 id="what-gets-tested">What gets tested<a class="headerlink" href="#what-gets-tested" title="Permanent link">&para;</a></h2>
-<p>The runner is <code>test/nightly/Run-NightlyAndReview.ps1</code>. It wraps the existing
-<code>Run-NightlyLocal.ps1</code> and adds a post-test review step. Phases:</p>
+<h1 id="report-generator-local-llm">Report Generator (local LLM)<a class="headerlink" href="#report-generator-local-llm" title="Permanent link">&para;</a></h1>
+<div class="admonition warning">
+<p class="admonition-title">Docker is measured; Azure is not</p>
+<p>Everything measured on this page was measured on <strong>Docker</strong> (one 2-vCPU VM). The Azure templates
+compile and are wired up, but the report generator <strong>has not yet been deployed to Azure</strong>:
+scale-to-zero, the prompt cache on Azure Files, the request time limits described under
+<a href="#azure">Azure</a> and both network modes are unproven there. Deploy it on Azure only to try it out.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Experimental, and optional</p>
+<p>The report generator is an extra container you choose to deploy. Without it, custom reports are
+still built by hand — see <a href="../../ui/custom-reports/">Custom Reports</a>. The feature as a whole is off
+until an operator enables it under <strong>Admin → Experimental</strong>.</p>
+</div>
+<h2 id="why-this-exists">Why this exists<a class="headerlink" href="#why-this-exists" title="Permanent link">&para;</a></h2>
+<p>Every customer asks the same kind of question about their own environment: <em>guest accounts without a
+manager</em>, <em>groups nobody owns</em>, <em>accounts that still sit in a licence group</em>. Each answer is a
+different query. Shipping a built-in report for every one of them does not scale, and teaching
+analysts a query builder covers only the people willing to learn it.</p>
+<p>So the analyst describes the report and Identity Atlas builds it — but <strong>the model never writes the
+query</strong>. It fills in a <strong>report definition</strong>: which kind of record, which conditions, which columns.
+Identity Atlas validates that definition against its own catalog and compiles it to read-only SQL.</p>
+<p>That split is the whole design, and it is what makes the feature defensible:</p>
 <table>
 <thead>
 <tr>
-<th>Phase</th>
-<th>What it does</th>
+<th></th>
+<th>Because the model only fills in a definition</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>1</td>
-<td>PowerShell unit tests (Pester)</td>
+<td><strong>The model never sees your data</strong></td>
+<td>It gets the question, the list of fields it may use, and the type names that exist (e.g. <code>Guest</code>, <code>ServicePrincipal</code>). No rows, ever.</td>
 </tr>
 <tr>
-<td>1b</td>
-<td>Verify deleted-function references don't sneak back in</td>
+<td><strong>It cannot do damage</strong></td>
+<td>Unknown fields, unknown operators and unknown values are rejected. The query is parameterised, runs in a read-only transaction with a statement timeout, and touches only the tables the catalog names.</td>
 </tr>
 <tr>
-<td>2</td>
-<td>Backend Vitest tests (<code>app/api/</code>)</td>
+<td><strong>You can check it</strong></td>
+<td>The definition is shown back as editable criteria plus a plain-language sentence generated from what will actually run.</td>
 </tr>
 <tr>
-<td>3</td>
-<td>Frontend Vitest tests (<code>app/ui/</code>)</td>
+<td><strong>It is repeatable</strong></td>
+<td>A saved report is a definition, not a captured answer. It runs again after the next crawl and gives today's answer.</td>
 </tr>
 <tr>
-<td>4a-c</td>
-<td>Provision a fresh Docker stack, wait for migrations, verify schema</td>
-</tr>
-<tr>
-<td>4d-e</td>
-<td>Queue a demo crawler job, verify the data lands</td>
-</tr>
-<tr>
-<td>4f</td>
-<td>Smoke-test all read endpoints</td>
-</tr>
-<tr>
-<td>4g</td>
-<td>Entra ID crawler scenarios (Validate-Only, Identity-Only, Users-Groups, Full-Sync, With-Identity-Filter). Skipped when test/test.secrets.json is missing.</td>
-</tr>
-<tr>
-<td>4h</td>
-<td>LLM / secrets / risk-profile substrate smoke test</td>
-</tr>
-<tr>
-<td>5</td>
-<td>Playwright E2E browser tests</td>
-</tr>
-<tr>
-<td>6</td>
-<td>API documentation completeness check</td>
-</tr>
-<tr>
-<td>Review</td>
-<td>(Only on failure) Investigate, fix, re-run</td>
+<td><strong>It works without the model</strong></td>
+<td>The same definitions can be built by hand, which is what every deployment without the extra container does.</td>
 </tr>
 </tbody>
 </table>
-<h3 id="deep-assertions-added-april-2026">Deep assertions added April 2026<a class="headerlink" href="#deep-assertions-added-april-2026" title="Permanent link">&para;</a></h3>
-<p>The Full-Sync scenario does more than count rows now. After every Entra crawler
-completes successfully it runs:</p>
-<ul>
-<li><strong><code>Assert-MatrixWorks</code></strong> — verifies <code>/api/permissions?userLimit=25</code> returns
-  rows with the right shape, <code>/api/access-package-groups</code> is reachable, and
-  <code>/api/groups-with-nested</code> returns the expected envelope. This catches the
-  "matrix loads but is empty" class of bug.</li>
-<li><strong><code>Assert-BusinessRolesWork</code></strong> — verifies the Business Roles list returns
-  rows with non-zero <code>totalAssignments</code>. This was the April 2026 regression
-  where the route returned rows but with all-zero counts because the SQL
-  filter used lowercase <code>'delivered'</code> while the column stores <code>'Delivered'</code>.</li>
-<li><strong><code>Assert-SyncLogShape</code></strong> — verifies the sync log has entries, every entry
-  has a numeric <code>DurationSeconds</code>, and (only after a real Entra Full-Sync)
-  there's an <code>EntraID-FullCrawl</code> row written by the crawler script at
-  end-of-run.</li>
-<li><strong><code>Assert-PostSyncEndpoints</code></strong> — pings all the routes that were broken or
-  T-SQL-leftover after the postgres rewrite (governance/summary,
-  governance/categories, governance/review-compliance, admin/llm/status,
-  admin/llm/config, admin/history-retention, risk-profiles, risk-classifiers,
-  risk-scoring/runs).</li>
-</ul>
-<p>The substrate phase (4h) runs <code>Test-LLMSubstrate.ps1</code> and validates the LLM
-config endpoint, the secrets vault round-trip, and that the scoring run
-endpoint returns 412 (preconditions failed) rather than 500 when no
-classifier is active.</p>
-<h2 id="scheduling">Scheduling<a class="headerlink" href="#scheduling" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c"># Register the wrapper at 04:00 daily (default)</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Register-ReviewSchedule</span><span class="p">.</span><span class="n">ps1</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c"># Pick a different time</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Register-ReviewSchedule</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-Time</span> <span class="s1">'03:30'</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c"># Also remove the old standalone test task — recommended, since the wrapper</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c"># already runs the nightly tests.</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Register-ReviewSchedule</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-RemoveOldNightlyTask</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c"># Remove the schedule</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Register-ReviewSchedule</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-Unregister</span>
-</code></pre></div>
-<p>The task runs as the current user with <code>S4U</code> logon — no password prompt, runs
-whether or not the user is signed in. It does <strong>not</strong> wake the workstation,
-because Docker on Windows doesn't always cope with cold-start under power
-management. Make sure the box stays awake (or wake it via BIOS scheduling
-if you need to).</p>
-<p>Logs land in <code>test/nightly/results/&lt;yyyy-MM-dd_HHmm&gt;/</code>. A one-line summary
-per run is appended to <code>test/nightly/results/_rolling-summary.log</code> so you can
-<code>tail</code> it to see the last week of pass/fail status.</p>
-<h2 id="the-review-pass">The review pass<a class="headerlink" href="#the-review-pass" title="Permanent link">&para;</a></h2>
-<p>When the test suite has zero failures, the review pass is a <strong>no-op</strong> — it
-writes a single line to the rolling log and exits. No LLM tokens are spent.
-This is the design: pay only when there's something to fix.</p>
-<p>When there are failures, the wrapper builds a structured prompt with:</p>
-<ul>
-<li>The list of failed test names and their detail strings</li>
-<li>The current branch, HEAD commit, and last commit's <code>git log -1 --name-status</code></li>
-<li>Paths to all log files in the run folder</li>
-<li>The constraint block (what Claude is and isn't allowed to do)</li>
-<li>The token budget</li>
-</ul>
-<p>Then it picks one of three execution paths in priority order:</p>
-<h3 id="path-a-claude-code-in-headless-fix-it-mode-preferred">Path A — Claude Code in headless fix-it mode (preferred)<a class="headerlink" href="#path-a-claude-code-in-headless-fix-it-mode-preferred" title="Permanent link">&para;</a></h3>
-<p>If the <code>claude</code> CLI is on <code>PATH</code> (or at <code>$ClaudeCli</code>), the wrapper invokes:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>claude -p "&lt;prompt&gt;" --dangerously-skip-permissions --add-dir &lt;repo&gt;
-</code></pre></div>
-<p>Claude has read/edit/run permission on the repo, can rebuild containers,
-re-run individual tests, and commit fixes on a fresh <code>nightly-review/&lt;date&gt;</code>
-branch. <strong>It cannot push.</strong> The morning operator reviews and decides.</p>
-<p>After Claude finishes, the wrapper re-runs the nightly suite once and uses
-<em>that</em> exit code as its own. So a successful auto-fix run looks like:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>04:00  Run-NightlyAndReview.ps1 starts
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>04:01  Phase 1-4 run, 1 failure detected in Phase 4f
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>04:30  Claude invoked, identifies the issue, edits a file, rebuilds web
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>04:35  Claude commits to nightly-review/2026-04-09 and exits
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>04:35  Wrapper re-runs the nightly suite
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>05:05  Re-run completes with 0 failures
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>05:05  Wrapper writes "FIXED" to the rolling log and exits 0
-</code></pre></div>
-<h3 id="path-b-anthropic-api-analysis-only">Path B — Anthropic API analysis only<a class="headerlink" href="#path-b-anthropic-api-analysis-only" title="Permanent link">&para;</a></h3>
-<p>If <code>claude</code> isn't installed but <code>ANTHROPIC_API_KEY</code> is set (or
-<code>test/test.secrets.json</code> has an <code>AnthropicApiKey</code> field), the wrapper makes
-<strong>one</strong> API call and writes Claude's analysis to <code>review-analysis.md</code> in the
-run folder. No fix attempt, no re-run. Token usage is bounded by
-<code>-MaxTokensPerReview</code> (default 4096 → roughly $0.05 per call).</p>
-<h3 id="path-c-no-llm-available">Path C — No LLM available<a class="headerlink" href="#path-c-no-llm-available" title="Permanent link">&para;</a></h3>
-<p>If neither path is configured, the wrapper writes the full prompt to
-<code>claude-prompt.txt</code> in the run folder so you can paste it into Claude Code
-manually in the morning.</p>
-<h2 id="cost-shape">Cost shape<a class="headerlink" href="#cost-shape" title="Permanent link">&para;</a></h2>
+<h2 id="the-model">The model<a class="headerlink" href="#the-model" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Outcome</th>
-<th>LLM tokens</th>
-<th>Cost (rough)</th>
+<th></th>
+<th></th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>All tests pass</td>
-<td>0</td>
-<td>$0</td>
+<td>Model</td>
+<td><strong>Qwen3-4B-Instruct-2507</strong>, 4-bit quantised (<code>Q4_K_M</code>), ~2.5 GB</td>
 </tr>
 <tr>
-<td>Failure, Path A</td>
-<td>~5k-30k</td>
-<td>$0.10-$2.00</td>
+<td>Licence</td>
+<td><strong>Apache 2.0</strong> — commercial use permitted. The licence text ships inside the image at <code>/models/MODEL-LICENSE.txt</code>, with an attribution notice. llama.cpp (MIT) ships its licence next to it</td>
 </tr>
 <tr>
-<td>Failure, Path B</td>
-<td>~2k-4k</td>
-<td>$0.02-$0.08</td>
+<td>Source</td>
+<td>Pinned URL <strong>and SHA-256</strong> in <code>setup/docker/Dockerfile.report-generator</code>; the build fails if the file does not match</td>
+</tr>
+<tr>
+<td>Runtime</td>
+<td><code>llama.cpp</code> server, CPU only. No GPU, no external API, no telemetry</td>
+</tr>
+<tr>
+<td>Chosen by</td>
+<td>The release. There is no model picker: <strong>Admin → LLM</strong> shows which model this version ships and whether it is answering</td>
 </tr>
 </tbody>
 </table>
-<p>If the suite has been green for a week, the review system has cost you
-nothing. Cost only happens when there's actually something to investigate.</p>
-<h2 id="safety-constraints">Safety constraints<a class="headerlink" href="#safety-constraints" title="Permanent link">&para;</a></h2>
-<p>The prompt template at <code>test/nightly/claude-review-prompt.md</code> explicitly
-forbids:</p>
+<p>The model is part of the release so that a given Identity Atlas version always behaves the same way
+and we can state what it was measured at. Changing the model is a new release.</p>
+<h3 id="models-we-evaluated">Models we evaluated<a class="headerlink" href="#models-we-evaluated" title="Permanent link">&para;</a></h3>
+<p>Measured against a set of real analyst questions on a real tenant (Fortigi: ~1,150 accounts, 158
+groups, 10 business roles), plus a <strong>held-out</strong> set written before tuning and never used to improve
+prompts. A question counts as correct only when the generated report returns <strong>exactly</strong> the same rows
+as a hand-written reference definition.</p>
+<p>Only the first row was measured on the setup that ships (llama.cpp, the final prompt, the bounded
+grammar); its raw results are kept with the evaluation tools. The other rows were measured earlier, on
+a different model runtime (Ollama) and an earlier version of the prompt, so read them as the reason each
+model was dropped, not as a like-for-like ranking.</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Licence</th>
+<th>Tuning set</th>
+<th>Held-out set</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Qwen3-4B-Instruct-2507 (shipped)</strong></td>
+<td>Apache 2.0</td>
+<td><strong>33/41 (80%)</strong></td>
+<td><strong>13/17 (76%)</strong></td>
+<td>Best of every model tested, commercial use allowed</td>
+</tr>
+<tr>
+<td>Qwen2.5-Coder 3B</td>
+<td>⛔ Qwen Research (non-commercial)</td>
+<td>28/32 (88%) at the time</td>
+<td>9/14 (64%)</td>
+<td>Strongest early candidate; <strong>cannot be shipped</strong></td>
+</tr>
+<tr>
+<td>Qwen2.5-Coder 1.5B</td>
+<td>Apache 2.0</td>
+<td>21/36 (58%)</td>
+<td>8/14 (57%)</td>
+<td>Runs on 1 CPU / 2 GB, but clearly weaker</td>
+</tr>
+<tr>
+<td>Qwen2.5-Coder 0.5B</td>
+<td>Apache 2.0</td>
+<td>7/32 (22%)</td>
+<td>5/14 (36%)</td>
+<td>Unusable: copies the examples</td>
+</tr>
+<tr>
+<td>Phi-4-mini (3.8B)</td>
+<td>MIT</td>
+<td>11/32 (34%)</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td>Gemma 3 4B</td>
+<td>Gemma terms</td>
+<td>run abandoned</td>
+<td>—</td>
+<td>~80 s per question: its attention design defeated prompt caching</td>
+</tr>
+<tr>
+<td>Qwen2.5-Coder 7B</td>
+<td>Apache 2.0</td>
+<td>spot checks only</td>
+<td>—</td>
+<td>Too slow on 2 CPUs for the benefit</td>
+</tr>
+</tbody>
+</table>
+<p>The sets grew during development (32 → 41 tuning, 14 → 17 held-out), so the percentages above are
+comparable within a row, not exactly across rows. The shipped model's figures are the full sets,
+measured on the release image as it ships — llama.cpp, the saved prompt cache, and the bounded output
+grammar described below. Before the sign-in fields were added, the same setup scored 34/39 and 14/17: the
+larger prompt answers the new sign-in questions, but moved two unrelated answers, and each prompt variant
+tried since traded one question for another. A run is repeatable — the same prompt gives the same answers —
+so these differences are real, not noise; the sets are just too small to tune further without fitting
+them. A few questions have an empty correct answer, which a wrong definition can also produce; counting
+only questions with a non-empty answer, the shipped model scores 32/40 and 11/15. Re-run any time with <code>tools/nl-reports/eval.mjs</code> —
+see <a href="#measuring-it-yourself">Measuring it yourself</a>.</p>
+<h3 id="what-the-mistakes-look-like">What the mistakes look like<a class="headerlink" href="#what-the-mistakes-look-like" title="Permanent link">&para;</a></h3>
+<p>About one question in seven comes back wrong, so the point is not perfection but <strong>visible</strong>
+mistakes. Typical failures, all of which show up in the plain-language reading:</p>
 <ul>
-<li><code>git push</code> (anywhere, ever)</li>
-<li><code>git reset --hard</code>, <code>git clean -f</code>, <code>git branch -D</code></li>
-<li><code>docker compose down -v</code></li>
-<li>Dropping database tables, deleting database rows</li>
-<li><code>--no-verify</code>, <code>--no-gpg-sign</code>, or any flag that bypasses commit hooks</li>
-<li>Modifying CI/CD pipeline files</li>
+<li>a condition dropped ("groups mostly like Sales, <strong>not in a business role</strong>" lost the second half);</li>
+<li>the wrong relation ("contains all members of business role X" read as "is part of business role X");</li>
+<li>a guess instead of a question: "everyone with admin rights" came back as one kind of admin. It asked
+  on <strong>neither</strong> of the two deliberately ambiguous questions.</li>
 </ul>
-<p>Claude is told to commit fixes on a fresh <code>nightly-review/&lt;date&gt;</code> branch and
-stop. The morning operator decides whether to merge.</p>
-<h2 id="testing-the-wrapper-without-scheduling">Testing the wrapper without scheduling<a class="headerlink" href="#testing-the-wrapper-without-scheduling" title="Permanent link">&para;</a></h2>
-<p>Run it on demand:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c"># Full thing — runs the nightly suite, reviews failures, re-runs</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="n">Run-NightlyAndReview</span><span class="p">.</span><span class="n">ps1</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c"># Skip the fix-it Claude invocation. Useful before you trust the system.</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c"># Will still run the nightly tests + (if there's an API key) produce a</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c"># read-only analysis markdown.</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="n">Run-NightlyAndReview</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-NoFix</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c"># Check that the assertions wired up correctly without a full nightly run</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Test-LLMSubstrate</span><span class="p">.</span><span class="n">ps1</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="n">dry-run-assertions</span><span class="p">.</span><span class="n">ps1</span>
-</code></pre></div>
-<p>The dry-run script loads only the new <code>Assert-*</code> helpers from
-<code>Test-EntraIdCrawler.ps1</code> and runs them against whatever data is currently in
-the local stack. It needs the demo dataset (or a real crawler) loaded first;
-queue a demo job from the UI or via:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"jobType":"demo"}'</span><span class="w"> </span>http://localhost:3001/api/admin/crawler-jobs
-</code></pre></div>
-<h2 id="where-to-look-in-the-morning">Where to look in the morning<a class="headerlink" href="#where-to-look-in-the-morning" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>test/nightly/results/_rolling-summary.log    ← one line per nightly run
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>test/nightly/results/&lt;date&gt;/
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  ├── results.json                            ← machine-readable test results
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  ├── nightly-output.log                      ← full nightly stdout
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  ├── review.log                              ← wrapper's own log
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  ├── review-analysis.md                      ← Claude's analysis (Path A or B)
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>  └── claude-prompt.txt                       ← the prompt that was sent (Path C)
-</code></pre></div>
-<p>If the rolling log says <code>FIXED</code>, look at the <code>nightly-review/&lt;date&gt;</code> git
-branch to see what Claude changed.</p>
-<p>If it says <code>FAIL</code>, open <code>review-analysis.md</code> to see what Claude found before
-giving up.</p>
-<p>If it says <code>PASS</code>, you have nothing to do.</p>
-<h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
+<p><strong>Comparisons are the weakest kind of question: 3 of 6 correct</strong> across both sets. The one this feature
+was demonstrated with ("groups with the same members as business role <em>Fortigi - Algemeen - Maten</em>,
+not part of it") is among the three that pass. For a comparison that matters, build it with
+<strong>+ compare with…</strong> in the editor — once built, a comparison is exact; only the translation from
+words is uncertain.</p>
+<p>Three failure modes are handled in code rather than left to the model:</p>
 <ul>
-<li><strong>The wrapper cannot wake the workstation.</strong> If the box was suspended at
-  04:00 the task runs whenever it next starts. Plan accordingly.</li>
-<li><strong>The Anthropic API key must live somewhere the wrapper can read it
-  without the Identity Atlas stack.</strong> The vault inside Identity Atlas is
-  intentionally NOT used as the primary source — at 4 AM the most likely
-  reason for needing the review is that Identity Atlas itself is broken.
-  Use <code>ANTHROPIC_API_KEY</code> env var or <code>test/test.secrets.json</code>.</li>
-<li><strong>Path A (fix-it mode) requires the Claude Code CLI on PATH.</strong> If you
-  haven't installed it, the wrapper falls back to Path B automatically.</li>
-<li><strong>Re-runs are full nightly runs.</strong> They take ~30 minutes. The wrapper does
-  not yet support "re-run only the failed tests" — if you need that, run
-  the individual scenario script directly (e.g.
-  <code>Test-EntraIdCrawler.ps1 -Scenarios @('Identity-Only')</code>).</li>
+<li><strong>"or" read as "and"</strong> — if the question contains <em>or</em> but the definition has no any-group, the
+  generator asks the model once to correct it, and keeps the original if the correction is no better.</li>
+<li><strong>Invented values</strong> — a definition with an unknown field, operator or type value is rejected, the
+  validator's own message is handed back to the model, and it gets one attempt to fix it. If the
+  corrected definition is still invalid, the analyst gets an error — never a report quietly built from
+  the conditions that did validate.</li>
+<li><strong>Repeating itself</strong> — at temperature 0 a small model that starts repeating does not stop. Every list
+  and every piece of free text in the reply has a hard length in the output grammar, so a loop ends
+  where validation would have cut it anyway. Before that limit existed, one question listed the same ten
+  columns until the token cap: 570 seconds and a reply that was no longer JSON. It now answers in 46.</li>
 </ul>
+<h2 id="privacy">Privacy<a class="headerlink" href="#privacy" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Nothing leaves the deployment.</strong> The model runs in a container next to Identity Atlas. There is no
+  cloud model, no API key to a provider, and no telemetry in this path.</li>
+<li><strong>The model receives</strong>: the analyst's question, the catalog (entity, field and relation names with
+  their descriptions), the type values that exist in this deployment (account types, resource types,
+  system names) and, while refining, the current report definition.</li>
+<li><strong>The model never receives</strong>: rows, query results, or anything looked up in the database on its
+  behalf. Name lookups ("did you mean…") are done by the database, not by the model.</li>
+<li><strong>Names do reach it in one way, and it is worth being exact about it.</strong> Whatever the analyst types is
+  sent as typed, names included. And once an analyst confirms a "did you mean", the confirmed record's
+  name is written into the definition — so if they then refine the report in words, that definition,
+  with that name, goes back to the model. Nothing leaves the deployment either way; it is the model
+  inside it that sees the name.</li>
+<li><strong>On Docker</strong> the container has no published port, sits on an internal network shared only with the
+  web container, and has no route to the internet. It does not need one: the model is inside the image.</li>
+<li><strong>On Azure</strong> the Container App has public ingress, protected by a per-deployment API key (generated
+  by the template, never entered by hand). In the default public network mode it is also narrowed to
+  the web app's outbound addresses; in the private network mode it is protected by the key alone (see
+  below). It holds no data and no credentials.</li>
+<li><strong>Audit</strong>: every question is logged by the API twice — on arrival, with the user who asked, the model
+  and the question; and when it is answered, with the outcome (report, clarification, "did you mean",
+  error, or failed) and how long it took. The reply itself is not logged. Saved reports record who
+  created and last changed them.</li>
+<li><strong>The audit line contains the question as typed</strong>, which means it can contain a name an analyst
+  typed ("groups like Jan de Vries"). That is deliberate — an audit trail of "someone asked
+  something" is not worth keeping — but it is worth knowing when deciding how long to keep container
+  logs. No query <em>result</em> is ever logged.</li>
+</ul>
+<h2 id="sizing-and-consumption">Sizing and consumption<a class="headerlink" href="#sizing-and-consumption" title="Permanent link">&para;</a></h2>
+<p>Measured on a 2-vCPU VM (shared Proxmox host, Intel Core Ultra 5), with the shipped model:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU</td>
+<td><strong>2</strong>. Only 2 CPUs were measured; answer time scales roughly with CPUs, so fewer is slower</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td><strong>3.2 GB</strong> in use and not reclaimable after all 56 questions; 3.65 GB peak including file cache. Limit <strong>4 GiB</strong> on both Docker and Azure — the five heaviest questions were re-run at exactly 4 GiB with identical results and no out-of-memory kill. Lower is not measured</td>
+</tr>
+<tr>
+<td>Disk</td>
+<td>2.76 GB image + 561 MB prompt cache</td>
+</tr>
+<tr>
+<td>Restart → first answer</td>
+<td><strong>76 s</strong> measured for "guest accounts without a manager, or whose manager is disabled": prompt cache restored in 0.1 s, 203 of 4,000 prompt tokens actually read, the rest is the answer being written. On Azure add the container start</td>
+</tr>
+<tr>
+<td>Question once warm</td>
+<td>median <strong>49 s</strong>, p90 <strong>107 s</strong>, slowest <strong>156 s</strong> over the tuning set (held-out: median 48 s, p90 78 s). The slow ones are the questions that needed a correction round</td>
+</tr>
+<tr>
+<td>One-time preparation</td>
+<td>193–205 s measured, in the background, after an install or update</td>
+</tr>
+<tr>
+<td>Idle</td>
+<td><strong>10.6 MB</strong> once the model is unloaded — after 15 minutes unused by default. While it is loaded and idle: no CPU, ~3 GB</td>
+</tr>
+<tr>
+<td>Unloaded → ready</td>
+<td><strong>3.0 s</strong> with the model file in the disk cache, <strong>15.6 s</strong> straight from disk. The builder shows "loading the model into memory" with a timer meanwhile, and the first question afterwards is as fast as ever (76 s measured, same prompt cache)</td>
+</tr>
+</tbody>
+</table>
+<p>Nearly all of an answer's time is the model <em>writing</em> the definition, at about 2.5 tokens a second on
+2 CPUs; an average reply is ~105 tokens. More CPUs is what makes answers faster — more memory does
+not.</p>
+<p><strong>It only costs while it is used</strong> in the sense that matters for each platform:</p>
+<ul>
+<li><strong>Docker</strong>: the model is <strong>loaded only while it is used</strong>. Opening the report builder loads it (3–16 s);
+  after <code>REPORT_GENERATOR_IDLE_SECONDS</code> without a question (900 by default) it is unloaded and the
+  container drops to ~10 MB. A host running the generator therefore needs the 4 GB only while
+  someone is building reports. Set the idle time to <code>0</code> to keep the model loaded all the time.</li>
+<li><strong>Azure</strong>: the Container App <strong>scales to zero</strong>. Azure bills per second of activity, so an idle
+  generator costs nothing beyond its share of the file share holding the prompt cache. At list prices,
+  2 vCPU + 4 GiB active costs in the order of tens of euro cents an hour, and Container Apps' monthly
+  free grant covers light use — an estimate from list prices, not a measured bill; check current
+  pricing. The trade-off is a slower first question after idle, because the container has to start
+  (a 2.76 GB image pull included).</li>
+</ul>
+<h3 id="how-the-cold-start-was-made-survivable">How the cold start was made survivable<a class="headerlink" href="#how-the-cold-start-was-made-survivable" title="Permanent link">&para;</a></h3>
+<p>The expensive part is not loading the model, it is the model <em>reading its instructions</em> (~4,000
+tokens) — minutes on a small CPU. Three things fix that:</p>
+<ol>
+<li><strong>The instructions are the same for every deployment of a release.</strong> Everything deployment-specific
+   (your account types, resource types and system names) is sent with the question instead of being
+   baked into them.</li>
+<li><strong>The processed instructions are saved to disk</strong> (llama.cpp slot cache) and restored in ~0.1 s on
+   every later start. That is measured on local disk; on Azure the 561 MB file lives on an Azure Files
+   share, whose restore time has not been measured.</li>
+<li><strong>Preparation runs in the background</strong> at API startup, and the builder says "preparing" instead of
+   blocking. <code>node tools/nl-reports/prepare-prompt-cache.mjs</code> does it on demand and verifies a restore
+   actually works.</li>
+</ol>
+<p>Measured on the same hardware: 266 seconds for the first answer without a restored cache, 76 seconds
+with one.</p>
+<p>One detail made the difference between this working and not: <strong>the prompt cache is re-checked before
+every question, never remembered.</strong> The model server restarts on its own — Azure scales it to zero
+between questions — and comes back empty. An earlier version remembered that it had warmed up, never
+restored after such a restart, and answered the next question in 266 seconds.</p>
+<h2 id="deploying-it">Deploying it<a class="headerlink" href="#deploying-it" title="Permanent link">&para;</a></h2>
+<h3 id="docker">Docker<a class="headerlink" href="#docker" title="Permanent link">&para;</a></h3>
+<p>The model server is an opt-in profile in <code>docker-compose.prod.yml</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># in .env</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">COMPOSE_PROFILES</span><span class="o">=</span>report-generator
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nv">FEATURE_CUSTOM_REPORTS</span><span class="o">=</span><span class="nb">true</span><span class="w">        </span><span class="c1"># or switch it on in Admin → Experimental</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>--pull<span class="w"> </span>always
+</code></pre></div>
+<p>Optional knobs (defaults shown): <code>REPORT_GENERATOR_CPUS=2</code>, <code>REPORT_GENERATOR_MEMORY=4g</code>,
+<code>REPORT_GENERATOR_IDLE_SECONDS=900</code> (seconds unused before the model is unloaded; <code>0</code> = always loaded).</p>
+<p>How the model is loaded on demand: a small supervisor is the container's main process. It starts the
+model server (reachable only from inside the container) when a request needs it, passes every request
+through unchanged, and stops it when idle. It needs no extra privileges — it never touches Docker — and it
+checks the API key before it starts anything.</p>
+<p>Leave <code>COMPOSE_PROFILES</code> unset and nothing extra is pulled or started; the builder then reports the
+generator as unavailable and the definition editor still works.</p>
+<p><strong>Behind a reverse proxy</strong>, raise its read timeout for <code>/api/nl-reports/interpret</code>. A question is one
+HTTP request that is answered when the model is done — a median of 49 s and up to several minutes — and
+common defaults (nginx <code>proxy_read_timeout</code> 60 s) cut half of them off. The API itself waits up to
+15 minutes (<code>NL_REPORTS_LLM_TIMEOUT_MS</code>).</p>
+<h3 id="azure">Azure<a class="headerlink" href="#azure" title="Permanent link">&para;</a></h3>
+<p>The report generator is an <strong>opt-in Container App</strong>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">./</span><span class="n">azure</span><span class="p">/</span><span class="n">deploy</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-ResourceGroup</span> <span class="n">my-rg</span> <span class="n">-DeployReportGenerator</span>
+</code></pre></div>
+<p>or set <code>deployReportGenerator=true</code> when deploying <code>azure/main.bicep</code> / the Deploy-to-Azure template.
+The template then:</p>
+<ul>
+<li>creates the Container App with <strong>minReplicas 0</strong> (scale to zero) and 2 vCPU / 4 GiB;</li>
+<li>generates an API key per deployment and gives it to both sides — llama.cpp refuses every request
+  without it;</li>
+<li>mounts an Azure Files share for the prompt cache, so a scaled-to-zero app restarts fast;</li>
+<li>sets <code>FEATURE_CUSTOM_REPORTS=true</code> on the web app, because a deployment that paid for the container
+  wants the feature.</li>
+</ul>
+<p>Everything else (App Service, Postgres, worker) is unchanged. Leaving the switch off deploys exactly
+what it does today.</p>
+<p><strong>Known limits on Azure, not yet measured there:</strong></p>
+<ul>
+<li><strong>Request time limits.</strong> A question is one blocking HTTP request, and Azure closes those: App Service
+  at about 230 seconds for the browser's request, Container Apps ingress at 240 seconds for the web
+  app's call to the generator. Measured on Docker, a warm question takes 49 s at the median and 165 s at
+  the slowest, so most fit; but the one-time prompt-cache preparation took 193–205 s, close to the
+  240 s limit, and Azure's vCPUs may be slower. If preparation is cut off, the cache is never saved and
+  every question stays slow. Making questions asynchronous (submit, then poll) would remove this limit
+  and is the fix if a deployment hits it.</li>
+<li><strong>Private network mode is not supported for the generator yet.</strong> In that mode the web app routes all
+  outbound traffic through the VNet without a NAT gateway, and whether it can then reach the
+  generator's public address at all is untested. Deploy the generator only in the default public
+  network mode until it can be made reachable from inside the VNet.</li>
+</ul>
+<h3 id="updating-an-existing-installation">Updating an existing installation<a class="headerlink" href="#updating-an-existing-installation" title="Permanent link">&para;</a></h3>
+<p>Custom reports arrive with a normal update; <strong>the generator does not install itself.</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>What the operator does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Docker</strong></td>
+<td>Re-download <code>docker-compose.prod.yml</code> (it gained the service, the internal network and the new env vars), then set <code>COMPOSE_PROFILES=report-generator</code> and pull. Without the new compose file the app updates as usual and the generator is simply absent.</td>
+</tr>
+<tr>
+<td><strong>Docker, auto-update</strong></td>
+<td>The <a href="../../admin/auto-updates/">auto-update agent</a> updates the services in <code>IA_SERVICES</code> (<code>web worker</code> by default). Add <code>report-generator</code> there so the model image follows the channel too.</td>
+</tr>
+<tr>
+<td><strong>Azure</strong></td>
+<td>Re-run the deployment with <code>deployReportGenerator=true</code>. Existing resources are updated in place.</td>
+</tr>
+<tr>
+<td><strong>Azure, auto-update</strong></td>
+<td>Set <code>IA_REPORT_GENERATOR_APP=&lt;prefix&gt;-report-generator</code> for the Azure update agent, next to <code>IA_WORKER_APP</code>, so the model image follows the channel. Without it the generator keeps the previous release's model — it still works, but it is no longer the combination that was measured.</td>
+</tr>
+<tr>
+<td><strong>Desktop (portable)</strong></td>
+<td>Not supported — the portable launcher runs no extra containers. The definition editor works.</td>
+</tr>
+</tbody>
+</table>
+<p>In all cases the feature stays <strong>off</strong> until someone enables it in Admin → Experimental, and the first
+warm-up after the update rebuilds the prompt cache in the background (a few minutes, once). An install
+that does nothing keeps working exactly as before: a new, empty table is added, and nothing tries to
+reach a model server while the feature is off.</p>
+<p><strong>Grant the permission.</strong> The <strong>Build custom reports</strong> permission (<code>data.write.reports</code>) is in the
+built-in RoleMiner role, but only a deployment still on the default role mapping gets it from there. If
+you have customised your role mapping, add the permission to the roles that should build reports under
+Admin → Roles.</p>
+<h2 id="security-notes">Security notes<a class="headerlink" href="#security-notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li>The API surface answers <strong>404</strong> while the feature is off and <strong>403</strong> without the
+  <code>data.write.reports</code> permission (checked first, so nobody learns which installs have the feature).</li>
+<li>Model output is treated as untrusted input: it is validated against the catalog before anything
+  runs, and never interpolated into SQL.</li>
+<li>Reports execute in a <code>READ ONLY</code> transaction with a statement timeout and a row cap.</li>
+<li>The model server accepts no input except from the web container (Docker: internal network; Azure:
+  API key) and cannot reach the database.</li>
+<li><strong>Outbound internet access differs per platform.</strong> On Docker it has none (an <code>internal</code> network). On
+  Azure it has unrestricted outbound access, like any Container App without a VNet and egress rules.
+  llama.cpp makes no outbound calls and the model is inside the image, so nothing is sent — but on
+  Azure that rests on the software, not on the network.</li>
+<li><strong>One question at a time per analyst</strong>, and a conversation is capped at 10,000 characters. The model
+  server works on one question at a time, so without these one person (or a script) could hold it for
+  everyone. Anyone with <code>data.write.reports</code> can still keep it busy; grant that permission accordingly.</li>
+<li><strong>The generated SQL is shown to the analyst</strong> in the builder, so table and column names are visible to
+  anyone who can build reports. They are the same names documented for the data model.</li>
+<li>Questions are logged; report definitions are stored with their author.</li>
+<li>The model server's monitoring endpoint is switched off (<code>--no-slots</code>). It would otherwise let any
+  caller read the prompt currently being processed.</li>
+<li>The container runs as an unprivileged user (uid 1000), not root.</li>
+</ul>
+<h3 id="if-you-deploy-it-on-azure">If you deploy it on Azure<a class="headerlink" href="#if-you-deploy-it-on-azure" title="Permanent link">&para;</a></h3>
+<p>Two details are worth knowing, because getting them wrong is silent:</p>
+<ul>
+<li><strong>The API key is the control.</strong> llama.cpp reads it from <code>LLAMA_API_KEY</code> and <em>only</em> that name — the
+  <code>LLAMA_ARG_</code> prefix that every other option uses is ignored for this one, and a server started
+  without a key answers everyone. The template sets the right name from a secret and a guard test
+  keeps it that way; do not hand-edit it.</li>
+<li><strong>Ingress is narrowed on the second run.</strong> <code>deploy.ps1 -DeployReportGenerator</code> adds the web app's
+  outbound addresses to the ingress allow-list, but those addresses only exist once the web app does,
+  so the <em>first</em> deployment is protected by the key alone. Re-run the script (or pass
+  <code>reportGeneratorAllowedCallerIps</code>) to add the allow-list. Those are shared Azure addresses, so treat
+  it as defence in depth rather than a boundary.</li>
+<li><strong>In the private network mode the allow-list is not applied.</strong> There the web app sends all outbound
+  traffic through the VNet, so its calls do not come from the addresses on the list and the list would
+  lock it out. The generator is protected by its API key alone. It still has public ingress in that
+  mode — making it reachable only from inside the VNet is not done yet.</li>
+</ul>
+<h2 id="measuring-it-yourself">Measuring it yourself<a class="headerlink" href="#measuring-it-yourself" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># the expected answers are still right for your data</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--check
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># accuracy + latency, per model</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--models<span class="w"> </span>qwen3:4b-instruct-2507-q4_K_M
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--models<span class="w"> </span>qwen3:4b-instruct-2507-q4_K_M<span class="w"> </span>--file<span class="w"> </span>tools/nl-reports/holdout.json
+</code></pre></div>
+<p>Questions live in <code>tools/nl-reports/questions.json</code> (used while tuning) and <code>holdout.json</code> (kept
+untouched, so the number means something). Each question carries a hand-written reference definition;
+a model's answer counts only if it returns the same rows.</p>
 
 
 

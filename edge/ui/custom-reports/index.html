@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/operations/nightly-review/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/ui/custom-reports/">
       
       
-        <link rel="prev" href="../../admin/auto-updates/">
+        <link rel="prev" href="../sharing-a-matrix/">
       
       
-        <link rel="next" href="../../reference/troubleshooting/">
+        <link rel="next" href="../contexts/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Nightly Review - Identity Atlas</title>
+        <title>Custom Reports - Identity Atlas</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#nightly-tests-automated-claude-review" class="md-skip">
+        <a href="#custom-reports" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Nightly Review
+              Custom Reports
             
           </span>
         </div>
@@ -287,11 +287,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../ui/overview/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../overview/" class="md-tabs__link">
           
   
   
@@ -307,8 +309,6 @@
   
   
   
-    
-  
   
     
     
@@ -316,12 +316,10 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
+      <li class="md-tabs__item">
         <a href="../../architecture/docker-setup/" class="md-tabs__link">
           
   
@@ -1112,26 +1110,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
@@ -1149,7 +1152,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1167,7 +1170,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ui/overview/" class="md-nav__link">
+      <a href="../overview/" class="md-nav__link">
         
   
   
@@ -1195,7 +1198,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ui/dashboard/" class="md-nav__link">
+      <a href="../dashboard/" class="md-nav__link">
         
   
   
@@ -1229,17 +1232,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
         
           
-          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="">
             
   
   
@@ -1331,7 +1337,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ui/sharing-a-matrix/" class="md-nav__link">
+      <a href="../sharing-a-matrix/" class="md-nav__link">
         
   
   
@@ -1364,10 +1370,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../ui/custom-reports/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Reports
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1383,6 +1416,98 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#building-a-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building a report
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Building a report">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sign-in-activity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sign-in activity
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#describing-it-in-plain-language" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Describing it in plain language
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#comparing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-it-cannot-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it cannot do
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#editing-deleting-and-sharing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing, deleting and sharing
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1395,7 +1520,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ui/contexts/" class="md-nav__link">
+      <a href="../contexts/" class="md-nav__link">
         
   
   
@@ -1423,7 +1548,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ui/effective-access/" class="md-nav__link">
+      <a href="../effective-access/" class="md-nav__link">
         
   
   
@@ -1485,17 +1610,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_8" >
         
           
-          <label class="md-nav__link" for="__nav_4_8" id="__nav_4_8_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_8" id="__nav_4_8_label" tabindex="">
             
   
   
@@ -1599,31 +1727,26 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
             
   
   
@@ -1641,7 +1764,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1665,20 +1788,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" >
         
           
-          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
             
   
   
@@ -1868,20 +1988,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
         
           
-          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
             
   
   
@@ -2174,31 +2291,26 @@
                 
   
   
-    
   
   
-  
     
     
     
     
       
       
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
         
           
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
             
   
   
@@ -2216,7 +2328,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2315,37 +2427,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Nightly Review
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../operations/nightly-review/" class="md-nav__link">
         
   
   
@@ -2361,170 +2446,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#what-gets-tested" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What gets tested
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="What gets tested">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#deep-assertions-added-april-2026" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deep assertions added April 2026
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#scheduling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Scheduling
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-review-pass" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The review pass
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The review pass">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#path-a-claude-code-in-headless-fix-it-mode-preferred" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path A — Claude Code in headless fix-it mode (preferred)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#path-b-anthropic-api-analysis-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path B — Anthropic API analysis only
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#path-c-no-llm-available" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path C — No LLM available
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#cost-shape" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cost shape
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#safety-constraints" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Safety constraints
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#testing-the-wrapper-without-scheduling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Testing the wrapper without scheduling
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#where-to-look-in-the-morning" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Where to look in the morning
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#limitations" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Limitations
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -3675,7 +3596,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ui/local-dev/" class="md-nav__link">
+      <a href="../local-dev/" class="md-nav__link">
         
   
   
@@ -5094,22 +5015,22 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-gets-tested" class="md-nav__link">
+  <a href="#building-a-report" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What gets tested
+        Building a report
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="What gets tested">
+    <nav class="md-nav" aria-label="Building a report">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#deep-assertions-added-april-2026" class="md-nav__link">
+  <a href="#sign-in-activity" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Deep assertions added April 2026
+        Sign-in activity
       
     </span>
   </a>
@@ -5122,10 +5043,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#scheduling" class="md-nav__link">
+  <a href="#describing-it-in-plain-language" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Scheduling
+        Describing it in plain language
       
     </span>
   </a>
@@ -5133,60 +5054,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-review-pass" class="md-nav__link">
+  <a href="#comparing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The review pass
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The review pass">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#path-a-claude-code-in-headless-fix-it-mode-preferred" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path A — Claude Code in headless fix-it mode (preferred)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#path-b-anthropic-api-analysis-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path B — Anthropic API analysis only
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#path-c-no-llm-available" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path C — No LLM available
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#cost-shape" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cost shape
+        Comparing
       
     </span>
   </a>
@@ -5194,10 +5065,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#safety-constraints" class="md-nav__link">
+  <a href="#what-it-cannot-do" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Safety constraints
+        What it cannot do
       
     </span>
   </a>
@@ -5205,32 +5076,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#testing-the-wrapper-without-scheduling" class="md-nav__link">
+  <a href="#editing-deleting-and-sharing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Testing the wrapper without scheduling
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#where-to-look-in-the-morning" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Where to look in the morning
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#limitations" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Limitations
+        Editing, deleting and sharing
       
     </span>
   </a>
@@ -5279,37 +5128,11 @@
   
     
     
-      
-  
-  
-    
-    
       <li class="md-path__item">
-        <a href="../../architecture/docker-setup/" class="md-path__link">
+        <a href="../overview/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Set up & run
-  </span>
-
-        </a>
-      </li>
-    
-  
-
-    
-  
-
-      
-        
-  
-  
-    
-    
-      <li class="md-path__item">
-        <a href="../../admin/authentication/" class="md-path__link">
-          
-  <span class="md-ellipsis">
-    Administer
+    Use
   </span>
 
         </a>
@@ -5331,251 +5154,135 @@
   
 
 
-<h1 id="nightly-tests-automated-claude-review">Nightly tests + automated Claude review<a class="headerlink" href="#nightly-tests-automated-claude-review" title="Permanent link">&para;</a></h1>
-<p>This document covers the automated nightly suite that runs at 04:00 daily on
-the developer workstation, plus the optional Claude-driven review pass that
-fires only when something fails.</p>
-<h2 id="what-gets-tested">What gets tested<a class="headerlink" href="#what-gets-tested" title="Permanent link">&para;</a></h2>
-<p>The runner is <code>test/nightly/Run-NightlyAndReview.ps1</code>. It wraps the existing
-<code>Run-NightlyLocal.ps1</code> and adds a post-test review step. Phases:</p>
-<table>
-<thead>
-<tr>
-<th>Phase</th>
-<th>What it does</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1</td>
-<td>PowerShell unit tests (Pester)</td>
-</tr>
-<tr>
-<td>1b</td>
-<td>Verify deleted-function references don't sneak back in</td>
-</tr>
-<tr>
-<td>2</td>
-<td>Backend Vitest tests (<code>app/api/</code>)</td>
-</tr>
-<tr>
-<td>3</td>
-<td>Frontend Vitest tests (<code>app/ui/</code>)</td>
-</tr>
-<tr>
-<td>4a-c</td>
-<td>Provision a fresh Docker stack, wait for migrations, verify schema</td>
-</tr>
-<tr>
-<td>4d-e</td>
-<td>Queue a demo crawler job, verify the data lands</td>
-</tr>
-<tr>
-<td>4f</td>
-<td>Smoke-test all read endpoints</td>
-</tr>
-<tr>
-<td>4g</td>
-<td>Entra ID crawler scenarios (Validate-Only, Identity-Only, Users-Groups, Full-Sync, With-Identity-Filter). Skipped when test/test.secrets.json is missing.</td>
-</tr>
-<tr>
-<td>4h</td>
-<td>LLM / secrets / risk-profile substrate smoke test</td>
-</tr>
-<tr>
-<td>5</td>
-<td>Playwright E2E browser tests</td>
-</tr>
-<tr>
-<td>6</td>
-<td>API documentation completeness check</td>
-</tr>
-<tr>
-<td>Review</td>
-<td>(Only on failure) Investigate, fix, re-run</td>
-</tr>
-</tbody>
-</table>
-<h3 id="deep-assertions-added-april-2026">Deep assertions added April 2026<a class="headerlink" href="#deep-assertions-added-april-2026" title="Permanent link">&para;</a></h3>
-<p>The Full-Sync scenario does more than count rows now. After every Entra crawler
-completes successfully it runs:</p>
-<ul>
-<li><strong><code>Assert-MatrixWorks</code></strong> — verifies <code>/api/permissions?userLimit=25</code> returns
-  rows with the right shape, <code>/api/access-package-groups</code> is reachable, and
-  <code>/api/groups-with-nested</code> returns the expected envelope. This catches the
-  "matrix loads but is empty" class of bug.</li>
-<li><strong><code>Assert-BusinessRolesWork</code></strong> — verifies the Business Roles list returns
-  rows with non-zero <code>totalAssignments</code>. This was the April 2026 regression
-  where the route returned rows but with all-zero counts because the SQL
-  filter used lowercase <code>'delivered'</code> while the column stores <code>'Delivered'</code>.</li>
-<li><strong><code>Assert-SyncLogShape</code></strong> — verifies the sync log has entries, every entry
-  has a numeric <code>DurationSeconds</code>, and (only after a real Entra Full-Sync)
-  there's an <code>EntraID-FullCrawl</code> row written by the crawler script at
-  end-of-run.</li>
-<li><strong><code>Assert-PostSyncEndpoints</code></strong> — pings all the routes that were broken or
-  T-SQL-leftover after the postgres rewrite (governance/summary,
-  governance/categories, governance/review-compliance, admin/llm/status,
-  admin/llm/config, admin/history-retention, risk-profiles, risk-classifiers,
-  risk-scoring/runs).</li>
+<h1 id="custom-reports">Custom Reports<a class="headerlink" href="#custom-reports" title="Permanent link">&para;</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Experimental</p>
+<p>Custom reports are off until an operator switches them on under
+<strong>Admin → Experimental</strong>. The "describe it in plain language" half also needs the optional
+<a href="../../reference/report-generator/">report generator</a> container. Everything else works without it.</p>
+</div>
+<p>The <strong>Reports</strong> tab lists the reports this deployment offers. Next to the ones that ship with
+Identity Atlas, you can build your own: pick what to report on, add conditions, choose columns, and
+save it. A saved report behaves exactly like a built-in one — it opens in its own tab, runs against
+the latest data every time, and can be downloaded.</p>
+<p>You need the <strong>Build custom reports</strong> permission (<code>data.write.reports</code>). Everyone who can read data
+can open, run and download the result.</p>
+<h2 id="building-a-report">Building a report<a class="headerlink" href="#building-a-report" title="Permanent link">&para;</a></h2>
+<p><strong>Reports → New report</strong> opens the report builder in its own tab.</p>
+<ol>
+<li><strong>Name it.</strong> The name is what colleagues see in the list, so make it the question it answers —
+   "Guests without an active manager" rather than "report 3".</li>
+<li><strong>Choose what to report on:</strong> Users, Groups, Accounts (including service principals, managed
+   identities and AI agents), Resources (roles, applications, permissions, business roles, Azure
+   resources) or Persons (identities, with their linked accounts).</li>
+<li><strong>Add conditions.</strong><ul>
+<li><strong>+ condition</strong> — a field of the thing itself: <em>Enabled is No</em>, <em>Name contains LIC</em>,
+    <em>Created is more than 90 days ago</em>, <em>Group count is more than 30</em>.</li>
+<li><strong>+ related condition…</strong> — something about what it is connected to: <em>has no Manager</em>,
+    <em>has Manager where Enabled is No</em>, <em>is a member of a group where Name contains LIC</em>,
+    <em>has no Owners</em>.</li>
+<li><strong>+ any/all group</strong> — for an either/or: <em>any of: has no owner · has an owner where Enabled is No</em>.</li>
+<li><strong>+ compare with…</strong> — see <a href="#comparing">Comparing with another group or person</a> below.</li>
 </ul>
-<p>The substrate phase (4h) runs <code>Test-LLMSubstrate.ps1</code> and validates the LLM
-config endpoint, the secrets vault round-trip, and that the scoring run
-endpoint returns 412 (preconditions failed) rather than 500 when no
-classifier is active.</p>
-<h2 id="scheduling">Scheduling<a class="headerlink" href="#scheduling" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c"># Register the wrapper at 04:00 daily (default)</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Register-ReviewSchedule</span><span class="p">.</span><span class="n">ps1</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c"># Pick a different time</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Register-ReviewSchedule</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-Time</span> <span class="s1">'03:30'</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c"># Also remove the old standalone test task — recommended, since the wrapper</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c"># already runs the nightly tests.</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Register-ReviewSchedule</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-RemoveOldNightlyTask</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c"># Remove the schedule</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Register-ReviewSchedule</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-Unregister</span>
-</code></pre></div>
-<p>The task runs as the current user with <code>S4U</code> logon — no password prompt, runs
-whether or not the user is signed in. It does <strong>not</strong> wake the workstation,
-because Docker on Windows doesn't always cope with cold-start under power
-management. Make sure the box stays awake (or wake it via BIOS scheduling
-if you need to).</p>
-<p>Logs land in <code>test/nightly/results/&lt;yyyy-MM-dd_HHmm&gt;/</code>. A one-line summary
-per run is appended to <code>test/nightly/results/_rolling-summary.log</code> so you can
-<code>tail</code> it to see the last week of pass/fail status.</p>
-<h2 id="the-review-pass">The review pass<a class="headerlink" href="#the-review-pass" title="Permanent link">&para;</a></h2>
-<p>When the test suite has zero failures, the review pass is a <strong>no-op</strong> — it
-writes a single line to the rolling log and exits. No LLM tokens are spent.
-This is the design: pay only when there's something to fix.</p>
-<p>When there are failures, the wrapper builds a structured prompt with:</p>
+</li>
+<li><strong>Pick columns.</strong> Click a column name to add or remove it. Besides the fields themselves you can
+   show things like the manager's name, the groups someone is in, or a count.</li>
+</ol>
+<h3 id="sign-in-activity">Sign-in activity<a class="headerlink" href="#sign-in-activity" title="Permanent link">&para;</a></h3>
+<p>Users and accounts have three sign-in fields, read from the same data as the standard <em>Never signed in</em>
+and <em>Stale accounts</em> reports, so they give the same answers:</p>
 <ul>
-<li>The list of failed test names and their detail strings</li>
-<li>The current branch, HEAD commit, and last commit's <code>git log -1 --name-status</code></li>
-<li>Paths to all log files in the run folder</li>
-<li>The constraint block (what Claude is and isn't allowed to do)</li>
-<li>The token budget</li>
+<li><strong>Last sign-in</strong> — the most recent sign-in, interactive or not.</li>
+<li><strong>Days since last sign-in</strong> — counted back from <strong>when that system's sign-in data was last collected</strong>,
+  not from today. If a crawl stops running, accounts do not all quietly turn stale. Use <em>Days since last
+  sign-in is more than 90</em> for "not signed in for 90 days".</li>
+<li><strong>Sign-in data collected</strong> — when that account's system last collected sign-in activity. It is empty
+  for systems that collect none.</li>
 </ul>
-<p>Then it picks one of three execution paths in priority order:</p>
-<h3 id="path-a-claude-code-in-headless-fix-it-mode-preferred">Path A — Claude Code in headless fix-it mode (preferred)<a class="headerlink" href="#path-a-claude-code-in-headless-fix-it-mode-preferred" title="Permanent link">&para;</a></h3>
-<p>If the <code>claude</code> CLI is on <code>PATH</code> (or at <code>$ClaudeCli</code>), the wrapper invokes:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>claude -p "&lt;prompt&gt;" --dangerously-skip-permissions --add-dir &lt;repo&gt;
-</code></pre></div>
-<p>Claude has read/edit/run permission on the repo, can rebuild containers,
-re-run individual tests, and commit fixes on a fresh <code>nightly-review/&lt;date&gt;</code>
-branch. <strong>It cannot push.</strong> The morning operator reviews and decides.</p>
-<p>After Claude finishes, the wrapper re-runs the nightly suite once and uses
-<em>that</em> exit code as its own. So a successful auto-fix run looks like:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>04:00  Run-NightlyAndReview.ps1 starts
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>04:01  Phase 1-4 run, 1 failure detected in Phase 4f
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>04:30  Claude invoked, identifies the issue, edits a file, rebuilds web
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>04:35  Claude commits to nightly-review/2026-04-09 and exits
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>04:35  Wrapper re-runs the nightly suite
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>05:05  Re-run completes with 0 failures
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>05:05  Wrapper writes "FIXED" to the rolling log and exits 0
-</code></pre></div>
-<h3 id="path-b-anthropic-api-analysis-only">Path B — Anthropic API analysis only<a class="headerlink" href="#path-b-anthropic-api-analysis-only" title="Permanent link">&para;</a></h3>
-<p>If <code>claude</code> isn't installed but <code>ANTHROPIC_API_KEY</code> is set (or
-<code>test/test.secrets.json</code> has an <code>AnthropicApiKey</code> field), the wrapper makes
-<strong>one</strong> API call and writes Claude's analysis to <code>review-analysis.md</code> in the
-run folder. No fix attempt, no re-run. Token usage is bounded by
-<code>-MaxTokensPerReview</code> (default 4096 → roughly $0.05 per call).</p>
-<h3 id="path-c-no-llm-available">Path C — No LLM available<a class="headerlink" href="#path-c-no-llm-available" title="Permanent link">&para;</a></h3>
-<p>If neither path is configured, the wrapper writes the full prompt to
-<code>claude-prompt.txt</code> in the run folder so you can paste it into Claude Code
-manually in the morning.</p>
-<h2 id="cost-shape">Cost shape<a class="headerlink" href="#cost-shape" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Outcome</th>
-<th>LLM tokens</th>
-<th>Cost (rough)</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>All tests pass</td>
-<td>0</td>
-<td>$0</td>
-</tr>
-<tr>
-<td>Failure, Path A</td>
-<td>~5k-30k</td>
-<td>$0.10-$2.00</td>
-</tr>
-<tr>
-<td>Failure, Path B</td>
-<td>~2k-4k</td>
-<td>$0.02-$0.08</td>
-</tr>
-</tbody>
-</table>
-<p>If the suite has been green for a week, the review system has cost you
-nothing. Cost only happens when there's actually something to investigate.</p>
-<h2 id="safety-constraints">Safety constraints<a class="headerlink" href="#safety-constraints" title="Permanent link">&para;</a></h2>
-<p>The prompt template at <code>test/nightly/claude-review-prompt.md</code> explicitly
-forbids:</p>
+<p>For "never signed in", use <strong>Last sign-in is empty</strong> <em>and</em> <strong>Sign-in data collected is not empty</strong>.
+Without the second condition, every account of a system that collects no sign-in data would be listed
+too.
+5. <strong>Preview.</strong> The builder shows <em>what will run</em> in plain language, the number of rows, and the rows
+   themselves. Read the plain-language version before you trust the result — that sentence is
+   generated from the definition that actually runs.
+6. <strong>Save.</strong> The report appears for everyone under <strong>Custom reports</strong> on the Reports tab, with your
+   name as its author.</p>
+<p>Rows are clickable: a row about an account opens that account's detail tab.</p>
+<h2 id="describing-it-in-plain-language">Describing it in plain language<a class="headerlink" href="#describing-it-in-plain-language" title="Permanent link">&para;</a></h2>
+<p>When the report generator is deployed, the builder has a <strong>Describe it</strong> box. Type what you want:</p>
+<blockquote>
+<p>Guest accounts that don't have a manager, or whose manager is disabled</p>
+</blockquote>
+<p>The model turns that into a report definition. It never sees your data — only your question and the
+list of fields it may use. What comes back is always shown as editable criteria plus the
+plain-language reading, because <strong>the model is often right but never guaranteed to be right</strong>. Check
+it before you save.</p>
+<p>The generator may answer with a question instead of a report:</p>
 <ul>
-<li><code>git push</code> (anywhere, ever)</li>
-<li><code>git reset --hard</code>, <code>git clean -f</code>, <code>git branch -D</code></li>
-<li><code>docker compose down -v</code></li>
-<li>Dropping database tables, deleting database rows</li>
-<li><code>--no-verify</code>, <code>--no-gpg-sign</code>, or any flag that bypasses commit hooks</li>
-<li>Modifying CI/CD pipeline files</li>
+<li><strong>"Did you mean…?"</strong> — you named something (a business role, a group, a person) whose name does not
+  match exactly. Pick the right one, type the exact name, or keep what you wrote. This one is reliable:
+  the database does the lookup, not the model.</li>
+<li><strong>"I cannot build this"</strong> — the report needs information Identity Atlas does not hold, and you get
+  a note saying so rather than a report built on the wrong field. Asking for users with MFA switched
+  off is an example.</li>
+<li><strong>A clarifying question</strong> — it <em>can</em> ask when a request could mean two different reports, and you
+  can answer or tell it to use its best guess. <strong>Do not count on it.</strong> In testing it guessed on both
+  deliberately ambiguous requests instead of asking — "everyone with admin rights" came back as one
+  kind of admin without saying so. Be specific, and read the plain-language summary: that is where a
+  guess shows.</li>
 </ul>
-<p>Claude is told to commit fixes on a fresh <code>nightly-review/&lt;date&gt;</code> branch and
-stop. The morning operator decides whether to merge.</p>
-<h2 id="testing-the-wrapper-without-scheduling">Testing the wrapper without scheduling<a class="headerlink" href="#testing-the-wrapper-without-scheduling" title="Permanent link">&para;</a></h2>
-<p>Run it on demand:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c"># Full thing — runs the nightly suite, reviews failures, re-runs</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="n">Run-NightlyAndReview</span><span class="p">.</span><span class="n">ps1</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c"># Skip the fix-it Claude invocation. Useful before you trust the system.</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c"># Will still run the nightly tests + (if there's an API key) produce a</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c"># read-only analysis markdown.</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="n">Run-NightlyAndReview</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-NoFix</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c"># Check that the assertions wired up correctly without a full nightly run</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Test-LLMSubstrate</span><span class="p">.</span><span class="n">ps1</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="n">dry-run-assertions</span><span class="p">.</span><span class="n">ps1</span>
-</code></pre></div>
-<p>The dry-run script loads only the new <code>Assert-*</code> helpers from
-<code>Test-EntraIdCrawler.ps1</code> and runs them against whatever data is currently in
-the local stack. It needs the demo dataset (or a real crawler) loaded first;
-queue a demo job from the UI or via:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"jobType":"demo"}'</span><span class="w"> </span>http://localhost:3001/api/admin/crawler-jobs
-</code></pre></div>
-<h2 id="where-to-look-in-the-morning">Where to look in the morning<a class="headerlink" href="#where-to-look-in-the-morning" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>test/nightly/results/_rolling-summary.log    ← one line per nightly run
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>test/nightly/results/&lt;date&gt;/
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  ├── results.json                            ← machine-readable test results
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  ├── nightly-output.log                      ← full nightly stdout
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  ├── review.log                              ← wrapper's own log
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  ├── review-analysis.md                      ← Claude's analysis (Path A or B)
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>  └── claude-prompt.txt                       ← the prompt that was sent (Path C)
-</code></pre></div>
-<p>If the rolling log says <code>FIXED</code>, look at the <code>nightly-review/&lt;date&gt;</code> git
-branch to see what Claude changed.</p>
-<p>If it says <code>FAIL</code>, open <code>review-analysis.md</code> to see what Claude found before
-giving up.</p>
-<p>If it says <code>PASS</code>, you have nothing to do.</p>
-<h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
+<p>You can keep talking to it: <em>"only enabled accounts, and show the department"</em> updates the definition
+you have, including any changes you made by hand.</p>
+<p>The first question after an update, or after the model has been idle, takes longer — the builder says
+so while it warms up.</p>
+<h2 id="comparing">Comparing<a class="headerlink" href="#comparing" title="Permanent link">&para;</a></h2>
+<p>Role-mining questions compare two sets of members rather than filtering rows. <strong>+ compare with…</strong>
+reads as a sentence:</p>
+<blockquote>
+<p>has <strong>exactly the same</strong> <strong>Members</strong> as <strong>resource</strong> "Fortigi - Algemeen - Maten"</p>
+</blockquote>
 <ul>
-<li><strong>The wrapper cannot wake the workstation.</strong> If the box was suspended at
-  04:00 the task runs whenever it next starts. Plan accordingly.</li>
-<li><strong>The Anthropic API key must live somewhere the wrapper can read it
-  without the Identity Atlas stack.</strong> The vault inside Identity Atlas is
-  intentionally NOT used as the primary source — at 4 AM the most likely
-  reason for needing the review is that Identity Atlas itself is broken.
-  Use <code>ANTHROPIC_API_KEY</code> env var or <code>test/test.secrets.json</code>.</li>
-<li><strong>Path A (fix-it mode) requires the Claude Code CLI on PATH.</strong> If you
-  haven't installed it, the wrapper falls back to Path B automatically.</li>
-<li><strong>Re-runs are full nightly runs.</strong> They take ~30 minutes. The wrapper does
-  not yet support "re-run only the failed tests" — if you need that, run
-  the individual scenario script directly (e.g.
-  <code>Test-EntraIdCrawler.ps1 -Scenarios @('Identity-Only')</code>).</li>
+<li><strong>exactly the same</strong> — identical membership.</li>
+<li><strong>contains all of</strong> — has everything the other one has, and possibly more.</li>
+<li><strong>only items also in</strong> — has nothing the other one does not have.</li>
+<li><strong>mostly the same (≥ %)</strong> — overlaps by at least the percentage you set.</li>
+</ul>
+<p>You can compare members of groups, the groups someone is in, what an account has access to, owners,
+and the accounts of a person.</p>
+<p>A comparison adds three columns automatically: <strong>Similarity %</strong>, what is <strong>only here</strong>, and what is
+<strong>missing</strong> compared with the reference. Results are sorted by similarity, so the closest matches are
+at the top.</p>
+<p>Combine it with an ordinary condition to get the question a role-mining analyst actually asks:</p>
+<blockquote>
+<p>Groups that have the same members as business role "Fortigi - Algemeen - Maten", but which are not
+part of that business role</p>
+</blockquote>
+<h2 id="what-it-cannot-do">What it cannot do<a class="headerlink" href="#what-it-cannot-do" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>No free-form SQL.</strong> Everything is built from the fields and relations Identity Atlas knows about,
+  which is also why a report can never change or delete data.</li>
+<li><strong>No totals or grouping</strong> beyond the counts offered as fields (members, groups, owners, accounts).</li>
+<li><strong>No history or trends</strong> — a report always reflects the data as it is now.</li>
+<li><strong>No comparing two fields of the same record</strong> (for example: people whose department differs from
+  their manager's).</li>
+<li><strong>One step at a time</strong> in a relation: "groups whose owner is disabled" works; "groups whose owner's
+  manager is disabled" does not.</li>
+<li><strong>Only data Identity Atlas holds.</strong> If a crawler does not collect it, no report can show it.</li>
+<li><strong>No chosen sort order.</strong> Neither the editor nor the plain-language box offers "biggest first" or
+  "newest first", and the report tab does not sort — download the result and sort it there.
+  Comparisons are the exception: they always come back closest match first.</li>
+<li><strong>At most 1,000 rows</strong> by default (5,000 at most). A report that reaches its cap says so above the
+  results — the rows shown and the download are then only the first ones. Add a condition to narrow it.</li>
+</ul>
+<h2 id="editing-deleting-and-sharing">Editing, deleting and sharing<a class="headerlink" href="#editing-deleting-and-sharing" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Edit</strong> a custom report from the list, or from the report tab itself. The definition, name and
+  description can all change; the report keeps its link.</li>
+<li><strong>Delete</strong> removes it for everyone.</li>
+<li>Custom reports are <strong>shared across the deployment</strong>: everyone sees the same list, and the list shows
+  who created and last changed each one. They are not personal drafts.</li>
+<li>A report remembers the <em>record</em> it compares against, not just the name, so renaming a business role
+  does not break a saved comparison.</li>
 </ul>
 
 
@@ -5583,6 +5290,9 @@ giving up.</p>
 
 
 
+
+  
+  
 
 
 

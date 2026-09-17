@@ -16,7 +16,7 @@
         <link rel="prev" href="../crawler-architecture/">
       
       
-        <link rel="next" href="../audit-history/">
+        <link rel="next" href="../custom-reports/">
       
       
         
@@ -1367,6 +1367,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/custom-reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Reports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/contexts/" class="md-nav__link">
         
   
@@ -1464,10 +1492,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_7" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_8" >
         
           
-          <label class="md-nav__link" for="__nav_4_7" id="__nav_4_7_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_8" id="__nav_4_8_label" tabindex="0">
             
   
   
@@ -1485,8 +1513,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_7_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_7">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_8">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2689,6 +2717,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/report-generator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report Generator (local LLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../reference/permissions/" class="md-nav__link">
         
   
@@ -2847,10 +2903,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_9" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_10" checked>
         
           
-          <label class="md-nav__link" for="__nav_6_9" id="__nav_6_9_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6_10" id="__nav_6_10_label" tabindex="">
             
   
   
@@ -2868,8 +2924,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_9_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_6_9">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_10_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6_10">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3051,6 +3107,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#custom-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom reports
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#not-in-scope-yet" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3065,6 +3132,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Reports Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -5028,6 +5123,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#custom-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom reports
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#not-in-scope-yet" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5245,6 +5351,12 @@ description says so.</p>
   listed and served, with zero engine edits.</li>
 <li><code>app/api/contract-tests/reports.contract.test.js</code> — the orphan anti-join against real PostgreSQL.</li>
 </ul>
+<h2 id="custom-reports">Custom reports<a class="headerlink" href="#custom-reports" title="Permanent link">&para;</a></h2>
+<p>Analysts can also build their own reports; a saved one is served through this same
+registry as a <code>list</code> report named <code>custom-&lt;id&gt;</code>, so the report tab, refresh and
+download work for it with no engine change. The engine still never names a report.
+The definition language, the local model that fills one in, and the seams are in
+<a href="../custom-reports/">Custom Reports Internals</a>.</p>
 <h2 id="not-in-scope-yet">Not in scope yet<a class="headerlink" href="#not-in-scope-yet" title="Permanent link">&para;</a></h2>
 <p>Export and sharing, deep links to a specific report, stored report runs, a parameters UI, and
 scheduling are all deliberately out — see the follow-up slices of the reporting epic.</p>

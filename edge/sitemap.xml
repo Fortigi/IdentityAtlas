@@ -121,6 +121,10 @@
          <lastmod>2026-09-17</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/custom-reports/</loc>
+         <lastmod>2026-09-17</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/dashboard-trends/</loc>
          <lastmod>2026-09-17</lastmod>
     </url>
@@ -333,6 +337,10 @@
          <lastmod>2026-09-17</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/reference/report-generator/</loc>
+         <lastmod>2026-09-17</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/reference/sbom/</loc>
          <lastmod>2026-09-17</lastmod>
     </url>
@@ -422,6 +430,10 @@
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/ui/contexts/</loc>
+         <lastmod>2026-09-17</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/ui/custom-reports/</loc>
          <lastmod>2026-09-17</lastmod>
     </url>
     <url>
