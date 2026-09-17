@@ -1,0 +1,303 @@
+// Natural-language reports (PROTOTYPE) — API routes.
+//
+// Every route needs the `customReports` feature (404 when off) and a permission,
+// checked first (403). Documented in openapi.yaml under "Custom Reports".
+//
+// Analyst surface (data.write.reports):
+//   GET    /api/nl-reports/catalog      entities, fields, operators, pickable columns
+//   GET    /api/nl-reports/lookup       names for the compare reference picker (?entity=&q=)
+//   GET    /api/nl-reports/status       is the report generator's model server reachable, which model
+//   POST   /api/nl-reports/warm         load the configured model (call when the builder opens)
+//   POST   /api/nl-reports/interpret    question (+ conversation) → definition or clarifying question
+//   POST   /api/nl-reports/resolve      apply a "did you mean" answer, look named objects up again
+//   POST   /api/nl-reports/run          definition → rows (read-only, statement timeout)
+//   GET    /api/nl-reports/saved/:id    one saved report, for editing
+//   POST   /api/nl-reports/saved        save a new report
+//   PUT    /api/nl-reports/saved/:id    update a saved report
+//   DELETE /api/nl-reports/saved/:id    delete a saved report
+// Saved reports are listed and run through the regular /api/reports routes.
+//
+// Admin (admin.llm):
+//   GET    /api/admin/nl-reports/config  configured model + models on the server
+//   PUT    /api/admin/nl-reports/config  choose the model
+
+import { Router } from 'express';
+import { requirePermission } from '../middleware/auth.js';
+import { requireFeature } from '../featureFlags.js';
+import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE } from '../nlreports/catalog.js';
+import { availableColumns } from '../nlreports/spec.js';
+import { ensureWarm, interpret, loadValues, runSpec, warmupState } from '../nlreports/service.js';
+import { MODEL_IS_FIXED, listModels, modelState } from '../nlreports/llm.js';
+import { getReportModel, setReportModel } from '../nlreports/settings.js';
+import { MEASURES, manyRelationsOf } from '../nlreports/compare.js';
+import { applyChoice, resolveNamedObjects, searchNames } from '../nlreports/references.js';
+import { validateSpec } from '../nlreports/spec.js';
+import { explainSpec } from '../nlreports/explain.js';
+import { query } from '../db/connection.js';
+import {
+  createSavedReport, deleteSavedReport, getSavedReport, prepareSavedReport, updateSavedReport,
+} from '../nlreports/savedReports.js';
+
+const router = Router();
+
+// Gates are applied per route, never on the /api mount: a mount-level gate runs
+// for every later route too (it would 404 or 403 unrelated endpoints).
+//
+//   analyst — the caller may build reports AND the feature is on. Permission is
+//             checked first, so a caller without it gets 403 whether or not the
+//             feature is switched on (and never learns which installs have it). Building
+//             saves definitions and spends the model CPU; running an existing
+//             report is a read action served by /api/reports (data.read).
+//   admin   — the feature must be on AND the caller administers the LLM.
+const analystGate = [requirePermission('data.write.reports'), requireFeature('customReports')];
+const adminGate = [requirePermission('admin.llm'), requireFeature('customReports')];
+
+const MAX_QUESTION = 2000;
+const MAX_HISTORY = 12;
+// The model's context is 8,192 tokens: ~4,000 go to the system prompt, ~1,200 are
+// kept for the reply, a question is at most ~500. That leaves ~2,500 tokens —
+// about 10,000 characters — for the conversation. Anything longer would not fit
+// anyway, and would cost minutes of prompt reading before failing.
+const MAX_HISTORY_CHARS = 10_000;
+const inFlight = new Set();
+const MODEL_NAME = /^[A-Za-z0-9._:/-]{1,100}$/;
+
+function fail(res, route, err, status = 500) {
+  console.error(`nl-reports ${route} failed:`, err.message);
+  res.status(status).json({ error: status === 502 ? 'The local model server is not reachable or failed.' : 'Request failed' });
+}
+
+// Values written into a log line. The question and the user label are free text (a
+// token's name claim is not validated), so line breaks — which would let a caller
+// forge extra log lines — are removed, other control characters are replaced, and the
+// length is capped. The model name is already validated, but goes through the same
+// path. Line breaks are removed rather than replaced: that is the form CodeQL's log
+// injection check recognises as a sanitiser, and the check blocks merges.
+const forLog = (value, max = 300) => String(value ?? '')
+  .slice(0, max)
+  .replace(/\n/g, '')
+  .replace(/\r/g, '')
+  .replace(/[\u2028\u2029\p{Cc}]/gu, ' ');
+
+const userOf = (req) => (req.user && (req.user.email || req.user.upn || req.user.preferred_username || req.user.name)) || 'unknown';
+
+router.get('/nl-reports/catalog', analystGate, async (req, res) => {
+  try {
+    const values = await loadValues();
+    const entities = Object.fromEntries(Object.entries(ENTITIES).map(([name, e]) => [name, {
+      label: e.label,
+      table: e.table,
+      description: e.description,
+      compareRelations: manyRelationsOf(name),
+      defaultColumns: e.defaultColumns,
+      fields: Object.entries(e.fields).map(([fname, f]) => ({
+        name: fname, label: f.label, type: f.type,
+        values: f.valuesFrom ? values[f.valuesFrom] || [] : undefined,
+      })),
+      relations: Object.entries(e.relations).map(([rname, r]) => ({ name: rname, label: r.label, target: r.target, cardinality: r.cardinality })),
+      columns: availableColumns(name).map(({ key, label }) => ({ key, label })),
+    }]));
+    const operators = Object.fromEntries(Object.entries(OPERATORS).map(([k, o]) => [k, { label: o.label, needsValue: o.needsValue }]));
+    const compareMeasures = Object.fromEntries(Object.entries(MEASURES).map(([k, m]) => [k, m.label]));
+    res.json({ entities, operators, operatorsByType: OPERATORS_BY_TYPE, compareMeasures });
+  } catch (err) {
+    fail(res, 'catalog', err);
+  }
+});
+
+// GET /api/nl-reports/lookup?entity=resource&q=mat — names for the compare reference picker
+router.get('/nl-reports/lookup', analystGate, async (req, res) => {
+  const entity = String(req.query.entity || '');
+  const text = String(req.query.q || '').trim();
+  if (!Object.hasOwn(ENTITIES, entity)) return res.status(400).json({ error: 'Unknown entity' });
+  if (text.length < 2 || text.length > 100) return res.json({ data: [] });
+  try {
+    res.json({ data: await searchNames(query, entity, text) });
+  } catch (err) {
+    fail(res, 'lookup', err);
+  }
+});
+
+router.get('/nl-reports/status', analystGate, async (req, res) => {
+  const model = await getReportModel().catch(() => null);
+  try {
+    const models = await listModels();
+    const found = models.find(m => m.name === model);
+    res.json({ available: !!found, model, loaded: !!found?.loaded, promptCache: warmupState(), reason: found ? null : 'model-not-installed' });
+  } catch {
+    res.json({ available: false, model, loaded: false, promptCache: warmupState(), reason: 'server-unreachable' });
+  }
+});
+
+// Never blocks for minutes: the first warm-up after an install or update prepares the
+// prompt cache in the background, and this answers `state: "preparing"` meanwhile.
+const WARM_WAIT_MS = 3000;
+
+router.post('/nl-reports/warm', analystGate, async (req, res) => {
+  try {
+    // No `force`: every call re-checks the running server, so there is nothing to
+    // force. Asking twice is cheap and is how a restarted generator gets its
+    // prompt cache back.
+    const entry = ensureWarm();
+    const ready = await Promise.race([
+      entry.promise.then(r => r, () => null),
+      new Promise(resolve => setTimeout(() => resolve(undefined), WARM_WAIT_MS)),
+    ]);
+    if (ready) return res.json({ ...ready, state: 'ready' });
+    if (warmupState() === 'failed') return fail(res, 'warm', new Error('the model server did not answer'), 502);
+    // Two different waits look the same from here: the model loading into memory
+    // (seconds, every time it has been unloaded) and the one-off prompt-cache
+    // preparation after an install or update (minutes). The server knows which.
+    if (await modelState().catch(() => 'ready') === 'starting') {
+      return res.json({ state: 'starting', message: 'The model is being loaded. This usually takes less than a minute.' });
+    }
+    res.json({ state: 'preparing', message: 'The model is preparing its prompt cache. The first time after an install or update this takes a few minutes; questions asked now will be slow.' });
+  } catch (err) {
+    fail(res, 'warm', err, 502);
+  }
+});
+
+const isHistoryTurn = (h) => !!h && ['user', 'assistant'].includes(h.role) && typeof h.content === 'string' && h.content.length <= 20000;
+
+/**
+ * Check an interpret request body.
+ * @returns {{ error: string } | { question: string, history: {role:string, content:string}[] }}
+ */
+export function parseInterpretRequest(body) {
+  const question = typeof body?.question === 'string' ? body.question.trim() : '';
+  const history = Array.isArray(body?.history) ? body.history : [];
+  if (!question || question.length > MAX_QUESTION) return { error: `Question is required (max ${MAX_QUESTION} characters)` };
+  if (history.length > MAX_HISTORY) return { error: 'Conversation is too long — start a new question' };
+  // `model` in the body is an evaluation override (tools/nl-reports/eval.mjs); the UI never sends it.
+  if (body?.model !== undefined && !MODEL_NAME.test(String(body.model))) return { error: 'Invalid model name' };
+  if (!history.every(isHistoryTurn)) return { error: 'Invalid conversation history' };
+  const cleanHistory = history.map(h => ({ role: h.role, content: h.content }));
+  if (cleanHistory.reduce((n, h) => n + h.content.length, 0) > MAX_HISTORY_CHARS) {
+    return { error: 'Conversation is too long — start a new question' };
+  }
+  return { question, history: cleanHistory };
+}
+
+router.post('/nl-reports/interpret', analystGate, async (req, res) => {
+  const parsed = parseInterpretRequest(req.body);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const { question, history: cleanHistory } = parsed;
+  const started = Date.now();
+  const who = `user=${forLog(userOf(req), 200)}`;
+  // One question at a time per analyst. The model server has a single slot, so a
+  // second request from the same person only queues behind the first — and a script
+  // looping on this endpoint would hold the generator for everyone.
+  if (inFlight.has(who)) {
+    return res.status(429).json({ error: 'Your previous question is still being answered — wait for it to finish' });
+  }
+  inFlight.add(who);
+  res.on('close', () => inFlight.delete(who));
+  try {
+    const model = req.body?.model ? String(req.body.model) : await getReportModel();
+    // Audit trail: who asked what, with which model — logged on arrival, so a question
+    // is on record even if the model never answers — and then what came back. The
+    // question is analyst text. No rows or results are ever logged.
+    console.log(`nl-reports interpret: ${who} model=${forLog(model, 100)} question="${forLog(question)}"`);
+    const reply = await interpret({ question, history: cleanHistory, model });
+    console.log(`nl-reports interpret: ${who} outcome=${reply.kind}${reply.repaired ? ' repaired' : ''} ms=${Date.now() - started}`);
+    res.json(reply);
+  } catch (err) {
+    console.log(`nl-reports interpret: ${who} outcome=failed ms=${Date.now() - started}`);
+    fail(res, 'interpret', err, 502);
+  }
+});
+
+// POST /api/nl-reports/resolve { spec, choice? } — apply the answer to a "did you mean"
+// confirmation and look the named objects up again. No model involved.
+router.post('/nl-reports/resolve', analystGate, async (req, res) => {
+  if (!req.body?.spec || typeof req.body.spec !== 'object') return res.status(400).json({ error: 'spec is required' });
+  try {
+    const { ok, spec, errors } = validateSpec(req.body.spec, await loadValues());
+    if (!ok) return res.status(400).json({ error: 'Invalid report definition', errors });
+    if (req.body.choice && !applyChoice(spec, req.body.choice)) {
+      return res.status(400).json({ error: 'That choice does not match anything in the report' });
+    }
+    const { confirm } = await resolveNamedObjects(spec, query);
+    res.json({ spec, confirm, explanation: explainSpec(spec) });
+  } catch (err) {
+    fail(res, 'resolve', err);
+  }
+});
+
+router.post('/nl-reports/run', analystGate, async (req, res) => {
+  if (!req.body?.spec || typeof req.body.spec !== 'object') return res.status(400).json({ error: 'spec is required' });
+  try {
+    const result = await runSpec(req.body.spec);
+    if (!result.ok) return res.status(400).json({ error: 'Invalid report definition', errors: result.errors, confirm: result.confirm, spec: result.spec });
+    res.json(result);
+  } catch (err) {
+    fail(res, 'run', err);
+  }
+});
+
+// ── Saved reports ────────────────────────────────────────────────────────────
+
+router.get('/nl-reports/saved/:id', analystGate, async (req, res) => {
+  try {
+    const row = await getSavedReport(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Report not found' });
+    res.json(row);
+  } catch (err) {
+    fail(res, 'get saved', err);
+  }
+});
+
+async function saveReport(req, res, id) {
+  try {
+    const { errors, value } = await prepareSavedReport(req.body);
+    if (errors) return res.status(400).json({ error: 'The report cannot be saved', errors });
+    const row = id ? await updateSavedReport(id, value, userOf(req)) : await createSavedReport(value, userOf(req));
+    if (!row) return res.status(404).json({ error: 'Report not found' });
+    if (row.conflict) return res.status(409).json({ error: `A report named "${value.name}" already exists` });
+    res.status(id ? 200 : 201).json(row);
+  } catch (err) {
+    fail(res, id ? 'update saved' : 'create saved', err);
+  }
+}
+
+router.post('/nl-reports/saved', analystGate, (req, res) => saveReport(req, res, null));
+router.put('/nl-reports/saved/:id', analystGate, (req, res) => saveReport(req, res, req.params.id));
+
+router.delete('/nl-reports/saved/:id', analystGate, async (req, res) => {
+  try {
+    if (!(await deleteSavedReport(req.params.id))) return res.status(404).json({ error: 'Report not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    fail(res, 'delete saved', err);
+  }
+});
+
+// ── Admin: which local model generates reports ───────────────────────────────
+
+router.get('/admin/nl-reports/config', adminGate, async (req, res) => {
+  try {
+    const model = await getReportModel().catch(() => null);
+    let models = [];
+    let reachable = true;
+    try { models = await listModels(); } catch { reachable = false; }
+    res.json({ model, models, reachable, fixed: MODEL_IS_FIXED });
+  } catch (err) {
+    fail(res, 'admin config', err);
+  }
+});
+
+router.put('/admin/nl-reports/config', adminGate, async (req, res) => {
+  if (MODEL_IS_FIXED) return res.status(409).json({ error: 'The report generator model is fixed by this release' });
+  const model = String(req.body?.model || '');
+  if (!MODEL_NAME.test(model)) return res.status(400).json({ error: 'Invalid model name' });
+  try {
+    const models = await listModels();
+    if (!models.some(m => m.name === model)) return res.status(400).json({ error: `Model "${model}" is not installed on the local model server` });
+    await setReportModel(model);
+    res.json({ ok: true, model });
+  } catch (err) {
+    fail(res, 'admin config save', err, 502);
+  }
+});
+
+export default router;

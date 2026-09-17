@@ -28,6 +28,7 @@ export const GATED_ENDPOINTS = {
   'data.write.identity':   { method: 'PUT',  path: '/api/identities/00000000-0000-0000-0000-000000000000/members/00000000-0000-0000-0000-000000000000/override', body: { action: 'confirmed' } },
   'admin.crawlers':        { method: 'GET',  path: '/api/admin/crawlers' },
   'admin.systems':         { method: 'PUT',  path: '/api/systems/1', body: {} },
+  'data.write.reports':    { method: 'POST', path: '/api/nl-reports/saved' },
   'admin.llm':             { method: 'GET',  path: '/api/admin/llm/config' },
   'admin.context-plugins': { method: 'GET',  path: '/api/context-plugins' },
   'admin.csv-import':      { method: 'GET',  path: '/api/admin/crawler-configs/1/files' },

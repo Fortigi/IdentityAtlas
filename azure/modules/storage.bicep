@@ -64,9 +64,22 @@ resource uploadsShare 'Microsoft.Storage/storageAccounts/fileServices/shares@202
   }
 }
 
+// The report generator's processed system prompt (~600 MB) lives here, so a
+// scaled-to-zero model server restores it in seconds instead of re-reading the
+// prompt for minutes. Created always (a few cents of metadata when unused).
+resource promptCacheShare 'Microsoft.Storage/storageAccounts/fileServices/shares@2024-01-01' = {
+  parent: fileSvc
+  name: 'promptcache'
+  properties: {
+    shareQuota: 5
+    enabledProtocols: 'SMB'
+  }
+}
+
 output storageAccountId string = st.id
 output storageAccountName string = st.name
 output uploadsShareName string = uploadsShare.name
+output promptCacheShareName string = promptCacheShare.name
 
 // The storage account key is deliberately NOT emitted as an output. Module
 // outputs persist in ARM deployment history and are readable by any principal

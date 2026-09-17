@@ -105,6 +105,39 @@ exists on this install at all.
 
 ---
 
+## Custom reports
+
+Lets analysts build, save and run their own reports on the **Reports** tab — by hand,
+or by describing them in plain language to a small model running inside the
+deployment. See [Custom Reports](../ui/custom-reports.md) for the feature and
+[Report Generator](report-generator.md) for the model, its measurements and its
+hosting. It is experimental because the reports themselves are new, and because the
+plain-language half needs an extra container that a deployment has to choose to run.
+
+Environment variable: `FEATURE_CUSTOM_REPORTS=true`.
+
+### What the switch does, precisely
+
+**On** — users with the **Build custom reports** (`data.write.reports`) permission get
+**New report**, **Edit** and **Delete** on the Reports tab and the report builder tab.
+Saved reports are listed for everyone who can read data, and run, refresh and download
+like a built-in report. The **Describe it** box appears only when the report-generator
+container is actually answering; without it the definition editor is the whole feature.
+
+**Off** — the builder is hidden, saved reports are not listed and cannot be run, and the
+API answers `404` on every `/api/nl-reports/*` endpoint. The permission is checked
+first, so a caller without it always gets `403` — whether or not this install has the
+feature.
+
+### What the switch does *not* do
+
+Turning it off **does not delete anything.** Saved reports stay in the database and
+reappear, unchanged, when the flag goes back on. It also does not stop or remove the
+model container: that is a deployment choice (a compose profile, or an Azure
+parameter), and an operator who wants the CPU and memory back stops it there.
+
+---
+
 ## Leaving experimental behind
 
 The label is temporary by design. Once a feature has run against enough real

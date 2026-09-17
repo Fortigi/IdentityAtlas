@@ -37,6 +37,11 @@ tags:
     description: Display names for extendedAttributes keys — shared by the web UI and the Power Query workbook
   - name: Reports
     description: Pluggable reports — self-describing templates, computed per request
+  - name: Custom Reports
+    description: >
+      Experimental report builder (feature flag `customReports`). Every route answers 404 while
+      the feature is off. The caller's permission is checked first, so a caller without it gets
+      403 whether or not the feature is on.
 
 paths:
   # ─── Ingest Endpoints ──────────────────────────────────────────
@@ -597,6 +602,11 @@ paths:
                           additionalProperties: true
                       total:
                         type: integer
+                      truncated:
+                        type: boolean
+                        description: >
+                          True when the report stopped at its row cap, so `rows` holds only the first
+                          `total` rows. Custom reports cap at their definition's limit (1,000 by default).
                       generatedAt:
                         type: string
                         format: date-time
@@ -654,6 +664,9 @@ paths:
                           additionalProperties: true
                       total:
                         type: integer
+                      truncated:
+                        type: boolean
+                        description: True when the report stopped at its row cap; the file then holds only the first rows.
                       generatedAt:
                         type: string
                         format: date-time
@@ -663,6 +676,676 @@ paths:
           description: No report template with that name is registered
         '500':
           description: The report template failed to run
+
+  # ─── Custom Reports (experimental) ─────────────────────────────
+  /nl-reports/catalog:
+    get:
+      tags: [Custom Reports]
+      summary: Report builder catalog
+      operationId: getCustomReportCatalog
+      description: >
+        The entities, fields, relations, operators and pickable columns a report definition may
+        use, with the known values of enumerated fields. Requires `data.write.reports`; answers
+        404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Builder catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entities:
+                    type: object
+                    description: Keyed by entity name.
+                    additionalProperties:
+                      type: object
+                      properties:
+                        label: { type: string }
+                        table: { type: string }
+                        description: { type: string }
+                        compareRelations:
+                          type: array
+                          items: { type: string }
+                        defaultColumns:
+                          type: array
+                          items: { type: string }
+                        fields:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              name: { type: string }
+                              label: { type: string }
+                              type: { type: string }
+                              values:
+                                type: array
+                                description: Known values, for enumerated fields only.
+                                items: { type: string }
+                        relations:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              name: { type: string }
+                              label: { type: string }
+                              target: { type: string }
+                              cardinality: { type: string }
+                        columns:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/ReportColumn'
+                  operators:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        label: { type: string }
+                        needsValue: { type: boolean }
+                  operatorsByType:
+                    type: object
+                    description: Operator names allowed per field type.
+                    additionalProperties:
+                      type: array
+                      items: { type: string }
+                  compareMeasures:
+                    type: object
+                    description: Compare measure name → label.
+                    additionalProperties: { type: string }
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+
+  /nl-reports/lookup:
+    get:
+      tags: [Custom Reports]
+      summary: Search object names for a compare reference
+      operationId: lookupCustomReportNames
+      description: >
+        Fuzzy name search used by the builder's reference picker. A search text shorter than 2
+        or longer than 100 characters returns an empty list. Requires `data.write.reports`;
+        answers 404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: entity
+          in: query
+          required: true
+          description: Entity name from the catalog.
+          schema: { type: string }
+        - name: q
+          in: query
+          required: true
+          description: Search text.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Best matches, most similar first (at most 5)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+                        type:
+                          type: string
+                          nullable: true
+                        score: { type: number }
+        '400':
+          description: Unknown entity
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+
+  /nl-reports/status:
+    get:
+      tags: [Custom Reports]
+      summary: Report generator availability
+      operationId: getCustomReportGeneratorStatus
+      description: >
+        Whether the local model server is reachable and serves the configured model. Never fails
+        on an unreachable server — it reports `available: false` with a reason instead. Requires
+        `data.write.reports`; answers 404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Generator status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available: { type: boolean }
+                  model:
+                    type: string
+                    nullable: true
+                  loaded: { type: boolean }
+                  promptCache:
+                    type: string
+                    enum: [cold, warming, ready, failed]
+                  reason:
+                    type: string
+                    nullable: true
+                    description: "`model-not-installed` or `server-unreachable`; null when available."
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+
+  /nl-reports/warm:
+    post:
+      tags: [Custom Reports]
+      summary: Warm up the report generator
+      operationId: warmCustomReportGenerator
+      description: >
+        Loads the configured model and restores its prompt cache. Waits at most a few seconds:
+        when the warm-up is still running it answers `state: preparing` and continues in the
+        background. Requires `data.write.reports`; answers 404 while the `customReports` feature
+        is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Warm-up finished (`ready`) or still running (`preparing`)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [state]
+                properties:
+                  state:
+                    type: string
+                    enum: [ready, preparing]
+                  model:
+                    type: string
+                    description: Present when ready.
+                  ms:
+                    type: integer
+                    description: Warm-up duration, present when ready.
+                  restored:
+                    type: boolean
+                    description: Whether a saved prompt cache was restored (llama.cpp backend only).
+                  message:
+                    type: string
+                    description: Present while preparing.
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '502':
+          $ref: '#/components/responses/ModelServerFailed'
+
+  /nl-reports/interpret:
+    post:
+      tags: [Custom Reports]
+      summary: Turn a question into a report definition
+      operationId: interpretCustomReportQuestion
+      description: >
+        Sends a plain-language question (plus earlier conversation turns) to the local model and
+        returns a validated report definition (`report`), a definition whose named objects need
+        confirming (`confirm`), a clarifying question (`clarify`), or `error` when the model's
+        answer could not be used. Requires `data.write.reports`; answers 404 while the
+        `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question:
+                  type: string
+                  maxLength: 2000
+                history:
+                  type: array
+                  maxItems: 12
+                  description: Earlier turns, at most 10,000 characters of content in total.
+                  items:
+                    type: object
+                    required: [role, content]
+                    properties:
+                      role:
+                        type: string
+                        enum: [user, assistant]
+                      content:
+                        type: string
+                        maxLength: 20000
+                model:
+                  type: string
+                  pattern: '^[A-Za-z0-9._:/-]{1,100}$'
+                  description: Evaluation override of the configured model; the UI never sends it.
+      responses:
+        '200':
+          description: The model's interpretation
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [kind]
+                properties:
+                  kind:
+                    type: string
+                    enum: [report, confirm, clarify, error]
+                  spec:
+                    $ref: '#/components/schemas/ReportDefinition'
+                  confirm:
+                    $ref: '#/components/schemas/ReportConfirmation'
+                  explanation:
+                    $ref: '#/components/schemas/ReportExplanation'
+                  assumptions:
+                    type: array
+                    items: { type: string }
+                  warnings:
+                    type: array
+                    items: { type: string }
+                  sql:
+                    type: string
+                    description: Compiled SQL (`report` only).
+                  question:
+                    type: string
+                    description: Clarifying question (`clarify` only).
+                  options:
+                    type: array
+                    description: Up to 4 suggested answers (`clarify` only).
+                    items: { type: string }
+                  message:
+                    type: string
+                    description: What went wrong (`error` only).
+                  errors:
+                    type: array
+                    items: { type: string }
+                  raw:
+                    type: string
+                    description: The model's raw reply.
+                  timing:
+                    type: object
+                    additionalProperties: true
+                  model: { type: string }
+                  repaired:
+                    type: boolean
+                    description: Whether a repair round was needed.
+        '400':
+          $ref: '#/components/responses/CustomReportsBadRequest'
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '429':
+          description: The caller's previous question is still being answered (one at a time per user)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        '502':
+          $ref: '#/components/responses/ModelServerFailed'
+
+  /nl-reports/resolve:
+    post:
+      tags: [Custom Reports]
+      summary: Apply a confirmation answer and look named objects up again
+      operationId: resolveCustomReportReferences
+      description: >
+        Validates a report definition, applies the analyst's answer to a "did you mean"
+        confirmation (when `choice` is given), and looks up the objects it names again. No model
+        is involved. Requires `data.write.reports`; answers 404 while the `customReports` feature
+        is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [spec]
+              properties:
+                spec:
+                  $ref: '#/components/schemas/ReportDefinition'
+                choice:
+                  type: object
+                  required: [path, name]
+                  properties:
+                    path:
+                      type: array
+                      description: The `path` of the confirmation being answered.
+                      items: { type: integer }
+                    name:
+                      type: string
+                      description: The chosen or typed exact name.
+                    id:
+                      type: string
+                      description: The chosen record, when known.
+                    keep:
+                      type: boolean
+                      description: Use a "name is X" value as written, without checking it again.
+      responses:
+        '200':
+          description: The updated definition and the next confirmation, if any
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  spec:
+                    $ref: '#/components/schemas/ReportDefinition'
+                  confirm:
+                    allOf:
+                      - $ref: '#/components/schemas/ReportConfirmation'
+                    nullable: true
+                  explanation:
+                    $ref: '#/components/schemas/ReportExplanation'
+        '400':
+          $ref: '#/components/responses/CustomReportsBadRequest'
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+
+  /nl-reports/run:
+    post:
+      tags: [Custom Reports]
+      summary: Run a report definition
+      operationId: runCustomReportDefinition
+      description: >
+        Validates and runs a report definition in a read-only transaction with a statement
+        timeout. A definition that is invalid, or names an object that still needs confirming,
+        answers 400 with the errors, the confirmation and the validated definition. Requires
+        `data.write.reports`; answers 404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [spec]
+              properties:
+                spec:
+                  $ref: '#/components/schemas/ReportDefinition'
+      responses:
+        '200':
+          description: Report rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    enum: [true]
+                  spec:
+                    $ref: '#/components/schemas/ReportDefinition'
+                  explanation:
+                    $ref: '#/components/schemas/ReportExplanation'
+                  columns:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReportColumn'
+                  rows:
+                    type: array
+                    description: >
+                      One object per row, keyed by column key, with an `_entity` property
+                      ({kind, id}) linking the row to an entity detail page.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  total:
+                    type: integer
+                  truncated:
+                    type: boolean
+                    description: More rows matched than the definition's limit.
+                  sql:
+                    type: string
+                  params:
+                    type: array
+                    items: {}
+                  elapsedMs:
+                    type: integer
+        '400':
+          description: Missing or invalid definition, or a named object needs confirming
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  errors:
+                    type: array
+                    items: { type: string }
+                  confirm:
+                    $ref: '#/components/schemas/ReportConfirmation'
+                  spec:
+                    $ref: '#/components/schemas/ReportDefinition'
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+
+  /nl-reports/saved:
+    post:
+      tags: [Custom Reports]
+      summary: Save a new custom report
+      operationId: createSavedCustomReport
+      description: >
+        Stores a named report definition. Saved reports are listed, run and downloaded through
+        `/reports` as `custom-<id>`. Requires `data.write.reports`; answers 404 while the
+        `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavedReportInput'
+      responses:
+        '201':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedReport'
+        '400':
+          $ref: '#/components/responses/CustomReportsBadRequest'
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '409':
+          description: A report with that name already exists
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+
+  /nl-reports/saved/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Saved report id (UUID), as in `editable.builderId` of the report metadata.
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Custom Reports]
+      summary: Get a saved custom report
+      operationId: getSavedCustomReport
+      description: >
+        One saved report with its definition, for editing in the builder. Requires
+        `data.write.reports`; answers 404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Saved report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedReport'
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          description: Report not found, or the feature is off
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+    put:
+      tags: [Custom Reports]
+      summary: Update a saved custom report
+      operationId: updateSavedCustomReport
+      description: >
+        Replaces a saved report's name, description, question and definition. Requires
+        `data.write.reports`; answers 404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavedReportInput'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedReport'
+        '400':
+          $ref: '#/components/responses/CustomReportsBadRequest'
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          description: Report not found, or the feature is off
+        '409':
+          description: Another report with that name already exists
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+    delete:
+      tags: [Custom Reports]
+      summary: Delete a saved custom report
+      operationId: deleteSavedCustomReport
+      description: >
+        Deletes a saved report. Requires `data.write.reports`; answers 404 while the
+        `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    enum: [true]
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          description: Report not found, or the feature is off
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+
+  /admin/nl-reports/config:
+    get:
+      tags: [Custom Reports]
+      summary: Get the report generator model configuration
+      operationId: getCustomReportModelConfig
+      description: >
+        The configured model and the models installed on the local model server. `fixed` is true
+        when the release pins the model, in which case it cannot be changed. Requires
+        `admin.llm`; answers 404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Model configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  model:
+                    type: string
+                    nullable: true
+                  models:
+                    type: array
+                    description: Empty when the model server is unreachable.
+                    items:
+                      $ref: '#/components/schemas/ReportGeneratorModel'
+                  reachable: { type: boolean }
+                  fixed: { type: boolean }
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+    put:
+      tags: [Custom Reports]
+      summary: Choose the report generator model
+      operationId: setCustomReportModelConfig
+      description: >
+        Selects which installed model generates reports. Requires `admin.llm`; answers 404 while
+        the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model]
+              properties:
+                model:
+                  type: string
+                  pattern: '^[A-Za-z0-9._:/-]{1,100}$'
+      responses:
+        '200':
+          description: Model saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    enum: [true]
+                  model: { type: string }
+        '400':
+          description: Invalid model name, or the model is not installed on the model server
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '409':
+          description: The model is fixed by this release
+        '502':
+          $ref: '#/components/responses/ModelServerFailed'
 
 components:
   securitySchemes:
@@ -714,6 +1397,200 @@ components:
           items:
             type: string
           example: [csv, json]
+        source:
+          type: string
+          enum: [builtin, custom]
+          description: >
+            `builtin` ships with Identity Atlas; `custom` was built by someone in this
+            deployment (the experimental custom reports feature). Clients list the two apart.
+        author:
+          type: object
+          nullable: true
+          description: Who built a custom report and who last changed it. Null for built-in reports.
+          properties:
+            createdBy:
+              type: string
+              nullable: true
+            updatedBy:
+              type: string
+              nullable: true
+            updatedAt:
+              type: string
+              format: date-time
+              nullable: true
+        editable:
+          type: object
+          nullable: true
+          description: >
+            Present on a custom report. `builderId` opens it in the report builder. Editing and
+            deleting it also require the `data.write.reports` permission.
+          properties:
+            builderId:
+              type: string
+
+    ErrorMessage:
+      type: object
+      properties:
+        error:
+          type: string
+
+    ReportColumn:
+      type: object
+      required: [key, label]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+
+    ReportDefinition:
+      type: object
+      description: >
+        A custom report definition — `{ entity, match, conditions, columns, sort?, limit? }`.
+        Conditions are `field`, `relation`, `group` or `compare` objects; the catalog lists the
+        entities, fields, relations and operators they may use. The server validates every
+        definition and returns the normalised form.
+      required: [entity]
+      additionalProperties: true
+      properties:
+        entity:
+          type: string
+        match:
+          type: string
+          enum: [all, any]
+        conditions:
+          type: array
+          maxItems: 25
+          items:
+            type: object
+            additionalProperties: true
+        columns:
+          type: array
+          maxItems: 15
+          items:
+            type: string
+        sort:
+          type: object
+          properties:
+            field:
+              type: string
+            direction:
+              type: string
+        limit:
+          type: integer
+          maximum: 5000
+          default: 1000
+
+    ReportConfirmation:
+      type: object
+      description: >
+        A named object in the definition that did not match exactly — the analyst picks one of
+        `choices` or types the exact name, and sends it to `/nl-reports/resolve`.
+      properties:
+        kind:
+          type: string
+          enum: [reference, value]
+        path:
+          type: array
+          description: Index path to the condition in the definition.
+          items:
+            type: integer
+        name:
+          type: string
+        label:
+          type: string
+        message:
+          type: string
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              type:
+                type: string
+                nullable: true
+              score:
+                type: number
+
+    ReportExplanation:
+      type: object
+      description: The definition in plain language, one line per condition.
+      properties:
+        title:
+          type: string
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              depth:
+                type: integer
+              text:
+                type: string
+
+    SavedReportInput:
+      type: object
+      required: [name, definition]
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          description: Unique (case-insensitive).
+        description:
+          type: string
+          maxLength: 2000
+        question:
+          type: string
+          maxLength: 2000
+          description: The question the report was built from, if any.
+        definition:
+          $ref: '#/components/schemas/ReportDefinition'
+
+    SavedReport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        definition:
+          $ref: '#/components/schemas/ReportDefinition'
+        question:
+          type: string
+          nullable: true
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+
+    ReportGeneratorModel:
+      type: object
+      description: A model on the local model server. Size details are reported by the Ollama backend only.
+      properties:
+        name:
+          type: string
+        loaded:
+          type: boolean
+        sizeBytes:
+          type: integer
+        parameterSize:
+          type: string
+        quantization:
+          type: string
 
     IngestEnvelope:
       type: object
@@ -857,3 +1734,36 @@ components:
       description: Missing or invalid API key
     Forbidden:
       description: Insufficient permissions or system access
+    CustomReportsForbidden:
+      description: The caller lacks the required permission (checked before the feature flag)
+    CustomReportsDisabled:
+      description: The `customReports` feature is not enabled
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    CustomReportsBadRequest:
+      description: The request or report definition is invalid
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              errors:
+                type: array
+                items:
+                  type: string
+    CustomReportsFailed:
+      description: The request failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    ModelServerFailed:
+      description: The local model server is not reachable or failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'

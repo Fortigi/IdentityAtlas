@@ -373,6 +373,15 @@ export async function bootstrapWorker() {
     } catch (err) {
       console.warn('Matrix-view refresh skipped:', err.message);
     }
+    // Report generator (experimental): prepare the model's prompt cache in the
+    // background — only where custom reports are on and a model server is configured.
+    // Never blocks startup.
+    try {
+      const { warmAtStartup } = await import('./nlreports/service.js');
+      void warmAtStartup().catch(err => console.warn('Report generator warm-up skipped:', err.message));
+    } catch (err) {
+      console.warn('Report generator warm-up skipped:', err.message);
+    }
     console.log('Bootstrap complete');
   } catch (err) {
     console.error('Bootstrap failed (will retry on next request):', err.message);

@@ -866,6 +866,11 @@ jobs:
           python3 -m pip install --quiet pytest
           python3 -m pytest tools/filesize/test_ratchet.py -q
 
+      # The report generator image runs this supervisor as its main process: it loads
+      # the model on demand and unloads it when idle. Standard library only.
+      - name: Test the report generator supervisor
+        run: python3 -m pytest setup/docker/report-generator/test_supervisor.py -q
+
       - name: Run file-length ratchet
         run: python3 tools/filesize/ratchet.py
 

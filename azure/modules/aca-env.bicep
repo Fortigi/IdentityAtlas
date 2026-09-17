@@ -26,6 +26,9 @@ param storageAccountName string
 @description('File share name')
 param uploadsShareName string
 
+@description('File share holding the report generator prompt cache')
+param promptCacheShareName string
+
 @description('Private network mode: /23 subnet for the environment. Empty = no VNet (public mode). The VNet of an existing environment cannot be changed, so this is for new deployments only.')
 param infrastructureSubnetId string = ''
 
@@ -86,7 +89,21 @@ resource uploadsStorage 'Microsoft.App/managedEnvironments/storages@2024-10-02-p
   }
 }
 
+resource promptCacheStorage 'Microsoft.App/managedEnvironments/storages@2024-10-02-preview' = {
+  parent: env
+  name: 'promptcache'
+  properties: {
+    azureFile: {
+      accountName: storageAccountName
+      accountKey: stg.listKeys().keys[0].value
+      shareName: promptCacheShareName
+      accessMode: 'ReadWrite'
+    }
+  }
+}
+
 output envId string = env.id
 output envName string = env.name
 output uploadsStorageName string = uploadsStorage.name
+output promptCacheStorageName string = promptCacheStorage.name
 output defaultDomain string = env.properties.defaultDomain

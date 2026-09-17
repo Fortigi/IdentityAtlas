@@ -36,3 +36,12 @@ export function escapeLike(value) {
 export function likeContains(value) {
   return '%' + escapeLike(value) + '%';
 }
+
+// "<escaped value>%" / "%<escaped value>" — one-sided searches (starts/ends with).
+export function likeStartsWith(value) {
+  return escapeLike(value) + '%';
+}
+
+export function likeEndsWith(value) {
+  return '%' + escapeLike(value);
+}

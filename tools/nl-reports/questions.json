@@ -1,0 +1,874 @@
+[
+  {
+    "id": "guests",
+    "question": "all guest accounts",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Guest"
+        }
+      ]
+    }
+  },
+  {
+    "id": "guest-manager-or",
+    "question": "I want to get a report of all guest accounts that don't have manager or where the manager is disabled",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Guest"
+        },
+        {
+          "type": "group",
+          "match": "any",
+          "conditions": [
+            {
+              "relation": "manager",
+              "quantifier": "none",
+              "conditions": []
+            },
+            {
+              "relation": "manager",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "accountEnabled",
+                  "op": "eq",
+                  "value": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "disabled-in-lic",
+    "question": "I want a list of all users that are disabled that are still member of a group that contains LIC",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "User"
+        },
+        {
+          "field": "accountEnabled",
+          "op": "eq",
+          "value": false
+        },
+        {
+          "relation": "memberOf",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "contains",
+              "value": "LIC"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "enabled-in-license",
+    "question": "enabled users that are in a group with License in the name, show their name, email and which groups",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "User"
+        },
+        {
+          "field": "accountEnabled",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "relation": "memberOf",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "contains",
+              "value": "License"
+            }
+          ]
+        }
+      ]
+    },
+    "expectColumns": [
+      "displayName",
+      "email",
+      "memberOf.names"
+    ]
+  },
+  {
+    "id": "users-no-manager",
+    "question": "Which users have no manager?",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "User"
+        },
+        {
+          "relation": "manager",
+          "quantifier": "none",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "managed-identities",
+    "question": "list our managed identities",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "ManagedIdentity"
+        }
+      ]
+    }
+  },
+  {
+    "id": "pending-guests",
+    "question": "guests that have not accepted their invitation yet",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Guest"
+        },
+        {
+          "field": "externalUserState",
+          "op": "eq",
+          "value": "PendingAcceptance"
+        }
+      ]
+    }
+  },
+  {
+    "id": "many-groups",
+    "question": "users that are member of more than 30 groups",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "User"
+        },
+        {
+          "field": "groupCount",
+          "op": "gt",
+          "value": 30
+        }
+      ]
+    }
+  },
+  {
+    "id": "few-groups",
+    "question": "people who are in fewer than 5 groups",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "User"
+        },
+        {
+          "field": "groupCount",
+          "op": "lt",
+          "value": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "new-users",
+    "question": "users created in the last 90 days",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "User"
+        },
+        {
+          "field": "createdDateTime",
+          "op": "withinLastDays",
+          "value": 90
+        }
+      ]
+    }
+  },
+  {
+    "id": "managers",
+    "question": "who are the managers? I mean people that have direct reports",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "relation": "directReports",
+          "quantifier": "some",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "members-dirrole",
+    "question": "member users (not guests) that hold a directory role",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Member"
+        },
+        {
+          "relation": "access",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "EntraDirectoryRole"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "group-owners",
+    "question": "users who own one or more groups",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "User"
+        },
+        {
+          "relation": "owns",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "Group"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "global-admins",
+    "question": "Show the members of the Global Administrator role",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "relation": "access",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "EntraDirectoryRole"
+            },
+            {
+              "field": "displayName",
+              "op": "contains",
+              "value": "Global Administrator"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "azure-users",
+    "question": "list the user accounts that come from Azure RM",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "User"
+        },
+        {
+          "field": "system",
+          "op": "eq",
+          "value": "Azure RM (3c4f204d-3261-477e-9b91-17a5adba4e9c)"
+        }
+      ]
+    }
+  },
+  {
+    "id": "sp-no-groups-enabled",
+    "question": "enabled service principals that are not in any group",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "ServicePrincipal"
+        },
+        {
+          "field": "accountEnabled",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "relation": "memberOf",
+          "quantifier": "none",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "finance-groups",
+    "question": "I want a list of all groups that have Finance in the name",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "field": "displayName",
+          "op": "contains",
+          "value": "Finance"
+        }
+      ]
+    },
+    "note": "one matching group in the Fortigi tenant"
+  },
+  {
+    "id": "license-groups",
+    "question": "groups with License in the name",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "field": "displayName",
+          "op": "contains",
+          "value": "License"
+        }
+      ]
+    }
+  },
+  {
+    "id": "empty-groups",
+    "question": "groups without any members",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "relation": "members",
+          "quantifier": "none",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "multi-owner-groups",
+    "question": "groups with more than one owner",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "field": "ownerCount",
+          "op": "gt",
+          "value": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "dynamic-groups",
+    "question": "show me the dynamic groups",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "field": "dynamicMembership",
+          "op": "eq",
+          "value": true
+        }
+      ]
+    }
+  },
+  {
+    "id": "sec-not-mail",
+    "question": "security groups that are not mail enabled",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "field": "securityEnabled",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "field": "mailEnabled",
+          "op": "eq",
+          "value": false
+        }
+      ]
+    }
+  },
+  {
+    "id": "big-groups",
+    "question": "groups with more than 10 members, biggest first",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "field": "memberCount",
+          "op": "gt",
+          "value": 10
+        }
+      ]
+    }
+  },
+  {
+    "id": "apps-no-owner",
+    "question": "applications that nobody owns",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Application"
+        },
+        {
+          "relation": "owners",
+          "quantifier": "none",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "business-roles",
+    "question": "which business roles do we have",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "BusinessRole"
+        }
+      ]
+    }
+  },
+  {
+    "id": "groups-in-br",
+    "question": "groups that are part of a business role",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "relation": "businessRoles",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "used-dir-roles",
+    "question": "directory roles that are assigned to at least one account",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "EntraDirectoryRole"
+        },
+        {
+          "relation": "members",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "groups-disabled-member",
+    "question": "groups that still contain a disabled user",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "relation": "members",
+          "conditions": [
+            {
+              "field": "principalType",
+              "op": "eq",
+              "value": "User"
+            },
+            {
+              "field": "accountEnabled",
+              "op": "eq",
+              "value": false
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "azure-rgs",
+    "question": "all Azure resource groups",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "AzureResourceGroup"
+        }
+      ]
+    }
+  },
+  {
+    "id": "sp-owner-apps",
+    "question": "applications owned by a service principal instead of a person",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Application"
+        },
+        {
+          "relation": "owners",
+          "conditions": [
+            {
+              "field": "principalType",
+              "op": "eq",
+              "value": "ServicePrincipal"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "admins-ambiguous",
+    "question": "Show everyone with admin rights",
+    "ambiguous": true,
+    "answer": "Accounts that hold any Entra directory role",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "relation": "access",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "EntraDirectoryRole"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "fabric-ambiguous",
+    "question": "Show me all users of Fabric",
+    "ambiguous": true,
+    "answer": "Members of groups with Fabric in the name",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "User"
+        },
+        {
+          "relation": "memberOf",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "contains",
+              "value": "Fabric"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "groups-no-access-package",
+    "question": "Groups that are not yet part of an access package",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "relation": "businessRoles",
+          "quantifier": "none",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "groups-owner-none-or-disabled",
+    "question": "Groups without an owner or where the owner is disabled",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "type": "group",
+          "match": "any",
+          "conditions": [
+            {
+              "relation": "owners",
+              "quantifier": "none",
+              "conditions": []
+            },
+            {
+              "relation": "owners",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "accountEnabled",
+                  "op": "eq",
+                  "value": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "signin-stale-90",
+    "question": "Users that have not signed in for more then 90 days",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "field": "daysSinceLastSignIn",
+          "op": "gt",
+          "value": 90
+        }
+      ]
+    },
+    "note": "counted back from when sign-in data was collected, like the Stale Accounts report"
+  },
+  {
+    "id": "signin-never",
+    "question": "Users that never signed in",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "field": "lastSignIn",
+          "op": "isEmpty",
+          "value": null
+        },
+        {
+          "field": "signInDataCollected",
+          "op": "isNotEmpty",
+          "value": null
+        }
+      ]
+    },
+    "note": "only systems that collect sign-in data; otherwise every account of a silent system would be listed"
+  },
+  {
+    "id": "mfa-missing-data",
+    "question": "Users that do not have MFA enabled",
+    "expectKind": "clarify",
+    "note": "no MFA data in the catalog: the generator must say so instead of building a report"
+  },
+  {
+    "id": "guest-manager-or-example",
+    "question": "Guest accounts that don't have a manager, or whose manager is disabled",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Guest"
+        },
+        {
+          "type": "group",
+          "match": "any",
+          "conditions": [
+            {
+              "relation": "manager",
+              "quantifier": "none",
+              "conditions": []
+            },
+            {
+              "relation": "manager",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "accountEnabled",
+                  "op": "eq",
+                  "value": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "rolemining-same-members-as-br",
+    "question": "Show me all groups that have the same members as business role \"Fortigi - Algemeen - Maten\" but which are not part of the business role",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "type": "compare",
+          "relation": "members",
+          "measure": "identical",
+          "reference": {
+            "entity": "resource",
+            "name": "Fortigi - Algemeen - Maten"
+          }
+        },
+        {
+          "relation": "businessRoles",
+          "quantifier": "none",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Fortigi - Algemeen - Maten"
+            }
+          ]
+        }
+      ]
+    },
+    "note": "ground truth: Fortigi Members, Fortigi.Maten"
+  },
+  {
+    "id": "rm-contains-all-br",
+    "question": "groups that contain all members of business role Fortigi - Algemeen - Maten",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "type": "compare",
+          "relation": "members",
+          "measure": "containsAll",
+          "reference": {
+            "entity": "resource",
+            "name": "Fortigi - Algemeen - Maten"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "rm-similar-group",
+    "question": "groups whose members overlap at least 80% with the group Fortigi.All",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "type": "compare",
+          "relation": "members",
+          "measure": "similar",
+          "minSimilarity": 80,
+          "reference": {
+            "entity": "group",
+            "name": "Fortigi.All"
+          }
+        }
+      ]
+    }
+  }
+]

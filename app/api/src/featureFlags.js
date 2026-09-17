@@ -41,6 +41,15 @@ export const FEATURE_FLAGS = {
     key: 'MATRIX_SHARING',
     envDefault: env => env.FEATURE_MATRIX_SHARING === 'true',
   },
+  // Custom reports: analysts build, save and run their own reports, optionally
+  // describing them in plain language to a local model. New, and it needs an extra
+  // container for the model, so it ships switched OFF — an operator opts in from
+  // Admin → Experimental. While off, every /api/nl-reports endpoint answers 404 and
+  // saved reports are not listed (they are kept, not deleted).
+  customReports: {
+    key: 'CUSTOM_REPORTS',
+    envDefault: env => env.FEATURE_CUSTOM_REPORTS === 'true',
+  },
 };
 
 // WorkerConfig key for a flag name, e.g. 'riskScoring' → 'FEATURE_RISK_SCORING'.

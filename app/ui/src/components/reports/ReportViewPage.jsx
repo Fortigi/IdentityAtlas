@@ -11,6 +11,7 @@
 import { createElement, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
+import { useCanBuildReports } from '@ui/hooks/useCanBuildReports';
 import { formatDate } from '@ui/utils/formatters';
 import EmptyState from '@ui/components/EmptyState';
 import SchemaConfigForm from '@ui/components/SchemaConfigForm';
@@ -22,6 +23,9 @@ import { paramsQueryString, withSchemaDefaults } from './reportParams';
 
 export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCacheData }) {
   const { authFetch } = useAuth();
+  // The same test the Reports list applies: a reader who opens a custom report
+  // runs and downloads it, and is not offered an editor they cannot save from.
+  const canBuild = useCanBuildReports();
   const [downloading, setDownloading] = useState(null);
   const [downloadError, setDownloadError] = useState(null);
   // What the user set, not what the report ran with: an untouched parameter
@@ -78,12 +82,27 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
             <p className="mt-1 max-w-3xl text-sm text-gray-600 dark:text-gray-400">{report.description}</p>
           )}
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            {report.total} {report.total === 1 ? 'row' : 'rows'}
+            {report.truncated ? 'First ' : ''}{report.total} {report.total === 1 ? 'row' : 'rows'}
             {report.generatedAt && <> · generated {formatDate(report.generatedAt)}</>}
           </p>
+          {report.truncated && (
+            <p role="status" className="mt-2 max-w-3xl rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+              This report stopped at {report.total} rows, so there are more than shown here — and more than
+              the download contains. Narrow it with another condition to see all of them.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {report.editable && canBuild && onOpenDetail && (
+            <button
+              type="button"
+              onClick={() => onOpenDetail('report-builder', report.editable.builderId, report.displayName)}
+              className="rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+            >
+              Edit
+            </button>
+          )}
           {(report.exportFormats || []).map(format => (
             <DownloadButton
               key={format}

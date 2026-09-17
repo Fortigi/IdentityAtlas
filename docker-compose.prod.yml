@@ -128,6 +128,10 @@ services:
       # exercise that path on a deployment with only a few hundred objects.
       # See docs/architecture/matrix.md → "Attribute values".
       MATRIX_VALUE_PAGE_SIZE: "${MATRIX_VALUE_PAGE_SIZE:-}"
+      # Report generator (experimental). Only reachable when the
+      # report-generator profile is started; the feature is off until enabled.
+      FEATURE_CUSTOM_REPORTS: "${FEATURE_CUSTOM_REPORTS:-}"
+      NL_REPORTS_LLM_URL: "http://report-generator:8080"
     secrets:
       - postgres_password
     ports:
@@ -135,6 +139,7 @@ services:
     volumes:
       - job_data:/data/uploads
       - web_keys:/data/keys
+    networks: [default, report-generator]
     depends_on:
       postgres:
         condition: service_healthy
@@ -172,6 +177,45 @@ services:
     mem_limit: "${WORKER_MEM_LIMIT:-8g}"
     restart: unless-stopped
 
+  # ── Report generator (EXPERIMENTAL, opt-in) ─────────────────────────────────
+  # Turns a report described in plain language into a report definition. One small
+  # model, baked into this image, running on CPU. Enable with:
+  #
+  #   COMPOSE_PROFILES=report-generator      (in .env)
+  #   FEATURE_CUSTOM_REPORTS=true            (or switch it on in Admin → Experimental)
+  #
+  # Questions never leave the deployment: the container has no published port, sits
+  # on an internal network with the web container only, and cannot reach the
+  # internet, the database or the worker. See docs/reference/report-generator.md.
+  report-generator:
+    image: ghcr.io/fortigi/identity-atlas-report-generator:${IMAGE_TAG:-latest}
+    profiles: ["report-generator"]
+    environment:
+      # Threads = the CPUs this container may use. Keep the two in step.
+      LLAMA_ARG_THREADS: "${REPORT_GENERATOR_CPUS:-2}"
+      # The model is loaded on the first question and unloaded after this many seconds
+      # unused, returning ~3 GB to the host. 0 keeps it loaded all the time.
+      REPORT_GENERATOR_IDLE_SECONDS: "${REPORT_GENERATOR_IDLE_SECONDS:-900}"
+    volumes:
+      # The processed system prompt (~600 MB): makes a restart instant instead of
+      # re-reading the prompt for minutes.
+      - report_generator_slots:/slots
+    networks: [report-generator]
+    # Runs as uid 1000 on an unprivileged port and needs no capabilities.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 512
+    mem_limit: "${REPORT_GENERATOR_MEMORY:-4g}"
+    cpus: "${REPORT_GENERATOR_CPUS:-2}"
+    restart: unless-stopped
+
+networks:
+  # Only the web container and the model server are on this one, and it has no
+  # route to the internet (internal: true).
+  report-generator:
+    internal: true
+
 secrets:
   # Created from the POSTGRES_PASSWORD variable (.env or shell) and mounted
   # read-only at /run/secrets/postgres_password in the containers that list it.
@@ -183,3 +227,6 @@ volumes:
   job_data:
   # Web-only: holds the auto-generated vault master key. Include it in backups.
   web_keys:
+  # The report generator's processed system prompt. Disposable: it is rebuilt
+  # (a few minutes, once) if lost. No need to back it up.
+  report_generator_slots:

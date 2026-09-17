@@ -1,0 +1,56 @@
+# Custom reports — the report generator, for LOCAL DEVELOPMENT.
+#
+# Overlay on the dev compose file, building the same image a release publishes:
+#   docker compose -f docker-compose.yml -f docker-compose.nl-reports.yml up -d --build
+#
+# A deployment does not use this file — it enables the `report-generator` profile in
+# docker-compose.prod.yml, which pulls the published image. See
+# docs/reference/report-generator.md.
+#
+# The model server sits on an internal network that only the web container joins:
+# no published port, no route to postgres or the worker, no internet egress. The
+# model is inside the image; the processed system prompt is kept in a volume so a
+# restart is instant instead of re-reading the prompt for minutes.
+
+services:
+  web:
+    environment:
+      NL_REPORTS_LLM_URL: "http://report-generator:8080"
+      NL_REPORTS_LLM_TIMEOUT_MS: "${NL_REPORTS_LLM_TIMEOUT_MS:-900000}"
+      FEATURE_CUSTOM_REPORTS: "${FEATURE_CUSTOM_REPORTS:-true}"
+      BEHIND_TLS: "${BEHIND_TLS:-false}"
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-}"
+    networks: [default, report-generator]
+
+  report-generator:
+    build:
+      context: .
+      dockerfile: setup/docker/Dockerfile.report-generator
+      args:
+        MODULE_VERSION: "${MODULE_VERSION:-}"
+    environment:
+      # Threads = the CPUs this container may use. Keep the two in step.
+      LLAMA_ARG_THREADS: "${REPORT_GENERATOR_CPUS:-2}"
+      # The model is loaded on the first question and unloaded after this many seconds
+      # unused, returning ~3 GB to the host. 0 keeps it loaded all the time.
+      REPORT_GENERATOR_IDLE_SECONDS: "${REPORT_GENERATOR_IDLE_SECONDS:-900}"
+    volumes:
+      - report_generator_slots:/slots
+    networks: [report-generator]
+    # Same hardening as docker-compose.prod.yml, so development runs what ships.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 512
+    mem_limit: "${REPORT_GENERATOR_MEMORY:-4g}"
+    cpus: "${REPORT_GENERATOR_CPUS:-2}"
+    # Without this the generator stays down after the host restarts while web and
+    # postgres come back — the builder then reports the model server as unreachable.
+    restart: unless-stopped
+
+networks:
+  report-generator:
+    internal: true
+
+volumes:
+  report_generator_slots:

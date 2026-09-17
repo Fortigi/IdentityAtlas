@@ -10,7 +10,7 @@
 // the response carries whatever `form` and `columns` the template declares.
 
 import { Router } from 'express';
-import { getReport, listReports, reportMetadata } from '../reports/registry.js';
+import { listAllReports, reportMetadata, resolveReport } from '../reports/registry.js';
 import {
   DEFAULT_EXPORT_FORMAT, EXPORT_FORMAT_NAMES, exportFilename, resolveExportFormat,
 } from '../reports/export.js';
@@ -23,12 +23,15 @@ const router = Router();
 // `notices` is whatever the template returned, passed through untouched: the
 // engine never reads a notice, exactly as it never reads a row.
 async function runReport(report, params) {
-  const { rows, notices } = await report.run(params, {});
+  const { rows, notices, truncated } = await report.run(params, {});
   return {
     ...reportMetadata(report),
     rows,
     notices: Array.isArray(notices) ? notices : [],
     total: rows.length,
+    // A template that stops at a row cap says so; the screen and the download must
+    // not present the first N rows as the whole answer.
+    truncated: truncated === true,
     generatedAt: new Date().toISOString(),
   };
 }
@@ -41,14 +44,19 @@ function reportFailed(res, report, route, err) {
 }
 
 // GET /api/reports
-router.get('/reports', (req, res) => {
-  const data = listReports().map(reportMetadata);
-  res.json({ data, total: data.length });
+router.get('/reports', async (req, res) => {
+  try {
+    const data = (await listAllReports()).map(reportMetadata);
+    res.json({ data, total: data.length });
+  } catch (err) {
+    console.error('GET /reports failed:', err.message);
+    res.status(500).json({ error: 'Failed to list reports' });
+  }
 });
 
 // GET /api/reports/:name/rows
 router.get('/reports/:name/rows', async (req, res) => {
-  const report = getReport(req.params.name);
+  const report = await resolveReport(req.params.name);
   if (!report) return res.status(404).json({ error: 'Report not found' });
   try {
     res.json(await runReport(report, req.query || {}));
@@ -61,7 +69,7 @@ router.get('/reports/:name/rows', async (req, res) => {
 // `format` is the download's own parameter; every other query parameter is
 // passed through to the template, exactly as the rows endpoint does.
 router.get('/reports/:name/export', async (req, res) => {
-  const report = getReport(req.params.name);
+  const report = await resolveReport(req.params.name);
   if (!report) return res.status(404).json({ error: 'Report not found' });
 
   const { format = DEFAULT_EXPORT_FORMAT, ...params } = req.query || {};

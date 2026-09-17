@@ -113,6 +113,7 @@ Runs can also be triggered on demand from the same Admin page; each run records 
 | Identity filter | `CrawlerConfigs.config.identityFilter` — set via the wizard |
 | Schedules | `CrawlerConfigs.config.schedules` — set via the wizard |
 | Risk scoring on/off | `WorkerConfig.FEATURE_RISK_SCORING` — set via the Admin → Risk Scoring toggle |
+| Custom reports on/off | `WorkerConfig.FEATURE_CUSTOM_REPORTS` — set via the Admin → Experimental toggle; a deployment can start with it on via the backend env var `FEATURE_CUSTOM_REPORTS=true`. Off by default. The report generator itself is a separate container — see [Report Generator](report-generator.md) |
 | Experimental crawlers on/off | `WorkerConfig.FEATURE_EXPERIMENTAL_CRAWLERS` — set via the Admin → Experimental toggle; a deployment can start with it on via the backend env var `FEATURE_EXPERIMENTAL_CRAWLERS=true`, which the toggle then overrides. Off by default. See [Experimental features](experimental-features.md) |
 | Performance monitoring on/off | Runtime flag — set via the Admin → Performance toggle |
 | Database connection | Backend env var `DATABASE_URL` (PostgreSQL connection string) |

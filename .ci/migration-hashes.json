@@ -70,6 +70,7 @@
     "064_sync_log_source.sql": "b10615b55dd51ae7b9154cee44ee9504c72666ba71ca11610fdb2e0ee99279cb",
     "065_crawler_credential_custody.sql": "4bb031482507ab9c95253c19e4f71ece16572da64cba9f15cdc2082ed295e16e",
     "066_auth_role_change_log_oid.sql": "4b548f517532bdf3b0f3fc789ba5b96a772648115069a049df88950855f4d2ec",
-    "067_share_is_a_saved_matrix.sql": "8049d31fde744843e5cadd3d12cb555f032ca078eeea191f68c477069290d182"
+    "067_share_is_a_saved_matrix.sql": "8049d31fde744843e5cadd3d12cb555f032ca078eeea191f68c477069290d182",
+    "068_saved_reports.sql": "8eb73303e1dda8f7d5d0e459554d15c92e9b79a43c2612915de9a2335783f08a"
   }
 }

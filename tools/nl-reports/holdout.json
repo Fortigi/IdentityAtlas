@@ -1,0 +1,368 @@
+[
+  {
+    "id": "h-guests-with-manager",
+    "question": "external users that do have a manager",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Guest"
+        },
+        {
+          "relation": "manager",
+          "quantifier": "some",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "h-nl-disabled",
+    "question": "Toon alle uitgeschakelde accounts",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "accountEnabled",
+          "op": "eq",
+          "value": false
+        }
+      ]
+    }
+  },
+  {
+    "id": "h-nl-many-groups",
+    "question": "Welke gebruikers zitten in meer dan 50 groepen?",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "User"
+        },
+        {
+          "field": "groupCount",
+          "op": "gt",
+          "value": 50
+        }
+      ]
+    }
+  },
+  {
+    "id": "h-nl-guests-manager",
+    "question": "Geef me alle gastgebruikers met hun manager",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Guest"
+        }
+      ]
+    },
+    "expectColumns": [
+      "manager.displayName"
+    ]
+  },
+  {
+    "id": "h-sp-own-apps",
+    "question": "service principals that own an application",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "ServicePrincipal"
+        },
+        {
+          "relation": "owns",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "Application"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "h-mail-not-sec",
+    "question": "mail enabled groups that are not security groups",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "field": "mailEnabled",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "field": "securityEnabled",
+          "op": "eq",
+          "value": false
+        }
+      ]
+    }
+  },
+  {
+    "id": "h-ai-agents",
+    "question": "show the AI agents",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "AIAgent"
+        }
+      ]
+    }
+  },
+  {
+    "id": "h-starts-license",
+    "question": "groups whose name starts with License",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "field": "displayName",
+          "op": "startsWith",
+          "value": "License"
+        }
+      ]
+    }
+  },
+  {
+    "id": "h-no-license-group",
+    "question": "users that are not in any License group",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "User"
+        },
+        {
+          "relation": "memberOf",
+          "quantifier": "none",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "contains",
+              "value": "License"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "h-unused-roles",
+    "question": "directory roles that nobody holds",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "EntraDirectoryRole"
+        },
+        {
+          "relation": "members",
+          "quantifier": "none",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "h-br-members",
+    "question": "business roles with more than 5 members",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "BusinessRole"
+        },
+        {
+          "field": "memberCount",
+          "op": "gt",
+          "value": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "h-fabric-admins",
+    "question": "enabled users in the Fabric Administrator role",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "principalType",
+          "op": "eq",
+          "value": "User"
+        },
+        {
+          "field": "accountEnabled",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "relation": "access",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "contains",
+              "value": "Fabric Administrator"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "h-unowned-busy-groups",
+    "question": "groups without owners that have more than 5 members",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "relation": "owners",
+          "quantifier": "none",
+          "conditions": []
+        },
+        {
+          "field": "memberCount",
+          "op": "gt",
+          "value": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "h-guest-or-disabled",
+    "question": "accounts in a License group that are either a guest or disabled",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "relation": "memberOf",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "contains",
+              "value": "License"
+            }
+          ]
+        },
+        {
+          "type": "group",
+          "match": "any",
+          "conditions": [
+            {
+              "field": "userType",
+              "op": "eq",
+              "value": "Guest"
+            },
+            {
+              "field": "accountEnabled",
+              "op": "eq",
+              "value": false
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "h-rm-same-groups-user",
+    "question": "users who are in exactly the same groups as Folkertsma, Sipke",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "type": "compare",
+          "relation": "memberOf",
+          "measure": "identical",
+          "reference": {
+            "entity": "user",
+            "name": "Folkertsma, Sipke"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "h-rm-similar-not-br",
+    "question": "groups that are mostly the same as the Sales group but not part of any business role",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "type": "compare",
+          "relation": "members",
+          "measure": "similar",
+          "minSimilarity": 80,
+          "reference": {
+            "entity": "group",
+            "name": "Sales"
+          }
+        },
+        {
+          "relation": "businessRoles",
+          "quantifier": "none",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "h-rm-br-within",
+    "question": "business roles whose members are all in the group Iedereen",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "BusinessRole"
+        },
+        {
+          "type": "compare",
+          "relation": "members",
+          "measure": "within",
+          "reference": {
+            "entity": "group",
+            "name": "Iedereen"
+          }
+        }
+      ]
+    }
+  }
+]

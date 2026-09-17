@@ -23,6 +23,13 @@
 .PARAMETER ExistingLogAnalyticsWorkspaceId
     Optional: ARM ID of an existing Log Analytics workspace.
 
+.PARAMETER DeployReportGenerator
+    Also deploy the experimental report generator: a small local model in its own
+    container that turns a plain-language question into a report definition. Scales
+    to zero, so it only costs while in use. Its ingress is protected by a
+    per-deployment API key; re-running this script also narrows it to the web app's
+    outbound addresses.
+
 .PARAMETER SubscriptionId
     Subscription ID. Optional — uses the current `az account` if omitted.
 
@@ -51,6 +58,10 @@ Param(
 
     [string]$ExistingLogAnalyticsWorkspaceId = '',
 
+    # Deploy the experimental report generator (a small local model in its own
+    # container, scaled to zero). Off by default.
+    [switch]$DeployReportGenerator,
+
     [string]$SubscriptionId,
 
     [string]$ParametersFile
@@ -68,6 +79,7 @@ Write-Host "  ResourceGroup : $ResourceGroup"
 Write-Host "  Location      : $Location"
 Write-Host "  SizeProfile   : $SizeProfile"
 Write-Host "  ImageChannel  : $ImageChannel"
+Write-Host "  ReportGen     : $(if ($DeployReportGenerator) { 'deployed (scales to zero)' } else { 'not deployed' })"
 Write-Host "  Bicep         : $bicepFile"
 
 # ── az login ────────────────────────────────────────────────────────────
@@ -91,6 +103,23 @@ if (-not $rg) {
     az group create --name $ResourceGroup --location $Location | Out-Null
 }
 
+# The report generator has public ingress (no VNet in this deployment shape) and its
+# API key is what protects it. This narrows it further to the addresses the web app can
+# call out from — but only once that app exists, because those addresses do not exist
+# until it does. So a first deployment ships key-only and any later run adds the
+# allow-list. Deliberately not derived inside the template: an ARM loop needs its
+# length before the deployment starts. Returns the /32 CIDRs, or nothing.
+function Get-ReportGeneratorCallerCidrs {
+    param([Parameter(Mandatory)][string]$ResourceGroup)
+
+    # This shape deploys exactly one App Service into the group.
+    $webAppName = az webapp list -g $ResourceGroup --query "[0].name" -o tsv 2>$null
+    if (-not $webAppName) { return }
+    $outboundIps = az webapp show -g $ResourceGroup -n $webAppName --query possibleOutboundIpAddresses -o tsv 2>$null
+    if (-not $outboundIps) { return }
+    return @($outboundIps -split ',' | Where-Object { $_ } | ForEach-Object { "$($_.Trim())/32" })
+}
+
 # ── Deploy ──────────────────────────────────────────────────────────────
 Write-Host "`nStarting deployment. This takes ~5-7 minutes." -ForegroundColor Cyan
 $deploymentName = "identityatlas-$(Get-Date -Format 'yyyyMMddHHmmss')"
@@ -104,6 +133,20 @@ $deployArgs = @(
     '--parameters', "sizeProfile=$SizeProfile", "imageChannel=$ImageChannel",
     '--output', 'json'
 )
+if ($DeployReportGenerator) {
+    $deployArgs += @('--parameters', 'deployReportGenerator=true')
+    # @(): a function returning a one-element array hands back a bare string otherwise.
+    $cidrs = @(Get-ReportGeneratorCallerCidrs -ResourceGroup $ResourceGroup)
+    if ($cidrs) {
+        # -InputObject, not the pipeline: piped, a one-element array serialises
+        # as a bare string and the template rejects it as not an array.
+        $deployArgs += @('--parameters', "reportGeneratorAllowedCallerIps=$(ConvertTo-Json -InputObject $cidrs -Compress)")
+        Write-Host "  ReportGen ingress    : limited to $($cidrs.Count) web-app address(es)" -ForegroundColor DarkGray
+    }
+    else {
+        Write-Host "  ReportGen ingress    : API key only on this deployment; re-run once the web app exists to add the IP allow-list" -ForegroundColor DarkGray
+    }
+}
 if ($ExistingLogAnalyticsWorkspaceId) {
     $deployArgs += @('--parameters', "existingLogAnalyticsWorkspaceId=$ExistingLogAnalyticsWorkspaceId")
 }

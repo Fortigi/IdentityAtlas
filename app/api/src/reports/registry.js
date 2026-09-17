@@ -39,6 +39,34 @@ export function getReport(name) {
   return REPORTS.get(name) || null;
 }
 
+// Report sources supply templates that live outside the code — e.g. reports an
+// analyst saved. A source is { list(): Promise<template[]>, get(name): Promise<template|null> }.
+// The engine never knows what a source is backed by or which names it owns.
+const SOURCES = new Set();
+
+/** @returns {() => void} unregister callback */
+export function registerReportSource(source) {
+  SOURCES.add(source);
+  return () => { SOURCES.delete(source); };
+}
+
+/** Built-in templates plus every source's templates, ordered by display name. */
+export async function listAllReports() {
+  const fromSources = (await Promise.all([...SOURCES].map(s => s.list()))).flat();
+  return [...REPORTS.values(), ...fromSources].sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+/** A built-in template, or the first source that knows this name, or null. */
+export async function resolveReport(name) {
+  const builtIn = getReport(name);
+  if (builtIn) return builtIn;
+  for (const source of SOURCES) {
+    const found = await source.get(name);
+    if (found) return found;
+  }
+  return null;
+}
+
 /**
  * The client-facing metadata of a template — everything the UI needs to list it,
  * to render whatever form it declares and to offer it for download, and nothing
@@ -54,5 +82,11 @@ export function reportMetadata(template) {
     parametersSchema: template.parametersSchema || { type: 'object', required: [], properties: {} },
     columns: template.columns,
     exportFormats: [...EXPORT_FORMAT_NAMES],
+    // Where the report came from: shipped with Identity Atlas, or built by someone
+    // in this deployment. The Reports page lists the two apart.
+    source: template.source || 'builtin',
+    // Who built a custom report and who changed it last. Null for built-in reports.
+    author: template.author || null,
+    editable: template.editable || null,
   };
 }

@@ -21,9 +21,18 @@
     "src/components/reports/ReportError.jsx",
     "src/components/reports/ReportNotices.jsx",
     "src/components/reports/ReportViewPage.jsx",
+    "src/components/reports/ask/AskAssistant.api.js",
+    "src/components/reports/ask/AskAssistant.text.js",
+    "src/components/reports/ask/CompareCondition.jsx",
+    "src/components/reports/ask/ConfirmChoices.jsx",
+    "src/components/reports/ask/useAskConversation.js",
+    "src/components/reports/ask/useAskWarmup.js",
+    "src/components/reports/ask/useReportPreview.js",
+    "src/components/reports/ask/useSavedReportActions.js",
     "src/components/reports/formRenderers.js",
     "src/components/reports/reportExport.js",
     "src/components/reports/reportParams.js",
+    "src/hooks/useCanBuildReports.js",
     "src/utils/download.js"
   ],
   "thresholds": {
@@ -38,5 +47,14 @@
     "excludedMutations": [
       "StringLiteral"
     ]
+  },
+  "mutationExclusions": {
+    "src/components/reports/ask/SpecEditor.jsx": "A form that draws whatever the API catalog declares — selects for fields, operators and values, plus the add/remove wiring. Its behaviour IS the report definition it produces, and that is asserted where it is enforced: validateSpec / compileSpec on the API side (both mutated), and end-to-end in app/ui/e2e/custom-reports.spec.js, which builds a report by hand and runs it. Mutating the JSX and Tailwind here measures markup.",
+    "src/components/reports/ask/AskAssistant.jsx": "Conversation shell around POST /api/nl-reports/interpret: it renders turns, polls while the model prepares its prompt cache, and hands a definition to the builder. The decisions it makes are the API contract (report / clarify / confirm), asserted in routes/nlReports.test.js and service.test.js; the model half cannot be exercised in a sandbox without a model server.",
+    "src/components/reports/ask/ReportBuilderPage.jsx": "Page composition: name and description fields, the assistant, the editor, the preview and save/delete. Every behaviour it has is an API call whose contract is mutated API-side, and the whole path is covered end-to-end (new → criteria → preview → save → run → edit → delete).",
+    "src/components/admin/ReportGeneratorLLMSection.jsx": "Read-only status card in Admin → LLM: the shipped model name, whether the server answers, and a Test button that calls the warm-up endpoint. No state of its own beyond the button; the endpoint it reports on is mutated API-side.",
+    "src/components/reports/ask/AskAssistant.styles.js": "Three Tailwind class strings shared by the assistant's parts, and nothing else. StringLiteral mutations are disabled in this config for exactly this kind of value, so no mutant could be generated here that measures behaviour.",
+    "src/components/reports/ask/AskAssistant.Turn.jsx": "Draws one conversation turn from a reply the API already decided (report / clarify / confirm / error). The decisions it shows are mutated where they are made — useAskConversation.js here, service.js and routes/nlReports.js API-side — and what it renders is asserted by AskAssistant.Turn.mount.test.jsx; mutating its JSX would measure markup.",
+    "src/components/reports/ask/ReportBuilderParts.jsx": "Presentational sections of the report builder: header buttons, name/description fields, the definition panel and the results area. The state they display and the actions they trigger live in useReportPreview.js and useSavedReportActions.js, which are mutated; the page is covered end-to-end in e2e/custom-reports.spec.js and by ReportBuilderParts.mount.test.jsx."
   }
 }

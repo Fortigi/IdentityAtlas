@@ -46,6 +46,16 @@ param sizeProfile string = 's'
 @allowed(['stable', 'edge'])
 param imageChannel string = 'stable'
 
+@description('Deploy the EXPERIMENTAL report generator: a small language model in its own container that turns a report described in plain language into a report definition. Scales to zero, so it only costs while in use. Questions and data never leave the deployment. Leave false to keep custom reports hand-built only.')
+param deployReportGenerator bool = false
+
+@description('API key the web app uses to reach the report generator. Generated per deployment; you never need to set this.')
+@secure()
+param reportGeneratorApiKey string = newGuid()
+
+@description('Optional: CIDRs allowed to reach the report generator, e.g. ["20.1.2.3/32"]. The report generator has public ingress (there is no VNet in this shape) and the API key is what protects it; this narrows it further to the web app\'s outbound addresses. deploy.ps1 fills this in from the existing web app, so a first deployment leaves it empty and a re-run narrows it. Empty = any IP may connect, and must still present the key.')
+param reportGeneratorAllowedCallerIps array = []
+
 @description('Optional: FULL ARM resource ID of an existing Log Analytics workspace to forward logs to. Leave empty to create a new workspace (~€3/mo). Must look like /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name> — copy it from the workspace\'s Overview → JSON View, NOT the parent resource group. The deployer needs Log Analytics Reader on the workspace.')
 param existingLogAnalyticsWorkspaceId string = ''
 
@@ -136,6 +146,7 @@ var location = resourceGroup().location
 var _imageTag = imageChannel == 'stable' ? 'latest' : 'edge'
 var webImage = 'ghcr.io/fortigi/identity-atlas:${_imageTag}'
 var workerImage = 'ghcr.io/fortigi/identity-atlas-worker:${_imageTag}'
+var reportGeneratorImage = 'ghcr.io/fortigi/identity-atlas-report-generator:${_imageTag}'
 
 // Postgres admin password: generated randomly by the bootstrap script and kept
 // in Key Vault (SEC-2026-09 H-06). It used to be derived here with
@@ -240,9 +251,15 @@ module postgres 'modules/postgres.bicep' = {
 
 // ─── App Service (web) ──────────────────────────────────────────────────
 
+// The report generator's hostname is deterministic (app name + environment domain),
+// so the web app can be told where it will be without depending on that module.
+var reportGeneratorUrl = deployReportGenerator ? 'https://${namePrefix}-report-generator.${cae.outputs.defaultDomain}' : ''
+
 module web 'modules/app-service.bicep' = {
   name: 'app-service'
   params: {
+    reportGeneratorUrl: reportGeneratorUrl
+    reportGeneratorApiKey: deployReportGenerator ? reportGeneratorApiKey : ''
     namePrefix: namePrefix
     location: location
     sku: profile.appServiceSku
@@ -302,6 +319,7 @@ module cae 'modules/aca-env.bicep' = {
     workspaceId: logs.outputs.workspaceId
     storageAccountName: storage.outputs.storageAccountName
     uploadsShareName: storage.outputs.uploadsShareName
+    promptCacheShareName: storage.outputs.promptCacheShareName
     infrastructureSubnetId: privateNetworking ? network!.outputs.acaSubnetId : ''
   }
 }
@@ -319,6 +337,26 @@ module worker 'modules/aca-app-worker.bicep' = {
     webAppHostname: web.outputs.appHostname
     cpu: profile.workerCpu
     memory: profile.workerMemory
+  }
+}
+
+// ─── Report generator Container App (experimental, opt-in) ──────────────
+
+module reportGenerator 'modules/aca-app-report-generator.bicep' = if (deployReportGenerator) {
+  name: 'aca-app-report-generator'
+  params: {
+    namePrefix: namePrefix
+    location: location
+    envId: cae.outputs.envId
+    promptCacheStorageName: cae.outputs.promptCacheStorageName
+    image: reportGeneratorImage
+    apiKey: reportGeneratorApiKey
+    // Only the web app should reach it. These are shared Azure outbound addresses,
+    // so this narrows the exposure without being a boundary — the API key is that.
+    // NOT in the private network mode: there the web app routes all outbound traffic
+    // through the VNet (vnetRouteAllEnabled, no NAT gateway), so its calls do not
+    // leave from the addresses on this list, and the list would lock it out.
+    allowedCallerIps: privateNetworking ? [] : reportGeneratorAllowedCallerIps
   }
 }
 
@@ -352,7 +390,8 @@ module storageLockdown 'modules/storage.bicep' = if (privateNetworking) {
     location: location
     networkDefaultAction: 'Deny'
   }
-  dependsOn: [web, cae, worker, privateEndpoints]
+  // The report generator mounts its prompt cache from this account as well.
+  dependsOn: [web, cae, worker, privateEndpoints, reportGenerator]
 }
 
 // ─── Outputs ────────────────────────────────────────────────────────────
