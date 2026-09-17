@@ -130,6 +130,19 @@ The miner ticks and unticks terms, adds their own, and can ask for more:
   matches compared with all groups (`resource-cluster/tokenize.js` + a lift score). This is how `HAMIS`
   turns up `HMS` or `Zaaksysteem`: the model cannot know a customer's system names, but the data can.
 
+**Only terms containing the analyst's own words start ticked.** Everything else the model adds —
+synonyms, translations, systems — starts unticked, next to its hit counts. Measured reason: asked
+about HAMIS, the 4B model ignored "never invent what a name stands for" and proposed `health`, `zorg`,
+`huisarts`; ticked by default, that silently pulls in every care group. "Own words" = the subject words
+of the request and of the analyst's later answers; a term word matches when equal, or when both share
+their first five letters (`licences` ↔ `licentie` ↔ `license`). A warning appears when ticked suggestions
+bring in more than twice what everything else finds (and at least 10 objects).
+
+**Prompt examples must stay away from test subjects.** In the first measurement, the purchasing and HAMIS
+questions came back word for word as the prompt's examples — the test measured the prompt, not the
+model. The examples are now payroll, facility management and a made-up name, and a unit test fails if a
+test subject appears in the prompt.
+
 "Not too many, not too few" is **enforced, not asked for**: the prompt asks for 6–12 terms, the grammar
 caps a reply at 15 (every array bounded — the lesson from the report generator's 570-second `columns`
 loop), and the hit counts let the miner prune the rest in seconds.
