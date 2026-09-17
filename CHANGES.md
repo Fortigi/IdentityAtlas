@@ -1,5 +1,22 @@
 ## Changes in this PR
 
+- Added custom reports (experimental, off by default — switch on under Admin → Experimental): build your own report on the Reports tab by choosing what to report on, adding conditions and picking columns. Saved reports sit in their own section next to the built-in ones and open, refresh and download the same way.
+- Added a report builder that opens in its own tab for creating or editing a report. It shows, in plain language, exactly what the report will ask before you run it, and previews the result.
+- Added "describe it in plain language": type the report you want and a small language model running inside your own deployment turns it into report criteria you can check and edit, shown back in plain language before anything runs. It says so when the data you ask about is not something Identity Atlas collects. It is usually right, not always — check the summary before saving.
+- The model never sees your data and nothing leaves your deployment: it receives only your question and the names of the fields and types that exist, never records or results.
+- Reports can compare against a named record — for example "groups with exactly the same members as business role X" or "groups at least 80% like group Y" — showing similarity and the extra and missing members per row. Useful for role mining.
+- When a report names a business role, group or user that does not match exactly, the builder suggests the closest matches and asks which one you meant.
+- The plain-language box understands interchangeable terms: person and identity; account, principal and user; business role and access package.
+- Custom reports can use sign-in activity: last sign-in, days since last sign-in (counted from when the data was collected, like the Stale Accounts report) and when sign-in data was collected — so "not signed in for 90 days" and "never signed in" can be built by hand or asked for in plain language.
+- A report that stops at its row limit now says so above the results, instead of presenting the first rows as the whole answer.
+- Added the "Build custom reports" permission. Anyone who can read data can open and run saved reports; only this permission can create, change or delete them.
+- The plain-language half needs an optional extra container, the report generator (2 CPU, 4 GB memory, no GPU). On Docker it is a compose profile on an internal network with no published port and no internet access; on Azure an opt-in Container App that scales to zero, so it only costs while in use, protected by a per-deployment API key. Existing installations get custom reports with a normal update; the generator is added only when an operator chooses to deploy it. Without it, reports are built by hand.
+- On Docker the report generator loads its model only while it is used: opening the report builder loads it in seconds (with a timer), and after 15 minutes without a question it is unloaded and gives its memory back. The idle time is configurable, and 0 keeps the model loaded.
+- Admin → LLM shows which model this release ships for the report generator and whether it is answering.
+- Documentation: Custom Reports (how to build one and what it cannot do), Report Generator (why it exists, the model and its licence, the measurements and every model evaluated, privacy, sizing, Docker and Azure deployment, and what an existing installation has to do), and the internals for maintainers.
+
+## Changes in this PR
+
 - Added sign-in activity to the user detail page: last interactive, non-interactive and successful sign-in (and the extra service-principal variants), last use per application when sign-in logs are collected, each shown with the date the data was measured
 - Added a sortable, filterable "Last sign-in" column to the Users list (Never / over 30, 90 or 180 days), included in the list export
 - Added eight standard audit reports: Stale Accounts, Never Signed In, Stale Guest Accounts, Disabled Accounts With Access, Missing Managers, Privileged Accounts, Access Outside Roles and Empty Groups
