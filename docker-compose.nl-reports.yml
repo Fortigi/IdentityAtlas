@@ -44,6 +44,9 @@ services:
     pids_limit: 512
     mem_limit: "${REPORT_GENERATOR_MEMORY:-4g}"
     cpus: "${REPORT_GENERATOR_CPUS:-2}"
+    # Without this the generator stays down after the host restarts while web and
+    # postgres come back — the builder then reports the model server as unreachable.
+    restart: unless-stopped
 
 networks:
   report-generator:

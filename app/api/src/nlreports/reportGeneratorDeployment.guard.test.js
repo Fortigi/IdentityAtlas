@@ -110,6 +110,17 @@ describe('report-generator container start-up', () => {
     expect(notice).toMatch(/Apache License 2\.0/);
   });
 
+  it('comes back after the host restarts, in production and development alike', () => {
+    // Found on sk9: after a VM restart web and postgres came back but the generator
+    // did not (no restart policy in the development overlay), and the builder said
+    // the model server was unreachable.
+    for (const file of ['docker-compose.prod.yml', 'docker-compose.nl-reports.yml']) {
+      const text = read(file);
+      const service = text.slice(text.indexOf('  report-generator:\n'), text.indexOf('\nnetworks:'));
+      expect(service, `${file}: report-generator needs a restart policy`).toMatch(/^\s+restart: unless-stopped$/m);
+    }
+  });
+
   it('runs as a non-root user that can write the prompt cache', () => {
     const dockerfile = read(DOCKERFILE);
     expect(dockerfile).toMatch(/^USER 1000$/m);
