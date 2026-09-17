@@ -113,9 +113,17 @@ Three failure modes are handled in code rather than left to the model:
   cloud model, no API key to a provider, and no telemetry in this path.
 - **The model receives**: the analyst's question, the catalog (entity, field and relation names with
   their descriptions), the type values that exist in this deployment (account types, resource types,
-  system names) and, while refining, the current report definition.
-- **The model never receives**: rows, query results, or anything looked up in the database on its
-  behalf. Name lookups ("did you mean…") are done by the database, not by the model.
+  system names), while refining the current report definition, and — for a name the question
+  mentions — **which fields that name occurs in**.
+- **That last one is the only thing looked up in the data for the model, and it is deliberately
+  narrow.** When a question names something ("guest accounts from Contoso"), the API checks, per name,
+  whether it occurs as a whole word in a fixed set of text fields (name, email, company, department, job
+  title, description) and in system names. The model is told the field names only —
+  `"Contoso": user.companyName, user.email` — never a row, a value from the row, or a count. It
+  learns that a word the analyst typed exists in the data, which the analyst already implied by asking.
+  Without it, the model guessed where an organisation name lives and filtered on an unrelated system.
+- **The model never receives**: rows, query results, counts, or any value it did not get from the
+  analyst. Name lookups ("did you mean…") are done by the database, not by the model.
 - **Names do reach it in one way, and it is worth being exact about it.** Whatever the analyst types is
   sent as typed, names included. And once an analyst confirms a "did you mean", the confirmed record's
   name is written into the definition — so if they then refine the report in words, that definition,

@@ -68,8 +68,9 @@ When the report generator is deployed, the builder has a **Describe it** box. Ty
 
 > Guest accounts that don't have a manager, or whose manager is disabled
 
-The model turns that into a report definition. It never sees your data — only your question and the
-list of fields it may use. What comes back is always shown as editable criteria plus the
+The model turns that into a report definition. It never sees your data — only your question, the
+list of fields it may use, and, for a name you mention, which of those fields the name occurs in
+(see [Names in your question](#names-in-your-question)). What comes back is always shown as editable criteria plus the
 plain-language reading, because **the model is often right but never guaranteed to be right**. Check
 it before you save.
 
@@ -78,6 +79,10 @@ The generator may answer with a question instead of a report:
 - **"Did you mean…?"** — you named something (a business role, a group, a person) whose name does not
   match exactly. Pick the right one, type the exact name, or keep what you wrote. This one is reliable:
   the database does the lookup, not the model.
+- **"Which should the report match?"** — you mentioned a name (an organisation, a code) that the report
+  it built does not use. You get the fields that name actually occurs in — for example *Company contains
+  "Contoso"* or *Email contains "Contoso"* — or you can leave it out. When the model had filtered on a
+  system instead, picking a field also removes that system filter. Nothing runs on the guess.
 - **"I cannot build this"** — the report needs information Identity Atlas does not hold, and you get
   a note saying so rather than a report built on the wrong field. Asking for users with MFA switched
   off is an example.
@@ -86,6 +91,15 @@ The generator may answer with a question instead of a report:
   deliberately ambiguous requests instead of asking — "everyone with admin rights" came back as one
   kind of admin without saying so. Be specific, and read the plain-language summary: that is where a
   guess shows.
+
+### Names in your question
+
+Names are recognised when they are clearly names: text in quotes, codes in capitals (*RDW*, *SAP*),
+and capitalised words that do not start a sentence (*Contoso*, *Maastricht UMC+*). Before the model
+answers, Identity Atlas looks each one up as a whole word and tells the model where it is — so *"guests
+from Contoso"* filters on the company rather than on something the model guessed. A lower-case name
+(*"guests from contoso"*) is not recognised this way: put it in quotes, or capitalise it, when the
+model gets it wrong. Two-letter words are never looked up — they occur almost everywhere.
 
 You can keep talking to it: *"only enabled accounts, and show the department"* updates the definition
 you have, including any changes you made by hand.
