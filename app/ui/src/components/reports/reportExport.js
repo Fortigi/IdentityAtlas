@@ -7,10 +7,17 @@
 // other file in this folder.
 
 import { filenameFromDisposition, triggerDownload } from '@ui/utils/download';
+import { paramsQueryString } from './reportParams';
 
-/** The export endpoint for one report in one format. */
-export function reportExportUrl(name, format) {
-  return `/api/reports/${encodeURIComponent(name)}/export?format=${encodeURIComponent(format)}`;
+/**
+ * The export endpoint for one report in one format, carrying the parameters the
+ * screen is showing — a download of a report run at 30 days must not silently
+ * come back at the 90-day default.
+ */
+export function reportExportUrl(name, format, params) {
+  const extra = paramsQueryString(params).replace(/^\?/, '');
+  return `/api/reports/${encodeURIComponent(name)}/export?format=${encodeURIComponent(format)}`
+    + (extra ? `&${extra}` : '');
 }
 
 /**
@@ -19,8 +26,8 @@ export function reportExportUrl(name, format) {
  * The server names the file via Content-Disposition — the local fallback only
  * covers a response that doesn't carry one.
  */
-export async function downloadReport({ authFetch, name, format }) {
-  const res = await authFetch(reportExportUrl(name, format));
+export async function downloadReport({ authFetch, name, format, params }) {
+  const res = await authFetch(reportExportUrl(name, format, params));
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
   const blob = await res.blob();

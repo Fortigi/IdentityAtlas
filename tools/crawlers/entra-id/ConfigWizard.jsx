@@ -121,6 +121,23 @@ const DEFAULT_GROUP_ATTRS = [
   'onPremisesSyncEnabled',
 ];
 
+// The schedule a NEW Entra crawler is proposed with.
+//
+// Sign-in activity (`signInActivity`) is only returned by the full `/users`
+// fetch — `/users/delta` does not carry it — so a delta-only crawler never
+// refreshes it and every activity-based report ages out of usefulness within
+// days. One full sync a day keeps it current; hourly deltas keep everything
+// else fresh cheaply. This is the combination the step's own help text
+// recommends, so the wizard now proposes it instead of describing it.
+//
+// Proposed, not imposed: the entries render in the normal editor and can be
+// changed or removed before saving, and an existing crawler's schedules are
+// never touched.
+export const DEFAULT_SCHEDULES = [
+  { enabled: true, frequency: 'daily', hour: 2, minute: 0, syncMode: 'full' },
+  { enabled: true, frequency: 'hourly', minute: 0, syncMode: 'delta' },
+];
+
 // Builds the { displayName, configPayload } pair sent to POST/PATCH
 // /admin/crawler-configs from the wizard's step state. Pulled out of
 // handleSave as a pure function — this is where the "Advanced options
@@ -234,7 +251,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
   const [schedules, setSchedules] = useState(() => {
     if (initialConfig?.schedules?.length) return initialConfig.schedules;
     if (initialConfig?.schedule) return [initialConfig.schedule];
-    return [];
+    return isEdit ? [] : [...DEFAULT_SCHEDULES];
   });
 
   // Advanced options — exposed in a collapsible on step 5. These are read
@@ -711,7 +728,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
       {step === 5 && (
         <div>
           <h4 className="text-sm font-semibold mb-3 dark:text-gray-200">Schedule</h4>
-          <p className="text-xs text-gray-500 mb-3 dark:text-gray-400">Configure when this crawler runs automatically. You can add multiple schedules (e.g., a hourly delta + a daily full sync).</p>
+          <p className="text-xs text-gray-500 mb-3 dark:text-gray-400">Configure when this crawler runs automatically. You can add multiple schedules (e.g., a hourly delta + a daily full sync). Sign-in activity is only returned by a full sync, so keep at least one daily full run if you rely on the activity reports.</p>
 
           {schedules.length === 0 && (
             <div className="mb-3 p-4 bg-gray-50 border border-gray-200 rounded text-center text-sm text-gray-500 dark:bg-gray-700/50 dark:border-gray-600 dark:text-gray-400">

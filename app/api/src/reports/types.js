@@ -26,9 +26,23 @@
  */
 
 /**
+ * @typedef {Object} ReportNotice
+ *   A short statement ABOUT the rows rather than one of them: what the numbers
+ *   were computed from, and when they stop being trustworthy. Rendered above the
+ *   table. Generic on purpose — any template may return notices, and the engine
+ *   never reads their text.
+ * @property {'info'|'warning'} severity
+ * @property {string} text
+ */
+
+/**
  * @typedef {Object} ReportRunResult
  * @property {Object[]} rows  One object per row; keys match the column keys,
  *                            plus an optional `_entity` link target.
+ * @property {ReportNotice[]} [notices]  Screen-only context for those rows.
+ *                            Downloads stay rows-only, so a report whose rows
+ *                            need the caveat to be readable must also carry it
+ *                            as a column.
  */
 
 /**

@@ -243,3 +243,39 @@ describe('access-package detail — compliance status of the latest review insta
     });
   }
 });
+
+describe('GET /user/:id/activity', () => {
+  const route = `/api/user/${VALID_ID}/activity`;
+
+  it('rejects a malformed id before querying', async () => {
+    const res = await request(app).get('/api/user/nope/activity');
+    expect(res.status).toBe(400);
+    expect(dbQuery).not.toHaveBeenCalled();
+  });
+
+  it('returns the aggregate and per-app lists', async () => {
+    dbQuery.mockImplementation((sql) => Promise.resolve({
+      rows: /LEFT JOIN "Principals" sp/.test(sql)
+        ? [{ resourceId: VALID_ID, appDisplayName: 'App', measuredAt: '2026-09-16' }]
+        : [{ activityType: 'SignIn', extendedAttributes: null, measuredAt: '2026-09-16' }],
+    }));
+    const res = await request(app).get(route);
+    expect(res.status).toBe(200);
+    expect(res.body.aggregates).toEqual([{ activityType: 'SignIn', extendedAttributes: null, measuredAt: '2026-09-16' }]);
+    expect(res.body.perApp).toEqual([{ resourceId: VALID_ID, appDisplayName: 'App', measuredAt: '2026-09-16' }]);
+  });
+
+  it('reads a database without the activity table as "no activity", not an error', async () => {
+    dbQuery.mockRejectedValue(SCHEMA_ERR);
+    const res = await request(app).get(route);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ aggregates: [], perApp: [] });
+  });
+
+  it('surfaces a real failure as a 500 without leaking the message', async () => {
+    dbQuery.mockRejectedValue(REAL_ERR);
+    const res = await request(app).get(route);
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'Failed to fetch user activity' });
+  });
+});

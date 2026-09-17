@@ -617,8 +617,87 @@ Describe 'Demo dataset — opt-in high-cardinality volume slice (#928)' {
         # The opt-in is the whole point: Verify-DemoDataset.ps1's exact counts,
         # the Capture-the-Flag answers and the E2E suite all pin the standard
         # company's resource total (46 since #370 added the role-drift and
-        # shared-grant scenarios) — the volume slice must not shift it.
-        @($script:data.resources).Count | Should -Be 46
+        # shared-grant scenarios, 47 since #1222 added an empty group) — the
+        # volume slice must not shift it.
+        @($script:data.resources).Count | Should -Be 47
         @($script:data.resources | Where-Object { $_.displayName -like 'SG-Vol-*' }).Count | Should -Be 0
+    }
+}
+
+Describe 'Demo dataset — every ingest envelope carries a system (#1222)' {
+
+    # The ingest API rejects any record batch without a systemId (400 "systemId
+    # is required"). The principal-activity step once posted without one and
+    # broke every fresh demo seed. This runs the real ingest script against a
+    # mocked API and checks the envelopes it actually sends.
+    BeforeAll {
+        $script:ingestScript  = Join-Path $script:repoRoot 'test' 'demo-dataset' 'Ingest-DemoDataset.ps1'
+        $script:activityCount = @($script:data.principalActivity).Count
+        # Record every record batch's endpoint as it is posted. A call-count
+        # assertion can't express "every section was posted": the per-system
+        # endpoints send one batch per system, so the total moves whenever the
+        # dataset gains a system — while a section silently dropping out of the
+        # seed would not move it at all.
+        #
+        # Global rather than $script: — the mock body runs in the caller's scope,
+        # which here is Ingest-DemoDataset.ps1, so a $script: variable declared
+        # in this file is not the one the mock would write to.
+        $global:FGDemoPostedEndpoints = [System.Collections.Generic.List[string]]::new()
+        Mock Invoke-RestMethod {
+            if ($Body -is [string] -and $Body -like '*"records":*') {
+                $global:FGDemoPostedEndpoints.Add(($Uri.AbsolutePath -replace '^/api/', ''))
+            }
+            if ($Uri -like '*/ingest/systems') {
+                # Real ids deliberately not 1..N, so a missing remap shows.
+                return [pscustomobject]@{ inserted = 5; updated = 0; systemIds = @(501, 502, 503, 504, 505) }
+            }
+            return [pscustomobject]@{ inserted = 1; updated = 0; deleted = 0 }
+        }
+        & $script:ingestScript -ApiKey 'fgc_test' -DatasetPath $script:datasetPath *> $null
+        $script:postedEndpoints = @($global:FGDemoPostedEndpoints)
+    }
+
+    AfterAll { Remove-Variable -Name FGDemoPostedEndpoints -Scope Global -ErrorAction SilentlyContinue }
+
+    It 'posts a record batch for every section, and to no other endpoint' {
+        $expected = @(
+            'ingest/systems'
+            'ingest/contexts'
+            'ingest/principals'
+            'ingest/context-members'
+            'ingest/resources'
+            'ingest/resource-assignments'
+            'ingest/resource-relationships'
+            'ingest/identities'
+            'ingest/identity-members'
+            'ingest/governance/catalogs'
+            'ingest/governance/policies'
+            'ingest/governance/certifications'
+            'ingest/principal-activity'
+        ) | Sort-Object
+
+        # Set equality in both directions: a missing section means the seed no
+        # longer loads it, an extra one means a batch is going somewhere this
+        # test has never checked the envelope of.
+        (@($script:postedEndpoints) | Sort-Object -Unique) | Should -Be $expected
+    }
+
+    It 'never sends a record batch without a systemId (systems itself excepted)' {
+        Should -Invoke Invoke-RestMethod -Scope Describe -Times 0 -Exactly -ParameterFilter {
+            $Uri -like '*/ingest/*' -and $Uri -notlike '*/ingest/systems' -and
+            $Body -is [string] -and $Body -like '*"records":*' -and
+            -not ($Body | ConvertFrom-Json).systemId
+        }
+    }
+
+    It 'posts principal activity once, as a delta under the Entra system of its principals' {
+        Should -Invoke Invoke-RestMethod -Scope Describe -Times 1 -Exactly -ParameterFilter {
+            $Uri -like '*/ingest/principal-activity'
+        }
+        Should -Invoke Invoke-RestMethod -Scope Describe -Times 1 -Exactly -ParameterFilter {
+            $Uri -like '*/ingest/principal-activity' -and
+            ($b = $Body | ConvertFrom-Json).systemId -eq 501 -and $b.syncMode -eq 'delta' -and
+            @($b.records).Count -eq $script:activityCount
+        }
     }
 }

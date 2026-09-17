@@ -72,6 +72,30 @@ export async function discoverColumns(_pool, tableName) {
 export const SOFT_DELETE_TABLES = new Set(['Principals', 'Resources', 'ResourceAssignments']);
 
 /**
+ * The `"updatedAt" = now()` fragment an upsert needs so the column means "when
+ * this row was last ingested".
+ *
+ * The update set is built from the PAYLOAD's columns, and no crawler sends
+ * `updatedAt` — so without this, a re-ingested row keeps the timestamp of its
+ * first insert. That is invisible for most tables but wrong for
+ * `PrincipalActivity`, where `updatedAt` IS the measurement moment every
+ * activity-based report counts back from: a daily sync would leave "measured
+ * on" pinned to the day the account was first seen. Same shape as the
+ * `deletedAt` re-activation line below — a column the engine stamps itself
+ * because the payload can't.
+ *
+ * Insert-path is covered by the column's `DEFAULT now()`.
+ *
+ * @param {{name: string}[]} allColumns    every column of the target table
+ * @param {{name: string}[]} activeColumns the columns this payload carries
+ * @returns {string} `, "updatedAt" = now()` or ''
+ */
+export function updatedAtStamp(allColumns, activeColumns) {
+  const has = cols => cols.some(c => c.name === 'updatedAt');
+  return has(allColumns) && !has(activeColumns) ? ', "updatedAt" = now()' : '';
+}
+
+/**
  * Core ingest operation. Bulk-COPY records into a temp table, then upsert
  * from the temp table into the target.
  */
@@ -150,6 +174,9 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     // (it's back in the source, so it's live again). deletedAt isn't in the payload,
     // so we set it explicitly on every upsert of a soft-delete table.
     const reactivate = SOFT_DELETE_TABLES.has(tableName) ? ', "deletedAt" = NULL' : '';
+    // "This row was ingested again just now" — see updatedAtStamp().
+    const touch = updatedAtStamp(await discoverColumns(null, tableName), activeColumns);
+    const engineSet = `${reactivate}${touch}`;
 
     let upsertSql;
     if (nonKeyCols.length > 0) {
@@ -165,15 +192,16 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
       upsertSql = `
         INSERT INTO "${tableName}" (${insertCols})
         SELECT ${insertCols} FROM "${tempName}"
-        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET ${updateSet}${reactivate}
+        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET ${updateSet}${engineSet}
         RETURNING (xmax = 0) AS "wasInsert"
       `;
-    } else if (reactivate) {
-      // Key-only soft-delete table: nothing to update except re-activation.
+    } else if (engineSet) {
+      // Key-only table: nothing to update except what the engine stamps itself
+      // (re-activation and/or the ingest timestamp). Drop the leading comma.
       upsertSql = `
         INSERT INTO "${tableName}" (${insertCols})
         SELECT ${insertCols} FROM "${tempName}"
-        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET "deletedAt" = NULL
+        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET ${engineSet.slice(2)}
         RETURNING (xmax = 0) AS "wasInsert"
       `;
     } else {

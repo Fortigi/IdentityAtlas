@@ -8,23 +8,35 @@
 // rows and the download formats all come from the API response, and the body is
 // drawn by whichever renderer the report's `form` resolves to.
 
-import { createElement, useEffect, useState } from 'react';
+import { createElement, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { formatDate } from '@ui/utils/formatters';
 import EmptyState from '@ui/components/EmptyState';
+import SchemaConfigForm from '@ui/components/SchemaConfigForm';
 import ReportError from './ReportError';
+import ReportNotices from './ReportNotices';
 import { resolveFormRenderer } from './formRenderers';
 import { downloadReport } from './reportExport';
+import { paramsQueryString, withSchemaDefaults } from './reportParams';
 
 export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCacheData }) {
   const { authFetch } = useAuth();
   const [downloading, setDownloading] = useState(null);
   const [downloadError, setDownloadError] = useState(null);
+  // What the user set, not what the report ran with: an untouched parameter
+  // stays out of the query string so the server's declared default applies.
+  const [params, setParams] = useState({});
 
+  const query = paramsQueryString(params);
   const { data: report, loading, error, reload } = useFetch(
-    `/api/reports/${encodeURIComponent(reportName)}/rows`, { authFetch },
+    `/api/reports/${encodeURIComponent(reportName)}/rows${query}`, { authFetch },
   );
+
+  // The form shows the effective values — schema defaults until overridden —
+  // so a threshold is visible and editable before it has been touched.
+  const schema = report?.parametersSchema;
+  const formValues = useMemo(() => withSchemaDefaults(schema, params), [schema, params]);
 
   // A tab opened straight from a URL is labelled with the report's slug; relabel
   // it as soon as the report says what it is called.
@@ -37,7 +49,7 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
     setDownloading(format);
     setDownloadError(null);
     try {
-      await downloadReport({ authFetch, name: reportName, format });
+      await downloadReport({ authFetch, name: reportName, format, params });
     } catch (err) {
       setDownloadError(err.message);
     } finally {
@@ -91,6 +103,21 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
           </button>
         </div>
       </div>
+
+      {/* Parameters apply on change: the fetch URL carries them, so editing a
+          threshold re-runs the report the same way Refresh does. */}
+      {Object.keys(schema?.properties || {}).length > 0 && (
+        <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+          <SchemaConfigForm
+            schema={schema}
+            params={formValues}
+            onChange={setParams}
+            idPrefix={`report-${reportName}`}
+          />
+        </div>
+      )}
+
+      <ReportNotices notices={report.notices} />
 
       {downloadError && (
         <div className="mb-3">
