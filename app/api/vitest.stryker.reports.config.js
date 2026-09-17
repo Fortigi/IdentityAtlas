@@ -32,6 +32,8 @@ export default defineConfig({
       'src/nlreports/savedReports.test.js',
       'src/nlreports/service.test.js',
       'src/nlreports/spec.test.js',
+      'src/nlreports/terms.test.js',
+      'src/nlreports/service.terms.test.js',
       'src/routes/nlReports.test.js',
       'src/contexts/plugins/orphaned-accounts.test.js',
       'src/lib/dateOnly.test.js',

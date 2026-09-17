@@ -31,6 +31,7 @@ import { MODEL_IS_FIXED, listModels, modelState } from '../nlreports/llm.js';
 import { getReportModel, setReportModel } from '../nlreports/settings.js';
 import { MEASURES, manyRelationsOf } from '../nlreports/compare.js';
 import { applyChoice, resolveNamedObjects, searchNames } from '../nlreports/references.js';
+import { applyTermChoice } from '../nlreports/terms.js';
 import { validateSpec } from '../nlreports/spec.js';
 import { explainSpec } from '../nlreports/explain.js';
 import { query } from '../db/connection.js';
@@ -207,16 +208,30 @@ router.post('/nl-reports/interpret', analystGate, async (req, res) => {
   }
 });
 
+/**
+ * Apply the analyst's answer to a confirmation. A term choice adds (and may drop)
+ * conditions, so its result is validated again.
+ * @returns {object|null} the spec to continue with, or null when the choice does not fit
+ */
+export function applyResolveChoice(spec, choice, values) {
+  if (!choice) return spec;
+  if (choice.kind === 'term') {
+    const revalidated = applyTermChoice(spec, choice) ? validateSpec(spec, values) : null;
+    return revalidated?.ok ? revalidated.spec : null;
+  }
+  return applyChoice(spec, choice) ? spec : null;
+}
+
 // POST /api/nl-reports/resolve { spec, choice? } — apply the answer to a "did you mean"
 // confirmation and look the named objects up again. No model involved.
 router.post('/nl-reports/resolve', analystGate, async (req, res) => {
   if (!req.body?.spec || typeof req.body.spec !== 'object') return res.status(400).json({ error: 'spec is required' });
   try {
-    const { ok, spec, errors } = validateSpec(req.body.spec, await loadValues());
+    const values = await loadValues();
+    const { ok, spec: validated, errors } = validateSpec(req.body.spec, values);
     if (!ok) return res.status(400).json({ error: 'Invalid report definition', errors });
-    if (req.body.choice && !applyChoice(spec, req.body.choice)) {
-      return res.status(400).json({ error: 'That choice does not match anything in the report' });
-    }
+    const spec = applyResolveChoice(validated, req.body.choice, values);
+    if (!spec) return res.status(400).json({ error: 'That choice does not match anything in the report' });
     const { confirm } = await resolveNamedObjects(spec, query);
     res.json({ spec, confirm, explanation: explainSpec(spec) });
   } catch (err) {

@@ -19,7 +19,8 @@ vi.mock('../nlreports/settings.js', () => ({
   getReportModel: vi.fn(async () => 'test-model'),
   setReportModel: vi.fn(),
 }));
-vi.mock('../nlreports/references.js', () => ({
+vi.mock('../nlreports/references.js', async (importOriginal) => ({
+  normalizeName: (await importOriginal()).normalizeName,
   applyChoice: vi.fn(() => true),
   resolveNamedObjects: vi.fn(async () => ({ confirm: null })),
   searchNames: vi.fn(async () => [{ id: 'r1', name: 'Fortigi - Algemeen - Maten', type: 'BusinessRole' }]),
@@ -37,6 +38,7 @@ import { modelState } from '../nlreports/llm.js';
 import { applyChoice, resolveNamedObjects } from '../nlreports/references.js';
 import { createSavedReport, deleteSavedReport, prepareSavedReport } from '../nlreports/savedReports.js';
 import router, { parseInterpretRequest } from './nlReports.js';
+import { MAX_CONDITIONS } from '../nlreports/spec.js';
 
 const app = mountRouter(router);
 const api = () => request(app);
@@ -271,6 +273,33 @@ describe('run and resolve', () => {
     expect(res.body.spec.entity).toBe('user');
     expect(res.body.explanation.title).toBe('All users');
     expect(res.body.confirm).toBeNull();
+  });
+
+  it('applies a term choice as a validated filter, without the name lookup deciding it', async () => {
+    const spec = { ...SPEC, conditions: [{ type: 'field', field: 'userType', op: 'eq', value: 'Guest' }] };
+    const choice = { kind: 'term', path: [], name: 'Company or Email contains “ACME”', term: 'ACME', fields: ['companyName', 'email'], drop: [] };
+    const res = await api().post('/api/nl-reports/resolve').send({ spec, choice });
+    expect(res.status).toBe(200);
+    expect(res.body.spec.conditions[1]).toEqual({ type: 'group', match: 'any', conditions: [
+      { type: 'field', field: 'companyName', op: 'contains', value: 'ACME' },
+      { type: 'field', field: 'email', op: 'contains', value: 'ACME' },
+    ] });
+    expect(res.body.explanation.lines.map(l => l.text).join(' | ')).toMatch(/Company contains "ACME"/);
+    expect(applyChoice).not.toHaveBeenCalled();
+  });
+
+  it('refuses a term choice that would make the definition invalid, such as too many conditions', async () => {
+    const full = { ...SPEC, conditions: Array.from({ length: MAX_CONDITIONS }, () => ({ type: 'field', field: 'userType', op: 'eq', value: 'Guest' })) };
+    const choice = { kind: 'term', path: [], name: 'x', term: 'ACME', fields: ['companyName'] };
+    const res = await api().post('/api/nl-reports/resolve').send({ spec: full, choice });
+    expect(res.status).toBe(400);
+  });
+
+  it('refuses a term choice on a field the report entity does not have', async () => {
+    const choice = { kind: 'term', path: [], name: 'x', term: 'ACME', fields: ['memberCount'] };
+    const res = await api().post('/api/nl-reports/resolve').send({ spec: SPEC, choice });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/does not match anything/);
   });
 });
 

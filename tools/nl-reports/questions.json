@@ -870,5 +870,25 @@
         }
       ]
     }
+  },
+  {
+    "id": "org-users-company",
+    "question": "all enabled users from Fortigi",
+    "note": "An organisation named in the question: filter on company, not on a system (the name lookup tells the model where the name occurs).",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "field": "accountEnabled",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "field": "companyName",
+          "op": "contains",
+          "value": "Fortigi"
+        }
+      ]
+    }
   }
 ]
