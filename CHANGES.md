@@ -1,5 +1,16 @@
 ## Changes in this PR
 
+- Added sign-in activity to the user detail page: last interactive, non-interactive and successful sign-in (and the extra service-principal variants), last use per application when sign-in logs are collected, each shown with the date the data was measured
+- Added a sortable, filterable "Last sign-in" column to the Users list (Never / over 30, 90 or 180 days), included in the list export
+- Added eight standard audit reports: Stale Accounts, Never Signed In, Stale Guest Accounts, Disabled Accounts With Access, Missing Managers, Privileged Accounts, Access Outside Roles and Empty Groups
+- Activity-based reports count inactivity from when each system's activity data was last collected rather than from today, state that measurement date, warn when the data is more than two days old, and skip systems with no activity data instead of listing every account as stale
+- Reports with a threshold (such as the number of inactive days) now show a form to change it
+- Fixed the "measured on" date of sign-in activity staying at the first time an account was ever crawled
+- Fixed Entra ID delta syncs missing attribute changes (department, job title, …) on users and service principals between full syncs
+- New Entra ID crawlers now propose a daily full sync at 02:00 plus an hourly delta sync by default
+
+## Changes in this PR
+
 - Hardened installations running with authentication disabled: state-changing requests that a browser marks as coming from another website are now refused, and requests for a host name the server does not recognise are answered with "421 Misdirected Request". IP addresses, `localhost`, single-label intranet names and `.local` names keep working without configuration; add any other host name users type to the new `ALLOWED_HOSTS` setting (or set `PUBLIC_BASE_URL`).
 - "Clean Database" now requires an explicit confirmation in the request itself (`{"confirm": "DELETE ALL DATA"}`), in every authentication mode. The Admin → Data page sends it automatically; scripts calling the endpoint directly must add it.
 - Hardened crawler API-key authentication against request floods: invalid keys are rejected before large upload bodies are read, key verification no longer blocks the server while it runs, repeated failures from one client are throttled, and the crawler audit log is capped per crawler (`CRAWLER_AUDIT_LOG_MAX_ROWS`, default 10,000 rows).
