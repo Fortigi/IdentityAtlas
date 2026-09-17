@@ -146,6 +146,27 @@ with the name search from custom reports (`references.js` → `searchNames`).
 **Re-opening.** A tree created by the assistant can be opened in the builder again from its context
 page — the recipe is its run parameters — to add a term or exclude a group, then refresh in place.
 
+### Changes over time
+
+New matches are **included automatically** — the context is kept current by the mechanism that already
+keeps every generated tree current (`refreshGeneratedContexts()` after each crawl), not by a second one.
+What is added is **making those changes visible**:
+
+- **Record what a run changed.** `reconcile()` already deletes and re-inserts the algorithm-owned
+  members of each context it produces; it diffs the old set against the new one first and stores the
+  result on the run row (a new `memberChanges` column on `ContextAlgorithmRuns`: per context, the ids
+  added and removed, capped). This is a runner change, so every plugin's run history gains it, not only
+  recipes.
+- **"Since you last reviewed."** A review is a run a person triggered (save or refresh from the
+  builder); crawl refreshes are `triggeredBy='crawl-refresh'`. The changes since the last reviewed run
+  are the union of the crawl runs after it — no pending state, no second copy of the membership.
+- **Surfaced** as a badge on the context (*"4 new, 1 gone since 12 Sep"*) and, in the builder, as a
+  *New* marker on those rows in the match table, where excluding one is the usual single click. Saving
+  from the builder is the review, which clears the badge.
+
+Holding new matches for approval before they join is **not** in scope: it would need a pending
+membership state that nothing else has.
+
 ## 4. The population strategy
 
 *"Groups that (by overwhelming majority) only people from Inkoop have."*
@@ -212,9 +233,21 @@ New:
 
 - **Feature flag** `contextAssistant` (experimental, off by default) — independent of `customReports`
   so each can be switched on on its own merit.
-- **Permission.** Plugin routes are gated on `admin.context-plugins` today — an *admin* permission a
-  role miner may not hold. Proposed: a new `data.write.contexts-assistant` for the assistant routes, and
-  the `context-recipe` run accepted under that permission too (see open questions).
+- **Permission — split view from create.** Today one *admin* permission, `admin.context-plugins`, gates
+  every context write (`writeContexts` in `routes/contexts/shared.js`) as well as the plugin routes, so a
+  role miner who may not run arbitrary plugins cannot build a context at all. Renaming it would break
+  customers' saved role mappings (see the catalogue header in `auth/permissions.js`), so the split
+  **adds** a permission instead of renaming one:
+
+  | Permission | Allows |
+  |---|---|
+  | `data.read` (unchanged) | list and view contexts, trees, run history |
+  | **`data.write.contexts`** — *Build contexts* (new, in the RoleMiner seed) | create manual contexts and edit their members; use the context assistant; create, re-open and refresh `context-recipe` trees |
+  | `admin.context-plugins` (unchanged meaning) | everything above, plus running and configuring *any* plugin and deleting generated trees |
+
+  Every route that accepts `data.write.contexts` also accepts `admin.context-plugins`, so no existing
+  mapping loses anything. Customised mappings must grant `data.write.contexts` by hand — the same note
+  custom reports carries for `data.write.reports`.
 - Without a model server, steps 2–4 still work: the miner types their own terms. The assistant is an
   accelerator on a feature that stands by itself.
 
@@ -259,23 +292,29 @@ wait for a better model.
 | Step | What | Model? |
 |---|---|---|
 | 0 · Spike | Prompt + grammar + eval set on Fortigi data, terms only. Go/no-go on term quality. | yes |
-| 1 · Recipe plugin | `context-recipe` with `terms`, include/exclude, `flat`/`byTerm`; `evaluate`; tests | no |
+| 1 · Recipe plugin | `context-recipe` with `terms`, include/exclude, `flat`/`byTerm`; `evaluate`; `data.write.contexts`; tests | no |
 | 2 · Builder | Builder page (terms, matches, save), fourth wizard card, typing terms by hand | no |
+| 2b · Changes over time | run-level member diff (`memberChanges`), "since you last reviewed" badge and *New* markers | no |
 | 3 · Assistant | `interpret`, `suggest-terms`, per-prompt warm-up, clarify rounds | yes |
 | 4 · Population | the exclusivity strategy + person-field values | partly |
 | 5 · Extras | related words, `byToken`, re-open from context page, account/identity targets | no |
 
 Steps 1–2 are useful without any model, which makes them a safe first merge.
 
-## 9. Open questions
+## 9. Decisions (Wim, 2026-09-17)
 
-1. **Does the model see object names?** Proposed: no (identical promise to custom reports), with
-   "related words" doing the data-driven part. Letting the local model read accepted group names would
-   likely improve suggestions for customer-specific names — a conscious trade-off.
-2. **New matches after a crawl** — included automatically (proposed for v1, with a "N new since you last
-   reviewed" count on the context), or held for review (needs a pending state that does not exist).
-3. **Permission** — a new `data.write.contexts-assistant`, or open `admin.context-plugins` to role
-   miners?
-4. **One context or a tree by default** — `byTerm` gives the miner visibility of *why*; `flat` is what
-   the matrix filter wants. Proposed default: `byTerm` under a root, since filtering on the root includes
-   the children.
+1. **The model produces a word cloud; the data is searched deterministically.** Same division of labour
+   as custom reports, where the model writes `name is "Wim"` and `references.js` does the lookup. The
+   model does not read object names in v1. Because the model is local, that is not a hard line: it can
+   be revisited when there is a concrete use case the word cloud plus "related words" cannot serve.
+2. **Membership follows the data over time**, through the existing post-crawl refresh, extended to
+   record and surface what changed (§3 *Changes over time*).
+3. **Permissions: split view from create**, simply — one new `data.write.contexts` next to the existing
+   ones (§5 *Gates*).
+4. **Development data:** a copy of the Fortigi database from sk9, on sk7.
+
+## 10. Open
+
+- **One context or a tree by default** — `byTerm` shows the miner *why*; `flat` is what the matrix
+  filter wants. Proposed default: `byTerm` under a root, since filtering on the root includes the
+  children.
