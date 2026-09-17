@@ -136,8 +136,12 @@ describe('GET /api/reports/:name/export', () => {
     const rows = await request(app).get('/api/reports/downloadable-report/rows').expect(200);
     const download = await request(app).get('/api/reports/downloadable-report/export?format=json').expect(200);
 
-    const { generatedAt: a, ...served } = rows.body;
+    // `notices` is the one deliberate difference: it is on-screen context about
+    // the rows, not part of the data, so a downloaded file carries the rows and
+    // nothing else. Everything else must match byte for byte.
+    const { generatedAt: a, notices, ...served } = rows.body;
     const { generatedAt: b, ...downloaded } = JSON.parse(download.text);
+    expect(notices).toEqual([]);
     expect(downloaded).toEqual(served);
     expect(Date.parse(a)).not.toBeNaN();
     expect(Date.parse(b)).not.toBeNaN();

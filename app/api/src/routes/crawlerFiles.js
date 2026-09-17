@@ -17,6 +17,7 @@ import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join, basename } from 'path';
 import * as db from '../db/connection.js';
 import { CRAWLER_MANIFESTS_DIR, _crawlerManifests, VALID_JOB_TYPES } from '../crawlerManifests.js';
+import { checkUploadCapacity, resolveUploadLimits } from '../lib/uploadCapacity.js';
 
 const router = Router();
 const gate = requirePermission('admin.csv-import');
@@ -131,6 +132,25 @@ router.get('/admin/crawler-configs/:configId/files', gate, async (req, res) => {
   }
 });
 
+// Refuse an upload the volume can't hold (free-space reserve / optional quota —
+// see lib/uploadCapacity.js). Sends the response and returns true when refused.
+async function refuseWithoutCapacity(req, res, crawlerType, configId) {
+  try {
+    const refusal = await checkUploadCapacity({
+      root: UPLOAD_ROOT,
+      folder: configFolder(crawlerType, configId),
+      incomingBytes: parseInt(req.get('content-length'), 10),
+      limits: resolveUploadLimits(),
+    });
+    if (!refusal) return false;
+    res.status(refusal.status).json({ error: refusal.error });
+  } catch (err) {
+    console.error('Upload capacity check failed:', err.message);
+    res.status(500).json({ error: 'Failed to check upload capacity' });
+  }
+  return true;
+}
+
 // ─── Upload one or more files ────────────────────────────────────────────────
 // Field name: "files" (multiple). Existing files with the same name are overwritten
 // by multer's diskStorage (it just opens the destination for write).
@@ -142,6 +162,7 @@ router.post(
     if (configId === null) return;
     const crawlerType = await assertUploadableConfig(configId, res);
     if (!crawlerType) return;
+    if (await refuseWithoutCapacity(req, res, crawlerType, configId)) return;
     req._crawlerType = crawlerType;
     next();
   },

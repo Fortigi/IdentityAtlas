@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { formatRelativeTime as formatTimeAgo } from '@ui/utils/formatters';
+import SchemaConfigForm from '@ui/components/SchemaConfigForm';
 
 const statusColors = {
   succeeded: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
@@ -28,68 +29,6 @@ const th = 'text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300';
 function StatusBadge({ status }) {
   return (
     <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${statusColors[status] || 'bg-gray-100 dark:bg-gray-700'}`}>{status}</span>
-  );
-}
-
-// One editable input for a single JSON-schema property.
-function FieldInput({ prop, value, onChange }) {
-  const cls = 'w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100';
-  if (Array.isArray(prop.enum)) {
-    return (
-      <select className={cls} value={value ?? ''} onChange={(e) => onChange(e.target.value || undefined)}>
-        <option value="">— none —</option>
-        {prop.enum.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
-    );
-  }
-  if (prop.type === 'boolean') {
-    return (
-      <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-        <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} />
-        {value ? 'On' : 'Off'}
-      </label>
-    );
-  }
-  if (prop.type === 'integer' || prop.type === 'number') {
-    return (
-      <input type="number" className={cls} value={value ?? ''}
-        onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))} />
-    );
-  }
-  if (prop.type === 'array') {
-    const text = Array.isArray(value) ? value.join(', ') : (value || '');
-    return (
-      <input type="text" className={cls} placeholder="comma, separated, values" value={text}
-        onChange={(e) => onChange(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))} />
-    );
-  }
-  return (
-    <input type="text" className={cls} value={value ?? ''}
-      onChange={(e) => onChange(e.target.value || undefined)} />
-  );
-}
-
-// Editable form rendered from a plugin's parametersSchema, pre-filled with the
-// tree's current parameters.
-function ConfigForm({ schema, params, onChange }) {
-  const props = schema?.properties || {};
-  const keys = Object.keys(props);
-  if (keys.length === 0) {
-    return <p className="text-sm text-gray-500 dark:text-gray-400">This plugin has no configurable parameters.</p>;
-  }
-  return (
-    <div className="space-y-3 max-w-xl">
-      {keys.map((k) => {
-        const p = props[k];
-        return (
-          <div key={k}>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">{p.title || k}</label>
-            {p.description && <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">{p.description}</p>}
-            <FieldInput prop={p} value={params[k]} onChange={(nv) => onChange({ ...params, [k]: nv })} />
-          </div>
-        );
-      })}
-    </div>
   );
 }
 
@@ -166,7 +105,8 @@ function PluginDetail({ selected, meta, draft, onDraftChange, saving, removing, 
       {/* Configuration */}
       <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
         <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">Configuration</h4>
-        <ConfigForm schema={meta?.parametersSchema} params={draft} onChange={onDraftChange} />
+        <SchemaConfigForm schema={meta?.parametersSchema} params={draft} onChange={onDraftChange}
+          emptyHint="This plugin has no configurable parameters." idPrefix="plugin-param" />
       </div>
 
       {notice && <div className="mt-3 text-sm text-emerald-700 dark:text-emerald-300">{notice}</div>}

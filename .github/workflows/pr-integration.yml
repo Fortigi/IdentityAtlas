@@ -498,7 +498,7 @@ jobs:
       - name: 'Test: Clean database and verify empty'
         run: |
           # Clean
-          CLEAN=$(curl -sf -X POST http://localhost:3001/api/admin/clean-database)
+          CLEAN=$(curl -sf -X POST http://localhost:3001/api/admin/clean-database -H 'Content-Type: application/json' -d '{"confirm":"DELETE ALL DATA"}')
           echo "Clean response: $CLEAN"
           # Verify key tables are empty
           USERS=$(curl -sf "http://localhost:3001/api/users?limit=1" | \

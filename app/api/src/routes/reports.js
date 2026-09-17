@@ -19,11 +19,15 @@ const router = Router();
 
 // One run, one payload — shared by the rows endpoint and the download, so a
 // downloaded file can never contain something the screen didn't show.
+//
+// `notices` is whatever the template returned, passed through untouched: the
+// engine never reads a notice, exactly as it never reads a row.
 async function runReport(report, params) {
-  const { rows, truncated } = await report.run(params, {});
+  const { rows, notices, truncated } = await report.run(params, {});
   return {
     ...reportMetadata(report),
     rows,
+    notices: Array.isArray(notices) ? notices : [],
     total: rows.length,
     // A template that stops at a row cap says so; the screen and the download must
     // not present the first N rows as the whole answer.
@@ -77,7 +81,9 @@ router.get('/reports/:name/export', async (req, res) => {
   }
 
   try {
-    const payload = await runReport(report, params);
+    // Notices are screen-only: a download is the rows, and a report that needs
+    // its caveat in the file carries it as a column instead.
+    const { notices: _screenOnly, ...payload } = await runReport(report, params);
     const filename = exportFilename(report.name, exportFormat.extension, payload.generatedAt);
     res.setHeader('Content-Type', exportFormat.contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

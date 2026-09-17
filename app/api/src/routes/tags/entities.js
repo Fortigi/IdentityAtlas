@@ -16,16 +16,25 @@ import { useSql, db, ensureTagTables, buildFilterWhere, UUID_RE, parseTags } fro
 import { extractRelFilters, buildRelationshipWhere, discoverReferenceFields } from '../../lib/referenceFilters.js';
 import { withAttributeLabels } from '../../lib/attributeLabels.js';
 import { addSystemColumn, extractSystemFilter, systemFilterWhere } from '../../lib/systemFilter.js';
+import { aggregateActivityLateral } from '../../lib/principalActivity.js';
+import {
+  addLastSignInColumn, extractLastSignInFilter, lastSignInFilterWhere,
+} from '../../lib/lastSignInFilter.js';
 
 const router = Router();
 
 // Columns the Users page lets you sort by (its TABLE_COLUMNS keys). Values are
 // the page CTE's output aliases — safe to interpolate; see lib/listSort.js.
+//
+// `lastSignIn` sorts nulls last in BOTH directions on purpose: "never signed
+// in" is the absence of a value, not the oldest one, so it belongs at the end
+// of the list whichever way round the dates run.
 const USER_SORTS = {
   displayName: '"displayName"',
   userPrincipalName: '"userPrincipalName"',
   department: '"department"',
   jobTitle: '"jobTitle"',
+  lastSignIn: '"lastSignIn" {dir} NULLS LAST',
 };
 
 // ─── GET /api/user-columns-page ──────────────────────────────────
@@ -55,6 +64,8 @@ router.get('/user-columns-page', async (req, res) => {
     // Virtual __system column — system display names, sourced from the Systems
     // table so a system with no principals is still offered.
     await addSystemColumn(grouped);
+    // Virtual __lastSignIn column — fixed age buckets, not stored values.
+    addLastSignInColumn(grouped);
 
     const columns = Object.entries(grouped).map(([column, values]) => ({ column, values }));
 
@@ -139,6 +150,8 @@ router.get('/users', async (req, res) => {
     }
     // Virtual __system filter — translated into a systemId predicate below.
     const systemFilter = extractSystemFilter(attrFilters);
+    // Virtual __lastSignIn filter — an age bucket over the activity lateral.
+    const lastSignInFilter = extractLastSignInFilter(attrFilters);
     // Pull reference-field (rel.*) filters out before column validation — they
     // are applied as correlated count subqueries, not scalar column matches.
     const relFilters = extractRelFilters(attrFilters);
@@ -169,7 +182,14 @@ router.get('/users', async (req, res) => {
     }
     where += buildFilterWhere(attrFilters, colNames, 'u', bind);
     where += systemFilterWhere(systemFilter, 'u', bind);
+    where += lastSignInFilterWhere(lastSignInFilter, 'act', bind);
     where += buildRelationshipWhere(relFilters, 'principals', 'u');
+
+    // Sign-in activity rides along as a lateral rather than as columns on
+    // Principals: PrincipalActivity is deliberately the only home for it (it
+    // sits outside the _history triggers), and the same join feeds the UI table,
+    // the sort, the bucket filter and the Excel export from this one endpoint.
+    const activityJoin = aggregateActivityLateral('u', 'act');
 
     // Paginate FIRST (cheap), then resolve the per-row tag string only for the
     // page's rows. The tagString subquery used to sit in the top-level SELECT, so
@@ -197,9 +217,11 @@ router.get('/users', async (req, res) => {
                u."principalType", u."systemId", u."externalId",
                u."givenName", u."surname", u."employeeId", u."managerId",
                u."createdDateTime", u."extendedAttributes",
-               u."riskScore", u."riskTier", u."deletedAt"
+               u."riskScore", u."riskTier", u."deletedAt",
+               act."lastSignIn", act."measuredAt" AS "lastSignInMeasuredAt"
           FROM "Principals" u
           ${userTagJoin}
+          ${activityJoin}
          WHERE ${where}
          ORDER BY ${orderBy}
          LIMIT ${bind(limit)} OFFSET ${bind(offset)}
@@ -225,7 +247,7 @@ router.get('/users', async (req, res) => {
 
     let total = null;
     if (offset === 0) {
-      const countSql = `SELECT COUNT(*)::int AS total FROM "Principals" u ${userTagJoin} WHERE ${where}`;
+      const countSql = `SELECT COUNT(*)::int AS total FROM "Principals" u ${userTagJoin} ${activityJoin} WHERE ${where}`;
       total = (await db.query(countSql, countParams)).rows[0]?.total ?? null;
     }
     res.json({ data, total });

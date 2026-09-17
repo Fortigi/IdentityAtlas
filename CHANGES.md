@@ -1,5 +1,33 @@
 ## Changes in this PR
 
+- Added sign-in activity to the user detail page: last interactive, non-interactive and successful sign-in (and the extra service-principal variants), last use per application when sign-in logs are collected, each shown with the date the data was measured
+- Added a sortable, filterable "Last sign-in" column to the Users list (Never / over 30, 90 or 180 days), included in the list export
+- Added eight standard audit reports: Stale Accounts, Never Signed In, Stale Guest Accounts, Disabled Accounts With Access, Missing Managers, Privileged Accounts, Access Outside Roles and Empty Groups
+- Activity-based reports count inactivity from when each system's activity data was last collected rather than from today, state that measurement date, warn when the data is more than two days old, and skip systems with no activity data instead of listing every account as stale
+- Reports with a threshold (such as the number of inactive days) now show a form to change it
+- Fixed the "measured on" date of sign-in activity staying at the first time an account was ever crawled
+- Fixed Entra ID delta syncs missing attribute changes (department, job title, …) on users and service principals between full syncs
+- New Entra ID crawlers now propose a daily full sync at 02:00 plus an hourly delta sync by default
+
+## Changes in this PR
+
+- Hardened installations running with authentication disabled: state-changing requests that a browser marks as coming from another website are now refused, and requests for a host name the server does not recognise are answered with "421 Misdirected Request". IP addresses, `localhost`, single-label intranet names and `.local` names keep working without configuration; add any other host name users type to the new `ALLOWED_HOSTS` setting (or set `PUBLIC_BASE_URL`).
+- "Clean Database" now requires an explicit confirmation in the request itself (`{"confirm": "DELETE ALL DATA"}`), in every authentication mode. The Admin → Data page sends it automatically; scripts calling the endpoint directly must add it.
+- Hardened crawler API-key authentication against request floods: invalid keys are rejected before large upload bodies are read, key verification no longer blocks the server while it runs, repeated failures from one client are throttled, and the crawler audit log is capped per crawler (`CRAWLER_AUDIT_LOG_MAX_ROWS`, default 10,000 rows).
+- Fixed rate limiting behind Azure App Service and other reverse proxies: users are now limited individually instead of sharing one organisation-wide bucket, audit logs record the real client address, and loading the app page no longer uses up the API's request budget. The number of trusted proxies can be set with `TRUST_PROXY_HOPS`.
+- Starting a risk scoring run while another one is still in progress is now refused, and AI profile/classifier generation is limited to 10 requests per minute per user.
+- Crawler file uploads are refused when they would leave less than 1 GiB free on the upload volume (`UPLOAD_MIN_FREE_BYTES`), with an optional per-configuration storage quota (`UPLOAD_CONFIG_QUOTA_BYTES`). The 1 GB per-file limit is unchanged.
+- Fixed spreadsheet formula injection in the drill-down list CSV export and in the filter legend of the matrix Excel export.
+- Removed Microsoft Graph from the browser's allowed connection targets; the app never calls Graph from the browser.
+- An attribute named `Link` is only shown as "Open in Entra ID" when it points to the Entra or Azure portal; links to any other site are shown with their real address.
+
+## Changes in this PR
+
+- Fixed every automated build failing within seconds of approval ("dor_trusted_spec.sh: No such file or directory"): the hourly sidekick sweep left the build box's workspace holding a single script, so the build started without the rest of the repository
+- Automated builds now clear any leftover partial checkout on their sidekick before they start, so a workspace left in that state can no longer break a build
+
+## Changes in this PR
+
 - Fixed a full sync sent to the systems ingest endpoint being able to remove other registered systems and all of their data; systems are now always registered as a delta, and the Omada crawler no longer requests a full sync for them.
 - Hardened crawler API keys that are restricted to specific systems: they can no longer create, overwrite, tombstone or delete data belonging to other systems, and cannot write server-managed fields such as risk scores, deletion stamps or analyst decisions.
 - Hardened the crawler data-plane endpoints: business-role classification now needs the refresh-views permission and only touches the caller's systems, matrix view refreshes run one at a time, the default matrix filter can only be set by the built-in worker, sync-log entries record which crawler wrote them, principal presence lookups are limited to the caller's systems, and job progress can only be reported by the worker.

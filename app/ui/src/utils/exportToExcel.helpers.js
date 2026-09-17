@@ -267,11 +267,12 @@ function writeFilterLegend(legendWs, { activeFilters, filterFields }) {
   activeFilters.forEach((af, idx) => {
     const r = filterStart + idx + 1;
     const field = filterFields?.find(f => f.key === af.field);
-    legendWs.getCell(r, 1).value = field?.label || af.field;
+    // Filter labels/values can carry synced data — guard against formula injection.
+    legendWs.getCell(r, 1).value = safeCell(field?.label || af.field);
     legendWs.getCell(r, 1).font = { size: 11, bold: true };
     legendWs.getCell(r, 1).border = thinBorder();
 
-    legendWs.getCell(r, 2).value = af.value;
+    legendWs.getCell(r, 2).value = safeCell(af.value);
     legendWs.getCell(r, 2).font = { size: 11 };
     legendWs.getCell(r, 2).border = thinBorder();
   });

@@ -21,6 +21,7 @@
       DemoConsent.ps1        — OAuth consent + shadow IT (flags 11-12)
       DemoSap.ps1            — the SAP ERP system (flag 8)
       DemoAzure.ps1          — the AzureRM system (flag 10)
+      DemoActivity.ps1       — sign-in activity + the audit-report cast
       DemoVolume.ps1         — opt-in high-cardinality slice (-IncludeVolume)
 
 .PARAMETER IncludeVolume
@@ -55,7 +56,8 @@ $partsDir = Join-Path $PSScriptRoot 'parts'
 foreach ($part in @(
     'DemoState.ps1', 'DemoOrg.ps1', 'DemoEntraBase.ps1', 'DemoGovernance.ps1',
     'DemoSalesScenario.ps1', 'DemoRoleDrift.ps1', 'DemoSharedGrants.ps1',
-    'DemoConsent.ps1', 'DemoSap.ps1', 'DemoAzure.ps1', 'DemoVolume.ps1'
+    'DemoConsent.ps1', 'DemoSap.ps1', 'DemoAzure.ps1', 'DemoActivity.ps1',
+    'DemoVolume.ps1'
 )) {
     . (Join-Path $partsDir $part)
 }
@@ -75,6 +77,10 @@ Add-DemoSharedGrants  $state
 Add-DemoConsent       $state
 Add-DemoSap           $state
 Add-DemoAzure         $state
+# Activity runs last of the fixed parts: it reads the principals, groups and
+# directory roles every earlier part created, and adds the few extra accounts
+# the standard audit reports need in order to be non-empty.
+Add-DemoActivity      $state
 
 # Opt-in only: everything above is the fixed 46-resource company that the CTF
 # answers, Verify-DemoDataset.ps1's exact counts and the E2E suite pin. The
@@ -124,6 +130,7 @@ $dataset = [ordered]@{
             governanceCatalogs     = $state.Catalogs.Count
             assignmentPolicies     = $state.Policies.Count
             certificationDecisions = $state.Certifications.Count
+            principalActivity      = $state.PrincipalActivity.Count
         }
     }
     systems                = @($state.Systems)
@@ -138,6 +145,7 @@ $dataset = [ordered]@{
     governanceCatalogs     = @($state.Catalogs)
     assignmentPolicies     = @($state.Policies)
     certificationDecisions = @($state.Certifications)
+    principalActivity      = @($state.PrincipalActivity)
 }
 
 $dataset | ConvertTo-Json -Depth 10 | Out-File -FilePath $OutputPath -Encoding UTF8

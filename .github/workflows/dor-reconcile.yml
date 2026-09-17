@@ -99,9 +99,14 @@ jobs:
       issues: write          # drop a released claim label from its closed issue
       pull-requests: read
     steps:
+      # Into its OWN folder, never the workspace root: this runs on the build box, and the root is the
+      # build job's checkout. A non-cone sparse checkout there writes core.sparseCheckout=true into
+      # .git/config, which the build's full checkout does not undo — every build then started with
+      # only this one script on disk and died at "Fetch the approved spec" (#1222).
       - name: Checkout the sidekick-claim helpers
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          path: .dor-sweep
           sparse-checkout: .github/scripts/dor_sidekick_claim.sh
           sparse-checkout-cone-mode: false
           persist-credentials: false
@@ -111,5 +116,5 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -uo pipefail
-          source .github/scripts/dor_sidekick_claim.sh
+          source .dor-sweep/.github/scripts/dor_sidekick_claim.sh
           sweep_sidekick

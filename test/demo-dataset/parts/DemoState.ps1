@@ -55,6 +55,7 @@ function New-DemoState {
         Catalogs               = [System.Collections.Generic.List[object]]::new()
         Policies               = [System.Collections.Generic.List[object]]::new()
         Certifications         = [System.Collections.Generic.List[object]]::new()
+        PrincipalActivity      = [System.Collections.Generic.List[object]]::new()
 
         # key -> placeholder systemId (1-based, insertion order)
         SystemIds              = @{}

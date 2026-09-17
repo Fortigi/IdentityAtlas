@@ -62,9 +62,11 @@ The generator may answer with a question instead of a report:
 - **"Did you mean…?"** — you named something (a business role, a group, a person) whose name does not
   match exactly. Pick the right one, type the exact name, or keep what you wrote. This one is reliable:
   the database does the lookup, not the model.
-- **"I cannot build this"** — the report needs information Identity Atlas does not hold. Asking for
-  users who have not signed in for 90 days gets you a note that there is no sign-in date to filter
-  on, rather than a report built on the wrong field.
+- **"I cannot build this"** — the report needs information that custom reports cannot use, and you get
+  a note saying so rather than a report built on the wrong field. Asking for users with MFA switched
+  off is an example. **Sign-in dates are one of these for now**: Identity Atlas does collect them, and
+  the standard *Never signed in* and *Stale accounts* reports use them, but custom reports cannot
+  filter on them yet.
 - **A clarifying question** — it *can* ask when a request could mean two different reports, and you
   can answer or tell it to use its best guess. **Do not count on it.** In testing it guessed on both
   deliberately ambiguous requests instead of asking — "everyone with admin rights" came back as one
