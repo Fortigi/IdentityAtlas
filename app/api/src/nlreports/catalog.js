@@ -111,18 +111,19 @@ const BASE = {
       },
       lastSignIn: {
         label: 'Last sign-in', type: 'date', sql: lastSignIn,
-        description: 'most recent sign-in (interactive or not). Empty when none is recorded — which includes '
-          + 'systems whose sign-in activity is not collected; combine with signInDataCollected for "never signed in"',
+        // Kept short on purpose: longer descriptions here that talked about "empty"
+        // values measurably pulled the model toward isEmpty / isNotEmpty on unrelated
+        // boolean fields. How to phrase sign-in questions lives in prompt rule 2c.
+        description: 'most recent sign-in (interactive or not)',
       },
       daysSinceLastSignIn: {
         label: 'Days since last sign-in', type: 'number', cte: SIGNIN_MEASUREMENT,
         sql: (t) => `(EXTRACT(DAY FROM ${signInMeasuredAt(t)} - ${lastSignIn(t)}))::int`,
-        description: 'days between the last sign-in and when sign-in data was last collected. '
-          + 'Use this for "not signed in for N days" (gt N). Empty when there is no sign-in or no collected data',
+        description: 'days since the last sign-in, counted from when sign-in data was collected',
       },
       signInDataCollected: {
         label: 'Sign-in data collected', type: 'date', cte: SIGNIN_MEASUREMENT, sql: signInMeasuredAt,
-        description: 'when this account\'s system last collected sign-in activity; empty = sign-in activity is not collected',
+        description: 'when sign-in activity was last collected for this account\'s system',
       },
     },
     relations: {
