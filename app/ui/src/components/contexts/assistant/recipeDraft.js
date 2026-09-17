@@ -113,6 +113,30 @@ export function relatedWordText(w) {
   return `in ${w.inContext} of the context${outside}`;
 }
 
+/** What the assistant says about the terms it proposed: which are ticked, and why the rest are not. */
+export function termsReplyText(terms) {
+  if (!terms?.length) return 'I have no new terms to add.';
+  const ticked = terms.filter(t => t.state === 'accepted').length;
+  const suggested = terms.length - ticked;
+  if (!suggested) return `I proposed ${terms.length} search terms, all containing your own words. Check what each one finds below.`;
+  const own = ticked ? `${ticked} contain your own words and are ticked; ` : 'None contain your own words; ';
+  return `I proposed ${terms.length} search terms. ${own}the other ${suggested} are suggestions and start unticked — tick the ones that fit, looking at what each one finds.`;
+}
+
+export const WIDEN_MIN = 10;
+export const WIDEN_RATIO = 2;
+
+/**
+ * Warn when the terms the model added bring in far more than everything else does — the
+ * sign of a model "explaining" a name it does not know (HAMIS → health care).
+ * @returns {{ added: number, rest: number } | null}
+ */
+export function widenWarning(evaluation) {
+  const added = evaluation?.addedByModel ?? 0;
+  const rest = (evaluation?.memberCount ?? 0) - added;
+  return added >= WIDEN_MIN && added > WIDEN_RATIO * rest ? { added, rest } : null;
+}
+
 /** What to do with a match row, given its status. */
 export function rowAction(status) {
   switch (status) {

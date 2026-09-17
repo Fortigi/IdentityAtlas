@@ -95,7 +95,7 @@ function statusOf(row, acceptedHits, pinned) {
 
 function emptyTermStats(recipe) {
   return recipe.terms.map(t => ({
-    text: t.text, key: t.key, match: t.match, state: t.state, origin: t.origin, why: t.why,
+    text: t.text, key: t.key, match: t.match, state: t.state, origin: t.origin, why: t.why, own: t.own === true,
     hits: 0, unique: 0, byField: Object.fromEntries(recipe.fields.map(f => [f, 0])), tooBroad: false,
   }));
 }
@@ -117,7 +117,9 @@ function countTermHits(stats, hits, recipe) {
  * @param {object[]} rows       loadCandidates().rows
  * @param {object}   recipe     a validated recipe
  * @param {number}   scopeTotal objects in scope, for the too-broad test
- * @returns {{ terms: object[], matches: object[], memberIds: string[], termMembers: Map<number, string[]> }}
+ * @returns {{ terms: object[], matches: object[], memberIds: string[], termMembers: Map<number, string[]>, addedByModel: number }}
+ *   addedByModel: members found ONLY by kept terms the model added (not the analyst's own
+ *   words, not typed, not related words) — what the builder warns about when it dwarfs the rest.
  */
 export function computeMatches(rows, recipe, scopeTotal = 0) {
   const pinned = { include: new Set(recipe.include), exclude: new Set(recipe.exclude) };
@@ -125,6 +127,8 @@ export function computeMatches(rows, recipe, scopeTotal = 0) {
   const matches = [];
   const memberIds = [];
   const termMembers = new Map();
+  const modelAdded = (termIndex) => recipe.terms[termIndex].origin === 'model' && !recipe.terms[termIndex].own;
+  let addedByModel = 0;
 
   for (const row of rows) {
     const hits = hitsOf(row, recipe);
@@ -132,6 +136,7 @@ export function computeMatches(rows, recipe, scopeTotal = 0) {
     const status = statusOf(row, acceptedHits, pinned);
     if (status === 'member' || status === 'included') memberIds.push(row.id);
     if (status === 'member') {
+      if (acceptedHits.every(h => modelAdded(h.termIndex))) addedByModel++;
       for (const h of acceptedHits) {
         if (!termMembers.has(h.termIndex)) termMembers.set(h.termIndex, []);
         termMembers.get(h.termIndex).push(row.id);
@@ -150,5 +155,5 @@ export function computeMatches(rows, recipe, scopeTotal = 0) {
 
   const broadAt = Math.max(TOO_BROAD_MIN_HITS, Math.ceil(scopeTotal * TOO_BROAD_SHARE));
   for (const t of terms) t.tooBroad = t.hits > broadAt;
-  return { terms, matches, memberIds, termMembers };
+  return { terms, matches, memberIds, termMembers, addedByModel };
 }

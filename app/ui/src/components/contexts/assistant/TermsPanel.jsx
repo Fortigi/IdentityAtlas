@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { MUTED, SECONDARY } from '@ui/components/reports/ask/AskAssistant.styles';
-import { MATCH_LABELS, termCounts } from './recipeDraft';
+import { MATCH_LABELS, termCounts, widenWarning } from './recipeDraft';
 import RelatedWords from './RelatedWords';
 
 const INPUT = 'rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100';
@@ -36,6 +36,9 @@ function TermRow({ term, stats, fieldLabels, onToggle, onMatch, onRemove }) {
         {term.text}
       </label>
       {term.why && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600 dark:bg-gray-700 dark:text-gray-300">{term.why}</span>}
+      {term.origin === 'model' && !term.own && (
+        <span className="text-[11px] text-violet-700 dark:text-violet-300" title="Proposed by the model; does not contain your own words">suggested</span>
+      )}
       <span className="text-xs text-gray-700 dark:text-gray-300">{hitText(stats, kept)}</span>
       {stats?.tooBroad && (
         <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" title="This term finds a large share of everything in scope">very broad</span>
@@ -56,12 +59,14 @@ function TermRow({ term, stats, fieldLabels, onToggle, onMatch, onRemove }) {
  * @param {object}   props
  * @param {object}   props.recipe
  * @param {object[]} [props.stats]        evaluation.terms
+ * @param {object}   [props.evaluation]   the evaluate answer, for the widening warning
  * @param {object}   props.fieldLabels    field name → label
  * @param {object}   props.actions        { toggle, match, remove, add, addRelated }
  * @param {number}   props.memberCount    objects in the context now (related words need some)
  */
-export default function TermsPanel({ recipe, stats = [], fieldLabels, actions, memberCount = 0 }) {
+export default function TermsPanel({ recipe, stats = [], evaluation, fieldLabels, actions, memberCount = 0 }) {
   const [text, setText] = useState('');
+  const widened = widenWarning(evaluation);
   const byKey = new Map(stats.map(s => [s.key, s]));
   const { kept, dropped } = termCounts(recipe);
 
@@ -76,6 +81,11 @@ export default function TermsPanel({ recipe, stats = [], fieldLabels, actions, m
       {recipe.terms.length > 0 ? (
         <>
           <p className={MUTED}>{kept} kept · {dropped} dropped. A group is in the context when a kept term matches its {recipe.fields.map(f => (fieldLabels[f] || f).toLowerCase()).join(' or ')}.</p>
+          {widened && (
+            <p role="alert" className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+              The terms the model suggested bring in {widened.added} groups; your own words find {widened.rest}. Check that the suggested terms really are about this subject — the model may be guessing what a name means.
+            </p>
+          )}
           <ul className="divide-y divide-gray-100 rounded border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
             {recipe.terms.map(t => (
               <TermRow key={t.key} term={t} stats={byKey.get(t.key)} fieldLabels={fieldLabels}

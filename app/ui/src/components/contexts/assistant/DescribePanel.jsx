@@ -8,6 +8,7 @@ import { useFetch } from '@ui/hooks/useFetch';
 import { MUTED, PRIMARY, SECONDARY } from '@ui/components/reports/ask/AskAssistant.styles';
 import { formatTiming, unavailableReason, warmStatusText } from '@ui/components/reports/ask/AskAssistant.text';
 import { isWarmLoading, useElapsed, useModelWarmup } from '@ui/components/reports/ask/useAskWarmup';
+import { termsReplyText } from './recipeDraft';
 
 const EXAMPLES = [
   'Alle groepen rond het inkoopproces',
@@ -16,14 +17,9 @@ const EXAMPLES = [
 ];
 
 function TermsReply({ reply }) {
-  const kept = reply.terms.filter(t => t.state === 'accepted').length;
   return (
     <>
-      <p>
-        {reply.terms.length
-          ? `I proposed ${reply.terms.length} new search terms${kept < reply.terms.length ? ` (${reply.terms.length - kept} unticked — they appear in groups of every subject)` : ''}. Check what each one finds below.`
-          : 'I have no new terms to add.'}
-      </p>
+      <p>{termsReplyText(reply.terms)}</p>
       {reply.notes?.length > 0 && (
         <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300">
           {reply.notes.map((n, i) => <li key={i}>{n}</li>)}

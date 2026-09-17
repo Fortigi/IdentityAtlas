@@ -71,6 +71,21 @@ describe('computeMatches', () => {
   });
 });
 
+describe('computeMatches — what the model added', () => {
+  const rows = [row(1, 'HAMIS Beheer'), row(2, 'Zorg Planning'), row(3, 'Zorg Portaal'), row(4, 'HAMIS Zorg')];
+
+  it("counts members found only by kept model terms without the analyst's own words", () => {
+    const recipe = recipeOf({ terms: [{ text: 'hamis', origin: 'model', own: true }, { text: 'zorg', origin: 'model' }] });
+    // Row 4 is found by both; rows 2 and 3 are only there because of "zorg".
+    expect(computeMatches(rows, recipe, 100).addedByModel).toBe(2);
+  });
+
+  it('does not count terms the analyst typed or picked from related words', () => {
+    const recipe = recipeOf({ terms: [{ text: 'hamis', origin: 'model', own: true }, { text: 'zorg', origin: 'related' }] });
+    expect(computeMatches(rows, recipe, 100).addedByModel).toBe(0);
+  });
+});
+
 describe('buildCandidateQuery', () => {
   it('uses catalog SQL for fields and passes every value as a parameter', () => {
     const recipe = recipeOf({ fields: ['displayName', 'mail'], terms: ["o'brien", { text: 'ink', match: 'token' }], include: [ID(1)], exclude: [ID(2)] });

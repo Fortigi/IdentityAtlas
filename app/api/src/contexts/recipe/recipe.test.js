@@ -124,6 +124,13 @@ describe('validateRecipe', () => {
     }
   });
 
+  it('keeps the own-words mark only on model terms', () => {
+    const { recipe } = validateRecipe({ terms: [
+      { text: 'hamis', origin: 'model', own: true }, { text: 'zorg', origin: 'model', own: 'yes' }, { text: 'typed', origin: 'analyst', own: true },
+    ] });
+    expect(recipe.terms.map(t => t.own)).toEqual([true, undefined, undefined]);
+  });
+
   it('keeps a short reason from the model, trimmed', () => {
     const { recipe } = validateRecipe({ terms: [{ text: 'Coupa', why: '  system  ' }] });
     expect(recipe.terms[0].why).toBe('system');

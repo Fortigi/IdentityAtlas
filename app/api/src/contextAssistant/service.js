@@ -4,8 +4,8 @@
 //   suggestMore() description + the terms kept and dropped so far → new terms only
 //
 // The model's terms go through the same normalisation as terms an analyst types
-// (recipe.js), so what the builder shows is what will be searched. Terms made only of
-// words that appear in every kind of group name ("users", "beheer") arrive unticked.
+// (recipe.js), so what the builder shows is what will be searched. Only terms containing
+// the analyst's own words arrive ticked — see shapeTerms().
 
 import { chat } from '../nlreports/llm.js';
 import { createWarmup } from '../nlreports/warmup.js';
@@ -29,13 +29,53 @@ export function isGenericTerm(key) {
   return key.split(' ').every(word => DEFAULT_STOPWORDS.has(word));
 }
 
+// Words of a request that say nothing about its subject.
+const REQUEST_WORDS = new Set([
+  'everything', 'anything', 'things', 'related', 'relating', 'about', 'around', 'our', 'their', 'that', 'which', 'who',
+  'have', 'has', 'give', 'hand', 'out', 'show', 'find', 'list', 'want', 'need', 'please', 'context', 'process',
+  'alle', 'alles', 'rond', 'rondom', 'over', 'onze', 'hun', 'welke', 'die', 'dat', 'wat', 'geef', 'toon', 'zoek',
+  'hebben', 'heeft', 'groepen', 'proces',
+  'the', 'with', 'and', 'for', 'from', 'into', 'this', 'these', 'those', 'what', 'where', 'there', 'some', 'any', 'only', 'are', 'was', 'can', 'use', 'used',
+]);
+
+/**
+ * The analyst's own subject words: every word of the request and of their earlier answers
+ * that is not generic group-name noise or request phrasing.
+ * @param {string} question
+ * @param {{role:string, content:string}[]} [history]
+ * @returns {string[]}
+ */
+export function ownWords(question, history = []) {
+  const said = [question, ...history.filter(h => h.role === 'user').map(h => h.content)].join(' ');
+  const words = normalizeText(said).split(' ')
+    .filter(w => w.length >= 3 && !DEFAULT_STOPWORDS.has(w) && !REQUEST_WORDS.has(w));
+  return [...new Set(words)];
+}
+
+// Two words are the same subject word when they are equal, or — for longer words — share
+// their first five letters: "inkoop" / "inkoopproces", "licence" / "licentie" / "license".
+const sameWord = (a, b) => a === b || (a.length >= 5 && b.length >= 5 && a.slice(0, 5) === b.slice(0, 5));
+
+/** Does a normalised term contain one of the analyst's own words? */
+export function containsOwnWord(key, own) {
+  return key.split(' ').some(w => own.some(o => sameWord(w, o)));
+}
+
 /**
  * Model terms → recipe terms: normalised, de-duplicated against each other and against
- * `known` (terms already in the builder), generic ones unticked.
+ * `known` (terms already in the builder).
+ *
+ * Only terms that contain the analyst's own words arrive ticked. Everything else the model
+ * adds — synonyms, translations, systems, and whatever it invents — arrives unticked, with
+ * its hit counts next to it. A small model asked about a name it does not know will still
+ * "explain" it (HAMIS became health care); unticked, a wrong guess costs a glance instead of
+ * silently pulling in every group with "zorg" in its name. Generic terms stay unticked too.
+ *
  * @param {object[]} raw      the model's terms
  * @param {Set<string>} known normalised keys already present
+ * @param {string[]} own      ownWords() of the conversation
  */
-export function shapeTerms(raw, known = new Set()) {
+export function shapeTerms(raw, known = new Set(), own = []) {
   const seen = new Set(known);
   const terms = [];
   for (const item of Array.isArray(raw) ? raw : []) {
@@ -44,11 +84,13 @@ export function shapeTerms(raw, known = new Set()) {
     if (key.replace(/ /g, '').length < 2 || seen.has(key)) continue;
     seen.add(key);
     const generic = isGenericTerm(key);
+    const mine = !generic && containsOwnWord(key, own);
     terms.push({
       text,
       match: defaultMatchFor(key),
-      state: generic ? 'rejected' : 'accepted',
+      state: mine ? 'accepted' : 'rejected',
       origin: TERM_ORIGINS[0],
+      own: mine,
       why: generic ? 'too generic' : String(item.why || 'related'),
     });
   }
@@ -71,11 +113,11 @@ async function ask(messages, schema) {
   return { raw: content, reply: parseReply(content), timing };
 }
 
-function termsAnswer({ raw, reply, timing }, known) {
+function termsAnswer({ raw, reply, timing }, known, own) {
   return {
     kind: 'terms',
     name: typeof reply.name === 'string' ? reply.name.trim() : '',
-    terms: shapeTerms(reply.terms, known),
+    terms: shapeTerms(reply.terms, known, own),
     notes: Array.isArray(reply.notes) ? reply.notes.map(String) : [],
     raw,
     timing,
@@ -90,7 +132,7 @@ function termsAnswer({ raw, reply, timing }, known) {
 export async function interpret({ question, history = [] }) {
   const messages = [{ role: 'system', content: buildContextPrompt() }, ...history, { role: 'user', content: question }];
   const answer = await ask(messages, schemaFor(history));
-  if (answer.reply?.kind === 'terms') return termsAnswer(answer);
+  if (answer.reply?.kind === 'terms') return termsAnswer(answer, new Set(), ownWords(question, history));
   if (answer.reply?.kind === 'clarify') {
     return {
       kind: 'clarify',
@@ -117,5 +159,5 @@ export async function suggestMore({ question, recipe }) {
   if (answer.reply?.kind !== 'terms') {
     return { kind: 'error', message: 'The model reply was not valid JSON.', raw: answer.raw, timing: answer.timing };
   }
-  return termsAnswer(answer, new Set(recipe.terms.map(x => x.key)));
+  return termsAnswer(answer, new Set(recipe.terms.map(x => x.key)), ownWords(question));
 }

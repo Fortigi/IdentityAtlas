@@ -4,7 +4,7 @@ vi.mock('../nlreports/llm.js', () => ({ chat: vi.fn(), warm: vi.fn() }));
 vi.mock('../nlreports/settings.js', () => ({ getReportModel: vi.fn(async () => 'test-model') }));
 
 import { chat, warm } from '../nlreports/llm.js';
-import { interpret, isGenericTerm, schemaFor, shapeTerms, suggestMore } from './service.js';
+import { containsOwnWord, interpret, isGenericTerm, ownWords, schemaFor, shapeTerms, suggestMore } from './service.js';
 import { buildContextPrompt, MORE_TERMS_SCHEMA, RESPONSE_SCHEMA, TERMS_ONLY_SCHEMA } from './prompt.js';
 import { validateRecipe } from '../contexts/recipe/recipe.js';
 
@@ -16,21 +16,51 @@ beforeEach(() => {
   warm.mockResolvedValue({ model: 'test-model', ms: 1, restored: true });
 });
 
+describe('ownWords', () => {
+  it("keeps the subject words of the request and of the analyst's earlier answers", () => {
+    expect(ownWords('Alle groepen rond het inkoopproces')).toEqual(['inkoopproces']);
+    expect(ownWords('everything to do with HAMIS', [
+      { role: 'user', content: 'the Zaaksysteem' },
+      { role: 'assistant', content: '{"kind":"clarify"}' },
+    ])).toEqual(['hamis', 'zaaksysteem']);
+    expect(ownWords('groups that hand out licences')).toEqual(['licences']);
+  });
+
+  it('matches a term word to an own word when equal, or when both share their first five letters', () => {
+    expect(containsOwnWord('inkoop', ['inkoopproces'])).toBe(true);
+    expect(containsOwnWord('license distribution', ['licences'])).toBe(true);
+    expect(containsOwnWord('hamis platform', ['hamis'])).toBe(true);
+    expect(containsOwnWord('zorg', ['hamis'])).toBe(false);
+    // Short words must be equal: "ham" is not "hamis".
+    expect(containsOwnWord('ham', ['hamis'])).toBe(false);
+    expect(containsOwnWord('procurement', ['process'])).toBe(false);
+  });
+});
+
 describe('shapeTerms', () => {
-  it('normalises, de-duplicates and unticks terms made only of words every group name has', () => {
+  it("ticks only terms with the analyst's own words; the model's additions arrive unticked", () => {
+    // What the model really answered for "everything to do with HAMIS".
+    const terms = shapeTerms([
+      { text: 'HAMIS', why: 'name' }, { text: 'health', why: 'activity' }, { text: 'zorg', why: 'translation' },
+      { text: 'HAMIS platform', why: 'system' },
+    ], new Set(), ['hamis']);
+    expect(terms.map(t => [t.text, t.state, t.own])).toEqual([
+      ['HAMIS', 'accepted', true], ['health', 'rejected', false], ['zorg', 'rejected', false], ['HAMIS platform', 'accepted', true],
+    ]);
+  });
+
+  it('normalises, de-duplicates and keeps generic terms unticked even with an own word', () => {
     const terms = shapeTerms([
       { text: ' Inkoop ', why: 'name' },
       { text: 'INKOOP', why: 'synonym' },            // same term again
       { text: 'beheer', why: 'related' },            // every subject has "beheer"
-      { text: 'inkoop beheer', why: 'activity' },    // one real word makes it specific
       { text: 'x', why: 'name' },                    // too short
       { text: 'P2P', why: 'abbreviation' },
-    ]);
+    ], new Set(), ['inkoop', 'beheer']);
     expect(terms).toEqual([
-      { text: 'Inkoop', match: 'wordStart', state: 'accepted', origin: 'model', why: 'name' },
-      { text: 'beheer', match: 'wordStart', state: 'rejected', origin: 'model', why: 'too generic' },
-      { text: 'inkoop beheer', match: 'wordStart', state: 'accepted', origin: 'model', why: 'activity' },
-      { text: 'P2P', match: 'token', state: 'accepted', origin: 'model', why: 'abbreviation' },
+      { text: 'Inkoop', match: 'wordStart', state: 'accepted', origin: 'model', own: true, why: 'name' },
+      { text: 'beheer', match: 'wordStart', state: 'rejected', origin: 'model', own: false, why: 'too generic' },
+      { text: 'P2P', match: 'token', state: 'rejected', origin: 'model', own: false, why: 'abbreviation' },
     ]);
   });
 
@@ -63,7 +93,7 @@ describe('interpret', () => {
     expect(messages[0]).toEqual({ role: 'system', content: buildContextPrompt() });
     expect(messages.at(-1)).toEqual({ role: 'user', content: 'inkoopgroepen' });
     expect(schema).toBe(RESPONSE_SCHEMA);
-    expect(r).toMatchObject({ kind: 'terms', name: 'Inkoop', notes: ['n1'], terms: [{ text: 'inkoop', state: 'accepted' }] });
+    expect(r).toMatchObject({ kind: 'terms', name: 'Inkoop', notes: ['n1'], terms: [{ text: 'inkoop', state: 'accepted', own: true }] });
   });
 
   it('still asks when the warm-up fails', async () => {

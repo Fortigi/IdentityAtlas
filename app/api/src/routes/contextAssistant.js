@@ -114,8 +114,8 @@ router.post('/context-assistant/evaluate', gate, async (req, res) => {
   const { recipe, errors } = validateRecipe(raw);
   try {
     const { rows, scopeTotal, truncated } = await loadCandidates(recipe, tx);
-    const { terms, matches, memberIds } = computeMatches(rows, recipe, scopeTotal);
-    res.json({ recipe, errors, scopeTotal, truncated, terms, matches, memberCount: memberIds.length });
+    const { terms, matches, memberIds, addedByModel } = computeMatches(rows, recipe, scopeTotal);
+    res.json({ recipe, errors, scopeTotal, truncated, terms, matches, memberCount: memberIds.length, addedByModel });
   } catch (err) {
     fail(res, 'evaluate', err);
   }

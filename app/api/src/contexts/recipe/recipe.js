@@ -92,6 +92,9 @@ function normalizeTerm(raw, errors) {
     origin: pick(raw?.origin, TERM_ORIGINS, 'analyst'),
   };
   if (typeof raw?.why === 'string' && raw.why.trim()) term.why = raw.why.trim().slice(0, 40);
+  // A model term that contains the analyst's own words (see contextAssistant/service.js).
+  // Kept so evaluate can tell what the model's own additions bring in.
+  if (term.origin === 'model' && raw?.own === true) term.own = true;
   return term;
 }
 

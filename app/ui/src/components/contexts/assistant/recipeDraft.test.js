@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   addTerm, EMPTY_RECIPE, isRecipeRoot, mergeTerms, relatedWordText, removeTerm, rowAction, saveBlocker,
-  setObjectChoice, setTermMatch, termCounts, termKey, toggleListValue, toggleTerm,
+  setObjectChoice, setTermMatch, termCounts, termKey, termsReplyText, toggleListValue, toggleTerm, widenWarning,
 } from './recipeDraft';
 
 const draft = (over = {}) => ({ ...EMPTY_RECIPE, ...over });
@@ -68,6 +68,24 @@ describe('recipeDraft', () => {
     expect(isRecipeRoot({ sourceAlgorithmName: 'context-recipe', parentContextId: null })).toBe(true);
     expect(isRecipeRoot({ sourceAlgorithmName: 'context-recipe', parentContextId: 'p' })).toBe(false);
     expect(isRecipeRoot({ sourceAlgorithmName: 'resource-cluster' })).toBe(false);
+  });
+
+  it("widenWarning fires when the model's terms bring in far more than everything else", () => {
+    expect(widenWarning({ memberCount: 43, addedByModel: 40 })).toEqual({ added: 40, rest: 3 });
+    // Exactly twice the rest is not yet "far more".
+    expect(widenWarning({ memberCount: 30, addedByModel: 20 })).toBeNull();
+    // A handful is not worth a warning, whatever the ratio.
+    expect(widenWarning({ memberCount: 9, addedByModel: 9 })).toBeNull();
+    expect(widenWarning({ memberCount: 10, addedByModel: 10 })).toEqual({ added: 10, rest: 0 });
+    expect(widenWarning(null)).toBeNull();
+  });
+
+  it('termsReplyText explains which terms are ticked and why the rest are not', () => {
+    const t = (state) => ({ state });
+    expect(termsReplyText([])).toBe('I have no new terms to add.');
+    expect(termsReplyText([t('accepted'), t('accepted')])).toBe('I proposed 2 search terms, all containing your own words. Check what each one finds below.');
+    expect(termsReplyText([t('accepted'), t('rejected'), t('rejected')])).toBe('I proposed 3 search terms. 1 contain your own words and are ticked; the other 2 are suggestions and start unticked — tick the ones that fit, looking at what each one finds.');
+    expect(termsReplyText([t('rejected')])).toMatch(/^I proposed 1 search terms\. None contain your own words; the other 1 /);
   });
 
   it('relatedWordText says what adding the word would bring in', () => {
