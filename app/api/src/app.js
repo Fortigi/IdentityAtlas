@@ -41,6 +41,7 @@ import contextsRouter from './routes/contexts.js';
 import contextPluginsRouter from './routes/contextPlugins.js';
 import reportsRouter from './routes/reports.js';
 import nlReportsRouter from './routes/nlReports.js';
+import contextAssistantRouter from './routes/contextAssistant.js';
 import adminRouter from './routes/admin.js';
 import authRolesRouter from './routes/authRoles.js';
 import llmRouter from './routes/llm.js';
@@ -369,6 +370,9 @@ export function createApp() {
   // inside the router: a requireFeature on this shared '/api' mount would answer
   // 404 for every later route while the feature is off.
   app.use('/api', authMiddleware, nlReportsRouter);
+  // Context assistant — builds context trees from search terms, optionally proposed by
+  // the same local model. Feature and permission gates per route, as above.
+  app.use('/api', authMiddleware, contextAssistantRouter);
   // Context plugins (Admin → Contexts) — admin-only across the board.
   // Permission gates are applied PER ROUTE inside each router (not on the /api
   // mount) — a mount-level requirePermission on the shared '/api' prefix runs

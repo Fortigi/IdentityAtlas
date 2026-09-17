@@ -11,8 +11,8 @@ import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { buildSystemPrompt, buildValuesBlock, RESPONSE_SCHEMA, REPORT_ONLY_SCHEMA } from './prompt.js';
-import { chat, DEFAULT_MODEL, warm } from './llm.js';
-import { getReportModel } from './settings.js';
+import { chat, DEFAULT_MODEL } from './llm.js';
+import { createWarmup } from './warmup.js';
 import { resolveNamedObjects } from './references.js';
 import { correctionMessage, findTerms, locateTerms, termConfirmation, termHint, unusedTerms } from './terms.js';
 import { isFeatureEnabled } from '../featureFlags.js';
@@ -23,48 +23,9 @@ const STATEMENT_TIMEOUT = '15s';
 
 let valuesCache = { at: 0, values: null };
 
-// One warm-up at a time. Two very different costs hide behind it:
-//
-//   • PREPARING the cache file — the model reads the whole ~4k-token system prompt,
-//     which is minutes on a small CPU box. Needed once per release.
-//   • RESTORING that file into the running server — ~0.1 s. Needed again every time
-//     the model server starts.
-//
-// So a warm-up that succeeded earlier is NOT proof the server still holds the
-// prompt. The generator is a separate container with its own lifecycle: on Azure it
-// is scaled to zero between questions and comes back with an empty KV cache, and on
-// Docker it restarts with the host. Remembering "ready" across that is how the
-// prompt cache came to do nothing in exactly the case it was built for — the API
-// reported ready, never restored, and the next question paid the full prompt read.
-//
-// This therefore never short-circuits on an earlier result: every call restores
-// again, which is cheap, and only a missing cache file pays to read the prompt.
-// Concurrent callers share the attempt in flight.
-let warmup = null;
-
-export function warmupState() {
-  return warmup ? warmup.state : 'cold';
-}
-
-/**
- * @returns {{ state: string, promise: Promise<object> }} the warm-up in flight, started if needed
- */
-export function ensureWarm() {
-  if (warmup?.state === 'warming') return warmup;
-  const entry = { state: 'warming', promise: null };
-  entry.promise = (async () => {
-    try {
-      const result = await warm(await getReportModel(), buildSystemPrompt());
-      entry.state = 'ready';
-      return result;
-    } catch (err) {
-      entry.state = 'failed';
-      throw err;
-    }
-  })();
-  warmup = entry;
-  return entry;
-}
+// The prompt-cache warm-up for the report prompt. Why it re-restores on every call
+// instead of remembering an earlier success: see warmup.js.
+export const { ensureWarm, warmupState } = createWarmup(buildSystemPrompt);
 
 /**
  * Prepare the prompt cache when the API starts. The first run after an install or

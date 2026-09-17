@@ -7,7 +7,7 @@ import JsonSchemaForm from './NewContextSchemaForm';
 // returns so the wizard's render stays a thin shell.
 export default function WizardBody(props) {
   const { source, step } = props;
-  if (step === 1) return <SourceStep source={source} onPick={props.setSource} />;
+  if (step === 1) return <SourceStep source={source} onPick={props.setSource} canDescribe={props.canDescribe} />;
   if (source === 'plugin') return <PluginBody {...props} />;
   if (source === 'manual' && step === 2) {
     return (
@@ -63,14 +63,16 @@ function PluginBody({
 }
 
 // ─── Step 1 — Source ──────────────────────────────────────────────────────────
-function SourceStep({ source, onPick }) {
+function SourceStep({ source, onPick, canDescribe }) {
   const cards = [
     { key: 'import', title: 'Import', tone: 'slate', description: 'Crawlers pull trees from source systems (HR, AD OU, app catalogues). Configure one on the Crawlers page — trees appear here after the next crawl.' },
     { key: 'plugin', title: 'Run a plugin', tone: 'blue', description: 'Build a tree from existing data — manager chains, department strings, OU distinguished names, LLM clusters.' },
     { key: 'manual', title: 'Create manual', tone: 'amber', description: 'Start an empty tree you’ll curate yourself. Useful for business processes, app groupings, tags.' },
+    // Experimental: only offered when the context assistant is on and the user may build contexts.
+    ...(canDescribe ? [{ key: 'describe', title: 'Describe it', tone: 'violet', description: 'Describe a process, application or project; the local model proposes search terms and you pick the groups. Refreshed after every crawl.' }] : []),
   ];
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className={`grid grid-cols-1 gap-3 ${cards.length === 4 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
       {cards.map(c => (
         <SourceCard key={c.key} {...c} active={source === c.key} onClick={() => onPick(c.key)} />
       ))}
@@ -82,6 +84,7 @@ const TONE = {
   slate: { bar: 'bg-slate-500', ring: 'border-slate-400 ring-slate-300' },
   blue:  { bar: 'bg-blue-500',  ring: 'border-blue-500 ring-blue-300' },
   amber: { bar: 'bg-amber-500', ring: 'border-amber-500 ring-amber-300' },
+  violet: { bar: 'bg-violet-500', ring: 'border-violet-500 ring-violet-300' },
 };
 
 function SourceCard({ title, tone, description, active, onClick }) {

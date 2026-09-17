@@ -87,11 +87,11 @@ describe('seed mapping — the exact grants shipped on a fresh install', () => {
     expect(SEED_ROLE_PERMISSIONS.Admin).toEqual(['*']);
   });
 
-  it('gives RoleMiner read, both export permissions, sharing and report building — nothing more', () => {
+  it('gives RoleMiner read, both export permissions, sharing, report and context building — nothing more', () => {
     // Widening this on a fresh install hands out access nobody asked for;
     // emptying it locks the role out. Neither is visible from a count.
     expect(SEED_ROLE_PERMISSIONS.RoleMiner)
-      .toEqual(['data.read', 'data.export.ui', 'data.export.apikey', 'data.share', 'data.write.reports']);
+      .toEqual(['data.read', 'data.export.ui', 'data.export.apikey', 'data.share', 'data.write.reports', 'data.write.contexts']);
   });
 
   it('gives Servicedesk read only — sharing is opt-in per install (#1166)', () => {

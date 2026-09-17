@@ -243,6 +243,7 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
           if (runId) onOpenDetail?.('run', runId, 'Plugin run');
         }}
         onOpenCrawlers={() => onNavigate?.('admin')}
+        onOpenBuilder={() => onOpenDetail?.('context-builder', `new-${Date.now()}`, 'New context')}
       />
     </div>
   );

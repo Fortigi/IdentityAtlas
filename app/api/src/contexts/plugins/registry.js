@@ -18,6 +18,7 @@ import entraGroupCategoryTree from './entra-group-category-tree.js';
 import riskyConsent          from './risky-consent.js';
 import systemMembershipPrincipals from './system-membership-principals.js';
 import systemMembershipResources  from './system-membership-resources.js';
+import contextRecipe             from './context-recipe.js';
 
 /** @type {import('./types.js').ContextPlugin[]} */
 export const REGISTERED_PLUGINS = [
@@ -33,6 +34,7 @@ export const REGISTERED_PLUGINS = [
   riskyConsent,
   systemMembershipPrincipals,
   systemMembershipResources,
+  contextRecipe,
 ];
 
 export function getPlugin(name) {
