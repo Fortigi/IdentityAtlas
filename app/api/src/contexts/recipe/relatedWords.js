@@ -21,6 +21,11 @@ export const MAX_SCOPE_NAMES = 50_000;
 export const MAX_SUGGESTIONS = 12;
 export const MIN_LIFT = 2;
 
+// Connective words resource-cluster's list leaves in (it drops only Dutch ones, and only
+// what clutters cluster names). As a suggestion they never mean a subject.
+const FILLER = ['for', 'the', 'and', 'with', 'per', 'from', 'into', 'this', 'that', 'only', 'een', 'het', 'der', 'den', 'des', 'und'];
+const STOPWORDS = new Set([...DEFAULT_STOPWORDS, ...FILLER]);
+
 /** Names of everything in scope, read-only. */
 export async function loadScopeNames(recipe, tx) {
   return tx(async (client) => {
@@ -53,7 +58,7 @@ export function relatedWords(scopeRows, memberIds, recipe) {
   const counts = new Map(); // word → { inContext, total }
   for (const row of scopeRows) {
     const inContext = members.has(row.id);
-    for (const word of tokenize(row.displayName || '', { stopwords: DEFAULT_STOPWORDS })) {
+    for (const word of tokenize(row.displayName || '', { stopwords: STOPWORDS })) {
       const c = counts.get(word) || { inContext: 0, total: 0 };
       c.total++;
       if (inContext) c.inContext++;

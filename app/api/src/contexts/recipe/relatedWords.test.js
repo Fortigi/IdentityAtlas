@@ -30,6 +30,13 @@ describe('relatedWords', () => {
     expect(words).not.toContain('admins');
   });
 
+  it('never suggests connective words, however typical', () => {
+    const names = scope(['License for Power BI', 'License for Fabric', 'Teams Enexis', 'Teams Evides']);
+    const words = relatedWords(names, [ID(0), ID(1)], recipeOf({ terms: ['license'] })).map(w => w.word);
+    expect(words).toContain('power');
+    expect(words).not.toContain('for');
+  });
+
   it('needs a word to recur in the context, unless the context is tiny', () => {
     const recipe = recipeOf({ terms: ['devops'] });
     // Context of 4: a word seen once there ("b2c") is a coincidence.
