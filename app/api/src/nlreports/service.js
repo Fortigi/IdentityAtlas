@@ -14,6 +14,7 @@ import { buildSystemPrompt, buildValuesBlock, RESPONSE_SCHEMA, REPORT_ONLY_SCHEM
 import { chat, DEFAULT_MODEL, warm } from './llm.js';
 import { getReportModel } from './settings.js';
 import { resolveNamedObjects } from './references.js';
+import { correctionMessage, findTerms, locateTerms, termConfirmation, termHint, unusedTerms } from './terms.js';
 import { isFeatureEnabled } from '../featureFlags.js';
 
 const VALUES_TTL_MS = 5 * 60 * 1000;
@@ -135,12 +136,12 @@ function parseReply(content) {
  * The conversation sent to the model: system prompt, earlier turns, then the
  * question with the deployment's values in front of it (when there are any).
  */
-function buildMessages(question, history, values) {
-  const valuesBlock = buildValuesBlock(values);
+function buildMessages(question, history, values, located = []) {
+  const context = [buildValuesBlock(values), termHint(located)].filter(Boolean).join('\n\n');
   return [
     { role: 'system', content: buildSystemPrompt() },
     ...history,
-    { role: 'user', content: valuesBlock ? `${valuesBlock}\n\nRequest: ${question}` : question },
+    { role: 'user', content: context ? `${context}\n\nRequest: ${question}` : question },
   ];
 }
 
@@ -197,11 +198,45 @@ async function repairMissingOr(ctx, turn, result) {
   return retriedResult;
 }
 
+/** A name from the question that occurs in the data but is not in the definition: say where it occurs. */
+async function repairUnusedTerms(ctx, turn, result) {
+  const unused = result.ok ? unusedTerms(result.spec, ctx.located) : [];
+  if (!unused.length) return result;
+  const retry = await askForCorrection(ctx, turn, correctionMessage(unused));
+  const retriedResult = retry.reply?.kind === 'report' ? validateSpec(retry.reply.spec, ctx.values) : null;
+  // Only take the correction when it is valid and uses more of the names.
+  if (!retriedResult?.ok || unusedTerms(retriedResult.spec, ctx.located).length >= unused.length) return result;
+  turn.raw = retry.content;
+  turn.reply = retry.reply;
+  return retriedResult;
+}
+
+/**
+ * Still ignoring a name after the correction: the analyst chooses where it applies
+ * (no guess is run). When the name does not occur on the report's own entity there
+ * is nothing to offer, so the report says it left the name out.
+ * @returns {object|null} a confirmation, or null (assumptions updated in place)
+ */
+function termCheck(ctx, spec, assumptions) {
+  for (const unused of unusedTerms(spec, ctx.located)) {
+    const confirm = termConfirmation(spec, unused, ctx.question);
+    if (confirm) {
+      // The model's own story about the name ("RDW is the system …") is what the analyst is correcting.
+      const n = unused.term.toLowerCase();
+      assumptions.splice(0, assumptions.length, ...assumptions.filter(a => !a.toLowerCase().includes(n)));
+      return confirm;
+    }
+    assumptions.push(`“${unused.term}” from the request is not used in this report.`);
+  }
+  return null;
+}
+
 /** A report reply: repair it if needed, look named objects up, and shape the answer. */
 async function answerReport(ctx, turn) {
   let result = validateSpec(turn.reply.spec, ctx.values);
   result = await repairInvalidSpec(ctx, turn, result);
   result = await repairMissingOr(ctx, turn, result);
+  result = await repairUnusedTerms(ctx, turn, result);
   const errors = result.errors;
   // Still invalid after the repair round: say so. Validation drops what it rejects
   // and still hands back a spec, so returning that as a report would quietly answer
@@ -211,6 +246,10 @@ async function answerReport(ctx, turn) {
     return { kind: 'error', message: 'The model produced a report definition that could not be used.', errors, ...replyMeta(ctx, turn) };
   }
   const assumptions = Array.isArray(turn.reply.assumptions) ? turn.reply.assumptions.map(String) : [];
+  const termConfirm = termCheck(ctx, result.spec, assumptions);
+  if (termConfirm) {
+    return { kind: 'confirm', spec: result.spec, confirm: termConfirm, assumptions, ...replyMeta(ctx, turn) };
+  }
   // Named objects ("business role X", "the Sales group") are looked up; a fuzzy match is confirmed by the analyst.
   const { confirm } = await resolveNamedObjects(result.spec, query);
   if (confirm) {
@@ -251,7 +290,9 @@ export async function interpret({ question, history = [], model = DEFAULT_MODEL 
   await ensureWarm().promise.catch(() => {});
   const values = await loadValues();
   const schema = schemaFor(history);
-  const ctx = { question, model, values, messages: buildMessages(question, history, values) };
+  const terms = findTerms(question, values);
+  const located = terms.length ? await locateTerms(terms, query, values) : [];
+  const ctx = { question, model, values, located, messages: buildMessages(question, history, values, located) };
 
   const first = await chat({ model, messages: ctx.messages, schema });
   const turn = { raw: first.content, reply: parseReply(first.content), timing: first.timing, repaired: false };

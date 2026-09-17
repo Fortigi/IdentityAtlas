@@ -19,7 +19,8 @@ vi.mock('../nlreports/settings.js', () => ({
   getReportModel: vi.fn(async () => 'test-model'),
   setReportModel: vi.fn(),
 }));
-vi.mock('../nlreports/references.js', () => ({
+vi.mock('../nlreports/references.js', async (importOriginal) => ({
+  normalizeName: (await importOriginal()).normalizeName,
   applyChoice: vi.fn(() => true),
   resolveNamedObjects: vi.fn(async () => ({ confirm: null })),
   searchNames: vi.fn(async () => [{ id: 'r1', name: 'Fortigi - Algemeen - Maten', type: 'BusinessRole' }]),
@@ -271,6 +272,26 @@ describe('run and resolve', () => {
     expect(res.body.spec.entity).toBe('user');
     expect(res.body.explanation.title).toBe('All users');
     expect(res.body.confirm).toBeNull();
+  });
+
+  it('applies a term choice as a validated filter, without the name lookup deciding it', async () => {
+    const spec = { ...SPEC, conditions: [{ type: 'field', field: 'userType', op: 'eq', value: 'Guest' }] };
+    const choice = { kind: 'term', path: [], name: 'Company or Email contains “RDW”', term: 'RDW', fields: ['companyName', 'email'], drop: [] };
+    const res = await api().post('/api/nl-reports/resolve').send({ spec, choice });
+    expect(res.status).toBe(200);
+    expect(res.body.spec.conditions[1]).toEqual({ type: 'group', match: 'any', conditions: [
+      { type: 'field', field: 'companyName', op: 'contains', value: 'RDW' },
+      { type: 'field', field: 'email', op: 'contains', value: 'RDW' },
+    ] });
+    expect(res.body.explanation.lines.map(l => l.text).join(' | ')).toMatch(/Company contains "RDW"/);
+    expect(applyChoice).not.toHaveBeenCalled();
+  });
+
+  it('refuses a term choice on a field the report entity does not have', async () => {
+    const choice = { kind: 'term', path: [], name: 'x', term: 'RDW', fields: ['memberCount'] };
+    const res = await api().post('/api/nl-reports/resolve').send({ spec: SPEC, choice });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/does not match anything/);
   });
 });
 

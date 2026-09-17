@@ -12,10 +12,43 @@ function humanType(type) {
 }
 
 /**
+ * A name from the question the report does not use ("RDW"): which field it should
+ * match, or leave it out. Nothing is typed here — the choices are the fields the
+ * name was actually found in.
+ * @param {object} props.confirm  { kind: 'term', name, message, drop, choices: [{ name, fields }] }
+ */
+function TermChoices({ confirm, onChoose, busy }) {
+  const base = { kind: 'term', path: [], term: confirm.name, drop: confirm.drop };
+  return (
+    <div className="space-y-2">
+      <p>{confirm.message}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        {confirm.choices.map(c => (
+          <button key={c.name} type="button" className={CHOICE} disabled={busy}
+            onClick={() => onChoose({ ...base, name: c.name, fields: c.fields })}>
+            <span className="font-medium">{c.name}</span>
+          </button>
+        ))}
+        <button type="button" className="text-xs text-blue-700 hover:underline dark:text-blue-300" disabled={busy}
+          onClick={() => onChoose({ ...base, name: `Leave “${confirm.name}” out`, skip: true })}>
+          Leave “{confirm.name}” out
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * @param {object}   props.confirm   { kind, path, name, message, choices: [{ id, name, type, score? }] }
+ *                                   or a term confirmation (see TermChoices)
  * @param {Function} props.onChoose  ({ path, name, id?, keep? }) => void
  */
 export default function ConfirmChoices({ confirm, onChoose, busy }) {
+  if (confirm.kind === 'term') return <TermChoices confirm={confirm} onChoose={onChoose} busy={busy} />;
+  return <NameChoices confirm={confirm} onChoose={onChoose} busy={busy} />;
+}
+
+function NameChoices({ confirm, onChoose, busy }) {
   const [typed, setTyped] = useState('');
   const choose = (patch) => onChoose({ path: confirm.path, ...patch });
 

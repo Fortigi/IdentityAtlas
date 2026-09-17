@@ -111,10 +111,15 @@ for (const model of models) {
         timing = addTiming(timing, reply.timing || {});
         // A question whose right answer IS a clarification must not be answered for the model.
         // A "did you mean" confirmation: the simulated analyst accepts the first suggestion.
+        // For a name the report did not use ("RDW"), that is the first field it was found in.
         while (reply.kind === 'confirm' && reply.confirm.choices.length && confirmations.length < 3) {
-          const pick = reply.confirm.choices[0];
-          confirmations.push({ asked: reply.confirm.name, chose: pick.name });
-          const resolved = await post('resolve', { spec: reply.spec, choice: { path: reply.confirm.path, name: pick.name, id: pick.id } });
+          const { confirm } = reply;
+          const pick = confirm.choices[0];
+          confirmations.push({ kind: confirm.kind, asked: confirm.name, chose: pick.name });
+          const choice = confirm.kind === 'term'
+            ? { kind: 'term', path: [], name: pick.name, term: confirm.name, fields: pick.fields, drop: confirm.drop }
+            : { path: confirm.path, name: pick.name, id: pick.id };
+          const resolved = await post('resolve', { spec: reply.spec, choice });
           reply = resolved.confirm
             ? { ...reply, spec: resolved.spec, confirm: resolved.confirm }
             : { ...reply, kind: 'report', spec: resolved.spec, explanation: resolved.explanation };
