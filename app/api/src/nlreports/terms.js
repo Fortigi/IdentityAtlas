@@ -73,35 +73,40 @@ function isVocabulary(term, values) {
 export function findTerms(question, values) {
   const text = String(question || '');
   const found = [];
-  const push = (t) => {
-    const term = t.trim();
-    if (normalizeName(term).length < MIN_TERM_LENGTH || term.length > MAX_TERM_LENGTH || isVocabulary(term, values)) return;
-    if (!found.some(f => normalizeName(f) === normalizeName(term))) found.push(term);
-  };
-
-  for (const m of text.matchAll(/["“”]([^"“”]{2,60})["“”]/gu)) push(m[1]);
   const unquoted = text.replace(/["“”][^"“”]{2,60}["“”]/gu, ' . ');
-
-  // Consecutive name-like words form one name, kept as written between the first and
-  // the last word ("Fortigi - Algemeen - Maten", "Folkertsma, Sipke").
-  let phrase = null;   // { start, end }
-  let sentenceStart = true;
-  const flush = () => { if (phrase) push(unquoted.slice(phrase.start, phrase.end)); phrase = null; };
-  for (const m of unquoted.matchAll(/[\p{L}\p{N}](?:[\p{L}\p{N}&+_-]|\.(?=[\p{L}\p{N}]))*|[.?!;:]/gu)) {
-    const w = m[0];
-    if (/^[.?!;:]$/.test(w)) { flush(); sentenceStart = true; continue; }
-    const nameLike = isAllCaps(w) || (isCapitalised(w) && !sentenceStart);
-    sentenceStart = false;
-    // A comma joins "Folkertsma, Sipke", but separates a list of codes ("RDW, MUMC").
-    if (phrase && /,/.test(unquoted.slice(phrase.end, m.index)) && (isAllCaps(w) || isAllCaps(phrase.last))) flush();
-    const startsWithVocabulary = !phrase && !isAllCaps(w) && vocabulary.has(normalizeName(w));
-    if (nameLike && !startsWithVocabulary) {
-      phrase = { start: phrase ? phrase.start : m.index, end: m.index + w.length, last: w };
-    } else flush();
+  const candidates = [...[...text.matchAll(/["“”]([^"“”]{2,60})["“”]/gu)].map(m => m[1]), ...namePhrases(unquoted)];
+  for (const candidate of candidates) {
+    const term = candidate.trim();
+    if (normalizeName(term).length < MIN_TERM_LENGTH || term.length > MAX_TERM_LENGTH || isVocabulary(term, values)) continue;
+    if (!found.some(f => normalizeName(f) === normalizeName(term))) found.push(term);
   }
-  flush();
   return found.slice(0, MAX_TERMS);
 }
+
+/**
+ * Runs of name-like words, each kept as written between its first and last word
+ * ("Fortigi - Algemeen - Maten", "Folkertsma, Sipke").
+ */
+function* namePhrases(text) {
+  let phrase = null;   // { start, end, last }
+  let sentenceStart = true;
+  for (const m of text.matchAll(/[\p{L}\p{N}](?:[\p{L}\p{N}&+_-]|\.(?=[\p{L}\p{N}]))*|[.?!;:]/gu)) {
+    const w = m[0];
+    const punctuation = /^[.?!;:]$/.test(w);
+    const nameLike = !punctuation && (isAllCaps(w) || (isCapitalised(w) && !sentenceStart));
+    sentenceStart = punctuation;
+    if (phrase && (!nameLike || commaSeparates(text, phrase, m))) { yield text.slice(phrase.start, phrase.end); phrase = null; }
+    if (nameLike && (phrase || !isVocabularyWord(w))) phrase = { start: phrase ? phrase.start : m.index, end: m.index + w.length, last: w };
+  }
+  if (phrase) yield text.slice(phrase.start, phrase.end);
+}
+
+/** A comma joins "Folkertsma, Sipke", but separates a list of codes ("RDW, MUMC"). */
+const commaSeparates = (text, phrase, m) =>
+  text.slice(phrase.end, m.index).includes(',') && (isAllCaps(m[0]) || isAllCaps(phrase.last));
+
+/** A capitalised catalog word ("Guest") does not start a name; a code in capitals does. */
+const isVocabularyWord = (w) => !isAllCaps(w) && vocabulary.has(normalizeName(w));
 
 /**
  * A case-insensitive Postgres regex matching the term as written, not inside a longer
