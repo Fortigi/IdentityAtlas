@@ -7,13 +7,15 @@ definition is, how it becomes SQL, and where the seams are.
 ## The shape
 
 ```
-question ─► model ─► report definition (JSON) ─► validate ─► resolve names ─► compile ─► READ ONLY tx ─► rows
-              ▲          ▲                         │             │              │
-              │          └ built by hand in the    │             │              └ parameterised SQL,
-              │            definition editor       │             │                statement timeout
-              │                                    │             └ "did you mean …?" for a fuzzy name
-              └ JSON-schema grammar: the model can only
-                emit known entities, fields and relations
+question
+  ─► find names        which text fields each name occurs in (field names only, no rows)
+  ─► model             JSON-schema grammar: only known entities, fields and relations
+  ─► report definition (JSON) — or built by hand in the definition editor
+  ─► validate          repair rounds: invalid, missing "or", a name left unused
+  ─► check names       a name still unused → "which should the report match?"
+  ─► resolve names     "did you mean …?" for a fuzzy name
+  ─► compile           parameterised SQL, statement timeout
+  ─► READ ONLY tx ─► rows
 ```
 
 A **report definition** is the only thing that travels between the layers, and the only thing stored:
@@ -41,6 +43,7 @@ A **report definition** is the only thing that travels between the layers, and t
 | `nlreports/spec.js` | Validation and normalisation of a definition — unknown field/operator/relation rejected, values coerced to the field's type, enum values snapped to values that exist, columns resolved, limits capped. Errors are plain sentences, so they can be handed back to the model. |
 | `nlreports/compare.js` | The set-comparison building block (identical / containsAll / within / similar) with its CTE-based SQL and its plain-language wording. |
 | `nlreports/references.js` | Looks up every named object (comparison references and `name is X` conditions): exact → punctuation-insensitive → `pg_trgm` fuzzy, producing a "did you mean" confirmation the UI applies without another model call. |
+| `nlreports/terms.js` | The names a *question* mentions (quoted, all-caps, capitalised mid-sentence). Looks each up as a whole word in a fixed set of text fields and tells the model the field names only; after the model answers, a name it ignored gets one correction round and then a `term` confirmation (which field, or leave it out), applied by `/resolve` and validated again. |
 | `nlreports/compile.js` | Definition → parameterised SQL. Every identifier comes from the catalog; every value goes into the parameter array. |
 | `nlreports/explain.js` | Definition → the sentence shown to the analyst. Generated from the *validated* definition, never from the model's prose. |
 | `nlreports/prompt.js` | The system prompt (release-stable, no deployment data) and the JSON schema handed to the model server as a decoding grammar. |

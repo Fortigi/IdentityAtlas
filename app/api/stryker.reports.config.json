@@ -29,6 +29,7 @@
     "src/nlreports/savedReports.js",
     "src/nlreports/service.js",
     "src/nlreports/spec.js",
+    "src/nlreports/terms.js",
     "src/reports/activityWindow.js",
     "src/reports/export.js",
     "src/reports/registry.js",
