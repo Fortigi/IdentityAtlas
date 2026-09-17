@@ -102,6 +102,15 @@ export function findTerms(question, values) {
 }
 
 /**
+ * A case-insensitive Postgres regex matching the term as written, not inside a longer
+ * word. Letters and digits bound a word; the term's own punctuation ("UMC+") is literal.
+ */
+export function wholeWordPattern(term) {
+  const literal = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return `(^|[^[:alnum:]])${literal}($|[^[:alnum:]])`;
+}
+
+/**
  * Where each term occurs: [{ term, places: [{ entity, field }], system: boolean }].
  * Terms that occur nowhere are left out — there is nothing to point the model at.
  * @param {Function} query  db query function
@@ -114,9 +123,14 @@ export async function locateTerms(terms, query, values) {
       const entity = ENTITIES[entityName];
       const t = 'tm';
       const where = `${entity.where(t)}${exclude ? ` AND ${t}.${exclude}` : ''}`;
-      const checks = fields.map((f, i) =>
-        `EXISTS (SELECT 1 FROM "${entity.table}" ${t} WHERE ${where} AND ${entity.fields[f].sql(t)} ILIKE $1 ESCAPE '\\') AS f${i}`);
-      const { rows } = await query(`SELECT ${checks.join(', ')}`, [likeContains(term)]);
+      // As a whole word: "RDW" is in "@rdw.nl" and in the company "RDW", but a plain
+      // substring search also found it inside "Forwarding" — and pointed the model at
+      // every name field there is. ILIKE narrows cheaply first; the regex decides.
+      const checks = fields.map((f, i) => {
+        const sql = entity.fields[f].sql(t);
+        return `EXISTS (SELECT 1 FROM "${entity.table}" ${t} WHERE ${where} AND ${sql} ILIKE $1 ESCAPE '\\' AND ${sql} ~* $2) AS f${i}`;
+      });
+      const { rows } = await query(`SELECT ${checks.join(', ')}`, [likeContains(term), wholeWordPattern(term)]);
       fields.forEach((f, i) => { if (rows[0]?.[`f${i}`]) places.push({ entity: entityName, field: f }); });
     }
     const n = normalizeName(term);
@@ -134,7 +148,9 @@ export function termHint(located) {
     if (system) where.push('system');
     return `- "${term}": ${where.join(', ')}${system ? '' : ' — not a system name'}`;
   });
-  return `Where the names in this request occur in the data (filter on these fields, with contains):\n${lines.join('\n')}`;
+  return 'Where the names in this request occur in the data. Filter with contains on the ONE field that fits the request ' +
+    '(an organisation: companyName; a person: displayName) — only when several fit equally, put them in a group with match "any":\n' +
+    lines.join('\n');
 }
 
 /** Every text a definition filters on: values and referenced names, at any depth. */
@@ -162,7 +178,7 @@ export function unusedTerms(spec, located) {
 export function correctionMessage(unused) {
   const parts = unused.map(({ term, places }) => `"${term}" occurs in: ${places.map(p => `${p.entity}.${p.field}`).join(', ') || 'system'}`);
   return `The request mentions ${unused.map(u => `"${u.term}"`).join(' and ')}, but your definition does not use it. ${parts.join('; ')}. ` +
-    'Filter on the field where it occurs with contains (a group with match "any" when it could be more than one field), ' +
+    'Filter with contains on the one field that fits (a group with match "any" only when several fit equally), ' +
     'remove any condition you used in its place, and reply with the corrected complete JSON.';
 }
 
