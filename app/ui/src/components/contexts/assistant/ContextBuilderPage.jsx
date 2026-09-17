@@ -94,8 +94,11 @@ export default function ContextBuilderPage({ builderId, onClose, onOpenDetail, o
       <div className={CARD}>
         <h3 className={H3}>Search terms</h3>
         <TermsPanel
-          recipe={recipe} stats={evaluation?.terms} fieldLabels={fieldLabels}
-          actions={{ toggle: update(toggleTerm), match: update(setTermMatch), remove: update(removeTerm), add: update(addTerm) }}
+          recipe={recipe} stats={evaluation?.terms} fieldLabels={fieldLabels} memberCount={memberCount}
+          actions={{
+            toggle: update(toggleTerm), match: update(setTermMatch), remove: update(removeTerm),
+            add: update(addTerm), addRelated: update((r, word) => addTerm(r, word, 'related')),
+          }}
         />
       </div>
 

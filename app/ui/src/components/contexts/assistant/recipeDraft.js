@@ -41,13 +41,13 @@ export function mergeTerms(recipe, terms) {
   return added.length ? { ...recipe, terms: [...recipe.terms, ...added] } : recipe;
 }
 
-/** A term the analyst typed. Short terms match whole words only, as on the server. */
-export function addTerm(recipe, text) {
+/** A term the analyst typed or picked from related words. Short terms match whole words only, as on the server. */
+export function addTerm(recipe, text, origin = 'analyst') {
   const trimmed = String(text ?? '').trim();
   const key = termKey(trimmed);
   if (key.replace(/ /g, '').length < 2) return recipe;
   const match = key.replace(/ /g, '').length <= 3 ? 'token' : 'wordStart';
-  return mergeTerms(recipe, [{ text: trimmed, key, match, state: 'accepted', origin: 'analyst' }]);
+  return mergeTerms(recipe, [{ text: trimmed, key, match, state: 'accepted', origin }]);
 }
 
 const updateTerm = (recipe, key, change) => ({
@@ -105,6 +105,12 @@ export function saveBlocker(recipe, memberCount) {
  */
 export function isRecipeRoot(attrs) {
   return attrs?.sourceAlgorithmName === 'context-recipe' && !attrs.parentContextId;
+}
+
+/** "in 6 of the context · 2 elsewhere" — what adding a related word would do. */
+export function relatedWordText(w) {
+  const outside = w.outside ? ` · ${w.outside} elsewhere` : ' · nowhere else';
+  return `in ${w.inContext} of the context${outside}`;
 }
 
 /** What to do with a match row, given its status. */

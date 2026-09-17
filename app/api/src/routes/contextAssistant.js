@@ -10,6 +10,7 @@
 //   POST /api/context-assistant/interpret        description (+ conversation) → terms or a question
 //   POST /api/context-assistant/suggest          description + kept/dropped terms → new terms
 //   POST /api/context-assistant/evaluate         recipe → per-term numbers and the matched objects
+//   POST /api/context-assistant/related          recipe → words typical of what it finds (no model)
 //   GET  /api/context-assistant/lookup           objects by name, to include one by hand (?q=)
 //   GET  /api/context-assistant/recipe/:id       the recipe behind a context tree, to edit it
 //   POST /api/context-assistant/save             create the context tree, or refresh an existing one
@@ -29,6 +30,7 @@ import { parseInterpretRequest } from './nlReports.js';
 import { ensureWarm, interpret, suggestMore, warmupState } from '../contextAssistant/service.js';
 import { SEARCH_FIELDS, searchFieldLabel, validateRecipe } from '../contexts/recipe/recipe.js';
 import { computeMatches, loadCandidates } from '../contexts/recipe/matches.js';
+import { loadScopeNames, relatedWords } from '../contexts/recipe/relatedWords.js';
 import { enqueueRun, getRun } from '../contexts/plugins/runner.js';
 
 const router = Router();
@@ -116,6 +118,20 @@ router.post('/context-assistant/evaluate', gate, async (req, res) => {
     res.json({ recipe, errors, scopeTotal, truncated, terms, matches, memberCount: memberIds.length });
   } catch (err) {
     fail(res, 'evaluate', err);
+  }
+});
+
+router.post('/context-assistant/related', gate, async (req, res) => {
+  const raw = bodyRecipe(req);
+  if (!raw) return res.status(400).json({ error: 'recipe is required' });
+  const { recipe } = validateRecipe(raw);
+  try {
+    const { rows, scopeTotal } = await loadCandidates(recipe, tx);
+    const { memberIds } = computeMatches(rows, recipe, scopeTotal);
+    const words = relatedWords(await loadScopeNames(recipe, tx), memberIds, recipe);
+    res.json({ data: words, contextSize: memberIds.length });
+  } catch (err) {
+    fail(res, 'related', err);
   }
 });
 

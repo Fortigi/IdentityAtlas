@@ -64,33 +64,36 @@ export const MORE_TERMS_SCHEMA = termsReply(REPLY_LIMITS.moreTerms);
 
 const t = (text, why) => ({ text, why });
 
+// Keep the examples AWAY from the subjects the tool is tested on (tools/context-assistant):
+// a small model repeats an example almost word for word when a request resembles it, so an
+// example about purchasing makes a purchasing question look solved when it is not.
 const EXAMPLES = [
   {
-    q: 'Alle groepen rond het inkoopproces',
-    a: { kind: 'terms', name: 'Inkoopproces', notes: [], terms: [
-      t('inkoop', 'name'), t('procurement', 'translation'), t('purchasing', 'translation'), t('purchase', 'translation'),
-      t('bestelling', 'activity'), t('inkooporder', 'activity'), t('crediteuren', 'activity'), t('leverancier', 'related'),
-      t('supplier', 'translation'), t('P2P', 'abbreviation'), t('Coupa', 'system'), t('Ariba', 'system'),
+    q: 'Groepen voor de salarisadministratie',
+    a: { kind: 'terms', name: 'Salarisadministratie', notes: [], terms: [
+      t('salarisadministratie', 'name'), t('salaris', 'name'), t('payroll', 'translation'), t('loonadministratie', 'synonym'),
+      t('verloning', 'activity'), t('loonstrook', 'activity'), t('salary', 'translation'), t('Youforce', 'system'),
+      t('Loket', 'system'), t('ADP', 'system'),
     ] },
   },
   {
-    q: 'everything to do with HAMIS',
-    a: { kind: 'terms', name: 'HAMIS', terms: [t('HAMIS', 'name')], notes: [
-      'I do not know HAMIS, so I search for the name exactly as written. Related words can find the names it appears together with.',
+    q: 'everything to do with Zenvira',
+    a: { kind: 'terms', name: 'Zenvira', terms: [t('Zenvira', 'name')], notes: [
+      'I do not know Zenvira, so I search for the name exactly as written. Related words can find the names it appears together with.',
     ] },
   },
   {
-    q: 'HR groups',
-    a: { kind: 'terms', name: 'HR', notes: [], terms: [
-      t('HR', 'name'), t('human resources', 'synonym'), t('personeelszaken', 'translation'), t('P&O', 'abbreviation'),
-      t('personeel', 'translation'), t('payroll', 'activity'), t('salarisadministratie', 'activity'), t('verzuim', 'activity'),
-      t('recruitment', 'activity'), t('werving', 'translation'), t('AFAS', 'system'), t('Youforce', 'system'),
+    q: 'facility management groups',
+    a: { kind: 'terms', name: 'Facility management', notes: [], terms: [
+      t('facility', 'name'), t('facilities', 'name'), t('facilitair', 'translation'), t('FM', 'abbreviation'),
+      t('huisvesting', 'translation'), t('gebouwbeheer', 'activity'), t('receptie', 'activity'), t('catering', 'activity'),
+      t('Planon', 'system'), t('TOPdesk', 'system'),
     ] },
   },
   {
     q: 'the important groups',
     a: { kind: 'clarify', question: 'Which subject should the context be about? I need a topic, process, department or system to search for.', options: [
-      'A business process (for example purchasing or payroll)',
+      'A business process',
       'An application or system',
       'A department',
     ] },
@@ -104,6 +107,7 @@ export function buildContextPrompt() {
 
 # Rules
 1. Start with the analyst's own key word, exactly as written. Then add what a group name in a Dutch or international organisation would contain: English and Dutch variants, synonyms, common abbreviations, the activities of the process, and well-known systems used for it.
+1b. Group names are written by many people: include other spellings of the same word (British and American English, singular and plural) when they differ.
 2. Usually 6 to 12 terms. When the subject is a single name or abbreviation you do not recognise, return just that name and say so in notes — never invent what it stands for.
 3. A term is one word or a short phrase of at most 3 words, as it would be written in a group name. No sentences.
 4. Never use words that appear in the names of groups of every subject: admin, admins, users, members, owners, group, team, app, all, read, write, prod, test, beheer, beheerders, gebruikers, medewerkers, afdeling, department.

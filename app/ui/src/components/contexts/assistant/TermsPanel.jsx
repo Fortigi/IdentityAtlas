@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { MUTED, SECONDARY } from '@ui/components/reports/ask/AskAssistant.styles';
 import { MATCH_LABELS, termCounts } from './recipeDraft';
+import RelatedWords from './RelatedWords';
 
 const INPUT = 'rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100';
 
@@ -56,9 +57,10 @@ function TermRow({ term, stats, fieldLabels, onToggle, onMatch, onRemove }) {
  * @param {object}   props.recipe
  * @param {object[]} [props.stats]        evaluation.terms
  * @param {object}   props.fieldLabels    field name → label
- * @param {object}   props.actions        { toggle, match, remove, add }
+ * @param {object}   props.actions        { toggle, match, remove, add, addRelated }
+ * @param {number}   props.memberCount    objects in the context now (related words need some)
  */
-export default function TermsPanel({ recipe, stats = [], fieldLabels, actions }) {
+export default function TermsPanel({ recipe, stats = [], fieldLabels, actions, memberCount = 0 }) {
   const [text, setText] = useState('');
   const byKey = new Map(stats.map(s => [s.key, s]));
   const { kept, dropped } = termCounts(recipe);
@@ -89,6 +91,7 @@ export default function TermsPanel({ recipe, stats = [], fieldLabels, actions })
         <input id="ctx-add-term" value={text} onChange={e => setText(e.target.value)} placeholder="Add a term, e.g. inkoop" className={INPUT} />
         <button type="submit" className={SECONDARY} disabled={!text.trim()}>Add term</button>
       </form>
+      <RelatedWords recipe={recipe} disabled={memberCount === 0} onAdd={actions.addRelated} />
     </div>
   );
 }
