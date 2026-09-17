@@ -59,7 +59,7 @@ model was dropped, not as a like-for-like ranking.
 
 | Model | Licence | Tuning set | Held-out set | Notes |
 |---|---|---|---|---|
-| **Qwen3-4B-Instruct-2507 (shipped)** | Apache 2.0 | **34/39 (87%)** | **14/17 (82%)** | Best of every model tested, commercial use allowed |
+| **Qwen3-4B-Instruct-2507 (shipped)** | Apache 2.0 | **33/41 (80%)** | **13/17 (76%)** | Best of every model tested, commercial use allowed |
 | Qwen2.5-Coder 3B | ⛔ Qwen Research (non-commercial) | 28/32 (88%) at the time | 9/14 (64%) | Strongest early candidate; **cannot be shipped** |
 | Qwen2.5-Coder 1.5B | Apache 2.0 | 21/36 (58%) | 8/14 (57%) | Runs on 1 CPU / 2 GB, but clearly weaker |
 | Qwen2.5-Coder 0.5B | Apache 2.0 | 7/32 (22%) | 5/14 (36%) | Unusable: copies the examples |
@@ -67,13 +67,15 @@ model was dropped, not as a like-for-like ranking.
 | Gemma 3 4B | Gemma terms | run abandoned | — | ~80 s per question: its attention design defeated prompt caching |
 | Qwen2.5-Coder 7B | Apache 2.0 | spot checks only | — | Too slow on 2 CPUs for the benefit |
 
-The sets grew during development (32 → 39 tuning, 14 → 17 held-out), so the percentages above are
+The sets grew during development (32 → 41 tuning, 14 → 17 held-out), so the percentages above are
 comparable within a row, not exactly across rows. The shipped model's figures are the full sets,
 measured on the release image as it ships — llama.cpp, the saved prompt cache, and the bounded output
-grammar described below. (On the same setup without that grammar the tuning set scored 33/39; the one
-question it gained is the one that looped.) A few questions have an empty correct answer, which a wrong
-definition can also produce; counting only questions with a non-empty answer, the shipped model scores
-32/37 and 12/15. Re-run any time with `tools/nl-reports/eval.mjs` —
+grammar described below. Before the sign-in fields were added, the same setup scored 34/39 and 14/17: the
+larger prompt answers the new sign-in questions, but moved two unrelated answers, and each prompt variant
+tried since traded one question for another. A run is repeatable — the same prompt gives the same answers —
+so these differences are real, not noise; the sets are just too small to tune further without fitting
+them. A few questions have an empty correct answer, which a wrong definition can also produce; counting
+only questions with a non-empty answer, the shipped model scores 32/40 and 11/15. Re-run any time with `tools/nl-reports/eval.mjs` —
 see [Measuring it yourself](#measuring-it-yourself).
 
 ### What the mistakes look like
