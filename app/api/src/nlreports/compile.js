@@ -23,7 +23,21 @@ function createContext() {
     params,
     ctes: [],
     refCtes: new Map(),
+    fieldCtes: new Set(),
   };
+}
+
+/**
+ * A field's SQL expression on a table alias. A field that needs a shared lookup
+ * computed once per query (the sign-in measurement moment per system) declares it
+ * as `cte`; the first use adds it to the query, later uses reuse it.
+ */
+function fieldExpr(field, alias, ctx) {
+  if (field.cte && !ctx.fieldCtes.has(field.cte.name)) {
+    ctx.fieldCtes.add(field.cte.name);
+    ctx.ctes.push(`${field.cte.name} AS (${field.cte.sql})`);
+  }
+  return field.sql(alias);
 }
 
 function fieldPredicate(field, expr, op, value, ctx) {
@@ -64,7 +78,7 @@ function conditionSql(entityName, c, alias, ctx) {
   const entity = ENTITIES[entityName];
   if (c.type === 'field') {
     const field = entity.fields[c.field];
-    return fieldPredicate(field, field.sql(alias), c.op, c.value, ctx);
+    return fieldPredicate(field, fieldExpr(field, alias, ctx), c.op, c.value, ctx);
   }
   if (c.type === 'relation') {
     const rel = entity.relations[c.relation];
@@ -82,13 +96,13 @@ function conditionSql(entityName, c, alias, ctx) {
 
 function columnSql(entityName, colDef, alias, ctx) {
   const entity = ENTITIES[entityName];
-  if (colDef.kind === 'field') return entity.fields[colDef.field].sql(alias);
+  if (colDef.kind === 'field') return fieldExpr(entity.fields[colDef.field], alias, ctx);
   if (colDef.kind === 'compare') return compareColumnSql(entityName, ctx.firstCompare, colDef.sub, alias, ctx);
   const rel = entity.relations[colDef.relation];
   const inner = ctx.alias();
   const { from, where } = rel.from(alias, inner, ctx.alias);
   if (colDef.kind === 'oneRelationField') {
-    return `(SELECT ${ENTITIES[rel.target].fields[colDef.field].sql(inner)} FROM ${from} WHERE ${where} LIMIT 1)`;
+    return `(SELECT ${fieldExpr(ENTITIES[rel.target].fields[colDef.field], inner, ctx)} FROM ${from} WHERE ${where} LIMIT 1)`;
   }
   if (colDef.kind === 'manyCount') return `(SELECT count(DISTINCT ${inner}."id") FROM ${from} WHERE ${where})`;
   return `(SELECT string_agg(DISTINCT ${inner}."displayName", ', ' ORDER BY ${inner}."displayName") FROM ${from} WHERE ${where})`;
@@ -127,7 +141,7 @@ export function compileSpec(spec) {
   // A comparison report lists the closest matches first.
   let order;
   if (spec.sort) {
-    order = `${entity.fields[spec.sort.field].sql(root)} ${spec.sort.direction === 'desc' ? 'DESC' : 'ASC'} NULLS LAST, ${root}."id"`;
+    order = `${fieldExpr(entity.fields[spec.sort.field], root, ctx)} ${spec.sort.direction === 'desc' ? 'DESC' : 'ASC'} NULLS LAST, ${root}."id"`;
   } else {
     const similarity = ctx.firstCompare
       ? `${compareColumnSql(spec.entity, ctx.firstCompare, 'similarity', root, ctx)} DESC NULLS LAST, `

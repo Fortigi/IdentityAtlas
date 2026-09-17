@@ -9,10 +9,29 @@
 // the root entity and inside a relation subquery without alias collisions. Every
 // template is a constant — no user or model input is ever interpolated into SQL.
 
+import { aggregateRowWhere, lastSignInExpr } from '../lib/principalActivity.js';
+import { measurementCte } from '../reports/activityWindow.js';
+
 const notDeleted = (t) => `${t}."deletedAt" IS NULL`;
+
+// Sign-in activity, read through the same helpers as the standard activity
+// reports, so "last sign-in" and "stale" mean the same thing in a custom report as
+// in Never Signed In / Stale Accounts. Activity is a snapshot per system: the
+// measurement moment (when that system's sign-in data was last collected) is
+// what "days since" counts back from — not today — so a missed sync does not
+// make everyone stale. It is computed once per query, as a CTE.
+const SIGNIN_MEASUREMENT = { name: 'signin_measurement', sql: measurementCte() };
+const lastSignIn = (t) => `(SELECT MAX(${lastSignInExpr('pa')}) FROM "PrincipalActivity" pa
+          WHERE pa."principalId" = ${t}."id" AND ${aggregateRowWhere('pa')})`;
+const signInMeasuredAt = (t) =>
+  `(SELECT sm."measuredAt" FROM ${SIGNIN_MEASUREMENT.name} sm WHERE sm."systemId" = ${t}."systemId")`;
 const ext = (key) => (t) => `${t}."extendedAttributes"->>'${key}'`;
 const extBool = (key) => (t) => `(${t}."extendedAttributes"->>'${key}')::boolean`;
 const col = (name) => (t) => `${t}."${name}"`;
+// Ids are UUID columns, but the catalog offers them as text (contains, starts with,
+// is empty …). Without the cast, text operators are invalid SQL on a UUID — found by
+// contract-tests/customReportsCatalog.contract.test.js.
+const idText = (t) => `${t}."id"::text`;
 const systemName = (t) => `(SELECT s."displayName" FROM "Systems" s WHERE s."id" = ${t}."systemId")`;
 
 // Assignment types that mean "is a member / has it" (Eligible = could activate it).
@@ -53,7 +72,7 @@ const BASE = {
     defaultColumns: ['displayName', 'email', 'principalType', 'accountEnabled'],
     where: notDeleted,
     fields: {
-      id: { label: 'ID', type: 'text', sql: col('id'), description: 'unique account id' },
+      id: { label: 'ID', type: 'text', sql: idText, description: 'unique account id' },
       displayName: { label: 'Name', type: 'text', sql: col('displayName'), description: 'display name' },
       email: { label: 'Email', type: 'text', sql: col('email'), description: 'email / UPN' },
       principalType: {
@@ -89,6 +108,21 @@ const BASE = {
         sql: (t) => `(SELECT count(*) FROM "ResourceAssignments" ra JOIN "Resources" r ON r."id" = ra."resourceId"
           WHERE ra."principalId" = ${t}."id" AND ra."deletedAt" IS NULL AND r."deletedAt" IS NULL
           AND r."resourceType" = 'Group' AND ra."assignmentType" IN ${HELD})`,
+      },
+      lastSignIn: {
+        label: 'Last sign-in', type: 'date', sql: lastSignIn,
+        description: 'most recent sign-in (interactive or not). Empty when none is recorded — which includes '
+          + 'systems whose sign-in activity is not collected; combine with signInDataCollected for "never signed in"',
+      },
+      daysSinceLastSignIn: {
+        label: 'Days since last sign-in', type: 'number', cte: SIGNIN_MEASUREMENT,
+        sql: (t) => `(EXTRACT(DAY FROM ${signInMeasuredAt(t)} - ${lastSignIn(t)}))::int`,
+        description: 'days between the last sign-in and when sign-in data was last collected. '
+          + 'Use this for "not signed in for N days" (gt N). Empty when there is no sign-in or no collected data',
+      },
+      signInDataCollected: {
+        label: 'Sign-in data collected', type: 'date', cte: SIGNIN_MEASUREMENT, sql: signInMeasuredAt,
+        description: 'when this account\'s system last collected sign-in activity; empty = sign-in activity is not collected',
       },
     },
     relations: {
@@ -179,7 +213,7 @@ const BASE = {
     defaultColumns: ['displayName', 'email', 'department', 'jobTitle', 'accountCount'],
     where: () => 'TRUE',
     fields: {
-      id: { label: 'ID', type: 'text', sql: col('id'), description: 'unique identity id' },
+      id: { label: 'ID', type: 'text', sql: idText, description: 'unique identity id' },
       displayName: { label: 'Name', type: 'text', sql: col('displayName') },
       email: { label: 'Email', type: 'text', sql: col('email') },
       givenName: { label: 'First name', type: 'text', sql: col('givenName') },
@@ -235,7 +269,7 @@ const BASE = {
     defaultColumns: ['displayName', 'resourceType', 'description'],
     where: (t) => `${notDeleted(t)} AND ${t}."resourceType" NOT IN ${OWNERSHIP_TYPES}`,
     fields: {
-      id: { label: 'ID', type: 'text', sql: col('id'), description: 'unique resource id' },
+      id: { label: 'ID', type: 'text', sql: idText, description: 'unique resource id' },
       displayName: { label: 'Name', type: 'text', sql: col('displayName'), description: 'display name' },
       description: { label: 'Description', type: 'text', sql: col('description') },
       resourceType: {

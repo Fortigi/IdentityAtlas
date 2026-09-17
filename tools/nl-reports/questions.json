@@ -728,10 +728,45 @@
     }
   },
   {
-    "id": "signin-missing-data",
+    "id": "signin-stale-90",
     "question": "Users that have not signed in for more then 90 days",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "field": "daysSinceLastSignIn",
+          "op": "gt",
+          "value": 90
+        }
+      ]
+    },
+    "note": "counted back from when sign-in data was collected, like the Stale Accounts report"
+  },
+  {
+    "id": "signin-never",
+    "question": "Users that never signed in",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "field": "lastSignIn",
+          "op": "isEmpty",
+          "value": null
+        },
+        {
+          "field": "signInDataCollected",
+          "op": "isNotEmpty",
+          "value": null
+        }
+      ]
+    },
+    "note": "only systems that collect sign-in data; otherwise every account of a silent system would be listed"
+  },
+  {
+    "id": "mfa-missing-data",
+    "question": "Users that do not have MFA enabled",
     "expectKind": "clarify",
-    "note": "no last sign-in data in the catalog: the generator must say so instead of building a report"
+    "note": "no MFA data in the catalog: the generator must say so instead of building a report"
   },
   {
     "id": "guest-manager-or-example",

@@ -38,6 +38,22 @@ can open, run and download the result.
       - **+ compare with…** — see [Comparing with another group or person](#comparing) below.
 4. **Pick columns.** Click a column name to add or remove it. Besides the fields themselves you can
    show things like the manager's name, the groups someone is in, or a count.
+
+### Sign-in activity
+
+Users and accounts have three sign-in fields, read from the same data as the standard *Never signed in*
+and *Stale accounts* reports, so they give the same answers:
+
+- **Last sign-in** — the most recent sign-in, interactive or not.
+- **Days since last sign-in** — counted back from **when that system's sign-in data was last collected**,
+  not from today. If a crawl stops running, accounts do not all quietly turn stale. Use *Days since last
+  sign-in is more than 90* for "not signed in for 90 days".
+- **Sign-in data collected** — when that account's system last collected sign-in activity. It is empty
+  for systems that collect none.
+
+For "never signed in", use **Last sign-in is empty** *and* **Sign-in data collected is not empty**.
+Without the second condition, every account of a system that collects no sign-in data would be listed
+too.
 5. **Preview.** The builder shows *what will run* in plain language, the number of rows, and the rows
    themselves. Read the plain-language version before you trust the result — that sentence is
    generated from the definition that actually runs.
@@ -62,11 +78,9 @@ The generator may answer with a question instead of a report:
 - **"Did you mean…?"** — you named something (a business role, a group, a person) whose name does not
   match exactly. Pick the right one, type the exact name, or keep what you wrote. This one is reliable:
   the database does the lookup, not the model.
-- **"I cannot build this"** — the report needs information that custom reports cannot use, and you get
+- **"I cannot build this"** — the report needs information Identity Atlas does not hold, and you get
   a note saying so rather than a report built on the wrong field. Asking for users with MFA switched
-  off is an example. **Sign-in dates are one of these for now**: Identity Atlas does collect them, and
-  the standard *Never signed in* and *Stale accounts* reports use them, but custom reports cannot
-  filter on them yet.
+  off is an example.
 - **A clarifying question** — it *can* ask when a request could mean two different reports, and you
   can answer or tell it to use its best guess. **Do not count on it.** In testing it guessed on both
   deliberately ambiguous requests instead of asking — "everyone with admin rights" came back as one

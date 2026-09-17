@@ -87,6 +87,45 @@ describe('compileSpec', () => {
   });
 });
 
+describe('compileSpec — sign-in activity', () => {
+  it('computes the per-system measurement moment once, however many sign-in fields use it', () => {
+    const { text } = compile({
+      entity: 'user',
+      conditions: [
+        { field: 'daysSinceLastSignIn', op: 'gt', value: 90 },
+        { field: 'signInDataCollected', op: 'isNotEmpty', value: null },
+      ],
+      // Also through a relation column, which compiles in a subquery of its own.
+      columns: ['displayName', 'daysSinceLastSignIn', 'manager.signInDataCollected'],
+    });
+    expect(text.match(/signin_measurement AS \(/g)).toHaveLength(1);
+    expect(text.startsWith('WITH signin_measurement AS (')).toBe(true);
+    expect(text.match(/FROM signin_measurement sm/g).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('counts "days since" back from when the data was collected, never from today', () => {
+    // Anchoring on now() would age every account into staleness the moment a sync
+    // is missed — the trap the standard activity reports are built to avoid.
+    const { text } = compile({ entity: 'user', conditions: [{ field: 'daysSinceLastSignIn', op: 'gt', value: 30 }] });
+    const predicate = text.slice(text.indexOf('WHERE t0'));
+    expect(predicate).toMatch(/EXTRACT\(DAY FROM \(SELECT sm\."measuredAt" FROM signin_measurement sm/);
+    expect(predicate).not.toMatch(/now\(\)/);
+  });
+
+  it('reads last sign-in the way the activity reports do: newest of the three timestamps, aggregate rows only', () => {
+    const { text } = compile({ entity: 'account', conditions: [{ field: 'lastSignIn', op: 'isEmpty', value: null }] });
+    expect(text).toMatch(/GREATEST\(pa\."lastSignInDateTime", pa\."lastNonInteractiveSignInDateTime", pa\."lastSuccessfulSignInDateTime"\)/);
+    expect(text).toMatch(/pa\."resourceId" = '00000000-0000-0000-0000-000000000000'::uuid/);
+    // Last sign-in alone needs no measurement moment, so no CTE is added for it.
+    expect(text).not.toMatch(/signin_measurement/);
+  });
+
+  it('adds no CTE to a report that does not use sign-in data', () => {
+    const { text } = compile({ entity: 'user', conditions: [{ field: 'accountEnabled', op: 'eq', value: false }] });
+    expect(text.startsWith('SELECT')).toBe(true);
+  });
+});
+
 describe('explainSpec', () => {
   it('reads the interpretation back in analyst language', () => {
     const { spec } = compile({
