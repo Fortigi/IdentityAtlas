@@ -38,6 +38,7 @@ import { modelState } from '../nlreports/llm.js';
 import { applyChoice, resolveNamedObjects } from '../nlreports/references.js';
 import { createSavedReport, deleteSavedReport, prepareSavedReport } from '../nlreports/savedReports.js';
 import router, { parseInterpretRequest } from './nlReports.js';
+import { MAX_CONDITIONS } from '../nlreports/spec.js';
 
 const app = mountRouter(router);
 const api = () => request(app);
@@ -285,6 +286,13 @@ describe('run and resolve', () => {
     ] });
     expect(res.body.explanation.lines.map(l => l.text).join(' | ')).toMatch(/Company contains "RDW"/);
     expect(applyChoice).not.toHaveBeenCalled();
+  });
+
+  it('refuses a term choice that would make the definition invalid, such as too many conditions', async () => {
+    const full = { ...SPEC, conditions: Array.from({ length: MAX_CONDITIONS }, () => ({ type: 'field', field: 'userType', op: 'eq', value: 'Guest' })) };
+    const choice = { kind: 'term', path: [], name: 'x', term: 'RDW', fields: ['companyName'] };
+    const res = await api().post('/api/nl-reports/resolve').send({ spec: full, choice });
+    expect(res.status).toBe(400);
   });
 
   it('refuses a term choice on a field the report entity does not have', async () => {

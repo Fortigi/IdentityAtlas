@@ -92,9 +92,11 @@ export function findTerms(question, values) {
     if (/^[.?!;:]$/.test(w)) { flush(); sentenceStart = true; continue; }
     const nameLike = isAllCaps(w) || (isCapitalised(w) && !sentenceStart);
     sentenceStart = false;
+    // A comma joins "Folkertsma, Sipke", but separates a list of codes ("RDW, MUMC").
+    if (phrase && /,/.test(unquoted.slice(phrase.end, m.index)) && (isAllCaps(w) || isAllCaps(phrase.last))) flush();
     const startsWithVocabulary = !phrase && !isAllCaps(w) && vocabulary.has(normalizeName(w));
     if (nameLike && !startsWithVocabulary) {
-      phrase = { start: phrase ? phrase.start : m.index, end: m.index + w.length };
+      phrase = { start: phrase ? phrase.start : m.index, end: m.index + w.length, last: w };
     } else flush();
   }
   flush();
