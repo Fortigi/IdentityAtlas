@@ -18,7 +18,8 @@
     "src/components/contexts/assistant/useContextSave.js",
     "src/components/contexts/assistant/useRecipeEvaluation.js",
     "src/components/contexts/assistant/useTermConversation.js",
-    "src/hooks/useCanBuildContexts.js"
+    "src/hooks/useCanBuildContexts.js",
+    "src/hooks/useBusyRun.js"
   ],
   "mutationExclusions": {
     "src/components/contexts/assistant/ContextBuilderPage.jsx": "Composition, not logic: the page holds the draft in state and hands each panel its slice plus the draft helpers that do the work. Those helpers (recipeDraft.js) and the hooks it composes are mutated; what is left here is wiring, covered by ContextBuilderPage.mount.test.jsx end to end — the same decision as ReportBuilderPage.jsx in the reports config.",
@@ -26,6 +27,7 @@
     "src/components/contexts/assistant/DescribePanel.jsx": "Presentational: it renders the conversation and the question box. The behaviour — asking, the history it sends, what it does with a reply — lives in useTermConversation.js, which is mutated; the words it prints come from recipeDraft.termsReplyText, also mutated.",
     "src/components/contexts/assistant/TermsPanel.jsx": "Presentational: one row per term, with the numbers the server computed. The decisions it renders (hit wording, the widening warning, what counts as kept) are recipeDraft.js and the API's computeMatches, both mutated elsewhere; TermsPanel.mount.test.jsx pins the rendering.",
     "src/components/contexts/assistant/MatchesPanel.jsx": "Presentational: the match table and its three views. Its one rule — which action a row offers — is recipeDraft.rowAction, which is mutated; the rest is markup asserted by MatchesPanel.mount.test.jsx.",
+    "src/components/assistant/TurnBubble.jsx": "Presentational: one turn of a conversation — the analyst's message or the model's reply, and the bubble around it. Shared by both assistants so the markup exists once; what goes inside it is decided by the panels, and both panels' mount tests assert on what it renders.",
     "src/components/contexts/assistant/RelatedWords.jsx": "Presentational: a button, the chips it renders, and the request behind them. The ranking that decides which words appear is server-side (contexts/recipe/relatedWords.js, mutated in the API config) and the chip's wording is recipeDraft.relatedWordText, also mutated."
   },
   "thresholds": {

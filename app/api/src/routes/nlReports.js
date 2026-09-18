@@ -28,7 +28,13 @@ import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE } from '../nlreports/catalog.js'
 import { availableColumns } from '../nlreports/spec.js';
 import { ensureWarm, interpret, loadValues, runSpec, warmupState } from '../nlreports/service.js';
 import { MODEL_IS_FIXED, listModels } from '../nlreports/llm.js';
-import { forLog, generatorStatus, oneQuestionAtATime, userOf, warmResponse } from '../nlreports/assistantHttp.js';
+import {
+  forLog, generatorStatus, oneQuestionAtATime, parseInterpretRequest, userOf, warmHandler,
+} from '../nlreports/assistantHttp.js';
+
+// Re-exported: the request shape is shared with the context assistant and lives with the
+// other shared HTTP helpers now. Kept on this module so its own tests still import it here.
+export { parseInterpretRequest };
 import { getReportModel, setReportModel } from '../nlreports/settings.js';
 import { MEASURES, manyRelationsOf } from '../nlreports/compare.js';
 import { applyChoice, resolveNamedObjects, searchNames } from '../nlreports/references.js';
@@ -54,13 +60,6 @@ const router = Router();
 const analystGate = [requirePermission('data.write.reports'), requireFeature('customReports')];
 const adminGate = [requirePermission('admin.llm'), requireFeature('customReports')];
 
-const MAX_QUESTION = 2000;
-const MAX_HISTORY = 12;
-// The model's context is 8,192 tokens: ~4,000 go to the system prompt, ~1,200 are
-// kept for the reply, a question is at most ~500. That leaves ~2,500 tokens —
-// about 10,000 characters — for the conversation. Anything longer would not fit
-// anyway, and would cost minutes of prompt reading before failing.
-const MAX_HISTORY_CHARS = 10_000;
 const claimQuestion = oneQuestionAtATime();
 const MODEL_NAME = /^[A-Za-z0-9._:/-]{1,100}$/;
 
@@ -111,36 +110,7 @@ router.get('/nl-reports/status', analystGate, async (req, res) => {
   res.json(await generatorStatus(warmupState));
 });
 
-router.post('/nl-reports/warm', analystGate, async (req, res) => {
-  try {
-    const answer = await warmResponse({ ensureWarm, warmupState });
-    if (!answer) return fail(res, 'warm', new Error('the model server did not answer'), 502);
-    res.json(answer);
-  } catch (err) {
-    fail(res, 'warm', err, 502);
-  }
-});
-
-const isHistoryTurn = (h) => !!h && ['user', 'assistant'].includes(h.role) && typeof h.content === 'string' && h.content.length <= 20000;
-
-/**
- * Check an interpret request body.
- * @returns {{ error: string } | { question: string, history: {role:string, content:string}[] }}
- */
-export function parseInterpretRequest(body) {
-  const question = typeof body?.question === 'string' ? body.question.trim() : '';
-  const history = Array.isArray(body?.history) ? body.history : [];
-  if (!question || question.length > MAX_QUESTION) return { error: `Question is required (max ${MAX_QUESTION} characters)` };
-  if (history.length > MAX_HISTORY) return { error: 'Conversation is too long — start a new question' };
-  // `model` in the body is an evaluation override (tools/nl-reports/eval.mjs); the UI never sends it.
-  if (body?.model !== undefined && !MODEL_NAME.test(String(body.model))) return { error: 'Invalid model name' };
-  if (!history.every(isHistoryTurn)) return { error: 'Invalid conversation history' };
-  const cleanHistory = history.map(h => ({ role: h.role, content: h.content }));
-  if (cleanHistory.reduce((n, h) => n + h.content.length, 0) > MAX_HISTORY_CHARS) {
-    return { error: 'Conversation is too long — start a new question' };
-  }
-  return { question, history: cleanHistory };
-}
+router.post('/nl-reports/warm', analystGate, warmHandler({ ensureWarm, warmupState }, fail));
 
 router.post('/nl-reports/interpret', analystGate, async (req, res) => {
   const parsed = parseInterpretRequest(req.body);

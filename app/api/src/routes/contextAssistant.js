@@ -23,10 +23,11 @@ import { randomUUID } from 'node:crypto';
 import { requirePermission } from '../middleware/auth.js';
 import { requireFeature } from '../featureFlags.js';
 import { query, queryOne, tx } from '../db/connection.js';
-import { forLog, generatorStatus, oneQuestionAtATime, userOf, warmResponse } from '../nlreports/assistantHttp.js';
+import {
+  forLog, generatorStatus, MAX_QUESTION, oneQuestionAtATime, parseInterpretRequest, userOf, warmHandler,
+} from '../nlreports/assistantHttp.js';
 import { searchNames } from '../nlreports/references.js';
 import { loadValues } from '../nlreports/service.js';
-import { parseInterpretRequest } from './nlReports.js';
 import { ensureWarm, interpret, suggestMore, warmupState } from '../contextAssistant/service.js';
 import { SEARCH_FIELDS, searchFieldLabel, validateRecipe } from '../contexts/recipe/recipe.js';
 import { computeMatches, loadCandidates } from '../contexts/recipe/matches.js';
@@ -39,7 +40,6 @@ const router = Router();
 const gate = [requirePermission('data.write.contexts'), requireFeature('contextAssistant')];
 
 const PLUGIN = 'context-recipe';
-const MAX_QUESTION = 2000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const claimQuestion = oneQuestionAtATime();
 
@@ -66,15 +66,7 @@ router.get('/context-assistant/status', gate, async (req, res) => {
   res.json(await generatorStatus(warmupState));
 });
 
-router.post('/context-assistant/warm', gate, async (req, res) => {
-  try {
-    const answer = await warmResponse({ ensureWarm, warmupState });
-    if (!answer) return fail(res, 'warm', new Error('the model server did not answer'), 502);
-    res.json(answer);
-  } catch (err) {
-    fail(res, 'warm', err, 502);
-  }
-});
+router.post('/context-assistant/warm', gate, warmHandler({ ensureWarm, warmupState }, fail));
 
 // Runs one model request for an analyst, with the audit line custom reports also writes:
 // who asked what (logged on arrival), then the outcome. Never the model's reply.

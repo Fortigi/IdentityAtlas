@@ -4,6 +4,7 @@
 
 import { useRef, useState } from 'react';
 import { postJson } from './AskAssistant.api';
+import { useBusyRun } from '@ui/hooks/useBusyRun';
 
 export const MAX_HISTORY = 10;
 
@@ -27,24 +28,10 @@ export function useAskConversation({ authFetch, currentSpec, onReport }) {
   const [input, setInput] = useState('');
   const [turns, setTurns] = useState([]);
   const [history, setHistory] = useState([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
+  const { busy, error, run } = useBusyRun();
   const lastQuestion = useRef('');
 
   const addTurn = (turn) => setTurns(t => [...t, turn]);
-
-  // Marks the conversation busy around one request and shows its failure.
-  const run = async (work) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await work();
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const ask = async (text) => {
     const question = text.trim();

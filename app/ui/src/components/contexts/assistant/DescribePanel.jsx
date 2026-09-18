@@ -8,6 +8,7 @@ import { useFetch } from '@ui/hooks/useFetch';
 import { MUTED, PRIMARY, SECONDARY } from '@ui/components/reports/ask/AskAssistant.styles';
 import { formatTiming, unavailableReason, warmStatusText } from '@ui/components/reports/ask/AskAssistant.text';
 import { isWarmLoading, useElapsed, useModelWarmup } from '@ui/components/reports/ask/useAskWarmup';
+import TurnBubble from '@ui/components/assistant/TurnBubble';
 import { termsReplyText } from './recipeDraft';
 
 const EXAMPLES = [
@@ -30,16 +31,10 @@ function TermsReply({ reply }) {
 }
 
 function Turn({ turn, isLast, busy, onAnswer }) {
-  if (turn.role === 'user') {
-    return (
-      <div className="flex justify-end">
-        <p className="max-w-3xl rounded-lg bg-blue-50 px-3 py-2 text-sm text-gray-900 dark:bg-blue-900/30 dark:text-gray-100">{turn.text}</p>
-      </div>
-    );
-  }
+  if (turn.role === 'user') return <TurnBubble role="user" text={turn.text} />;
   const r = turn.reply;
   return (
-    <div className="max-w-3xl space-y-2 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-900 dark:bg-gray-700/50 dark:text-gray-100">
+    <TurnBubble role="assistant">
       {r.kind === 'terms' && <TermsReply reply={r} />}
       {r.kind === 'clarify' && (
         <>
@@ -53,7 +48,7 @@ function Turn({ turn, isLast, busy, onAnswer }) {
       )}
       {r.kind === 'error' && <p className="text-red-700 dark:text-red-300">{r.message}</p>}
       <p className={MUTED}>{formatTiming(r.timing)}</p>
-    </div>
+    </TurnBubble>
   );
 }
 

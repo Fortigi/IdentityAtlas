@@ -93,6 +93,45 @@ function statusOf(row, acceptedHits, pinned) {
   return 'candidate';
 }
 
+// A term the model added that carries none of the analyst's own words — what the builder
+// warns about when those terms bring in more than everything else does.
+const isModelAddition = (term) => term.origin === 'model' && !term.own;
+
+/** Per row: who is a member, under which terms, and how much of it the model brought in. */
+function recordMembership(found, row, status, acceptedHits, recipe) {
+  if (status !== 'member' && status !== 'included') return;
+  found.memberIds.push(row.id);
+  if (status !== 'member') return;
+  if (acceptedHits.every(h => isModelAddition(recipe.terms[h.termIndex]))) found.addedByModel++;
+  for (const h of acceptedHits) {
+    if (!found.termMembers.has(h.termIndex)) found.termMembers.set(h.termIndex, []);
+    found.termMembers.get(h.termIndex).push(row.id);
+  }
+}
+
+/** One row of the match table: the object, its status, and why it is there. */
+function matchRow(row, hits, status, recipe) {
+  return {
+    id: row.id,
+    displayName: row.displayName,
+    description: row.description || null,
+    resourceType: row.resourceType,
+    systemName: row.systemName || null,
+    status,
+    hits: hits.map(h => ({
+      term: recipe.terms[h.termIndex].text,
+      fields: h.fields,
+      accepted: recipe.terms[h.termIndex].state === 'accepted',
+    })),
+  };
+}
+
+/** A term that finds a large share of everything in scope means nothing in particular. */
+function markTooBroad(terms, scopeTotal) {
+  const broadAt = Math.max(TOO_BROAD_MIN_HITS, Math.ceil(scopeTotal * TOO_BROAD_SHARE));
+  for (const t of terms) t.tooBroad = t.hits > broadAt;
+}
+
 function emptyTermStats(recipe) {
   return recipe.terms.map(t => ({
     text: t.text, key: t.key, match: t.match, state: t.state, origin: t.origin, why: t.why, own: t.own === true,
@@ -124,36 +163,16 @@ function countTermHits(stats, hits, recipe) {
 export function computeMatches(rows, recipe, scopeTotal = 0) {
   const pinned = { include: new Set(recipe.include), exclude: new Set(recipe.exclude) };
   const terms = emptyTermStats(recipe);
-  const matches = [];
-  const memberIds = [];
-  const termMembers = new Map();
-  const modelAdded = (termIndex) => recipe.terms[termIndex].origin === 'model' && !recipe.terms[termIndex].own;
-  let addedByModel = 0;
+  const found = { memberIds: [], termMembers: new Map(), addedByModel: 0 };
 
-  for (const row of rows) {
+  const matches = rows.map((row) => {
     const hits = hitsOf(row, recipe);
     const acceptedHits = countTermHits(terms, hits, recipe);
     const status = statusOf(row, acceptedHits, pinned);
-    if (status === 'member' || status === 'included') memberIds.push(row.id);
-    if (status === 'member') {
-      if (acceptedHits.every(h => modelAdded(h.termIndex))) addedByModel++;
-      for (const h of acceptedHits) {
-        if (!termMembers.has(h.termIndex)) termMembers.set(h.termIndex, []);
-        termMembers.get(h.termIndex).push(row.id);
-      }
-    }
-    matches.push({
-      id: row.id,
-      displayName: row.displayName,
-      description: row.description || null,
-      resourceType: row.resourceType,
-      systemName: row.systemName || null,
-      status,
-      hits: hits.map(h => ({ term: recipe.terms[h.termIndex].text, fields: h.fields, accepted: recipe.terms[h.termIndex].state === 'accepted' })),
-    });
-  }
+    recordMembership(found, row, status, acceptedHits, recipe);
+    return matchRow(row, hits, status, recipe);
+  });
 
-  const broadAt = Math.max(TOO_BROAD_MIN_HITS, Math.ceil(scopeTotal * TOO_BROAD_SHARE));
-  for (const t of terms) t.tooBroad = t.hits > broadAt;
-  return { terms, matches, memberIds, termMembers, addedByModel };
+  markTooBroad(terms, scopeTotal);
+  return { terms, matches, ...found };
 }

@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import { postJson } from '@ui/components/reports/ask/AskAssistant.api';
+import { useBusyRun } from '@ui/hooks/useBusyRun';
 
 export const MAX_HISTORY = 8;
 
@@ -21,22 +22,9 @@ export function useTermConversation({ authFetch, recipe, onTerms, initialQuestio
   const [asked, setQuestion] = useState('');
   // A saved context's description arrives after the first render, so it is read live.
   const question = asked || initialQuestion;
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
+  const { busy, error, run } = useBusyRun();
 
   const addTurn = (turn) => setTurns(t => [...t, turn]);
-
-  const run = async (work) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await work();
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const ask = (text) => {
     const said = String(text ?? '').trim();

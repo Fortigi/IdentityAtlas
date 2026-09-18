@@ -15,6 +15,37 @@ export const forLog = (value, max = 300) => String(value ?? '')
   .replace(/\r/g, '')
   .replace(/[\u2028\u2029\p{Cc}]/gu, ' ');
 
+export const MAX_QUESTION = 2000;
+export const MAX_HISTORY = 12;
+// The model's context is 8,192 tokens: ~4,000 go to the system prompt, ~1,200 are kept for
+// the reply, a question is at most ~500. That leaves ~2,500 tokens — about 10,000
+// characters — for the conversation. Anything longer would not fit anyway, and would cost
+// minutes of prompt reading before failing.
+export const MAX_HISTORY_CHARS = 10_000;
+const MODEL_NAME = /^[A-Za-z0-9._:/-]{1,100}$/;
+
+const isHistoryTurn = (h) => !!h && ['user', 'assistant'].includes(h.role) && typeof h.content === 'string' && h.content.length <= 20000;
+
+/**
+ * Check a request that asks the model something: a question plus the conversation so far.
+ * Shared by both assistants.
+ * @returns {{ error: string } | { question: string, history: {role:string, content:string}[] }}
+ */
+export function parseInterpretRequest(body) {
+  const question = typeof body?.question === 'string' ? body.question.trim() : '';
+  const history = Array.isArray(body?.history) ? body.history : [];
+  if (!question || question.length > MAX_QUESTION) return { error: `Question is required (max ${MAX_QUESTION} characters)` };
+  if (history.length > MAX_HISTORY) return { error: 'Conversation is too long — start a new question' };
+  // `model` in the body is an evaluation override (tools/nl-reports/eval.mjs); the UI never sends it.
+  if (body?.model !== undefined && !MODEL_NAME.test(String(body.model))) return { error: 'Invalid model name' };
+  if (!history.every(isHistoryTurn)) return { error: 'Invalid conversation history' };
+  const cleanHistory = history.map(h => ({ role: h.role, content: h.content }));
+  if (cleanHistory.reduce((n, h) => n + h.content.length, 0) > MAX_HISTORY_CHARS) {
+    return { error: 'Conversation is too long — start a new question' };
+  }
+  return { question, history: cleanHistory };
+}
+
 export const userOf = (req) => (req.user && (req.user.email || req.user.upn || req.user.preferred_username || req.user.name)) || 'unknown';
 
 /**
@@ -56,6 +87,26 @@ export async function warmResponse({ ensureWarm, warmupState }, waitMs = WARM_WA
     return { state: 'starting', message: 'The model is being loaded. This usually takes less than a minute.' };
   }
   return { state: 'preparing', message: 'The model is preparing its prompt cache. The first time after an install or update this takes a few minutes; questions asked now will be slow.' };
+}
+
+/**
+ * The warm endpoint both assistants expose: restore this assistant's prompt into the
+ * generator's single slot, answering what state it is in rather than blocking on a
+ * preparation that takes minutes.
+ * @param {{ ensureWarm: Function, warmupState: Function }} warmup
+ * @param {Function} fail  the router's error responder — (res, route, err, status)
+ * @returns {(req, res) => Promise<void>} an express handler
+ */
+export function warmHandler(warmup, fail) {
+  return async (_req, res) => {
+    try {
+      const answer = await warmResponse(warmup);
+      if (!answer) return fail(res, 'warm', new Error('the model server did not answer'), 502);
+      res.json(answer);
+    } catch (err) {
+      fail(res, 'warm', err, 502);
+    }
+  };
 }
 
 /**
