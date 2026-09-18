@@ -163,3 +163,59 @@ Describe 'the report generator IP allow-list reaches az through a parameters fil
         $script:DeployText | Should -Match 'finally\s*\{[^}]*Remove-Item -LiteralPath \$callerIpsFile'
     }
 }
+
+Describe 'an Azure deployment made before the Key Vault password change stays updatable' {
+    # The template reads the Postgres password with kvRef.getSecret(). ARM resolves that
+    # during preflight, before it updates anything, so the template cannot switch
+    # template access on for its own vault: updating a deployment created earlier fails
+    # at submission with KeyVaultParameterReferenceSecretRetrieveFailed ("Access denied
+    # to first party service"). Seen on a real deployment from May 2026. deploy.ps1
+    # therefore settles the flag, and the secret, before deploying.
+    BeforeAll {
+        $root    = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+        $deploy  = Join-Path $root 'azure/deploy.ps1'
+        $script:DeployText = Get-Content $deploy -Raw
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($deploy, [ref]$null, [ref]$null)
+        foreach ($name in 'Get-VaultsMissingTemplateAccess', 'New-PostgresPassword') {
+            $fn = $ast.Find({ param($n)
+                $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $name }, $true)
+            $fn | Should -Not -BeNullOrEmpty -Because "the test drives $name from the script itself"
+            . ([scriptblock]::Create($fn.Extent.Text))
+        }
+    }
+
+    It 'picks exactly the vaults whose template access is off' {
+        $json = @'
+[{"name":"old-vault","templateDeployment":false},
+ {"name":"new-vault","templateDeployment":true},
+ {"name":"unknown-vault","templateDeployment":null}]
+'@
+        Get-VaultsMissingTemplateAccess -VaultListJson $json | Should -Be @('old-vault', 'unknown-vault')
+    }
+
+    It 'asks for nothing when every vault already allows it, or the group has none' {
+        Get-VaultsMissingTemplateAccess -VaultListJson '[{"name":"new-vault","templateDeployment":true}]' | Should -BeNullOrEmpty
+        Get-VaultsMissingTemplateAccess -VaultListJson '[]' | Should -BeNullOrEmpty
+        Get-VaultsMissingTemplateAccess -VaultListJson '' | Should -BeNullOrEmpty
+        Get-VaultsMissingTemplateAccess -VaultListJson '   ' | Should -BeNullOrEmpty
+    }
+
+    It 'generates a password Postgres accepts, and a different one every time' {
+        $passwords = 1..25 | ForEach-Object { New-PostgresPassword }
+        foreach ($p in $passwords) {
+            $p.Length | Should -Be 35
+            $p | Should -Match '^[A-Za-z0-9]+$'
+            $p | Should -MatchExactly '[A-Z]'
+            $p | Should -MatchExactly '[a-z]'
+            $p | Should -MatchExactly '[0-9]'
+        }
+        ($passwords | Select-Object -Unique).Count | Should -Be 25
+    }
+
+    It 'settles the vault before the deployment is submitted, not after' {
+        $initialize = $script:DeployText.IndexOf('Initialize-ExistingVault -ResourceGroup')
+        $submit     = $script:DeployText.IndexOf('az @deployArgs')
+        $initialize | Should -BeGreaterThan 0
+        $submit | Should -BeGreaterThan $initialize -Because 'ARM resolves the Key Vault reference at submission'
+    }
+}

@@ -221,6 +221,39 @@ Creating an exemption requires a role that can write policy exemptions at that s
 | Log Analytics workspace (BYO vs new) | Re-run Step 1 with the changed value. Same Step-3-rerun caveat. |
 | Entra tenant or client ID | Web App → Environment variables → edit `AUTH_TENANT_ID` / `AUTH_CLIENT_ID` → Apply. No redeploy needed. |
 | Turn auth OFF (debug or demo) | Web App → Environment variables → set `AUTH_ENABLED=false` → Apply. The app comes back up in OPEN mode with the "Authentication is disabled" banner. Set it back to `true` (and ensure the IDs are still there) to re-enable. |
+| Add the experimental [report generator](../reference/report-generator.md) (plain-language reports) | Re-run Step 1 with **Deploy report generator = true** and **Image channel = edge**, into the *same* resource group. Set every other parameter to what the deployment already uses (Resource group → Deployments → newest → **Inputs**), or the re-run changes them. Leave the API key and the caller-IP list empty: the key is generated, and the portal cannot look up the web app's outbound addresses, so the generator is protected by the key alone — narrow it later with `azure/deploy.ps1 -DeployReportGenerator`, which fills the list in. Not supported in `private` network mode. Same Step-3-rerun caveat. |
+| Remove the report generator | Re-run Step 1 with **Deploy report generator = false**. Custom reports keep working, hand-built. |
+
+---
+
+## Updating a deployment created before September 2026
+
+Deployments made before the random-Postgres-password change store that password in Key Vault, and the
+template reads it with a Key Vault reference. ARM resolves such a reference **before** it updates
+anything, so the template cannot switch on the vault's template access itself. An older vault has it
+off, and every update of that deployment stops at submission with:
+
+```
+KeyVaultParameterReferenceSecretRetrieveFailed
+The secret of KeyVault parameter 'adminPassword' cannot be retrieved. Http status code: 'Forbidden'.
+Access denied to first party service. Vault: <your-vault>
+```
+
+`azure/deploy.ps1` settles this by itself. Coming from the portal button, do it once — Resource group →
+**Key vault** → Settings → **Access configuration** → tick **Azure Resource Manager for template
+deployment** → Apply, then start the deployment again. In Cloud Shell that is:
+
+```bash
+az keyvault update -n <your-vault> -g <your-rg> --enabled-for-template-deployment true
+```
+
+If the deployment then reports that the secret `postgres-admin-password` does not exist, create it once
+(any value meeting Postgres' complexity rule — upper, lower, digit, 12+ characters). The deployment
+sets the database server to that value and points the web app at it:
+
+```bash
+az keyvault secret set --vault-name <your-vault> --name postgres-admin-password --value '<new password>'
+```
 
 ---
 

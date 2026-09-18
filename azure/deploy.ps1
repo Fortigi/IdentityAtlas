@@ -103,6 +103,61 @@ if (-not $rg) {
     az group create --name $ResourceGroup --location $Location | Out-Null
 }
 
+# ── Key Vault: make an older deployment updatable ───────────────────────
+# The template reads the Postgres admin password out of Key Vault
+# (kvRef.getSecret, SEC-2026-09 H-06). ARM resolves that reference during preflight,
+# BEFORE it updates anything — so the template cannot switch template access on for
+# its own vault. A deployment created before that change has the flag off, and every
+# later update of it dies at submission with:
+#
+#   KeyVaultParameterReferenceSecretRetrieveFailed ... Access denied to first party
+#   service ... Vault: <name>
+#
+# The same goes for the secret itself: preflight needs it to exist, while the
+# bootstrap script that normally creates it runs later in the deployment. So both are
+# settled here, once, before anything is deployed. Newer deployments already satisfy
+# both and nothing is touched.
+function Get-VaultsMissingTemplateAccess {
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$VaultListJson)
+
+    if ([string]::IsNullOrWhiteSpace($VaultListJson)) { return @() }
+    return @($VaultListJson | ConvertFrom-Json |
+        Where-Object { -not $_.templateDeployment } |
+        ForEach-Object { $_.name })
+}
+
+# 32 random alphanumerics plus a fixed "Aa1", so the value always satisfies the
+# Postgres complexity rule whatever the random part happens to be. Same shape as the
+# bootstrap script's, which owns the password from then on.
+function New-PostgresPassword {
+    $bytes = [byte[]]::new(64)
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+    $alnum = ([System.Convert]::ToBase64String($bytes) -replace '[^A-Za-z0-9]', '')
+    return ($alnum.Substring(0, 32) + 'Aa1')
+}
+
+function Initialize-ExistingVault {
+    param([Parameter(Mandatory)][string]$ResourceGroup)
+
+    $listed = az keyvault list -g $ResourceGroup `
+        --query "[].{name:name, templateDeployment:properties.enabledForTemplateDeployment}" -o json 2>$null
+    foreach ($vault in Get-VaultsMissingTemplateAccess -VaultListJson ([string]$listed)) {
+        Write-Host "  Key Vault        : enabling template access on $vault (needed to read the Postgres password)" -ForegroundColor DarkGray
+        az keyvault update -n $vault -g $ResourceGroup --enabled-for-template-deployment true --output none
+    }
+
+    # Every vault in the group is listed, but only this deployment's holds the secret.
+    $vaultName = az keyvault list -g $ResourceGroup --query "[0].name" -o tsv 2>$null
+    if (-not $vaultName) { return }
+    az keyvault secret show --vault-name $vaultName --name postgres-admin-password --output none 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  Key Vault        : creating postgres-admin-password in $vaultName (the deployment sets the server to it)" -ForegroundColor DarkGray
+        az keyvault secret set --vault-name $vaultName --name postgres-admin-password --value (New-PostgresPassword) --output none
+    }
+}
+
+Initialize-ExistingVault -ResourceGroup $ResourceGroup
+
 # The report generator has public ingress (no VNet in this deployment shape) and its
 # API key is what protects it. This narrows it further to the addresses the web app can
 # call out from — but only once that app exists, because those addresses do not exist

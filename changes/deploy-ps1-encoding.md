@@ -1,2 +1,4 @@
 - Fixed the Azure deploy script (`azure/deploy.ps1`) failing to start in Windows PowerShell 5.1 with "The string is missing the terminator". The file is now saved so both PowerShell 5.1 and 7 read it correctly.
 - Fixed `azure/deploy.ps1 -DeployReportGenerator` failing on Windows with "Failed to parse string as JSON" when it narrowed the report generator's allowed callers. The address list is now handed to Azure in a parameters file instead of on the command line.
+- Azure deployments created before September 2026 can be updated again: the deploy script now enables the Key Vault access the template needs to read the Postgres password, and creates that password if it is missing, instead of failing with "Access denied to first party service". The Azure walkthrough explains the same fix for the portal.
+- The Azure walkthrough now documents how to switch the experimental report generator on or off for an existing deployment.
