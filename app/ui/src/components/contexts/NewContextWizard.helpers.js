@@ -34,6 +34,7 @@ export function wizardSubtitle(source, selected) {
   if (!source) return 'Where should this tree come from?';
   if (source === 'plugin') return selected ? selected.displayName : 'Build a tree from existing data';
   if (source === 'manual') return 'Start an empty tree you’ll curate yourself';
+  if (source === 'describe') return 'Build a tree from search terms, in its own tab';
   return 'Import from a crawler';
 }
 
@@ -81,5 +82,7 @@ export function runDisabled(running, dryRunning, mode, refreshKey) {
 }
 
 export function nextLabel(step, source) {
-  return step === 1 && source === 'import' ? 'Open Crawlers →' : 'Next ▸';
+  if (step === 1 && source === 'import') return 'Open Crawlers →';
+  if (step === 1 && source === 'describe') return 'Open the context builder →';
+  return 'Next ▸';
 }

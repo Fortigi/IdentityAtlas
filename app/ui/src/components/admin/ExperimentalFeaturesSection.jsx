@@ -105,6 +105,35 @@ function CustomReportsCard({ features }) {
   );
 }
 
+// The context assistant builds context trees from search terms. The terms can be typed,
+// or proposed by the same local model custom reports use. Off hides the fourth option in
+// the new-context wizard and the builder; trees already built are ordinary generated
+// contexts and keep refreshing after each crawl.
+function ContextAssistantCard({ features }) {
+  const { toggle, toggling, error } = useFeatureToggle('contextAssistant');
+  const enabled = features?.contextAssistant === true;
+  return (
+    <FeatureToggleCard
+      title="Context assistant"
+      enabled={enabled}
+      busy={toggling}
+      disabled={features == null}
+      onToggle={() => { if (features) toggle(!enabled); }}
+      toggleTitle={enabled ? 'Disable the context assistant' : 'Enable the context assistant'}
+    >
+      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+        Adds <span className="font-medium">Describe it</span> to <span className="font-medium">Contexts → New context tree</span>:
+        analysts describe a process, application or project, pick search terms — typed, or proposed by the model running on
+        this deployment — and choose the groups that belong to it. Turning this off hides the builder; contexts already
+        built are kept and keep refreshing after each crawl.
+      </p>
+      {error && (
+        <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">{error}</div>
+      )}
+    </FeatureToggleCard>
+  );
+}
+
 export default function ExperimentalFeaturesSection({ features, version }) {
   const { toggle, toggling, error } = useFeatureToggle('experimentalCrawlers');
 
@@ -157,6 +186,7 @@ export default function ExperimentalFeaturesSection({ features, version }) {
 
       <MatrixSharingCard features={features} />
       <CustomReportsCard features={features} />
+      <ContextAssistantCard features={features} />
     </div>
   );
 }

@@ -22,6 +22,8 @@ export const PERMISSIONS = Object.freeze({
     description: 'Create, edit, delete tags and apply them to entities.' },
   'data.write.reports':        { label: 'Build custom reports',    group: 'Write',
     description: 'Create, edit and delete custom reports, and describe a report in plain language to the local model. Running and downloading an existing report only needs Read data.' },
+  'data.write.contexts':       { label: 'Build contexts',          group: 'Write',
+    description: 'Create manual contexts and edit their members, and build contexts with the context assistant. Viewing contexts only needs Read data; running any other context plugin needs Context plugins.' },
   'data.write.categories':     { label: 'Manage categories',       group: 'Write',
     description: 'Create, edit, delete categories and assign them to access packages.' },
   'data.write.risk':           { label: 'Risk score overrides',    group: 'Write',
@@ -58,7 +60,7 @@ export const PERMISSION_GROUPS = Object.freeze(['Read', 'Export', 'Write', 'Admi
 // silently demote the admin role.
 export const SEED_ROLE_PERMISSIONS = Object.freeze({
   Admin:       ['*'],
-  RoleMiner:   ['data.read', 'data.export.ui', 'data.export.apikey', 'data.share', 'data.write.reports'],
+  RoleMiner:   ['data.read', 'data.export.ui', 'data.export.apikey', 'data.share', 'data.write.reports', 'data.write.contexts'],
   Servicedesk: ['data.read'],
 });
 

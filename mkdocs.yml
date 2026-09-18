@@ -114,6 +114,7 @@ nav:
           - Sharing a Matrix: ui/sharing-a-matrix.md
       - Custom Reports: ui/custom-reports.md
       - Contexts: ui/contexts.md
+      - Building a Context by Describing It: ui/context-assistant.md
       - Effective Access (Who Can Access X): ui/effective-access.md
       - Entity Detail Pages: architecture/entity-detail-pages.md
       - Get data out:
@@ -168,6 +169,7 @@ nav:
           - Crawler Architecture: architecture/crawler-architecture.md
           - Reports: architecture/reports.md
           - Custom Reports Internals: architecture/custom-reports.md
+          - Context Assistant Internals: architecture/context-assistant.md
           - Audit History: architecture/audit-history.md
           - Soft-Delete & Tombstones: architecture/soft-delete.md
           - Effective Access Engine: architecture/effective-access-engine.md

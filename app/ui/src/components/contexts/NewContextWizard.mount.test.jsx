@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createElement as h } from 'react';
 import NewContextWizard from './NewContextWizard';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, fireEvent, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
@@ -20,6 +20,10 @@ const plugin = {
 };
 
 const systems = [{ id: 1, displayName: 'EntraID' }, { id: 2, displayName: 'Omada' }];
+
+const mockCanBuildContexts = vi.fn(() => true);
+vi.mock('@ui/hooks/useCanBuildContexts', () => ({ useCanBuildContexts: () => mockCanBuildContexts() }));
+
 
 const dryRunResult = {
   contextCount: 4,
@@ -50,6 +54,7 @@ function renderWizard(authFetch, props = {}) {
     onCreated: vi.fn(),
     onRunStarted: vi.fn(),
     onOpenCrawlers: vi.fn(),
+    onOpenBuilder: vi.fn(),
     ...props,
   };
   renderWithProviders(h(NewContextWizard, { open: true, ...callbacks }), { auth: { authFetch } });
@@ -57,6 +62,8 @@ function renderWizard(authFetch, props = {}) {
 }
 
 describe('NewContextWizard (mounted)', () => {
+  beforeEach(() => mockCanBuildContexts.mockReturnValue(true));
+
   it('renders nothing when closed', () => {
     const authFetch = routes();
     renderWithProviders(
@@ -67,11 +74,40 @@ describe('NewContextWizard (mounted)', () => {
   });
 
   it('shows the three source cards on step 1', async () => {
+    mockCanBuildContexts.mockReturnValue(false);
     renderWizard(routes());
     expect(await screen.findByText('New context tree')).toBeInTheDocument();
     expect(screen.getByText('Import')).toBeInTheDocument();
     expect(screen.getByText('Run a plugin')).toBeInTheDocument();
     expect(screen.getByText('Create manual')).toBeInTheDocument();
+    expect(screen.queryByText('Describe it')).not.toBeInTheDocument();
+  });
+
+  // The fourth way in (experimental): describe the context and let the local model
+  // propose search terms. It is offered only to someone who may build contexts on an
+  // install where the feature is on — useCanBuildContexts decides both.
+  it('offers "Describe it" and opens the builder in its own tab', async () => {
+    const cb = renderWizard(routes());
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('Describe it'));
+    await user.click(screen.getByText('Open the context builder →'));
+    expect(cb.onOpenBuilder).toHaveBeenCalled();
+    expect(cb.onClose).toHaveBeenCalled();
+    // The builder is a tab of its own, so the wizard never walks further steps for it.
+    expect(screen.queryByText('Pick plugin')).not.toBeInTheDocument();
+  });
+
+  it('hides "Describe it" when the feature is off or the role may not build contexts', async () => {
+    mockCanBuildContexts.mockReturnValue(false);
+    renderWizard(routes());
+    expect(await screen.findByText('Run a plugin')).toBeInTheDocument();
+    expect(screen.queryByText('Describe it')).not.toBeInTheDocument();
+  });
+
+  it('hides "Describe it" when the page cannot open a builder tab', async () => {
+    renderWizard(routes(), { onOpenBuilder: undefined });
+    expect(await screen.findByText('Run a plugin')).toBeInTheDocument();
+    expect(screen.queryByText('Describe it')).not.toBeInTheDocument();
   });
 
   it('opens crawlers and closes when Import is chosen', async () => {

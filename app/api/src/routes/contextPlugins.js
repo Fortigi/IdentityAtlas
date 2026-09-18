@@ -24,7 +24,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 // GET /api/context-plugins
 router.get('/context-plugins', gate, async (req, res) => {
-  if (!useSql) return res.json({ data: REGISTERED_PLUGINS.map(stripPlugin), total: REGISTERED_PLUGINS.length });
+  // Hidden plugins (context-recipe) are built in their own screen, not in the generic picker.
+  const listed = REGISTERED_PLUGINS.filter(p => !p.hidden);
+  if (!useSql) return res.json({ data: listed.map(stripPlugin), total: listed.length });
   try {
     const rows = (await db.query(`
       SELECT id, name, "displayName", description, "targetType", "parametersSchema", enabled, "createdAt"
@@ -34,7 +36,7 @@ router.get('/context-plugins', gate, async (req, res) => {
     // Overlay in-process plugin metadata so a plugin that has been updated
     // in code shows the new description even before seedAlgorithms re-runs.
     const byName = new Map(rows.map(r => [r.name, r]));
-    const merged = REGISTERED_PLUGINS.map(p => {
+    const merged = listed.map(p => {
       const db = byName.get(p.name);
       return {
         id: db?.id || null,

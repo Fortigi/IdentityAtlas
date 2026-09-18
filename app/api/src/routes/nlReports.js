@@ -27,7 +27,14 @@ import { requireFeature } from '../featureFlags.js';
 import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE } from '../nlreports/catalog.js';
 import { availableColumns } from '../nlreports/spec.js';
 import { ensureWarm, interpret, loadValues, runSpec, warmupState } from '../nlreports/service.js';
-import { MODEL_IS_FIXED, listModels, modelState } from '../nlreports/llm.js';
+import { MODEL_IS_FIXED, listModels } from '../nlreports/llm.js';
+import {
+  forLog, generatorStatus, oneQuestionAtATime, parseInterpretRequest, userOf, warmHandler,
+} from '../nlreports/assistantHttp.js';
+
+// Re-exported: the request shape is shared with the context assistant and lives with the
+// other shared HTTP helpers now. Kept on this module so its own tests still import it here.
+export { parseInterpretRequest };
 import { getReportModel, setReportModel } from '../nlreports/settings.js';
 import { MEASURES, manyRelationsOf } from '../nlreports/compare.js';
 import { applyChoice, resolveNamedObjects, searchNames } from '../nlreports/references.js';
@@ -53,14 +60,7 @@ const router = Router();
 const analystGate = [requirePermission('data.write.reports'), requireFeature('customReports')];
 const adminGate = [requirePermission('admin.llm'), requireFeature('customReports')];
 
-const MAX_QUESTION = 2000;
-const MAX_HISTORY = 12;
-// The model's context is 8,192 tokens: ~4,000 go to the system prompt, ~1,200 are
-// kept for the reply, a question is at most ~500. That leaves ~2,500 tokens —
-// about 10,000 characters — for the conversation. Anything longer would not fit
-// anyway, and would cost minutes of prompt reading before failing.
-const MAX_HISTORY_CHARS = 10_000;
-const inFlight = new Set();
+const claimQuestion = oneQuestionAtATime();
 const MODEL_NAME = /^[A-Za-z0-9._:/-]{1,100}$/;
 
 function fail(res, route, err, status = 500) {
@@ -68,19 +68,6 @@ function fail(res, route, err, status = 500) {
   res.status(status).json({ error: status === 502 ? 'The local model server is not reachable or failed.' : 'Request failed' });
 }
 
-// Values written into a log line. The question and the user label are free text (a
-// token's name claim is not validated), so line breaks — which would let a caller
-// forge extra log lines — are removed, other control characters are replaced, and the
-// length is capped. The model name is already validated, but goes through the same
-// path. Line breaks are removed rather than replaced: that is the form CodeQL's log
-// injection check recognises as a sanitiser, and the check blocks merges.
-const forLog = (value, max = 300) => String(value ?? '')
-  .slice(0, max)
-  .replace(/\n/g, '')
-  .replace(/\r/g, '')
-  .replace(/[\u2028\u2029\p{Cc}]/gu, ' ');
-
-const userOf = (req) => (req.user && (req.user.email || req.user.upn || req.user.preferred_username || req.user.name)) || 'unknown';
 
 router.get('/nl-reports/catalog', analystGate, async (req, res) => {
   try {
@@ -120,79 +107,18 @@ router.get('/nl-reports/lookup', analystGate, async (req, res) => {
 });
 
 router.get('/nl-reports/status', analystGate, async (req, res) => {
-  const model = await getReportModel().catch(() => null);
-  try {
-    const models = await listModels();
-    const found = models.find(m => m.name === model);
-    res.json({ available: !!found, model, loaded: !!found?.loaded, promptCache: warmupState(), reason: found ? null : 'model-not-installed' });
-  } catch {
-    res.json({ available: false, model, loaded: false, promptCache: warmupState(), reason: 'server-unreachable' });
-  }
+  res.json(await generatorStatus(warmupState));
 });
 
-// Never blocks for minutes: the first warm-up after an install or update prepares the
-// prompt cache in the background, and this answers `state: "preparing"` meanwhile.
-const WARM_WAIT_MS = 3000;
-
-router.post('/nl-reports/warm', analystGate, async (req, res) => {
-  try {
-    // No `force`: every call re-checks the running server, so there is nothing to
-    // force. Asking twice is cheap and is how a restarted generator gets its
-    // prompt cache back.
-    const entry = ensureWarm();
-    const ready = await Promise.race([
-      entry.promise.then(r => r, () => null),
-      new Promise(resolve => setTimeout(() => resolve(undefined), WARM_WAIT_MS)),
-    ]);
-    if (ready) return res.json({ ...ready, state: 'ready' });
-    if (warmupState() === 'failed') return fail(res, 'warm', new Error('the model server did not answer'), 502);
-    // Two different waits look the same from here: the model loading into memory
-    // (seconds, every time it has been unloaded) and the one-off prompt-cache
-    // preparation after an install or update (minutes). The server knows which.
-    if (await modelState().catch(() => 'ready') === 'starting') {
-      return res.json({ state: 'starting', message: 'The model is being loaded. This usually takes less than a minute.' });
-    }
-    res.json({ state: 'preparing', message: 'The model is preparing its prompt cache. The first time after an install or update this takes a few minutes; questions asked now will be slow.' });
-  } catch (err) {
-    fail(res, 'warm', err, 502);
-  }
-});
-
-const isHistoryTurn = (h) => !!h && ['user', 'assistant'].includes(h.role) && typeof h.content === 'string' && h.content.length <= 20000;
-
-/**
- * Check an interpret request body.
- * @returns {{ error: string } | { question: string, history: {role:string, content:string}[] }}
- */
-export function parseInterpretRequest(body) {
-  const question = typeof body?.question === 'string' ? body.question.trim() : '';
-  const history = Array.isArray(body?.history) ? body.history : [];
-  if (!question || question.length > MAX_QUESTION) return { error: `Question is required (max ${MAX_QUESTION} characters)` };
-  if (history.length > MAX_HISTORY) return { error: 'Conversation is too long — start a new question' };
-  // `model` in the body is an evaluation override (tools/nl-reports/eval.mjs); the UI never sends it.
-  if (body?.model !== undefined && !MODEL_NAME.test(String(body.model))) return { error: 'Invalid model name' };
-  if (!history.every(isHistoryTurn)) return { error: 'Invalid conversation history' };
-  const cleanHistory = history.map(h => ({ role: h.role, content: h.content }));
-  if (cleanHistory.reduce((n, h) => n + h.content.length, 0) > MAX_HISTORY_CHARS) {
-    return { error: 'Conversation is too long — start a new question' };
-  }
-  return { question, history: cleanHistory };
-}
+router.post('/nl-reports/warm', analystGate, warmHandler({ ensureWarm, warmupState }, fail));
 
 router.post('/nl-reports/interpret', analystGate, async (req, res) => {
   const parsed = parseInterpretRequest(req.body);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const { question, history: cleanHistory } = parsed;
   const started = Date.now();
-  const who = `user=${forLog(userOf(req), 200)}`;
-  // One question at a time per analyst. The model server has a single slot, so a
-  // second request from the same person only queues behind the first — and a script
-  // looping on this endpoint would hold the generator for everyone.
-  if (inFlight.has(who)) {
-    return res.status(429).json({ error: 'Your previous question is still being answered — wait for it to finish' });
-  }
-  inFlight.add(who);
-  res.on('close', () => inFlight.delete(who));
+  const who = claimQuestion(req, res);
+  if (!who) return;
   try {
     const model = req.body?.model ? String(req.body.model) : await getReportModel();
     // Audit trail: who asked what, with which model — logged on arrival, so a question

@@ -1,7 +1,10 @@
 import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
+import { useCanBuildContexts } from '@ui/hooks/useCanBuildContexts';
+import { isRecipeRoot } from './contexts/assistant/recipeDraft';
 
 // ─── Header — surfaces provenance (variant, target, system, owner) ────────
-export default function ContextDetailHeader({ attrs, onClose }) {
+export default function ContextDetailHeader({ attrs, onClose, onOpenDetail }) {
+  const canEditRecipe = useCanBuildContexts() && isRecipeRoot(attrs) && !!onOpenDetail;
   const v = variantMeta(attrs.variant);
   const t = targetTypeMeta(attrs.targetType);
   const provenance = describeProvenance(attrs);
@@ -38,11 +41,19 @@ export default function ContextDetailHeader({ attrs, onClose }) {
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Parent: {attrs.parentDisplayName}</p>
           )}
         </div>
+        <div className="flex items-start gap-2">
+        {canEditRecipe && (
+          <button type="button" onClick={() => onOpenDetail('context-builder', attrs.id, attrs.displayName)}
+            className="rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
+            Edit search terms
+          </button>
+        )}
         <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 p-1" title="Close">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
+        </div>
       </div>
     </div>
   );

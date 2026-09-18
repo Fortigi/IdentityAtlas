@@ -29,6 +29,7 @@ export const GATED_ENDPOINTS = {
   'admin.crawlers':        { method: 'GET',  path: '/api/admin/crawlers' },
   'admin.systems':         { method: 'PUT',  path: '/api/systems/1', body: {} },
   'data.write.reports':    { method: 'POST', path: '/api/nl-reports/saved' },
+  'data.write.contexts':   { method: 'POST', path: '/api/context-assistant/evaluate', body: { recipe: {} } },
   'admin.llm':             { method: 'GET',  path: '/api/admin/llm/config' },
   'admin.context-plugins': { method: 'GET',  path: '/api/context-plugins' },
   'admin.csv-import':      { method: 'GET',  path: '/api/admin/crawler-configs/1/files' },

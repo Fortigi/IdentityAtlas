@@ -2,6 +2,7 @@
 // reply (a clarifying question, a "did you mean …?", a report, or an error).
 
 import ConfirmChoices from './ConfirmChoices';
+import TurnBubble from '@ui/components/assistant/TurnBubble';
 import { MUTED, SECONDARY } from './AskAssistant.styles';
 import { formatTiming } from './AskAssistant.text';
 
@@ -35,16 +36,10 @@ function ReportReply({ reply }) {
 }
 
 export default function Turn({ turn, onAnswer, onConfirm, busy, isLast }) {
-  if (turn.role === 'user') {
-    return (
-      <div className="flex justify-end">
-        <p className="max-w-3xl rounded-lg bg-blue-50 px-3 py-2 text-sm text-gray-900 dark:bg-blue-900/30 dark:text-gray-100">{turn.text}</p>
-      </div>
-    );
-  }
+  if (turn.role === 'user') return <TurnBubble role="user" text={turn.text} />;
   const r = turn.reply;
   return (
-    <div className="max-w-3xl space-y-2 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-900 dark:bg-gray-700/50 dark:text-gray-100">
+    <TurnBubble role="assistant">
       {r.kind === 'clarify' && <ClarifyReply reply={r} onAnswer={onAnswer} busy={busy} isLast={isLast} />}
       {r.kind === 'confirm' && (isLast
         ? <ConfirmChoices confirm={r.confirm} busy={busy} onChoose={choice => onConfirm(r, choice)} />
@@ -53,6 +48,6 @@ export default function Turn({ turn, onAnswer, onConfirm, busy, isLast }) {
       {r.kind === 'report' && <ReportReply reply={r} />}
       {r.kind === 'error' && <p className="text-red-700 dark:text-red-300">{r.message}{r.errors?.length ? ` (${r.errors.join('; ')})` : ''}</p>}
       <p className={MUTED}>{formatTiming(r.timing)}</p>
-    </div>
+    </TurnBubble>
   );
 }

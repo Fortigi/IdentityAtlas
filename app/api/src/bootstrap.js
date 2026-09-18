@@ -376,12 +376,19 @@ export async function bootstrapWorker() {
     // Report generator (experimental): prepare the model's prompt cache in the
     // background — only where custom reports are on and a model server is configured.
     // Never blocks startup.
-    try {
-      const { warmAtStartup } = await import('./nlreports/service.js');
-      void warmAtStartup().catch(err => console.warn('Report generator warm-up skipped:', err.message));
-    } catch (err) {
-      console.warn('Report generator warm-up skipped:', err.message);
-    }
+    // Both assistants that use the generator get their prompt prepared, one after the
+    // other: the server has a single slot, so preparing them at the same time would only
+    // queue behind itself. Each is skipped unless its own feature is on.
+    void (async () => {
+      for (const module of ['./nlreports/service.js', './contextAssistant/service.js']) {
+        try {
+          const { warmAtStartup } = await import(module);
+          await warmAtStartup();
+        } catch (err) {
+          console.warn('Report generator warm-up skipped:', err.message);
+        }
+      }
+    })();
     console.log('Bootstrap complete');
   } catch (err) {
     console.error('Bootstrap failed (will retry on next request):', err.message);
