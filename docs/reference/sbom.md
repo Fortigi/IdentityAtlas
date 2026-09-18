@@ -68,8 +68,8 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| react | ^19.2.8 | UI framework | MIT |
-| react-dom | ^19.2.8 | React DOM renderer | MIT |
+| react | ^19.3.0 | UI framework | MIT |
+| react-dom | ^19.3.0 | React DOM renderer | MIT |
 | vite | ^8.2.2 | Build tool and dev server | MIT |
 
 ### Styling
@@ -113,8 +113,8 @@ This document lists all major software components, dependencies, and infrastruct
 | @playwright/test | ^1.63.0 | End-to-end testing framework | Apache 2.0 |
 | @axe-core/playwright | ^4.13.0 | Accessibility testing | MPL 2.0 |
 | @eslint/js | ^10.0.1 | ESLint JavaScript rules | MIT |
-| @types/react | ^19.2.18 | TypeScript type definitions for React | MIT |
-| @types/react-dom | ^19.2.7 | TypeScript type definitions for React DOM | MIT |
+| @types/react | ^19.3.0 | TypeScript type definitions for React | MIT |
+| @types/react-dom | ^19.3.0 | TypeScript type definitions for React DOM | MIT |
 
 ---
 
