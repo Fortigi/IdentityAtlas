@@ -1469,6 +1469,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Describing it in plain language">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#names-in-your-question" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Names in your question
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -5051,6 +5068,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Describing it in plain language">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#names-in-your-question" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Names in your question
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -5213,8 +5247,9 @@ too.
 <blockquote>
 <p>Guest accounts that don't have a manager, or whose manager is disabled</p>
 </blockquote>
-<p>The model turns that into a report definition. It never sees your data — only your question and the
-list of fields it may use. What comes back is always shown as editable criteria plus the
+<p>The model turns that into a report definition. It never sees your data — only your question, the
+list of fields it may use, and, for a name you mention, which of those fields the name occurs in
+(see <a href="#names-in-your-question">Names in your question</a>). What comes back is always shown as editable criteria plus the
 plain-language reading, because <strong>the model is often right but never guaranteed to be right</strong>. Check
 it before you save.</p>
 <p>The generator may answer with a question instead of a report:</p>
@@ -5222,6 +5257,10 @@ it before you save.</p>
 <li><strong>"Did you mean…?"</strong> — you named something (a business role, a group, a person) whose name does not
   match exactly. Pick the right one, type the exact name, or keep what you wrote. This one is reliable:
   the database does the lookup, not the model.</li>
+<li><strong>"Which should the report match?"</strong> — you mentioned a name (an organisation, a code) that the report
+  it built does not use. You get the fields that name actually occurs in — for example <em>Company contains
+  "Contoso"</em> or <em>Email contains "Contoso"</em> — or you can leave it out. When the model had filtered on a
+  system instead, picking a field also removes that system filter. Nothing runs on the guess.</li>
 <li><strong>"I cannot build this"</strong> — the report needs information Identity Atlas does not hold, and you get
   a note saying so rather than a report built on the wrong field. Asking for users with MFA switched
   off is an example.</li>
@@ -5231,6 +5270,13 @@ it before you save.</p>
   kind of admin without saying so. Be specific, and read the plain-language summary: that is where a
   guess shows.</li>
 </ul>
+<h3 id="names-in-your-question">Names in your question<a class="headerlink" href="#names-in-your-question" title="Permanent link">&para;</a></h3>
+<p>Names are recognised when they are clearly names: text in quotes, codes in capitals (<em>ACME</em>, <em>SAP</em>),
+and capitalised words that do not start a sentence (<em>Contoso</em>, <em>Northwind Health+</em>). Before the model
+answers, Identity Atlas looks each one up as a whole word and tells the model where it is — so <em>"guests
+from Contoso"</em> filters on the company rather than on something the model guessed. A lower-case name
+(<em>"guests from contoso"</em>) is not recognised this way: put it in quotes, or capitalise it, when the
+model gets it wrong. Two-letter words are never looked up — they occur almost everywhere.</p>
 <p>You can keep talking to it: <em>"only enabled accounts, and show the department"</em> updates the definition
 you have, including any changes you made by hand.</p>
 <p>The first question after an update, or after the model has been idle, takes longer — the builder says

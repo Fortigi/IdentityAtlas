@@ -5485,8 +5485,8 @@ model was dropped, not as a like-for-like ranking.</p>
 <tr>
 <td><strong>Qwen3-4B-Instruct-2507 (shipped)</strong></td>
 <td>Apache 2.0</td>
-<td><strong>33/41 (80%)</strong></td>
-<td><strong>13/17 (76%)</strong></td>
+<td><strong>34/42 (81%)</strong></td>
+<td><strong>14/17 (82%)</strong></td>
 <td>Best of every model tested, commercial use allowed</td>
 </tr>
 <tr>
@@ -5533,15 +5533,18 @@ model was dropped, not as a like-for-like ranking.</p>
 </tr>
 </tbody>
 </table>
-<p>The sets grew during development (32 → 41 tuning, 14 → 17 held-out), so the percentages above are
+<p>The sets grew during development (32 → 42 tuning, 14 → 17 held-out), so the percentages above are
 comparable within a row, not exactly across rows. The shipped model's figures are the full sets,
 measured on the release image as it ships — llama.cpp, the saved prompt cache, and the bounded output
-grammar described below. Before the sign-in fields were added, the same setup scored 34/39 and 14/17: the
-larger prompt answers the new sign-in questions, but moved two unrelated answers, and each prompt variant
-tried since traded one question for another. A run is repeatable — the same prompt gives the same answers —
-so these differences are real, not noise; the sets are just too small to tune further without fitting
-them. A few questions have an empty correct answer, which a wrong definition can also produce; counting
-only questions with a non-empty answer, the shipped model scores 32/40 and 11/15. Re-run any time with <code>tools/nl-reports/eval.mjs</code> —
+grammar described below. Before the sign-in fields were added, the same setup scored 34/39 and 14/17; the
+larger prompt answers the new sign-in questions but moved two unrelated answers (33/41 and 13/17), and each
+prompt variant tried since traded one question for another. Looking up the names a question mentions
+(see <a href="#privacy">Privacy</a>) won one held-out question back without losing a tuning question; the tuning
+set's organisation question (42nd) was added with it and measured on its own. A run is repeatable — the
+same prompt gives the same answers — so these differences are real, not noise; the sets are just too
+small to tune further without fitting them. A few questions have an empty correct answer, which a wrong
+definition can also produce; counting only questions with a non-empty answer, the shipped model scores
+33/41 and 12/15. Re-run any time with <code>tools/nl-reports/eval.mjs</code> —
 see <a href="#measuring-it-yourself">Measuring it yourself</a>.</p>
 <h3 id="what-the-mistakes-look-like">What the mistakes look like<a class="headerlink" href="#what-the-mistakes-look-like" title="Permanent link">&para;</a></h3>
 <p>About one question in seven comes back wrong, so the point is not perfection but <strong>visible</strong>
@@ -5576,9 +5579,17 @@ words is uncertain.</p>
   cloud model, no API key to a provider, and no telemetry in this path.</li>
 <li><strong>The model receives</strong>: the analyst's question, the catalog (entity, field and relation names with
   their descriptions), the type values that exist in this deployment (account types, resource types,
-  system names) and, while refining, the current report definition.</li>
-<li><strong>The model never receives</strong>: rows, query results, or anything looked up in the database on its
-  behalf. Name lookups ("did you mean…") are done by the database, not by the model.</li>
+  system names), while refining the current report definition, and — for a name the question
+  mentions — <strong>which fields that name occurs in</strong>.</li>
+<li><strong>That last one is the only thing looked up in the data for the model, and it is deliberately
+  narrow.</strong> When a question names something ("guest accounts from Contoso"), the API checks, per name,
+  whether it occurs as a whole word in a fixed set of text fields (name, email, company, department, job
+  title, description) and in system names. The model is told the field names only —
+  <code>"Contoso": user.companyName, user.email</code> — never a row, a value from the row, or a count. It
+  learns that a word the analyst typed exists in the data, which the analyst already implied by asking.
+  Without it, the model guessed where an organisation name lives and filtered on an unrelated system.</li>
+<li><strong>The model never receives</strong>: rows, query results, counts, or any value it did not get from the
+  analyst. Name lookups ("did you mean…") are done by the database, not by the model.</li>
 <li><strong>Names do reach it in one way, and it is worth being exact about it.</strong> Whatever the analyst types is
   sent as typed, names included. And once an analyst confirms a "did you mean", the confirmed record's
   name is written into the definition — so if they then refine the report in words, that definition,

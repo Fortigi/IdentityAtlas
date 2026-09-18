@@ -5155,13 +5155,15 @@
 <a href="../../reference/report-generator/">Report Generator</a>. This page is the design: what a report
 definition is, how it becomes SQL, and where the seams are.</p>
 <h2 id="the-shape">The shape<a class="headerlink" href="#the-shape" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>question ─► model ─► report definition (JSON) ─► validate ─► resolve names ─► compile ─► READ ONLY tx ─► rows
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>              ▲          ▲                         │             │              │
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>              │          └ built by hand in the    │             │              └ parameterised SQL,
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>              │            definition editor       │             │                statement timeout
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>              │                                    │             └ "did you mean …?" for a fuzzy name
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>              └ JSON-schema grammar: the model can only
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                emit known entities, fields and relations
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>question
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  ─► find names        which text fields each name occurs in (field names only, no rows)
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  ─► model             JSON-schema grammar: only known entities, fields and relations
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  ─► report definition (JSON) — or built by hand in the definition editor
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  ─► validate          repair rounds: invalid, missing "or", a name left unused
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  ─► check names       a name still unused → "which should the report match?"
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  ─► resolve names     "did you mean …?" for a fuzzy name
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>  ─► compile           parameterised SQL, statement timeout
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>  ─► READ ONLY tx ─► rows
 </code></pre></div>
 <p>A <strong>report definition</strong> is the only thing that travels between the layers, and the only thing stored:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
@@ -5201,6 +5203,10 @@ definition is, how it becomes SQL, and where the seams are.</p>
 <tr>
 <td><code>nlreports/references.js</code></td>
 <td>Looks up every named object (comparison references and <code>name is X</code> conditions): exact → punctuation-insensitive → <code>pg_trgm</code> fuzzy, producing a "did you mean" confirmation the UI applies without another model call.</td>
+</tr>
+<tr>
+<td><code>nlreports/terms.js</code></td>
+<td>The names a <em>question</em> mentions (quoted, all-caps, capitalised mid-sentence). Looks each up as a whole word in a fixed set of text fields and tells the model the field names only; after the model answers, a name it ignored gets one correction round and then a <code>term</code> confirmation (which field, or leave it out), applied by <code>/resolve</code> and validated again.</td>
 </tr>
 <tr>
 <td><code>nlreports/compile.js</code></td>
