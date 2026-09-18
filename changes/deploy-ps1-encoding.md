@@ -1,1 +1,0 @@
-- Fixed the Azure deploy script (`azure/deploy.ps1`) failing to start in Windows PowerShell 5.1 with "The string is missing the terminator". The file is now saved so both PowerShell 5.1 and 7 read it correctly.

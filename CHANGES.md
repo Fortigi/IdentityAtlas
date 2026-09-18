@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the Azure deploy script (`azure/deploy.ps1`) failing to start in Windows PowerShell 5.1 with "The string is missing the terminator". The file is now saved so both PowerShell 5.1 and 7 read it correctly.
+
+## Changes in this PR
+
 - The report generator now looks up the names in a question (an organisation such as "Contoso", a group, a person) in the data, and tells the model which fields they occur in — so "guest accounts from Contoso" filters on company or email instead of guessing a system.
 - When a generated report still does not use a name from the question, the assistant asks where it should apply (for example Company or Email) instead of running a guess, and offers to replace a system filter that does not match the question.
 
