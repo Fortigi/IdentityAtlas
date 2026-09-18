@@ -12,7 +12,7 @@ import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { buildSystemPrompt, buildValuesBlock, RESPONSE_SCHEMA, REPORT_ONLY_SCHEMA } from './prompt.js';
 import { chat, DEFAULT_MODEL } from './llm.js';
-import { createWarmup } from './warmup.js';
+import { createWarmup, prepareAtStartup } from './warmup.js';
 import { resolveNamedObjects } from './references.js';
 import { correctionMessage, findTerms, locateTerms, termConfirmation, termHint, unusedTerms } from './terms.js';
 import { isFeatureEnabled } from '../featureFlags.js';
@@ -28,31 +28,16 @@ let valuesCache = { at: 0, values: null };
 export const { ensureWarm, warmupState } = createWarmup(buildSystemPrompt);
 
 /**
- * Prepare the prompt cache when the API starts. The first run after an install or
- * update reads the whole system prompt (minutes on a small CPU box) and saves it;
- * later starts restore it in milliseconds.
- *
- * Skipped unless custom reports are switched on AND a model server is configured:
- * an install that updated and did nothing must not log connection failures on every
- * start, and on Azure must not wake a scaled-to-zero generator nobody uses. The
- * server may still be starting (or scaling up from zero), so it gets a few tries;
- * opening the report builder triggers another attempt anyway.
- *
+ * Prepare the report prompt's cache when the API starts. See warmup.prepareAtStartup.
  * @returns {Promise<'skipped'|'ready'|'failed'>}
  */
-export async function warmAtStartup({ attempts = 3, delayMs = 30_000 } = {}) {
-  if (!process.env.NL_REPORTS_LLM_URL || !(await isFeatureEnabled('customReports'))) return 'skipped';
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    try {
-      const r = await ensureWarm().promise;
-      console.log(`Report generator: prompt cache ${r.restored ? 'restored' : 'prepared'} in ${(r.ms / 1000).toFixed(1)}s`);
-      return 'ready';
-    } catch (err) {
-      console.warn(`Report generator: prompt cache attempt ${attempt}/${attempts} failed — ${err.message}`);
-      if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, delayMs));
-    }
-  }
-  return 'failed';
+export async function warmAtStartup(options = {}) {
+  return prepareAtStartup({
+    ensureWarm,
+    enabled: () => isFeatureEnabled('customReports'),
+    label: 'Report generator',
+    ...options,
+  });
 }
 
 export async function loadValues() {

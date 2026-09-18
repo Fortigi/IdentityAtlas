@@ -13,6 +13,7 @@
 // See docs/architecture/context-assistant.md.
 
 import { ENTITIES } from '../../nlreports/catalog.js';
+import { escapeLike } from '../../db/sqlParams.js';
 
 export const MAX_TERMS = 40;
 export const MAX_TERM_LENGTH = 60;
@@ -66,11 +67,21 @@ export function termMatches(paddedHay, normalizedTerm, match) {
   return paddedHay.includes(` ${normalizedTerm}`);
 }
 
-/** The LIKE pattern equivalent of termMatches, for narrowing rows in SQL. */
+/**
+ * The LIKE pattern equivalent of termMatches, for narrowing rows in SQL.
+ *
+ * A normalised term holds only letters, digits and single spaces, so it carries no LIKE
+ * metacharacter to begin with; it goes through escapeLike() anyway, so the pattern is safe
+ * by construction rather than by that argument (SEC-2026-09 L-14, routes/likeAudit.test.js).
+ * Postgres treats backslash as the escape character by default, which is what escapeLike
+ * emits, so the comparison needs no ESCAPE clause — and could not carry one: the patterns
+ * are matched with LIKE ANY(array).
+ */
 export function likePattern(normalizedTerm, match) {
-  if (match === 'token') return `% ${normalizedTerm} %`;
-  if (match === 'contains') return `%${normalizedTerm}%`;
-  return `% ${normalizedTerm}%`;
+  const term = escapeLike(normalizedTerm);
+  if (match === 'token') return `% ${term} %`;
+  if (match === 'contains') return '%' + term + '%';
+  return `% ${term}%`;
 }
 
 const pick = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);

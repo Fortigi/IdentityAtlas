@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../nlreports/llm.js', () => ({ chat: vi.fn(), warm: vi.fn() }));
 vi.mock('../nlreports/settings.js', () => ({ getReportModel: vi.fn(async () => 'test-model') }));
+vi.mock('../featureFlags.js', () => ({ isFeatureEnabled: vi.fn(async () => true) }));
 
 import { chat, warm } from '../nlreports/llm.js';
-import { containsOwnWord, interpret, isGenericTerm, ownWords, schemaFor, shapeTerms, suggestMore } from './service.js';
+import { containsOwnWord, interpret, isGenericTerm, ownWords, schemaFor, shapeTerms, suggestMore, warmAtStartup } from './service.js';
 import { buildContextPrompt, MORE_TERMS_SCHEMA, RESPONSE_SCHEMA, TERMS_ONLY_SCHEMA } from './prompt.js';
+import { isFeatureEnabled } from '../featureFlags.js';
 import { validateRecipe } from '../contexts/recipe/recipe.js';
 
 const reply = (obj) => ({ content: JSON.stringify(obj), timing: { totalMs: 1000 } });
@@ -14,6 +16,42 @@ beforeEach(() => {
   chat.mockReset();
   warm.mockReset();
   warm.mockResolvedValue({ model: 'test-model', ms: 1, restored: true });
+  isFeatureEnabled.mockResolvedValue(true);
+});
+
+describe('warm-up at API start', () => {
+  // The two assistants keep separate prompt caches on one slot, so each prepares its own —
+  // and neither does when its feature is off or no model server is configured.
+  it('prepares this prompt when the feature is on and a model server is configured', async () => {
+    process.env.NL_REPORTS_LLM_URL = 'http://report-generator:8080';
+    expect(await warmAtStartup({ delayMs: 0 })).toBe('ready');
+    expect(warm).toHaveBeenCalledWith('test-model', buildContextPrompt());
+  });
+
+  it('does nothing while the context assistant is switched off', async () => {
+    process.env.NL_REPORTS_LLM_URL = 'http://report-generator:8080';
+    isFeatureEnabled.mockResolvedValueOnce(false);
+    expect(await warmAtStartup({ delayMs: 0 })).toBe('skipped');
+    expect(warm).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when no model server is configured', async () => {
+    delete process.env.NL_REPORTS_LLM_URL;
+    expect(await warmAtStartup({ delayMs: 0 })).toBe('skipped');
+    expect(warm).not.toHaveBeenCalled();
+  });
+
+  it('keeps trying while the generator is still starting, then gives up', async () => {
+    process.env.NL_REPORTS_LLM_URL = 'http://report-generator:8080';
+    warm.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    expect(await warmAtStartup({ attempts: 3, delayMs: 0 })).toBe('ready');
+    expect(warm).toHaveBeenCalledTimes(2);
+
+    warm.mockReset();
+    warm.mockRejectedValue(new Error('ECONNREFUSED'));
+    expect(await warmAtStartup({ attempts: 2, delayMs: 0 })).toBe('failed');
+    expect(warm).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('ownWords', () => {

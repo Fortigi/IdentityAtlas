@@ -1,7 +1,8 @@
-# Context Assistant — design (DRAFT)
+# Context Assistant — how it works
 
-> Status: design draft, not built. Branch `feature/context-assistant`, stacked on
-> `feature/custom-reports` (PR #1223). Developed by hand on sk7, outside the DoR pipeline.
+> Status: built and shipping behind the experimental flag `contextAssistant` (off by default).
+> Phases 4 and 5 of §8 — the population strategy and the "new since you last reviewed" badge —
+> are not built. Developed by hand on sk7, outside the DoR pipeline.
 
 A role miner describes a context in their own words — *"all groups related to het inkoopproces"*,
 *"everything to do with HAMIS"*, *"groups that (almost) only people from department Inkoop have"* —

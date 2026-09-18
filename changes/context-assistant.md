@@ -2,3 +2,4 @@
 - Contexts built this way are refreshed after every crawl: new groups that match a kept term join automatically, excluded groups stay out. Reopen one with "Edit search terms" on the context.
 - Added the permission **Build contexts** (`data.write.contexts`): create manual contexts, edit context members and use the context assistant without the Context plugins admin permission. Existing mappings keep working; customised role mappings must grant it by hand to use the assistant.
 - Only the model's terms that contain your own words start ticked; everything else it suggests starts unticked with its hit counts, so a wrong guess about a name the model does not know never silently widens the context. A warning appears when ticked suggestions bring in far more groups than your own words do.
+- The report generator now prepares the prompts of both custom reports and the context assistant when the API starts, so the first person to use either does not wait for it.

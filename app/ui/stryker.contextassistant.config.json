@@ -1,0 +1,44 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the context builder's logic: the draft an analyst edits (recipeDraft.js), the three hooks behind it, and the permission+flag gate. WHY THESE FILES: the draft helpers decide what the context will contain -- which terms are kept, which objects are pinned or kept out, when a warning about the model's suggestions appears, and when the draft may be saved at all. Each is a pure function whose failure is silent: a context that saves happily with the wrong members. The hooks carry the two rules that keep the screen honest -- the evaluation shown must belong to the draft on screen (a stale answer is a lie about what will be saved), and the first save creates a tree while later saves refresh that same one (getting this wrong spawns a duplicate tree per save). MUTATOR SET: StringLiteral and ObjectLiteral disabled, matching the sibling UI configs. EXCLUDED: the JSX panels, which are presentational and covered by mount tests rather than mutation (same decision as the report builder's config). NOT YET MEASURED: ships with the feature, so `break` is absent until a first run measures a score; add `{ pkg: ui, name: contextassistant, label: 'UI context assistant' }` to .github/workflows/js-mutation.yml then, with the floor a few points under what it reports. Run: cd app/ui && npm run test:mutation:contextassistant",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.contextassistant.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-contextassistant.json"
+  },
+  "mutate": [
+    "src/components/contexts/assistant/recipeDraft.js",
+    "src/components/contexts/assistant/useContextSave.js",
+    "src/components/contexts/assistant/useRecipeEvaluation.js",
+    "src/components/contexts/assistant/useTermConversation.js",
+    "src/hooks/useCanBuildContexts.js"
+  ],
+  "mutationExclusions": {
+    "src/components/contexts/assistant/ContextBuilderPage.jsx": "Composition, not logic: the page holds the draft in state and hands each panel its slice plus the draft helpers that do the work. Those helpers (recipeDraft.js) and the hooks it composes are mutated; what is left here is wiring, covered by ContextBuilderPage.mount.test.jsx end to end — the same decision as ReportBuilderPage.jsx in the reports config.",
+    "src/components/contexts/assistant/ContextBuilderParts.jsx": "Presentational: the header and the scope settings, rendered from props. Covered by the page's mount test; a mutant here changes markup a test asserts on rather than behaviour that decides what the context contains.",
+    "src/components/contexts/assistant/DescribePanel.jsx": "Presentational: it renders the conversation and the question box. The behaviour — asking, the history it sends, what it does with a reply — lives in useTermConversation.js, which is mutated; the words it prints come from recipeDraft.termsReplyText, also mutated.",
+    "src/components/contexts/assistant/TermsPanel.jsx": "Presentational: one row per term, with the numbers the server computed. The decisions it renders (hit wording, the widening warning, what counts as kept) are recipeDraft.js and the API's computeMatches, both mutated elsewhere; TermsPanel.mount.test.jsx pins the rendering.",
+    "src/components/contexts/assistant/MatchesPanel.jsx": "Presentational: the match table and its three views. Its one rule — which action a row offers — is recipeDraft.rowAction, which is mutated; the rest is markup asserted by MatchesPanel.mount.test.jsx.",
+    "src/components/contexts/assistant/RelatedWords.jsx": "Presentational: a button, the chips it renders, and the request behind them. The ranking that decides which words appear is server-side (contexts/recipe/relatedWords.js, mutated in the API config) and the chip's wording is recipeDraft.relatedWordText, also mutated."
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70
+  },
+  "concurrency": 2,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false,
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  }
+}

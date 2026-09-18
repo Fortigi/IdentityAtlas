@@ -8,7 +8,8 @@
 // the analyst's own words arrive ticked — see shapeTerms().
 
 import { chat } from '../nlreports/llm.js';
-import { createWarmup } from '../nlreports/warmup.js';
+import { createWarmup, prepareAtStartup } from '../nlreports/warmup.js';
+import { isFeatureEnabled } from '../featureFlags.js';
 import { getReportModel } from '../nlreports/settings.js';
 import { DEFAULT_STOPWORDS } from '../contexts/plugins/resource-cluster/tokenize.js';
 import { defaultMatchFor, normalizeText, TERM_ORIGINS } from '../contexts/recipe/recipe.js';
@@ -19,6 +20,22 @@ import {
 const MAX_CLARIFY_ROUNDS = 2;
 
 export const { ensureWarm, warmupState } = createWarmup(buildContextPrompt);
+
+/**
+ * Prepare this prompt's cache when the API starts, so the first analyst to open the builder
+ * does not pay the minutes it takes to read a prompt for the first time. The generator has
+ * one slot and each assistant has its own prompt, so the two preparations are run one after
+ * the other by the caller (bootstrap.js), never at the same time.
+ * @returns {Promise<'skipped'|'ready'|'failed'>}
+ */
+export async function warmAtStartup(options = {}) {
+  return prepareAtStartup({
+    ensureWarm,
+    enabled: () => isFeatureEnabled('contextAssistant'),
+    label: 'Context assistant',
+    ...options,
+  });
+}
 
 function parseReply(content) {
   try { return JSON.parse(content); } catch { return null; }

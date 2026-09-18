@@ -48,3 +48,35 @@ export function createWarmup(buildPrompt) {
 
   return { ensureWarm, warmupState: () => (current ? current.state : 'cold') };
 }
+
+/**
+ * Prepare a prompt cache when the API starts. The first run after an install or update
+ * reads the whole system prompt (minutes on a small CPU box) and saves it; later starts
+ * restore it in milliseconds.
+ *
+ * Skipped unless the feature is switched on AND a model server is configured: an install
+ * that updated and did nothing must not log connection failures on every start, and on
+ * Azure must not wake a scaled-to-zero generator nobody uses. The server may still be
+ * starting (or scaling up from zero), so it gets a few tries; opening the builder triggers
+ * another attempt anyway.
+ *
+ * @param {object} args
+ * @param {Function} args.ensureWarm  the warm-up to run
+ * @param {Function} args.enabled     async () => boolean — is this feature switched on
+ * @param {string} args.label         what to call this in the log
+ * @returns {Promise<'skipped'|'ready'|'failed'>}
+ */
+export async function prepareAtStartup({ ensureWarm, enabled, label, attempts = 3, delayMs = 30_000 }) {
+  if (!process.env.NL_REPORTS_LLM_URL || !(await enabled())) return 'skipped';
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const r = await ensureWarm().promise;
+      console.log(`${label}: prompt cache ${r.restored ? 'restored' : 'prepared'} in ${(r.ms / 1000).toFixed(1)}s`);
+      return 'ready';
+    } catch (err) {
+      console.warn(`${label}: prompt cache attempt ${attempt}/${attempts} failed — ${err.message}`);
+      if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  return 'failed';
+}
