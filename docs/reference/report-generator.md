@@ -59,7 +59,7 @@ model was dropped, not as a like-for-like ranking.
 
 | Model | Licence | Tuning set | Held-out set | Notes |
 |---|---|---|---|---|
-| **Qwen3-4B-Instruct-2507 (shipped)** | Apache 2.0 | **33/41 (80%)** | **13/17 (76%)** | Best of every model tested, commercial use allowed |
+| **Qwen3-4B-Instruct-2507 (shipped)** | Apache 2.0 | **34/42 (81%)** | **14/17 (82%)** | Best of every model tested, commercial use allowed |
 | Qwen2.5-Coder 3B | ⛔ Qwen Research (non-commercial) | 28/32 (88%) at the time | 9/14 (64%) | Strongest early candidate; **cannot be shipped** |
 | Qwen2.5-Coder 1.5B | Apache 2.0 | 21/36 (58%) | 8/14 (57%) | Runs on 1 CPU / 2 GB, but clearly weaker |
 | Qwen2.5-Coder 0.5B | Apache 2.0 | 7/32 (22%) | 5/14 (36%) | Unusable: copies the examples |
@@ -67,15 +67,18 @@ model was dropped, not as a like-for-like ranking.
 | Gemma 3 4B | Gemma terms | run abandoned | — | ~80 s per question: its attention design defeated prompt caching |
 | Qwen2.5-Coder 7B | Apache 2.0 | spot checks only | — | Too slow on 2 CPUs for the benefit |
 
-The sets grew during development (32 → 41 tuning, 14 → 17 held-out), so the percentages above are
+The sets grew during development (32 → 42 tuning, 14 → 17 held-out), so the percentages above are
 comparable within a row, not exactly across rows. The shipped model's figures are the full sets,
 measured on the release image as it ships — llama.cpp, the saved prompt cache, and the bounded output
-grammar described below. Before the sign-in fields were added, the same setup scored 34/39 and 14/17: the
-larger prompt answers the new sign-in questions, but moved two unrelated answers, and each prompt variant
-tried since traded one question for another. A run is repeatable — the same prompt gives the same answers —
-so these differences are real, not noise; the sets are just too small to tune further without fitting
-them. A few questions have an empty correct answer, which a wrong definition can also produce; counting
-only questions with a non-empty answer, the shipped model scores 32/40 and 11/15. Re-run any time with `tools/nl-reports/eval.mjs` —
+grammar described below. Before the sign-in fields were added, the same setup scored 34/39 and 14/17; the
+larger prompt answers the new sign-in questions but moved two unrelated answers (33/41 and 13/17), and each
+prompt variant tried since traded one question for another. Looking up the names a question mentions
+(see [Privacy](#privacy)) won one held-out question back without losing a tuning question; the tuning
+set's organisation question (42nd) was added with it and measured on its own. A run is repeatable — the
+same prompt gives the same answers — so these differences are real, not noise; the sets are just too
+small to tune further without fitting them. A few questions have an empty correct answer, which a wrong
+definition can also produce; counting only questions with a non-empty answer, the shipped model scores
+33/41 and 12/15. Re-run any time with `tools/nl-reports/eval.mjs` —
 see [Measuring it yourself](#measuring-it-yourself).
 
 ### What the mistakes look like
@@ -113,9 +116,17 @@ Three failure modes are handled in code rather than left to the model:
   cloud model, no API key to a provider, and no telemetry in this path.
 - **The model receives**: the analyst's question, the catalog (entity, field and relation names with
   their descriptions), the type values that exist in this deployment (account types, resource types,
-  system names) and, while refining, the current report definition.
-- **The model never receives**: rows, query results, or anything looked up in the database on its
-  behalf. Name lookups ("did you mean…") are done by the database, not by the model.
+  system names), while refining the current report definition, and — for a name the question
+  mentions — **which fields that name occurs in**.
+- **That last one is the only thing looked up in the data for the model, and it is deliberately
+  narrow.** When a question names something ("guest accounts from Contoso"), the API checks, per name,
+  whether it occurs as a whole word in a fixed set of text fields (name, email, company, department, job
+  title, description) and in system names. The model is told the field names only —
+  `"Contoso": user.companyName, user.email` — never a row, a value from the row, or a count. It
+  learns that a word the analyst typed exists in the data, which the analyst already implied by asking.
+  Without it, the model guessed where an organisation name lives and filtered on an unrelated system.
+- **The model never receives**: rows, query results, counts, or any value it did not get from the
+  analyst. Name lookups ("did you mean…") are done by the database, not by the model.
 - **Names do reach it in one way, and it is worth being exact about it.** Whatever the analyst types is
   sent as typed, names included. And once an analyst confirms a "did you mean", the confirmed record's
   name is written into the definition — so if they then refine the report in words, that definition,
