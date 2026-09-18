@@ -103,3 +103,63 @@ Describe 'deploy.ps1 can be run by Windows PowerShell 5.1' {
         @($script:DeployBytes | Where-Object { $_ -gt 127 }).Count | Should -BeGreaterThan 0
     }
 }
+
+Describe 'the report generator IP allow-list reaches az through a parameters file' {
+    # Inline JSON does not survive Windows: `az` is a batch wrapper there, cmd.exe eats
+    # the double quotes out of `name=["1.2.3.4/32"]`, and az refuses what is left with
+    # "Failed to parse string as JSON". Observed on a real deployment with 20 outbound
+    # addresses — the deployment never started. A parameters file is read by az itself.
+    BeforeAll {
+        $root     = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+        $azureDir = Join-Path $root 'azure'
+        $script:DeployText = Get-Content (Join-Path $azureDir 'deploy.ps1') -Raw
+        $bicep = Get-Content (Join-Path $azureDir 'main.bicep') -Raw
+        $script:DeclaredParams = [regex]::Matches($bicep, '(?m)^param\s+([A-Za-z_]\w*)\s') |
+            ForEach-Object { $_.Groups[1].Value }
+
+        # The writer itself, lifted out of the script: the script cannot be dot-sourced
+        # (it deploys), so the function is taken from its syntax tree and defined here.
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $azureDir 'deploy.ps1'), [ref]$null, [ref]$null)
+        $fn = $ast.Find({ param($n)
+            $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $n.Name -eq 'New-CallerIpsParameterFile' }, $true)
+        $fn | Should -Not -BeNullOrEmpty -Because 'the test drives the real writer, not a copy'
+        . ([scriptblock]::Create($fn.Extent.Text))
+
+        $script:WriteParams = {
+            param([string[]]$Cidrs)
+            $path = New-CallerIpsParameterFile -Cidrs $Cidrs -Directory $TestDrive
+            $json = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+            Remove-Item -LiteralPath $path -Force
+            return $json
+        }
+    }
+
+    It 'writes the addresses as a JSON array az accepts' {
+        $json = & $script:WriteParams @('20.1.2.3/32', '4.5.6.7/32')
+        $json.contentVersion | Should -Be '1.0.0.0'
+        $json.'$schema' | Should -Match 'deploymentParameters\.json'
+        , $json.parameters.reportGeneratorAllowedCallerIps.value | Should -BeOfType [array]
+        $json.parameters.reportGeneratorAllowedCallerIps.value | Should -Be @('20.1.2.3/32', '4.5.6.7/32')
+    }
+
+    It 'keeps one address an array, which the template requires' {
+        $json = & $script:WriteParams @('20.1.2.3/32')
+        , $json.parameters.reportGeneratorAllowedCallerIps.value | Should -BeOfType [array]
+        @($json.parameters.reportGeneratorAllowedCallerIps.value).Count | Should -Be 1
+    }
+
+    It 'names a parameter main.bicep declares' {
+        'reportGeneratorAllowedCallerIps' | Should -BeIn $script:DeclaredParams
+    }
+
+    It 'hands az the file and never an inline JSON array' {
+        $script:DeployText | Should -Match '--parameters., "@\$callerIpsFile"'
+        $script:DeployText | Should -Not -Match 'reportGeneratorAllowedCallerIps=\$\(ConvertTo-Json'
+    }
+
+    It 'deletes the temporary file even when the deployment fails' {
+        $script:DeployText | Should -Match 'finally\s*\{[^}]*Remove-Item -LiteralPath \$callerIpsFile'
+    }
+}

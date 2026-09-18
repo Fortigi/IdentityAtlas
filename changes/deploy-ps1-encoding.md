@@ -1,1 +1,2 @@
 - Fixed the Azure deploy script (`azure/deploy.ps1`) failing to start in Windows PowerShell 5.1 with "The string is missing the terminator". The file is now saved so both PowerShell 5.1 and 7 read it correctly.
+- Fixed `azure/deploy.ps1 -DeployReportGenerator` failing on Windows with "Failed to parse string as JSON" when it narrowed the report generator's allowed callers. The address list is now handed to Azure in a parameters file instead of on the command line.

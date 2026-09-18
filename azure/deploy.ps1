@@ -120,10 +120,37 @@ function Get-ReportGeneratorCallerCidrs {
     return @($outboundIps -split ',' | Where-Object { $_ } | ForEach-Object { "$($_.Trim())/32" })
 }
 
+# An array parameter goes to az in a FILE, never inline. On Windows `az` is a batch
+# wrapper: cmd.exe strips the double quotes out of an inline
+# `name=["1.2.3.4/32", ...]`, az receives `[1.2.3.4/32, ...]` and refuses it with
+# "Failed to parse string as JSON ... Expecting ',' delimiter". A parameters file is
+# read by az itself, so nothing can rewrite it on the way.
+# Returns the path of a temporary file the caller deletes.
+function New-CallerIpsParameterFile {
+    param(
+        [Parameter(Mandatory)][AllowEmptyCollection()][string[]]$Cidrs,
+        [Parameter(Mandatory)][string]$Directory
+    )
+
+    # @() around $Cidrs: a one-element array otherwise serialises as a bare string,
+    # and the template rejects it as not an array.
+    $content = [ordered]@{
+        '$schema'      = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
+        contentVersion = '1.0.0.0'
+        parameters     = [ordered]@{
+            reportGeneratorAllowedCallerIps = [ordered]@{ value = @($Cidrs) }
+        }
+    } | ConvertTo-Json -Depth 6
+    $path = Join-Path $Directory "caller-ips-$([guid]::NewGuid().ToString('N')).params.json"
+    Set-Content -LiteralPath $path -Value $content -Encoding utf8
+    return $path
+}
+
 # ── Deploy ──────────────────────────────────────────────────────────────
 Write-Host "`nStarting deployment. This takes ~5-7 minutes." -ForegroundColor Cyan
 $deploymentName = "identityatlas-$(Get-Date -Format 'yyyyMMddHHmmss')"
 
+$callerIpsFile = $null
 $deployArgs = @(
     'deployment', 'group', 'create',
     '--resource-group', $ResourceGroup,
@@ -138,9 +165,8 @@ if ($DeployReportGenerator) {
     # @(): a function returning a one-element array hands back a bare string otherwise.
     $cidrs = @(Get-ReportGeneratorCallerCidrs -ResourceGroup $ResourceGroup)
     if ($cidrs) {
-        # -InputObject, not the pipeline: piped, a one-element array serialises
-        # as a bare string and the template rejects it as not an array.
-        $deployArgs += @('--parameters', "reportGeneratorAllowedCallerIps=$(ConvertTo-Json -InputObject $cidrs -Compress)")
+        $callerIpsFile = New-CallerIpsParameterFile -Cidrs $cidrs -Directory ([System.IO.Path]::GetTempPath())
+        $deployArgs += @('--parameters', "@$callerIpsFile")
         Write-Host "  ReportGen ingress    : limited to $($cidrs.Count) web-app address(es)" -ForegroundColor DarkGray
     }
     else {
@@ -151,7 +177,12 @@ if ($ExistingLogAnalyticsWorkspaceId) {
     $deployArgs += @('--parameters', "existingLogAnalyticsWorkspaceId=$ExistingLogAnalyticsWorkspaceId")
 }
 
-$result = az @deployArgs | ConvertFrom-Json
+try {
+    $result = az @deployArgs | ConvertFrom-Json
+}
+finally {
+    if ($callerIpsFile) { Remove-Item -LiteralPath $callerIpsFile -Force -ErrorAction SilentlyContinue }
+}
 
 if ($LASTEXITCODE -ne 0 -or $result.properties.provisioningState -ne 'Succeeded') {
     Write-Host "`nDeployment failed. See errors above." -ForegroundColor Red
