@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Deploy Identity Atlas (Simple shape) to an Azure resource group. CLI
     equivalent of the README's "Deploy to Azure" button.
