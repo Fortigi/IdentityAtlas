@@ -136,6 +136,24 @@ function New-PostgresPassword {
     return ($alnum.Substring(0, 32) + 'Aa1')
 }
 
+# Reading a secret is the Key Vault DATA plane, which the operator's own account often
+# cannot touch: these vaults use access policies, and the template grants them to the
+# deployment's managed identities, not to people. "Cannot read it" and "it is not there"
+# then look the same from outside, and creating a password that already exists would
+# change the database password for no reason. So the two are told apart and a missing
+# permission is reported, never guessed around.
+function Get-SecretState {
+    param(
+        [Parameter(Mandatory)][int]$ExitCode,
+        [Parameter(Mandatory)][AllowEmptyString()][string]$Output
+    )
+
+    if ($ExitCode -eq 0) { return 'present' }
+    if ($Output -match 'SecretNotFound|was not found in this key vault|does not exist') { return 'missing' }
+    if ($Output -match 'Forbidden|does not have secrets get permission|AuthorizationFailed|token_expired|invalid_grant') { return 'denied' }
+    return 'denied'
+}
+
 function Initialize-ExistingVault {
     param([Parameter(Mandatory)][string]$ResourceGroup)
 
@@ -149,11 +167,32 @@ function Initialize-ExistingVault {
     # Every vault in the group is listed, but only this deployment's holds the secret.
     $vaultName = az keyvault list -g $ResourceGroup --query "[0].name" -o tsv 2>$null
     if (-not $vaultName) { return }
-    az keyvault secret show --vault-name $vaultName --name postgres-admin-password --output none 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "  Key Vault        : creating postgres-admin-password in $vaultName (the deployment sets the server to it)" -ForegroundColor DarkGray
-        az keyvault secret set --vault-name $vaultName --name postgres-admin-password --value (New-PostgresPassword) --output none
+
+    $shown = az keyvault secret show --vault-name $vaultName --name postgres-admin-password 2>&1 | Out-String
+    switch (Get-SecretState -ExitCode $LASTEXITCODE -Output $shown) {
+        'present' { return }
+        'missing' {
+            Write-Host "  Key Vault        : creating postgres-admin-password in $vaultName (the deployment sets the server to it)" -ForegroundColor DarkGray
+            az keyvault secret set --vault-name $vaultName --name postgres-admin-password --value (New-PostgresPassword) --output none
+            if ($LASTEXITCODE -ne 0) { Write-VaultPermissionHelp -VaultName $vaultName; exit 1 }
+        }
+        default {
+            Write-Host "`nCannot read the secret 'postgres-admin-password' in $vaultName." -ForegroundColor Red
+            Write-VaultPermissionHelp -VaultName $vaultName
+            exit 1
+        }
     }
+}
+
+function Write-VaultPermissionHelp {
+    param([Parameter(Mandatory)][string]$VaultName)
+
+    $who = az ad signed-in-user show --query userPrincipalName -o tsv 2>$null
+    Write-Host "The deployment needs that secret to exist before it starts, and your account cannot see it." -ForegroundColor Yellow
+    Write-Host "Either your sign-in has expired (run 'az login' and try again), or this vault's access" -ForegroundColor Yellow
+    Write-Host "policies do not include you — they are granted to the deployment's managed identities." -ForegroundColor Yellow
+    Write-Host "  az login" -ForegroundColor Gray
+    Write-Host "  az keyvault set-policy -n $VaultName --upn $(if ($who) { $who } else { '<your-upn>' }) --secret-permissions get list set" -ForegroundColor Gray
 }
 
 Initialize-ExistingVault -ResourceGroup $ResourceGroup

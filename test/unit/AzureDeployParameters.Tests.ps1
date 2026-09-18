@@ -219,3 +219,47 @@ Describe 'an Azure deployment made before the Key Vault password change stays up
         $submit | Should -BeGreaterThan $initialize -Because 'ARM resolves the Key Vault reference at submission'
     }
 }
+
+Describe 'telling "the secret is not there" apart from "you may not read it"' {
+    # Reading a secret is the Key Vault data plane, and these vaults use access policies
+    # granted to the deployment's managed identities — not to the operator. An expired
+    # sign-in looks the same from outside. Creating a password because a read failed
+    # would change a working database's password for no reason, so a denial stops the
+    # script with instructions instead.
+    BeforeAll {
+        $root   = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+        $deploy = Join-Path $root 'azure/deploy.ps1'
+        $script:DeployText = Get-Content $deploy -Raw
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($deploy, [ref]$null, [ref]$null)
+        $fn = $ast.Find({ param($n)
+            $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Get-SecretState' }, $true)
+        $fn | Should -Not -BeNullOrEmpty
+        . ([scriptblock]::Create($fn.Extent.Text))
+    }
+
+    It 'reads a successful lookup as present, whatever it printed' {
+        Get-SecretState -ExitCode 0 -Output '' | Should -Be 'present'
+        Get-SecretState -ExitCode 0 -Output 'https://v.vault.azure.net/secrets/postgres-admin-password/abc' | Should -Be 'present'
+    }
+
+    It 'reads a real "not found" as missing' {
+        Get-SecretState -ExitCode 1 -Output "ERROR: (SecretNotFound) A secret with (name/id) postgres-admin-password was not found in this key vault." |
+            Should -Be 'missing'
+    }
+
+    It 'reads a permission problem or an expired sign-in as denied, never as missing' {
+        $denials = @(
+            'ERROR: (Forbidden) The user, group or application does not have secrets get permission on key vault',
+            "SubError: token_expired V2Error: invalid_grant AADSTS70043: The refresh token has expired",
+            'ERROR: (AuthorizationFailed) The client does not have authorization to perform action',
+            'ERROR: something nobody has seen before'
+        )
+        foreach ($d in $denials) { Get-SecretState -ExitCode 1 -Output $d | Should -Be 'denied' }
+    }
+
+    It 'stops the script on a denial instead of writing a new password' {
+        # The 'missing' branch creates the secret; every other failure must exit first.
+        $script:DeployText | Should -Match "default \{[\s\S]{0,400}?Write-VaultPermissionHelp[\s\S]{0,80}?exit 1"
+        $script:DeployText | Should -Match "'missing' \{[\s\S]{0,400}?az keyvault secret set"
+    }
+}
