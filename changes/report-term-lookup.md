@@ -1,2 +1,0 @@
-- The report generator now looks up the names in a question (an organisation such as "Contoso", a group, a person) in the data, and tells the model which fields they occur in — so "guest accounts from Contoso" filters on company or email instead of guessing a system.
-- When a generated report still does not use a name from the question, the assistant asks where it should apply (for example Company or Email) instead of running a guess, and offers to replace a system filter that does not match the question.

@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- The report generator now looks up the names in a question (an organisation such as "Contoso", a group, a person) in the data, and tells the model which fields they occur in — so "guest accounts from Contoso" filters on company or email instead of guessing a system.
+- When a generated report still does not use a name from the question, the assistant asks where it should apply (for example Company or Email) instead of running a guess, and offers to replace a system filter that does not match the question.
+
+## Changes in this PR
+
 - Added custom reports (experimental, off by default — switch on under Admin → Experimental): build your own report on the Reports tab by choosing what to report on, adding conditions and picking columns. Saved reports sit in their own section next to the built-in ones and open, refresh and download the same way.
 - Added a report builder that opens in its own tab for creating or editing a report. It shows, in plain language, exactly what the report will ask before you run it, and previews the result.
 - Added "describe it in plain language": type the report you want and a small language model running inside your own deployment turns it into report criteria you can check and edit, shown back in plain language before anything runs. It says so when the data you ask about is not something Identity Atlas collects. It is usually right, not always — check the summary before saving.
