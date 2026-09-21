@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/admin/auto-updates/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/context-assistant/">
       
       
-        <link rel="prev" href="../data-tab/">
+        <link rel="prev" href="../custom-reports/">
       
       
-        <link rel="next" href="../../operations/nightly-review/">
+        <link rel="next" href="../audit-history/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Automatic Updates - Identity Atlas</title>
+        <title>Context Assistant Internals - Identity Atlas</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#automatic-updates" class="md-skip">
+        <a href="#context-assistant-how-it-works" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Automatic Updates
+              Context Assistant Internals
             
           </span>
         </div>
@@ -307,8 +307,6 @@
   
   
   
-    
-  
   
     
     
@@ -316,13 +314,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../../architecture/docker-setup/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../docker-setup/" class="md-tabs__link">
           
   
   
@@ -341,6 +337,8 @@
   
   
   
+    
+  
   
     
     
@@ -348,10 +346,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../../api/" class="md-tabs__link">
           
   
@@ -900,7 +900,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/account-linking/" class="md-nav__link">
+      <a href="../account-linking/" class="md-nav__link">
         
   
   
@@ -1275,7 +1275,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/matrix/" class="md-nav__link">
+      <a href="../matrix/" class="md-nav__link">
         
   
   
@@ -1303,7 +1303,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/matrix-scope-statistics/" class="md-nav__link">
+      <a href="../matrix-scope-statistics/" class="md-nav__link">
         
   
   
@@ -1479,7 +1479,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/entity-detail-pages/" class="md-nav__link">
+      <a href="../entity-detail-pages/" class="md-nav__link">
         
   
   
@@ -1559,7 +1559,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../excel-powerquery-export/" class="md-nav__link">
+      <a href="../../admin/excel-powerquery-export/" class="md-nav__link">
         
   
   
@@ -1587,7 +1587,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../excel-template-authoring/" class="md-nav__link">
+      <a href="../../admin/excel-template-authoring/" class="md-nav__link">
         
   
   
@@ -1627,31 +1627,26 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
             
   
   
@@ -1669,7 +1664,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1693,20 +1688,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" >
         
           
-          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
             
   
   
@@ -1742,7 +1734,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/docker-setup/" class="md-nav__link">
+      <a href="../docker-setup/" class="md-nav__link">
         
   
   
@@ -1770,7 +1762,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/azure-deployment-walkthrough/" class="md-nav__link">
+      <a href="../azure-deployment-walkthrough/" class="md-nav__link">
         
   
   
@@ -1798,7 +1790,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/azure-deployment/" class="md-nav__link">
+      <a href="../azure-deployment/" class="md-nav__link">
         
   
   
@@ -1826,7 +1818,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/desktop-portable/" class="md-nav__link">
+      <a href="../desktop-portable/" class="md-nav__link">
         
   
   
@@ -1854,7 +1846,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/scaling/" class="md-nav__link">
+      <a href="../scaling/" class="md-nav__link">
         
   
   
@@ -1896,20 +1888,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
         
           
-          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
             
   
   
@@ -2029,7 +2018,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/omada-crawler-datamodel/" class="md-nav__link">
+      <a href="../omada-crawler-datamodel/" class="md-nav__link">
         
   
   
@@ -2202,31 +2191,26 @@
                 
   
   
-    
   
   
-  
     
     
     
     
       
       
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
         
           
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
             
   
   
@@ -2244,7 +2228,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2262,7 +2246,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../authentication/" class="md-nav__link">
+      <a href="../../admin/authentication/" class="md-nav__link">
         
   
   
@@ -2290,7 +2274,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../data-tab/" class="md-nav__link">
+      <a href="../../admin/data-tab/" class="md-nav__link">
         
   
   
@@ -2315,37 +2299,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Automatic Updates
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../admin/auto-updates/" class="md-nav__link">
         
   
   
@@ -2361,137 +2318,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#the-admin-updates-screen" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The Admin → Updates screen
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The Admin → Updates screen">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#channel-awareness" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Channel awareness
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#turning-it-on" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Turning it on
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-agent" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The agent
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The agent">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#docker-host-cron-or-systemd" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Docker host (cron or systemd)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#azure-container-apps" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Azure Container Apps
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#local-install" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Local install
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-is-not-auto-updated" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What is not auto-updated
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#keeping-components-in-step" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Keeping components in step
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -2572,26 +2398,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
         
           
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
             
   
   
@@ -2609,7 +2440,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2633,17 +2464,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
         
           
-          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="">
             
   
   
@@ -2819,7 +2653,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/ingest-api/" class="md-nav__link">
+      <a href="../ingest-api/" class="md-nav__link">
         
   
   
@@ -2995,7 +2829,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/csv-import-schema/" class="md-nav__link">
+      <a href="../csv-import-schema/" class="md-nav__link">
         
   
   
@@ -3076,26 +2910,31 @@
                 
   
   
+    
   
   
+  
     
     
     
     
       
       
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_10" >
         
           
-          <label class="md-nav__link" for="__nav_6_10" id="__nav_6_10_label" tabindex="0">
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_10" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6_10" id="__nav_6_10_label" tabindex="">
             
   
   
@@ -3113,7 +2952,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_10_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_10_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_6_10">
             <span class="md-nav__icon md-icon"></span>
             
@@ -3131,7 +2970,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/crawler-architecture/" class="md-nav__link">
+      <a href="../crawler-architecture/" class="md-nav__link">
         
   
   
@@ -3159,7 +2998,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/reports/" class="md-nav__link">
+      <a href="../reports/" class="md-nav__link">
         
   
   
@@ -3187,7 +3026,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/custom-reports/" class="md-nav__link">
+      <a href="../custom-reports/" class="md-nav__link">
         
   
   
@@ -3212,10 +3051,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../architecture/context-assistant/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Assistant Internals
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -3231,6 +3097,198 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-the-one-decision-everything-follows-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. The one decision everything follows from
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-the-recipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. The recipe
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. The recipe">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#matching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Matching
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-the-dialog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. The dialog
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. The dialog">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#changes-over-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changes over time
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-the-population-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. The population strategy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-the-pieces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. The pieces
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. The pieces">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gates
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Safety
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-risk-will-a-4b-model-propose-good-terms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Risk: will a 4B model propose good terms?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-phasing-stacked-prs-all-developed-on-sk7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Phasing (stacked PRs, all developed on sk7)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-decisions-wim-2026-09-17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Decisions (Wim, 2026-09-17)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-open" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Open
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -3243,7 +3301,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/audit-history/" class="md-nav__link">
+      <a href="../audit-history/" class="md-nav__link">
         
   
   
@@ -3271,7 +3329,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/soft-delete/" class="md-nav__link">
+      <a href="../soft-delete/" class="md-nav__link">
         
   
   
@@ -3299,7 +3357,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/effective-access-engine/" class="md-nav__link">
+      <a href="../effective-access-engine/" class="md-nav__link">
         
   
   
@@ -3327,7 +3385,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/resource-cluster-algorithm/" class="md-nav__link">
+      <a href="../resource-cluster-algorithm/" class="md-nav__link">
         
   
   
@@ -3411,7 +3469,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/llm-and-risk-scoring/" class="md-nav__link">
+      <a href="../llm-and-risk-scoring/" class="md-nav__link">
         
   
   
@@ -3439,7 +3497,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/resource-assignments-identity-support/" class="md-nav__link">
+      <a href="../resource-assignments-identity-support/" class="md-nav__link">
         
   
   
@@ -3467,7 +3525,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/dashboard-trends/" class="md-nav__link">
+      <a href="../dashboard-trends/" class="md-nav__link">
         
   
   
@@ -3495,7 +3553,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/demo-dataset/" class="md-nav__link">
+      <a href="../demo-dataset/" class="md-nav__link">
         
   
   
@@ -3838,7 +3896,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/ci-scope-testing/" class="md-nav__link">
+      <a href="../ci-scope-testing/" class="md-nav__link">
         
   
   
@@ -3866,7 +3924,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/branching-strategy/" class="md-nav__link">
+      <a href="../branching-strategy/" class="md-nav__link">
         
   
   
@@ -4178,7 +4236,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/design-archive/" class="md-nav__link">
+      <a href="../design-archive/" class="md-nav__link">
         
   
   
@@ -4206,7 +4264,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/context-redesign/" class="md-nav__link">
+      <a href="../context-redesign/" class="md-nav__link">
         
   
   
@@ -4234,7 +4292,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/context-redesign-plan/" class="md-nav__link">
+      <a href="../context-redesign-plan/" class="md-nav__link">
         
   
   
@@ -4262,7 +4320,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/context-redesign-ui/" class="md-nav__link">
+      <a href="../context-redesign-ui/" class="md-nav__link">
         
   
   
@@ -4290,7 +4348,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/assignment-model-redesign/" class="md-nav__link">
+      <a href="../assignment-model-redesign/" class="md-nav__link">
         
   
   
@@ -4318,7 +4376,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/identitytype-design/" class="md-nav__link">
+      <a href="../identitytype-design/" class="md-nav__link">
         
   
   
@@ -4346,7 +4404,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/risk-scoring-plugins/" class="md-nav__link">
+      <a href="../risk-scoring-plugins/" class="md-nav__link">
         
   
   
@@ -4374,7 +4432,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/rule-mining-discussion/" class="md-nav__link">
+      <a href="../rule-mining-discussion/" class="md-nav__link">
         
   
   
@@ -4658,7 +4716,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/architecture-guidance-review-2026-09/" class="md-nav__link">
+      <a href="../architecture-guidance-review-2026-09/" class="md-nav__link">
         
   
   
@@ -4686,7 +4744,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/decision-principles/" class="md-nav__link">
+      <a href="../decision-principles/" class="md-nav__link">
         
   
   
@@ -5117,22 +5175,33 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-admin-updates-screen" class="md-nav__link">
+  <a href="#1-the-one-decision-everything-follows-from" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The Admin → Updates screen
+        1. The one decision everything follows from
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="The Admin → Updates screen">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-the-recipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. The recipe
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. The recipe">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#channel-awareness" class="md-nav__link">
+  <a href="#matching" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Channel awareness
+        Matching
       
     </span>
   </a>
@@ -5145,55 +5214,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#turning-it-on" class="md-nav__link">
+  <a href="#3-the-dialog" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Turning it on
+        3. The dialog
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-agent" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The agent
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The agent">
+    <nav class="md-nav" aria-label="3. The dialog">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#docker-host-cron-or-systemd" class="md-nav__link">
+  <a href="#changes-over-time" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Docker host (cron or systemd)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#azure-container-apps" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Azure Container Apps
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#local-install" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Local install
+        Changes over time
       
     </span>
   </a>
@@ -5206,10 +5242,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-is-not-auto-updated" class="md-nav__link">
+  <a href="#4-the-population-strategy" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What is not auto-updated
+        4. The population strategy
       
     </span>
   </a>
@@ -5217,10 +5253,93 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#keeping-components-in-step" class="md-nav__link">
+  <a href="#5-the-pieces" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Keeping components in step
+        5. The pieces
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. The pieces">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gates
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Safety
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-risk-will-a-4b-model-propose-good-terms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Risk: will a 4B model propose good terms?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-phasing-stacked-prs-all-developed-on-sk7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Phasing (stacked PRs, all developed on sk7)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-decisions-wim-2026-09-17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Decisions (Wim, 2026-09-17)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-open" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Open
       
     </span>
   </a>
@@ -5275,10 +5394,10 @@
     
     
       <li class="md-path__item">
-        <a href="../../architecture/docker-setup/" class="md-path__link">
+        <a href="../../api/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Set up & run
+    Reference
   </span>
 
         </a>
@@ -5296,10 +5415,10 @@
     
     
       <li class="md-path__item">
-        <a href="../authentication/" class="md-path__link">
+        <a href="../crawler-architecture/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Administer
+    Under the hood
   </span>
 
         </a>
@@ -5321,91 +5440,505 @@
   
 
 
-<h1 id="automatic-updates">Automatic updates<a class="headerlink" href="#automatic-updates" title="Permanent link">&para;</a></h1>
-<p>Identity Atlas can keep itself current. The design splits the job in two so it
-works the same on every deployment — Docker, Azure, or a local install — without
-ever giving the application access to your container runtime:</p>
+<h1 id="context-assistant-how-it-works">Context Assistant — how it works<a class="headerlink" href="#context-assistant-how-it-works" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>Status: built and shipping behind the experimental flag <code>contextAssistant</code> (off by default).
+Phases 4 and 5 of §8 — the population strategy and the "new since you last reviewed" badge —
+are not built. Developed by hand on sk7, outside the DoR pipeline.</p>
+</blockquote>
+<p>A role miner describes a context in their own words — <em>"all groups related to het inkoopproces"</em>,
+<em>"everything to do with HAMIS"</em>, <em>"groups that (almost) only people from department Inkoop have"</em> —
+and builds it in a short dialog with a local language model: the model proposes search terms, the
+miner keeps or drops each one while seeing what it finds, reviews the matched objects and includes or
+excludes individual ones, and saves the result as a context tree.</p>
+<p>It is the fourth way to create a context, next to <em>Import</em>, <em>Run a plugin</em> and <em>Create manual</em>.</p>
+<h2 id="1-the-one-decision-everything-follows-from">1. The one decision everything follows from<a class="headerlink" href="#1-the-one-decision-everything-follows-from" title="Permanent link">&para;</a></h2>
+<p><strong>The model produces a recipe; a deterministic plugin runs the recipe.</strong> Exactly as custom reports: the
+model never writes SQL and never decides membership. It fills in a JSON <em>context recipe</em>, constrained by
+a JSON-schema grammar. The recipe is stored as the <strong>parameters of a regular context plugin</strong>
+(<code>context-recipe</code>), and that plugin — plain SQL, no model — produces the contexts and members.</p>
+<p>What that buys, all for free from the existing plugin framework:</p>
+<table>
+<thead>
+<tr>
+<th>Existing mechanism</th>
+<th>What it gives the assistant</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>runner.js</code> reconcile + <code>sourceInstanceKey</code></td>
+<td>"Refresh this tree" keeps renames / re-parenting</td>
+</tr>
+<tr>
+<td><code>refreshGeneratedContexts()</code> after every crawl</td>
+<td>A new group called <code>SG_Inkoop_Facturen</code> joins the context after the next crawl — <strong>with the generator switched off</strong></td>
+</tr>
+<tr>
+<td><code>/context-plugins/:name/dry-run</code></td>
+<td>The preview step</td>
+</tr>
+<tr>
+<td>Context tree UI, matrix filter</td>
+<td>Nothing new to build for <em>using</em> the context</td>
+</tr>
+</tbody>
+</table>
+<p>And one constraint it forces, which is the right one: <strong>exclusions cannot be member deletions.</strong> The
+runner replaces every <code>addedBy='algorithm'</code> member on each run, so a group the miner removed by hand
+would be back after the next crawl. Includes and excludes therefore live <strong>in the recipe</strong>.</p>
+<h2 id="2-the-recipe">2. The recipe<a class="headerlink" href="#2-the-recipe" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Inkoopproces"</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">"target"</span><span class="p">:</span><span class="w"> </span><span class="s2">"resource"</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">"scope"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"resourceTypes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"Group"</span><span class="p">],</span><span class="w"> </span><span class="nt">"systemIds"</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">"strategies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"terms"</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">      </span><span class="nt">"fields"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"displayName"</span><span class="p">,</span><span class="w"> </span><span class="s2">"description"</span><span class="p">,</span><span class="w"> </span><span class="s2">"mail"</span><span class="p">],</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">      </span><span class="nt">"terms"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"inkoop"</span><span class="p">,</span><span class="w">      </span><span class="nt">"match"</span><span class="p">:</span><span class="w"> </span><span class="s2">"wordStart"</span><span class="p">,</span><span class="w"> </span><span class="nt">"origin"</span><span class="p">:</span><span class="w"> </span><span class="s2">"model"</span><span class="p">,</span><span class="w">   </span><span class="nt">"state"</span><span class="p">:</span><span class="w"> </span><span class="s2">"accepted"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"procurement"</span><span class="p">,</span><span class="w"> </span><span class="nt">"match"</span><span class="p">:</span><span class="w"> </span><span class="s2">"wordStart"</span><span class="p">,</span><span class="w"> </span><span class="nt">"origin"</span><span class="p">:</span><span class="w"> </span><span class="s2">"model"</span><span class="p">,</span><span class="w">   </span><span class="nt">"state"</span><span class="p">:</span><span class="w"> </span><span class="s2">"accepted"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"crediteur"</span><span class="p">,</span><span class="w">   </span><span class="nt">"match"</span><span class="p">:</span><span class="w"> </span><span class="s2">"wordStart"</span><span class="p">,</span><span class="w"> </span><span class="nt">"origin"</span><span class="p">:</span><span class="w"> </span><span class="s2">"model"</span><span class="p">,</span><span class="w">   </span><span class="nt">"state"</span><span class="p">:</span><span class="w"> </span><span class="s2">"accepted"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ink"</span><span class="p">,</span><span class="w">         </span><span class="nt">"match"</span><span class="p">:</span><span class="w"> </span><span class="s2">"token"</span><span class="p">,</span><span class="w">     </span><span class="nt">"origin"</span><span class="p">:</span><span class="w"> </span><span class="s2">"model"</span><span class="p">,</span><span class="w">   </span><span class="nt">"state"</span><span class="p">:</span><span class="w"> </span><span class="s2">"rejected"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"coupa"</span><span class="p">,</span><span class="w">       </span><span class="nt">"match"</span><span class="p">:</span><span class="w"> </span><span class="s2">"token"</span><span class="p">,</span><span class="w">     </span><span class="nt">"origin"</span><span class="p">:</span><span class="w"> </span><span class="s2">"analyst"</span><span class="p">,</span><span class="w"> </span><span class="nt">"state"</span><span class="p">:</span><span class="w"> </span><span class="s2">"accepted"</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">      </span><span class="p">]</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"population"</span><span class="p">,</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">      </span><span class="nt">"population"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"entity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"account"</span><span class="p">,</span><span class="w"> </span><span class="nt">"field"</span><span class="p">:</span><span class="w"> </span><span class="s2">"department"</span><span class="p">,</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">                      </span><span class="nt">"values"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"Inkoop"</span><span class="p">,</span><span class="w"> </span><span class="s2">"Inkoop &amp; Contractbeheer"</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">      </span><span class="nt">"minShare"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.8</span><span class="p">,</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">      </span><span class="nt">"minMembers"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">  </span><span class="nt">"combine"</span><span class="p">:</span><span class="w"> </span><span class="s2">"any"</span><span class="p">,</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">  </span><span class="nt">"include"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"&lt;resource id&gt;"</span><span class="p">],</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="w">  </span><span class="nt">"exclude"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"&lt;resource id&gt;"</span><span class="p">,</span><span class="w"> </span><span class="s2">"&lt;resource id&gt;"</span><span class="p">],</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">  </span><span class="nt">"structure"</span><span class="p">:</span><span class="w"> </span><span class="s2">"byTerm"</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="p">}</span>
+</code></pre></div>
 <ul>
-<li><strong>The app decides.</strong> It checks once a day for a newer version on its release
-  channel, records what it finds, and exposes an <strong>auto-update switch</strong>. This is
-  the brain — it lives in the app and is identical everywhere.</li>
-<li><strong>A small agent applies.</strong> A deployment-specific helper (a cron job, a systemd
-  timer, an Azure scheduled job) asks the app "should I update?" and, if so,
-  pulls the new image and recreates the containers. This is the hands — it's the
-  only part that differs per platform, and the only part with the privilege to
-  change what's running.</li>
+<li><strong><code>target</code></strong> — <code>resource</code>, <code>account</code> or <code>identity</code>; maps onto the plugin's <code>targetType</code>. v1 builds
+  <code>resource</code> only (see phasing).</li>
+<li><strong><code>fields</code></strong> — names from <code>nlreports/catalog.js</code>, never column names. The catalog already knows the
+  text fields of each entity and their SQL templates (<code>displayName</code>, <code>description</code>, <code>mail</code>, extended
+  attributes), so <em>"search the description too"</em> is a catalog lookup, not new SQL.</li>
+<li><strong>Rejected terms are kept.</strong> They stop "suggest more" from proposing them again, and they are the
+  audit trail of <em>why</em> the context is what it is.</li>
+<li><strong><code>include</code> / <code>exclude</code></strong> — record ids. Include pins an object even when it stops matching; exclude
+  wins over every strategy.</li>
+<li><strong><code>structure</code></strong> — <code>flat</code> (one context), <code>byTerm</code> (a child per accepted term; an object can sit in
+  more than one, like <code>resource-cluster</code>), or <code>byToken</code> (run the existing <code>resource-cluster</code> token
+  algorithm over just the matched set).</li>
 </ul>
-<p>The app never touches Docker or Azure itself, so there's no socket to mount and
-no new attack surface inside the container.</p>
-<h2 id="the-admin-updates-screen">The Admin → Updates screen<a class="headerlink" href="#the-admin-updates-screen" title="Permanent link">&para;</a></h2>
-<p><strong>Admin → Updates</strong> shows:</p>
+<h3 id="matching">Matching<a class="headerlink" href="#matching" title="Permanent link">&para;</a></h3>
+<p>Terms are <strong>values, never patterns</strong>: no regex is built from model or analyst text. Text is normalised in
+SQL — lowercase, every non-alphanumeric run replaced by one space, padded with spaces — and matched with a
+parameterised <code>LIKE</code> (escaped via <code>sqlParams.likeContains</code>):</p>
+<table>
+<thead>
+<tr>
+<th><code>match</code></th>
+<th>Matches <code>inkoop</code> in…</th>
+<th>Normalised test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>token</code></td>
+<td><code>SG_INKOOP_Users</code> — not <code>Inkoopfacturen</code></td>
+<td><code>' ' \|\| norm \|\| ' ' LIKE '% inkoop %'</code></td>
+</tr>
+<tr>
+<td><code>wordStart</code> (default)</td>
+<td><code>SG_INKOOP_Users</code>, <code>Inkoopfacturen</code> — not <code>Herinkoop</code></td>
+<td><code>LIKE '% inkoop%'</code></td>
+</tr>
+<tr>
+<td><code>contains</code></td>
+<td>all three</td>
+<td><code>LIKE '%inkoop%'</code></td>
+</tr>
+</tbody>
+</table>
+<p>Short abbreviations (≤ 3 characters) default to <code>token</code>, which is what makes <code>INK</code> usable without
+matching every <code>link</code> and <code>inkt</code>. (Postgres <code>\m</code> word boundaries are not used: they treat <code>_</code> as a word
+character, so <code>SG_INKOOP</code> would not match.)</p>
+<h2 id="3-the-dialog">3. The dialog<a class="headerlink" href="#3-the-dialog" title="Permanent link">&para;</a></h2>
+<p>The builder opens in its <strong>own tab</strong>, like the report builder — the term and match review does not fit
+the 640 px wizard modal. The wizard card only starts it.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a> 1 Describe ──► 2 Terms ──► 3 Matches ──► 4 Structure &amp; save
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>      ▲            │  ▲          │
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>      └ clarify    │  └ suggest  └ include / exclude per object
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>                   └ add own term
+</code></pre></div>
+<p><strong>1 · Describe.</strong> The miner types the request. The model replies with a recipe draft or a clarifying
+question (at most two rounds, then it must produce a recipe — same rule as reports). It chooses the
+strategy: <em>"related to X"</em> → <code>terms</code>; <em>"only people from department X have"</em> → <code>population</code>.</p>
+<p><strong>2 · Terms.</strong> Each proposed term is a chip with what the <em>data</em> says about it, computed right away
+without the model:</p>
+<table>
+<thead>
+<tr>
+<th>Shown per term</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>hits</td>
+<td>how many objects it finds</td>
+</tr>
+<tr>
+<td>unique hits</td>
+<td>objects <strong>only</strong> this term finds — a term with 40 hits and 0 unique adds nothing</td>
+</tr>
+<tr>
+<td>field split</td>
+<td>"12 by name, 3 only by description"</td>
+</tr>
+<tr>
+<td>too-broad flag</td>
+<td>hits above a share of the scope (e.g. &gt; 5 %) — the <code>maxTokenCoverage</code> idea from <code>resource-cluster</code></td>
+</tr>
+<tr>
+<td>model's reason</td>
+<td><em>translation · synonym · abbreviation · system name</em> — one short phrase</td>
+</tr>
+</tbody>
+</table>
+<p>The miner ticks and unticks terms, adds their own, and can ask for more:</p>
 <ul>
-<li>the <strong>running version</strong> and the <strong>release channel</strong> (<code>edge</code>, <code>beta</code>, <code>latest</code>,
-  or a pinned version),</li>
-<li>whether a <strong>newer version is available</strong> on that channel,</li>
-<li>the <strong>automatic updates</strong> switch, and</li>
-<li>a <strong>history</strong> of checks and installed updates.</li>
+<li><strong>Suggest more (model)</strong> — the model gets the request plus the accepted <em>and rejected</em> terms, and
+  returns only new ones.</li>
+<li><strong>Related words (no model)</strong> — tokens that occur unusually often in the names of the accepted
+  matches compared with all groups (<code>resource-cluster/tokenize.js</code> + a lift score). This is how <code>HAMIS</code>
+  turns up <code>HMS</code> or <code>Zaaksysteem</code>: the model cannot know a customer's system names, but the data can.</li>
 </ul>
-<p><strong>Check now</strong> runs an immediate check. The daily check runs on its own ~24h
-after startup and every day after.</p>
-<h3 id="channel-awareness">Channel awareness<a class="headerlink" href="#channel-awareness" title="Permanent link">&para;</a></h3>
-<p>Updates never cross channels: an <code>edge</code> deployment is only offered newer <code>edge</code>
-builds, <code>beta</code> only newer betas, <code>latest</code> only newer releases. The channel comes
-from the <code>IMAGE_TAG</code> your compose file uses (passed into the container); if it's
-not set, the app infers it from the running version. A deployment pinned to a
-fixed version (e.g. <code>5.2.1.0</code>) is detected as <strong>pinned</strong> and the switch is
-disabled — pinned means pinned.</p>
-<h2 id="turning-it-on">Turning it on<a class="headerlink" href="#turning-it-on" title="Permanent link">&para;</a></h2>
+<p><strong>Only terms containing the analyst's own words start ticked.</strong> Everything else the model adds —
+synonyms, translations, systems — starts unticked, next to its hit counts. Measured reason: asked
+about HAMIS, the 4B model ignored "never invent what a name stands for" and proposed <code>health</code>, <code>zorg</code>,
+<code>huisarts</code>; ticked by default, that silently pulls in every care group. "Own words" = the subject words
+of the request and of the analyst's later answers; a term word matches when equal, or when both share
+their first five letters (<code>licences</code> ↔ <code>licentie</code> ↔ <code>license</code>). A warning appears when ticked suggestions
+bring in more than twice what everything else finds (and at least 10 objects).</p>
+<p><strong>Prompt examples must stay away from test subjects.</strong> In the first measurement, the purchasing and HAMIS
+questions came back word for word as the prompt's examples — the test measured the prompt, not the
+model. The examples are now payroll, facility management and a made-up name, and a unit test fails if a
+test subject appears in the prompt.</p>
+<p>"Not too many, not too few" is <strong>enforced, not asked for</strong>: the prompt asks for 6–12 terms, the grammar
+caps a reply at 15 (every array bounded — the lesson from the report generator's 570-second <code>columns</code>
+loop), and the hit counts let the miner prune the rest in seconds.</p>
+<p><strong>3 · Matches.</strong> A table of every matched object: name, type, system, member count, <em>which term matched
+in which field</em> (highlighted), and for <code>population</code> the share (<em>14 of 15 members are in Inkoop — 93 %</em>)
+and reach (<em>14 of the 20 Inkoop people</em>). Per-row include/exclude, and bulk actions — <em>exclude everything
+found only via "order"</em>, <em>show only description-only matches</em>. Objects that no term finds can be pinned
+with the name search from custom reports (<code>references.js</code> → <code>searchNames</code>).</p>
+<p><strong>4 · Structure &amp; save.</strong> Name, structure, new tree or refresh an existing one (the wizard's existing
+<code>TargetChooser</code>), preview through the plugin's dry-run, create.</p>
+<p><strong>Re-opening.</strong> A tree created by the assistant can be opened in the builder again from its context
+page — the recipe is its run parameters — to add a term or exclude a group, then refresh in place.</p>
+<h3 id="changes-over-time">Changes over time<a class="headerlink" href="#changes-over-time" title="Permanent link">&para;</a></h3>
+<p>New matches are <strong>included automatically</strong> — the context is kept current by the mechanism that already
+keeps every generated tree current (<code>refreshGeneratedContexts()</code> after each crawl), not by a second one.
+What is added is <strong>making those changes visible</strong>:</p>
+<ul>
+<li><strong>Record what a run changed.</strong> <code>reconcile()</code> already deletes and re-inserts the algorithm-owned
+  members of each context it produces; it diffs the old set against the new one first and stores the
+  result on the run row (a new <code>memberChanges</code> column on <code>ContextAlgorithmRuns</code>: per context, the ids
+  added and removed, capped). This is a runner change, so every plugin's run history gains it, not only
+  recipes.</li>
+<li><strong>"Since you last reviewed."</strong> A review is a run a person triggered (save or refresh from the
+  builder); crawl refreshes are <code>triggeredBy='crawl-refresh'</code>. The changes since the last reviewed run
+  are the union of the crawl runs after it — no pending state, no second copy of the membership.</li>
+<li><strong>Surfaced</strong> as a badge on the context (<em>"4 new, 1 gone since 12 Sep"</em>) and, in the builder, as a
+  <em>New</em> marker on those rows in the match table, where excluding one is the usual single click. Saving
+  from the builder is the review, which clears the badge.</li>
+</ul>
+<p>Holding new matches for approval before they join is <strong>not</strong> in scope: it would need a pending
+membership state that nothing else has.</p>
+<h2 id="4-the-population-strategy">4. The population strategy<a class="headerlink" href="#4-the-population-strategy" title="Permanent link">&para;</a></h2>
+<p><em>"Groups that (by overwhelming majority) only people from Inkoop have."</em></p>
 <ol>
-<li>Open <strong>Admin → Updates</strong> and turn <strong>Automatic updates</strong> on.</li>
-<li>Install the agent for your platform (below) on a daily schedule.</li>
+<li><strong>Population.</strong> The model produces terms for a person field (<code>department</code>, <code>jobTitle</code>,
+   <code>companyName</code>). Code matches them against the <strong>distinct values</strong> of that field and the miner ticks
+   values (<code>Inkoop</code> ✓, <code>Inkoop &amp; Contractbeheer</code> ✓, <code>Inkomsten</code> ✗) — the same term UI with values
+   instead of objects as hits. The model still never sees the values.</li>
+<li><strong>Candidates.</strong> For every group with at least <code>minMembers</code> population members:
+   <code>share = population members ÷ all members</code> and <code>reach = population members ÷ population size</code>, over
+   <code>Direct</code> + <code>Indirect</code> assignments.</li>
+<li><strong>Keep</strong> <code>share ≥ minShare</code> (default 0.8). Sorted by reach, so <em>"the group every Inkoop person has"</em>
+   comes first and <em>"a 3-person group"</em> last.</li>
 </ol>
-<p>With the switch <strong>off</strong>, the app still checks daily and shows the newest
-available version — you just apply it yourself (<code>docker compose pull &amp;&amp; up -d</code>,
-or roll the Azure revision).</p>
-<h2 id="the-agent">The agent<a class="headerlink" href="#the-agent" title="Permanent link">&para;</a></h2>
-<p>All agents call <code>GET /api/updates/intent</code>, which returns whether an update should
-be applied and to which version. They need <strong>read access</strong> to that endpoint — no
-token if <code>AUTH_ENABLED=false</code>, otherwise a <strong>read API token</strong> (<code>fgr_…</code>) created
-in <strong>Admin → Data → Power Query</strong>. They do <strong>not</strong> need admin credentials: the
-app detects the installed version on its next check, so the history fills in
-automatically.</p>
-<h3 id="docker-host-cron-or-systemd">Docker host (cron or systemd)<a class="headerlink" href="#docker-host-cron-or-systemd" title="Permanent link">&para;</a></h3>
-<p>The agent script lives at <code>tools/auto-update/identityatlas-autoupdate.sh</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># cron — nightly at 03:30</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="m">30</span><span class="w"> </span><span class="m">3</span><span class="w"> </span>*<span class="w"> </span>*<span class="w"> </span>*<span class="w">  </span><span class="nv">IA_COMPOSE_FILE</span><span class="o">=</span>/opt/identityatlas/docker-compose.prod.yml<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">            </span>/opt/identityatlas/tools/auto-update/identityatlas-autoupdate.sh<span class="w"> </span>&gt;&gt;<span class="w"> </span>/var/log/ia-update.log<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span>
-</code></pre></div>
-<p>Or with systemd, using the provided unit + timer:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>cp<span class="w"> </span>tools/auto-update/identityatlas-autoupdate.<span class="o">{</span>service,timer<span class="o">}</span><span class="w"> </span>/etc/systemd/system/
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--now<span class="w"> </span>identityatlas-autoupdate.timer
-</code></pre></div>
-<p>Environment: <code>IA_API_URL</code> (default <code>http://localhost:3001</code>), <code>IA_COMPOSE_FILE</code>,
-<code>IA_READ_TOKEN</code> (only if auth is on), <code>IA_SERVICES</code> (default <code>web worker</code>). If you run the
-<a href="../../reference/report-generator/">report generator</a>, add it: <code>IA_SERVICES="web worker report-generator"</code>.</p>
-<h3 id="azure-container-apps">Azure Container Apps<a class="headerlink" href="#azure-container-apps" title="Permanent link">&para;</a></h3>
-<p>Use <code>tools/auto-update/identityatlas-autoupdate-azure.sh</code> from an Azure
-Automation runbook, a scheduled Container Apps Job, or a GitHub Actions cron with
-an Azure login. It re-deploys the channel tag, which pulls that tag's current
-digest into a new revision. Set <code>IA_API_URL</code>, <code>IA_RESOURCE_GROUP</code>, <code>IA_WEB_APP</code>
-(and optionally <code>IA_WORKER_APP</code> and <code>IA_REPORT_GENERATOR_APP</code>), and <code>IA_CHANNEL</code> to match the
-deployment.</p>
-<h3 id="local-install">Local install<a class="headerlink" href="#local-install" title="Permanent link">&para;</a></h3>
-<p>Point the Docker agent script at the local compose file from the OS scheduler
-(cron on macOS/Linux, Task Scheduler on Windows running it via Git Bash/WSL).</p>
-<h2 id="what-is-not-auto-updated">What is <em>not</em> auto-updated<a class="headerlink" href="#what-is-not-auto-updated" title="Permanent link">&para;</a></h2>
+<p>Identity vs account: the population is defined on accounts in v1 (that is where <code>department</code> lives on
+the Principals row); an identity-based population is a later option once identity attributes are the
+reliable source.</p>
+<p>It combines with <code>terms</code> (<code>combine: any|all</code>): <em>"groups about inkoop, or held almost only by Inkoop"</em> is
+<code>any</code>; <em>"Inkoop groups that really are Inkoop's"</em> is <code>all</code>.</p>
+<h2 id="5-the-pieces">5. The pieces<a class="headerlink" href="#5-the-pieces" title="Permanent link">&para;</a></h2>
+<p>Reused, not copied — the assistant is a second consumer of the report generator's layers:</p>
+<table>
+<thead>
+<tr>
+<th>From custom reports</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlreports/llm.js</code>, <code>llamacpp.js</code></td>
+<td><code>chat({ messages, schema })</code> — unchanged</td>
+</tr>
+<tr>
+<td>prompt-cache warm-up (<code>service.js</code> <code>ensureWarm</code>)</td>
+<td><strong>must become per system prompt</strong>: <code>warm()</code> already keys the cache file on a hash of the prompt, but <code>service.js</code> holds a single module-level <code>warmup</code>. Move it into a small shared <code>nlreports/warmup.js</code> keyed by prompt; one slot restores whichever prompt is asked (~0.1 s)</td>
+</tr>
+<tr>
+<td><code>catalog.js</code> entities, text fields, <code>GLOSSARY</code></td>
+<td>searchable fields and their SQL; person = identity, business role = access package</td>
+</tr>
+<tr>
+<td><code>references.js</code> <code>searchNames</code></td>
+<td>pinning an object by name</td>
+</tr>
+<tr>
+<td><code>lib/httpJson.js</code>, <code>db/sqlParams.js</code></td>
+<td>as in reports</td>
+</tr>
+<tr>
+<td>generator container, compose profile, Azure app</td>
+<td>unchanged — same model, a second system prompt</td>
+</tr>
+<tr>
+<td><code>tools/nl-reports/eval.mjs</code> pattern</td>
+<td>the accuracy harness</td>
+</tr>
+</tbody>
+</table>
+<p>From contexts: plugin registry, runner, dry-run, refresh-after-crawl, <code>TargetChooser</code>,
+<code>resource-cluster/tokenize.js</code>.</p>
+<p>New:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>contexts/plugins/context-recipe/index.js</code></td>
+<td>The plugin: validate the recipe, run strategies, apply include/exclude, shape the tree</td>
+</tr>
+<tr>
+<td><code>…/context-recipe/recipe.js</code></td>
+<td>Recipe validation + normalisation (the <code>spec.js</code> of this feature): unknown field/strategy rejected, terms trimmed and de-duplicated, every list capped; errors as sentences the model can be handed</td>
+</tr>
+<tr>
+<td><code>…/context-recipe/terms.js</code>, <code>population.js</code></td>
+<td>One strategy each: recipe fragment → parameterised SQL</td>
+</tr>
+<tr>
+<td><code>…/context-recipe/evaluate.js</code></td>
+<td>Per-term hits / unique hits / field split, and the paged match list — the data behind steps 2 and 3</td>
+</tr>
+<tr>
+<td><code>…/context-recipe/relatedTokens.js</code></td>
+<td>"Related words" by lift</td>
+</tr>
+<tr>
+<td><code>contextAssistant/prompt.js</code>, <code>service.js</code></td>
+<td>System prompt + reply grammar; <code>interpret()</code> and <code>suggestTerms()</code> with the repair round</td>
+</tr>
+<tr>
+<td><code>routes/contextAssistant.js</code></td>
+<td>HTTP surface</td>
+</tr>
+<tr>
+<td>UI <code>components/contexts/assistant/…</code></td>
+<td>builder page, term chips, match table; fourth wizard card</td>
+</tr>
+</tbody>
+</table>
+<h3 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Route</th>
+<th>Model?</th>
+<th>Returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST /api/context-assistant/interpret</code> <code>{ question, history }</code></td>
+<td>yes</td>
+<td><code>recipe</code> + plain-language summary, or <code>clarify</code></td>
+</tr>
+<tr>
+<td><code>POST /api/context-assistant/suggest-terms</code> <code>{ question, recipe }</code></td>
+<td>yes</td>
+<td>new terms only</td>
+</tr>
+<tr>
+<td><code>POST /api/context-assistant/evaluate</code> <code>{ recipe, page }</code></td>
+<td>no</td>
+<td>per-term stats + matches</td>
+</tr>
+<tr>
+<td><code>POST /api/context-assistant/related-tokens</code> <code>{ recipe }</code></td>
+<td>no</td>
+<td>ranked tokens</td>
+</tr>
+<tr>
+<td><code>GET /api/context-assistant/values</code> <code>{ field, terms }</code></td>
+<td>no</td>
+<td>matching distinct person-field values</td>
+</tr>
+<tr>
+<td>existing <code>POST /api/context-plugins/context-recipe/dry-run</code> and <code>/run</code></td>
+<td>no</td>
+<td>preview / create</td>
+</tr>
+</tbody>
+</table>
+<h3 id="gates">Gates<a class="headerlink" href="#gates" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>PostgreSQL</strong> is pinned to <code>postgres:16-alpine</code> and is never rolled by the
-  agent — database major-version upgrades are a deliberate, manual operation.</li>
-<li><strong>Schema migrations</strong> run automatically when the new web container starts, and
-  are <strong>fail-closed</strong>: if a migration fails the container refuses to start, so a
-  half-migrated database can't serve traffic.</li>
+<li><strong>Feature flag</strong> <code>contextAssistant</code> (experimental, off by default) — independent of <code>customReports</code>
+  so each can be switched on on its own merit.</li>
+<li><strong>Permission — split view from create.</strong> Today one <em>admin</em> permission, <code>admin.context-plugins</code>, gates
+  every context write (<code>writeContexts</code> in <code>routes/contexts/shared.js</code>) as well as the plugin routes, so a
+  role miner who may not run arbitrary plugins cannot build a context at all. Renaming it would break
+  customers' saved role mappings (see the catalogue header in <code>auth/permissions.js</code>), so the split
+  <strong>adds</strong> a permission instead of renaming one:</li>
 </ul>
-<h2 id="keeping-components-in-step">Keeping components in step<a class="headerlink" href="#keeping-components-in-step" title="Permanent link">&para;</a></h2>
-<p>The agent updates <strong>web and worker together</strong> so they never drift apart, and the
-web container runs the schema migrations on boot (fail-closed). Detection of
-web/worker/database version skew — a banner when a partial or interrupted update
-leaves components out of step — is surfaced on the Updates screen as well.</p>
+<table>
+<thead>
+<tr>
+<th>Permission</th>
+<th>Allows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data.read</code> (unchanged)</td>
+<td>list and view contexts, trees, run history</td>
+</tr>
+<tr>
+<td><strong><code>data.write.contexts</code></strong> — <em>Build contexts</em> (new, in the RoleMiner seed)</td>
+<td>create manual contexts and edit their members; use the context assistant; create, re-open and refresh <code>context-recipe</code> trees</td>
+</tr>
+<tr>
+<td><code>admin.context-plugins</code> (unchanged meaning)</td>
+<td>everything above, plus running and configuring <em>any</em> plugin and deleting generated trees</td>
+</tr>
+</tbody>
+</table>
+<p>Every route that accepts <code>data.write.contexts</code> also accepts <code>admin.context-plugins</code>, so no existing
+  mapping loses anything. Customised mappings must grant <code>data.write.contexts</code> by hand — the same note
+  custom reports carries for <code>data.write.reports</code>.
+- Without a model server, steps 2–4 still work: the miner types their own terms. The assistant is an
+  accelerator on a feature that stands by itself.</p>
+<h2 id="6-safety">6. Safety<a class="headerlink" href="#6-safety" title="Permanent link">&para;</a></h2>
+<p>Same model as custom reports, one addition:</p>
+<ul>
+<li><strong>SQL injection</strong> — fields only from the catalog; terms, values and ids always parameters; <code>LIKE</code>
+  escaped; no regex built from input. <code>evaluate</code> runs <code>READ ONLY</code> with a statement timeout.</li>
+<li><strong>Plugin runs at crawl time</strong> had no statement timeout; the population strategy is the most expensive
+  query this adds (a join over all group assignments), so <code>context-recipe</code> sets its own timeout and
+  fails the run rather than stalling the post-crawl refresh.</li>
+<li><strong>Recipe size</strong> — terms, values, include and exclude are capped (the recipe is stored as run
+  parameters and replayed after every crawl).</li>
+<li><strong>Prompt injection</strong> — bounded by the grammar plus validation; the worst outcome is a wrong term the
+  miner sees and unticks.</li>
+<li><strong>The model sees</strong> the request, the catalog's field names, and earlier accepted/rejected terms. Never
+  object names, values or members.</li>
+</ul>
+<h2 id="7-risk-will-a-4b-model-propose-good-terms">7. Risk: will a 4B model propose good terms?<a class="headerlink" href="#7-risk-will-a-4b-model-propose-good-terms" title="Permanent link">&para;</a></h2>
+<p>This is the question to answer <strong>before</strong> building UI. Report generation is slot-filling against a known
+vocabulary; term proposal leans on the model's <em>world knowledge</em> (Dutch procurement vocabulary,
+common system names) — a different skill, and a 4B model has less of it. Two things soften it: the
+"related words" path finds customer-specific terms without the model, and a weak model degrades to "the
+miner types the terms", not to a wrong context.</p>
+<p><strong>Measure first.</strong> An evaluation set of ~20 requests on the Fortigi copy, each with a hand-labelled set
+of groups that belong. Metrics per request, with every proposed term accepted (worst case) and with only
+terms that have unique hits (a realistic miner):</p>
+<ul>
+<li>recall and precision of the labelled groups;</li>
+<li>number of proposed terms, and how many had zero hits;</li>
+<li>time to answer.</li>
+</ul>
+<p>Go/no-go: if the model's terms, before any analyst edit, don't reach usable recall on the tuning set,
+the assistant's first version ships with "related words" and manual terms only, and model-proposed terms
+wait for a better model.</p>
+<h2 id="8-phasing-stacked-prs-all-developed-on-sk7">8. Phasing (stacked PRs, all developed on sk7)<a class="headerlink" href="#8-phasing-stacked-prs-all-developed-on-sk7" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>What</th>
+<th>Model?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0 · Spike</td>
+<td>Prompt + grammar + eval set on Fortigi data, terms only. Go/no-go on term quality.</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>1 · Recipe plugin</td>
+<td><code>context-recipe</code> with <code>terms</code>, include/exclude, <code>flat</code>/<code>byTerm</code>; <code>evaluate</code>; <code>data.write.contexts</code>; tests</td>
+<td>no</td>
+</tr>
+<tr>
+<td>2 · Builder</td>
+<td>Builder page (terms, matches, save), fourth wizard card, typing terms by hand</td>
+<td>no</td>
+</tr>
+<tr>
+<td>2b · Changes over time</td>
+<td>run-level member diff (<code>memberChanges</code>), "since you last reviewed" badge and <em>New</em> markers</td>
+<td>no</td>
+</tr>
+<tr>
+<td>3 · Assistant</td>
+<td><code>interpret</code>, <code>suggest-terms</code>, per-prompt warm-up, clarify rounds</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>4 · Population</td>
+<td>the exclusivity strategy + person-field values</td>
+<td>partly</td>
+</tr>
+<tr>
+<td>5 · Extras</td>
+<td>related words, <code>byToken</code>, re-open from context page, account/identity targets</td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+<p>Steps 1–2 are useful without any model, which makes them a safe first merge.</p>
+<h2 id="9-decisions-wim-2026-09-17">9. Decisions (Wim, 2026-09-17)<a class="headerlink" href="#9-decisions-wim-2026-09-17" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>The model produces a word cloud; the data is searched deterministically.</strong> Same division of labour
+   as custom reports, where the model writes <code>name is "Wim"</code> and <code>references.js</code> does the lookup. The
+   model does not read object names in v1. Because the model is local, that is not a hard line: it can
+   be revisited when there is a concrete use case the word cloud plus "related words" cannot serve.</li>
+<li><strong>Membership follows the data over time</strong>, through the existing post-crawl refresh, extended to
+   record and surface what changed (§3 <em>Changes over time</em>).</li>
+<li><strong>Permissions: split view from create</strong>, simply — one new <code>data.write.contexts</code> next to the existing
+   ones (§5 <em>Gates</em>).</li>
+<li><strong>Development data:</strong> a copy of the Fortigi database from sk9, on sk7.</li>
+</ol>
+<h2 id="10-open">10. Open<a class="headerlink" href="#10-open" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>One context or a tree by default</strong> — <code>byTerm</code> shows the miner <em>why</em>; <code>flat</code> is what the matrix
+  filter wants. Proposed default: <code>byTerm</code> under a root, since filtering on the root includes the
+  children.</li>
+</ul>
 
 
 

@@ -1423,6 +1423,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/context-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building a Context by Describing It
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/effective-access/" class="md-nav__link">
         
   
@@ -1492,10 +1520,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_8" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
         
           
-          <label class="md-nav__link" for="__nav_4_8" id="__nav_4_8_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
             
   
   
@@ -1513,8 +1541,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_8_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_8">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_9">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3195,6 +3223,34 @@
     
   
     Custom Reports Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Assistant Internals
   
 
     
@@ -5397,6 +5453,11 @@
 <td><code>POST/PUT/DELETE /api/nl-reports/saved…</code>, and the report builder (<code>/api/nl-reports/*</code>). Running or downloading a report needs only Read data.</td>
 </tr>
 <tr>
+<td><code>data.write.contexts</code></td>
+<td>Build contexts</td>
+<td>The context assistant (<code>/api/context-assistant/*</code>), and creating manual contexts and editing context members (<code>/api/contexts…</code> writes — also allowed with <code>admin.context-plugins</code>). Viewing contexts needs only Read data.</td>
+</tr>
+<tr>
 <td><code>data.write.risk</code></td>
 <td>Risk score overrides</td>
 <td><code>PUT/DELETE /api/risk-scores/:type/:id/override</code></td>
@@ -5481,7 +5542,7 @@
 </tr>
 <tr>
 <td><code>RoleMiner</code></td>
-<td><code>data.read</code>, <code>data.export.ui</code>, <code>data.export.apikey</code>, <code>data.share</code>, <code>data.write.reports</code></td>
+<td><code>data.read</code>, <code>data.export.ui</code>, <code>data.export.apikey</code>, <code>data.share</code>, <code>data.write.reports</code>, <code>data.write.contexts</code></td>
 </tr>
 <tr>
 <td><code>Servicedesk</code></td>
