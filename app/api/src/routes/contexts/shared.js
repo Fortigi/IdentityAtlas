@@ -11,4 +11,6 @@ export const TARGET_TYPES = new Set(['Identity', 'Resource', 'Principal', 'Syste
 
 // Same admin who configures context-algorithm plugins owns the resulting
 // contexts (and manual contexts edited here through the UI).
-export const writeContexts = requirePermission('admin.context-plugins');
+// Building contexts was split out of that admin permission as `data.write.contexts`;
+// either one grants it, so no existing role mapping loses access.
+export const writeContexts = requirePermission('data.write.contexts', 'admin.context-plugins');

@@ -42,6 +42,13 @@ tags:
       Experimental report builder (feature flag `customReports`). Every route answers 404 while
       the feature is off. The caller's permission is checked first, so a caller without it gets
       403 whether or not the feature is on.
+  - name: Context Assistant
+    description: >
+      Experimental context builder (feature flag `contextAssistant`). An analyst describes a
+      subject, the local model proposes search terms, and the terms are searched for; the result
+      is stored as the parameters of the `context-recipe` context plugin. Every route answers
+      404 while the feature is off. The caller's permission is checked first, so a caller without
+      it gets 403 whether or not the feature is on.
 
 paths:
   # ─── Ingest Endpoints ──────────────────────────────────────────
@@ -1347,6 +1354,511 @@ paths:
         '502':
           $ref: '#/components/responses/ModelServerFailed'
 
+  # ─── Context Assistant (experimental) ──────────────────────────
+  /context-assistant/options:
+    get:
+      tags: [Context Assistant]
+      summary: What a context recipe may search
+      operationId: getContextAssistantOptions
+      description: >
+        The resource types that exist in this deployment and the text fields a recipe may search.
+        Requires `data.write.contexts`; answers 404 while the `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Scope options
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resourceTypes:
+                    type: array
+                    items: { type: string }
+                  fields:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        label: { type: string }
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+
+  /context-assistant/status:
+    get:
+      tags: [Context Assistant]
+      summary: Report generator availability
+      operationId: getContextAssistantStatus
+      description: >
+        Whether the local model server is reachable and serves the configured model. Never fails
+        on an unreachable server — it reports `available: false` with a reason instead. The
+        builder works without it: the analyst types the search terms themselves. Requires
+        `data.write.contexts`; answers 404 while the `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Generator status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available: { type: boolean }
+                  model:
+                    type: string
+                    nullable: true
+                  loaded: { type: boolean }
+                  promptCache:
+                    type: string
+                    enum: [cold, warming, ready, failed]
+                  reason:
+                    type: string
+                    nullable: true
+                    description: "`model-not-installed` or `server-unreachable`; null when available."
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+
+  /context-assistant/warm:
+    post:
+      tags: [Context Assistant]
+      summary: Warm up the context assistant's prompt
+      operationId: warmContextAssistant
+      description: >
+        Loads the model and restores this assistant's prompt cache. The generator has one slot and
+        each assistant keeps its own prompt, so custom reports and the context assistant take
+        turns; restoring is fast, preparing a prompt for the first time after an update takes
+        minutes and continues in the background (`state: preparing`). Requires
+        `data.write.contexts`; answers 404 while the `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Warm-up finished (`ready`), the model is loading (`starting`), or the prompt cache is being prepared (`preparing`)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [state]
+                properties:
+                  state:
+                    type: string
+                    enum: [ready, starting, preparing]
+                  model: { type: string }
+                  ms: { type: integer }
+                  restored: { type: boolean }
+                  message: { type: string }
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+        '502':
+          $ref: '#/components/responses/ModelServerFailed'
+
+  /context-assistant/interpret:
+    post:
+      tags: [Context Assistant]
+      summary: Turn a description into search terms
+      operationId: interpretContextDescription
+      description: >
+        Sends a description of the subject (plus earlier conversation turns) to the local model and
+        returns proposed search terms (`terms`), one clarifying question (`clarify`), or `error`
+        when the model's answer could not be used. Only terms containing the analyst's own words
+        arrive with `state: accepted`; everything else the model adds arrives `rejected`, for the
+        analyst to tick after seeing what it finds. One question at a time per caller (429).
+        Requires `data.write.contexts`; answers 404 while the `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question:
+                  type: string
+                  maxLength: 2000
+                history:
+                  type: array
+                  maxItems: 12
+                  description: Earlier turns, at most 10,000 characters of content in total.
+                  items:
+                    type: object
+                    required: [role, content]
+                    properties:
+                      role:
+                        type: string
+                        enum: [user, assistant]
+                      content:
+                        type: string
+                        maxLength: 20000
+      responses:
+        '200':
+          description: The model's proposal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextTermsReply'
+        '400':
+          $ref: '#/components/responses/ContextAssistantBadRequest'
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+        '429':
+          description: The caller's previous question is still being answered
+        '502':
+          $ref: '#/components/responses/ModelServerFailed'
+
+  /context-assistant/suggest:
+    post:
+      tags: [Context Assistant]
+      summary: Ask for more search terms
+      operationId: suggestContextTerms
+      description: >
+        Asks the model for terms that are not in the recipe yet, told which terms the analyst kept
+        and which they dropped. Requires `data.write.contexts`; answers 404 while the
+        `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question, recipe]
+              properties:
+                question:
+                  type: string
+                  maxLength: 2000
+                recipe:
+                  $ref: '#/components/schemas/ContextRecipe'
+      responses:
+        '200':
+          description: New terms
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextTermsReply'
+        '400':
+          $ref: '#/components/responses/ContextAssistantBadRequest'
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+        '429':
+          description: The caller's previous question is still being answered
+        '502':
+          $ref: '#/components/responses/ModelServerFailed'
+
+  /context-assistant/evaluate:
+    post:
+      tags: [Context Assistant]
+      summary: What a recipe finds
+      operationId: evaluateContextRecipe
+      description: >
+        Runs the recipe read-only and returns the normalised recipe, per-term numbers (hits, hits
+        only that term finds, per field, whether it is too broad) and the matched objects with
+        their status. No model involved. Requires `data.write.contexts`; answers 404 while the
+        `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipe]
+              properties:
+                recipe:
+                  $ref: '#/components/schemas/ContextRecipe'
+      responses:
+        '200':
+          description: The recipe as it will run, and what it finds
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recipe:
+                    $ref: '#/components/schemas/ContextRecipe'
+                  errors:
+                    type: array
+                    description: What was dropped or corrected while normalising the recipe.
+                    items: { type: string }
+                  scopeTotal:
+                    type: integer
+                    description: Objects in scope, whether they match or not.
+                  truncated:
+                    type: boolean
+                    description: More objects matched than were returned.
+                  memberCount:
+                    type: integer
+                  addedByModel:
+                    type: integer
+                    description: Members found only by kept terms the model added that carry none of the analyst's own words.
+                  terms:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        text: { type: string }
+                        key: { type: string }
+                        match:
+                          type: string
+                          enum: [token, wordStart, contains]
+                        state:
+                          type: string
+                          enum: [accepted, rejected]
+                        origin:
+                          type: string
+                          enum: [model, analyst, related]
+                        own: { type: boolean }
+                        why: { type: string }
+                        hits: { type: integer }
+                        unique: { type: integer }
+                        tooBroad: { type: boolean }
+                        byField:
+                          type: object
+                          additionalProperties: { type: integer }
+                  matches:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        displayName: { type: string }
+                        description:
+                          type: string
+                          nullable: true
+                        resourceType: { type: string }
+                        systemName:
+                          type: string
+                          nullable: true
+                        status:
+                          type: string
+                          enum: [member, included, excluded, candidate]
+                        hits:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              term: { type: string }
+                              accepted: { type: boolean }
+                              fields:
+                                type: array
+                                items: { type: string }
+        '400':
+          $ref: '#/components/responses/ContextAssistantBadRequest'
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+        '500':
+          $ref: '#/components/responses/ContextAssistantFailed'
+
+  /context-assistant/related:
+    post:
+      tags: [Context Assistant]
+      summary: Words typical of what the recipe finds
+      operationId: getContextRelatedWords
+      description: >
+        Words that occur far more often in the names of the objects the recipe finds than in the
+        names of everything in scope, ranked by that ratio. Found in the data, not by the model —
+        this is what finds a deployment's own names. Requires `data.write.contexts`; answers 404
+        while the `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipe]
+              properties:
+                recipe:
+                  $ref: '#/components/schemas/ContextRecipe'
+      responses:
+        '200':
+          description: Suggested words
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contextSize: { type: integer }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        word: { type: string }
+                        inContext: { type: integer }
+                        outside: { type: integer }
+                        lift: { type: number }
+        '400':
+          $ref: '#/components/responses/ContextAssistantBadRequest'
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+        '500':
+          $ref: '#/components/responses/ContextAssistantFailed'
+
+  /context-assistant/lookup:
+    get:
+      tags: [Context Assistant]
+      summary: Find an object by name
+      operationId: lookupContextObjects
+      description: >
+        Fuzzy name search, to include an object by hand that no term finds. Requires
+        `data.write.contexts`; answers 404 while the `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+      responses:
+        '200':
+          description: Matching objects (empty for a query shorter than 2 characters)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        name: { type: string }
+                        type: { type: string }
+                        score: { type: number }
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+        '500':
+          $ref: '#/components/responses/ContextAssistantFailed'
+
+  /context-assistant/recipe/{id}:
+    get:
+      tags: [Context Assistant]
+      summary: The recipe behind a context tree
+      operationId: getContextRecipe
+      description: >
+        The stored recipe of a context tree built with the assistant, and the description it was
+        built from, so it can be edited and re-run. Requires `data.write.contexts`; answers 404
+        while the `contextAssistant` feature is off, and for a context built by anything else.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The root context of the tree.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The stored recipe
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contextId: { type: string, format: uuid }
+                  question: { type: string }
+                  recipe:
+                    $ref: '#/components/schemas/ContextRecipe'
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          description: Not a context built with the assistant, or the feature is off
+        '500':
+          $ref: '#/components/responses/ContextAssistantFailed'
+
+  /context-assistant/save:
+    post:
+      tags: [Context Assistant]
+      summary: Build the context tree, or refresh an existing one
+      operationId: saveContextRecipe
+      description: >
+        Runs the `context-recipe` plugin with this recipe and waits for it. Without `contextId` it
+        creates a new tree (201); with one it refreshes that tree in place (200), keeping the
+        analyst's renames and re-parenting. The recipe is stored as the run's parameters, so the
+        tree is refreshed with it after every crawl. Requires `data.write.contexts`; answers 404
+        while the `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipe]
+              properties:
+                recipe:
+                  $ref: '#/components/schemas/ContextRecipe'
+                question:
+                  type: string
+                  maxLength: 2000
+                  description: The description the context was built from, kept for editing later.
+                contextId:
+                  type: string
+                  format: uuid
+                  description: The tree to refresh; omit to create a new one.
+      responses:
+        '200':
+          description: The tree was refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextSaveResult'
+        '201':
+          description: The tree was created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextSaveResult'
+        '400':
+          $ref: '#/components/responses/ContextAssistantBadRequest'
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          description: The context to refresh was not built with the assistant, or the feature is off
+        '500':
+          description: The run failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  detail:
+                    type: string
+                    nullable: true
+                  runId: { type: string, format: uuid }
+
 components:
   securitySchemes:
     CrawlerApiKey:
@@ -1360,6 +1872,129 @@ components:
       description: Entra ID JWT token
 
   schemas:
+    ContextRecipe:
+      type: object
+      description: >
+        What a context built with the assistant searches for, and the analyst's corrections to it.
+        Stored as the parameters of the `context-recipe` context plugin and re-applied after every
+        crawl. Include and exclude live here rather than as member edits, because a plugin run
+        replaces every member it added.
+      properties:
+        version:
+          type: integer
+          enum: [1]
+        name:
+          type: string
+          maxLength: 200
+        target:
+          type: string
+          enum: [resource]
+        resourceTypes:
+          type: array
+          maxItems: 20
+          items: { type: string }
+        fields:
+          type: array
+          description: Text fields to search, by catalog name.
+          items:
+            type: string
+            enum: [displayName, description, mail]
+        terms:
+          type: array
+          maxItems: 40
+          items:
+            type: object
+            required: [text]
+            properties:
+              text:
+                type: string
+                maxLength: 60
+              key:
+                type: string
+                description: The term reduced to lowercase letters, digits and single spaces — what is matched.
+              match:
+                type: string
+                enum: [token, wordStart, contains]
+              state:
+                type: string
+                enum: [accepted, rejected]
+              origin:
+                type: string
+                enum: [model, analyst, related]
+              own:
+                type: boolean
+                description: A model term containing one of the analyst's own words; only these arrive ticked.
+              why:
+                type: string
+                maxLength: 40
+        include:
+          type: array
+          maxItems: 2000
+          description: Objects kept in whatever the terms find.
+          items: { type: string, format: uuid }
+        exclude:
+          type: array
+          maxItems: 2000
+          description: Objects kept out; wins over every term.
+          items: { type: string, format: uuid }
+        structure:
+          type: string
+          enum: [byTerm, flat]
+    ContextTermsReply:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [terms, clarify, error]
+        name:
+          type: string
+          description: A name for the context, proposed by the model.
+        terms:
+          type: array
+          items:
+            type: object
+            properties:
+              text: { type: string }
+              match:
+                type: string
+                enum: [token, wordStart, contains]
+              state:
+                type: string
+                enum: [accepted, rejected]
+              origin:
+                type: string
+                enum: [model]
+              own: { type: boolean }
+              why: { type: string }
+        notes:
+          type: array
+          items: { type: string }
+        question:
+          type: string
+          description: Present when kind is clarify.
+        options:
+          type: array
+          items: { type: string }
+        message:
+          type: string
+          description: Present when kind is error.
+        raw:
+          type: string
+          description: The model's reply as it came back.
+        timing:
+          type: object
+          additionalProperties: { type: integer }
+    ContextSaveResult:
+      type: object
+      properties:
+        runId: { type: string, format: uuid }
+        contextId:
+          type: string
+          format: uuid
+          nullable: true
+        membersAdded: { type: integer }
+        membersRemoved: { type: integer }
     ReportMetadata:
       type: object
       description: Everything a client needs to list and render a report — no report-specific knowledge.
@@ -1711,6 +2346,33 @@ components:
           nullable: true
 
   responses:
+    ContextAssistantForbidden:
+      description: The caller lacks `data.write.contexts` (checked before the feature flag)
+    ContextAssistantDisabled:
+      description: The `contextAssistant` feature is not enabled
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    ContextAssistantBadRequest:
+      description: The request or the recipe is invalid
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              errors:
+                type: array
+                items:
+                  type: string
+    ContextAssistantFailed:
+      description: The request failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
     IngestSuccess:
       description: Ingest successful
       content:

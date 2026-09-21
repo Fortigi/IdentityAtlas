@@ -50,6 +50,14 @@ export const FEATURE_FLAGS = {
     key: 'CUSTOM_REPORTS',
     envDefault: env => env.FEATURE_CUSTOM_REPORTS === 'true',
   },
+  // Context assistant: analysts build a context tree from search terms, optionally
+  // proposed by the local model that custom reports use. Off by default; while off,
+  // every /api/context-assistant endpoint answers 404. Trees already built keep
+  // refreshing after each crawl — they are ordinary generated contexts.
+  contextAssistant: {
+    key: 'CONTEXT_ASSISTANT',
+    envDefault: env => env.FEATURE_CONTEXT_ASSISTANT === 'true',
+  },
 };
 
 // WorkerConfig key for a flag name, e.g. 'riskScoring' → 'FEATURE_RISK_SCORING'.

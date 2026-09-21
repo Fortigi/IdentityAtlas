@@ -14,9 +14,10 @@ export function isWarmLoading(warm) {
 /**
  * @param {object}   [status]   the /api/nl-reports/status answer
  * @param {Function} authFetch
+ * @param {string}   [warmUrl]  the assistant's warm endpoint — each assistant keeps its own prompt cache
  * @returns {'idle'|'ready'|'warming'|'starting'|'preparing'|'error'}
  */
-export function useModelWarmup(status, authFetch) {
+export function useModelWarmup(status, authFetch, warmUrl = '/api/nl-reports/warm') {
   const [warm, setWarm] = useState('idle');
   const warmed = useRef(false);
 
@@ -28,7 +29,7 @@ export function useModelWarmup(status, authFetch) {
     // seconds — it is unloaded after a while unused) and the one-off prompt-cache
     // preparation after an install or update ('preparing', minutes). Poll until done;
     // quickly while loading, so the page flips to ready as soon as the model is in.
-    const poll = () => postJson(authFetch, '/api/nl-reports/warm', {})
+    const poll = () => postJson(authFetch, warmUrl, {})
       .then((r) => {
         if (r.state === 'starting' || r.state === 'preparing') {
           setWarm(r.state);
@@ -39,7 +40,7 @@ export function useModelWarmup(status, authFetch) {
       })
       .catch(() => setWarm('error'));
     poll();
-  }, [status, authFetch]);
+  }, [status, authFetch, warmUrl]);
 
   return warm;
 }
