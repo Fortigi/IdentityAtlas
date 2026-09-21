@@ -42,6 +42,15 @@ tags:
       Experimental report builder (feature flag `customReports`). Every route answers 404 while
       the feature is off. The caller's permission is checked first, so a caller without it gets
       403 whether or not the feature is on.
+  - name: Teams Bot
+    description: >
+      Experimental Microsoft Teams bot (feature flag `teamsBot`), a second front end on
+      custom reports. `POST /messages` is NOT protected by the Entra bearer scheme: its
+      caller is the Bot Framework service, not a signed-in browser. Every activity is
+      authenticated twice before it is acted on — by the Bot Framework token (the channel
+      is real) and by the caller's own Teams SSO token (the person is real). Both routes
+      answer 404 while the feature is off, so a disabled bot is indistinguishable from an
+      install that never had one.
   - name: Context Assistant
     description: >
       Experimental context builder (feature flag `contextAssistant`). An analyst describes a
@@ -1183,6 +1192,103 @@ paths:
           $ref: '#/components/responses/CustomReportsDisabled'
         '409':
           description: A report with that name already exists
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+
+  /messages:
+    post:
+      tags: [Teams Bot]
+      summary: Bot Framework activity endpoint
+      operationId: postTeamsBotActivity
+      description: >
+        Receives one Bot Framework activity from the Microsoft Teams channel — a message, a
+        conversation update, or a sign-in invoke. Authenticated by the Bot Framework token on
+        the request, NOT by an Entra bearer token, which is why no security scheme is listed:
+        the caller is the channel service. The person behind the activity is established
+        separately from their Teams SSO token, and an activity whose SSO token does not verify
+        is never acted on. Answers 404 while the `teamsBot` feature is off.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: A Bot Framework Activity (see the Bot Framework protocol schema).
+              properties:
+                type:
+                  type: string
+                  example: message
+                text:
+                  type: string
+                conversation:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+      responses:
+        '200':
+          description: The activity was processed. Replies are sent over the channel, not in this response.
+        '401':
+          description: The activity did not carry a valid Bot Framework token
+        '404':
+          description: The `teamsBot` feature is off
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+
+  /bot-answers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Teams Bot]
+      summary: Run the report behind a bot answer's deep link
+      operationId: getTeamsBotAnswer
+      description: >
+        Re-runs the report definition stored with one logged bot conversation, so a card's
+        "Open the full report" link shows the whole answer with current data. Served ONLY to
+        the caller who asked the question — the link travels in a chat message and chat
+        messages get forwarded — and an answer belonging to someone else is reported as 404,
+        not 403, so a forwarded link learns nothing. Requires `data.read.reports`; answers 404
+        while the `teamsBot` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The report, as the Reports page renders it
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  question:
+                    type: string
+                  explanation:
+                    type: string
+                  columns:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                        label:
+                          type: string
+                  rows:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        '400':
+          $ref: '#/components/responses/CustomReportsBadRequest'
+        '403':
+          description: The caller may not ask, or has no identity of their own
+        '404':
+          description: No such answer for this caller, or the `teamsBot` feature is off
         '500':
           $ref: '#/components/responses/CustomReportsFailed'
 

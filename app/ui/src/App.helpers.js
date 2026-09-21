@@ -6,6 +6,7 @@
 export const DETAIL_PREFIXES = [
   'user', 'group', 'resource', 'access-package',
   'department', 'context', 'identity', 'run', 'report', 'report-builder', 'context-builder',
+  'bot-answer',
 ];
 
 // True when a hash page-key addresses a detail tab.
@@ -62,6 +63,7 @@ export function pickDisplayName(partialData) {
 const CLOSE_FALLBACK = {
   run: 'contexts',
   report: 'reports',
+  'bot-answer': 'reports',
   'report-builder': 'reports',
   department: 'contexts',
   context: 'contexts',
@@ -82,6 +84,7 @@ const DETAIL_TAB_ICON_BG = {
   context: 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300',
   'context-builder': 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300',
   report: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
+  'bot-answer': 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
   'report-builder': 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
 };
 const DETAIL_TAB_ICON_BG_DEFAULT =

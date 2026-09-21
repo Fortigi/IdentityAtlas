@@ -13,8 +13,8 @@ import { explainSpec } from './explain.js';
 import { buildSystemPrompt, buildValuesBlock, RESPONSE_SCHEMA, REPORT_ONLY_SCHEMA } from './prompt.js';
 import { chat, DEFAULT_MODEL } from './llm.js';
 import { createWarmup, prepareAtStartup } from './warmup.js';
-import { resolveNamedObjects } from './references.js';
-import { correctionMessage, findTerms, locateTerms, termConfirmation, termHint, unusedTerms } from './terms.js';
+import { applyChoice, resolveNamedObjects } from './references.js';
+import { applyTermChoice, correctionMessage, findTerms, locateTerms, termConfirmation, termHint, unusedTerms } from './terms.js';
 import { isFeatureEnabled } from '../featureFlags.js';
 
 const VALUES_TTL_MS = 5 * 60 * 1000;
@@ -246,6 +246,25 @@ export async function interpret({ question, history = [], model = DEFAULT_MODEL 
   if (turn.reply?.kind === 'report') return answerReport(ctx, turn);
   if (turn.reply?.kind === 'clarify') return answerClarify(ctx, turn);
   return { kind: 'error', message: 'The model reply was not valid JSON.', ...replyMeta(ctx, turn) };
+}
+
+/**
+ * Apply the analyst's answer to a confirmation. A term choice adds (and may drop)
+ * conditions, so its result is validated again.
+ *
+ * Lives here rather than on the route because both front ends need it: the web
+ * builder POSTs /nl-reports/resolve, and the Teams bot applies the same choice
+ * when a manager picks one of the "did you mean" options out of a card.
+ *
+ * @returns {object|null} the spec to continue with, or null when the choice does not fit
+ */
+export function applyResolveChoice(spec, choice, values) {
+  if (!choice) return spec;
+  if (choice.kind === 'term') {
+    const revalidated = applyTermChoice(spec, choice) ? validateSpec(spec, values) : null;
+    return revalidated?.ok ? revalidated.spec : null;
+  }
+  return applyChoice(spec, choice) ? spec : null;
 }
 
 function formatCell(type, v) {

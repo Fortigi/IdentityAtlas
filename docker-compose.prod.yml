@@ -132,6 +132,20 @@ services:
       # report-generator profile is started; the feature is off until enabled.
       FEATURE_CUSTOM_REPORTS: "${FEATURE_CUSTOM_REPORTS:-}"
       NL_REPORTS_LLM_URL: "http://report-generator:8080"
+      # Teams bot (proof of concept). Needs the report generator above, plus an
+      # Entra app registration and an Azure Bot resource — see
+      # docs/reference/teams-bot.md. Off until enabled; while off, /api/messages
+      # answers 404. The app password belongs in your secret store, not here:
+      # set it in the environment that starts this stack.
+      FEATURE_TEAMS_BOT: "${FEATURE_TEAMS_BOT:-}"
+      TEAMS_BOT_APP_ID: "${TEAMS_BOT_APP_ID:-}"
+      TEAMS_BOT_APP_PASSWORD: "${TEAMS_BOT_APP_PASSWORD:-}"
+      TEAMS_BOT_APP_TENANT_ID: "${TEAMS_BOT_APP_TENANT_ID:-}"
+      TEAMS_BOT_CONNECTION_NAME: "${TEAMS_BOT_CONNECTION_NAME:-}"
+      TEAMS_BOT_LOG_RETENTION_DAYS: "${TEAMS_BOT_LOG_RETENTION_DAYS:-}"
+      # Where a bot answer's "Open the full report" link points. Without it,
+      # cards that cannot show the whole answer simply carry no link.
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-}"
     secrets:
       - postgres_password
     ports:

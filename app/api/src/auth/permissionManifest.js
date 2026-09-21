@@ -29,6 +29,11 @@ export const GATED_ENDPOINTS = {
   'admin.crawlers':        { method: 'GET',  path: '/api/admin/crawlers' },
   'admin.systems':         { method: 'PUT',  path: '/api/systems/1', body: {} },
   'data.write.reports':    { method: 'POST', path: '/api/nl-reports/saved' },
+  // Asking, as opposed to building. The bot itself authenticates with a Bot
+  // Framework token rather than requirePermission(), so the representative
+  // endpoint is the other route this permission guards: the page a bot answer's
+  // deep link opens, which a signed-in user reaches with their own token.
+  'data.read.reports':     { method: 'GET',  path: '/api/bot-answers/00000000-0000-0000-0000-000000000000' },
   'data.write.contexts':   { method: 'POST', path: '/api/context-assistant/evaluate', body: { recipe: {} } },
   'admin.llm':             { method: 'GET',  path: '/api/admin/llm/config' },
   'admin.context-plugins': { method: 'GET',  path: '/api/context-plugins' },

@@ -1,0 +1,8 @@
+- Added a Microsoft Teams bot (proof of concept) that answers questions about access in a chat, in English or Dutch, using the same local model and the same read-only reports as Custom reports. No Microsoft Copilot licence is involved.
+- The bot always knows who is asking: the caller is matched to their account in Identity Atlas from their Teams sign-in, and someone Identity Atlas does not know is told so rather than getting an answer.
+- "My direct reports", "my people" and "my resources" resolve to whoever is asking, without them naming themselves. If a question says "my" but the report is not actually limited to the caller, the answer says so.
+- Every answer states what the bot understood before it shows any rows, so a wrong name match is visible rather than hidden behind well-formatted results.
+- Answers show up to ten rows and four columns in the chat, with a link into Identity Atlas for the whole thing. That link opens only for the person who asked.
+- Added an "Ask questions in plain language" permission, so a pilot manager can use the bot without also being able to create and delete the saved reports every analyst sees.
+- Every question is recorded — who asked, what they asked, what the bot made of it, how many rows came back and how long each step took — without storing the answer's rows. Conversations are kept for 90 days by default.
+- The bot is off by default and switched on under Admin → Experimental. While it is off it is not reachable at all.

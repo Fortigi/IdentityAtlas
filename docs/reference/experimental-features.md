@@ -16,6 +16,12 @@ where the surprises live — a vendor that paginates differently, an attribute t
 optional in the spec but always absent in practice, a quirk that only shows up at
 50 000 accounts. Until a feature has met a few of those, it carries the label.
 
+!!! warning "One exception, and it is stated on its own section"
+    The [Teams bot](#teams-bot) is a **proof of concept**, not a finished feature behind a
+    switch. It has a deliberate gap — it identifies who is asking but does not restrict what
+    they may ask about — which is why its section says so and why its switch is not the
+    control that limits exposure. Read it before enabling that one.
+
 ---
 
 ## Turning them on
@@ -173,6 +179,51 @@ plugin and needs no model. What stops is building and editing.
 
 It also does not stop or remove the model container: that is a deployment choice (a compose
 profile, or an Azure parameter), and it is shared with custom reports.
+
+---
+
+## Teams bot
+
+Lets managers and resource owners ask about access in a Microsoft Teams chat, answered by
+the same local model and the same read-only reports as custom reports. See
+[Teams Bot (POC)](teams-bot.md) for what it can answer and how to set it up. It is
+experimental for three reasons at once: it is new, it needs the same extra model container
+(and answers take tens of seconds on CPU), and — unlike every other feature here — **it has
+a deliberate gap**, described below.
+
+Environment variable: `FEATURE_TEAMS_BOT=true`.
+
+### What the switch does, precisely
+
+**On** — `POST /api/messages` exists and accepts activities from the Bot Framework. Each one
+is authenticated twice before it is acted on: by the Bot Framework token (the channel is
+real) and by the caller's own Teams SSO token (the person is real). The caller's Entra
+object id is matched to the account the Entra crawler stores, and a caller who does not
+match is told so and gets nothing. Asking needs the **Ask questions in plain language**
+(`data.read.reports`) permission.
+
+**Off** — `POST /api/messages` answers `404`, so a Teams app pointed at this deployment
+simply finds nothing there. Not `401`: an endpoint that answers "unauthorised" tells a
+scanner there is a bot here to come back for. `GET /api/bot-answers/:id` answers `404` too,
+with the permission checked first, so a caller without it always gets `403` — whether or not
+this install has the feature.
+
+### What the switch does *not* do
+
+**It does not limit what a caller may ask about.** This is the POC's known gap and the
+reason to read [Teams Bot (POC)](teams-bot.md) before switching it on: every caller who gets
+past caller resolution can ask about the whole directory, not only their own people. The
+mitigations are the Teams app permission policy (who can install the app at all) and the
+conversation log (every answer is recorded against the person who asked) — not the feature
+flag.
+
+Turning it off **does not delete the conversation log.** `BotConversations` rows are kept
+until they pass `TEAMS_BOT_LOG_RETENTION_DAYS` (90 days by default), because the log is the
+audit trail for questions that were already answered. Deep links stop resolving while the
+feature is off and work again when it is switched back on.
+
+It also does not stop or remove the model container, and it does not uninstall the Teams
+app: that is done in the Teams admin center.
 
 ---
 

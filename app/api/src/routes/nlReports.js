@@ -26,7 +26,7 @@ import { requirePermission } from '../middleware/auth.js';
 import { requireFeature } from '../featureFlags.js';
 import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE } from '../nlreports/catalog.js';
 import { availableColumns } from '../nlreports/spec.js';
-import { ensureWarm, interpret, loadValues, runSpec, warmupState } from '../nlreports/service.js';
+import { applyResolveChoice, ensureWarm, interpret, loadValues, runSpec, warmupState } from '../nlreports/service.js';
 import { MODEL_IS_FIXED, listModels } from '../nlreports/llm.js';
 import {
   forLog, generatorStatus, oneQuestionAtATime, parseInterpretRequest, userOf, warmHandler,
@@ -37,8 +37,7 @@ import {
 export { parseInterpretRequest };
 import { getReportModel, setReportModel } from '../nlreports/settings.js';
 import { MEASURES, manyRelationsOf } from '../nlreports/compare.js';
-import { applyChoice, resolveNamedObjects, searchNames } from '../nlreports/references.js';
-import { applyTermChoice } from '../nlreports/terms.js';
+import { resolveNamedObjects, searchNames } from '../nlreports/references.js';
 import { validateSpec } from '../nlreports/spec.js';
 import { explainSpec } from '../nlreports/explain.js';
 import { query } from '../db/connection.js';
@@ -134,19 +133,11 @@ router.post('/nl-reports/interpret', analystGate, async (req, res) => {
   }
 });
 
-/**
- * Apply the analyst's answer to a confirmation. A term choice adds (and may drop)
- * conditions, so its result is validated again.
- * @returns {object|null} the spec to continue with, or null when the choice does not fit
- */
-export function applyResolveChoice(spec, choice, values) {
-  if (!choice) return spec;
-  if (choice.kind === 'term') {
-    const revalidated = applyTermChoice(spec, choice) ? validateSpec(spec, values) : null;
-    return revalidated?.ok ? revalidated.spec : null;
-  }
-  return applyChoice(spec, choice) ? spec : null;
-}
+// Re-exported: applying a "did you mean" answer is pipeline logic, not HTTP, and
+// it now lives beside interpret()/runSpec() so a second front end (the Teams bot)
+// can answer a confirmation without importing a route module. Kept on this module
+// so its own tests still import it here.
+export { applyResolveChoice };
 
 // POST /api/nl-reports/resolve { spec, choice? } — apply the answer to a "did you mean"
 // confirmation and look the named objects up again. No model involved.

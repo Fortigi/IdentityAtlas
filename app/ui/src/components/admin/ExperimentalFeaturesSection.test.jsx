@@ -34,11 +34,11 @@ const EDGE_VERSION = '5.649.20260908.1151';
 
 // matrixSharing defaults to the OPPOSITE of experimentalCrawlers, so the two
 // cards never agree: a switch wired to the wrong flag shows the wrong state.
-// customReports and contextAssistant follow matrixSharing for the same reason.
+// customReports, contextAssistant and teamsBot follow matrixSharing for the same reason.
 function render(experimentalCrawlers, toggleResponse, matrixSharing = !experimentalCrawlers) {
   return renderWithProviders(
     h(ExperimentalFeaturesSection, {
-      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing },
+      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing, teamsBot: matrixSharing },
       version: EDGE_VERSION,
     }),
     { auth: { authFetch: makeAuthFetch({ '/api/admin/features/toggle': toggleResponse ?? {} }) } },
@@ -50,9 +50,10 @@ describe('ExperimentalFeaturesSection', () => {
     render(false);
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
-    // Four cards: experimental crawlers off; matrix sharing, custom reports and the context assistant on.
+    // Five cards: experimental crawlers off; matrix sharing, custom reports,
+    // the context assistant and the Teams bot on.
     expect(screen.getAllByText('Disabled')).toHaveLength(1);
-    expect(screen.getAllByText('Enabled')).toHaveLength(3);
+    expect(screen.getAllByText('Enabled')).toHaveLength(4);
   });
 
   it('shows the flag as Enabled when the feature is on', async () => {
@@ -60,7 +61,7 @@ describe('ExperimentalFeaturesSection', () => {
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
     expect(screen.getAllByText('Enabled')).toHaveLength(1);
-    expect(screen.getAllByText('Disabled')).toHaveLength(3);
+    expect(screen.getAllByText('Disabled')).toHaveLength(4);
   });
 
   it('lists the experimental crawlers this build ships, by name — so the switch says what it covers', async () => {
@@ -153,6 +154,60 @@ describe('ExperimentalFeaturesSection', () => {
       renderWithProviders(h(ExperimentalFeaturesSection, { features: null, version: EDGE_VERSION }),
         { auth: { authFetch: makeAuthFetch({}) } });
       expect(await screen.findByRole('switch', { name: 'Matrix sharing' })).toBeDisabled();
+    });
+  });
+
+  describe('Teams bot', () => {
+    it('reads its own flag, not the crawler one', async () => {
+      render(true, undefined, false);
+      const bot = await screen.findByRole('switch', { name: 'Teams bot' });
+      await waitFor(() => expect(bot).toHaveAttribute('aria-checked', 'false'));
+      expect(screen.getByRole('switch', { name: 'Experimental crawlers' })).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('turns the bot ON by posting teamsBot:true, then reloads', async () => {
+      const { authFetch } = render(true, undefined, false);
+      await userEvent.click(await screen.findByRole('switch', { name: 'Teams bot' }));
+      await waitFor(() => expect(reload).toHaveBeenCalled());
+      const [, opts] = authFetch.mock.calls.find(([u]) => String(u).includes('/features/toggle'));
+      expect(JSON.parse(opts.body)).toEqual({ feature: 'teamsBot', enabled: true });
+    });
+
+    it('turns the bot OFF by posting teamsBot:false', async () => {
+      const { authFetch } = render(false, undefined, true);
+      await userEvent.click(await screen.findByRole('switch', { name: 'Teams bot' }));
+      await waitFor(() => expect(reload).toHaveBeenCalled());
+      const [, opts] = authFetch.mock.calls.find(([u]) => String(u).includes('/features/toggle'));
+      expect(JSON.parse(opts.body)).toEqual({ feature: 'teamsBot', enabled: false });
+    });
+
+    it('surfaces a failed toggle and does not reload', async () => {
+      render(true, jsonResponse({ error: 'Bot toggle failed' }, { ok: false, status: 500 }), false);
+      await userEvent.click(await screen.findByRole('switch', { name: 'Teams bot' }));
+      expect(await screen.findByText('Bot toggle failed')).toBeInTheDocument();
+      expect(reload).not.toHaveBeenCalled();
+    });
+
+    it('warns that the bot does not restrict what a caller may ask about', async () => {
+      // The POC's known gap. An operator reading this card is the last person
+      // who can decide not to hand it to a wide group, so the card has to say it.
+      render(false);
+      // 'not' sits in its own <span> for emphasis, so match the contiguous phrase
+      // after it rather than across the element boundary.
+      expect(await screen.findByText(/restrict what they may ask about/i)).toBeInTheDocument();
+    });
+
+    it('points at the setup guide, because the switch alone does not make a bot', async () => {
+      render(false);
+      const link = await screen.findByRole('link', { name: /Setting up the Teams bot/i });
+      // An edge build (8-digit date segment) must link to /edge/, not /stable/.
+      expect(link).toHaveAttribute('href', 'https://fortigi.github.io/IdentityAtlas/edge/reference/teams-bot/');
+    });
+
+    it('cannot be flipped before the flags have loaded', async () => {
+      renderWithProviders(h(ExperimentalFeaturesSection, { features: null, version: EDGE_VERSION }),
+        { auth: { authFetch: makeAuthFetch({}) } });
+      expect(await screen.findByRole('switch', { name: 'Teams bot' })).toBeDisabled();
     });
   });
 

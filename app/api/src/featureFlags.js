@@ -32,6 +32,15 @@ export const FEATURE_FLAGS = {
     key: 'EXPERIMENTAL_CRAWLERS',
     envDefault: env => env.FEATURE_EXPERIMENTAL_CRAWLERS === 'true',
   },
+  // Teams bot (POC): a second front end on custom reports, answering questions in
+  // a Teams chat. Its own flag rather than riding on `customReports`, because the
+  // bot must be switchable off — /api/messages then answers 404 — without taking
+  // the report builder down with it. Default OFF: it needs an Azure Bot
+  // registration and a Teams app before it can answer anything.
+  teamsBot: {
+    key: 'TEAMS_BOT',
+    envDefault: env => env.FEATURE_TEAMS_BOT === 'true',
+  },
   // Matrix sharing (#1166): share a configured matrix with named colleagues who
   // have no Identity Atlas role. New and outward-facing, so it ships switched
   // OFF — an operator opts in from Admin → Experimental. While off, every share

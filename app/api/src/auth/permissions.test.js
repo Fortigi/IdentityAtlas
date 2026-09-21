@@ -91,7 +91,7 @@ describe('seed mapping — the exact grants shipped on a fresh install', () => {
     // Widening this on a fresh install hands out access nobody asked for;
     // emptying it locks the role out. Neither is visible from a count.
     expect(SEED_ROLE_PERMISSIONS.RoleMiner)
-      .toEqual(['data.read', 'data.export.ui', 'data.export.apikey', 'data.share', 'data.write.reports', 'data.write.contexts']);
+      .toEqual(['data.read', 'data.read.reports', 'data.export.ui', 'data.export.apikey', 'data.share', 'data.write.reports', 'data.write.contexts']);
   });
 
   it('gives Servicedesk read only — sharing is opt-in per install (#1166)', () => {

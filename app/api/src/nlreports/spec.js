@@ -96,8 +96,20 @@ function coerceEnum(fieldName, field, value, values, err) {
   return match ?? s;
 }
 
+// The Teams bot lets the model write "@me" where the caller's own account
+// belongs, and substitutes the caller's id before validation
+// (teamsbot/callerSpec.js). By the time a definition gets here the sentinel is
+// therefore always already gone — so one that survives means the substitution
+// did not run, and the condition would silently match an account literally
+// named "@me" (i.e. nothing) instead of the person asking. Failing loudly is
+// the difference between "no results" and "no results, and nobody can tell you
+// why". It also stops the web report builder, which has no caller at all, from
+// saving a definition that would mean something different for each reader.
+export const CALLER_SENTINEL = '@me';
+
 function coerceText(fieldName, field, value, values, err) {
   const s = String(value);
+  if (s === CALLER_SENTINEL) err(`"${fieldName}" cannot be ${CALLER_SENTINEL} here — no caller is known for this report`);
   if (s.length > 200) err(`value for "${fieldName}" is too long`);
   return s;
 }

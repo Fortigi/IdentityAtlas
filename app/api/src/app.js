@@ -42,6 +42,7 @@ import contextPluginsRouter from './routes/contextPlugins.js';
 import reportsRouter from './routes/reports.js';
 import nlReportsRouter from './routes/nlReports.js';
 import contextAssistantRouter from './routes/contextAssistant.js';
+import { messagesRouter as teamsBotMessagesRouter, botAnswersRouter as teamsBotAnswersRouter } from './routes/teamsBot.js';
 import adminRouter from './routes/admin.js';
 import authRolesRouter from './routes/authRoles.js';
 import llmRouter from './routes/llm.js';
@@ -373,6 +374,18 @@ export function createApp() {
   // Context assistant — builds context trees from search terms, optionally proposed by
   // the same local model. Feature and permission gates per route, as above.
   app.use('/api', authMiddleware, contextAssistantRouter);
+  // Teams bot (POC) — a second front end on custom reports.
+  //
+  // Mounted WITHOUT authMiddleware, and it is the only router here that is.
+  // Teams posts as the Bot Framework service and carries no user Bearer token,
+  // so authMiddleware would answer 401 to every activity. The activity is
+  // authenticated instead by the adapter (the channel) plus the caller's own
+  // Teams SSO token (the person) — see routes/teamsBot.js. The `teamsBot`
+  // feature gate is per route inside the router, so while the bot is off this
+  // mount contributes nothing but a 404.
+  app.use('/api', teamsBotMessagesRouter);
+  // The deep link a bot answer points at IS an ordinary signed-in surface.
+  app.use('/api', authMiddleware, teamsBotAnswersRouter);
   // Context plugins (Admin → Contexts) — admin-only across the board.
   // Permission gates are applied PER ROUTE inside each router (not on the /api
   // mount) — a mount-level requirePermission on the shared '/api' prefix runs

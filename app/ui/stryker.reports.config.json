@@ -18,6 +18,7 @@
     "src/components/SchemaConfigForm.jsx",
     "src/components/UserActivitySection.jsx",
     "src/components/reports/ListReportRenderer.jsx",
+    "src/components/reports/BotAnswerPage.jsx",
     "src/components/reports/ReportError.jsx",
     "src/components/reports/ReportNotices.jsx",
     "src/components/reports/ReportViewPage.jsx",

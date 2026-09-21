@@ -23,6 +23,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 
 | Permission | Label | Notes |
 |---|---|---|
+| `data.read.reports` | Ask questions in plain language | Lets the holder ask the local model a question and read the answer — today that is the [Teams bot](teams-bot.md), and it also gates `GET /api/bot-answers/:id`, the page a bot answer's deep link opens. Deliberately separate from **Build custom reports**: a pilot manager who may ask the bot should not thereby be able to create and delete saved reports that every analyst sees. It is NOT implied by `data.write.reports` — the seed `RoleMiner` role carries both. Only takes effect while the experimental **Teams bot** feature is switched on. |
 | `data.read` | Read all data | Effectively "can sign in at all." Enforced as authentication-required — any signed-in user can read; there is no per-route `requirePermission('data.read')` gate. `fgr_` read tokens are granted it implicitly. The Dashboard reads (`GET /api/admin/dashboard-stats`, `/dashboard-timeseries`), run history (`GET /api/risk-scoring/runs`, `/api/context-plugins/runs`, `/api/account-linking/runs`) `GET /api/updates/intent` and the Performance request log (`GET /api/perf*`, which also refuses `fgr_` read tokens) additionally require **at least one** mapped permission, so a signed-in user whose roles map to nothing is refused. |
 
 ### Export
@@ -65,7 +66,7 @@ A fresh install ships with this mapping (customisable in the Admin UI):
 | Role | Permissions |
 |---|---|
 | `Admin` | `*` (all permissions) |
-| `RoleMiner` | `data.read`, `data.export.ui`, `data.export.apikey`, `data.share`, `data.write.reports`, `data.write.contexts` |
+| `RoleMiner` | `data.read`, `data.read.reports`, `data.export.ui`, `data.export.apikey`, `data.share`, `data.write.reports`, `data.write.contexts` |
 | `Servicedesk` | `data.read` |
 
 ### No-role users fail closed

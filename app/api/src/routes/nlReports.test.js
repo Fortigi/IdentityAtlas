@@ -3,7 +3,12 @@ import request from 'supertest';
 import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 vi.mock('../db/connection.js');
-vi.mock('../nlreports/service.js', () => ({
+vi.mock('../nlreports/service.js', async (importOriginal) => ({
+  // The REAL applyResolveChoice. The "run and resolve" tests below assert what
+  // happens when an analyst answers a "did you mean" — which is this function's
+  // behaviour, so a vi.fn() here would make them assert the stub instead. Only
+  // the parts that reach the model or the database are replaced.
+  applyResolveChoice: (await importOriginal()).applyResolveChoice,
   interpret: vi.fn(),
   runSpec: vi.fn(),
   loadValues: vi.fn(async () => ({ principalType: ['User'] })),

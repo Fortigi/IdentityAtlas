@@ -1,0 +1,53 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "REPLACE-WITH-BOT-ENTRA-APP-ID",
+  "packageName": "io.identityatlas.teamsbot",
+  "developer": {
+    "name": "Fortigi",
+    "websiteUrl": "https://identityatlas.io",
+    "privacyUrl": "https://identityatlas.io/privacy",
+    "termsOfUseUrl": "https://identityatlas.io/terms"
+  },
+  "name": {
+    "short": "Identity Atlas",
+    "full": "Identity Atlas — ask about access"
+  },
+  "description": {
+    "short": "Ask about access in plain language.",
+    "full": "Ask Identity Atlas who has access to what, in English or Dutch, and get the answer in this chat. Questions are turned into a report by a model running on your own infrastructure — nothing you ask leaves it, and the model never sees your data, only your question. Experimental: answers can take a couple of minutes, and roughly one question in seven comes back wrong, so every answer states what it understood before it shows the rows."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#65A30D",
+  "bots": [
+    {
+      "botId": "REPLACE-WITH-BOT-ENTRA-APP-ID",
+      "scopes": ["personal"],
+      "isNotificationOnly": false,
+      "supportsFiles": false,
+      "supportsCalling": false,
+      "supportsVideo": false,
+      "commandLists": [
+        {
+          "scopes": ["personal"],
+          "commands": [
+            {
+              "title": "help",
+              "description": "Show three questions that work well"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "permissions": ["identity"],
+  "webApplicationInfo": {
+    "id": "REPLACE-WITH-BOT-ENTRA-APP-ID",
+    "resource": "api://REPLACE-WITH-YOUR-IDENTITY-ATLAS-HOST/REPLACE-WITH-BOT-ENTRA-APP-ID"
+  },
+  "validDomains": ["REPLACE-WITH-YOUR-IDENTITY-ATLAS-HOST"]
+}
