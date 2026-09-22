@@ -106,6 +106,75 @@ Describe 'Sync-MidpointSystems' {
         $mp[0].syncEnabled | Should -BeTrue
     }
 
+    Context 'system naming' {
+        BeforeEach {
+            Reset-PhaseTestState
+            Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'resources' } -MockWith {
+                @([pscustomobject]@{ oid = 'res-1'; name = 'Active Directory' })
+            }
+            # The scan finds account shadows on res-1, so it qualifies as a system.
+            Mock Invoke-MidpointSearchStream -MockWith {
+                if ($OnPage) { & $OnPage @([pscustomobject]@{ kind = 'account'; oid = 'sh1'; resourceRef = @{ oid = 'res-1' } }) }
+                return 1
+            }
+            $script:mpSysRecs = [System.Collections.Generic.List[object]]::new()
+            Mock Invoke-IngestAPI -MockWith { foreach ($r in @($Body.records)) { $script:mpSysRecs.Add($r) }; @{} }
+            Mock Invoke-RestMethod -MockWith {
+                @(
+                    [pscustomobject]@{ systemType = 'Midpoint'; tenantId = 'https://mp.example.com/rest'; id = 10 }
+                    [pscustomobject]@{ systemType = 'Midpoint'; tenantId = 'res-1'; id = 11 }
+                )
+            }
+            $script:syncParams = @{
+                RestRoot = 'https://mp.example.com/rest'; ApiBaseUrl = 'https://x/api'; ApiKey = 'k'
+            }
+        }
+
+        It 'names the midPoint system itself after the crawler, not after the type + host' {
+            # A crawler the operator called "HBR midPoint" registered a system called
+            # "midPoint (mp.example.com)", so the crawler's name appeared nowhere in the
+            # Systems page or any __system filter (#1240).
+            #
+            # The name reaches the crawler as the dispatcher-injected `_configName`
+            # (CrawlerConfigs.displayName). There is no parameter carrying it yet, so it
+            # is only passed once one exists; without it the phase still runs and this
+            # assertion lands on the name the crawler actually registers.
+            $p = $script:syncParams.Clone()
+            if ((Get-Command Sync-MidpointSystems).Parameters.ContainsKey('ConfigName')) { $p['ConfigName'] = 'HBR midPoint' }
+
+            Sync-MidpointSystems @p | Out-Null
+
+            $self = @($script:mpSysRecs | Where-Object { $_.tenantId -eq 'https://mp.example.com/rest' })
+            $self | Should -HaveCount 1
+            $self[0].displayName | Should -Be 'HBR midPoint'
+            # Systems merge on (systemType, tenantId): the merge key must be untouched
+            # so the existing row is RENAMED rather than a second one created.
+            $self[0].systemType | Should -Be 'Midpoint'
+        }
+
+        It 'keeps connected RESOURCE systems named after the midPoint resource, never after the crawler' {
+            # Only midPoint's own self-registration row follows the crawler's name.
+            # Resource systems are the connected systems (AD, SAP, …) — renaming those
+            # after the crawler would make every account's source unreadable.
+            $p = $script:syncParams.Clone()
+            if ((Get-Command Sync-MidpointSystems).Parameters.ContainsKey('ConfigName')) { $p['ConfigName'] = 'HBR midPoint' }
+
+            Sync-MidpointSystems @p | Out-Null
+
+            $res = @($script:mpSysRecs | Where-Object { $_.tenantId -eq 'res-1' })
+            $res | Should -HaveCount 1
+            $res[0].displayName | Should -Be 'Active Directory'
+        }
+
+        It 'keeps the type + host label when the job carries no crawler name' {
+            Sync-MidpointSystems @script:syncParams | Out-Null
+
+            $self = @($script:mpSysRecs | Where-Object { $_.tenantId -eq 'https://mp.example.com/rest' })
+            $self | Should -HaveCount 1
+            $self[0].displayName | Should -Be 'midPoint (mp.example.com)'
+        }
+    }
+
     It 'throws (critical phase) when the system id cannot be resolved' {
         Mock Invoke-MidpointSearch -MockWith { @() }
         Mock Invoke-MidpointSearchStream -MockWith { 0 }

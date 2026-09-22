@@ -302,3 +302,44 @@ Describe 'Merge-OmadaOverrideValue' {
         Merge-OmadaOverrideValue -DefaultValue 'x' -Override 'y' | Should -Be 'y'
     }
 }
+
+Describe 'Register-OmadaEndpointSystem — system naming' {
+    BeforeEach {
+        # Collect into a pre-existing list: a $script: variable first assigned inside
+        # a mock body does not propagate back out.
+        $script:sysRecs = [System.Collections.Generic.List[object]]::new()
+        Mock Invoke-IngestAPI -MockWith {
+            foreach ($r in @($Body.records)) { $script:sysRecs.Add($r) }
+            @{ systemIds = @(5) }
+        }
+    }
+
+    It 'names the endpoint system after the crawler, not after the type + base URL' {
+        # A crawler the operator called "HBR Omada" registered a system called
+        # "Omada (https://omada.example.com)", so two Omada crawlers were
+        # indistinguishable on the Systems page and in every __system filter (#1240).
+        #
+        # The name reaches the crawler as the dispatcher-injected `_configName`
+        # (CrawlerConfigs.displayName). There is no parameter carrying it yet, so it
+        # is only passed once one exists; without it the call still runs and this
+        # assertion lands on the name the crawler actually registers.
+        $p = @{ BaseUrl = 'https://omada.example.com' }
+        if ((Get-Command Register-OmadaEndpointSystem).Parameters.ContainsKey('ConfigName')) { $p['ConfigName'] = 'HBR Omada' }
+
+        Register-OmadaEndpointSystem @p | Should -Be 5
+
+        $script:sysRecs | Should -HaveCount 1
+        $script:sysRecs[0].displayName | Should -Be 'HBR Omada'
+        # Systems merge on (systemType, tenantId): the merge key must be untouched so
+        # the existing row is RENAMED rather than a second one created.
+        $script:sysRecs[0].systemType | Should -Be 'Omada'
+        $script:sysRecs[0].tenantId   | Should -Be 'https://omada.example.com'
+    }
+
+    It 'keeps the type + base URL label when the job carries no crawler name' {
+        Register-OmadaEndpointSystem -BaseUrl 'https://omada.example.com' | Out-Null
+
+        $script:sysRecs | Should -HaveCount 1
+        $script:sysRecs[0].displayName | Should -Be 'Omada (https://omada.example.com)'
+    }
+}
