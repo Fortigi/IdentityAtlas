@@ -20,6 +20,8 @@ $script:ScimSession = $null
 
 # Assert-FGPublicUrl (SSRF guard, SEC-2026-09 M-03).
 . (Join-Path $PSScriptRoot '..' 'shared' 'Assert-FGPublicUrl.ps1')
+# Get-CrawlerSystemName — shared crawler-name-before-type-literal rule (#1240).
+. (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
 
 #region Connection
 
@@ -281,14 +283,13 @@ function ConvertFrom-ScimConfigMap {
     $pageSize = if ($raw['pageSize']) { [int]$raw['pageSize'] } else { 100 }
     if ($pageSize -lt 1) { $pageSize = 100 }
 
-    # The Systems row this crawler registers is named from this value. Prefer an
-    # explicit systemName override, then the crawler's own name (`_configName`,
-    # injected by the job dispatcher), and only then the bare type literal — which
-    # would otherwise give every SCIM crawler an identically-named system.
-    $nameCandidate = @($raw['systemName'], $raw['_configName'], 'SCIM') |
-        Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
-        Select-Object -First 1
-    $systemName = ([string]$nameCandidate).Trim()
+    # The Systems row this crawler registers is named from this value: an explicit
+    # systemName override, then the crawler's own name (`_configName`, injected by
+    # the job dispatcher), and only then the bare type literal — which would
+    # otherwise give every SCIM crawler an identically-named system. A stored
+    # override of exactly 'SCIM' is a pre-#1207 leftover and counts as unset (#1240).
+    $systemName = Get-CrawlerSystemName -TypeDefault 'SCIM' `
+        -SystemName ([string]$raw['systemName']) -ConfigName ([string]$raw['_configName'])
 
     return @{
         cfg              = $raw

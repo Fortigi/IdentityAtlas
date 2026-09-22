@@ -20,6 +20,9 @@
     Behaviour is unchanged from the original inline phases.
 #>
 
+# Get-CrawlerSystemName — shared crawler-name-before-type-literal rule (#1240).
+. (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
+
 # ARM api-versions (pinned). Subscriptions + the management-group hierarchy are read
 # over the ARM REST API; resource groups, resources, role definitions and role
 # assignments come from Azure Resource Graph.
@@ -65,6 +68,9 @@ function Resolve-AzureRMConfig {
         tenantId             = [string]$cfg.tenantId
         clientId             = [string]$cfg.clientId
         clientSecret         = $cfg.clientSecret
+        # The crawler's own name, injected by the job dispatcher. Carried through so
+        # the registered system can be named after the crawler instead of the type (#1240).
+        configName           = ([string]$cfg._configName).Trim()
     }
 }
 
@@ -77,9 +83,12 @@ function Connect-AzureRMSession {
 function Register-AzureRMSystem {
     [CmdletBinding()]
     param([hashtable]$Config)
+    # Named after the crawler when the run carries one; the type + tenant label is
+    # only the fallback for an unnamed config or an inline-config run (#1240).
+    $displayName = Get-CrawlerSystemName -TypeDefault "Azure RM ($($Config.tenantId))" -ConfigName ([string]$Config.configName)
     $sysResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
         syncMode = 'delta'
-        records  = @(@{ systemType = 'AzureRM'; displayName = "Azure RM ($($Config.tenantId))"; tenantId = [string]$Config.tenantId; enabled = $true; syncEnabled = $true })
+        records  = @(@{ systemType = 'AzureRM'; displayName = $displayName; tenantId = [string]$Config.tenantId; enabled = $true; syncEnabled = $true })
     }
     $id = if ($sysResult.systemIds -and $sysResult.systemIds.Count -gt 0) { [int]$sysResult.systemIds[0] } else { 0 }
     # Every full-sync reconcile of the run is scoped to this id; guessing one would

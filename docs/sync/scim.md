@@ -138,6 +138,11 @@ Fill in the wizard's optional **System name** field only to label the system as 
 than the crawler — it is an override and always wins. Leaving it blank is not a choice of the
 literal `SCIM`: that name is used only when the crawler has no name at all.
 
+A crawler configured before this behaviour existed has the literal `SCIM` stored in its **System
+name** field, because the older wizard wrote it there whenever the field was left blank. A stored
+value of exactly `SCIM` is therefore treated as "not set" and the crawler's own name is used — no
+re-saving needed. Any other value, including `SCIM Test`, is kept as the override it looks like.
+
 ### Network access
 
 A SaaS SCIM endpoint on public https needs no extra setting. For a SCIM service provider inside

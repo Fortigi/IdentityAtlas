@@ -124,6 +124,7 @@ $SyncEntitlements      = $Resolved.SyncEntitlements
 $SyncAssignments       = $Resolved.SyncAssignments
 $RefreshViews          = $Resolved.RefreshViews
 $BaseUrl               = $Resolved.baseUrl
+$ConfigName            = $Resolved.configName
 $BuiltinBaseUrl        = $Resolved.builtinBaseUrl
 $ApiVersion            = $Resolved.apiVersion
 $PageSize              = $Resolved.pageSize
@@ -164,7 +165,7 @@ function Test-EntitySetAvailable {
 }
 
 Update-CrawlerProgress -Step 'Registering Omada connected systems' -Pct 5
-$Reg = Register-OmadaSystems -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -BaseUrl $BaseUrl -MaxRetries $MaxODataRetries
+$Reg = Register-OmadaSystems -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -BaseUrl $BaseUrl -MaxRetries $MaxODataRetries -ConfigName $ConfigName
 $SystemId               = $Reg.systemId
 $OmadaSystemMap         = $Reg.omadaSystemMap
 $AllOmadaSystems        = $Reg.allOmadaSystems
