@@ -62,9 +62,12 @@ registration is configured as a single-page application.
 1. **Entra ID → App registrations → New registration**. Name it e.g. `Identity Atlas Teams Bot`.
    Single tenant.
 2. **Certificates & secrets → New client secret**. Copy the value now; it is shown once.
-3. **API permissions → Add a permission → My APIs →** your existing Identity Atlas API
-   registration → **Delegated permissions →** the `access` scope it exposes
-   (`api://<identity-atlas-client-id>/access`). **Grant admin consent.**
+3. **API permissions → Add a permission → APIs my organization uses** → search for the
+   Identity Atlas API registration **by its client ID** → **Delegated permissions** → its
+   `access` scope. **Grant admin consent.**
+    - Use that tab, not **My APIs**: `My APIs` lists only registrations you are an *owner*
+      of, so it is usually empty here and the API looks missing when it is not. Either use
+      this tab, or add yourself as an owner of the API registration.
 4. Note the bot's **Application (client) ID** and your **Directory (tenant) ID**.
 
 ### 2. Create the Azure Bot resource
@@ -106,7 +109,7 @@ Environment variables on the web container:
 | `TEAMS_BOT_CONNECTION_NAME` | no | The OAuth connection name from step 2.4. Default `identityatlas` |
 | `PUBLIC_BASE_URL` | no | e.g. `https://fortigi.identityatlas.io`. Without it, cards that cannot show the whole answer have no "Open the full report" link |
 | `TEAMS_BOT_DEADLINE_MS` | no | How long a caller waits before being told it failed. Default `180000` — see [Latency](#latency) |
-| `TEAMS_BOT_PROGRESS_MS` | no | When to send "still working on it". Default `20000` |
+| `TEAMS_BOT_PROGRESS_MS` | no | When to send the "still going" nudge. Default `45000` — the bot already posts a visible acknowledgement the moment it accepts a question |
 | `TEAMS_BOT_LOG_RETENTION_DAYS` | no | How long conversations — and therefore deep links — survive. Default `90` |
 
 Then switch the feature on: **Admin → Experimental → Teams bot**, or ship
@@ -127,14 +130,22 @@ The app package is in [`setup/teams-bot/`](https://github.com/Fortigi/IdentityAt
    `REPLACE-WITH-BOT-ENTRA-APP-ID` (three places) and
    `REPLACE-WITH-YOUR-IDENTITY-ATLAS-HOST` (two places).
 2. Zip the three files **at the root of the zip**, not inside a folder.
-3. **Teams admin center → Teams apps → Manage apps → Upload new app.**
-4. **Teams apps → Permission policies**: create a policy that allows this app, and assign it
+3. **Bump `version` for every re-upload.** Teams refuses an update that carries a
+   version it has already seen — *"This update needs a new app version number"* —
+   so changing an icon or a line of copy means incrementing `version` as well.
+   It is unrelated to the Identity Atlas release version; it only has to increase.
+4. **Teams admin center → Teams apps → Manage apps → Upload new app.**
+5. **Teams apps → Setup policies** → your policy → **Upload custom apps: On**. Off by default
+   in many tenants, and the symptom is simply that the app never appears.
+6. **Teams apps → Permission policies**: create a policy that allows this app, and assign it
    to the pilot managers only. Everyone else will not see the app.
+7. **Teams → Apps → Built for your org → install.** Policy changes can take a while to
+   propagate.
 
-!!! note "The icons are placeholders"
-    `color.png` and `outline.png` are generated brand-coloured placeholders. Replace them
-    with the real mark before showing this to anyone outside the pilot — 192×192 for the
-    colour icon, 32×32 transparent white for the outline.
+!!! note "About the icons"
+    `color.png` (192×192) is the Identity Atlas mark. `outline.png` (32×32) is a white
+    *shield* silhouette rather than the full mark: Teams renders the outline icon
+    monochrome in the app bar, where the brain-network detail turns to mush.
 
 ## What it deliberately does not do
 
