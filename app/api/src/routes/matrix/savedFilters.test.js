@@ -134,3 +134,66 @@ describe('matrix saved-filters', () => {
     expect(res.body).toEqual({ id: VALID, name: 'Default', isDefault: true });
   });
 });
+
+describe('matrix saved-filter history', () => {
+  const ROW = {
+    id: VALID, name: 'Sales', createdBy: 'wim@example.com', createdAt: '2026-03-01T10:00:00Z',
+    updatedBy: 'anna@example.com', updatedAt: '2026-09-20T10:00:00Z',
+  };
+
+  it('400 on a malformed id, without touching the database', async () => {
+    expect((await request(app).get('/api/matrix/saved-filters/nope/history')).status).toBe(400);
+    expect(queryOne).not.toHaveBeenCalled();
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('404 for a matrix that does not exist, without reading history for it', async () => {
+    queryOne.mockResolvedValue(null);
+    expect((await request(app).get(`/api/matrix/saved-filters/${VALID}/history`)).status).toBe(404);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('returns the row attribution with the trail built from its own history rows', async () => {
+    queryOne.mockResolvedValue(ROW);
+    query.mockResolvedValue({ rows: [
+      { operation: 'U', changedAt: '2026-09-20T10:00:00Z', prevData: { name: 'Sales' }, rowData: { name: 'Sales EMEA', updatedBy: 'anna@example.com' } },
+      // A re-save that only re-stamped the writer: recorded, but not an event.
+      { operation: 'U', changedAt: '2026-09-15T10:00:00Z', prevData: { name: 'Sales', updatedBy: 'wim@example.com' }, rowData: { name: 'Sales', updatedBy: 'anna@example.com' } },
+      { operation: 'I', changedAt: '2026-03-01T10:00:00Z', rowData: { name: 'Sales', createdBy: 'wim@example.com' } },
+    ] });
+
+    const res = await request(app).get(`/api/matrix/saved-filters/${VALID}/history`);
+    expect(res.status).toBe(200);
+    expect(res.body.createdBy).toBe('wim@example.com');
+    expect(res.body.events).toEqual([
+      {
+        at: '2026-09-20T10:00:00Z', actor: 'anna@example.com', operation: 'changed',
+        changes: [{ field: 'name', label: 'Name', from: 'Sales', to: 'Sales EMEA' }],
+      },
+      { at: '2026-03-01T10:00:00Z', actor: 'wim@example.com', operation: 'created', changes: [] },
+    ]);
+
+    const [sql, params] = query.mock.calls[0];
+    // Scoped to THIS matrix in THIS table — an unscoped read would hand one
+    // matrix's trail the renames of every other tracked entity.
+    expect(sql).toMatch(/"tableName" = 'SavedMatrixFilters'/);
+    expect(sql).toMatch(/"rowId" = \$1/);
+    expect(sql).toMatch(/ORDER BY "changedAt" DESC/);
+    expect(params).toEqual([VALID]);
+  });
+
+  it('reports a matrix with no recorded changes as an empty trail, not as an error', async () => {
+    queryOne.mockResolvedValue(ROW);
+    query.mockResolvedValue({ rows: [] });
+    const res = await request(app).get(`/api/matrix/saved-filters/${VALID}/history`);
+    expect(res.status).toBe(200);
+    expect(res.body.events).toEqual([]);
+    expect(res.body.createdBy).toBe('wim@example.com');
+  });
+
+  it('500 when the history read fails', async () => {
+    queryOne.mockResolvedValue(ROW);
+    query.mockRejectedValue(new Error('boom'));
+    expect((await request(app).get(`/api/matrix/saved-filters/${VALID}/history`)).status).toBe(500);
+  });
+});

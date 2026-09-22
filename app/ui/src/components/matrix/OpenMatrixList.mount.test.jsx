@@ -11,7 +11,9 @@ const NOW = new Date('2026-09-14T12:00:00Z');
 
 const rows = [
   { id: 'sf-1', name: 'Everyone', filter: { ...FILTER, managed: 'gaps' }, isDefault: true, shared: false, recipientCount: 0, updatedAt: '2026-09-11T12:00:00Z' },
-  { id: 'sf-2', name: 'HR users', filter: { ...FILTER, rowType: 'identity' }, isDefault: false, shared: true, recipientCount: 3, updatedAt: '2026-09-14T09:00:00Z' },
+  // Attributed and unattributed side by side: a list that hard-coded either
+  // spelling of the last-changed label fails one of the two.
+  { id: 'sf-2', name: 'HR users', filter: { ...FILTER, rowType: 'identity' }, isDefault: false, shared: true, recipientCount: 3, updatedAt: '2026-09-14T09:00:00Z', updatedBy: 'anna@example.com' },
 ];
 
 function render({ saved = rows, hasData = true, sharedView = false, authFetch } = {}) {
@@ -38,12 +40,14 @@ describe('OpenMatrixList', () => {
     expect(everyone).toHaveTextContent('Everyone');
     expect(within(everyone).getByText('org default')).toBeInTheDocument();
     expect(within(everyone).queryByText(/Shared with/)).not.toBeInTheDocument();
+    // No updatedBy on this row (saved before the trail existed): the label
+    // names the time and stops, rather than inventing an author.
     expect(within(everyone).getByText('Changed 3d ago')).toBeInTheDocument();
 
     expect(hr).toHaveTextContent('HR users');
     expect(within(hr).queryByText('org default')).not.toBeInTheDocument();
     expect(within(hr).getByText('Shared with 3 people')).toBeInTheDocument();
-    expect(within(hr).getByText('Changed 3h ago')).toBeInTheDocument();
+    expect(within(hr).getByText('Changed 3h ago by anna@example.com')).toBeInTheDocument();
   });
 
   it('opens a saved matrix tagged with its id, with its governed toggle handed over separately', async () => {
