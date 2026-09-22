@@ -19,6 +19,34 @@ import { detectLanguage } from './text.js';
 /** How often to refresh the typing indicator; Teams drops it after a few seconds. */
 const TYPING_EVERY_MS = 4000;
 
+/**
+ * Put the caller in `recipient` on everything the bot sends.
+ *
+ * THE SIGN-IN CARD DOES NOT ARRIVE WITHOUT THIS, and it fails in the quietest
+ * way available. Teams treats an OAuth card carrying a `tokenExchangeResource`
+ * — which is to say every card that can do silent SSO — as an EPHEMERAL
+ * activity, and the connector refuses one whose `recipient` is unset:
+ *
+ *     400 BadSyntax: "Recipient must be set for ephemeral request"
+ *
+ * The adapter does not set it, and does not surface the 400 either: it comes
+ * back as an empty response object, so `sendActivity` resolves, nothing throws,
+ * nothing is logged, and the card simply never appears in the chat. Measured
+ * directly against the connector — the same card is 400 without a recipient and
+ * 202 with one.
+ *
+ * Applied to every outgoing activity rather than only OAuth cards: `recipient`
+ * is the person the bot is talking to on all of them, so setting it is correct
+ * everywhere and cannot be forgotten when another card type turns out to need
+ * it too.
+ */
+export function ensureRecipient(context, activity) {
+  if (!activity.recipient && context.activity?.from) {
+    activity.recipient = context.activity.from;
+  }
+  return activity;
+}
+
 export class IdentityAtlasBot extends TeamsActivityHandler {
   /**
    * @param {object} args
@@ -82,6 +110,7 @@ export class IdentityAtlasBot extends TeamsActivityHandler {
     // the whole question when a sign-in never shows up. Typing indicators are
     // skipped: they are sent every few seconds and would bury everything else.
     context.onSendActivities(async (ctx, activities, next) => {
+      for (const a of activities) ensureRecipient(ctx, a);
       const interesting = activities.filter(a => a.type !== 'typing');
       try {
         const responses = await next();

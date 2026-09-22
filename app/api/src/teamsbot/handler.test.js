@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConversationState, MemoryStorage, TestAdapter } from 'botbuilder';
-import { IdentityAtlasBot } from './handler.js';
+import { IdentityAtlasBot, ensureRecipient } from './handler.js';
 import { EN, NL } from './text.js';
 
 /** A bot whose dialog is a spy, so routing can be asserted on its own. */
@@ -87,6 +87,53 @@ describe('a question', () => {
 
     await run(message('q'), { bot, dialog, runs: [], conversationState });
     expect(save).toHaveBeenCalled();
+  });
+});
+
+describe('recipient on outgoing activities', () => {
+  it('sets the caller as recipient, which is what makes a sign-in card arrive at all', async () => {
+    // Teams refuses an OAuth card carrying a tokenExchangeResource unless
+    // `recipient` is set — 400 BadSyntax, swallowed by the adapter into an
+    // empty response, so the card vanishes with nothing logged. Measured
+    // against the connector: 400 without, 202 with.
+    // The dialog sends what the real one sends on this path — a card — so the
+    // assertion covers the activity that actually fails without a recipient.
+    const conversationState = new ConversationState(new MemoryStorage());
+    const dialog = {
+      id: 'd',
+      run: vi.fn(async (ctx) => {
+        await ctx.sendActivity({
+          type: 'message',
+          attachments: [{ contentType: 'application/vnd.microsoft.card.oauth', content: { connectionName: 'c' } }],
+        });
+      }),
+    };
+    const bot = new IdentityAtlasBot({ conversationState, dialog });
+    const { sent } = await run(message('q'), { bot, dialog, runs: [], conversationState });
+    const replies = sent.filter(a => a.type !== 'typing');
+
+    expect(replies.length).toBeGreaterThan(0);
+    for (const reply of replies) {
+      expect(reply.recipient, `${reply.type} went out with no recipient`).toEqual({ id: '29:a' });
+    }
+  });
+
+  it('sets it on the typing indicator too, so nothing is special-cased', async () => {
+    const { sent } = await run(message('q'));
+    const typing = sent.filter(a => a.type === 'typing');
+    expect(typing.length).toBeGreaterThan(0);
+    for (const t of typing) expect(t.recipient).toEqual({ id: '29:a' });
+  });
+
+  it('never overwrites a recipient that was set deliberately', async () => {
+    const explicit = { id: '29:someone-else' };
+    const context = { activity: { from: { id: '29:a' } } };
+    expect(ensureRecipient(context, { type: 'message', recipient: explicit }).recipient).toBe(explicit);
+  });
+
+  it('leaves the activity alone when the turn has no sender to name', async () => {
+    const activity = { type: 'message' };
+    expect(ensureRecipient({ activity: {} }, activity).recipient).toBeUndefined();
   });
 });
 
