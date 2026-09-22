@@ -94,10 +94,10 @@ describe('answerMessage — "my" resolves to the caller', () => {
     const d = deps();
     await answerMessage(msg(), d);
 
-    const { question, history } = d.interpret.mock.calls[0][0];
-    expect(question).toContain(CALLER.displayName);
-    expect(question).toContain(OID);
-    expect(question).toContain('which of my direct reports are there?');
+    const { question, context, history } = d.interpret.mock.calls[0][0];
+    expect(context).toContain(CALLER.displayName);
+    expect(context).toContain(OID);
+    expect(question).toBe('which of my direct reports are there?');
     expect(history).toEqual([]);
   });
 
@@ -484,9 +484,9 @@ describe('following one answer up with another question', () => {
 
   it('tells the model what the previous answer was about', async () => {
     const follow = await askTwice();
-    const asked = follow.interpret.mock.calls[0][0].question;
-    expect(asked).toContain('2');
-    expect(asked).toContain(PREVIOUS_SENTINEL);
+    const offered = follow.interpret.mock.calls[0][0].context;
+    expect(offered).toContain('2');
+    expect(offered).toContain(PREVIOUS_SENTINEL);
   });
 
   it('runs the follow-up against the records the caller was just shown', async () => {
@@ -497,7 +497,7 @@ describe('following one answer up with another question', () => {
   it('says nothing about a previous answer on the first question of a chat', async () => {
     const d = deps();
     await answerMessage(msg(), d);
-    expect(d.interpret.mock.calls[0][0].question).not.toContain(PREVIOUS_SENTINEL);
+    expect(d.interpret.mock.calls[0][0].context ?? '').not.toContain(PREVIOUS_SENTINEL);
   });
 
   it('leaves a question that did not refer back completely alone', async () => {
@@ -516,7 +516,7 @@ describe('following one answer up with another question', () => {
     const d = deps({ runSpec: vi.fn(async () => OWNED) });
     await answerMessage(msg(), d);
     await answerMessage(msg(), d);
-    expect(d.interpret.mock.calls[1][0].question).toContain(PREVIOUS_SENTINEL);
+    expect(d.interpret.mock.calls[1][0].context).toContain(PREVIOUS_SENTINEL);
   });
 
   it('carries nothing forward from an answer that matched nothing', async () => {
@@ -524,14 +524,14 @@ describe('following one answer up with another question', () => {
     const d = deps({ runSpec: vi.fn(async () => runResult({ rows: [] })) });
     await answerMessage(msg(), d);
     await answerMessage(msg(), d);
-    expect(d.interpret.mock.calls[1][0].question).not.toContain(PREVIOUS_SENTINEL);
+    expect(d.interpret.mock.calls[1][0].context ?? '').not.toContain(PREVIOUS_SENTINEL);
   });
 
   it('keeps the answer from one chat out of another chat', async () => {
     const d = deps({ runSpec: vi.fn(async () => OWNED) });
     await answerMessage(msg({ conversationId: 'conv-a' }), d);
     await answerMessage(msg({ conversationId: 'conv-b' }), d);
-    expect(d.interpret.mock.calls[1][0].question).not.toContain(PREVIOUS_SENTINEL);
+    expect(d.interpret.mock.calls[1][0].context ?? '').not.toContain(PREVIOUS_SENTINEL);
   });
 
   it('narrows to the previous answer even when the model does not ask it to', async () => {
@@ -599,5 +599,65 @@ describe('following one answer up with another question', () => {
     const ran = follow.runSpec.mock.calls[0][0];
     expect(ran.conditions[0].value).toEqual(['g1', 'g2']);
     expect(ran.conditions[1].conditions[0].value).toBe(OID);
+  });
+});
+
+describe('what the pipeline is told the caller asked', () => {
+  // The bot knows things the model needs — who is asking, what the previous
+  // answer listed. None of it is part of the QUESTION, and that distinction is
+  // not cosmetic.
+  //
+  // While the context was glued in front of the question, the pipeline's
+  // name-matching read the caller's own name out of it and treated it as a
+  // name the caller had typed. "Van welke groepen ben ik owner?" came back as
+  // Name contains "Wim" OR Name contains "Heijkant" — a directory-wide report
+  // about everyone with a similar name, offered as the answer to a question
+  // about the caller's own groups.
+
+  it('hands the caller over as context, and the question untouched', async () => {
+    const d = deps();
+    await answerMessage(msg({ text: 'van welke groepen ben ik owner?' }), d);
+
+    const call = d.interpret.mock.calls[0][0];
+    expect(call.question).toBe('van welke groepen ben ik owner?');
+    expect(call.context).toContain('Wim van den Heijkant');
+  });
+
+  it('keeps every part of the caller identity out of the question', async () => {
+    // The regression this exists for. Any fragment of the caller's name
+    // reaching the question is enough to be matched against the directory.
+    const d = deps();
+    await answerMessage(msg({ text: 'van welke groepen ben ik owner?' }), d);
+
+    const { question } = d.interpret.mock.calls[0][0];
+    for (const part of ['Wim', 'Heijkant', CALLER.email, OID]) {
+      expect(question, `"${part}" leaked into the question`).not.toContain(part);
+    }
+  });
+
+  it('repeats no context once a clarification is under way', async () => {
+    // The first turn's context is already in the history a clarification
+    // carries, so handing it over again would state everything twice.
+    const clarifying = deps({
+      interpret: vi.fn(async () => ({ kind: 'clarify', question: 'Which Finance?', options: [], raw: '{}' })),
+    });
+    await answerMessage(msg(), clarifying);
+
+    const answering = deps();
+    await answerMessage(msg({ text: 'the second one' }), answering);
+    expect(answering.interpret.mock.calls[0][0].context).toBe('');
+  });
+
+  it('still carries the caller into the remembered history', async () => {
+    // Not repeating it only works because the history already holds it.
+    const clarifying = deps({
+      interpret: vi.fn(async () => ({ kind: 'clarify', question: 'Which Finance?', options: [], raw: '{}' })),
+    });
+    await answerMessage(msg(), clarifying);
+
+    const answering = deps();
+    await answerMessage(msg({ text: 'the second one' }), answering);
+    const { history } = answering.interpret.mock.calls[0][0];
+    expect(JSON.stringify(history)).toContain('Wim van den Heijkant');
   });
 });

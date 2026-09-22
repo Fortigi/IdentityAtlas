@@ -82,8 +82,8 @@ function parseReply(content) {
  * The conversation sent to the model: system prompt, earlier turns, then the
  * question with the deployment's values in front of it (when there are any).
  */
-function buildMessages(question, history, values, located = []) {
-  const context = [buildValuesBlock(values), termHint(located)].filter(Boolean).join('\n\n');
+function buildMessages(question, history, values, located = [], callerContext = '') {
+  const context = [callerContext, buildValuesBlock(values), termHint(located)].filter(Boolean).join('\n\n');
   return [
     { role: 'system', content: buildSystemPrompt() },
     ...history,
@@ -228,7 +228,15 @@ function answerClarify(ctx, turn) {
  * @param {{role:'user'|'assistant', content:string}[]} [args.history]  earlier turns
  * @param {string} [args.model]
  */
-export async function interpret({ question, history = [], model = DEFAULT_MODEL }) {
+/**
+ * @param {object} args
+ * @param {string} args.question  what the caller actually typed, and nothing else
+ * @param {string} [args.context] facts about THIS caller, prepended for the model
+ *                                but kept out of `question` — see below
+ * @param {object[]} [args.history]
+ * @param {string} [args.model]
+ */
+export async function interpret({ question, context = '', history = [], model = DEFAULT_MODEL }) {
   // Put the processed system prompt back in the server before asking, in case it
   // restarted since the last question. A hit costs ~0.1 s and saves ~3 minutes; a
   // miss is no worse than asking cold, and leaves the cache saved for next time.
@@ -236,9 +244,20 @@ export async function interpret({ question, history = [], model = DEFAULT_MODEL 
   await ensureWarm().promise.catch(() => {});
   const values = await loadValues();
   const schema = schemaFor(history);
+  // Terms are looked for in the CALLER'S OWN WORDS, never in the context block
+  // around them. The Teams bot prepends who is asking — "The person asking this
+  // question is Wim van den Heijkant" — and while that was part of `question`,
+  // every caller's own name was found as a term in the data. The repair round
+  // then told the model it had not used "Wim", and a definition anchored to the
+  // caller's account id came back as `Name contains "Wim" OR Name contains
+  // "Heijkant"`: a directory-wide report about everyone with a similar name,
+  // presented as the answer to "which groups do I own".
   const terms = findTerms(question, values);
   const located = terms.length ? await locateTerms(terms, query, values) : [];
-  const ctx = { question, model, values, located, messages: buildMessages(question, history, values, located) };
+  const ctx = {
+    question, model, values, located,
+    messages: buildMessages(question, history, values, located, context),
+  };
 
   const first = await chat({ model, messages: ctx.messages, schema });
   const turn = { raw: first.content, reply: parseReply(first.content), timing: first.timing, repaired: false };

@@ -195,14 +195,26 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
   // question refers back (followUp.previousContextBlock says when not to).
   const carried = recallAnswer(message.conversationId);
   const history = waiting?.kind === 'clarify' ? waiting.history : [];
-  const context = [callerContextBlock(caller), previousContextBlock(carried)].filter(Boolean).join('\n\n');
-  const contextual = history.length ? question : `${context}\n\nRequest: ${question}`;
-  const reply = await ask({ question: contextual, history });
+  // Handed over BESIDE the question, never glued in front of it. While this was
+  // part of the question text, the pipeline's name-matching read the caller's
+  // own name out of it and "which groups do I own" came back as a report about
+  // everyone called Wim. A clarification round already carries the context in
+  // its history, so it is not repeated.
+  const context = history.length
+    ? ''
+    : [callerContextBlock(caller), previousContextBlock(carried)].filter(Boolean).join('\n\n');
+  const reply = await ask({ question, context, history });
 
   if (reply.kind === 'clarify') {
     setPending(message.conversationId, {
       kind: 'clarify',
-      history: [...history, { role: 'user', content: contextual }, { role: 'assistant', content: reply.raw }],
+      // The context goes into the remembered history, so the next turn still
+      // knows who is asking without it being handed over again.
+      history: [
+        ...history,
+        { role: 'user', content: context ? `${context}\n\nRequest: ${question}` : question },
+        { role: 'assistant', content: reply.raw },
+      ],
     });
     return { kind: 'clarify', question: reply.question, options: reply.options, timing: reply.timing };
   }
