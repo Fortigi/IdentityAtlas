@@ -42,6 +42,21 @@ import { forLog } from '../nlreports/assistantHttp.js';
 const messagesRouter = Router();
 const botAnswersRouter = Router();
 
+/**
+ * An invoke's value, safe to log: the shape and the reason, never a token.
+ *
+ * `signin/tokenExchange` carries the caller's access token in `value.token`,
+ * and a container log is exactly where that must not end up.
+ */
+export function redact(value) {
+  if (value == null || typeof value !== 'object') return String(value);
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    out[k] = /token|secret|password/i.test(k) ? `[redacted ${String(v ?? '').length} chars]` : v;
+  }
+  return forLog(JSON.stringify(out), 500);
+}
+
 // Built once, lazily: constructing the adapter reads the bot's credentials, and
 // an install that never switches the flag on should never need them to exist.
 let adapter = null;
@@ -65,10 +80,16 @@ export function botAdapter() {
     // opposite fixes. This is the only place that difference is visible.
     adapter.use({
       onTurn: async (context, next) => {
-        const { type, name } = context.activity;
-        console.log(`teams-bot: inbound ${type}${name ? ` name=${name}` : ''}`);
+        const { type, name, value } = context.activity;
+        const label = `${type}${name ? ` name=${name}` : ''}`;
+        // A signin/* invoke carries WHY in its value — `signin/failure` is
+        // Teams saying the sign-in it attempted did not work, and the payload
+        // says what it objected to. Without it the bot knows only that
+        // something failed. Tokens are redacted: signin/tokenExchange carries
+        // the caller's access token, which must not reach a container log.
+        console.log(`teams-bot: inbound ${label}${name?.startsWith('signin/') ? ` value=${redact(value)}` : ''}`);
         await next();
-        console.log(`teams-bot: inbound ${type}${name ? ` name=${name}` : ''} — middleware chain completed`);
+        console.log(`teams-bot: inbound ${label} — middleware chain completed`);
       },
     });
 
