@@ -82,13 +82,26 @@ export class IdentityAtlasBot extends TeamsActivityHandler {
     // the whole question when a sign-in never shows up. Typing indicators are
     // skipped: they are sent every few seconds and would bury everything else.
     context.onSendActivities(async (ctx, activities, next) => {
-      const responses = await next();
-      activities.forEach((a, i) => {
-        if (a.type === 'typing') return;
-        const kind = a.attachments?.[0]?.contentType ?? a.type;
-        console.log(`teams-bot: send ${kind} -> channel id=${responses?.[i]?.id ?? 'none'}`);
-      });
-      return responses;
+      const interesting = activities.filter(a => a.type !== 'typing');
+      try {
+        const responses = await next();
+        for (const a of interesting) {
+          const kind = a.attachments?.[0]?.contentType ?? a.type;
+          console.log(
+            `teams-bot: send ${kind} replyTo=${a.replyToId ?? '-'} `
+            + `-> ${JSON.stringify(responses) ?? 'undefined'}`,
+          );
+        }
+        return responses;
+      } catch (err) {
+        // An error thrown here is normally swallowed into the turn's failure
+        // and reported as a generic "something went wrong", losing which
+        // activity caused it and what the channel said.
+        for (const a of interesting) {
+          console.error(`teams-bot: send FAILED ${a.attachments?.[0]?.contentType ?? a.type}: ${err.message}`);
+        }
+        throw err;
+      }
     });
 
     // Keep the chat alive while the dialog works. The dialog posts its own

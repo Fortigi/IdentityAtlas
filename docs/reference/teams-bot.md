@@ -128,7 +128,10 @@ The app package is in [`setup/teams-bot/`](https://github.com/Fortigi/IdentityAt
 
 1. Replace every `REPLACE-WITH-…` placeholder in `manifest.json`:
    `REPLACE-WITH-BOT-ENTRA-APP-ID` (three places) and
-   `REPLACE-WITH-YOUR-IDENTITY-ATLAS-HOST` (two places).
+   `REPLACE-WITH-YOUR-IDENTITY-ATLAS-HOST` (two places). Leave
+   `token.botframework.com` in `validDomains` — without it Teams renders the
+   sign-in card and then fails it with *"Something went wrong. Please try
+   again."*, because it may not open the sign-in the card points at.
 2. Zip the three files **at the root of the zip**, not inside a folder.
 3. **Bump `version` for every re-upload.** Teams refuses an update that carries a
    version it has already seen — *"This update needs a new app version number"* —
