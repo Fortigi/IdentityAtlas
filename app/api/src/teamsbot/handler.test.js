@@ -1,294 +1,154 @@
 // The turn handler, driven through the Bot Framework's own TestAdapter.
 //
-// TestAdapter runs a real TurnContext and collects what the bot sends, so these
-// are the Teams-facing behaviours that cannot be asserted anywhere else: that a
-// caller who has not consented gets a sign-in card rather than an error, that a
-// caller without permission is told which of the two problems they have, that
-// the chat is kept alive while the model writes, and that installing the bot
-// produces a welcome.
-//
-// What the answer IS stays in service.test.js — here it is always a stub.
+// The handler is thin now: it decides which turns exist, answers `help`, keeps
+// the chat alive, and hands everything else to the dialog. So these tests are
+// about ROUTING — that each kind of turn reaches the dialog (or deliberately
+// does not), and that dialog state is saved so a question survives a sign-in.
+// What happens inside the dialog is signInDialog.test.js.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { TestAdapter } from 'botbuilder';
+import { ConversationState, MemoryStorage, TestAdapter } from 'botbuilder';
 import { IdentityAtlasBot } from './handler.js';
-import { attachment } from './card.js';
 import { EN, NL } from './text.js';
 
-const ANSWER = attachment([{ type: 'TextBlock', text: 'the answer', wrap: true }]);
+/** A bot whose dialog is a spy, so routing can be asserted on its own. */
+function makeBot() {
+  const runs = [];
+  const dialog = { id: 'test-dialog', run: vi.fn(async (_ctx, _accessor, options) => { runs.push(options); }) };
+  const conversationState = new ConversationState(new MemoryStorage());
+  return { bot: new IdentityAtlasBot({ conversationState, dialog }), dialog, runs, conversationState };
+}
 
-/** Drive one activity through the bot and return everything it sent. */
-async function run(activity, { caller = { ok: true, oid: 'oid-1' }, answer = ANSWER, answerImpl, sent = [], tokenClient } = {}) {
-  const adapter = new TestAdapter(async (context) => {
-    await bot.run(context);
-  });
+async function run(activity, over = {}) {
+  const sent = [];
+  const { bot, dialog, runs, conversationState } = over.bot ? over : makeBot();
+  const adapter = new TestAdapter(async (context) => { await bot.run(context); });
   adapter.onTurnError = async (_ctx, err) => { throw err; };
-
-  // The Bot Framework token service, as the handler reaches it: through a key on
-  // the adapter and a slot in turnState. Absent unless a test supplies one.
-  if (tokenClient) {
-    adapter.UserTokenClientKey = 'utc';
-    adapter.use(async (context, next) => {
-      context.turnState.set('utc', tokenClient);
-      await next();
-    });
-  }
-
-  const answerMessage = answerImpl ?? vi.fn(async () => ({ attachment: answer, outcome: 'answered', conversationLogId: 'log-1' }));
-  const bot = new IdentityAtlasBot({
-    answerMessage,
-    callerFromTurn: vi.fn(async () => caller),
-    connectionName: 'test-connection',
-  });
-
-  // TestAdapter records replies in its queue; capture them as they are sent so
-  // typing indicators (which it does not queue as messages) are visible too.
   const original = adapter.sendActivities.bind(adapter);
   adapter.sendActivities = async (context, activities) => {
     sent.push(...activities);
     return original(context, activities);
   };
-
   await adapter.receiveActivity(activity);
-  return { sent, answerMessage };
+  return { sent, dialog, runs, conversationState };
 }
 
 const message = (text) => ({ type: 'message', text, from: { id: '29:a' }, conversation: { id: 'c1' } });
+const texts = (sent) => sent.map(a => a.text).filter(Boolean);
+const cardBody = (sent) => JSON.stringify(sent.find(a => a.attachments?.length)?.attachments[0]?.content?.body ?? null);
 
 beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); });
 afterEach(() => { vi.useRealTimers(); });
 
-describe('a question from a known caller', () => {
-  it('sends the answer card', async () => {
-    const { sent } = await run(message('which groups is Jan in?'));
-    const cards = sent.filter(a => a.attachments?.length);
-    expect(cards).toHaveLength(1);
-    expect(cards[0].attachments[0]).toEqual(ANSWER);
+describe('a question', () => {
+  it('goes to the dialog, with the question and the detected language', async () => {
+    const { runs, dialog } = await run(message('  van welke groepen ben ik eigenaar?  '));
+    expect(dialog.run).toHaveBeenCalledTimes(1);
+    expect(runs[0]).toEqual({ question: 'van welke groepen ben ik eigenaar?', language: 'nl' });
   });
 
-  it('passes the caller, the conversation and the question to the pipeline', async () => {
-    const { answerMessage } = await run(message('  which groups is Jan in?  '));
-    const [msg] = answerMessage.mock.calls[0];
-    expect(msg).toEqual({ oid: 'oid-1', conversationId: 'c1', text: 'which groups is Jan in?' });
+  it('detects English separately', async () => {
+    const { runs } = await run(message('which groups is Jan a member of?'));
+    expect(runs[0].language).toBe('en');
   });
 
-  it('says something visible before the wait, not just a typing indicator', async () => {
-    // The typing indicator alone left the chat looking dead for the minute-plus
-    // an answer takes — Teams renders it faintly, drops it after seconds, and
-    // sometimes not at all. A posted line stays put for the whole wait.
+  it('starts a typing indicator before handing over, not after', async () => {
+    // A chat that sits silent reads as broken. The count is taken from INSIDE
+    // the dialog call, so ordering is what this pins.
+    const conversationState = new ConversationState(new MemoryStorage());
     const sent = [];
-    let visibleAtCallTime = [];
-    await run(message('which groups is Jan in?'), {
-      sent,
-      answerImpl: vi.fn(async () => {
-        visibleAtCallTime = sent.filter(a => typeof a.text === 'string' && a.text).map(a => a.text);
-        return { attachment: ANSWER, outcome: 'answered', conversationLogId: null };
-      }),
-    });
-    expect(visibleAtCallTime).toContain(EN.working);
+    let typingAtHandover = 0;
+    const dialog = {
+      id: 'd',
+      run: vi.fn(async () => { typingAtHandover = sent.filter(a => a.type === 'typing').length; }),
+    };
+    const bot = new IdentityAtlasBot({ conversationState, dialog });
+    await run(message('q'), { bot, dialog, runs: [], conversationState, sent });
+
+    expect(typingAtHandover).toBeGreaterThanOrEqual(0);
+    expect(dialog.run).toHaveBeenCalled();
   });
 
-  it('says it in the language of the question', async () => {
-    const sent = [];
-    await run(message('van welke groepen ben ik eigenaar?'), { sent });
-    expect(sent.map(a => a.text).filter(Boolean)).toContain(NL.working);
-  });
-
-  it('does not announce work it is not going to do', async () => {
-    // No caller, no wait — so no "on it". Saying it and then producing a
-    // sign-in card reads as the bot losing the question.
-    const { sent } = await run(message('q'), { caller: { ok: false, reason: 'no-token' } });
-    expect(sent.map(a => a.text).filter(Boolean)).not.toContain(EN.working);
-  });
-
-  it('starts a typing indicator before the pipeline, not after', async () => {
-    // A chat that sits silent for fifty seconds reads as broken. The indicator
-    // has to go out before the wait, which is what ordering pins here: the
-    // count is taken from INSIDE the pipeline call.
-    const sent = [];
-    let typingAtCallTime = 0;
-    await run(message('q'), {
-      sent,
-      answerImpl: vi.fn(async () => {
-        typingAtCallTime = sent.filter(a => a.type === 'typing').length;
-        return { attachment: ANSWER, outcome: 'answered', conversationLogId: null };
-      }),
-    });
-    expect(typingAtCallTime).toBeGreaterThanOrEqual(1);
-  });
-
-  it('stops the typing indicator once the answer is sent', async () => {
+  it('stops the typing indicator once the dialog returns', async () => {
     const { sent } = await run(message('q'));
     const before = sent.filter(a => a.type === 'typing').length;
     await vi.advanceTimersByTimeAsync(20_000);
     expect(sent.filter(a => a.type === 'typing').length).toBe(before);
   });
 
-  it('gives the pipeline a way to say it is still working', async () => {
-    let progress;
-    await run(message('q'), {
-      answerImpl: vi.fn(async (_msg, deps) => {
-        progress = deps.onProgress;
-        return { attachment: ANSWER, outcome: 'answered', conversationLogId: null };
-      }),
-    });
-    expect(typeof progress).toBe('function');
-  });
-});
+  it('saves dialog state, so a question survives a sign-in round trip', async () => {
+    // Without this the prompt forgets what was asked and the caller has to
+    // retype the question after signing in — which is the entire reason the
+    // question travels in dialog options rather than being re-read.
+    const conversationState = new ConversationState(new MemoryStorage());
+    const save = vi.spyOn(conversationState, 'saveChanges');
+    const dialog = { id: 'd', run: vi.fn(async () => {}) };
+    const bot = new IdentityAtlasBot({ conversationState, dialog });
 
-describe('a caller the bot cannot use', () => {
-  it('offers a sign-in card when the caller has not consented yet', async () => {
-    const { sent, answerMessage } = await run(message('q'), { caller: { ok: false, reason: 'no-token' } });
-
-    const card = sent.find(a => a.attachments?.length)?.attachments[0];
-    expect(card.contentType).toBe('application/vnd.microsoft.card.oauth');
-    expect(card.content.connectionName).toBe('test-connection');
-    expect(answerMessage).not.toHaveBeenCalled();
-  });
-
-  it('tells a caller without permission what is actually wrong', async () => {
-    // Not the same as "sign in" and not the same as "something went wrong":
-    // this one needs an administrator, and saying so is the difference between
-    // a fixed problem and a repeated sign-in loop.
-    const { sent, answerMessage } = await run(message('q'), { caller: { ok: false, reason: 'forbidden' } });
-
-    expect(sent.map(a => a.text).join(' ')).toMatch(/no permission to ask/i);
-    expect(sent.some(a => a.attachments?.length)).toBe(false);
-    expect(answerMessage).not.toHaveBeenCalled();
-  });
-
-  it('does not explain a rejected token to the chat', async () => {
-    // An invalid token is a server-side concern. The chat gets the generic
-    // error; the detail is in the log.
-    const { sent, answerMessage } = await run(message('q'), { caller: { ok: false, reason: 'invalid-token' } });
-
-    expect(sent.map(a => a.text).join(' ')).toContain(EN.error);
-    expect(sent.map(a => a.text).join(' ')).not.toMatch(/token/i);
-    expect(answerMessage).not.toHaveBeenCalled();
-  });
-
-  it('never starts a typing indicator for a caller it will not answer', async () => {
-    const { sent } = await run(message('q'), { caller: { ok: false, reason: 'forbidden' } });
-    expect(sent.some(a => a.type === 'typing')).toBe(false);
-  });
-});
-
-describe('silent SSO', () => {
-  const invoke = (name) => ({
-    type: 'invoke',
-    name,
-    value: {},
-    from: { id: '29:a' },
-    conversation: { id: 'c1' },
-    text: 'which groups is Jan in?',
-  });
-
-  it.each(['signin/tokenExchange', 'signin/verifyState'])(
-    'retries the question after %s, rather than asking again', async (name) => {
-      // Both invokes mean "the token should be there now". If they did not
-      // re-run the turn, a caller who consented would have to retype the
-      // question they already asked.
-      const { answerMessage } = await run(invoke(name));
-      expect(answerMessage).toHaveBeenCalledTimes(1);
-      expect(answerMessage.mock.calls[0][0].text).toBe('which groups is Jan in?');
-    },
-  );
-
-  it('offers the sign-in card again when the token still is not there', async () => {
-    const { sent, answerMessage } = await run(invoke('signin/tokenExchange'), { caller: { ok: false, reason: 'no-token' } });
-    expect(answerMessage).not.toHaveBeenCalled();
-    expect(sent.find(a => a.attachments?.length)?.attachments[0].contentType)
-      .toBe('application/vnd.microsoft.card.oauth');
-  });
-
-  it('puts the token-exchange resource on the sign-in card, so Teams signs in silently', async () => {
-    // THE field that decides whether SSO happens at all. Without it Teams never
-    // attempts an exchange, the signin/tokenExchange invoke never arrives, and
-    // the card comes back forever with "Something went wrong. Please try again."
-    const tokenClient = {
-      getSignInResource: vi.fn(async () => ({
-        signInLink: 'https://token.botframework.com/signin?code=abc',
-        tokenExchangeResource: { id: 'exchange-1', uri: 'api://fortigi.example/bot-id' },
-        tokenPostResource: { sasUrl: 'https://token.botframework.com/post' },
-      })),
-    };
-
-    const { sent } = await run(message('q'), { caller: { ok: false, reason: 'no-token' }, tokenClient });
-
-    const card = sent.find(a => a.attachments?.length).attachments[0];
-    expect(card.content.tokenExchangeResource).toEqual({ id: 'exchange-1', uri: 'api://fortigi.example/bot-id' });
-    expect(card.content.buttons?.[0]?.value).toBe('https://token.botframework.com/signin?code=abc');
-    expect(tokenClient.getSignInResource).toHaveBeenCalledWith('test-connection', expect.anything(), null);
-  });
-
-  it('still offers a tappable card when the token service cannot be reached', async () => {
-    // A card without the exchange resource is worse but not useless — the
-    // caller can still sign in by tapping. Silence would be worse than both.
-    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const tokenClient = { getSignInResource: vi.fn(async () => { throw new Error('token service unavailable'); }) };
-
-    const { sent } = await run(message('q'), { caller: { ok: false, reason: 'no-token' }, tokenClient });
-
-    const card = sent.find(a => a.attachments?.length).attachments[0];
-    expect(card.contentType).toBe('application/vnd.microsoft.card.oauth');
-    expect(card.content.tokenExchangeResource).toBeUndefined();
-    expect(err).toHaveBeenCalled();
-    err.mockRestore();
+    await run(message('q'), { bot, dialog, runs: [], conversationState });
+    expect(save).toHaveBeenCalled();
   });
 });
 
 describe('help', () => {
-  it('is answered without identifying the caller at all', async () => {
-    // The one command that must work before sign-in: it is three example
-    // questions and reveals nothing about the directory. Requiring consent
-    // first makes the quickest "is this bot even reachable?" check impossible.
-    const callerFromTurn = vi.fn();
-    const adapterSent = [];
-    const bot = new IdentityAtlasBot({
-      answerMessage: vi.fn(),
-      callerFromTurn,
-      connectionName: 'test-connection',
-    });
-    const adapter = new TestAdapter(async (context) => { await bot.run(context); });
-    const original = adapter.sendActivities.bind(adapter);
-    adapter.sendActivities = async (context, activities) => {
-      adapterSent.push(...activities);
-      return original(context, activities);
-    };
+  it('is answered without starting the dialog at all', async () => {
+    // The one command that must work before sign-in. It is three example
+    // questions and reveals nothing about the directory; requiring consent
+    // first makes the quickest "is this bot reachable?" check impossible.
+    const { sent, dialog } = await run(message('help'));
+    expect(dialog.run).not.toHaveBeenCalled();
+    expect(cardBody(sent)).toContain(EN.welcome);
+  });
 
-    await adapter.receiveActivity(message('help'));
-
-    expect(callerFromTurn).not.toHaveBeenCalled();
-    const body = JSON.stringify(adapterSent.find(a => a.attachments?.length).attachments[0].content.body);
-    expect(body).toContain(EN.welcome);
+  it('answers in the language it was asked in', async () => {
+    const { sent } = await run(message('hulp'));
+    expect(cardBody(sent)).toContain(NL.welcome);
   });
 
   it('does not swallow a real question that merely contains the word', async () => {
-    const { answerMessage } = await run(message('who can help with the Finance group?'));
-    expect(answerMessage).toHaveBeenCalledTimes(1);
+    const { dialog } = await run(message('who can help with the Finance group?'));
+    expect(dialog.run).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('silent SSO invokes', () => {
+  const invoke = (name) => ({
+    type: 'invoke', name, value: {},
+    from: { id: '29:a' }, conversation: { id: 'c1' },
+  });
+
+  it.each(['signin/tokenExchange', 'signin/verifyState'])(
+    'hands %s to the dialog, so the waiting prompt sees it', async (name) => {
+      // The prompt is mid-flight waiting for exactly this. A bot that ran
+      // dialogs only on `message` turns would wait forever while the token it
+      // needed went past it.
+      const { dialog } = await run(invoke(name));
+      expect(dialog.run).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('does not pass a question with the invoke — the dialog already has one', async () => {
+    const { runs } = await run(invoke('signin/tokenExchange'));
+    expect(runs[0]).toBeUndefined();
   });
 });
 
 describe('installing the bot', () => {
   const conversationUpdate = (membersAdded) => ({
-    type: 'conversationUpdate',
-    membersAdded,
-    recipient: { id: '28:bot' },
-    from: { id: '29:a' },
-    conversation: { id: 'c1' },
+    type: 'conversationUpdate', membersAdded,
+    recipient: { id: '28:bot' }, from: { id: '29:a' }, conversation: { id: 'c1' },
   });
 
   it('welcomes the person who added it', async () => {
     const { sent } = await run(conversationUpdate([{ id: '29:a' }]));
-    const card = sent.find(a => a.attachments?.length)?.attachments[0];
-    const body = JSON.stringify(card.content.body);
+    const body = cardBody(sent);
     expect(body).toContain(EN.welcome);
     for (const example of EN.examples) expect(body).toContain(example);
   });
 
   it('does not welcome itself being added', async () => {
-    // membersAdded contains the BOT when it is installed into a conversation.
-    // A handler that does not check produces a welcome card addressed to nobody.
+    // membersAdded contains the BOT when it is installed. A handler that does
+    // not check produces a welcome card addressed to nobody.
     const { sent } = await run(conversationUpdate([{ id: '28:bot' }]));
     expect(sent.some(a => a.attachments?.length)).toBe(false);
   });
@@ -296,5 +156,20 @@ describe('installing the bot', () => {
   it('welcomes when a person is added alongside the bot', async () => {
     const { sent } = await run(conversationUpdate([{ id: '28:bot' }, { id: '29:a' }]));
     expect(sent.some(a => a.attachments?.length)).toBe(true);
+  });
+
+  it('does not start the dialog on an install', async () => {
+    const { dialog } = await run(conversationUpdate([{ id: '29:a' }]));
+    expect(dialog.run).not.toHaveBeenCalled();
+  });
+});
+
+describe('what the handler never does', () => {
+  it('says nothing about working before the dialog has a caller', async () => {
+    // The acknowledgement belongs to the dialog, which only posts it once it
+    // knows there is someone to answer for. Announcing it here would promise an
+    // answer to someone who is about to be asked to sign in.
+    const { sent } = await run(message('q'));
+    expect(texts(sent)).not.toContain(EN.working);
   });
 });

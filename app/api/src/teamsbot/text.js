@@ -23,6 +23,9 @@ const DUTCH_MARKERS = [
   'toegang', 'groep', 'groepen', 'gebruiker', 'gebruikers', 'lid', 'leden', 'rechten',
   'eigenaar', 'eigenaren', 'rol', 'rollen', 'niet', 'geen', 'alle', 'met', 'voor',
   'van', 'het', 'een', 'die', 'dat', 'ik', 'onze', 'zonder', 'medewerker', 'medewerkers',
+  // 'hulp' is both unambiguously Dutch and one of the words that summons the
+  // welcome card, so without it a Dutch speaker typing 'hulp' is welcomed in English.
+  'hulp',
 ];
 
 const WORD_RE = /[\p{L}]+/gu;

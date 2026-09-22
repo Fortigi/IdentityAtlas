@@ -27,6 +27,7 @@ export default defineConfig({
       'src/teamsbot/card.test.js',
       'src/teamsbot/log.test.js',
       'src/teamsbot/service.test.js',
+      'src/teamsbot/signInDialog.test.js',
       'src/teamsbot/state.test.js',
       'src/teamsbot/text.test.js',
     ],

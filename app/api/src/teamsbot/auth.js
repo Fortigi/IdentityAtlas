@@ -81,41 +81,31 @@ export function mayAsk(permissions) {
 }
 
 /**
- * Who is asking, from a Teams turn.
+ * Who is asking, from the access token OAuthPrompt obtained for them.
  *
- * @param {object} context  the Bot Framework TurnContext
+ * Obtaining the token is no longer this module's job. `OAuthPrompt`
+ * (teamsbot/signInDialog.js) owns the card, the sign-in link, the exchange and
+ * the retries as one unit — hand-rolling that half failed three separate ways,
+ * each silently. What is left here is the part that is genuinely ours: deciding
+ * whether the person behind a verified token may ask anything, and who they are.
+ *
+ * @param {string|null|undefined} token  the caller's access token, from OAuthPrompt
  * @param {object} [deps]
  * @returns {Promise<{ok: true, oid: string} | {ok: false, reason: 'no-token'|'invalid-token'|'forbidden'}>}
  */
-export async function callerFromTurn(context, deps = {}) {
-  const {
-    getUserToken = defaultGetUserToken,
-    verify = verifyAccessToken,
-    connectionName = CONNECTION_NAME,
-  } = deps;
+export async function callerFromToken(token, deps = {}) {
+  const { verify = verifyAccessToken } = deps;
 
-  const token = await withTokenTimeout(getUserToken(context, connectionName), 'getUserToken')
-    .catch((err) => {
-      // A timeout is worth saying out loud; "not signed in yet" is not. Both
-      // end in the same place — the caller is asked to sign in — but only one
-      // of them is something an operator needs to know about.
-      if (/did not answer within/.test(err?.message ?? '')) {
-        console.error(`teams-bot: ${err.message}`);
-      }
-      return null;
-    });
-  // No token means the caller has not consented to SSO yet. It is not an error
-  // and must not be logged as one — the caller is asked to sign in instead.
+  // No token means the sign-in did not complete. Not an error, and not logged as
+  // one — the prompt has already told the caller what to do about it.
   if (!token) return { ok: false, reason: 'no-token' };
 
   let verified;
   try {
-    // Timed for the same reason as getUserToken, and it is the likelier hang of
-    // the two: verifying an access token means fetching the tenant's signing
-    // keys (jwks-rsa, inside jsonwebtoken's key callback), and if that fetch
-    // never answers, jwt.verify's callback never fires and the promise never
-    // settles. `help` is the only path that does not come through here, which is
-    // exactly why `help` kept answering while every real question went quiet.
+    // Timed, because verifying means fetching the tenant's signing keys through
+    // jwks-rsa inside jsonwebtoken's key callback: if that fetch never answers,
+    // the callback never fires, the promise never settles, and the turn dies in
+    // silence with nothing logged anywhere.
     verified = await withTokenTimeout(verify(token), 'token verification');
   } catch (err) {
     console.error(`teams-bot: SSO token rejected: ${err.message}`);
@@ -130,13 +120,4 @@ export async function callerFromTurn(context, deps = {}) {
   if (typeof oid !== 'string' || !oid) return { ok: false, reason: 'invalid-token' };
 
   return { ok: true, oid };
-}
-
-/** Ask the Bot Framework token service for the caller's token for this connection. */
-async function defaultGetUserToken(context, connectionName) {
-  const client = context.turnState.get(context.adapter.UserTokenClientKey);
-  if (!client) return null;
-  const { channelId, from } = context.activity;
-  const response = await client.getUserToken(from.id, connectionName, channelId, undefined);
-  return response?.token ?? null;
 }

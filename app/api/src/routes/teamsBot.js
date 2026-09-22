@@ -20,9 +20,10 @@
 
 import { Router } from 'express';
 import {
-  CloudAdapter, ConfigurationBotFrameworkAuthentication,
+  CloudAdapter, ConfigurationBotFrameworkAuthentication, ConversationState,
   MemoryStorage, TeamsSSOTokenExchangeMiddleware,
 } from 'botbuilder';
+import { SignInAndAnswerDialog } from '../teamsbot/signInDialog.js';
 import { requirePermission } from '../middleware/auth.js';
 import { requireFeature } from '../featureFlags.js';
 import { IdentityAtlasBot } from '../teamsbot/handler.js';
@@ -81,7 +82,16 @@ export function botAdapter() {
 }
 
 function botInstance() {
-  if (!bot) bot = new IdentityAtlasBot();
+  if (!bot) {
+    // One storage for both jobs it has: the SSO middleware's exchange
+    // deduplication, and the conversation state that lets a question survive a
+    // sign-in round trip. Correct for a single container, which is what this POC
+    // is; more than one replica needs a shared store, for the same reason
+    // teamsbot/state.js does.
+    const storage = new MemoryStorage();
+    const conversationState = new ConversationState(storage);
+    bot = new IdentityAtlasBot({ conversationState, dialog: new SignInAndAnswerDialog() });
+  }
   return bot;
 }
 
