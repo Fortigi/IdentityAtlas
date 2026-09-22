@@ -661,3 +661,27 @@ describe('what the pipeline is told the caller asked', () => {
     expect(JSON.stringify(history)).toContain('Wim van den Heijkant');
   });
 });
+
+describe('the answer deadline', () => {
+  it('leaves room for two full model rounds on the hardware this runs on', () => {
+    // At ~2 tokens/second a question needing two 400-token definitions costs
+    // ~480 s. At 420 s an ordinary question timed out by 14% and was reported
+    // as a failure. If this ever drops back under 480 s, that returns.
+    expect(DEADLINE_MS).toBeGreaterThanOrEqual(480_000);
+  });
+
+  it('stays below the model client’s own HTTP timeout', () => {
+    // Past 900 s (NL_REPORTS_LLM_TIMEOUT_MS) the HTTP call gives up first and
+    // the caller gets a connection error instead of the bot's own "that took
+    // too long" card, which is the one reply that explains itself.
+    expect(DEADLINE_MS).toBeLessThan(900_000);
+  });
+
+  it('tells the caller how long it actually waited', () => {
+    // The card quotes the budget, so a deployment that tuned it does not
+    // advertise a number it no longer uses.
+    const seconds = String(Math.round(DEADLINE_MS / 1000));
+    expect(EN.timeoutHint(seconds)).toContain(seconds);
+    expect(NL.timeoutHint(seconds)).toContain(seconds);
+  });
+});

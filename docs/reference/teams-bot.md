@@ -210,7 +210,7 @@ Environment variables on the web container:
 | `TEAMS_BOT_APP_TYPE` | no | `SingleTenant` (the default) |
 | `TEAMS_BOT_CONNECTION_NAME` | no | The OAuth connection name from step 2.4. Default `identityatlas` |
 | `PUBLIC_BASE_URL` | no | e.g. `https://fortigi.identityatlas.io`. Without it, cards that cannot show the whole answer have no "Open the full report" link |
-| `TEAMS_BOT_DEADLINE_MS` | no | How long a caller waits before being told it failed. Default `420000` — see [Latency](#latency) |
+| `TEAMS_BOT_DEADLINE_MS` | no | How long a caller waits before being told it failed. Default `600000` — see [Latency](#latency). Must stay below `NL_REPORTS_LLM_TIMEOUT_MS` (900000) |
 | `TEAMS_BOT_LOG_RETENTION_DAYS` | no | How long conversations — and therefore deep links — survive. Default `90` |
 
 Then switch the feature on: **Admin → Experimental → Teams bot**, or ship
@@ -267,6 +267,26 @@ write operation (no approvals, revocations or certifications), channel and group
 
 ## Latency
 
+!!! info "The deadline is a token budget wearing a clock"
+    On a 2-vCPU host the model server generates about **2 tokens per second**
+    (llama.cpp, Qwen3-4B Q4, 2 threads). So the deadline really buys roughly
+    `seconds × 2` tokens of JSON across every round a question needs. Prompt
+    evaluation is seven times cheaper per token (~70 ms against ~500 ms), which is
+    why a longer *prompt* barely matters and a longer *answer* matters enormously.
+
+    Measured on one deployment:
+
+    | question | tokens written | time |
+    |---|---|---|
+    | "overview of my access packages" | 72 | 56 s |
+    | "changes to memberships for X" | 464 | 258 s |
+    | …and its repair round | 403 | 223 s |
+
+    Two full rounds is 481 s, which is why the budget is 600 s and not 420 s.
+    **More cores is the only lever that really moves this** — 2 tok/s is the
+    hardware, not the software, and the model server takes the whole machine
+    while it works, which starves the API and the database alongside it.
+
 Answers are slow, and the POC's job is to measure *how* slow rather than to be fast. Measured
 for this model on 2 vCPU ([Report Generator](report-generator.md)):
 
@@ -286,7 +306,7 @@ for this model on 2 vCPU ([Report Generator](report-generator.md)):
 So the bot greets the caller by name the moment the question arrives — the name comes from
 their own signed token, so it cannot disagree with the account the answer is about — then
 sends a typing indicator and keeps refreshing it until the answer lands. It gives up at
-**420 seconds** with a reply that says how long it waited. It never leaves a question
+**600 seconds** with a reply that says how long it waited. It never leaves a question
 unanswered, which is what makes a wait that long tolerable rather than alarming.
 
 There is deliberately **one** message before the answer, not two. An earlier version added a

@@ -40,19 +40,36 @@ import {
 /**
  * How long the caller waits before being told it failed.
  *
- * 420 s. The published measurements for this model on 2 vCPU are a median of
- * 49 s and a p90 of 107 s (docs/reference/report-generator.md) — but those are
- * for ONE model call, and that is the figure an earlier 180 s budget was set
- * from. A question whose first definition fails validation costs a REPAIR
- * ROUND, which is a second call of the same size: measured here at 99 s each,
- * so 200 s for a question that eventually answers correctly. A budget that cuts
- * those off reports the feature as broken when it is merely slow.
+ * THIS IS A TOKEN BUDGET WEARING A CLOCK. On the 2-vCPU host this was measured
+ * on, the model server generates about **2 tokens per second** (llama.cpp,
+ * Qwen3-4B Q4, LLAMA_ARG_THREADS=2), so what the number really buys is roughly
+ * `seconds × 2` tokens of JSON across every round the question needs. Prompt
+ * evaluation is seven times cheaper per token (~70 ms against ~500 ms), which
+ * is why a longer PROMPT barely matters here and a longer ANSWER matters
+ * enormously.
+ *
+ * Measured on this deployment, one definition at a time:
+ *
+ *   "overview of my access packages"     72 tokens    56 s   (one call)
+ *   "changes to memberships for X"      464 tokens   258 s
+ *      + its repair round               403 tokens   223 s   → 481 s total
+ *
+ * That second question is ordinary, and at 420 s it timed out by 14%. 600 s
+ * covers two full-length rounds with headroom and still refuses a question that
+ * has genuinely run away. The cost of raising it is honest and worth stating: a
+ * question that was going to fail now fails three minutes later.
+ *
+ * Bounded above by the model client's own HTTP timeout (900 s,
+ * NL_REPORTS_LLM_TIMEOUT_MS) — a deadline past that would be reported as a
+ * connection error instead of the bot's own "that took too long" card.
  *
  * Waiting this long is only tolerable because the chat never goes quiet: the
  * bot greets the caller by name the moment the question arrives, and Teams
- * holds a typing indicator up for the rest of it. Lower it on faster hardware.
+ * holds a typing indicator up for the rest of it (handler.js refreshes it).
+ * Lower it on faster hardware — more cores is the lever that actually moves
+ * this, since 2 tok/s is the hardware, not the software.
  */
-export const DEADLINE_MS = Number(process.env.TEAMS_BOT_DEADLINE_MS) || 420_000;
+export const DEADLINE_MS = Number(process.env.TEAMS_BOT_DEADLINE_MS) || 600_000;
 
 const HELP_WORDS = new Set(['help', '?', 'hulp', 'hi', 'hello', 'hallo', 'start']);
 
