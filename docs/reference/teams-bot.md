@@ -48,6 +48,31 @@ If a question says "my" but the generated report is **not** limited to the calle
 says so out loud. That is the one place a manager can catch a directory-wide answer dressed
 up as their own team.
 
+### Asking what changed
+
+> *"Zijn er recent leden aan deze groepen toegevoegd of verwijderd?"*
+> *"Zijn er wijzigingen geweest in de rechten van mijn medewerkers?"*
+
+Both are answerable. Every other thing the catalog describes is a statement about NOW — who is
+in a group, who owns what. A change is the one thing that has a date on it, so it is its own
+entity (`change`), reading the `AssignmentChanges` view.
+
+Two things are worth knowing before you trust an answer:
+
+- **It goes back as far as the audit trail does, not as far as the directory does.** The view
+  projects `_history`, which starts when history was switched on. A group that was created
+  before then looks like it has never changed.
+
+- **A removal is a stamp, not a deletion.** Removing a membership sets `deletedAt` and keeps
+  the row, so the audit trail records an UPDATE. The view is where that rule is written down,
+  which is why nothing reading it has to know. Anything reading `_history` directly and
+  looking for deletions sees only the hard ones — that was a real bug in the recent-changes
+  timelines, fixed alongside this.
+
+"My people" in a change question means the accounts whose manager is the caller. Note that this
+needs `managerId` to be populated by the crawler; where the directory has no manager chain,
+the honest answer is no rows.
+
 ### Following one answer up with another question
 
 > *"Van welke groepen ben ik owner?"* … *"en zijn die onderdeel van een access package?"*
@@ -235,11 +260,6 @@ mitigations for the POC are the **pilot group** (who can install the app at all)
 filter would slot in is marked in the code — `callerScopeFilter` in
 `app/api/src/teamsbot/caller.js` — and it is a function rather than a TODO comment so that
 adding it lands in the compiled SQL rather than in card rendering.
-
-**It cannot tell you what changed.** "Zijn er recent users toegevoegd of verwijderd?" is not
-answerable: Identity Atlas records changes (the `_history` table behind the recent-changes
-timeline), but the report catalog has no concept of a change, so the generator cannot express
-the question. Adding one is catalog work, not bot work.
 
 Also out of scope for v1: proactive messages (the bot never starts a conversation), any
 write operation (no approvals, revocations or certifications), channel and group chats

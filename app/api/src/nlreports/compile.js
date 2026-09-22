@@ -192,8 +192,12 @@ export function compileSpec(spec) {
 
   // A comparison report lists the closest matches first.
   let order;
-  if (spec.sort) {
-    order = `${fieldExpr(entity.fields[spec.sort.field], root, ctx)} ${spec.sort.direction === 'desc' ? 'DESC' : 'ASC'} NULLS LAST, ${root}."id"`;
+  // An entity may declare the order its rows are only useful in. `change` does:
+  // a list of events sorted by name tells you nothing, and the newest change is
+  // the entire point of asking. The request's own sort still wins.
+  const sort = spec.sort ?? entity.defaultSort;
+  if (sort) {
+    order = `${fieldExpr(entity.fields[sort.field], root, ctx)} ${sort.direction === 'desc' ? 'DESC' : 'ASC'} NULLS LAST, ${root}."id"`;
   } else {
     const similarity = ctx.firstCompare
       ? `${compareColumnSql(spec.entity, ctx.firstCompare, 'similarity', root, ctx)} DESC NULLS LAST, `

@@ -247,3 +247,70 @@ describe('explainSpec', () => {
     expect(explainSpec({ entity: 'resource', conditions: [] }).title).toBe('All resources');
   });
 });
+
+describe('the change entity', () => {
+  // Every other entity answers "what is true now". This one answers "what
+  // became true, and when" — the question the catalog could not express at all.
+  const values = { changeAction: ['Added', 'Removed'], assignmentType: ['Direct', 'Indirect', 'Eligible'] };
+  const compileChange = (raw) => {
+    const { ok, spec, errors } = validateSpec(raw, values);
+    if (!ok) throw new Error(errors.join('; '));
+    return { spec, ...compileSpec(spec) };
+  };
+
+  it('reads the view, not the audit table', () => {
+    // The "a removal is an UPDATE that stamps deletedAt" rule lives in the
+    // view (migration 070) so there is one place it can be got wrong.
+    const { text } = compileChange({ entity: 'change', conditions: [] });
+    expect(text).toContain('FROM "AssignmentChanges"');
+    expect(text).not.toContain('_history');
+  });
+
+  it('puts the newest change first, without being asked', () => {
+    // Alphabetical order on a list of events is useless — the newest one is
+    // the entire point of asking what changed.
+    const { text } = compileChange({ entity: 'change', conditions: [] });
+    expect(text).toMatch(/ORDER BY \w+\."changedAt" DESC/);
+  });
+
+  it('still lets the request choose its own order', () => {
+    const { text } = compileChange({
+      entity: 'change', conditions: [], sort: { field: 'changedAt', direction: 'asc' },
+    });
+    expect(text).toMatch(/ORDER BY \w+\."changedAt" ASC/);
+  });
+
+  it('leaves every other entity ordered by name', () => {
+    // defaultSort is opt-in per entity; nothing else declares one.
+    const { text } = compile({ entity: 'group', conditions: [] });
+    expect(text).toMatch(/ORDER BY \w+\."displayName" ASC/);
+  });
+
+  it('compiles "changes in the last 30 days for my people"', () => {
+    // The manager is reached in ONE hop on purpose: a relation condition
+    // cannot nest another relation, so change → account → manager is not
+    // expressible and the view carries managerId as a column.
+    const { text, params } = compileChange({
+      entity: 'change',
+      conditions: [
+        { type: 'field', field: 'changedAt', op: 'withinLastDays', value: 30 },
+        { type: 'relation', relation: 'manager', quantifier: 'some',
+          conditions: [{ field: 'id', op: 'eq', value: 'me-id' }] },
+      ],
+      columns: ['changedAt', 'action', 'account.displayName', 'resource.displayName'],
+    });
+    expect(text).toContain('make_interval');
+    expect(text).toMatch(/EXISTS \(SELECT 1 FROM "Principals" \w+ WHERE \w+\."id" = \w+\."managerId"/);
+    expect(params).toContain('me-id');
+  });
+
+  it('knows Added and Removed without asking the data for them', () => {
+    // Read from the view's own CASE, not from a DISTINCT over the rows: a
+    // deployment that has had no removals yet would otherwise leave "Removed"
+    // an unknown value, and a question about removals would be rejected.
+    const { spec } = compileChange({
+      entity: 'change', conditions: [{ field: 'action', op: 'eq', value: 'removed' }],
+    });
+    expect(spec.conditions[0].value).toBe('Removed');
+  });
+});

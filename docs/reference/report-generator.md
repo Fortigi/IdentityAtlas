@@ -11,6 +11,12 @@
     still built by hand — see [Custom Reports](../ui/custom-reports.md). The feature as a whole is off
     until an operator enables it under **Admin → Experimental**.
 
+!!! note "These figures predate the `change` entity"
+    The accuracy and latency numbers below were measured against a system prompt without the
+    `change` entity, which added ~1600 characters to it. The prompt is cached on the model
+    server and re-read at API startup, so the first question after an upgrade is no slower
+    for a caller — but the measurements have not been repeated since.
+
 ## Why this exists
 
 Every customer asks the same kind of question about their own environment: *guest accounts without a

@@ -306,3 +306,47 @@ describe('narrowing a definition to the previous answer', () => {
     expect(out.conditions[0].type).toBe('group');
   });
 });
+
+describe('narrowing a report that is not about the carried kind', () => {
+  // "Zijn er recent leden aan deze groepen toegevoegd?" is about CHANGES, and
+  // a change is not a group. Putting the group ids on the report's own id
+  // field would match nothing; leaving them off reports on every change in the
+  // directory. They belong on the relation that reaches a group.
+  const carried = { kind: 'resource', records: [group('g1'), group('g2')] };
+  const CHANGES = {
+    entity: 'change', match: 'all',
+    conditions: [{ type: 'field', field: 'changedAt', op: 'withinLastDays', value: 30 }],
+    columns: ['changedAt', 'action'],
+  };
+
+  it('puts the ids on the relation that reaches the carried records', () => {
+    const out = narrowToPrevious(CHANGES, carried, 'zijn er recent leden aan deze groepen toegevoegd?');
+    expect(out.conditions).toHaveLength(2);
+    expect(out.conditions[1]).toEqual({
+      type: 'relation', relation: 'resource', quantifier: 'some', match: 'all',
+      conditions: [{ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] }],
+    });
+  });
+
+  it('keeps what the model asked for', () => {
+    const out = narrowToPrevious(CHANGES, carried, 'zijn er recent leden aan deze groepen toegevoegd?');
+    expect(out.conditions[0]).toEqual(CHANGES.conditions[0]);
+  });
+
+  it('narrows to the accounts when accounts were carried', () => {
+    // Same entity, different carried kind: the account relation this time.
+    const out = narrowToPrevious(CHANGES, { kind: 'user', records: [{ id: 'u1' }] },
+      'zijn er wijzigingen voor deze accounts?');
+    expect(out.conditions[1].relation).toBe('account');
+  });
+
+  it('does not narrow twice when it is already limited through a relation', () => {
+    const already = narrowToPrevious(CHANGES, carried, 'zijn er recent leden aan deze groepen toegevoegd?');
+    expect(narrowToPrevious(already, carried, 'zijn er recent leden aan deze groepen toegevoegd?')).toEqual(already);
+  });
+
+  it('leaves a report alone when nothing on it can reach the carried kind', () => {
+    const identities = { entity: 'identity', match: 'all', conditions: [], columns: ['displayName'] };
+    expect(narrowToPrevious(identities, carried, 'welke van deze groepen')).toEqual(identities);
+  });
+});

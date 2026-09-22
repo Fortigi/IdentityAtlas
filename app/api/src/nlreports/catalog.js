@@ -355,6 +355,98 @@ const BASE = {
   },
 };
 
+// ── What changed, and when ───────────────────────────────────────────────
+//
+// Every other entity here answers "what is true now". This one answers "what
+// became true, and when" — the question a manager actually asks, and the one
+// the catalog could not express at all: "zijn er recent leden aan deze groepen
+// toegevoegd of verwijderd?"
+//
+// It reads the `AssignmentChanges` view (migration 070), which projects the
+// audit trail into rows with a date and an action. The awkward part lives in
+// the view rather than here: a REMOVED membership is recorded as an UPDATE that
+// stamps `deletedAt`, not as a delete, because ResourceAssignments is a
+// soft-delete table. Anything reading `_history` directly and looking for
+// deletions finds only the hard ones, which stopped the day soft delete
+// shipped.
+//
+// `managerId` is a column rather than a second hop for a reason a report
+// author would not guess: a condition may nest a relation ONE level deep
+// (spec.js), so "changes to the access of the people who report to me" cannot
+// be walked as change → account → manager. It has to be reachable in one step.
+const CHANGE = {
+  label: 'Change',
+  table: 'AssignmentChanges',
+  // No detail page exists for a change — it is an event, not a record. Null
+  // keeps the bot from offering a link to one, and from carrying changes
+  // forward as the subject of a follow-up question.
+  detailKind: null,
+  // Alphabetical order on a list of events is useless; the newest change is
+  // the point. Nothing else in the catalog needs a default, so this is the
+  // only entity that sets one.
+  defaultSort: { field: 'changedAt', direction: 'desc' },
+  description:
+    'A membership or access grant that was ADDED or REMOVED, and when. Use this entity — and ONLY this entity — '
+    + 'for questions about what CHANGED, what is NEW, what was REMOVED, or what happened "recently" / "lately" / '
+    + '"in the last N days". Every other entity describes what is true now and cannot answer those. '
+    + 'Covers group membership, access packages, app roles and directory roles alike.',
+  defaultColumns: ['changedAt', 'action', 'account.displayName', 'resource.displayName'],
+  // Which relation a follow-up question means by "these groups" / "these
+  // accounts". Declared rather than inferred: both `account` and `manager`
+  // point at accounts, so a rule that picked the first relation with a
+  // matching target would depend on the order they happen to be written in.
+  narrowVia: { resource: 'resource', user: 'account' },
+  where: () => 'TRUE',
+  fields: {
+    id: { label: 'ID', type: 'text', sql: idText, description: 'unique change id' },
+    displayName: {
+      label: 'Change', type: 'text', sql: col('displayName'),
+      description: 'who and what, as one line ("Jan de Vries — Finance")',
+    },
+    changedAt: {
+      label: 'Changed', type: 'date', sql: col('changedAt'),
+      description: 'when the change happened. "recently" / "recent" / "de laatste tijd" is this field, within the last 30 days unless the request says otherwise',
+    },
+    action: {
+      label: 'Action', type: 'enum', sql: col('action'), valuesFrom: 'changeAction',
+      description: '"Added" (granted, or granted back) or "Removed" (revoked)',
+    },
+    assignmentType: {
+      label: 'Assignment type', type: 'enum', sql: col('assignmentType'), valuesFrom: 'assignmentType',
+      description: 'Direct, Indirect (through a group) or Eligible (can activate it)',
+    },
+  },
+  relations: {
+    account: {
+      label: 'Account', target: 'account', cardinality: 'one',
+      some: 'has an account', none: 'has no account',
+      description: 'the account this change was about — who gained or lost the access',
+      from: (outer, inner) => ({
+        from: `"Principals" ${inner}`,
+        where: `${inner}."id" = ${outer}."principalId"`,
+      }),
+    },
+    resource: {
+      label: 'Resource', target: 'resource', cardinality: 'one',
+      some: 'is about a resource', none: 'is about no resource',
+      description: 'the group, application or role the access was on',
+      from: (outer, inner) => ({
+        from: `"Resources" ${inner}`,
+        where: `${inner}."id" = ${outer}."resourceId"`,
+      }),
+    },
+    manager: {
+      label: 'Manager', target: 'account', cardinality: 'one',
+      some: 'the account has a manager', none: 'the account has no manager',
+      description: 'the manager of the account this change was about. "changes for my people / my team / mijn medewerkers" is this relation',
+      from: (outer, inner) => ({
+        from: `"Principals" ${inner}`,
+        where: `${inner}."id" = ${outer}."managerId"`,
+      }),
+    },
+  },
+};
+
 // Analysts think in "users" and "groups", and small models reliably forget the
 // "principalType = User" / "resourceType = Group" filter when those are only a
 // field. So they are entities of their own: the base entity with the type
@@ -384,6 +476,7 @@ export const ENTITIES = {
   identity: BASE.identity,
   account: BASE.account,
   resource: BASE.resource,
+  change: CHANGE,
 };
 
 // Words analysts use interchangeably. Rendered into the prompt, so the model maps
@@ -400,11 +493,19 @@ export const GLOSSARY = [
   { terms: ['guest', 'external user', 'B2B user', 'gast', 'externe gebruiker'], means: 'userType Guest' },
   { terms: ['disabled', 'inactive', 'blocked', 'uitgeschakeld'], means: 'accountEnabled false' },
   { terms: ['owner', 'eigenaar'], means: 'the owners / owns relation — never membership' },
+  { terms: ['change', 'changed', 'changes', 'added', 'removed', 'new', 'recent', 'recently', 'lately', 'wijziging', 'wijzigingen', 'veranderd', 'toegevoegd', 'verwijderd', 'nieuw'], means: 'the change entity — what was added or removed over time. Every other entity only describes the present.' },
+  { terms: ['my people', 'my team', 'my staff', 'my employees', 'mijn medewerkers', 'mijn team', 'mijn mensen'], means: 'the accounts whose manager is the person asking' },
 ];
 
 // Distinct-value lookups for enum fields — metadata only (a handful of type
 // names), used to ground the prompt and to normalise model output.
 export const VALUE_QUERIES = {
+  // Not read from the view: the two values are defined by the view's own CASE,
+  // so asking the data would return whichever of them happen to have occurred
+  // — and a deployment with no removals yet would leave "Removed" unknown, so
+  // a question about removals would be rejected as an unknown value.
+  changeAction: `SELECT unnest(ARRAY['Added', 'Removed']) v`,
+  assignmentType: `SELECT unnest(ARRAY['Direct', 'Indirect', 'Eligible']) v`,
   principalType: `SELECT DISTINCT "principalType" v FROM "Principals" WHERE "deletedAt" IS NULL AND "principalType" IS NOT NULL`,
   userType: `SELECT DISTINCT "extendedAttributes"->>'userType' v FROM "Principals" WHERE "extendedAttributes"->>'userType' IS NOT NULL`,
   externalUserState: `SELECT DISTINCT "extendedAttributes"->>'externalUserState' v FROM "Principals" WHERE "extendedAttributes"->>'externalUserState' IS NOT NULL`,

@@ -192,9 +192,47 @@ export function refersToPrevious(question, kind) {
 const entityKind = (entity) => (has(ENTITIES, entity) ? ENTITIES[entity].detailKind : null);
 const has = (obj, key) => Object.hasOwn(obj, key);
 
-/** Is the definition already limited to a set of ids? */
-const alreadyNarrowed = (spec) => (spec.conditions ?? [])
-  .some(c => c.type === 'field' && c.field === 'id' && c.op === 'in');
+/** Is the definition already limited to a set of ids, directly or through a relation? */
+const alreadyNarrowed = (spec) => (spec.conditions ?? []).some(c => isIdList(c)
+  || (c.type === 'relation' && (c.conditions ?? []).some(isIdList)));
+
+const isIdList = (c) => c.field === 'id' && c.op === 'in';
+
+/**
+ * The condition that limits a report to the carried records.
+ *
+ * Two shapes, because a follow-up does not always ask about the same KIND of
+ * thing as the answer before it:
+ *
+ *   - "welke van deze groepen zitten in access packages?" is about the groups
+ *     themselves, so their ids go straight onto the report's own id field.
+ *   - "zijn er recent leden aan deze groepen toegevoegd?" is about CHANGES,
+ *     and a change is not a group. The ids belong on the relation that reaches
+ *     one — `change.resource` — or the question narrows nothing and quietly
+ *     reports on every change in the directory.
+ *
+ * Returns null when the entity has no way to reach the carried kind, which is
+ * the right answer for a question that merely happens to contain the word.
+ */
+function limitFor(entity, carried) {
+  const ids = carried.records.map(r => r.id);
+  if (entityKind(entity) === carried.kind) return { type: 'field', field: 'id', op: 'in', value: ids };
+
+  // Which relation carries the reference is DECLARED by the entity
+  // (`narrowVia`), never inferred by looking for one whose target matches.
+  // Several relations usually reach the same kind — a change has both
+  // `account` and `manager` pointing at accounts, an account has both `owns`
+  // and `memberOf` pointing at resources — so picking the first match would
+  // make the meaning of "these groups" depend on declaration order, and turn
+  // "who is in these groups" into "who owns them" without anyone noticing.
+  const via = has(ENTITIES, entity) ? ENTITIES[entity].narrowVia : null;
+  const relation = via && has(via, carried.kind) ? via[carried.kind] : null;
+  if (!relation) return null;
+  return {
+    type: 'relation', relation, quantifier: 'some', match: 'all',
+    conditions: [{ type: 'field', field: 'id', op: 'in', value: ids }],
+  };
+}
 
 /**
  * Limit a definition to the records the previous answer produced.
@@ -206,11 +244,11 @@ const alreadyNarrowed = (spec) => (spec.conditions ?? [])
  */
 export function narrowToPrevious(spec, carried, question) {
   if (!carried?.records?.length || !spec) return spec;
-  if (entityKind(spec.entity) !== carried.kind) return spec;
   if (!refersToPrevious(question, carried.kind)) return spec;
   if (alreadyNarrowed(spec)) return spec;
 
-  const limit = { type: 'field', field: 'id', op: 'in', value: carried.records.map(r => r.id) };
+  const limit = limitFor(spec.entity, carried);
+  if (!limit) return spec;
   const existing = spec.conditions ?? [];
 
   // ANDed with what the model wrote — but conditions joined by OR have to be
