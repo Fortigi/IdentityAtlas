@@ -276,3 +276,44 @@ describe('explainSpec — what a grouped report returns', () => {
 
   });
 });
+
+describe('compileSpec — the business roles an account has', () => {
+  // "Add the business role column" was the first thing asked of a user report that
+  // the catalog could not express: business roles were reachable only from a
+  // resource (which package contains this group?), never from the account that
+  // holds one, so every answer came back as "there is no such field".
+  const withBusinessRoles = () => compile({
+    entity: 'user',
+    conditions: [{ relation: 'businessRoles', quantifier: 'some', conditions: [{ field: 'displayName', op: 'contains', value: 'Finance' }] }],
+    columns: ['displayName', 'businessRoles.names'],
+  });
+
+  const namesColumn = (text) => {
+    const upToAlias = text.slice(0, text.indexOf('AS "businessRoles.names"'));
+    return upToAlias.slice(upToAlias.lastIndexOf('(SELECT string_agg'));
+  };
+
+  it('reads the assignments of the account, restricted to BusinessRole resources', () => {
+    const column = namesColumn(withBusinessRoles().text);
+    expect(column).toContain('"ResourceAssignments"');
+    expect(column).toMatch(/"principalId" = t0\."id"/);
+    expect(column).toContain(`"resourceType" = 'BusinessRole'`);
+    // Eligible means "could activate it", not "is in it" — as for group membership.
+    expect(column).toContain(`"assignmentType" IN ('Direct','Indirect')`);
+  });
+
+  it('never reaches a business role through a group that package contains', () => {
+    // From a resource, businessRoles walks ResourceRelationships upward (Contains).
+    // From an account it must not: being in a group some access package happens to
+    // contain is not being assigned that access package.
+    const { text } = withBusinessRoles();
+    expect(text).not.toContain('ResourceRelationships');
+    expect(text).not.toContain(`'Contains'`);
+  });
+
+  it('is narrower than access, which still holds every kind of resource', () => {
+    const { text } = compile({ entity: 'user', columns: ['displayName', 'access.names', 'businessRoles.names'] });
+    expect(text.match(/"resourceType" = 'BusinessRole'/g)).toHaveLength(1);
+    expect(text).toContain(`"resourceType" NOT IN ('GroupOwnership','ApplicationOwnership','ServicePrincipalOwnership')`);
+  });
+});

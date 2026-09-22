@@ -165,11 +165,25 @@ const BASE = {
           };
         },
       },
+      businessRoles: {
+        label: 'Business roles', target: 'resource', cardinality: 'many',
+        compareNoun: 'business roles',
+        some: 'is in a business role', none: 'is not in any business role',
+        description: 'business roles / access packages assigned to this account. Use this for "which business roles does X have" and as the businessRoles.names column',
+        from: (outer, inner, u) => {
+          const ra = u();
+          return {
+            from: `"ResourceAssignments" ${ra} JOIN "Resources" ${inner} ON ${inner}."id" = ${ra}."resourceId"`,
+            where: `${ra}."principalId" = ${outer}."id" AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}
+              AND ${inner}."resourceType" = 'BusinessRole' AND ${ra}."assignmentType" IN ${HELD}`,
+          };
+        },
+      },
       access: {
         label: 'Has access to', target: 'resource', cardinality: 'many',
         compareNoun: 'access',
         some: 'has access to a resource', none: 'has no access to any resource',
-        description: 'any resource the account holds: directory roles, groups, app roles, permissions, business roles, Azure roles. Use this for "has the X role"',
+        description: 'any resource the account holds: directory roles, groups, app roles, permissions, business roles, Azure roles. Use this for "has the X role"; for business roles only, use businessRoles',
         from: (outer, inner, u) => {
           const ra = u();
           return {
@@ -415,7 +429,7 @@ export function staticExtKeys(entityName) {
 export const GLOSSARY = [
   { terms: ['person', 'people', 'identity', 'human', 'persoon', 'personen', 'medewerker'], means: 'the identity entity (a real person). For what a person is member of, has access to or owns, use the user entity.' },
   { terms: ['account', 'user', 'user account', 'principal', 'login', 'gebruiker', 'gebruikersaccount'], means: 'the user entity; the account entity when non-human accounts (service principals, managed identities, AI agents) are included' },
-  { terms: ['business role', 'access package', 'role package', 'bedrijfsrol', 'toegangspakket'], means: 'a resource with resourceType BusinessRole; "part of / in business role X" is the businessRoles relation' },
+  { terms: ['business role', 'access package', 'role package', 'bedrijfsrol', 'toegangspakket'], means: 'a resource with resourceType BusinessRole; the business roles an account or a group is in are the businessRoles relation — as a condition ("in business role X") and as the businessRoles.names column' },
   { terms: ['group', 'security group', 'Microsoft 365 group', 'team', 'groep'], means: 'the group entity' },
   { terms: ['directory role', 'admin role', 'Entra role', 'administrator role', 'beheerrol'], means: 'a resource with resourceType EntraDirectoryRole' },
   { terms: ['application', 'enterprise application', 'app', 'applicatie'], means: 'a resource with resourceType Application' },
