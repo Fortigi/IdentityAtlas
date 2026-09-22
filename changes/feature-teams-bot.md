@@ -6,3 +6,4 @@
 - Added an "Ask questions in plain language" permission, so a pilot manager can use the bot without also being able to create and delete the saved reports every analyst sees.
 - Every question is recorded — who asked, what they asked, what the bot made of it, how many rows came back and how long each step took — without storing the answer's rows. Conversations are kept for 90 days by default.
 - The bot is off by default and switched on under Admin → Experimental. While it is off it is not reachable at all.
+- The bot greets you by name as soon as it takes your question, then keeps a typing indicator up until the answer arrives, instead of posting a second "still working on it" message part way through.

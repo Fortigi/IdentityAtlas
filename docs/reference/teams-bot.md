@@ -139,7 +139,6 @@ Environment variables on the web container:
 | `TEAMS_BOT_CONNECTION_NAME` | no | The OAuth connection name from step 2.4. Default `identityatlas` |
 | `PUBLIC_BASE_URL` | no | e.g. `https://fortigi.identityatlas.io`. Without it, cards that cannot show the whole answer have no "Open the full report" link |
 | `TEAMS_BOT_DEADLINE_MS` | no | How long a caller waits before being told it failed. Default `420000` — see [Latency](#latency) |
-| `TEAMS_BOT_PROGRESS_MS` | no | When to send the "still going" nudge. Default `45000` — the bot already posts a visible acknowledgement the moment it accepts a question |
 | `TEAMS_BOT_LOG_RETENTION_DAYS` | no | How long conversations — and therefore deep links — survive. Default `90` |
 
 Then switch the feature on: **Admin → Experimental → Teams bot**, or ship
@@ -212,10 +211,15 @@ for this model on 2 vCPU ([Report Generator](report-generator.md)):
     answers correctly**. An earlier 180 s budget was set from the single-call p90 and cut
     exactly those off, reporting a slow success as a failure.
 
-So the bot acknowledges the question immediately with a visible line, sends a typing
-indicator and refreshes it, says "still going" at 45 seconds, and gives up at **420 seconds**
-with a reply that says how long it waited. It never leaves a question unanswered — which is
-what makes a wait that long tolerable rather than alarming.
+So the bot greets the caller by name the moment the question arrives — the name comes from
+their own signed token, so it cannot disagree with the account the answer is about — then
+sends a typing indicator and keeps refreshing it until the answer lands. It gives up at
+**420 seconds** with a reply that says how long it waited. It never leaves a question
+unanswered, which is what makes a wait that long tolerable rather than alarming.
+
+There is deliberately **one** message before the answer, not two. An earlier version added a
+"still going" nudge on a 45 s timer; in a chat that reads as the bot repeating itself, and
+the typing indicator already says the same thing without costing a message.
 
 !!! warning "One question at a time, for everyone"
     The model server has a **single slot**. Two managers asking at once are served one after

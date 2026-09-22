@@ -12,7 +12,7 @@ vi.mock('../nlreports/service.js', async (importOriginal) => ({
   warmupState: vi.fn(() => 'ready'),
 }));
 
-import { answerMessage, withDeadline, matchChoice, toAppliedChoice, isHelp, defaultReportLink, TIMED_OUT, DEADLINE_MS, PROGRESS_AFTER_MS } from './service.js';
+import { answerMessage, withDeadline, matchChoice, toAppliedChoice, isHelp, defaultReportLink, TIMED_OUT, DEADLINE_MS } from './service.js';
 import { clearPending } from './state.js';
 import { EN, NL } from './text.js';
 import { CALLER_SENTINEL } from '../nlreports/spec.js';
@@ -335,42 +335,6 @@ describe('answerMessage — when it goes wrong', () => {
       expect(out.outcome).toBe('timeout');
       expect(text(out.attachment)).toContain(String(Math.round(DEADLINE_MS / 1000)));
       expect(d.log.mock.calls[0][0].outcome).toBe('timeout');
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('tells the caller it is still working before the deadline, once', async () => {
-    vi.useFakeTimers();
-    try {
-      const onProgress = vi.fn(async () => {});
-      const d = deps({ interpret: vi.fn(() => new Promise(() => {})), onProgress });
-      const promise = answerMessage(msg(), d);
-
-      await vi.advanceTimersByTimeAsync(PROGRESS_AFTER_MS - 1);
-      expect(onProgress).not.toHaveBeenCalled();
-
-      await vi.advanceTimersByTimeAsync(1);
-      expect(onProgress).toHaveBeenCalledTimes(1);
-      expect(onProgress).toHaveBeenCalledWith(EN.stillWorking);
-
-      await vi.advanceTimersByTimeAsync(DEADLINE_MS);
-      await promise;
-      expect(onProgress).toHaveBeenCalledTimes(1);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('does not send the interim message when the answer arrives first', async () => {
-    vi.useFakeTimers();
-    try {
-      const onProgress = vi.fn(async () => {});
-      const out = await answerMessage(msg(), deps({ onProgress }));
-      await vi.advanceTimersByTimeAsync(PROGRESS_AFTER_MS + 1);
-
-      expect(out.outcome).toBe('answered');
-      expect(onProgress).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }

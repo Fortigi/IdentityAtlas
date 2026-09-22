@@ -69,7 +69,34 @@ describe('withTokenTimeout', () => {
 
 describe('callerFromToken', () => {
   it('returns the oid from the VERIFIED token', async () => {
-    await expect(callerFromToken(TOKEN, { verify: verifies() })).resolves.toEqual({ ok: true, oid: OID });
+    await expect(callerFromToken(TOKEN, { verify: verifies() }))
+      .resolves.toEqual({ ok: true, oid: OID, firstName: null });
+  });
+
+  it('takes the greeting name from the token, first word only', async () => {
+    // The bot opens with "Hi Wim" — from the signed token, never from a
+    // database lookup, so the name can never disagree with the account the
+    // answer is actually about. Only the first word: "Hi Wim van den Heijkant"
+    // reads like a mail merge.
+    const verify = verifies({ decoded: { oid: OID, name: 'Wim van den Heijkant' } });
+    await expect(callerFromToken(TOKEN, { verify })).resolves.toMatchObject({ firstName: 'Wim' });
+  });
+
+  it('prefers the given name over splitting the display name', async () => {
+    // A display name is not reliably "first last" — "Heijkant, Wim van den" is
+    // the shape a tenant with a surname-first naming policy produces, and
+    // splitting it greets somebody as "Heijkant,".
+    const verify = verifies({ decoded: { oid: OID, given_name: 'Wim', name: 'Heijkant, Wim van den' } });
+    await expect(callerFromToken(TOKEN, { verify })).resolves.toMatchObject({ firstName: 'Wim' });
+  });
+
+  it('has no name rather than a blank one when the token carries neither', async () => {
+    // null, not '' — the greeting branches on it to leave the name out, and an
+    // empty string would send "Hi , got your message".
+    for (const decoded of [{ oid: OID }, { oid: OID, name: '   ' }, { oid: OID, name: '' }]) {
+      await expect(callerFromToken(TOKEN, { verify: verifies({ decoded }) }))
+        .resolves.toMatchObject({ firstName: null });
+    }
   });
 
   it.each([[null, 'null'], [undefined, 'undefined'], ['', 'empty string']])(

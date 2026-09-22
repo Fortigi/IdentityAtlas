@@ -16,7 +16,16 @@ import BotAnswerPage from '@ui/components/reports/BotAnswerPage';
 
 const ANSWER = {
   question: 'which of my direct reports have access to Finance?',
-  explanation: 'Users whose manager is Wim van den Heijkant and who have access to Finance',
+  // explainSpec returns { title, lines: [{ depth, text }] }, not a string.
+  // Rendering it as one is invalid in React and printed "[object Object]" on
+  // the Teams card — the fixture matches the real shape so that cannot recur.
+  explanation: {
+    title: 'Users where',
+    lines: [
+      { depth: 0, text: 'manager is Wim van den Heijkant' },
+      { depth: 1, text: 'has access to Finance' },
+    ],
+  },
   form: 'list',
   columns: [{ key: 'displayName', label: 'Name' }, { key: 'email', label: 'Email' }],
   rows: [
@@ -48,7 +57,12 @@ describe('BotAnswerPage', () => {
   it('shows the question that was asked and what the bot understood', async () => {
     renderAnswer();
     expect(await screen.findByText(/which of my direct reports have access to Finance\?/)).toBeInTheDocument();
-    expect(screen.getByText(/Users whose manager is Wim van den Heijkant/)).toBeInTheDocument();
+    // The title sits beside a label span, so it is split across text nodes.
+    expect(screen.getByText(
+      (t, el) => el?.tagName === 'P' && /Understood as:\s*Users where/.test(el.textContent),
+    )).toBeInTheDocument();
+    expect(screen.getByText(/manager is Wim van den Heijkant/)).toBeInTheDocument();
+    expect(screen.getByText(/has access to Finance/)).toBeInTheDocument();
   });
 
   it('shows every row and column, not the card\'s ten and four', async () => {

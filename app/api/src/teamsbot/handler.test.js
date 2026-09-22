@@ -217,6 +217,6 @@ describe('what the handler never does', () => {
     // knows there is someone to answer for. Announcing it here would promise an
     // answer to someone who is about to be asked to sign in.
     const { sent } = await run(message('q'));
-    expect(texts(sent)).not.toContain(EN.working);
+    expect(texts(sent).join(' ')).not.toMatch(/building a report/i);
   });
 });

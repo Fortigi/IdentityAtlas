@@ -46,14 +46,49 @@ const text = (value, opts = {}) => ({ type: 'TextBlock', text: String(value ?? '
  * A cell as the chat should read it. `runSpec` has already turned booleans into
  * Yes/No and dates into ISO days; what is left is null (which must not render as
  * the string "null") and numbers.
+ *
+ * With a `link`, the cell becomes a markdown link — Teams renders those in an
+ * Adaptive Card TextBlock, which is what makes a row clickable through to the
+ * record in Identity Atlas.
  */
-export function formatValue(value) {
+export function formatValue(value, link) {
   if (value === null || value === undefined || value === '') return '—';
-  return String(value);
+  const text = String(value);
+  return link ? `[${escapeMarkdown(text)}](${link})` : text;
+}
+
+// A name containing [ or ] would otherwise end the link early and leave the
+// rest of the name as loose text — "Orange - MCL [Tjongerschans]" is exactly
+// the shape of name this data has.
+const escapeMarkdown = (s) => s.replace(/([[\]])/g, '\\$1');
+
+/**
+ * The interpretation, as Adaptive Card blocks.
+ *
+ * `explainSpec` returns `{ title, lines: [{ depth, text }] }`, NOT a string —
+ * rendering it as one produced a card that said "Understood as [object Object]",
+ * which silently removed the one line on the card that lets a reader catch a
+ * wrong answer. Indentation carries the nesting the same way the web builder
+ * shows it, so the two read alike.
+ */
+function explanationBlocks(t, explanation, notes) {
+  const head = [text(t.understoodAs, { weight: 'Bolder', size: 'Small', isSubtle: true })];
+  if (typeof explanation === 'string') {
+    head.push(text(explanation));
+  } else if (explanation && typeof explanation === 'object') {
+    head.push(text(explanation.title, { weight: 'Bolder' }));
+    for (const line of explanation.lines ?? []) {
+      // Indented with NON-BREAKING spaces: Adaptive Cards collapse ordinary runs
+      // of spaces, so plain indentation vanishes and every nested condition reads
+      // as though it were top level — the opposite of what the nesting means.
+      head.push(text(`${' '.repeat((line.depth ?? 0) * 4)}• ${line.text}`, { size: 'Small', spacing: 'None' }));
+    }
+  }
+  return [...head, ...notes.filter(Boolean).map(n => text(n, { size: 'Small', isSubtle: true }))];
 }
 
 /** One header row plus one row per record, as a ColumnSet grid. */
-function rowGrid(columns, rows) {
+function rowGrid(columns, rows, entityUrl) {
   const cell = (items) => ({ type: 'Column', width: 'stretch', items });
   const header = {
     type: 'ColumnSet',
@@ -63,17 +98,15 @@ function rowGrid(columns, rows) {
   const body = rows.map(row => ({
     type: 'ColumnSet',
     separator: true,
-    columns: columns.map(c => cell([text(formatValue(row[c.key]), { size: 'Small' })])),
+    // Only the FIRST column links. It is the record's name by convention, and a
+    // row where every cell is a link to the same place is noise, not navigation.
+    // An aggregate row — one record listing many names — carries no `_entity`,
+    // so there is nothing to link to and nothing is asked for.
+    columns: columns.map((c, i) => cell([
+      text(formatValue(row[c.key], i === 0 && row._entity ? entityUrl?.(row._entity) : null), { size: 'Small' }),
+    ])),
   }));
   return [header, ...body];
-}
-
-function interpretation(t, explanation, notes) {
-  return [
-    text(t.understoodAs, { weight: 'Bolder', size: 'Small', isSubtle: true }),
-    text(explanation),
-    ...notes.filter(Boolean).map(n => text(n, { size: 'Small', isSubtle: true })),
-  ];
 }
 
 const linkActions = (t, link) => (link ? [{ type: 'Action.OpenUrl', title: t.openReport, url: link }] : []);
@@ -90,12 +123,12 @@ const linkActions = (t, link) => (link ? [{ type: 'Action.OpenUrl', title: t.ope
  * @param {boolean} [args.truncated]  the query itself hit its row cap
  * @param {string} [args.language]
  */
-export function answerCard({ explanation, columns, rows, link, notes = [], truncated = false, language = 'en' }) {
+export function answerCard({ explanation, columns, rows, link, notes = [], truncated = false, language = 'en', entityUrl = null }) {
   const t = strings(language);
   const shownColumns = columns.slice(0, MAX_COLUMNS);
   const hiddenColumns = columns.length - shownColumns.length;
   const shownRows = rows.slice(0, MAX_ROWS);
-  const body = interpretation(t, explanation, notes);
+  const body = explanationBlocks(t, explanation, notes);
 
   // A zero-row answer is a real answer, and the most common way a report is
   // subtly wrong. Keeping the interpretation above it is the whole value of
@@ -105,7 +138,7 @@ export function answerCard({ explanation, columns, rows, link, notes = [], trunc
     return attachment(body, linkActions(t, link));
   }
 
-  body.push(...rowGrid(shownColumns, shownRows));
+  body.push(...rowGrid(shownColumns, shownRows, entityUrl));
 
   const remarks = [
     rows.length > shownRows.length ? t.showing(shownRows.length, rows.length) : t.records(rows.length),

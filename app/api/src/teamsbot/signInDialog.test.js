@@ -36,7 +36,7 @@ function stepContext({ token = 'a.b.c', question = 'which groups is Jan in?', la
 function makeDialog(over = {}) {
   return new SignInAndAnswerDialog({
     connectionName: 'test-connection',
-    callerFromToken: vi.fn(async () => ({ ok: true, oid: OID })),
+    callerFromToken: vi.fn(async () => ({ ok: true, oid: OID, firstName: 'Wim' })),
     answerMessage: vi.fn(async () => ({ attachment: ANSWER, outcome: 'answered', conversationLogId: 'log-1' })),
     ...over,
   });
@@ -69,12 +69,27 @@ describe('answering once signed in', () => {
     expect(callerFromToken).toHaveBeenCalledWith('the.access.token');
   });
 
-  it('says something visible before the wait, in the caller\'s language', async () => {
+  it('greets the caller by name before the wait, in their language', async () => {
     const dialog = makeDialog();
     const { step, sent } = stepContext({ language: 'nl' });
 
     await dialog.answerTheQuestion(step);
-    expect(texts(sent)).toContain(NL.working);
+    expect(texts(sent)).toContain(NL.working('Wim'));
+    // Asserted by name as well as by template: a greeting that silently loses
+    // the name still matches NL.working(undefined), and "Hoi , ik heb je
+    // bericht ontvangen" is exactly the failure worth catching.
+    expect(texts(sent)[0]).toContain('Hoi Wim');
+  });
+
+  it('greets without a name when the token carried none', async () => {
+    // Rather than addressing somebody as "undefined".
+    const callerFromToken = vi.fn(async () => ({ ok: true, oid: OID, firstName: null }));
+    const { step, sent } = stepContext();
+
+    await makeDialog({ callerFromToken }).answerTheQuestion(step);
+
+    expect(texts(sent)).toContain(EN.working(null));
+    expect(texts(sent)[0]).not.toMatch(/null|undefined/);
   });
 
   it('sends the answer card and closes the dialog', async () => {
@@ -87,14 +102,16 @@ describe('answering once signed in', () => {
     expect(step.endDialog).toHaveBeenCalled();
   });
 
-  it('gives the pipeline a way to report progress', async () => {
-    let progress;
-    const answerMessage = vi.fn(async (_m, deps) => {
-      progress = deps.onProgress;
-      return { attachment: ANSWER, outcome: 'answered', conversationLogId: null };
-    });
-    await makeDialog({ answerMessage }).answerTheQuestion(stepContext().step);
-    expect(typeof progress).toBe('function');
+  it('greets exactly once — the typing indicator covers the rest of the wait', async () => {
+    // There used to be a second "still going" message on a timer. Two messages
+    // for one question reads as the bot repeating itself, not as reassurance,
+    // and the typing indicator Teams keeps up says the same thing for free.
+    const dialog = makeDialog();
+    const { step, sent } = stepContext();
+
+    await dialog.answerTheQuestion(step);
+
+    expect(texts(sent)).toEqual([EN.working('Wim')]);
   });
 });
 
@@ -121,7 +138,7 @@ describe('when the caller cannot be answered', () => {
     const { step, sent } = stepContext();
 
     await dialog.answerTheQuestion(step);
-    expect(texts(sent)).not.toContain(EN.working);
+    expect(texts(sent).join(' ')).not.toMatch(/building a report/i);
   });
 
   it('treats a prompt that produced no token as a failed sign-in', async () => {

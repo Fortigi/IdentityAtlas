@@ -92,6 +92,27 @@ describe('strings', () => {
       expect(t.fuzzy('Jan de Vr', 'Jan de Vries')).toContain('Jan de Vries');
       expect(t.records(7)).toContain('7');
       expect(t.moreColumns(2)).toContain('2');
+      expect(t.working('Wim')).toContain('Wim');
+    }
+  });
+
+  it('greets by name, and still reads as a sentence when there is no name', () => {
+    // Both branches of the greeting, in both languages. The nameless one is
+    // where this breaks in front of a user: a template that keeps the comma
+    // says "Hoi , ik heb je bericht ontvangen", and one that interpolates the
+    // missing name anyway says "Hi null". Neither is caught by the loop above,
+    // which only ever passes a name.
+    expect(EN.working('Wim')).toContain('Hi Wim,');
+    expect(NL.working('Wim')).toContain('Hoi Wim,');
+
+    for (const t of LANGUAGES.map(strings)) {
+      for (const nameless of [null, undefined, '']) {
+        const greeting = t.working(nameless);
+        expect(greeting).not.toContain('null');
+        expect(greeting).not.toContain('undefined');
+        expect(greeting).not.toContain(' ,');
+        expect(greeting.length).toBeGreaterThan(20);
+      }
     }
   });
 

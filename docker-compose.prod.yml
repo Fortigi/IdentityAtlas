@@ -147,9 +147,9 @@ services:
       # for ONE model call, and a question that needs a repair round pays it
       # twice. Measured here at ~99 s per call on 2 vCPU, so two calls overrun a
       # 180 s budget. The caller is not left guessing meanwhile — the bot
-      # acknowledges immediately and nudges again at TEAMS_BOT_PROGRESS_MS.
+      # greets them by name the moment the question arrives, and Teams keeps a
+      # typing indicator up until the answer lands.
       TEAMS_BOT_DEADLINE_MS: "${TEAMS_BOT_DEADLINE_MS:-}"
-      TEAMS_BOT_PROGRESS_MS: "${TEAMS_BOT_PROGRESS_MS:-}"
       TEAMS_BOT_TOKEN_TIMEOUT_MS: "${TEAMS_BOT_TOKEN_TIMEOUT_MS:-}"
       # Where a bot answer's "Open the full report" link points. Without it,
       # cards that cannot show the whole answer simply carry no link.

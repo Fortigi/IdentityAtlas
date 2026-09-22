@@ -69,8 +69,11 @@ const EN = Object.freeze({
   timeoutHint: (s) => `I gave it ${s} seconds. The model runs on CPU here, and a complicated question can outlast that — try asking for something narrower.`,
   error: 'Something went wrong answering that.',
   errorHint: 'It has been logged. Try again, or ask your Identity Atlas administrator to look at the bot log.',
-  working: 'On it — turning that into a report. This usually takes a minute or two, and I will post the answer here.',
-  stillWorking: 'Still going — the model is writing the report definition.',
+  // Greets by name when the token carried one. The typing indicator carries the
+  // rest of the wait — there is deliberately no second 'still going' message.
+  working: (name) => (name
+    ? `Hi ${name}, got your message. I am building a report for you — this can take a couple of minutes. One moment...`
+    : 'Got your message. I am building a report — this can take a couple of minutes. One moment...'),
   scopeCaveat: 'This report is not limited to your own people or resources — it covers everything in Identity Atlas.',
   fuzzy: (typed, matched) => `“${typed}” was matched to “${matched}”.`,
   examples: [
@@ -99,8 +102,9 @@ const NL = Object.freeze({
   timeoutHint: (s) => `Ik heb ${s} seconden gewacht. Het model draait hier op CPU en een ingewikkelde vraag kan daar overheen gaan — probeer iets specifiekers.`,
   error: 'Er ging iets mis bij het beantwoorden.',
   errorHint: 'Het is gelogd. Probeer het opnieuw, of vraag je Identity Atlas-beheerder om in het botlog te kijken.',
-  working: 'Ik ben ermee bezig — ik maak er een rapport van. Dat duurt meestal een minuut of twee; het antwoord komt hier.',
-  stillWorking: 'Nog steeds bezig — het model schrijft de rapportdefinitie.',
+  working: (name) => (name
+    ? `Hoi ${name}, ik heb je bericht ontvangen. Ik ga een rapport voor je maken — dit kan een paar minuten duren. Moment...`
+    : 'Ik heb je bericht ontvangen. Ik ga een rapport maken — dit kan een paar minuten duren. Moment...'),
   scopeCaveat: 'Dit rapport is niet beperkt tot jouw eigen mensen of resources — het gaat over alles in Identity Atlas.',
   fuzzy: (typed, matched) => `“${typed}” is gematcht op “${matched}”.`,
   examples: [

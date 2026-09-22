@@ -46,13 +46,10 @@ import { setPending, takePending } from './state.js';
  * those off reports the feature as broken when it is merely slow.
  *
  * Waiting this long is only tolerable because the chat never goes quiet: the
- * bot acknowledges the question immediately and says it is still going at
- * PROGRESS_AFTER_MS. Lower it on faster hardware.
+ * bot greets the caller by name the moment the question arrives, and Teams
+ * holds a typing indicator up for the rest of it. Lower it on faster hardware.
  */
 export const DEADLINE_MS = Number(process.env.TEAMS_BOT_DEADLINE_MS) || 420_000;
-
-/** When to tell the caller it is still going. Teams drops a typing indicator well before this. */
-export const PROGRESS_AFTER_MS = Number(process.env.TEAMS_BOT_PROGRESS_MS) || 45_000;
 
 const HELP_WORDS = new Set(['help', '?', 'hulp', 'hi', 'hello', 'hallo', 'start']);
 
@@ -88,7 +85,6 @@ export const TIMED_OUT = Symbol('timed-out');
  * @param {string} message.conversationId
  * @param {string} message.text
  * @param {object} [deps]                  injected for tests; defaults are the real pipeline
- * @param {(text: string) => Promise<void>} [deps.onProgress]  called once if the answer is slow
  * @returns {Promise<{attachment: object, outcome: string, conversationLogId: string|null}>}
  */
 export async function answerMessage(message, deps = {}) {
@@ -97,8 +93,8 @@ export async function answerMessage(message, deps = {}) {
     interpret: ask = interpret,
     runSpec: run = runSpec,
     log = logConversation,
-    onProgress = null,
     reportLink = defaultReportLink,
+    entityUrl = defaultEntityUrl,
     now = Date.now,
   } = deps;
 
@@ -136,10 +132,6 @@ export async function answerMessage(message, deps = {}) {
     return { attachment: unknownCallerCard(language), outcome: 'unknown-caller', conversationLogId: id };
   }
 
-  const progressTimer = onProgress
-    ? setTimeout(() => { onProgress(t.stillWorking).catch(() => {}); }, PROGRESS_AFTER_MS)
-    : null;
-
   try {
     const result = await withDeadline(
       resolveAnswer({ question, caller, message, ask, run }),
@@ -152,15 +144,13 @@ export async function answerMessage(message, deps = {}) {
       return { attachment: timeoutCard(Math.round(DEADLINE_MS / 1000), language), outcome: 'timeout', conversationLogId: id };
     }
 
-    const answered = await finish(result, { id, record, caller, question, language, reportLink });
+    const answered = await finish(result, { id, record, caller, question, language, reportLink, entityUrl });
     console.log(`teams-bot: ask id=${id} outcome=${answered.outcome} ms=${now() - started}`);
     return answered;
   } catch (err) {
     console.error(`teams-bot: ask id=${id} outcome=failed ms=${now() - started}: ${err.message}`);
     await record({ outcome: 'failed', callerPrincipalId: caller.principalId, error: err.message });
     return { attachment: errorCard(language), outcome: 'failed', conversationLogId: id };
-  } finally {
-    clearTimeout(progressTimer);
   }
 }
 
@@ -273,7 +263,7 @@ async function finishNotUnderstood(outcome, { id, record, language }, common) {
 
 /** Rows — possibly zero of them, which is still an answer. */
 async function finishAnswered(outcome, ctx, common) {
-  const { id, record, caller, question, language, reportLink } = ctx;
+  const { id, record, caller, question, language, reportLink, entityUrl } = ctx;
   const { rows, columns, explanation, truncated, elapsedMs } = outcome.result;
 
   await record({
@@ -294,6 +284,7 @@ async function finishAnswered(outcome, ctx, common) {
       truncated,
       language,
       notes: answerNotes(outcome, caller, question, language),
+      entityUrl,
       // Only worth a link when the card cannot show the whole answer.
       link: rows.length > MAX_CARD_ROWS || columns.length > MAX_CARD_COLUMNS ? reportLink(id) : null,
     }),
@@ -365,4 +356,20 @@ export function toAppliedChoice(confirm, picked) {
 export function defaultReportLink(conversationLogId, base = process.env.PUBLIC_BASE_URL) {
   if (!base) return null;
   return `${String(base).replace(/\/+$/, '')}/#bot-answer:${encodeURIComponent(conversationLogId)}`;
+}
+
+/**
+ * Where one record in an answer opens in Identity Atlas.
+ *
+ * Every row `runSpec` returns carries `_entity: { kind, id }` — the same pair
+ * the web UI's detail tabs are addressed by — so a name in a card can link
+ * straight through to the group, user or resource it names. The card is a
+ * summary; this is how a reader gets from it to the thing itself without
+ * searching for it again by name.
+ *
+ * Null without a PUBLIC_BASE_URL: an unlinked name beats a link to nowhere.
+ */
+export function defaultEntityUrl(entity, base = process.env.PUBLIC_BASE_URL) {
+  if (!base || !entity?.kind || !entity?.id) return null;
+  return `${String(base).replace(/\/+$/, '')}/#${encodeURIComponent(entity.kind)}:${encodeURIComponent(entity.id)}`;
 }

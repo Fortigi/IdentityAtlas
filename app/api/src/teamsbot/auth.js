@@ -119,5 +119,22 @@ export async function callerFromToken(token, deps = {}) {
   // application token, not a user one. There is nobody to answer as.
   if (typeof oid !== 'string' || !oid) return { ok: false, reason: 'invalid-token' };
 
-  return { ok: true, oid };
+  return { ok: true, oid, firstName: firstNameFrom(verified.decoded) };
+}
+
+/**
+ * What to call the caller when greeting them.
+ *
+ * From the VERIFIED token rather than a database lookup: the name is already in
+ * hand at this point, it costs nothing, and it cannot disagree with the account
+ * the answer is actually about. Only the first word — "Hi Wim" reads like a
+ * colleague, "Hi Wim van den Heijkant" reads like a mail merge.
+ *
+ * Null when the token carries no usable name, and the greeting then simply
+ * leaves the name out rather than addressing someone as "undefined".
+ */
+export function firstNameFrom(decoded) {
+  const full = decoded?.given_name || decoded?.name || '';
+  const first = String(full).trim().split(/\s+/)[0];
+  return first || null;
 }

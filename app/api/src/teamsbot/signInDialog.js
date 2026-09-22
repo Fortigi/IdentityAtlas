@@ -83,12 +83,13 @@ export class SignInAndAnswerDialog extends ComponentDialog {
       return step.endDialog();
     }
 
-    // Visible acknowledgement before a wait measured in minutes. See handler.js.
-    await step.context.sendActivity(t.working).catch(() => {});
+    // A visible greeting before a wait measured in minutes. The typing
+    // indicator carries the rest of it — a second "still going" message a
+    // minute later reads as the bot repeating itself, not as reassurance.
+    await step.context.sendActivity(t.working(caller.firstName)).catch(() => {});
 
     const { attachment } = await this.answer(
       { oid: caller.oid, conversationId: step.context.activity.conversation?.id, text: question },
-      { onProgress: (text) => step.context.sendActivity(text).then(() => {}) },
     );
     await step.context.sendActivity(MessageFactory.attachment(attachment));
     return step.endDialog();

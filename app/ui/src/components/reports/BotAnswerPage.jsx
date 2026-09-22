@@ -52,10 +52,18 @@ export default function BotAnswerPage({ answerId, onClose, onOpenDetail }) {
             card uses, and for the same reason: a wrong name match is only
             visible when the two sit next to each other. */}
         <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">“{data.question}”</p>
-        {data.explanation && (
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            <span className="font-medium">Understood as:</span> {data.explanation}
-          </p>
+        {/* explainSpec returns { title, lines: [{ depth, text }] }, not a string —
+            rendering it as one throws in React and printed "[object Object]" on
+            the Teams card. Shown the same way the report builder shows it. */}
+        {data.explanation?.title && (
+          <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            <p><span className="font-medium">Understood as:</span> {data.explanation.title}</p>
+            <ul className="mt-1 space-y-0.5">
+              {(data.explanation.lines ?? []).map((l, i) => (
+                <li key={i} style={{ paddingLeft: `${(l.depth + 1) * 1.25}rem` }}>• {l.text}</li>
+              ))}
+            </ul>
+          </div>
         )}
       </header>
       <ListReportRenderer
