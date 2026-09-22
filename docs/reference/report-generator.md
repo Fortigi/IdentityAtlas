@@ -116,6 +116,27 @@ Three failure modes are handled in code rather than left to the model:
   where validation would have cut it anyway. Before that limit existed, one question listed the same ten
   columns until the token cap: 570 seconds and a reply that was no longer JSON. It now answers in 46.
 
+## Who can ask, and where
+
+The same model answers questions in three places, and they are gated by **two** different
+permissions on purpose.
+
+| Surface | Permission | What it is for |
+|---|---|---|
+| **Ask** tab | `data.read.reports` | Type a question, read an answer. No definition editor, no saving. |
+| Teams bot | `data.read.reports` | The same thing, in a chat. |
+| **Custom reports** builder | `data.write.reports` | Build, edit, save and delete report definitions everyone sees. |
+
+Asking and building are separate rights and neither implies the other. A pilot manager who
+should be able to find out who has access to what does not thereby get to delete the saved
+reports an analyst depends on; an analyst holds both, so nothing they could do before
+changes. Warming the model stays with `data.write.reports` — one model server, one slot,
+shared by everyone, so spending its CPU is not a read action.
+
+The Ask tab appears only when **custom reports** is switched on *and* the caller holds
+the permission. It is hidden rather than shown-and-refused, because the routes behind it
+answer 403 and a door that does not open is worse than no door.
+
 ## Privacy
 
 - **Nothing leaves the deployment.** The model runs in a container next to Identity Atlas. There is no

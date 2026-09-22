@@ -31,8 +31,12 @@ export const GATED_ENDPOINTS = {
   'data.write.reports':    { method: 'POST', path: '/api/nl-reports/saved' },
   // Asking, as opposed to building. The bot itself authenticates with a Bot
   // Framework token rather than requirePermission(), so the representative
-  // endpoint is the other route this permission guards: the page a bot answer's
-  // deep link opens, which a signed-in user reaches with their own token.
+  // endpoint is one of the other routes this permission guards: the page a bot
+  // answer's deep link opens, which a signed-in user reaches with their own
+  // token. It also gates the Ask page's own routes (/api/nl-reports/interpret,
+  // run, resolve, status, catalog, lookup) — that the split between asking and
+  // building actually holds across all of them is asserted separately, in
+  // permissionMatrix.test.js.
   'data.read.reports':     { method: 'GET',  path: '/api/bot-answers/00000000-0000-0000-0000-000000000000' },
   'data.write.contexts':   { method: 'POST', path: '/api/context-assistant/evaluate', body: { recipe: {} } },
   'admin.llm':             { method: 'GET',  path: '/api/admin/llm/config' },

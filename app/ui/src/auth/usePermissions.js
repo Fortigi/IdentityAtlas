@@ -45,6 +45,10 @@ export function useCanManageContextPlugins() { return useHasPermission('admin.co
 export function useCanCsvImport()            { return useHasPermission('admin.csv-import'); }
 export function useCanManageReadTokens()     { return useHasPermission('admin.read-tokens'); }
 export function useCanManageFeatureFlags()   { return useHasPermission('admin.feature-flags'); }
+// Asking a question is a READ right, deliberately separate from building and
+// deleting the saved reports every analyst sees. Holding one does not imply
+// the other — see the catalog entry in app/api/src/auth/permissions.js.
+export function useCanAsk()                  { return useHasPermission('data.read.reports'); }
 
 // Composite for the "Admin tab" gating. The tab itself is reachable if the
 // user has ANY admin-tier permission — clicking individual subpages still

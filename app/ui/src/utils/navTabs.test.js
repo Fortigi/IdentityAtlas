@@ -93,3 +93,50 @@ describe('navTabs', () => {
     expect(noRisk).not.toContain('identities');
   });
 });
+
+describe('the Ask tab', () => {
+  // Asking a question is a read right of its own (data.read.reports). The tab
+  // must follow it, because the pages behind it answer 403 — offering a door
+  // that does not open is worse than not showing one.
+  // The shared fixture predates custom reports, so this suite brings its own.
+  const ALL_ON = { ...ENABLE_ALL_FEATURES, customReports: true };
+  const withAsk = (over = {}) => keys(computeNavTabs({
+    features: ALL_ON,
+    visibleTabs: [],
+    canSeeAdmin: true,
+    hasPermission: () => true,
+    ...over,
+  }));
+
+  it('appears for someone who may ask', () => {
+    expect(withAsk()).toContain('ask');
+  });
+
+  it('sits directly after Dashboard, where a landing page belongs', () => {
+    const shown = withAsk();
+    expect(shown.indexOf('ask')).toBe(shown.indexOf('dashboard') + 1);
+  });
+
+  it('is hidden from someone without the permission', () => {
+    expect(withAsk({ hasPermission: (p) => p !== 'data.read.reports' })).not.toContain('ask');
+  });
+
+  it('is hidden when custom reports are switched off, permission or not', () => {
+    // Two independent gates: the feature must be on AND the caller may ask.
+    expect(withAsk({ features: { ...ALL_ON, customReports: false } })).not.toContain('ask');
+  });
+
+  it('is not an opt-in tab — permission is the opt-in', () => {
+    // An empty visibleTabs list hides the `optional` tabs; Ask must survive it.
+    expect(withAsk({ visibleTabs: [] })).toContain('ask');
+  });
+
+  it('leaves every other tab alone when permissions are unknown', () => {
+    // Before /api/auth-me answers, hasPermission defaults to allowing — the
+    // rest of the nav must not flicker away meanwhile.
+    const shown = keys(computeNavTabs({ features: ALL_ON, visibleTabs: [], canSeeAdmin: true }));
+    expect(shown).toContain('dashboard');
+    expect(shown).toContain('matrix');
+    expect(shown).toContain('ask');
+  });
+});

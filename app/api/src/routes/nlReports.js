@@ -56,6 +56,16 @@ const router = Router();
 //             saves definitions and spends the model CPU; running an existing
 //             report is a read action served by /api/reports (data.read).
 //   admin   — the feature must be on AND the caller administers the LLM.
+// Asking is a READ action and gets its own gate. `data.read.reports` —
+// "Ask questions in plain language" — was written for the Teams bot and says
+// in as many words that it covers the bot "or anywhere else that only asks";
+// the Ask page is that anywhere else. Keeping the two apart is the whole point
+// of the split: a pilot manager should be able to ask a question without also
+// being able to delete the saved reports every analyst sees.
+//
+// An analyst holds both (the seed RoleMiner role carries them), so nothing
+// they could do before stops working.
+const askGate = [requirePermission('data.read.reports'), requireFeature('customReports')];
 const analystGate = [requirePermission('data.write.reports'), requireFeature('customReports')];
 const adminGate = [requirePermission('admin.llm'), requireFeature('customReports')];
 
@@ -68,7 +78,7 @@ function fail(res, route, err, status = 500) {
 }
 
 
-router.get('/nl-reports/catalog', analystGate, async (req, res) => {
+router.get('/nl-reports/catalog', askGate, async (req, res) => {
   try {
     const values = await loadValues();
     const entities = Object.fromEntries(Object.entries(ENTITIES).map(([name, e]) => [name, {
@@ -93,7 +103,7 @@ router.get('/nl-reports/catalog', analystGate, async (req, res) => {
 });
 
 // GET /api/nl-reports/lookup?entity=resource&q=mat — names for the compare reference picker
-router.get('/nl-reports/lookup', analystGate, async (req, res) => {
+router.get('/nl-reports/lookup', askGate, async (req, res) => {
   const entity = String(req.query.entity || '');
   const text = String(req.query.q || '').trim();
   if (!Object.hasOwn(ENTITIES, entity)) return res.status(400).json({ error: 'Unknown entity' });
@@ -105,13 +115,13 @@ router.get('/nl-reports/lookup', analystGate, async (req, res) => {
   }
 });
 
-router.get('/nl-reports/status', analystGate, async (req, res) => {
+router.get('/nl-reports/status', askGate, async (req, res) => {
   res.json(await generatorStatus(warmupState));
 });
 
 router.post('/nl-reports/warm', analystGate, warmHandler({ ensureWarm, warmupState }, fail));
 
-router.post('/nl-reports/interpret', analystGate, async (req, res) => {
+router.post('/nl-reports/interpret', askGate, async (req, res) => {
   const parsed = parseInterpretRequest(req.body);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const { question, history: cleanHistory } = parsed;
@@ -141,7 +151,7 @@ export { applyResolveChoice };
 
 // POST /api/nl-reports/resolve { spec, choice? } — apply the answer to a "did you mean"
 // confirmation and look the named objects up again. No model involved.
-router.post('/nl-reports/resolve', analystGate, async (req, res) => {
+router.post('/nl-reports/resolve', askGate, async (req, res) => {
   if (!req.body?.spec || typeof req.body.spec !== 'object') return res.status(400).json({ error: 'spec is required' });
   try {
     const values = await loadValues();
@@ -156,7 +166,7 @@ router.post('/nl-reports/resolve', analystGate, async (req, res) => {
   }
 });
 
-router.post('/nl-reports/run', analystGate, async (req, res) => {
+router.post('/nl-reports/run', askGate, async (req, res) => {
   if (!req.body?.spec || typeof req.body.spec !== 'object') return res.status(400).json({ error: 'spec is required' });
   try {
     const result = await runSpec(req.body.spec);
@@ -169,7 +179,7 @@ router.post('/nl-reports/run', analystGate, async (req, res) => {
 
 // ── Saved reports ────────────────────────────────────────────────────────────
 
-router.get('/nl-reports/saved/:id', analystGate, async (req, res) => {
+router.get('/nl-reports/saved/:id', askGate, async (req, res) => {
   try {
     const row = await getSavedReport(req.params.id);
     if (!row) return res.status(404).json({ error: 'Report not found' });
