@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Custom reports can now show and filter on the business roles a user or account holds. "Add the business role column" and "users in business role X" previously came back as "there is no such field" — business roles could only be reached from the other end, starting at a group or a resource.
+
+## Changes in this PR
+
 - Custom reports can now count records per value: pick **Count per** in the report builder, or ask "how many users per department", and the report comes back as one row per distinct value with the number of records that have it — including a row for the records that have no value at all.
 - The report builder now offers the attributes your own crawlers stamp on the data (such as `sfDepartmentID`, `employeeType` or an OU path) alongside the built-in fields, so you can filter on them, show them as a column and count per them. They are listed under "From your data", by their readable name rather than the long `extension_<id>_...` key they arrive under.
 - Asking the report generator a question that names one of those attributes now works: the attribute is looked up in your data and handed to the model, instead of the question coming back as something it cannot build.
