@@ -3,7 +3,6 @@
   "manifestVersion": "1.17",
   "version": "1.0.0",
   "id": "REPLACE-WITH-BOT-ENTRA-APP-ID",
-  "packageName": "io.identityatlas.teamsbot",
   "developer": {
     "name": "Fortigi",
     "websiteUrl": "https://identityatlas.io",
