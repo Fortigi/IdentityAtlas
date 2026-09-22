@@ -5,7 +5,9 @@
 // collectHistoryEvents runs the shared accumulation loop that every handler used
 // to inline. Classification + counting are moved verbatim — no behaviour change.
 
-import { toEvent, lookupResource, lookupIdentity, lookupPrincipal, resourceCounterpartyKind } from './shared.js';
+import {
+  toEvent, lookupResource, lookupIdentity, lookupPrincipal, resourceCounterpartyKind, changeAction,
+} from './shared.js';
 
 const NONE = { event: null, added: 0, removed: 0 };
 
@@ -35,29 +37,27 @@ async function userAssignmentEvent(row, data, prev) {
   const resName = resInfo?.displayName || resId;
   const kind = resourceCounterpartyKind(resInfo?.resourceType);
   const assignType = data.assignmentType || prev.assignmentType;
-  if (row.operation === 'I') {
-    return { event: toEvent(row, `Added to ${resName}${assignType ? ` (${assignType})` : ''}`,
-      { kind, id: resId, label: resName, eventKind: 'assignment' }), added: 1, removed: 0 };
-  }
-  if (row.operation === 'D') {
-    return { event: toEvent(row, `Removed from ${resName}${assignType ? ` (${assignType})` : ''}`,
-      { kind, id: resId, label: resName, eventKind: 'assignment' }), added: 0, removed: 1 };
-  }
-  return NONE;
+  const action = changeAction(row);
+  if (!action) return NONE;
+  const added = action === 'added';
+  return {
+    event: toEvent(row, `${added ? 'Added to' : 'Removed from'} ${resName}${assignType ? ` (${assignType})` : ''}`,
+      { kind, id: resId, label: resName, eventKind: 'assignment' }),
+    added: added ? 1 : 0,
+    removed: added ? 0 : 1,
+  };
 }
 
 async function userIdentityMemberEvent(row, data) {
   const identId = data.identityId;
   const label = await lookupIdentity(identId) || identId;
-  if (row.operation === 'I') {
-    return { event: toEvent(row, `Linked to identity ${label}`,
-      { kind: 'identity', id: identId, label, eventKind: 'identity-member' }), added: 0, removed: 0 };
-  }
-  if (row.operation === 'D') {
-    return { event: toEvent(row, `Unlinked from identity ${label}`,
-      { kind: 'identity', id: identId, label, eventKind: 'identity-member' }), added: 0, removed: 0 };
-  }
-  return NONE;
+  const action = changeAction(row);
+  if (!action) return NONE;
+  return {
+    event: toEvent(row, `${action === 'added' ? 'Linked to' : 'Unlinked from'} identity ${label}`,
+      { kind: 'identity', id: identId, label, eventKind: 'identity-member' }),
+    added: 0, removed: 0,
+  };
 }
 
 async function userManagerEvent(row, data, prev) {
@@ -83,15 +83,15 @@ async function resourceAssignmentEvent(row, data, prev) {
   const princId = data.principalId;
   const label = await lookupPrincipal(princId) || princId;
   const assignType = data.assignmentType || prev.assignmentType;
-  if (row.operation === 'I') {
-    return { event: toEvent(row, `${label} granted${assignType ? ` (${assignType})` : ''}`,
-      { kind: 'user', id: princId, label, eventKind: 'assignment' }), added: 1, removed: 0 };
-  }
-  if (row.operation === 'D') {
-    return { event: toEvent(row, `${label} removed${assignType ? ` (${assignType})` : ''}`,
-      { kind: 'user', id: princId, label, eventKind: 'assignment' }), added: 0, removed: 1 };
-  }
-  return NONE;
+  const action = changeAction(row);
+  if (!action) return NONE;
+  const added = action === 'added';
+  return {
+    event: toEvent(row, `${label} ${added ? 'granted' : 'removed'}${assignType ? ` (${assignType})` : ''}`,
+      { kind: 'user', id: princId, label, eventKind: 'assignment' }),
+    added: added ? 1 : 0,
+    removed: added ? 0 : 1,
+  };
 }
 
 async function resourceRelationshipEvent(row, data, prev, resId) {
@@ -103,13 +103,18 @@ async function resourceRelationshipEvent(row, data, prev, resId) {
   const otherInfo = await lookupResource(otherId);
   const otherName = otherInfo?.displayName || otherId;
   const relType = data.relationshipType || prev.relationshipType;
-  const verb = usIsChild ? (row.operation === 'I' ? 'Added to' : 'Removed from')
-                          : (row.operation === 'I' ? 'Contained' : 'No longer contains');
+  // An update that touched neither side is not a relationship change. There
+  // used to be no such branch: anything that was not 'I' fell into the
+  // "Removed from" half, so a backfilled column read as a removal.
+  const action = changeAction(row);
+  if (!action) return NONE;
+  const added = action === 'added';
+  const verb = usIsChild ? (added ? 'Added to' : 'Removed from') : (added ? 'Contained' : 'No longer contains');
   return {
     event: toEvent(row, `${verb} ${otherName}${relType ? ` (${relType})` : ''}`,
       { kind: resourceCounterpartyKind(otherInfo?.resourceType), id: otherId, label: otherName, eventKind: 'relationship' }),
-    added: row.operation === 'I' ? 1 : 0,
-    removed: row.operation === 'D' ? 1 : 0,
+    added: added ? 1 : 0,
+    removed: added ? 0 : 1,
   };
 }
 
@@ -125,30 +130,30 @@ export function classifyResourceRow(row, resId) {
 async function apAssignmentEvent(row, data) {
   const princId = data.principalId;
   const label = await lookupPrincipal(princId) || princId;
-  if (row.operation === 'I') {
-    return { event: toEvent(row, `${label} granted this role`,
-      { kind: 'user', id: princId, label, eventKind: 'assignment' }), added: 1, removed: 0 };
-  }
-  if (row.operation === 'D') {
-    return { event: toEvent(row, `${label} lost this role`,
-      { kind: 'user', id: princId, label, eventKind: 'assignment' }), added: 0, removed: 1 };
-  }
-  return NONE;
+  const action = changeAction(row);
+  if (!action) return NONE;
+  const added = action === 'added';
+  return {
+    event: toEvent(row, `${label} ${added ? 'granted' : 'lost'} this role`,
+      { kind: 'user', id: princId, label, eventKind: 'assignment' }),
+    added: added ? 1 : 0,
+    removed: added ? 0 : 1,
+  };
 }
 
 async function apRelationshipEvent(row, data) {
   const childId = data.childResourceId;
   const info = await lookupResource(childId);
   const label = info?.displayName || childId;
-  if (row.operation === 'I') {
-    return { event: toEvent(row, `${label} added to this role`,
-      { kind: resourceCounterpartyKind(info?.resourceType), id: childId, label, eventKind: 'relationship' }), added: 1, removed: 0 };
-  }
-  if (row.operation === 'D') {
-    return { event: toEvent(row, `${label} removed from this role`,
-      { kind: resourceCounterpartyKind(info?.resourceType), id: childId, label, eventKind: 'relationship' }), added: 0, removed: 1 };
-  }
-  return NONE;
+  const action = changeAction(row);
+  if (!action) return NONE;
+  const added = action === 'added';
+  return {
+    event: toEvent(row, `${label} ${added ? 'added to' : 'removed from'} this role`,
+      { kind: resourceCounterpartyKind(info?.resourceType), id: childId, label, eventKind: 'relationship' }),
+    added: added ? 1 : 0,
+    removed: added ? 0 : 1,
+  };
 }
 
 export function classifyAccessPackageRow(row) {
@@ -163,13 +168,13 @@ export async function classifyIdentityRow(row) {
   const data = row.rowData || {};
   const princId = data.principalId;
   const label = await lookupPrincipal(princId) || data.displayName || princId;
-  if (row.operation === 'I') {
-    return { event: toEvent(row, `Account ${label} linked`,
-      { kind: 'user', id: princId, label, eventKind: 'identity-member' }), added: 1, removed: 0 };
-  }
-  if (row.operation === 'D') {
-    return { event: toEvent(row, `Account ${label} unlinked`,
-      { kind: 'user', id: princId, label, eventKind: 'identity-member' }), added: 0, removed: 1 };
-  }
-  return NONE;
+  const action = changeAction(row);
+  if (!action) return NONE;
+  const added = action === 'added';
+  return {
+    event: toEvent(row, `Account ${label} ${added ? 'linked' : 'unlinked'}`,
+      { kind: 'user', id: princId, label, eventKind: 'identity-member' }),
+    added: added ? 1 : 0,
+    removed: added ? 0 : 1,
+  };
 }
