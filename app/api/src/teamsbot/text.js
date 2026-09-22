@@ -75,6 +75,7 @@ const EN = Object.freeze({
     ? `Hi ${name}, got your message. I am building a report for you — this can take a couple of minutes. One moment...`
     : 'Got your message. I am building a report — this can take a couple of minutes. One moment...'),
   scopeCaveat: 'This report is not limited to your own people or resources — it covers everything in Identity Atlas.',
+  followedUp: (n) => `This answer is about the ${n} ${n === 1 ? 'record' : 'records'} from your previous question.`,
   fuzzy: (typed, matched) => `“${typed}” was matched to “${matched}”.`,
   examples: [
     'Which groups is Jan de Vries a member of?',
@@ -106,6 +107,7 @@ const NL = Object.freeze({
     ? `Hoi ${name}, ik heb je bericht ontvangen. Ik ga een rapport voor je maken — dit kan een paar minuten duren. Moment...`
     : 'Ik heb je bericht ontvangen. Ik ga een rapport maken — dit kan een paar minuten duren. Moment...'),
   scopeCaveat: 'Dit rapport is niet beperkt tot jouw eigen mensen of resources — het gaat over alles in Identity Atlas.',
+  followedUp: (n) => `Dit antwoord gaat over de ${n} ${n === 1 ? 'record' : 'records'} uit je vorige vraag.`,
   fuzzy: (typed, matched) => `“${typed}” is gematcht op “${matched}”.`,
   examples: [
     'In welke groepen zit Jan de Vries?',

@@ -48,6 +48,35 @@ If a question says "my" but the generated report is **not** limited to the calle
 says so out loud. That is the one place a manager can catch a directory-wide answer dressed
 up as their own team.
 
+### Following one answer up with another question
+
+> *"Van welke groepen ben ik owner?"* … *"en zijn die onderdeel van een access package?"*
+
+The second question is not answerable on its own — "die" refers to groups that exist only in
+the answer above it. The bot carries the **records of the last answer** in a chat forward, so
+a follow-up can narrow to them.
+
+How it works, because the mechanism decides what it can and cannot do:
+
+- The ids of what the caller was just shown are remembered per chat, replaced by the next
+  answer, and forgotten after 30 minutes.
+- The model is **offered** those records and told the token `@previous` to write if the
+  question refers back to them. It is not told to assume a follow-up — an unrelated question
+  silently narrowed to the last answer's 27 groups is the expensive failure here, not a
+  missed follow-up, because the caller would have no way to see it happened.
+- When a follow-up *is* picked up, the card says so: *"Dit antwoord gaat over de 27 records
+  uit je vorige vraag."* Same principle as the interpretation line — both readings produce a
+  tidy card, and only one of them answers the question that was asked.
+
+Two consequences worth knowing:
+
+- A follow-up can only **narrow** to records the caller has already been shown, so it cannot
+  widen what they can see. That matters while there is no per-caller scope filter.
+- An answer with more than 200 records carries **nothing** forward. A set that large is one
+  the caller has not read, so "these groups" would not mean anything definite to them either.
+
+This is not conversation memory: exactly one answer is remembered, and only its records.
+
 ## Setting it up
 
 Five things, in this order. Steps 1–3 are in Azure, step 4 is in Identity Atlas, step 5 is
@@ -189,9 +218,14 @@ filter would slot in is marked in the code — `callerScopeFilter` in
 `app/api/src/teamsbot/caller.js` — and it is a function rather than a TODO comment so that
 adding it lands in the compiled SQL rather than in card rendering.
 
+**It cannot tell you what changed.** "Zijn er recent users toegevoegd of verwijderd?" is not
+answerable: Identity Atlas records changes (the `_history` table behind the recent-changes
+timeline), but the report catalog has no concept of a change, so the generator cannot express
+the question. Adding one is catalog work, not bot work.
+
 Also out of scope for v1: proactive messages (the bot never starts a conversation), any
 write operation (no approvals, revocations or certifications), channel and group chats
-(personal chat only), and memory beyond one clarification round.
+(personal chat only), and memory beyond the records of the previous answer.
 
 ## Latency
 

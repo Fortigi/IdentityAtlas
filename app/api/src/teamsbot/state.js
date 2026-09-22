@@ -21,18 +21,47 @@ const TTL_MS = 10 * 60 * 1000;
 // oldest pending clarification is the one nobody came back to answer.
 const MAX_ENTRIES = 500;
 
-const pending = new Map();
+/**
+ * How long the records of the last answer stay available to refer back to.
+ *
+ * Longer than a clarification, because the two are waiting for different
+ * things. A clarification is a question the bot has just asked and the caller
+ * is mid-reply to; "what were we looking at" survives a coffee. Not unbounded,
+ * though: past this an unrelated question would silently inherit a set from a
+ * conversation the caller has forgotten having.
+ */
+const ANSWER_TTL_MS = 30 * 60 * 1000;
+
+/** A per-conversation store that forgets: oldest out past MAX_ENTRIES, and stale on read. */
+function conversationStore(ttlMs) {
+  const entries = new Map();
+  return {
+    put(conversationId, value, now) {
+      if (!conversationId) return;
+      entries.delete(conversationId);
+      entries.set(conversationId, { value, at: now });
+      while (entries.size > MAX_ENTRIES) {
+        // Map iterates in insertion order and every set() re-inserts, so the
+        // first key is always the least recently written.
+        entries.delete(entries.keys().next().value);
+      }
+    },
+    get(conversationId, now, consume) {
+      const entry = entries.get(conversationId);
+      if (!entry) return null;
+      if (consume) entries.delete(conversationId);
+      return now - entry.at > ttlMs ? null : entry.value;
+    },
+    clear() { entries.clear(); },
+  };
+}
+
+const pending = conversationStore(TTL_MS);
+const lastAnswer = conversationStore(ANSWER_TTL_MS);
 
 /** Remember what a conversation is waiting to hear back. */
 export function setPending(conversationId, value, now = Date.now()) {
-  if (!conversationId) return;
-  pending.delete(conversationId);
-  pending.set(conversationId, { value, at: now });
-  while (pending.size > MAX_ENTRIES) {
-    // Map iterates in insertion order, and every set() re-inserts, so the first
-    // key is always the least recently written.
-    pending.delete(pending.keys().next().value);
-  }
+  pending.put(conversationId, value, now);
 }
 
 /**
@@ -43,15 +72,31 @@ export function setPending(conversationId, value, now = Date.now()) {
  * question from an hour ago.
  */
 export function takePending(conversationId, now = Date.now()) {
-  const entry = pending.get(conversationId);
-  if (!entry) return null;
-  pending.delete(conversationId);
-  return now - entry.at > TTL_MS ? null : entry.value;
+  return pending.get(conversationId, now, true);
+}
+
+/** Remember what the last answer in this conversation was about. */
+export function rememberAnswer(conversationId, carried, now = Date.now()) {
+  lastAnswer.put(conversationId, carried, now);
+}
+
+/**
+ * What the last answer in this conversation was about, WITHOUT forgetting it.
+ *
+ * Unlike a clarification this is not consumed, because a caller may narrow the
+ * same set twice — "and which of those are in an access package?" then "and who
+ * owns those?" — and a set that vanished after one use would break the second
+ * question in a way nobody could see from the chat.
+ */
+export function recallAnswer(conversationId, now = Date.now()) {
+  return lastAnswer.get(conversationId, now, false);
 }
 
 /** Test seam: drop everything. */
 export function clearPending() {
   pending.clear();
+  lastAnswer.clear();
 }
 
 export const __ttlMs = TTL_MS;
+export const __answerTtlMs = ANSWER_TTL_MS;

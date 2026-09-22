@@ -51,11 +51,16 @@ export const OPERATORS = {
   lt: { label: 'is less than', needsValue: true },
   withinLastDays: { label: 'is within the last N days', needsValue: true },
   olderThanDays: { label: 'is more than N days ago', needsValue: true },
+  // Takes a LIST. Its reason for existing is a follow-up question: "of these
+  // groups, which are in an access package" has to name the groups the previous
+  // answer produced, and naming them one OR-condition at a time is a definition
+  // no small model writes correctly and no reader can check.
+  in: { label: 'is one of', needsValue: true },
 };
 
 export const OPERATORS_BY_TYPE = {
-  text: ['eq', 'neq', 'contains', 'notContains', 'startsWith', 'endsWith', 'isEmpty', 'isNotEmpty'],
-  enum: ['eq', 'neq', 'isEmpty', 'isNotEmpty'],
+  text: ['eq', 'neq', 'in', 'contains', 'notContains', 'startsWith', 'endsWith', 'isEmpty', 'isNotEmpty'],
+  enum: ['eq', 'neq', 'in', 'isEmpty', 'isNotEmpty'],
   boolean: ['eq', 'isEmpty', 'isNotEmpty'],
   number: ['eq', 'neq', 'gt', 'lt', 'isEmpty', 'isNotEmpty'],
   date: ['withinLastDays', 'olderThanDays', 'isEmpty', 'isNotEmpty'],

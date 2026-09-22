@@ -15,7 +15,7 @@ vi.mock('../nlreports/service.js', async (importOriginal) => ({
 import { answerMessage, withDeadline, matchChoice, toAppliedChoice, isHelp, defaultReportLink, TIMED_OUT, DEADLINE_MS } from './service.js';
 import { clearPending } from './state.js';
 import { EN, NL } from './text.js';
-import { CALLER_SENTINEL } from '../nlreports/spec.js';
+import { CALLER_SENTINEL, PREVIOUS_SENTINEL } from '../nlreports/spec.js';
 
 const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const CALLER = { principalId: OID, displayName: 'Wim van den Heijkant', email: 'wim@example.com' };
@@ -441,5 +441,137 @@ describe('defaultReportLink', () => {
   it('returns null when no base url is configured, so no broken link is shown', () => {
     expect(defaultReportLink('abc', undefined)).toBeNull();
     expect(defaultReportLink('abc', '')).toBeNull();
+  });
+});
+
+describe('following one answer up with another question', () => {
+  // The thing a chat can do that the report builder cannot: "van welke groepen
+  // ben ik owner?" and then "en zijn die onderdeel van een access package?",
+  // where "die" is 27 groups that exist only in the answer above.
+
+  const OWNED = runResult({
+    columns: [{ key: 'owns.names', label: 'Owner of' }],
+    rows: [{
+      'owns.names': 'ASML, Bestuur',
+      _entity: { kind: 'user', id: OID },
+      _links: {
+        'owns.names': [
+          { id: 'g1', name: 'ASML', kind: 'resource' },
+          { id: 'g2', name: 'Bestuur', kind: 'resource' },
+        ],
+      },
+    }],
+  });
+
+  const referringSpec = {
+    entity: 'resource', match: 'all',
+    conditions: [{ type: 'field', field: 'id', op: 'in', value: PREVIOUS_SENTINEL }],
+    columns: ['displayName'],
+  };
+
+  /** Ask once so there is an answer to refer back to, then ask again. */
+  async function askTwice({ second = referringSpec, first = OWNED } = {}) {
+    const d = deps({ runSpec: vi.fn(async () => first) });
+    await answerMessage(msg({ text: 'van welke groepen ben ik owner?' }), d);
+
+    const follow = deps({
+      interpret: vi.fn(async () => ({ kind: 'report', spec: structuredClone(second), timing: {} })),
+      runSpec: vi.fn(async () => runResult()),
+    });
+    await answerMessage(msg({ text: 'en zijn die onderdeel van een access package?' }), follow);
+    return follow;
+  }
+
+  it('tells the model what the previous answer was about', async () => {
+    const follow = await askTwice();
+    const asked = follow.interpret.mock.calls[0][0].question;
+    expect(asked).toContain('2');
+    expect(asked).toContain(PREVIOUS_SENTINEL);
+  });
+
+  it('runs the follow-up against the records the caller was just shown', async () => {
+    const follow = await askTwice();
+    expect(follow.runSpec.mock.calls[0][0].conditions[0].value).toEqual(['g1', 'g2']);
+  });
+
+  it('says nothing about a previous answer on the first question of a chat', async () => {
+    const d = deps();
+    await answerMessage(msg(), d);
+    expect(d.interpret.mock.calls[0][0].question).not.toContain(PREVIOUS_SENTINEL);
+  });
+
+  it('leaves a question that did not refer back completely alone', async () => {
+    // The expensive failure is the opposite of a missed follow-up: an
+    // unrelated question silently narrowed to the last answer's records.
+    const standalone = {
+      entity: 'resource', match: 'all',
+      conditions: [{ type: 'field', field: 'displayName', op: 'eq', value: 'Finance' }],
+      columns: ['displayName'],
+    };
+    const follow = await askTwice({ second: standalone });
+    expect(follow.runSpec.mock.calls[0][0]).toEqual(standalone);
+  });
+
+  it('offers the NEW answer to the question after it', async () => {
+    const d = deps({ runSpec: vi.fn(async () => OWNED) });
+    await answerMessage(msg(), d);
+    await answerMessage(msg(), d);
+    expect(d.interpret.mock.calls[1][0].question).toContain(PREVIOUS_SENTINEL);
+  });
+
+  it('carries nothing forward from an answer that matched nothing', async () => {
+    // Nothing was put in front of the caller, so there is nothing to refer to.
+    const d = deps({ runSpec: vi.fn(async () => runResult({ rows: [] })) });
+    await answerMessage(msg(), d);
+    await answerMessage(msg(), d);
+    expect(d.interpret.mock.calls[1][0].question).not.toContain(PREVIOUS_SENTINEL);
+  });
+
+  it('keeps the answer from one chat out of another chat', async () => {
+    const d = deps({ runSpec: vi.fn(async () => OWNED) });
+    await answerMessage(msg({ conversationId: 'conv-a' }), d);
+    await answerMessage(msg({ conversationId: 'conv-b' }), d);
+    expect(d.interpret.mock.calls[1][0].question).not.toContain(PREVIOUS_SENTINEL);
+  });
+
+  it('says on the card that it answered about the previous records', async () => {
+    // The same principle as the interpretation line above it. A caller who
+    // asked "en zijn die …?" cannot otherwise tell whether "die" was
+    // understood or quietly dropped — both come back as a tidy card.
+    const d = deps({ runSpec: vi.fn(async () => OWNED) });
+    await answerMessage(msg({ text: 'van welke groepen ben ik owner?' }), d);
+
+    const follow = deps({
+      interpret: vi.fn(async () => ({ kind: 'report', spec: structuredClone(referringSpec), timing: {} })),
+      runSpec: vi.fn(async () => runResult()),
+    });
+    const out = await answerMessage(msg({ text: 'en zijn die onderdeel van een access package?' }), follow);
+
+    expect(text(out.attachment)).toContain(NL.followedUp(2));
+  });
+
+  it('says nothing of the kind when the question stood on its own', async () => {
+    const d = deps();
+    const out = await answerMessage(msg(), d);
+    expect(text(out.attachment)).not.toContain('previous question');
+    expect(text(out.attachment)).not.toContain('vorige vraag');
+  });
+
+  it('still substitutes the caller in the same definition', async () => {
+    // @me and @previous are two passes over one definition; neither may eat
+    // the other.
+    const both = {
+      entity: 'resource', match: 'all',
+      conditions: [
+        { type: 'field', field: 'id', op: 'in', value: PREVIOUS_SENTINEL },
+        { type: 'relation', relation: 'owners', quantifier: 'some', match: 'all',
+          conditions: [{ type: 'field', field: 'id', op: 'eq', value: CALLER_SENTINEL }] },
+      ],
+      columns: ['displayName'],
+    };
+    const follow = await askTwice({ second: both });
+    const ran = follow.runSpec.mock.calls[0][0];
+    expect(ran.conditions[0].value).toEqual(['g1', 'g2']);
+    expect(ran.conditions[1].conditions[0].value).toBe(OID);
   });
 });

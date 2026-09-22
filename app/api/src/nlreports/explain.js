@@ -13,11 +13,29 @@ function formatValue(field, value) {
   return String(value);
 }
 
+/**
+ * A list, as the interpretation line should read it.
+ *
+ * A follow-up question carries the previous answer's records as ids, and there
+ * can be dozens. Printing them makes the one line a reader uses to check the
+ * bot understood them — "Understood as …" — unreadable, so past a handful it
+ * says how many instead. That is the honest summary: the reader is checking
+ * the SHAPE of the question, and the records themselves are the answer they
+ * just saw.
+ */
+const SHOW_IN_FULL = 3;
+
+function formatList(field, list) {
+  if (list.length <= SHOW_IN_FULL) return list.map(v => formatValue(field, v)).join(', ');
+  return `${list.length} values`;
+}
+
 function fieldText(entityName, c) {
   const field = ENTITIES[entityName].fields[c.field];
   const op = OPERATORS[c.op];
   if (c.op === 'withinLastDays') return `${field.label} is within the last ${c.value} days`;
   if (c.op === 'olderThanDays') return `${field.label} is more than ${c.value} days ago`;
+  if (c.op === 'in') return `${field.label} ${op.label} ${formatList(field, c.value ?? [])}`;
   return op.needsValue ? `${field.label} ${op.label} ${formatValue(field, c.value)}` : `${field.label} ${op.label}`;
 }
 

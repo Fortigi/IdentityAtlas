@@ -18,9 +18,11 @@
     "src/teamsbot/caller.js",
     "src/teamsbot/callerSpec.js",
     "src/teamsbot/card.js",
+    "src/teamsbot/followUp.js",
     "src/teamsbot/log.js",
     "src/teamsbot/service.js",
     "src/teamsbot/signInDialog.js",
+    "src/teamsbot/specValues.js",
     "src/teamsbot/state.js",
     "src/teamsbot/text.js"
   ],

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateSpec, resolveColumn, availableColumns, MAX_LIMIT } from './spec.js';
+import { validateSpec, resolveColumn, availableColumns, MAX_LIMIT, MAX_IN_VALUES } from './spec.js';
 
 const values = { principalType: ['ServicePrincipal', 'User'], userType: ['Guest', 'Member'], resourceType: ['Group'] };
 
@@ -123,5 +123,59 @@ describe('columns', () => {
     const cols = availableColumns('account');
     expect(cols.map(c => c.key)).toEqual(expect.arrayContaining(['displayName', 'manager.displayName', 'memberOf.count']));
     expect(cols.every(c => c.label)).toBe(true);
+  });
+});
+
+describe('"is one of" takes a list', () => {
+  const check = (raw) => validateSpec({ entity: 'resource', conditions: [raw] }, values);
+  const inCond = (value, field = 'id') => check({ field, op: 'in', value });
+
+  it('keeps every value in the list', () => {
+    const { ok, spec } = inCond(['g1', 'g2', 'g3']);
+    expect(ok).toBe(true);
+    expect(spec.conditions[0].value).toEqual(['g1', 'g2', 'g3']);
+  });
+
+  it('accepts a single value written without a list', () => {
+    // A small model that writes "value": "g1" for an "in" means the same thing.
+    const { ok, spec } = inCond('g1');
+    expect(ok).toBe(true);
+    expect(spec.conditions[0].value).toEqual(['g1']);
+  });
+
+  it('refuses an empty list instead of matching everything', () => {
+    // The dangerous failure: an "in" with no values compiling to no condition
+    // at all would widen the report from "these 27 groups" to every group.
+    const { ok, errors } = inCond([]);
+    expect(ok).toBe(false);
+    expect(errors.join(' ')).toMatch(/needs a value|at least one value/);
+  });
+
+  it('refuses a list longer than the cap, naming the cap', () => {
+    const { ok, errors } = inCond(Array.from({ length: MAX_IN_VALUES + 1 }, (_, i) => `g${i}`));
+    expect(ok).toBe(false);
+    expect(errors.join(' ')).toContain(String(MAX_IN_VALUES));
+  });
+
+  it('accepts a list exactly at the cap', () => {
+    // The boundary from the other side, so the cap is off-by-one-proof.
+    expect(inCond(Array.from({ length: MAX_IN_VALUES }, (_, i) => `g${i}`)).ok).toBe(true);
+  });
+
+  it('coerces each value the way the field would coerce one', () => {
+    // An enum list resolves to the catalog's canonical spelling, per value.
+    const { ok, spec } = check({ field: 'resourceType', op: 'in', value: ['group'] });
+    expect(ok).toBe(true);
+    expect(spec.conditions[0].value).toEqual(['Group']);
+  });
+
+  it('is offered on text and enum, and refused on everything else', () => {
+    expect(inCond(['x'], 'displayName').ok).toBe(true);
+    expect(check({ field: 'resourceType', op: 'in', value: ['Group'] }).ok).toBe(true);
+    // A list of numbers or dates has no meaning the catalog can compile.
+    const onNumber = validateSpec(
+      { entity: 'resource', conditions: [{ field: 'memberCount', op: 'in', value: [1, 2] }] }, values);
+    expect(onNumber.ok).toBe(false);
+    expect(onNumber.errors.join(' ')).toMatch(/not allowed/);
   });
 });

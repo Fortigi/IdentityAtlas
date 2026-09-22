@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { setPending, takePending, clearPending, __ttlMs } from './state.js';
+import {
+  setPending, takePending, rememberAnswer, recallAnswer, clearPending, __ttlMs, __answerTtlMs,
+} from './state.js';
 
 beforeEach(clearPending);
 
@@ -74,5 +76,62 @@ describe('pending clarifications', () => {
 
     expect(takePending('c1')).toBeNull();
     expect(takePending('c0')).toEqual({ kind: 'clarify', n: 2 });
+  });
+});
+
+describe('what the last answer was about', () => {
+  // A follow-up ("en zijn die onderdeel van een access package?") needs the
+  // records of the answer above it. This is the one thing the bot remembers
+  // across turns, and it has to forget reliably.
+  const CARRIED = { kind: 'resource', records: [{ id: 'g1', name: 'ASML' }] };
+
+  beforeEach(() => { clearPending(); });
+
+  it('hands the records back to the next question', () => {
+    rememberAnswer('c1', CARRIED, 0);
+    expect(recallAnswer('c1', 0)).toEqual(CARRIED);
+  });
+
+  it('does NOT forget on read, so a set can be narrowed twice', () => {
+    // "which of those are in an access package?" then "and who owns those?" —
+    // a set that vanished after one use would break the second question in a
+    // way nothing in the chat explains.
+    rememberAnswer('c1', CARRIED, 0);
+    expect(recallAnswer('c1', 0)).toEqual(CARRIED);
+    expect(recallAnswer('c1', 0)).toEqual(CARRIED);
+  });
+
+  it('keeps one answer per conversation, the most recent', () => {
+    rememberAnswer('c1', CARRIED, 0);
+    rememberAnswer('c1', { kind: 'user', records: [{ id: 'u1' }] }, 1);
+    expect(recallAnswer('c1', 1).kind).toBe('user');
+  });
+
+  it('keeps conversations apart', () => {
+    rememberAnswer('c1', CARRIED, 0);
+    expect(recallAnswer('c2', 0)).toBeNull();
+  });
+
+  it('forgets an answer older than its lifetime, at the boundary', () => {
+    rememberAnswer('old', CARRIED, 1_000);
+    expect(recallAnswer('old', 1_000 + __answerTtlMs)).toEqual(CARRIED);
+    expect(recallAnswer('old', 1_000 + __answerTtlMs + 1)).toBeNull();
+  });
+
+  it('outlives a pending clarification, because they wait for different things', () => {
+    // A clarification is a question the caller is mid-reply to; "what were we
+    // looking at" survives a coffee.
+    expect(__answerTtlMs).toBeGreaterThan(__ttlMs);
+  });
+
+  it('ignores a turn with no conversation id rather than sharing one bucket', () => {
+    rememberAnswer(undefined, CARRIED, 0);
+    expect(recallAnswer(undefined, 0)).toBeNull();
+  });
+
+  it('is cleared alongside everything else', () => {
+    rememberAnswer('c1', CARRIED, 0);
+    clearPending();
+    expect(recallAnswer('c1', 0)).toBeNull();
   });
 });

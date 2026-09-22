@@ -22,6 +22,7 @@
 
 import { CALLER_SENTINEL } from '../nlreports/spec.js';
 import { isUuid } from './caller.js';
+import { substituteValues } from './specValues.js';
 
 /**
  * Replace every `@me` in a report definition with the caller's account id.
@@ -37,22 +38,7 @@ export function substituteCaller(node, callerPrincipalId) {
   if (!isUuid(callerPrincipalId)) {
     throw new TypeError('substituteCaller needs a resolved caller account id');
   }
-  return walk(node, callerPrincipalId);
-}
-
-function walk(node, id) {
-  if (Array.isArray(node)) return node.map(n => walk(n, id));
-  if (node === null || typeof node !== 'object') return node;
-
-  const out = {};
-  for (const [key, value] of Object.entries(node)) {
-    // Only a condition's `value` carries the sentinel. Everything else is
-    // recursed into (conditions, groups, compare references) or copied as is.
-    if (key === 'value' && value === CALLER_SENTINEL) out[key] = id;
-    else if (value !== null && typeof value === 'object') out[key] = walk(value, id);
-    else out[key] = value;
-  }
-  return out;
+  return substituteValues(node, new Map([[CALLER_SENTINEL, callerPrincipalId]]));
 }
 
 /**

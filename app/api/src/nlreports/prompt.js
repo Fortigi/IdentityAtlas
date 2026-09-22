@@ -247,9 +247,30 @@ export function buildValuesBlock(values) {
   return `Values that exist in this deployment (use these exact strings):\n${lines.join('\n')}`;
 }
 
+/**
+ * Operators the catalog has but the system prompt does not offer.
+ *
+ * `in` takes a LIST, and `value` in the reply schema has no array branch — so a
+ * model told "you may use in" would write `"value": "ASML, Bestuur"`, which
+ * coerces to a single value and matches one record whose name contains a comma.
+ * A confidently wrong empty answer, from advertising something the grammar
+ * cannot express.
+ *
+ * It is reachable on purpose, just not from here: the Teams bot's per-question
+ * context introduces `in` together with `@previous` (teamsbot/followUp.js),
+ * which is the only value for it the model can write correctly — one token
+ * standing for a list the bot substitutes. Keeping it out of this prompt also
+ * keeps the prompt byte-identical across this change, so the cached copy on the
+ * model server stays valid and the published accuracy figures still describe
+ * what ships.
+ */
+const NOT_OFFERED_TO_MODEL = new Set(['in']);
+
 /** The system prompt. Identical for every deployment of a release — no data in it. */
 export function buildSystemPrompt() {
-  const ops = Object.entries(OPERATORS_BY_TYPE).map(([t, list]) => `- ${t}: ${list.join(', ')}`).join('\n');
+  const ops = Object.entries(OPERATORS_BY_TYPE)
+    .map(([t, list]) => `- ${t}: ${list.filter(op => !NOT_OFFERED_TO_MODEL.has(op)).join(', ')}`)
+    .join('\n');
   const examples = EXAMPLES.map(e => `Request: ${e.q}\nReply: ${JSON.stringify(e.a)}`).join('\n\n');
   return `You translate an analyst's request into a JSON report definition for Identity Atlas, an identity and access governance tool. You never write SQL and you never see data. Reply with JSON only.
 

@@ -52,6 +52,12 @@ function fieldPredicate(field, expr, op, value, ctx) {
       return field.type === 'text'
         ? `(${expr} IS NULL OR lower(${expr}) <> lower(${ctx.param(value)}))`
         : `(${expr} IS NULL OR ${expr} <> ${ctx.param(value)}${cast})`;
+    // Lowercased on both sides, exactly like eq: a list must match the same
+    // rows that the same values would match one at a time. The whole list is
+    // ONE parameter — a list built per question would otherwise push a
+    // different number of placeholders into the SQL text on every call.
+    case 'in':
+      return `lower(${expr}) = ANY(${ctx.param(value.map(v => String(v).toLowerCase()))})`;
     // ESCAPE '\\' + the shared like* helpers: a value containing % or _ matches
     // literally (routes/likeAudit.test.js enforces this across src/).
     case 'contains': return `${expr} ILIKE ${ctx.param(likeContains(value))} ESCAPE '\\'`;

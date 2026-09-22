@@ -127,6 +127,41 @@ describe('compileSpec — sign-in activity', () => {
 });
 
 describe('explainSpec', () => {
+  // ── "is one of" ───────────────────────────────────────────────
+  //
+  // Exists for follow-up questions: "of THESE groups, which are in an access
+  // package" has to name the records a previous answer produced.
+
+  it('compiles a list to one parameter, not one placeholder per value', () => {
+    // A list built per question would otherwise change the SQL TEXT on every
+    // call, which defeats statement caching and makes the compiled query
+    // impossible to compare between two runs.
+    const { text, params } = compile({
+      entity: 'resource', conditions: [{ field: 'id', op: 'in', value: ['g1', 'g2', 'g3'] }],
+    });
+    expect(text).toContain('= ANY($1)');
+    expect(params[0]).toEqual(['g1', 'g2', 'g3']);
+    expect(text).not.toContain('$2,');
+  });
+
+  it('matches case-insensitively, exactly as "is" does on one value', () => {
+    // A list must select the same rows the same values would one at a time.
+    const one = compile({ entity: 'resource', conditions: [{ field: 'displayName', op: 'eq', value: 'Finance' }] });
+    const many = compile({ entity: 'resource', conditions: [{ field: 'displayName', op: 'in', value: ['Finance'] }] });
+    expect(one.text).toContain('lower(');
+    expect(many.text).toContain('lower(');
+    expect(many.params[0]).toEqual(['finance']);
+  });
+
+  it('keeps a list value out of the SQL text, like every other value', () => {
+    const { text, params } = compile({
+      entity: 'resource',
+      conditions: [{ field: 'displayName', op: 'in', value: [`x'); DROP TABLE "Principals"; --`] }],
+    });
+    expect(text).not.toContain('DROP');
+    expect(params[0]).toEqual([`x'); drop table "principals"; --`]);
+  });
+
   // ── the ids behind a name list ────────────────────────────────
   //
   // A name-list column ("Owner of" = "ASML, AlisQI, Bestuur, …") used to throw

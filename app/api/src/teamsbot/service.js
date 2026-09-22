@@ -32,7 +32,8 @@ import {
 import { detectLanguage, strings } from './text.js';
 import { logConversation, newConversationId } from './log.js';
 import { forLog } from '../nlreports/assistantHttp.js';
-import { setPending, takePending } from './state.js';
+import { setPending, takePending, rememberAnswer, recallAnswer } from './state.js';
+import { carriedRecords, previousContextBlock, substitutePrevious, usedPrevious } from './followUp.js';
 
 /**
  * How long the caller waits before being told it failed.
@@ -187,8 +188,13 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
     // a new question rather than insisting on the menu.
   }
 
+  // What the previous answer in this chat was about, so "deze groepen" means
+  // something. Offered to the model, never imposed: it decides whether this
+  // question refers back (followUp.previousContextBlock says when not to).
+  const carried = recallAnswer(message.conversationId);
   const history = waiting?.kind === 'clarify' ? waiting.history : [];
-  const contextual = history.length ? question : `${callerContextBlock(caller)}\n\nRequest: ${question}`;
+  const context = [callerContextBlock(caller), previousContextBlock(carried)].filter(Boolean).join('\n\n');
+  const contextual = history.length ? question : `${context}\n\nRequest: ${question}`;
   const reply = await ask({ question: contextual, history });
 
   if (reply.kind === 'clarify') {
@@ -208,9 +214,29 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
     return { kind: 'not-understood', errors: reply.errors, timing: reply.timing };
   }
 
-  // The caller's own account, substituted into the definition before it runs.
-  const spec = substituteCaller(reply.spec, caller.principalId);
-  return { kind: 'report', spec, timing: reply.timing, result: await run(spec) };
+  // The caller's own account and the records of the previous answer, put into
+  // the definition before it runs. Both are sentinels the model writes rather
+  // than uuids it copies — see specValues.js for why that distinction matters.
+  const withCaller = substituteCaller(reply.spec, caller.principalId);
+  const spec = substitutePrevious(withCaller, carried);
+  const result = await run(spec);
+
+  // What THIS answer was about, for the question after it. Written after a
+  // successful run only: an answer that failed put nothing in front of the
+  // caller, so there is nothing for them to refer back to, and replacing the
+  // previous set with an empty one would break a follow-up to the answer
+  // before it.
+  const nowCarried = carriedRecords(result);
+  if (nowCarried) rememberAnswer(message.conversationId, nowCarried);
+
+  return {
+    kind: 'report',
+    spec,
+    timing: reply.timing,
+    result,
+    followedUp: usedPrevious(withCaller, spec),
+    carriedCount: carried?.records?.length ?? 0,
+  };
 }
 
 /**
@@ -306,6 +332,12 @@ function answerNotes(outcome, caller, question, language) {
   const { typed, matched } = outcome.matchedName ?? {};
   return [
     typed && typed !== matched ? t.fuzzy(typed, matched) : null,
+    // Said out loud for the same reason the interpretation line is: a caller
+    // who asked "en zijn die onderdeel van een access package?" cannot
+    // otherwise tell whether "die" was understood as the 27 groups above or
+    // quietly ignored. Both produce a card full of well-formatted rows, and
+    // only one of them answers the question that was asked.
+    outcome.followedUp ? t.followedUp(outcome.carriedCount) : null,
     needsScopeCaveat(question, outcome.spec, caller.principalId) ? t.scopeCaveat : null,
   ].filter(Boolean);
 }
