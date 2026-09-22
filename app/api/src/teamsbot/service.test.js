@@ -534,6 +534,32 @@ describe('following one answer up with another question', () => {
     expect(d.interpret.mock.calls[1][0].question).not.toContain(PREVIOUS_SENTINEL);
   });
 
+  it('narrows to the previous answer even when the model does not ask it to', async () => {
+    // The real failure, reproduced. Asked "Welke van deze groepen zitten in
+    // access packages?" the model produced exactly this — the businessRoles
+    // relation, which is the hard half, and no narrowing at all — so the bot
+    // reported on all 104 groups in the directory instead of the caller's 2.
+    const modelSpec = {
+      entity: 'group', match: 'all', columns: ['displayName', 'id'],
+      conditions: [{ type: 'relation', relation: 'businessRoles', quantifier: 'some', match: 'all', conditions: [] }],
+    };
+
+    const d = deps({ runSpec: vi.fn(async () => OWNED) });
+    await answerMessage(msg({ text: 'van welke groepen ben ik owner?' }), d);
+
+    const follow = deps({
+      interpret: vi.fn(async () => ({ kind: 'report', spec: structuredClone(modelSpec), timing: {} })),
+      runSpec: vi.fn(async () => runResult()),
+    });
+    const out = await answerMessage(msg({ text: 'Welke van deze groepen zitten in access packages?' }), follow);
+
+    const ran = follow.runSpec.mock.calls[0][0];
+    expect(ran.conditions).toContainEqual({ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] });
+    // And the model's own condition is still there — narrowed, not replaced.
+    expect(ran.conditions[0]).toEqual(modelSpec.conditions[0]);
+    expect(text(out.attachment)).toContain(NL.followedUp(2));
+  });
+
   it('says on the card that it answered about the previous records', async () => {
     // The same principle as the interpretation line above it. A caller who
     // asked "en zijn die …?" cannot otherwise tell whether "die" was

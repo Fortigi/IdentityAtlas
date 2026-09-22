@@ -20,8 +20,8 @@
 // cannot widen what they can see — which matters, because the POC has no
 // per-caller scope filter behind it (see caller.callerScopeFilter).
 
-import { PREVIOUS_SENTINEL } from '../nlreports/spec.js';
-import { MAX_IN_VALUES } from '../nlreports/spec.js';
+import { MAX_CONDITIONS, MAX_IN_VALUES, PREVIOUS_SENTINEL } from '../nlreports/spec.js';
+import { ENTITIES } from '../nlreports/catalog.js';
 import { substituteValues } from './specValues.js';
 
 /**
@@ -127,4 +127,100 @@ export function substitutePrevious(spec, carried) {
 /** Did this definition actually pick the earlier answer up? */
 export function usedPrevious(before, after) {
   return JSON.stringify(before) !== JSON.stringify(after);
+}
+
+// ─── resolving the reference without the model ──────────────────────────────
+//
+// Asking the model to write `@previous` did not work, and the log says exactly
+// why it is not a reasoning failure. Given "welke van deze groepen zitten in
+// access packages?" the model produced entity `group` with a `businessRoles
+// some` condition — the hard part, which needs knowing that an access package
+// is a BusinessRole resource and which relation reaches it. What it left out
+// was the bookkeeping: one extra condition, described once in a long English
+// preamble, using an operator that appears nowhere in its system prompt.
+//
+// So the bookkeeping moves here. The model keeps the job it is measured at —
+// what does the caller want to know — and "these groups" is resolved by code,
+// from three facts the bot already holds: a set was carried, the question
+// points back at it by name, and the definition is about the same kind of
+// record. `@previous` stays supported for when the model does write it; this
+// is the path that does not depend on it.
+
+/** What a caller calls each kind of record when pointing back at it. */
+const KIND_NOUNS = {
+  resource: ['groep', 'groepen', 'group', 'groups', 'resource', 'resources',
+    'applicatie', 'applicaties', 'application', 'applications'],
+  user: ['account', 'accounts', 'gebruiker', 'gebruikers', 'user', 'users',
+    'medewerker', 'medewerkers'],
+  identity: ['persoon', 'personen', 'identiteit', 'identiteiten', 'people', 'identities', 'mensen'],
+};
+
+const DEMONSTRATIVES = ['deze', 'die', 'dat', 'these', 'those', 'genoemde'];
+
+/** Phrases that cannot mean anything but "the answer above". */
+const BACK_REFERENCES = ['daarvan', 'hiervan', 'bovenstaande', 'of these', 'of those', 'of them'];
+
+/** How far after a demonstrative its noun may sit ("deze 29 groepen"). */
+const NOUN_WINDOW = 3;
+
+/**
+ * Does this question point back at the previous answer?
+ *
+ * A demonstrative ALONE is not enough, and that is the whole design of this
+ * function: "welke groepen zijn deze maand aangemaakt" contains "deze" and
+ * refers to nothing. So a demonstrative only counts when a word naming the
+ * carried kind follows it shortly after — "deze groepen", "those applications".
+ *
+ * The trade is deliberately biased. "En zijn die onderdeel van een access
+ * package?" has no noun after "die" and is therefore MISSED, which costs the
+ * caller a rephrase. Narrowing a question that was not about the earlier set
+ * costs them a confident wrong answer they cannot see, so misses are the
+ * direction to err in.
+ */
+export function refersToPrevious(question, kind) {
+  const text = String(question ?? '').toLowerCase();
+  if (BACK_REFERENCES.some(phrase => text.includes(phrase))) return true;
+
+  const nouns = KIND_NOUNS[kind];
+  if (!nouns) return false;
+  const words = text.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  return words.some((word, i) => DEMONSTRATIVES.includes(word)
+    && words.slice(i + 1, i + 1 + NOUN_WINDOW).some(w => nouns.includes(w)));
+}
+
+/** The kind of detail page an entity's rows are, for comparing with a carried set. */
+const entityKind = (entity) => (has(ENTITIES, entity) ? ENTITIES[entity].detailKind : null);
+const has = (obj, key) => Object.hasOwn(obj, key);
+
+/** Is the definition already limited to a set of ids? */
+const alreadyNarrowed = (spec) => (spec.conditions ?? [])
+  .some(c => c.type === 'field' && c.field === 'id' && c.op === 'in');
+
+/**
+ * Limit a definition to the records the previous answer produced.
+ *
+ * Returns the definition unchanged unless all four hold: something was carried,
+ * the question points back at it, the definition is about the same kind of
+ * record, and it is not already limited to a set of ids (which is what the
+ * model writing `@previous` itself produces).
+ */
+export function narrowToPrevious(spec, carried, question) {
+  if (!carried?.records?.length || !spec) return spec;
+  if (entityKind(spec.entity) !== carried.kind) return spec;
+  if (!refersToPrevious(question, carried.kind)) return spec;
+  if (alreadyNarrowed(spec)) return spec;
+
+  const limit = { type: 'field', field: 'id', op: 'in', value: carried.records.map(r => r.id) };
+  const existing = spec.conditions ?? [];
+
+  // ANDed with what the model wrote — but conditions joined by OR have to be
+  // grouped first, or adding one more alternative would WIDEN the report to
+  // every record matching it. Grouping also keeps the condition count legal
+  // when the model already used the whole budget.
+  const mustGroup = (spec.match === 'any' && existing.length > 1) || existing.length >= MAX_CONDITIONS;
+  const conditions = mustGroup
+    ? [{ type: 'group', match: spec.match === 'any' ? 'any' : 'all', conditions: existing }, limit]
+    : [...existing, limit];
+
+  return { ...spec, match: 'all', conditions };
 }

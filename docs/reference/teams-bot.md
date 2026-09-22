@@ -60,10 +60,28 @@ How it works, because the mechanism decides what it can and cannot do:
 
 - The ids of what the caller was just shown are remembered per chat, replaced by the next
   answer, and forgotten after 30 minutes.
-- The model is **offered** those records and told the token `@previous` to write if the
-  question refers back to them. It is not told to assume a follow-up — an unrelated question
-  silently narrowed to the last answer's 27 groups is the expensive failure here, not a
-  missed follow-up, because the caller would have no way to see it happened.
+- The reference is resolved **by the bot, not by the model**. If the question names the kind
+  of record that was carried — "deze groepen", "those applications", "daarvan" — and the
+  definition the model produced is about that same kind, the bot adds the id condition
+  itself.
+
+    This is deliberate, and measured. Asked *"Welke van deze groepen zitten in access
+    packages?"* the model produced the right entity and the right relation (`businessRoles
+    some` — it knows an access package is a BusinessRole resource) and simply left the
+    narrowing out, so the report covered all 104 groups in the directory rather than the
+    caller's 29. The reasoning was never the problem; following one more procedural
+    instruction, in a long preamble, was. So the bookkeeping is not asked of it.
+
+- The model may still write `@previous` itself, and that is honoured when it does. It is
+  never *told* to assume a follow-up, though: an unrelated question silently narrowed to the
+  last answer's records is the expensive failure here, not a missed follow-up, because the
+  caller would have no way to see it happened.
+
+- A demonstrative alone is not enough — "welke groepen zijn **deze** maand aangemaakt" refers
+  to nothing. The noun beside it is what makes it a reference. The cost is that a bare
+  pronoun is missed: *"en zijn **die** onderdeel van een access package?"* is treated as a
+  fresh question. That trade is on purpose — a miss costs a rephrase, a false positive costs
+  a confident wrong answer nobody can see.
 - When a follow-up *is* picked up, the card says so: *"Dit antwoord gaat over de 27 records
   uit je vorige vraag."* Same principle as the interpretation line — both readings produce a
   tidy card, and only one of them answers the question that was asked.

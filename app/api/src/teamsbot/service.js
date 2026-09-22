@@ -33,7 +33,9 @@ import { detectLanguage, strings } from './text.js';
 import { logConversation, newConversationId } from './log.js';
 import { forLog } from '../nlreports/assistantHttp.js';
 import { setPending, takePending, rememberAnswer, recallAnswer } from './state.js';
-import { carriedRecords, previousContextBlock, substitutePrevious, usedPrevious } from './followUp.js';
+import {
+  carriedRecords, narrowToPrevious, previousContextBlock, substitutePrevious, usedPrevious,
+} from './followUp.js';
 
 /**
  * How long the caller waits before being told it failed.
@@ -214,11 +216,25 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
     return { kind: 'not-understood', errors: reply.errors, timing: reply.timing };
   }
 
-  // The caller's own account and the records of the previous answer, put into
-  // the definition before it runs. Both are sentinels the model writes rather
-  // than uuids it copies — see specValues.js for why that distinction matters.
+  // The caller's own account, then the previous answer's records — by the
+  // sentinel when the model wrote one, and otherwise by reading the question.
+  // The second path is the one that carries the feature: the model reliably
+  // gets the SUBJECT of a follow-up right and reliably forgets the
+  // bookkeeping, so the bookkeeping is not asked of it (see followUp.js).
   const withCaller = substituteCaller(reply.spec, caller.principalId);
-  const spec = substitutePrevious(withCaller, carried);
+  const bySentinel = substitutePrevious(withCaller, carried);
+  const spec = narrowToPrevious(bySentinel, carried, question);
+  const followedUp = usedPrevious(withCaller, spec);
+
+  // Whether the previous answer was offered, and what became of it. Written
+  // every time, because reconstructing this afterwards meant reading report
+  // definitions back out of the database to find out that the model had simply
+  // not written the token.
+  console.log(
+    `teams-bot: follow-up offered=${carried?.records?.length ?? 0} kind=${carried?.kind ?? '-'} `
+    + `sentinel=${usedPrevious(withCaller, bySentinel)} narrowed=${usedPrevious(bySentinel, spec)}`,
+  );
+
   const result = await run(spec);
 
   // What THIS answer was about, for the question after it. Written after a
@@ -234,7 +250,7 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
     spec,
     timing: reply.timing,
     result,
-    followedUp: usedPrevious(withCaller, spec),
+    followedUp,
     carriedCount: carried?.records?.length ?? 0,
   };
 }

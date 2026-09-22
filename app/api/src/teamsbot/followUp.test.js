@@ -9,9 +9,10 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  carriedRecords, previousContextBlock, substitutePrevious, usedPrevious, MAX_CARRIED,
+  carriedRecords, narrowToPrevious, previousContextBlock, refersToPrevious, substitutePrevious,
+  usedPrevious, MAX_CARRIED,
 } from './followUp.js';
-import { PREVIOUS_SENTINEL } from '../nlreports/spec.js';
+import { MAX_CONDITIONS, PREVIOUS_SENTINEL } from '../nlreports/spec.js';
 
 const group = (id, name) => ({ id, name, kind: 'resource' });
 
@@ -175,5 +176,133 @@ describe('putting the records into the definition', () => {
   it('reports whether the earlier answer was actually picked up', () => {
     const referring = { entity: 'resource', conditions: [{ type: 'field', field: 'id', op: 'in', value: PREVIOUS_SENTINEL }] };
     expect(usedPrevious(referring, substitutePrevious(referring, carried))).toBe(true);
+  });
+});
+
+describe('spotting a question that points back', () => {
+  // A demonstrative on its own is not a back-reference. The noun beside it is
+  // what makes it one, and requiring the noun is what keeps "deze maand" from
+  // narrowing a report to last answer's groups.
+
+  it.each([
+    'Welke van deze groepen zitten in access packages?',
+    'welke van deze 29 groepen hebben geen eigenaar',
+    'which of these groups are in an access package?',
+    'zijn die groepen recent gewijzigd?',
+    'show me the owners of those applications',
+  ])('reads %s as pointing back', (q) => {
+    expect(refersToPrevious(q, 'resource')).toBe(true);
+  });
+
+  it.each([
+    'Welke groepen zijn deze maand aangemaakt?',
+    'welke groepen hebben geen eigenaar',
+    'wie zit er in de groep Finance',
+    'which groups have no owner?',
+  ])('does NOT read %s as pointing back', (q) => {
+    expect(refersToPrevious(q, 'resource')).toBe(false);
+  });
+
+  it('accepts a phrase that can mean nothing else, without a noun', () => {
+    expect(refersToPrevious('en de eigenaren daarvan?', 'resource')).toBe(true);
+    expect(refersToPrevious('which of those are in an access package', 'resource')).toBe(true);
+  });
+
+  it('misses a bare pronoun, on purpose', () => {
+    // "en zijn die onderdeel van een access package?" — no noun after "die",
+    // so this is not treated as a reference. A miss costs a rephrase; a false
+    // positive costs a confident wrong answer nobody can see. Change this
+    // deliberately, not by accident.
+    expect(refersToPrevious('en zijn die onderdeel van een access package?', 'resource')).toBe(false);
+  });
+
+  it('wants a noun that matches the KIND that was carried', () => {
+    // The last answer listed groups; a question about accounts is a new one.
+    expect(refersToPrevious('welke van deze groepen', 'user')).toBe(false);
+    expect(refersToPrevious('welke van deze accounts', 'user')).toBe(true);
+  });
+
+  it('survives punctuation, capitals and an empty question', () => {
+    expect(refersToPrevious('WELKE VAN DEZE GROEPEN?!', 'resource')).toBe(true);
+    expect(refersToPrevious('', 'resource')).toBe(false);
+    expect(refersToPrevious(null, 'resource')).toBe(false);
+    expect(refersToPrevious('deze groepen', 'nonsense')).toBe(false);
+  });
+});
+
+describe('narrowing a definition to the previous answer', () => {
+  const carried = { kind: 'resource', records: [group('g1'), group('g2')] };
+  const QUESTION = 'Welke van deze groepen zitten in access packages?';
+
+  // The definition the model actually produced for that question, from
+  // BotConversations on the test deployment. It gets the hard part right — the
+  // businessRoles relation IS "sits in an access package" — and leaves out the
+  // narrowing, which is the whole reason this function exists.
+  const MODEL_SPEC = {
+    entity: 'group',
+    match: 'all',
+    columns: ['displayName', 'id'],
+    conditions: [{ type: 'relation', relation: 'businessRoles', quantifier: 'some', match: 'all', conditions: [] }],
+  };
+
+  it('adds the ids the model left out, keeping what it did write', () => {
+    const out = narrowToPrevious(MODEL_SPEC, carried, QUESTION);
+    expect(out.conditions).toHaveLength(2);
+    expect(out.conditions[0]).toEqual(MODEL_SPEC.conditions[0]);
+    expect(out.conditions[1]).toEqual({ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] });
+  });
+
+  it('matches the carried kind against the ENTITY, not its name', () => {
+    // The model answers about groups with entity "group", whose records are
+    // resource detail pages — the same kind the carried set has.
+    expect(narrowToPrevious(MODEL_SPEC, carried, QUESTION).conditions).toHaveLength(2);
+    expect(narrowToPrevious({ ...MODEL_SPEC, entity: 'account' }, carried, QUESTION)).toEqual({ ...MODEL_SPEC, entity: 'account' });
+  });
+
+  it('leaves a question that points at nothing alone', () => {
+    expect(narrowToPrevious(MODEL_SPEC, carried, 'welke groepen hebben geen eigenaar')).toEqual(MODEL_SPEC);
+  });
+
+  it('leaves everything alone when nothing was carried', () => {
+    expect(narrowToPrevious(MODEL_SPEC, null, QUESTION)).toEqual(MODEL_SPEC);
+    expect(narrowToPrevious(MODEL_SPEC, { kind: 'resource', records: [] }, QUESTION)).toEqual(MODEL_SPEC);
+  });
+
+  it('does not narrow twice when the model wrote the sentinel itself', () => {
+    const already = {
+      ...MODEL_SPEC,
+      conditions: [{ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] }],
+    };
+    expect(narrowToPrevious(already, carried, QUESTION)).toEqual(already);
+  });
+
+  it('groups an OR before adding the ids, so it narrows instead of widening', () => {
+    // The dangerous case. Appending to a top-level "any" would make the ids
+    // one more ALTERNATIVE — the report would return every record in the
+    // previous answer PLUS everything the model asked for.
+    const either = {
+      entity: 'group', match: 'any', columns: ['displayName'],
+      conditions: [
+        { type: 'field', field: 'displayName', op: 'contains', value: 'A' },
+        { type: 'field', field: 'displayName', op: 'contains', value: 'B' },
+      ],
+    };
+    const out = narrowToPrevious(either, carried, QUESTION);
+
+    expect(out.match).toBe('all');
+    expect(out.conditions).toHaveLength(2);
+    expect(out.conditions[0]).toEqual({ type: 'group', match: 'any', conditions: either.conditions });
+    expect(out.conditions[1].op).toBe('in');
+  });
+
+  it('groups rather than overrunning the condition budget', () => {
+    const full = {
+      entity: 'group', match: 'all', columns: ['displayName'],
+      conditions: Array.from({ length: MAX_CONDITIONS },
+        () => ({ type: 'field', field: 'displayName', op: 'contains', value: 'x' })),
+    };
+    const out = narrowToPrevious(full, carried, QUESTION);
+    expect(out.conditions).toHaveLength(2);
+    expect(out.conditions[0].type).toBe('group');
   });
 });

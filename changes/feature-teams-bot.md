@@ -9,3 +9,4 @@
 - The bot greets you by name as soon as it takes your question, then keeps a typing indicator up until the answer arrives, instead of posting a second "still working on it" message part way through.
 - A cell that lists many records — "Owner of: ASML, Bestuur, DLL…" — now links each name to that group or application, instead of pointing the whole list at the record the row is about.
 - You can now follow an answer up with another question about it — "and are those groups part of an access package?" — and the bot answers about the records it just showed you. It says on the card when it has done so, and a question that stands on its own is left alone.
+- Follow-up questions no longer depend on the language model noticing the reference: when you ask "welke van deze groepen…" the bot works out which records you mean and limits the report to them itself.
