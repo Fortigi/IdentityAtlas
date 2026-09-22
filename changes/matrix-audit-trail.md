@@ -1,0 +1,3 @@
+- The matrix name menu has a new **History…** entry: it shows who first saved a matrix, who has changed it since, and what each change touched — a rename, the subjects, the resources, the roll-up or the governed lens.
+- The "Open a matrix" list now says who last changed each saved matrix, not only when.
+- Changes to saved matrices are recorded from this release onwards, so a matrix saved earlier starts its trail at its next change.

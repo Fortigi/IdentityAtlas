@@ -14,13 +14,14 @@
 //   * "Shared with N ▾" — only for a shared saved matrix, and only for somebody
 //     who may share; it opens the recipients panel.
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useCanShareMatrix } from '@ui/hooks/useCanShareMatrix';
 import { useDialog } from '@ui/components/dialogContext';
 import SavedMatrixMenu from './SavedMatrixMenu';
 import SaveMatrixDialog from './SaveMatrixDialog';
+import MatrixHistoryDialog from './MatrixHistoryDialog';
 import { useSavedMatrixNaming, namingCopy } from './useSavedMatrixNaming';
 import { currentSavedMatrix, savedMatrixLoadArgs, sharedWithLabel } from './shareState';
 
@@ -85,6 +86,8 @@ export default function MatrixNameBar({ filter, onLoad, onAdjust, onShare }) {
   const firstLoad = loading && rows.length === 0;
   const { current, diverged } = currentSavedMatrix(rows, filter);
   const naming = useSavedMatrixNaming({ authFetch, dialog, onDone: reload });
+  // Which saved matrix's trail is open, if any — 'who changed this, and when'.
+  const [historyOf, setHistoryOf] = useState(null);
 
   const load = useCallback((id) => {
     const row = rows.find(f => f.id === id);
@@ -107,6 +110,7 @@ export default function MatrixNameBar({ filter, onLoad, onAdjust, onShare }) {
         onNew={() => onAdjust?.({ fresh: true })}
         onRename={naming.openRename}
         onDuplicate={naming.openDuplicate}
+        onHistory={setHistoryOf}
       />
 
       {diverged && (
@@ -135,6 +139,14 @@ export default function MatrixNameBar({ filter, onLoad, onAdjust, onShare }) {
       )}
 
       {naming.state && <NamingDialog naming={naming} />}
+
+      {historyOf && (
+        <MatrixHistoryDialog
+          savedFilterId={historyOf.id}
+          savedName={historyOf.name}
+          onClose={() => setHistoryOf(null)}
+        />
+      )}
     </>
   );
 }
