@@ -3,3 +3,4 @@
 - An explicitly set System name in the crawler's wizard still wins over the crawler's name.
 - SCIM crawlers saved before this behaviour existed no longer stay stuck on the name "SCIM". The old wizard stored that literal whenever the System name field was left blank; a stored value of exactly "SCIM" is now treated as "not set", so those crawlers follow their own name without being re-saved. Any other value, including "SCIM Test", is kept as the override it looks like. The crawler card on Admin → Crawlers shows the same name the run will register.
 - Heads-up: the first run after this update renames existing systems. Saved matrix filters and report parameters that stored a system name as text stop matching until re-saved — the same as when a system is renamed by hand on the Systems page.
+- The midPoint and Omada integration tests now find their system by endpoint rather than by display name, so they keep working once the display name follows the crawler.
