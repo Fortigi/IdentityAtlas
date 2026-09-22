@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Custom reports can now count records per value: pick **Count per** in the report builder, or ask "how many users per department", and the report comes back as one row per distinct value with the number of records that have it — including a row for the records that have no value at all.
+- The report builder now offers the attributes your own crawlers stamp on the data (such as `sfDepartmentID`, `employeeType` or an OU path) alongside the built-in fields, so you can filter on them, show them as a column and count per them. They are listed under "From your data", by their readable name rather than the long `extension_<id>_...` key they arrive under.
+- Asking the report generator a question that names one of those attributes now works: the attribute is looked up in your data and handed to the model, instead of the question coming back as something it cannot build.
+
+## Changes in this PR
+
 - The matrix name menu has a new **History…** entry: it shows who first saved a matrix, who has changed it since, and what each change touched — a rename, the subjects, the resources, the roll-up or the governed lens.
 - The "Open a matrix" list now says who last changed each saved matrix, not only when.
 - Changes to saved matrices are recorded from this release onwards, so a matrix saved earlier starts its trail at its next change.
