@@ -108,6 +108,48 @@ function columnSql(entityName, colDef, alias, ctx) {
   return `(SELECT string_agg(DISTINCT ${inner}."displayName", ', ' ORDER BY ${inner}."displayName") FROM ${from} WHERE ${where})`;
 }
 
+/** Suffix of the companion column carrying a name list's ids. Not a real column. */
+export const LINKS_SUFFIX = '__links';
+
+/** The detail-page kind a name-list column's records belong to, or null. */
+export function linkKind(entityName, colDef) {
+  if (colDef.kind !== 'manyNames') return null;
+  const rel = ENTITIES[entityName].relations[colDef.relation];
+  return ENTITIES[rel.target].detailKind ?? null;
+}
+
+/**
+ * The records behind a name-list column, as `{id, name}` pairs.
+ *
+ * A `manyNames` column renders as "ASML, AlisQI, Bestuur, …": one string built
+ * by string_agg, with every id discarded. That reads fine and is useless for
+ * anything else. A chat card could only link the whole run of names to the
+ * ROW's own record — so a list of 27 groups became 27 names all pointing at the
+ * account that owns them — and a follow-up question about "these groups" had no
+ * ids to refer to, because the answer never contained any.
+ *
+ * Selecting the pairs alongside the string fixes both at the source. The
+ * visible column value is unchanged byte for byte, so every existing consumer
+ * carries on reading the same string; the pairs ride in a separate column that
+ * only callers who know about it look at.
+ *
+ * DISTINCT is done in an inner SELECT rather than inside jsonb_agg, because
+ * `jsonb_agg(DISTINCT x ORDER BY y)` requires the sort key to match the DISTINCT
+ * expression — and here they differ deliberately: distinct by (id, name), so
+ * two groups that share a name both survive, ordered by name so the list reads
+ * in the same order as the string beside it.
+ */
+function linkColumnSql(entityName, colDef, alias, ctx) {
+  if (!linkKind(entityName, colDef)) return null;
+  const rel = ENTITIES[entityName].relations[colDef.relation];
+  const inner = ctx.alias();
+  const { from, where } = rel.from(alias, inner, ctx.alias);
+  const pairs = ctx.alias();
+  return `(SELECT jsonb_agg(jsonb_build_object('id', ${pairs}."id", 'name', ${pairs}."name") ORDER BY ${pairs}."name")
+   FROM (SELECT DISTINCT ${inner}."id" AS "id", ${inner}."displayName" AS "name"
+           FROM ${from} WHERE ${where}) ${pairs})`;
+}
+
 /** The catalog type of a column, so the route can format values. */
 export function columnType(entityName, colDef) {
   const entity = ENTITIES[entityName];
@@ -134,6 +176,10 @@ export function compileSpec(spec) {
   const columns = spec.columns.map(ref => resolveColumn(spec.entity, ref));
   const select = [`${root}."id" AS "__id"`]
     .concat(columns.map(cd => `${columnSql(spec.entity, cd, root, ctx)} AS "${cd.key}"`));
+  for (const cd of columns) {
+    const pairs = linkColumnSql(spec.entity, cd, root, ctx);
+    if (pairs) select.push(`${pairs} AS "${cd.key}${LINKS_SUFFIX}"`);
+  }
 
   const preds = spec.conditions.map(c => conditionSql(spec.entity, c, root, ctx));
   const where = `${entity.where(root)} AND ${joinPredicates(preds, spec.match)}`;
@@ -160,6 +206,7 @@ export function compileSpec(spec) {
       key: cd.key,
       label: cd.kind === 'compare' ? compareColumnLabel(cd.sub, ctx.firstCompare) : cd.label,
       type: columnType(spec.entity, cd),
+      linkKind: linkKind(spec.entity, cd),
     })),
   };
 }

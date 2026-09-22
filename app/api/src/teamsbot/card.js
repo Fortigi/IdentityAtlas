@@ -87,6 +87,25 @@ function explanationBlocks(t, explanation, notes) {
   return [...head, ...notes.filter(Boolean).map(n => text(n, { size: 'Small', isSubtle: true }))];
 }
 
+/**
+ * What one cell says, and what (if anything) it links to.
+ *
+ * Two different kinds of link meet here. A NAME-LIST cell holds many records —
+ * "Owner of" is 27 groups — and each name links to its own group, because the
+ * alternative is what this replaced: 27 names rendered as one link to the
+ * account that owns them, which pointed every group at the same wrong page.
+ * Any OTHER first cell is the row's own record and links there.
+ *
+ * `row._links` comes from the report pipeline (nlreports/service.js), which
+ * selects the ids alongside the names. Splitting the displayed string on commas
+ * would be the obvious alternative and is wrong: group names contain commas.
+ */
+function cellText(row, column, isFirst, entityUrl) {
+  const links = row._links?.[column.key];
+  if (links?.length) return links.map(l => formatValue(l.name, entityUrl?.(l))).join(', ');
+  return formatValue(row[column.key], isFirst && row._entity ? entityUrl?.(row._entity) : null);
+}
+
 /** One header row plus one row per record, as a ColumnSet grid. */
 function rowGrid(columns, rows, entityUrl) {
   const cell = (items) => ({ type: 'Column', width: 'stretch', items });
@@ -98,12 +117,12 @@ function rowGrid(columns, rows, entityUrl) {
   const body = rows.map(row => ({
     type: 'ColumnSet',
     separator: true,
-    // Only the FIRST column links. It is the record's name by convention, and a
-    // row where every cell is a link to the same place is noise, not navigation.
-    // An aggregate row — one record listing many names — carries no `_entity`,
-    // so there is nothing to link to and nothing is asked for.
+    // The first column links to the row's own record — it is the record's name
+    // by convention, and a row where every cell links to the same place is
+    // noise rather than navigation. A name-list cell is the exception, in any
+    // position: it holds many records and links each of them separately.
     columns: columns.map((c, i) => cell([
-      text(formatValue(row[c.key], i === 0 && row._entity ? entityUrl?.(row._entity) : null), { size: 'Small' }),
+      text(cellText(row, c, i === 0, entityUrl), { size: 'Small' }),
     ])),
   }));
   return [header, ...body];

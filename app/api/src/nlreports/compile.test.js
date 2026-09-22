@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compileSpec } from './compile.js';
+import { compileSpec, linkKind, LINKS_SUFFIX } from './compile.js';
 import { validateSpec } from './spec.js';
 import { explainSpec } from './explain.js';
 
@@ -127,6 +127,66 @@ describe('compileSpec — sign-in activity', () => {
 });
 
 describe('explainSpec', () => {
+  // ── the ids behind a name list ────────────────────────────────
+  //
+  // A name-list column ("Owner of" = "ASML, AlisQI, Bestuur, …") used to throw
+  // every id away, which made the names unlinkable and left a follow-up
+  // question about "these groups" with nothing to point at.
+
+  it('selects the id behind every name in a name-list column', () => {
+    const { text, columns } = compile({
+      entity: 'account', conditions: [], columns: ['displayName', 'owns.names'],
+    });
+
+    expect(text).toContain(`AS "owns.names${LINKS_SUFFIX}"`);
+    expect(text).toContain('jsonb_build_object');
+    // Both halves of the pair, or the names come back unusable.
+    expect(text).toMatch(/'id',\s*\w+\."id"/);
+    expect(text).toMatch(/'name',\s*\w+\."name"/);
+    // The companion carries the kind of page each id opens.
+    expect(columns.find(col => col.key === 'owns.names').linkKind).toBe('resource');
+  });
+
+  it('leaves the visible name-list value exactly as it was', () => {
+    // The whole design rests on this: the pairs ride ALONGSIDE the string, so
+    // exports, the report table and every other reader are untouched. If this
+    // fails, the change stopped being additive.
+    const { text } = compile({ entity: 'account', conditions: [], columns: ['owns.names'] });
+    expect(text).toContain(`string_agg(DISTINCT `);
+    expect(text).toMatch(/string_agg\(DISTINCT \w+\."displayName", ', ' ORDER BY \w+\."displayName"\)/);
+  });
+
+  it('orders the pairs by name, like the string beside them', () => {
+    // Two lists that disagree on order are worse than no list: the third link
+    // would open the fourth group's page.
+    const { text } = compile({ entity: 'account', conditions: [], columns: ['owns.names'] });
+    expect(text).toMatch(/jsonb_agg\(.*ORDER BY \w+\."name"\)/);
+  });
+
+  it('de-duplicates by id AND name, so two groups sharing a name both survive', () => {
+    // DISTINCT sits in an inner SELECT over the pair, not over the name — a
+    // tenant with two groups called "General" must get two links.
+    const { text } = compile({ entity: 'account', conditions: [], columns: ['owns.names'] });
+    expect(text).toMatch(/SELECT DISTINCT \w+\."id" AS "id", \w+\."displayName" AS "name"/);
+  });
+
+  it('adds no companion column to anything that is not a name list', () => {
+    const { text, columns } = compile({
+      entity: 'account', conditions: [], columns: ['displayName', 'owns.count', 'manager.displayName'],
+    });
+    expect(text).not.toContain(LINKS_SUFFIX);
+    expect(columns.every(col => col.linkKind === null)).toBe(true);
+  });
+
+  it('knows which detail page each name list opens', () => {
+    // resource.members lists accounts, account.owns lists resources — the kind
+    // comes from the relation's TARGET, not from the report's own entity.
+    expect(linkKind('resource', { kind: 'manyNames', relation: 'members' })).toBe('user');
+    expect(linkKind('account', { kind: 'manyNames', relation: 'owns' })).toBe('resource');
+    expect(linkKind('account', { kind: 'manyCount', relation: 'owns' })).toBe(null);
+    expect(linkKind('account', { kind: 'field', field: 'displayName' })).toBe(null);
+  });
+
   it('reads the interpretation back in analyst language', () => {
     const { spec } = compile({
       entity: 'account',

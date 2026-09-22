@@ -185,9 +185,78 @@ describe('links through to Identity Atlas', () => {
   });
 
   it('does not link a row the query returned no identity for', () => {
-    // An aggregate row (one record listing many names) carries no _entity.
+    // A row with no _entity and no _links: nothing to point at.
     const seen = lines(linked({ rows: [{ displayName: 'ASML, Bestuur, DLL', memberCount: 3 }] }));
     expect(seen).toContain('ASML, Bestuur, DLL');
+  });
+});
+
+describe('a cell that lists many records', () => {
+  // "Van welke groepen ben ik owner?" answers with ONE row — the account — and
+  // a cell holding 27 group names. Linking that cell as a unit pointed all 27
+  // names at the asker's own user page, which is where this came from. The
+  // report pipeline now hands over the id behind each name.
+  const owned = (over = {}) => answerCard({
+    explanation: EXPLANATION,
+    columns: [{ key: 'owns.names', label: 'Owner of' }],
+    rows: [{
+      'owns.names': 'ASML, Bestuur',
+      _entity: { kind: 'user', id: 'me' },
+      _links: {
+        'owns.names': [
+          { id: 'g1', name: 'ASML', kind: 'resource' },
+          { id: 'g2', name: 'Bestuur', kind: 'resource' },
+        ],
+      },
+    }],
+    entityUrl: (e) => `https://ia.example/#${e.kind}:${e.id}`,
+    ...over,
+  });
+
+  it('links each name to its own record, not the row to one of them', () => {
+    expect(lines(owned())).toContain(
+      '[ASML](https://ia.example/#resource:g1), [Bestuur](https://ia.example/#resource:g2)');
+  });
+
+  it('never points a listed name at the row it was listed on', () => {
+    // The actual bug: every group linked to the account that owns them.
+    expect(lines(owned()).join(' ')).not.toContain('#user:me');
+  });
+
+  it('links a name list in any column, not only the first', () => {
+    const seen = lines(owned({
+      columns: [{ key: 'displayName', label: 'Name' }, { key: 'owns.names', label: 'Owner of' }],
+      rows: [{
+        displayName: 'Wim',
+        'owns.names': 'ASML',
+        _entity: { kind: 'user', id: 'me' },
+        _links: { 'owns.names': [{ id: 'g1', name: 'ASML', kind: 'resource' }] },
+      }],
+    }));
+    expect(seen).toContain('[Wim](https://ia.example/#user:me)');
+    expect(seen).toContain('[ASML](https://ia.example/#resource:g1)');
+  });
+
+  it('escapes a bracketed name inside the list', () => {
+    const seen = lines(owned({
+      rows: [{
+        'owns.names': 'Orange - MCL [Tjongerschans]',
+        _links: { 'owns.names': [{ id: 'g9', name: 'Orange - MCL [Tjongerschans]', kind: 'resource' }] },
+      }],
+    }));
+    expect(seen).toContain('[Orange - MCL \\[Tjongerschans\\]](https://ia.example/#resource:g9)');
+  });
+
+  it('falls back to the plain names when there is nowhere to link to', () => {
+    expect(lines(owned({ entityUrl: () => null }))).toContain('ASML, Bestuur');
+    expect(lines(owned({ entityUrl: null }))).toContain('ASML, Bestuur');
+  });
+
+  it('ignores an empty list rather than emptying the cell', () => {
+    const seen = lines(owned({
+      rows: [{ 'owns.names': 'ASML, Bestuur', _links: { 'owns.names': [] } }],
+    }));
+    expect(seen).toContain('ASML, Bestuur');
   });
 });
 

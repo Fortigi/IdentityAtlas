@@ -8,7 +8,7 @@
 import { query, tx } from '../db/connection.js';
 import { ENTITIES, VALUE_QUERIES } from './catalog.js';
 import { validateSpec } from './spec.js';
-import { compileSpec } from './compile.js';
+import { compileSpec, LINKS_SUFFIX } from './compile.js';
 import { explainSpec } from './explain.js';
 import { buildSystemPrompt, buildValuesBlock, RESPONSE_SCHEMA, REPORT_ONLY_SCHEMA } from './prompt.js';
 import { chat, DEFAULT_MODEL } from './llm.js';
@@ -276,6 +276,28 @@ function formatCell(type, v) {
 }
 
 /**
+ * One result row: the displayed cells, plus the records behind any name list.
+ *
+ * `_links` is deliberately separate from the cell values rather than replacing
+ * them. A name-list cell stays the same readable string it has always been, so
+ * exports, the report table and every other consumer are untouched; a caller
+ * that wants to make those names clickable — or to ask a follow-up question
+ * about them — reads `_links[column]` instead of trying to parse the string
+ * back apart, which is not possible when a name itself contains a comma.
+ */
+function buildRow(r, columns, kind) {
+  const row = { _entity: { kind, id: r.__id } };
+  const links = {};
+  for (const c of columns) {
+    row[c.key] = formatCell(c.type, r[c.key]);
+    const pairs = c.linkKind ? r[`${c.key}${LINKS_SUFFIX}`] : null;
+    if (pairs?.length) links[c.key] = pairs.map(p => ({ ...p, kind: c.linkKind }));
+  }
+  if (Object.keys(links).length) row._links = links;
+  return row;
+}
+
+/**
  * @param {object} rawSpec  a spec (from the model or edited in the UI)
  * @returns {Promise<object>} { ok:false, errors } or the run result
  */
@@ -297,11 +319,7 @@ export async function runSpec(rawSpec) {
 
   const truncated = result.rows.length > spec.limit;
   const kind = ENTITIES[spec.entity].detailKind;
-  const rows = result.rows.slice(0, spec.limit).map(r => {
-    const row = { _entity: { kind, id: r.__id } };
-    for (const c of compiled.columns) row[c.key] = formatCell(c.type, r[c.key]);
-    return row;
-  });
+  const rows = result.rows.slice(0, spec.limit).map(r => buildRow(r, compiled.columns, kind));
 
   return {
     ok: true,

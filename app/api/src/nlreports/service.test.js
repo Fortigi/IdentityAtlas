@@ -4,10 +4,10 @@ vi.mock('../db/connection.js');
 // The whole module surface: settings.js imports MODEL_IS_FIXED from here as well.
 vi.mock('./llm.js', () => ({ chat: vi.fn(), warm: vi.fn(), DEFAULT_MODEL: 'test-model', MODEL_IS_FIXED: false }));
 
-import { query } from '../db/connection.js';
+import { query, tx } from '../db/connection.js';
 import { chat, warm } from './llm.js';
 import { buildSystemPrompt, REPORT_ONLY_SCHEMA, RESPONSE_SCHEMA } from './prompt.js';
-import { ensureWarm, hasAnyMatch, interpret, needsOrRepair, schemaFor, warmAtStartup, warmupState } from './service.js';
+import { ensureWarm, hasAnyMatch, interpret, needsOrRepair, runSpec, schemaFor, warmAtStartup, warmupState } from './service.js';
 
 describe('warm-up at API start', () => {
   const env = { ...process.env };
@@ -209,5 +209,82 @@ describe('prompt-cache warm-up', () => {
     const out = await interpret({ question: 'all guests', model: 'm' });
     expect(out.kind).toBe('report');
     expect(out.spec.entity).toBe('user');
+  });
+});
+
+describe('runSpec row shaping', () => {
+  // A name-list column reads as one string ("ASML, AlisQI, Bestuur"), and the
+  // ids behind those names now ride alongside it. Without them a chat card can
+  // only link the whole run of names to the row's own record, and a follow-up
+  // question about "these groups" has nothing to refer to.
+
+  const SPEC = { entity: 'account', conditions: [], columns: ['displayName', 'owns.names'] };
+
+  /** Run a spec against one fake result row. */
+  const run = async (dbRow, spec = SPEC) => {
+    query.mockResolvedValue({ rows: [] });
+    tx.mockImplementation(async (fn) => fn({ query: async () => ({ rows: [dbRow] }) }));
+    return runSpec(spec);
+  };
+
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('hands back the records behind a name list, with the page each one opens', async () => {
+    const out = await run({
+      __id: 'u1',
+      displayName: 'Wim',
+      'owns.names': 'ASML, Bestuur',
+      'owns.names__links': [{ id: 'g1', name: 'ASML' }, { id: 'g2', name: 'Bestuur' }],
+    });
+
+    expect(out.rows[0]._links['owns.names']).toEqual([
+      { id: 'g1', name: 'ASML', kind: 'resource' },
+      { id: 'g2', name: 'Bestuur', kind: 'resource' },
+    ]);
+  });
+
+  it('leaves the readable cell exactly as it was', async () => {
+    // The pairs are additive. If the visible value ever changes shape, exports
+    // and the report table change with it.
+    const out = await run({
+      __id: 'u1',
+      displayName: 'Wim',
+      'owns.names': 'ASML, Bestuur',
+      'owns.names__links': [{ id: 'g1', name: 'ASML' }, { id: 'g2', name: 'Bestuur' }],
+    });
+
+    expect(out.rows[0]['owns.names']).toBe('ASML, Bestuur');
+    expect(out.rows[0].displayName).toBe('Wim');
+    expect(out.rows[0]._entity).toEqual({ kind: 'user', id: 'u1' });
+  });
+
+  it('owns nothing: no _links key at all rather than an empty one', async () => {
+    // jsonb_agg over no rows is NULL, not []. A row that carries `_links: {}`
+    // reads as "has links" to every caller that tests for the key.
+    const out = await run({ __id: 'u1', displayName: 'Wim', 'owns.names': null, 'owns.names__links': null });
+
+    expect(out.rows[0]).not.toHaveProperty('_links');
+    expect(out.rows[0]['owns.names']).toBe(null);
+  });
+
+  it('adds nothing to a report without a name list', async () => {
+    const out = await run(
+      { __id: 'u1', displayName: 'Wim', 'owns.count': 27 },
+      { entity: 'account', conditions: [], columns: ['displayName', 'owns.count'] },
+    );
+
+    expect(out.rows[0]).not.toHaveProperty('_links');
+    expect(out.rows[0]['owns.count']).toBe(27);
+  });
+
+  it('keeps the pairs out of the columns the caller is told about', async () => {
+    // The companion is an implementation detail of the row, not a column
+    // anybody should render — a table that shows it prints raw JSON.
+    const out = await run({
+      __id: 'u1', displayName: 'Wim', 'owns.names': 'ASML',
+      'owns.names__links': [{ id: 'g1', name: 'ASML' }],
+    });
+
+    expect(out.columns.map(c => c.key)).toEqual(['displayName', 'owns.names']);
   });
 });
