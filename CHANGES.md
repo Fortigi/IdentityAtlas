@@ -1,5 +1,14 @@
 ## Changes in this PR
 
+- The system a crawler registers is now named after the crawler itself for every crawler type — Entra ID, Azure RM, Omada, midPoint and SCIM. A crawler called "HBR EntraID" now shows up as the system "HBR EntraID" instead of "Entra ID (contoso.onmicrosoft.com)", so several connectors of the same type are finally distinguishable on the Systems page, in the matrix and in every system filter.
+- Renaming a crawler renames its system on the next run: the existing system is renamed in place, not duplicated.
+- An explicitly set System name in the crawler's wizard still wins over the crawler's name.
+- SCIM crawlers saved before this behaviour existed no longer stay stuck on the name "SCIM". The old wizard stored that literal whenever the System name field was left blank; a stored value of exactly "SCIM" is now treated as "not set", so those crawlers follow their own name without being re-saved. Any other value, including "SCIM Test", is kept as the override it looks like. The crawler card on Admin → Crawlers shows the same name the run will register.
+- Heads-up: the first run after this update renames existing systems. Saved matrix filters and report parameters that stored a system name as text stop matching until re-saved — the same as when a system is renamed by hand on the Systems page.
+- The midPoint and Omada integration tests now find their system by endpoint rather than by display name, so they keep working once the display name follows the crawler.
+
+## Changes in this PR
+
 - Added the context assistant (experimental, off by default — switch on under Admin → Experimental): a fourth way to create a context tree, "Describe it". Describe a process, application or project, and the local model proposes search terms; keep or drop each term while seeing how many groups it finds, include or exclude individual groups, and save. The model never sees your groups — it only proposes words, which are then searched for.
 - Contexts built this way are refreshed after every crawl: new groups that match a kept term join automatically, excluded groups stay out. Reopen one with "Edit search terms" on the context.
 - Added the permission **Build contexts** (`data.write.contexts`): create manual contexts, edit context members and use the context assistant without the Context plugins admin permission. Existing mappings keep working; customised role mappings must grant it by hand to use the assistant.
