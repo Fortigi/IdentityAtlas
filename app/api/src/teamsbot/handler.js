@@ -60,9 +60,18 @@ export class IdentityAtlasBot extends TeamsActivityHandler {
     const caller = await this.resolveTurnCaller(context, { connectionName: this.connectionName });
     if (!caller.ok) return this.handleNoCaller(context, caller.reason, t);
 
-    // Keep the chat alive while the model writes. Teams drops a typing
-    // indicator after a few seconds, so it is re-sent rather than sent once —
-    // an answer here is measured in tens of seconds, not milliseconds.
+    // Say something VISIBLE before the wait starts.
+    //
+    // A typing indicator alone is not enough here and testing proved it: Teams
+    // renders it as a small transient dot animation, drops it after a few
+    // seconds, and does not always show it at all on desktop. An answer takes
+    // one to three minutes, so the chat sits apparently dead for longer than
+    // anyone will wait before deciding the bot is broken — which is exactly
+    // what happened. A posted message stays on screen for the whole wait and
+    // also says how long to expect, which the indicator cannot.
+    await context.sendActivity(t.working).catch(() => {});
+
+    // The indicator on top of it, re-sent because Teams expires it.
     const typing = setInterval(() => {
       context.sendActivity({ type: 'typing' }).catch(() => {});
     }, TYPING_EVERY_MS);

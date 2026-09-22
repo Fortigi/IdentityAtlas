@@ -31,6 +31,7 @@ import {
 } from './card.js';
 import { detectLanguage, strings } from './text.js';
 import { logConversation, newConversationId } from './log.js';
+import { forLog } from '../nlreports/assistantHttp.js';
 import { setPending, takePending } from './state.js';
 
 /**
@@ -46,7 +47,7 @@ import { setPending, takePending } from './state.js';
 export const DEADLINE_MS = Number(process.env.TEAMS_BOT_DEADLINE_MS) || 180_000;
 
 /** When to tell the caller it is still going. Teams drops a typing indicator well before this. */
-export const PROGRESS_AFTER_MS = Number(process.env.TEAMS_BOT_PROGRESS_MS) || 20_000;
+export const PROGRESS_AFTER_MS = Number(process.env.TEAMS_BOT_PROGRESS_MS) || 45_000;
 
 const HELP_WORDS = new Set(['help', '?', 'hulp', 'hi', 'hello', 'hallo', 'start']);
 
@@ -114,9 +115,18 @@ export async function answerMessage(message, deps = {}) {
 
   if (isHelp(question)) return { attachment: welcomeCard(language), outcome: 'help', conversationLogId: null };
 
+  // Logged ON ARRIVAL, not only on the way out — the same thing the report
+  // route does, and for the same reason. A question takes minutes, and the
+  // conversation row is not written until it finishes, so without this line a
+  // question in flight is indistinguishable in the logs from one that never
+  // arrived. That cost an afternoon: a message that had reached the server and
+  // was working looked exactly like a message that had vanished.
+  console.log(`teams-bot: ask id=${id} caller=${forLog(message.oid, 64)} conversation=${forLog(message.conversationId, 64)} lang=${language} question="${forLog(question)}"`);
+
   // Who is asking. No match is a full stop — never a default or anonymous user.
   const caller = await resolve(message.oid);
   if (!caller) {
+    console.log(`teams-bot: ask id=${id} outcome=unknown-caller ms=${now() - started}`);
     await record({ outcome: 'unknown-caller', callerPrincipalId: null });
     return { attachment: unknownCallerCard(language), outcome: 'unknown-caller', conversationLogId: id };
   }
@@ -132,13 +142,16 @@ export async function answerMessage(message, deps = {}) {
     );
 
     if (result === TIMED_OUT) {
+      console.log(`teams-bot: ask id=${id} outcome=timeout ms=${now() - started}`);
       await record({ outcome: 'timeout', callerPrincipalId: caller.principalId });
       return { attachment: timeoutCard(Math.round(DEADLINE_MS / 1000), language), outcome: 'timeout', conversationLogId: id };
     }
 
-    return await finish(result, { id, record, caller, question, language, reportLink });
+    const answered = await finish(result, { id, record, caller, question, language, reportLink });
+    console.log(`teams-bot: ask id=${id} outcome=${answered.outcome} ms=${now() - started}`);
+    return answered;
   } catch (err) {
-    console.error(`teams-bot: answering failed: ${err.message}`);
+    console.error(`teams-bot: ask id=${id} outcome=failed ms=${now() - started}: ${err.message}`);
     await record({ outcome: 'failed', callerPrincipalId: caller.principalId, error: err.message });
     return { attachment: errorCard(language), outcome: 'failed', conversationLogId: id };
   } finally {

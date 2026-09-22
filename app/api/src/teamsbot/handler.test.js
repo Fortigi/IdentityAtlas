@@ -13,7 +13,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TestAdapter } from 'botbuilder';
 import { IdentityAtlasBot } from './handler.js';
 import { attachment } from './card.js';
-import { EN } from './text.js';
+import { EN, NL } from './text.js';
 
 const ANSWER = attachment([{ type: 'TextBlock', text: 'the answer', wrap: true }]);
 
@@ -70,6 +70,35 @@ describe('a question from a known caller', () => {
     const { answerMessage } = await run(message('  which groups is Jan in?  '));
     const [msg] = answerMessage.mock.calls[0];
     expect(msg).toEqual({ oid: 'oid-1', conversationId: 'c1', text: 'which groups is Jan in?' });
+  });
+
+  it('says something visible before the wait, not just a typing indicator', async () => {
+    // The typing indicator alone left the chat looking dead for the minute-plus
+    // an answer takes — Teams renders it faintly, drops it after seconds, and
+    // sometimes not at all. A posted line stays put for the whole wait.
+    const sent = [];
+    let visibleAtCallTime = [];
+    await run(message('which groups is Jan in?'), {
+      sent,
+      answerImpl: vi.fn(async () => {
+        visibleAtCallTime = sent.filter(a => typeof a.text === 'string' && a.text).map(a => a.text);
+        return { attachment: ANSWER, outcome: 'answered', conversationLogId: null };
+      }),
+    });
+    expect(visibleAtCallTime).toContain(EN.working);
+  });
+
+  it('says it in the language of the question', async () => {
+    const sent = [];
+    await run(message('van welke groepen ben ik eigenaar?'), { sent });
+    expect(sent.map(a => a.text).filter(Boolean)).toContain(NL.working);
+  });
+
+  it('does not announce work it is not going to do', async () => {
+    // No caller, no wait — so no "on it". Saying it and then producing a
+    // sign-in card reads as the bot losing the question.
+    const { sent } = await run(message('q'), { caller: { ok: false, reason: 'no-token' } });
+    expect(sent.map(a => a.text).filter(Boolean)).not.toContain(EN.working);
   });
 
   it('starts a typing indicator before the pipeline, not after', async () => {
