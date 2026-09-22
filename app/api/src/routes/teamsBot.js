@@ -57,6 +57,21 @@ export function botAdapter() {
     });
     adapter = new CloudAdapter(auth);
 
+    // FIRST middleware, ahead of the SSO one below, because that one can end a
+    // turn without calling next(): when a token exchange fails it answers the
+    // invoke and returns, so nothing downstream ever runs and nothing is
+    // logged. An exchange that Teams attempted and the token service refused is
+    // then indistinguishable from one Teams never attempted — and those need
+    // opposite fixes. This is the only place that difference is visible.
+    adapter.use({
+      onTurn: async (context, next) => {
+        const { type, name } = context.activity;
+        console.log(`teams-bot: inbound ${type}${name ? ` name=${name}` : ''}`);
+        await next();
+        console.log(`teams-bot: inbound ${type}${name ? ` name=${name}` : ''} — middleware chain completed`);
+      },
+    });
+
     // Silent SSO. Without this the bot shows a sign-in card, Teams performs the
     // exchange and posts `signin/tokenExchange` — and nothing ever redeems it,
     // so the token never reaches the token store, `getUserToken` keeps returning
