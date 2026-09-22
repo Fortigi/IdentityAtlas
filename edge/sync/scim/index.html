@@ -5712,6 +5712,10 @@ its base URL, so the row is updated, not duplicated).</p>
 <p>Fill in the wizard's optional <strong>System name</strong> field only to label the system as something other
 than the crawler — it is an override and always wins. Leaving it blank is not a choice of the
 literal <code>SCIM</code>: that name is used only when the crawler has no name at all.</p>
+<p>A crawler configured before this behaviour existed has the literal <code>SCIM</code> stored in its <strong>System
+name</strong> field, because the older wizard wrote it there whenever the field was left blank. A stored
+value of exactly <code>SCIM</code> is therefore treated as "not set" and the crawler's own name is used — no
+re-saving needed. Any other value, including <code>SCIM Test</code>, is kept as the override it looks like.</p>
 <h3 id="network-access">Network access<a class="headerlink" href="#network-access" title="Permanent link">&para;</a></h3>
 <p>A SaaS SCIM endpoint on public https needs no extra setting. For a SCIM service provider inside
 your network, tick <strong>Allow private network</strong> in the wizard (<code>allowPrivateNetwork: true</code>); for
