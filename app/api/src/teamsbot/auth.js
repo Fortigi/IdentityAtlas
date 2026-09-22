@@ -26,6 +26,35 @@
 
 import { verifyAccessToken } from '../middleware/auth.js';
 
+/**
+ * How long any single call to the Bot Framework token service may take.
+ *
+ * It is a network call from inside a turn, and a turn that never returns is the
+ * worst failure this bot has: the chat shows nothing at all — no answer, no
+ * error, not even a sign-in card — and the server logs nothing either, because
+ * nothing threw. That is indistinguishable from "the message never arrived",
+ * and it cost a long afternoon of looking in the wrong place. Ten seconds is far
+ * more than the call needs and far less than a person will wait.
+ */
+export const TOKEN_SERVICE_TIMEOUT_MS = Number(process.env.TEAMS_BOT_TOKEN_TIMEOUT_MS) || 10_000;
+
+/**
+ * Reject rather than hang. Returns the promise's value, or throws on timeout.
+ * The underlying call is not cancelled — there is nothing to cancel it with —
+ * but the turn stops waiting on it.
+ */
+export async function withTokenTimeout(promise, what, ms = TOKEN_SERVICE_TIMEOUT_MS) {
+  let timer;
+  const bell = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} did not answer within ${ms}ms`)), ms);
+  });
+  try {
+    return await Promise.race([promise, bell]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** The OAuth connection name configured on the Azure Bot resource. */
 export const CONNECTION_NAME = process.env.TEAMS_BOT_CONNECTION_NAME || 'identityatlas';
 
@@ -65,7 +94,16 @@ export async function callerFromTurn(context, deps = {}) {
     connectionName = CONNECTION_NAME,
   } = deps;
 
-  const token = await getUserToken(context, connectionName).catch(() => null);
+  const token = await withTokenTimeout(getUserToken(context, connectionName), 'getUserToken')
+    .catch((err) => {
+      // A timeout is worth saying out loud; "not signed in yet" is not. Both
+      // end in the same place — the caller is asked to sign in — but only one
+      // of them is something an operator needs to know about.
+      if (/did not answer within/.test(err?.message ?? '')) {
+        console.error(`teams-bot: ${err.message}`);
+      }
+      return null;
+    });
   // No token means the caller has not consented to SSO yet. It is not an error
   // and must not be logged as one — the caller is asked to sign in instead.
   if (!token) return { ok: false, reason: 'no-token' };

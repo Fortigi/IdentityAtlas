@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { callerFromTurn, mayAsk, REQUIRED_PERMISSION, CONNECTION_NAME } from './auth.js';
+import { callerFromTurn, mayAsk, withTokenTimeout, REQUIRED_PERMISSION, CONNECTION_NAME, TOKEN_SERVICE_TIMEOUT_MS } from './auth.js';
 
 const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 
@@ -41,7 +41,60 @@ describe('mayAsk', () => {
   });
 });
 
+describe('withTokenTimeout', () => {
+  it('returns the value when the call answers in time', async () => {
+    await expect(withTokenTimeout(Promise.resolve('tok'), 'getUserToken', 1000)).resolves.toBe('tok');
+  });
+
+  it('rejects rather than hanging forever, naming the call', async () => {
+    // The whole point. A token-service call that never settles produced a turn
+    // that never replied and never logged — no answer, no error, no sign-in
+    // card, nothing to look at. That is the one failure this bot must not have.
+    vi.useFakeTimers();
+    try {
+      const never = withTokenTimeout(new Promise(() => {}), 'getUserToken', 50);
+      const assertion = expect(never).rejects.toThrow(/getUserToken did not answer within 50ms/);
+      await vi.advanceTimersByTimeAsync(51);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('propagates a real rejection unchanged', async () => {
+    await expect(withTokenTimeout(Promise.reject(new Error('401 unauthorised')), 'getUserToken', 1000))
+      .rejects.toThrow('401 unauthorised');
+  });
+});
+
 describe('callerFromTurn', () => {
+  it('asks the caller to sign in when the token service hangs, and says so in the log', async () => {
+    // A hang must degrade to the same visible outcome as "not signed in yet" —
+    // the caller gets a card either way — but only the hang is logged, because
+    // only the hang is something an operator has to act on.
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.useFakeTimers();
+    try {
+      const deps = ok({ getUserToken: vi.fn(() => new Promise(() => {})) });
+      const pending = callerFromTurn(turn(), deps);
+      await vi.advanceTimersByTimeAsync(TOKEN_SERVICE_TIMEOUT_MS + 1);
+
+      await expect(pending).resolves.toEqual({ ok: false, reason: 'no-token' });
+      expect(err.mock.calls.join(' ')).toMatch(/did not answer within/);
+    } finally {
+      vi.useRealTimers();
+      err.mockRestore();
+    }
+  });
+
+  it('does not log when the caller simply has not signed in yet', async () => {
+    // The ordinary case must stay quiet, or the log that matters gets ignored.
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await callerFromTurn(turn(), ok({ getUserToken: vi.fn(async () => null) }));
+    expect(err).not.toHaveBeenCalled();
+    err.mockRestore();
+  });
+
   it('returns the oid from the VERIFIED token', async () => {
     await expect(callerFromTurn(turn(), ok())).resolves.toEqual({ ok: true, oid: OID });
   });

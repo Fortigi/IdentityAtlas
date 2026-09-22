@@ -10,7 +10,7 @@
 import { CardFactory, MessageFactory, TeamsActivityHandler } from 'botbuilder';
 import { answerMessage, isHelp } from './service.js';
 import { welcomeCard } from './card.js';
-import { callerFromTurn, CONNECTION_NAME } from './auth.js';
+import { callerFromTurn, withTokenTimeout, CONNECTION_NAME } from './auth.js';
 import { detectLanguage, strings } from './text.js';
 
 /** How often to refresh the typing indicator; Teams drops it after a few seconds. */
@@ -48,6 +48,16 @@ export class IdentityAtlasBot extends TeamsActivityHandler {
     const question = String(context.activity.text ?? '').trim();
     const language = detectLanguage(question);
     const t = strings(language);
+
+    // Logged before ANYTHING that can block, so the log always distinguishes
+    // "the activity never arrived" from "the activity arrived and something
+    // downstream hung". Those two look identical without this line, and telling
+    // them apart is most of the work when a chat goes quiet.
+    const turn = context.activity;
+    console.log(
+      `teams-bot: turn type=${turn.type} name=${turn.name ?? '-'} `
+      + `conversation=${turn.conversation?.id ?? '-'} chars=${question.length}`,
+    );
 
     // `help` is answered before anyone is identified. It reveals nothing about
     // the directory — it is three example questions — and needing to sign in
@@ -125,7 +135,10 @@ export class IdentityAtlasBot extends TeamsActivityHandler {
     const text = 'I need to know who you are before I can answer. This uses your existing account — it takes one tap.';
     try {
       const client = context.turnState.get(context.adapter.UserTokenClientKey);
-      const resource = await client.getSignInResource(this.connectionName, context.activity, null);
+      const resource = await withTokenTimeout(
+        client.getSignInResource(this.connectionName, context.activity, null),
+        'getSignInResource',
+      );
       return CardFactory.oauthCard(
         this.connectionName, title, text,
         resource.signInLink, resource.tokenExchangeResource, resource.tokenPostResource,
