@@ -895,6 +895,9 @@ function Resolve-OmadaConfig {
     $typeMappings = Merge-TypeMappings -Defaults $DefaultTypeMappings -Overrides $Cfg.typeMappings
 
     return $toggles + @{
+        # The crawler's own name, injected by the job dispatcher. Carried through so
+        # the endpoint system can be named after the crawler instead of the type (#1240).
+        configName            = ([string]$RawConfig['_configName']).Trim()
         baseUrl               = $hostUri + $path
         builtinBaseUrl        = $hostUri + ($path -replace '(?i)/dataobjects$', '/builtin')
         apiVersion            = if ($Cfg.apiVersion) { $Cfg.apiVersion } else { 'v14' }
@@ -954,7 +957,7 @@ function Get-OmadaAvailableEntitySets {
 # failure. Returns @{ systemId; omadaSystemMap; allOmadaSystems; omadaIdentitySystemUId }.
 function Register-OmadaSystems {
     [CmdletBinding()]
-    param([string]$ApiBaseUrl, [string]$ApiKey, [string]$BaseUrl, [int]$MaxRetries = 5)
+    param([string]$ApiBaseUrl, [string]$ApiKey, [string]$BaseUrl, [int]$MaxRetries = 5, [string]$ConfigName)
     $AllOmadaSystems = $Null
     $OmadaSystemMap  = @{}
     $SystemId        = 0
@@ -993,7 +996,7 @@ function Register-OmadaSystems {
         Write-Host "  Main Omada IGA system ID: $SystemId (UId: $MainSysUId)" -ForegroundColor Gray
     } catch {
         Write-Host "  Warning: could not register Omada systems — $($_.Exception.Message)" -ForegroundColor Yellow
-        $SystemId = Register-OmadaEndpointSystem -BaseUrl $BaseUrl
+        $SystemId = Register-OmadaEndpointSystem -BaseUrl $BaseUrl -ConfigName $ConfigName
     }
 
     # An Omada that reports NO connected systems is not an error — a fresh or
@@ -1009,7 +1012,7 @@ function Register-OmadaSystems {
     # on an error to reach a normal path is the actual bug; this makes it a step.
     if (-not $SystemId) {
         Write-Host "  Omada reported no connected systems — registering the endpoint itself" -ForegroundColor Yellow
-        $SystemId = Register-OmadaEndpointSystem -BaseUrl $BaseUrl
+        $SystemId = Register-OmadaEndpointSystem -BaseUrl $BaseUrl -ConfigName $ConfigName
     }
     return @{ systemId = $SystemId; omadaSystemMap = $OmadaSystemMap; allOmadaSystems = $AllOmadaSystems; omadaIdentitySystemUId = $OmadaIdentitySystemUId }
 }

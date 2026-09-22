@@ -140,6 +140,44 @@ Update-CrawlerProgress -Step 'Complete' -Pct 100
 
 ---
 
+## Naming the system you register
+
+A pull crawler registers one Identity Atlas **System** for the endpoint it connects to. That row's
+display name is what an operator reads on the Systems page, in the matrix and in every system
+filter, so it follows the **crawler's own name** — never the crawler type. Two crawlers of one type
+are otherwise indistinguishable, and renaming a crawler would rename nothing.
+
+The name arrives as `_configName` (the dispatcher stamps `CrawlerConfigs.displayName` onto the job
+config). Don't re-derive the precedence — use the shared helper:
+
+```powershell
+. (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
+
+$displayName = Get-CrawlerSystemName `
+    -TypeDefault "My Source ($($Cfg.baseUrl))" `   # only used when the run carries no crawler name
+    -ConfigName  ([string]$Cfg._configName) `      # the crawler's own name — wins by default
+    -SystemName  ([string]$Cfg.systemName)         # optional wizard override — wins over both
+
+Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
+    syncMode = 'delta'
+    records  = @(@{ systemType = 'MySource'; displayName = $displayName; tenantId = $Cfg.baseUrl; enabled = $true; syncEnabled = $true })
+}
+```
+
+Two rules the helper encodes for you:
+
+- A stored `systemName` that is an **exact copy of your type default** counts as not set. An older
+  wizard that wrote its default into the field whenever the operator left it blank would otherwise
+  shadow the crawler's name on every run, forever.
+- **Only your own endpoint/tenant row follows the crawler name.** Systems you discover *through*
+  the source (Omada's connected systems, midPoint's resources) keep the name their source gives
+  them — renaming those after the crawler would make every account's origin unreadable.
+
+Systems merge on `(systemType, tenantId)`, so keep those two fields stable: the name is a payload
+column, and an existing row is *renamed* rather than duplicated.
+
+---
+
 ## The Ingest API
 
 `/ingest/principals` above is one of many ingest endpoints — the full, authoritative reference is the live OpenAPI spec the running app already serves:

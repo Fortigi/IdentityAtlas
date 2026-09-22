@@ -74,6 +74,19 @@ Describe 'Resolve-AzureRMConfig' {
         $c.subscriptionFilter.Count | Should -Be 2
         $c.managementGroupId    | Should -Be 'mg1'
     }
+    It 'carries the crawler name through, so the system can be named after it' {
+        # The resolved hashtable is everything Register-AzureRMSystem gets to see.
+        # Dropping the dispatcher-injected _configName here is why the system ends up
+        # named after the type instead of after the crawler (#1240).
+        $p = Join-Path $TestDrive 'cfg-name.json'
+        '{ "tenantId": "contoso.onmicrosoft.com", "clientId": "c", "clientSecret": "s", "_configName": "HBR Azure" }' | Set-Content -Path $p
+        (Resolve-AzureRMConfig -ConfigPath $p).configName | Should -Be 'HBR Azure'
+    }
+    It 'leaves the crawler name empty when the job carries none (unnamed config / inline run)' {
+        $p = Join-Path $TestDrive 'cfg-noname.json'
+        '{ "tenantId": "t1", "clientId": "c1", "clientSecret": "s1" }' | Set-Content -Path $p
+        (Resolve-AzureRMConfig -ConfigPath $p).configName | Should -BeNullOrEmpty
+    }
 }
 
 Describe 'Connect-AzureRMSession' {
@@ -92,6 +105,39 @@ Describe 'Register-AzureRMSystem' {
     It 'throws when no id is returned, instead of guessing a system to scope deletes to' {
         Mock Invoke-IngestAPI { @{} }
         { Register-AzureRMSystem -Config (New-TestConfig) } | Should -Throw '*Could not resolve the Azure RM system id*'
+    }
+
+    Context 'system naming' {
+        BeforeEach {
+            # Collect into a pre-existing list: a $script: variable first assigned
+            # inside a mock body does not propagate back out.
+            $script:sysRecs = [System.Collections.Generic.List[object]]::new()
+            Mock Invoke-IngestAPI { foreach ($r in @($Body.records)) { $script:sysRecs.Add($r) }; @{ systemIds = @(7) } }
+        }
+
+        It 'names the registered system after the crawler, not after the type + tenant' {
+            # The operator's crawler is called "HBR Azure"; the Systems page, every
+            # __system filter and the matrix showed "Azure RM (contoso…)" instead, so
+            # two Azure RM crawlers were indistinguishable (#1240).
+            $p = Join-Path $TestDrive 'cfg-reg.json'
+            '{ "tenantId": "contoso.onmicrosoft.com", "clientId": "c", "clientSecret": "s", "_configName": "HBR Azure" }' | Set-Content -Path $p
+
+            Register-AzureRMSystem -Config (Resolve-AzureRMConfig -ConfigPath $p) | Out-Null
+
+            $script:sysRecs | Should -HaveCount 1
+            $script:sysRecs[0].displayName | Should -Be 'HBR Azure'
+            # Systems merge on (systemType, tenantId): the merge key must be untouched
+            # so the existing row is RENAMED rather than a second one created.
+            $script:sysRecs[0].systemType | Should -Be 'AzureRM'
+            $script:sysRecs[0].tenantId   | Should -Be 'contoso.onmicrosoft.com'
+        }
+
+        It 'keeps the type + tenant label when the job carries no crawler name' {
+            Register-AzureRMSystem -Config (New-TestConfig -Over @{ tenantId = 'tenant-1' }) | Out-Null
+
+            $script:sysRecs | Should -HaveCount 1
+            $script:sysRecs[0].displayName | Should -Be 'Azure RM (tenant-1)'
+        }
     }
 }
 

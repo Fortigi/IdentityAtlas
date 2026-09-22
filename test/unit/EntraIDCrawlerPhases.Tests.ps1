@@ -2006,6 +2006,54 @@ Describe 'Initialize-EntraCrawlerRun' {
             $TenantId -eq 'tid' -and $ClientId -eq 'cid' -and $ClientSecret -eq 'csecret' -and -not $ConfigFile
         }
     }
+
+    Context 'system naming' {
+        BeforeEach {
+            Mock Invoke-RestMethod -ParameterFilter { $Uri -match 'whoami' } -MockWith { @{ displayName = 'Worker' } }
+            Mock Get-FGAccessToken -MockWith { }
+            # Collect into a pre-existing list: a $script: variable first assigned
+            # inside a mock body does not propagate back out.
+            $script:sysRecs = [System.Collections.Generic.List[object]]::new()
+            Mock Invoke-IngestAPI -ParameterFilter { $Endpoint -eq 'ingest/systems' } -MockWith {
+                foreach ($r in @($Body.records)) { $script:sysRecs.Add($r) }
+                @{ systemIds = @(42) }
+            }
+            $script:runParams = @{
+                ApiBaseUrl = 'http://x/api'; ApiKey = 'k'
+                TenantId = 'tenant-123'; ClientId = 'cid'; ClientSecret = 'csecret'
+            }
+        }
+
+        It 'names the registered system after the crawler, not after the type + tenant' {
+            # A crawler the operator called "HBR EntraID" registered a system called
+            # "Entra ID (tenant-123)" — the crawler's name appeared nowhere in the
+            # Systems page, the matrix, or any __system filter (#1240).
+            #
+            # The name reaches the crawler as the dispatcher-injected `_configName`
+            # (CrawlerConfigs.displayName) and is threaded in from the entry point.
+            # There is no parameter carrying it yet, so it is only passed once one
+            # exists; without it the call still runs and this assertion lands on the
+            # name the crawler actually registers, which is the type literal.
+            $p = $script:runParams.Clone()
+            if ((Get-Command Initialize-EntraCrawlerRun).Parameters.ContainsKey('ConfigName')) { $p['ConfigName'] = 'HBR EntraID' }
+
+            Initialize-EntraCrawlerRun @p | Out-Null
+
+            $script:sysRecs | Should -HaveCount 1
+            $script:sysRecs[0].displayName | Should -Be 'HBR EntraID'
+            # Systems merge on (systemType, tenantId): the merge key must be untouched
+            # so the existing row is RENAMED rather than a second one created.
+            $script:sysRecs[0].systemType | Should -Be 'EntraID'
+            $script:sysRecs[0].tenantId   | Should -Be 'tenant-123'
+        }
+
+        It 'keeps the type + tenant label when the job carries no crawler name' {
+            Initialize-EntraCrawlerRun @script:runParams | Out-Null
+
+            $script:sysRecs | Should -HaveCount 1
+            $script:sysRecs[0].displayName | Should -Be 'Entra ID (tenant-123)'
+        }
+    }
 }
 
 # ─── Sync-EntraRefreshViews ─────────────────────────────────────────────────────

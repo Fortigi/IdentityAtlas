@@ -165,7 +165,8 @@ $script:phaseErrors = [System.Collections.Generic.List[string]]::new()
 $script:phases = [System.Collections.Generic.List[object]]::new()
 
 $systemId = Initialize-EntraCrawlerRun -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -TenantId ([string]$RawConfig['tenantId']) `
-    -ClientId ([string]$RawConfig['clientId']) -ClientSecret ([string]$RawConfig['clientSecret'])
+    -ClientId ([string]$RawConfig['clientId']) -ClientSecret ([string]$RawConfig['clientSecret']) `
+    -ConfigName ([string]$RawConfig['_configName'])
 
 $syncStart = Get-Date
 

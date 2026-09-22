@@ -138,10 +138,12 @@ try {
     Write-Result 'Midpoint/Job — completed successfully' ($completed.status -eq 'completed') "(status: $($completed.status))"
 
     # ── Assert: midPoint system registered (identified by the unique mock port) ──
+    # Matched on tenantId, not displayName: the display name now follows the crawler's
+    # own name (#1240), so the mock port only survives in the tenantId.
     $thisSystem = $null
     try {
         $systems    = Invoke-RestMethod -Uri "$ApiBaseUrl/systems" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
-        $thisSystem = @($systems) | Where-Object { $_.displayName -like "*:$($mock.Port)*" } | Select-Object -First 1
+        $thisSystem = @($systems) | Where-Object { $_.tenantId -like "*:$($mock.Port)*" } | Select-Object -First 1
         Write-Result 'Midpoint/Data — system registered' ($null -ne $thisSystem) "$(if ($thisSystem) { "($($thisSystem.displayName))" } else { '(not found)' })"
     } catch { Write-Result 'Midpoint/Data — system registered' $false $_.Exception.Message }
 

@@ -982,6 +982,26 @@ Describe 'Omada setup helpers' {
         $script:systemsSent[0].systemType  | Should -Be 'Omada'
     }
 
+    It 'Register-OmadaSystems keeps each CONNECTED system named after Omada, never after the crawler' {
+        # Only the endpoint self-registration follows the crawler's name (#1240).
+        # Omada's connected systems are other systems entirely — naming them after the
+        # crawler would collapse "AD", "SAP" and "Omada Identity" into one label and
+        # make every account's source unreadable.
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/System' } -MockWith {
+            @(
+                [pscustomobject]@{ DisplayName = 'Omada Identity'; UId = 'main-uid' }
+                [pscustomobject]@{ DisplayName = 'Active Directory'; UId = 'ad-uid' }
+            )
+        }
+        Mock Invoke-RestMethod -MockWith { @([pscustomobject]@{ systemType = 'Omada'; tenantId = 'main-uid'; id = 7 }) }
+        $script:systemsSent = [System.Collections.Generic.List[object]]::new()
+        Mock Invoke-IngestAPI -MockWith { foreach ($r in @($Body.records)) { $script:systemsSent.Add($r) }; @{ systemIds = @(1) } }
+
+        Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5 | Out-Null
+
+        @($script:systemsSent | ForEach-Object { $_.displayName }) | Should -Be @('Omada Identity', 'Active Directory')
+    }
+
     It 'Register-OmadaSystems falls back to the first mapped system when the main one is absent' {
         # Omada Identity is not in the atlas map (renamed, or not yet registered), but other
         # Omada systems are -- the crawler still needs a system id to attribute records to.

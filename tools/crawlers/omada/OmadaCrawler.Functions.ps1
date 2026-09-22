@@ -9,6 +9,9 @@
     exactly as before. Behaviour is unchanged.
 #>
 
+# Get-CrawlerSystemName — shared crawler-name-before-type-literal rule (#1240).
+. (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
+
 #region Functions
 
 function ConvertTo-AtlasResourceCategory {
@@ -167,12 +170,19 @@ function Send-OmadaGovernanceAssignmentForSystem {
 # somewhere to put accounts.
 function Register-OmadaEndpointSystem {
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$BaseUrl)
+    param(
+        [Parameter(Mandatory)][string]$BaseUrl,
+        # The crawler's own name (`_configName`), threaded in from the entry point.
+        [string]$ConfigName
+    )
+    # Named after the crawler when the run carries one; the type + base URL label is
+    # only the fallback for an unnamed config or an inline-config run (#1240).
+    $displayName = Get-CrawlerSystemName -TypeDefault "Omada ($BaseUrl)" -ConfigName $ConfigName
     # Systems are registered, never reconciled — a full sync would ask the API to
     # treat this one record as the complete set of systems (SEC-2026-09 C-01).
     $result = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
         syncMode = 'delta'
-        records  = @(@{ systemType = 'Omada'; displayName = "Omada ($BaseUrl)"; tenantId = $BaseUrl; enabled = $True; syncEnabled = $True })
+        records  = @(@{ systemType = 'Omada'; displayName = $displayName; tenantId = $BaseUrl; enabled = $True; syncEnabled = $True })
     }
     $id = [int]($result.systemIds[0])
     Write-Host "  Endpoint system ID: $id" -ForegroundColor Gray
