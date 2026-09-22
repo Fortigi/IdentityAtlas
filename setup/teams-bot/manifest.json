@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
   "manifestVersion": "1.17",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "id": "REPLACE-WITH-BOT-ENTRA-APP-ID",
   "developer": {
     "name": "Fortigi",
@@ -46,7 +46,7 @@
   "permissions": ["identity"],
   "webApplicationInfo": {
     "id": "REPLACE-WITH-BOT-ENTRA-APP-ID",
-    "resource": "api://REPLACE-WITH-YOUR-IDENTITY-ATLAS-HOST/REPLACE-WITH-BOT-ENTRA-APP-ID"
+    "resource": "api://botid-REPLACE-WITH-BOT-ENTRA-APP-ID"
   },
   "validDomains": ["token.botframework.com", "REPLACE-WITH-YOUR-IDENTITY-ATLAS-HOST"]
 }

@@ -68,7 +68,36 @@ registration is configured as a single-page application.
     - Use that tab, not **My APIs**: `My APIs` lists only registrations you are an *owner*
       of, so it is usually empty here and the API looks missing when it is not. Either use
       this tab, or add yourself as an owner of the API registration.
-4. Note the bot's **Application (client) ID** and your **Directory (tenant) ID**.
+4. **Expose an API → Application ID URI → Edit.** Replace the default with:
+
+    ```
+    api://botid-<bot-client-id>
+    ```
+
+    !!! danger "The `botid-` prefix is not optional"
+        This is a **standalone bot**, and Microsoft's format for one is
+        `api://botid-{app-id}` — *not* the `api://<domain>/{app-id}` form used for tabs.
+        Get it wrong and everything still looks correct: the bot runs, the card is sent and
+        accepted, Test Connection succeeds — and Teams silently answers every sign-in with
+        `signin/failure` / `resourcematchfailed`, which is visible only in the bot's log.
+        An app that also ships a tab uses `api://<domain>/botid-{app-id}` instead. See
+        [Microsoft's bot SSO registration guide](https://learn.microsoft.com/en-us/microsoftteams/platform/bots/how-to/authentication/bot-sso-register-aad).
+
+5. **Expose an API → Add a scope** named `access_as_user`, consentable by admins and users.
+6. **Add two authorized client applications** to that scope — Microsoft's own Teams clients.
+   Without them Teams will not issue a token silently.
+
+    ```
+    1fec8e78-bce4-4aaf-ab1b-5451cc387264   Teams desktop & mobile
+    5e3ce6c0-2b1f-4285-8d4b-75ee78787346   Teams web
+    ```
+
+7. **Manage → Manifest** → set `"requestedAccessTokenVersion": 2`. It is unset by default,
+   and SSO does not work without it.
+8. **Authentication → Add a platform → Web**, redirect URI
+   `https://token.botframework.com/.auth/web/redirect` — the Bot Framework token service's
+   callback. Without it the OAuth connection cannot complete.
+9. Note the bot's **Application (client) ID** and your **Directory (tenant) ID**.
 
 ### 2. Create the Azure Bot resource
 
@@ -80,8 +109,9 @@ registration is configured as a single-page application.
     - **Name**: `identityatlas` — this must match `TEAMS_BOT_CONNECTION_NAME` (below).
     - **Service Provider**: *Azure Active Directory v2*.
     - **Client id / secret / Tenant ID**: the bot's, from step 1.
-    - **Token Exchange URL**: `api://<your-identity-atlas-host>/<bot-client-id>` — the same
-      value that goes in the manifest's `webApplicationInfo.resource`.
+    - **Token Exchange URL**: `api://botid-<bot-client-id>` — the SAME string as the
+      Application ID URI in step 1 and as the manifest's `webApplicationInfo.resource`.
+      All three must match exactly, or Teams answers `resourcematchfailed`.
     - **Scopes**: `api://<identity-atlas-client-id>/access`
 5. Click **Test Connection** and complete the consent prompt. If this does not work here, it
    will not work in Teams either — fix it before going on.
@@ -228,7 +258,7 @@ that explains where it came from.
 | What you see | What it usually is |
 |---|---|
 | `POST /api/messages` returns 404 | The `teamsBot` feature is off, or `FEATURE_TEAMS_BOT` is not exactly `true` |
-| The bot asks you to sign in every time | The OAuth connection name does not match `TEAMS_BOT_CONNECTION_NAME`, or the token exchange URL does not match the manifest's `webApplicationInfo.resource` |
+| The bot asks you to sign in every time, and the log shows `signin/failure` / `resourcematchfailed` | The Application ID URI, the connection's Token Exchange URL and the manifest's `webApplicationInfo.resource` are not the identical string. All three must be `api://botid-<bot-client-id>`. Also check `requestedAccessTokenVersion` is 2 |
 | "Your account is signed in, but it has no permission" | The caller's Entra app role does not map to `data.read.reports` (step 3) |
 | "I cannot find your account in Identity Atlas" | The caller's account was created after the last Entra crawl, or the crawler has never run. Their `oid` must exist as a `Principals.id` |
 | Answers always time out | The report generator container is not running, or is cold. Check **Admin → LLM**, and see [Report Generator](report-generator.md) |
