@@ -68,6 +68,7 @@ export class IdentityAtlasBot extends TeamsActivityHandler {
     }
 
     const caller = await this.resolveTurnCaller(context, { connectionName: this.connectionName });
+    console.log(`teams-bot: turn caller=${caller.ok ? 'resolved' : caller.reason}`);
     if (!caller.ok) return this.handleNoCaller(context, caller.reason, t);
 
     // Say something VISIBLE before the wait starts.

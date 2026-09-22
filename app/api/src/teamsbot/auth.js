@@ -110,7 +110,13 @@ export async function callerFromTurn(context, deps = {}) {
 
   let verified;
   try {
-    verified = await verify(token);
+    // Timed for the same reason as getUserToken, and it is the likelier hang of
+    // the two: verifying an access token means fetching the tenant's signing
+    // keys (jwks-rsa, inside jsonwebtoken's key callback), and if that fetch
+    // never answers, jwt.verify's callback never fires and the promise never
+    // settles. `help` is the only path that does not come through here, which is
+    // exactly why `help` kept answering while every real question went quiet.
+    verified = await withTokenTimeout(verify(token), 'token verification');
   } catch (err) {
     console.error(`teams-bot: SSO token rejected: ${err.message}`);
     return { ok: false, reason: 'invalid-token' };
