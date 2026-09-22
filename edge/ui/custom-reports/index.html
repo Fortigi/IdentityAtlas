@@ -1445,6 +1445,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#your-own-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Your own attributes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#sign-in-activity" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5100,6 +5111,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#your-own-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Your own attributes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#sign-in-activity" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5277,7 +5299,22 @@ can open, run and download the result.</p>
 </li>
 <li><strong>Pick columns.</strong> Click a column name to add or remove it. Besides the fields themselves you can
    show things like the manager's name, the groups someone is in, or a count.</li>
+<li><strong>Or count instead of list.</strong> <strong>Count per</strong> turns the report into one row per distinct value, with
+   the number of records that have it — <em>how many users per department</em>, <em>which job titles exist and
+   how many people hold each</em>. Conditions still apply; columns do not, because a counted report has
+   two columns of its own: the value and the count. Records with no value at all get their own row, so
+   the counts add up. Biggest group first, unless you count per a date — that is not offered, because
+   it would put nearly every record in a group of its own.</li>
 </ol>
+<h3 id="your-own-attributes">Your own attributes<a class="headerlink" href="#your-own-attributes" title="Permanent link">&para;</a></h3>
+<p>Besides the fields every installation has, the builder offers the attributes your own crawlers stamp on
+the data: <code>sfDepartmentID</code>, <code>employeeType</code>, <code>extensionAttribute5</code>, an OU path. They are grouped under
+<strong>From your data</strong> in the field and <em>Count per</em> menus, and behind <strong>Attributes from your data</strong> in the
+column picker. They work like any other field — filter on them, show them, count per them — and they
+are the same attributes you can filter a Users or Groups list on.</p>
+<p>Entra directory extensions are shown by their readable name (<code>sfDepartmentID</code>), not the long
+<code>extension_&lt;id&gt;_sfDepartmentID</code> they arrive under. What a saved report stores is the underlying key, so
+renaming a display name never makes a report point somewhere else.</p>
 <h3 id="sign-in-activity">Sign-in activity<a class="headerlink" href="#sign-in-activity" title="Permanent link">&para;</a></h3>
 <p>Users and accounts have three sign-in fields, read from the same data as the standard <em>Never signed in</em>
 and <em>Stale accounts</em> reports, so they give the same answers:</p>
@@ -5333,6 +5370,10 @@ answers, Identity Atlas looks each one up as a whole word and tells the model wh
 from Contoso"</em> filters on the company rather than on something the model guessed. A lower-case name
 (<em>"guests from contoso"</em>) is not recognised this way: put it in quotes, or capitalise it, when the
 model gets it wrong. Two-letter words are never looked up — they occur almost everywhere.</p>
+<p>Attribute names work the same way. Name one of your own attributes in the question — <em>"how many users
+per sfDepartmentID"</em> — and Identity Atlas looks it up before the model answers and tells it the exact
+field to use. An attribute the question does not name is not offered to the model at all, which is why
+an unrecognised name comes back as "I cannot build this" rather than as a report on the wrong field.</p>
 <p>You can keep talking to it: <em>"only enabled accounts, and show the department"</em> updates the definition
 you have, including any changes you made by hand.</p>
 <p>The first question after an update, or after the model has been idle, takes longer — the builder says
@@ -5363,8 +5404,13 @@ part of that business role</p>
 <ul>
 <li><strong>No free-form SQL.</strong> Everything is built from the fields and relations Identity Atlas knows about,
   which is also why a report can never change or delete data.</li>
-<li><strong>No totals or grouping</strong> beyond the counts offered as fields (members, groups, owners, accounts).</li>
-<li><strong>No history or trends</strong> — a report always reflects the data as it is now.</li>
+<li>
+<p><strong>One count per report.</strong> <em>Count per</em> counts records per value of one field. It cannot count per two
+  fields at once, add up anything other than records, or be combined with a comparison.</p>
+</li>
+<li>
+<p><strong>No history or trends</strong> — a report always reflects the data as it is now.</p>
+</li>
 <li><strong>No comparing two fields of the same record</strong> (for example: people whose department differs from
   their manager's).</li>
 <li><strong>One step at a time</strong> in a relation: "groups whose owner is disabled" works; "groups whose owner's
