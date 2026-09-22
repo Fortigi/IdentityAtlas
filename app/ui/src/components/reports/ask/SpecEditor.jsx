@@ -14,7 +14,26 @@ function fieldsOf(catalog, entity) {
   return catalog.entities[entity]?.fields || [];
 }
 
+// The catalog's fields first, then this deployment's own attributes in a group of
+// their own. An install can have hundreds of those, and an undifferentiated list
+// would bury "Department" somewhere below "extensionAttribute7".
+function FieldOptions({ fields }) {
+  const own = fields.filter(f => !f.discovered);
+  const discovered = fields.filter(f => f.discovered);
+  return (
+    <>
+      {own.map(f => <option key={f.name} value={f.name}>{f.label}</option>)}
+      {discovered.length > 0 && (
+        <optgroup label="From your data">
+          {discovered.map(f => <option key={f.name} value={f.name}>{f.label}</option>)}
+        </optgroup>
+      )}
+    </>
+  );
+}
+
 function MatchSelect({ value, onChange, label }) {
+
   return (
     <select aria-label={label} className={INPUT} value={value} onChange={e => onChange(e.target.value)}>
       <option value="all">all</option>
@@ -64,8 +83,9 @@ function FieldCondition({ entity, condition, onChange, onRemove, catalog }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <select aria-label="Field" className={INPUT} value={field.name} onChange={e => setField(e.target.value)}>
-        {fields.map(f => <option key={f.name} value={f.name}>{f.label}</option>)}
+        <FieldOptions fields={fields} />
       </select>
+
       <select aria-label="Operator" className={INPUT} value={condition.op} onChange={e => onChange({ ...condition, op: e.target.value })}>
         {ops.map(o => <option key={o} value={o}>{catalog.operators[o].label}</option>)}
       </select>
@@ -191,6 +211,16 @@ export default function SpecEditor({ spec, catalog, onChange }) {
     onChange({ ...spec, columns: has ? spec.columns.filter(c => c !== key) : [...spec.columns, key] });
   };
   const hasCompare = spec.conditions.some(c => c.type === 'compare' || (c.type === 'group' && c.conditions.some(ic => ic.type === 'compare')));
+  const pickable = entity.columns.filter(c => !c.key.startsWith('compare.') || hasCompare);
+  const discoveredColumns = pickable.filter(c => c.discovered);
+  // Comparison columns describe one row against one reference, so there is nothing
+  // to count per value: the API rejects the combination, and it is not offered.
+  const groupable = hasCompare ? [] : (entity.groupableFields || []);
+  // A sort belongs to the shape of the report: sorting on a field is meaningless
+  // once the rows are values with counts, and sorting on the count is meaningless
+  // once they are records again. Either way it starts over.
+  const setGroupBy = (name) => onChange({ ...spec, groupBy: name || undefined, sort: undefined });
+
   const changeEntity = (name) => {
     onChange({ entity: name, match: 'all', conditions: [], columns: [...catalog.entities[name].defaultColumns] });
   };
@@ -215,22 +245,51 @@ export default function SpecEditor({ spec, catalog, onChange }) {
           onAdd={c => onChange({ ...spec, conditions: [...spec.conditions, c] })} />
       </div>
 
-      <fieldset>
-        <legend className="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-200">Columns</legend>
-        <div className="flex flex-wrap gap-1.5">
-          {entity.columns.filter(c => !c.key.startsWith('compare.') || hasCompare).map(c => {
-            const on = spec.columns.includes(c.key);
-            return (
-              <button key={c.key} type="button" aria-pressed={on} onClick={() => toggleColumn(c.key)}
-                className={on
-                  ? 'rounded-full border border-blue-600 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:border-blue-400 dark:bg-blue-900/30 dark:text-blue-200'
-                  : 'rounded-full border border-gray-300 px-2.5 py-0.5 text-xs text-gray-700 hover:border-blue-400 dark:border-gray-600 dark:text-gray-300'}>
-                {c.label}
-              </button>
-            );
-          })}
+      {groupable.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
+          <label htmlFor="spec-group-by">Count per</label>
+          <select id="spec-group-by" className={INPUT} value={spec.groupBy || ''} onChange={e => setGroupBy(e.target.value)}>
+            <option value="">nothing — list every {entity.label.toLowerCase()}</option>
+            <FieldOptions fields={groupable} />
+          </select>
         </div>
-      </fieldset>
+      )}
+
+      {spec.groupBy ? (
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          One row per distinct value, with the number of {entity.label.toLowerCase()}s that have it. Columns do not apply.
+        </p>
+      ) : (
+        <fieldset>
+          <legend className="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-200">Columns</legend>
+          <div className="flex flex-wrap gap-1.5">
+            {pickable.filter(c => !c.discovered).map(c => <ColumnChip key={c.key} column={c} spec={spec} onToggle={toggleColumn} />)}
+          </div>
+          {discoveredColumns.length > 0 && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs text-gray-600 dark:text-gray-400">
+                Attributes from your data ({discoveredColumns.length})
+              </summary>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {discoveredColumns.map(c => <ColumnChip key={c.key} column={c} spec={spec} onToggle={toggleColumn} />)}
+              </div>
+            </details>
+          )}
+        </fieldset>
+      )}
     </div>
   );
 }
+
+function ColumnChip({ column, spec, onToggle }) {
+  const on = spec.columns.includes(column.key);
+  return (
+    <button type="button" aria-pressed={on} onClick={() => onToggle(column.key)}
+      className={on
+        ? 'rounded-full border border-blue-600 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:border-blue-400 dark:bg-blue-900/30 dark:text-blue-200'
+        : 'rounded-full border border-gray-300 px-2.5 py-0.5 text-xs text-gray-700 hover:border-blue-400 dark:border-gray-600 dark:text-gray-300'}>
+      {column.label}
+    </button>
+  );
+}
+

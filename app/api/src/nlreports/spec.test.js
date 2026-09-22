@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateSpec, resolveColumn, availableColumns, MAX_LIMIT } from './spec.js';
+import { validateSpec, resolveColumn, availableColumns, groupableFields, MAX_LIMIT } from './spec.js';
 
 const values = { principalType: ['ServicePrincipal', 'User'], userType: ['Guest', 'Member'], resourceType: ['Group'] };
 
@@ -123,5 +123,123 @@ describe('columns', () => {
     const cols = availableColumns('account');
     expect(cols.map(c => c.key)).toEqual(expect.arrayContaining(['displayName', 'manager.displayName', 'memberOf.count']));
     expect(cols.every(c => c.label)).toBe(true);
+  });
+});
+
+// ─── This deployment's own attributes, and grouping ──────────────────
+
+const RAW = 'extension_a1b2c3d4e5f60718293a4b5c6d7e8f90_sfDepartmentID';
+const extFields = {
+  user: {
+    [`ext.${RAW}`]: {
+      label: 'sfDepartmentID', type: 'text', extKey: RAW, discovered: true,
+      sql: (t) => `${t}."extendedAttributes"->>'${RAW}'`,
+    },
+  },
+};
+
+describe('discovered attributes', () => {
+  it('filters and shows an attribute this deployment has, like any other field', () => {
+    const { ok, spec, errors } = validateSpec({
+      entity: 'user',
+      conditions: [{ field: `ext.${RAW}`, op: 'contains', value: 'FIN' }],
+      columns: ['displayName', `ext.${RAW}`],
+    }, values, extFields);
+    expect(errors).toEqual([]);
+    expect(ok).toBe(true);
+    expect(spec.conditions[0]).toEqual({ type: 'field', field: `ext.${RAW}`, op: 'contains', value: 'FIN' });
+    expect(spec.columns).toEqual(['displayName', `ext.${RAW}`]);
+  });
+
+  it('rejects the same attribute on a deployment that does not have it', () => {
+    const { ok, errors } = validateSpec({
+      entity: 'user', conditions: [{ field: `ext.${RAW}`, op: 'contains', value: 'FIN' }],
+    }, values, {});
+    expect(ok).toBe(false);
+    expect(errors[0]).toContain(`"ext.${RAW}" is not a field of user`);
+    // The repair message lists the catalog's fields, never a deployment's hundreds.
+    expect(errors[0].split('Fields: ')[1]).not.toContain('ext.');
+
+  });
+
+  it('offers an attribute as a column and as something to group on', () => {
+    expect(resolveColumn('user', `ext.${RAW}`, extFields)).toEqual({
+      key: `ext.${RAW}`, label: 'sfDepartmentID', kind: 'field', field: `ext.${RAW}`, discovered: true,
+    });
+    expect(availableColumns('user', extFields)).toContainEqual({
+      key: `ext.${RAW}`, label: 'sfDepartmentID', kind: 'field', field: `ext.${RAW}`, discovered: true,
+    });
+    expect(groupableFields('user', extFields)).toContainEqual({ name: `ext.${RAW}`, label: 'sfDepartmentID', discovered: true });
+  });
+
+  it('does not offer an attribute of another entity, or a date, to group on', () => {
+    expect(groupableFields('group', extFields).map(f => f.name)).not.toContain(`ext.${RAW}`);
+    const names = groupableFields('user').map(f => f.name);
+    expect(names).toContain('department');
+    expect(names).not.toContain('createdDateTime');
+    expect(names).not.toContain('lastSignIn');
+  });
+});
+
+describe('grouping', () => {
+  it('keeps a groupBy on a field of the entity', () => {
+    const { ok, spec, errors } = validateSpec({ entity: 'users', groupBy: 'department' }, values);
+    expect(errors).toEqual([]);
+    expect(ok).toBe(true);
+    expect(spec.groupBy).toBe('department');
+  });
+
+  it('groups on a discovered attribute too', () => {
+    const { ok, spec } = validateSpec({ entity: 'user', groupBy: `ext.${RAW}` }, values, extFields);
+    expect(ok).toBe(true);
+    expect(spec.groupBy).toBe(`ext.${RAW}`);
+  });
+
+  it('leaves groupBy out entirely when nothing was asked for', () => {
+    const { spec } = validateSpec({ entity: 'user', groupBy: '' }, values);
+    expect(spec).not.toHaveProperty('groupBy');
+    expect(validateSpec({ entity: 'user' }, values).spec).not.toHaveProperty('groupBy');
+  });
+
+  it('refuses to group on a date, which would make one group per row', () => {
+    const { ok, errors } = validateSpec({ entity: 'user', groupBy: 'createdDateTime' }, values);
+    expect(ok).toBe(false);
+    expect(errors[0]).toContain('holds a date');
+  });
+
+  it('refuses an unknown field, a relation and anything that is not a field name', () => {
+    expect(validateSpec({ entity: 'user', groupBy: 'nope' }, values).errors[0])
+      .toBe('"nope" is not a field of user, so a report cannot be grouped on it');
+    expect(validateSpec({ entity: 'user', groupBy: 'memberOf' }, values).ok).toBe(false);
+    expect(validateSpec({ entity: 'user', groupBy: { field: 'department' } }, values).errors[0])
+      .toBe('groupBy must be the name of a field');
+  });
+
+  it('refuses to group a report that compares sets', () => {
+    const { ok, errors } = validateSpec({
+      entity: 'user', groupBy: 'department',
+      conditions: [{ type: 'compare', relation: 'memberOf', measure: 'identical', minSimilarity: 100, reference: { entity: 'user', name: 'Jan' } }],
+    }, values);
+    expect(ok).toBe(false);
+    expect(errors).toContain('a report that compares sets cannot also be grouped');
+  });
+
+  it('sorts a grouped report on the count or on the grouped value, and nothing else', () => {
+    const onCount = validateSpec({ entity: 'user', groupBy: 'department', sort: { field: 'count', direction: 'desc' } }, values);
+    expect(onCount.ok).toBe(true);
+    expect(onCount.spec.sort).toEqual({ field: 'count', direction: 'desc' });
+
+    const onValue = validateSpec({ entity: 'user', groupBy: 'department', sort: { field: 'department' } }, values);
+    expect(onValue.spec.sort).toEqual({ field: 'department', direction: 'asc' });
+
+    const onOther = validateSpec({ entity: 'user', groupBy: 'department', sort: { field: 'displayName' } }, values);
+    expect(onOther.ok).toBe(false);
+    expect(onOther.errors[0]).toBe('a grouped report can only be sorted on "department" or "count"');
+  });
+
+  it('refuses to sort on the count when the report is not grouped', () => {
+    const { ok, errors } = validateSpec({ entity: 'user', sort: { field: 'count' } }, values);
+    expect(ok).toBe(false);
+    expect(errors[0]).toBe('cannot sort on "count"');
   });
 });

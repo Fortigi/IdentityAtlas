@@ -152,3 +152,127 @@ describe('explainSpec', () => {
     expect(explainSpec({ entity: 'resource', conditions: [] }).title).toBe('All resources');
   });
 });
+
+// ─── Counting per value, and this deployment's own attributes ────────
+
+const RAW = 'extension_a1b2c3d4e5f60718293a4b5c6d7e8f90_sfDepartmentID';
+const LONG = `extension_a1b2c3d4e5f60718293a4b5c6d7e8f90_sfBusinessUnitIdentifier`;
+const attr = (key) => ({
+  label: key.replace(/^extension_[0-9a-f]{32}_/, ''), type: 'text', extKey: key, discovered: true,
+  sql: (t) => `${t}."extendedAttributes"->>'${key}'`,
+});
+const EXT = { user: { [`ext.${RAW}`]: attr(RAW), [`ext.${LONG}`]: attr(LONG) } };
+
+const compileWith = (raw, extFields) => {
+  const { ok, spec, errors } = validateSpec(raw, {}, extFields);
+  if (!ok) throw new Error(errors.join('; '));
+  return { spec, ...compileSpec(spec, extFields) };
+};
+
+describe('compileSpec — grouped reports', () => {
+  it('counts records per value instead of listing them', () => {
+    const { text, params, columns } = compile({ entity: 'user', groupBy: 'department' });
+
+    expect(text).toContain('SELECT t0."department" AS "department",\n  count(*) AS "count"');
+    expect(text).toContain('GROUP BY t0."department"');
+    // Biggest group first, with the value as a stable tie-breaker.
+    expect(text).toContain('ORDER BY count(*) DESC NULLS LAST, t0."department" ASC NULLS LAST');
+    // No record id: a row is a value, not a record, so there is nothing to open.
+    expect(text).not.toContain('__id');
+    expect(columns).toEqual([
+      { key: 'department', alias: 'department', label: 'Department', type: 'text' },
+      { key: 'count', alias: 'count', label: 'Count', type: 'number' },
+    ]);
+    expect(params).toEqual([1001]);
+  });
+
+  it('counts only the records the conditions keep', () => {
+    const { text, params } = compile({
+      entity: 'user', groupBy: 'jobTitle',
+      conditions: [{ field: 'accountEnabled', op: 'eq', value: true }],
+    });
+    expect(text).toMatch(/WHERE .*"accountEnabled" = \$1::boolean/s);
+    expect(text).toContain('GROUP BY t0."jobTitle"');
+    expect(params).toEqual([true, 1001]);
+  });
+
+  it('sorts on the value itself without repeating it as a tie-breaker', () => {
+    const { text } = compile({ entity: 'user', groupBy: 'department', sort: { field: 'department', direction: 'asc' } });
+    expect(text).toContain('ORDER BY t0."department" ASC NULLS LAST\n');
+    expect(text).not.toContain('count(*) ASC');
+  });
+
+  it('sorts on the smallest group when asked', () => {
+    const { text } = compile({ entity: 'user', groupBy: 'department', sort: { field: 'count', direction: 'asc' } });
+    expect(text).toContain('ORDER BY count(*) ASC NULLS LAST, t0."department" ASC NULLS LAST');
+  });
+
+  it('groups a resource report inside the entity it belongs to', () => {
+    // The group entity carries its own resourceType filter; grouping must not lose it.
+    const { text } = compile({ entity: 'group', groupBy: 'visibility' });
+    expect(text).toContain(`t0."resourceType" = 'Group'`);
+    expect(text).toContain('GROUP BY t0."visibility"');
+  });
+});
+
+describe('compileSpec — discovered attributes', () => {
+  it('reads an attribute straight out of the JSON, as a column and as a filter', () => {
+    const { text, params } = compileWith({
+      entity: 'user',
+      conditions: [{ field: `ext.${RAW}`, op: 'eq', value: 'FIN-01' }],
+      columns: ['displayName', `ext.${RAW}`],
+    }, EXT);
+
+    expect(text).toContain(`lower(t0."extendedAttributes"->>'${RAW}') = lower($1)`);
+    expect(text).toContain(`t0."extendedAttributes"->>'${RAW}' AS "ext.${RAW}"`);
+    expect(params).toEqual(['FIN-01', 1001]);
+  });
+
+  it('counts users per attribute value', () => {
+    const { text, columns } = compileWith({ entity: 'user', groupBy: `ext.${RAW}` }, EXT);
+    expect(text).toContain(`t0."extendedAttributes"->>'${RAW}' AS "ext.${RAW}"`);
+    expect(text).toContain(`GROUP BY t0."extendedAttributes"->>'${RAW}'`);
+    expect(columns[0]).toEqual({ key: `ext.${RAW}`, alias: `ext.${RAW}`, label: 'sfDepartmentID', type: 'text' });
+  });
+
+  it('gives a name too long for a Postgres alias a short one, and says which', () => {
+    // 63 bytes is the cut-off; past it Postgres truncates the alias silently and
+    // the row comes back under a name the caller never asked for.
+    const key = `ext.${LONG}`;
+    expect(key.length).toBeGreaterThan(63);
+
+    const { text, columns } = compileWith({ entity: 'user', columns: ['displayName', key] }, EXT);
+    expect(text).toContain(`t0."extendedAttributes"->>'${LONG}' AS "c1"`);
+    expect(text).not.toContain(`AS "${key}"`);
+    expect(columns[1]).toMatchObject({ key, alias: 'c1' });
+    // The short alias is only for the ones that need it.
+    expect(columns[0]).toMatchObject({ key: 'displayName', alias: 'displayName' });
+
+    const grouped = compileWith({ entity: 'user', groupBy: key }, EXT);
+    expect(grouped.text).toContain(`AS "c0"`);
+    expect(grouped.columns[0]).toMatchObject({ key, alias: 'c0' });
+  });
+});
+
+describe('explainSpec — what a grouped report returns', () => {
+  it('says the rows are counts per value, not records', () => {
+    expect(explainSpec({ entity: 'user', conditions: [], columns: [], groupBy: 'department' }).title)
+      .toBe('Users counted per department');
+  });
+
+  it('keeps saying what is being counted when there are conditions too', () => {
+    const spec = {
+      entity: 'user', groupBy: 'jobTitle', columns: [],
+      conditions: [{ type: 'field', field: 'accountEnabled', op: 'eq', value: false }],
+    };
+    const { title, lines } = explainSpec(spec);
+    expect(title).toBe('Users counted per job title where');
+    expect(lines).toEqual([{ depth: 0, text: 'Enabled is No' }]);
+  });
+
+  it('uses the attribute label an analyst reads, not the raw JSON key', () => {
+    const spec = { entity: 'user', conditions: [], columns: [], groupBy: `ext.${RAW}` };
+    expect(explainSpec(spec, EXT).title).toBe('Users counted per sfDepartmentID');
+
+  });
+});

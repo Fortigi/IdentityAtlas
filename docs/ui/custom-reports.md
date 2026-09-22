@@ -38,8 +38,27 @@ can open, run and download the result.
       - **+ compare with…** — see [Comparing with another group or person](#comparing) below.
 4. **Pick columns.** Click a column name to add or remove it. Besides the fields themselves you can
    show things like the manager's name, the groups someone is in, or a count.
+5. **Or count instead of list.** **Count per** turns the report into one row per distinct value, with
+   the number of records that have it — *how many users per department*, *which job titles exist and
+   how many people hold each*. Conditions still apply; columns do not, because a counted report has
+   two columns of its own: the value and the count. Records with no value at all get their own row, so
+   the counts add up. Biggest group first, unless you count per a date — that is not offered, because
+   it would put nearly every record in a group of its own.
+
+### Your own attributes
+
+Besides the fields every installation has, the builder offers the attributes your own crawlers stamp on
+the data: `sfDepartmentID`, `employeeType`, `extensionAttribute5`, an OU path. They are grouped under
+**From your data** in the field and *Count per* menus, and behind **Attributes from your data** in the
+column picker. They work like any other field — filter on them, show them, count per them — and they
+are the same attributes you can filter a Users or Groups list on.
+
+Entra directory extensions are shown by their readable name (`sfDepartmentID`), not the long
+`extension_<id>_sfDepartmentID` they arrive under. What a saved report stores is the underlying key, so
+renaming a display name never makes a report point somewhere else.
 
 ### Sign-in activity
+
 
 Users and accounts have three sign-in fields, read from the same data as the standard *Never signed in*
 and *Stale accounts* reports, so they give the same answers:
@@ -101,8 +120,14 @@ from Contoso"* filters on the company rather than on something the model guessed
 (*"guests from contoso"*) is not recognised this way: put it in quotes, or capitalise it, when the
 model gets it wrong. Two-letter words are never looked up — they occur almost everywhere.
 
+Attribute names work the same way. Name one of your own attributes in the question — *"how many users
+per sfDepartmentID"* — and Identity Atlas looks it up before the model answers and tells it the exact
+field to use. An attribute the question does not name is not offered to the model at all, which is why
+an unrecognised name comes back as "I cannot build this" rather than as a report on the wrong field.
+
 You can keep talking to it: *"only enabled accounts, and show the department"* updates the definition
 you have, including any changes you made by hand.
+
 
 The first question after an update, or after the model has been idle, takes longer — the builder says
 so while it warms up.
@@ -135,7 +160,9 @@ Combine it with an ordinary condition to get the question a role-mining analyst 
 
 - **No free-form SQL.** Everything is built from the fields and relations Identity Atlas knows about,
   which is also why a report can never change or delete data.
-- **No totals or grouping** beyond the counts offered as fields (members, groups, owners, accounts).
+- **One count per report.** *Count per* counts records per value of one field. It cannot count per two
+  fields at once, add up anything other than records, or be combined with a comparison.
+
 - **No history or trends** — a report always reflects the data as it is now.
 - **No comparing two fields of the same record** (for example: people whose department differs from
   their manager's).
