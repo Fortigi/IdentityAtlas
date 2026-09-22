@@ -1,0 +1,1 @@
+- Custom reports can now show and filter on the business roles a user or account holds. "Add the business role column" and "users in business role X" previously came back as "there is no such field" — business roles could only be reached from the other end, starting at a group or a resource.

@@ -119,6 +119,25 @@ describe('columns', () => {
     expect(resolveColumn('account', 'manager.displayName.x')).toBeNull();
   });
 
+  it('offers the business roles of an account, the way it always has for a group', () => {
+    // The prompt has told the model for as long as it has existed that membership
+    // of a business role is the businessRoles relation. On a user it was not one,
+    // so the model could only answer that no such field exists.
+    expect(resolveColumn('user', 'businessRoles.names'))
+      .toEqual({ key: 'businessRoles.names', label: 'Business roles', kind: 'manyNames', relation: 'businessRoles' });
+    expect(availableColumns('user').map(c => c.key)).toContain('businessRoles.names');
+    expect(availableColumns('account').map(c => c.key)).toContain('businessRoles.count');
+    expect(availableColumns('group').map(c => c.key)).toContain('businessRoles.names');
+
+    const { ok, errors, spec } = validateSpec({
+      entity: 'user',
+      conditions: [{ type: 'relation', relation: 'businessRoles', quantifier: 'some', conditions: [{ field: 'displayName', op: 'contains', value: 'Finance' }] }],
+      columns: ['displayName', 'businessRoles.names'],
+    });
+    expect(errors).toEqual([]);
+    expect(ok).toBe(true);
+    expect(spec.columns).toEqual(['displayName', 'businessRoles.names']);
+  });
   it('offers every pickable column with a label', () => {
     const cols = availableColumns('account');
     expect(cols.map(c => c.key)).toEqual(expect.arrayContaining(['displayName', 'manager.displayName', 'memberOf.count']));

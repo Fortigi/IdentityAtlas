@@ -37,7 +37,8 @@ can open, run and download the result.
       - **+ any/all group** — for an either/or: *any of: has no owner · has an owner where Enabled is No*.
       - **+ compare with…** — see [Comparing with another group or person](#comparing) below.
 4. **Pick columns.** Click a column name to add or remove it. Besides the fields themselves you can
-   show things like the manager's name, the groups someone is in, or a count.
+   show things like the manager's name, the groups someone is in, the business roles they hold, or a
+   count of any of those.
 5. **Or count instead of list.** **Count per** turns the report into one row per distinct value, with
    the number of records that have it — *how many users per department*, *which job titles exist and
    how many people hold each*. Conditions still apply; columns do not, because a counted report has
@@ -144,8 +145,8 @@ reads as a sentence:
 - **only items also in** — has nothing the other one does not have.
 - **mostly the same (≥ %)** — overlaps by at least the percentage you set.
 
-You can compare members of groups, the groups someone is in, what an account has access to, owners,
-and the accounts of a person.
+You can compare members of groups, the groups someone is in, the business roles they hold, what an
+account has access to, owners, and the accounts of a person.
 
 A comparison adds three columns automatically: **Similarity %**, what is **only here**, and what is
 **missing** compared with the reference. Results are sorted by similarity, so the closest matches are

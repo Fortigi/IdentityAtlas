@@ -84,6 +84,11 @@ beforeAll(async () => {
     [ids.group, ids.recent, ids.collecting, ids.stale],
   );
   await pool.query(
+    `INSERT INTO "ResourceAssignments" ("resourceId", "principalId", "assignmentType", "principalType", "systemId", "governed")
+     VALUES ($1, $2, 'Direct', 'User', $3, true)`,
+    [ids.role, ids.recent, ids.collecting],
+  );
+  await pool.query(
     `INSERT INTO "ResourceRelationships" ("parentResourceId", "childResourceId", "relationshipType", "systemId", "roleName")
      VALUES ($1, $2, 'Contains', $3, 'Member')`,
     [ids.role, ids.group, ids.collecting],
@@ -97,7 +102,7 @@ afterAll(async () => {
   await pool.query(`DELETE FROM "PrincipalActivity" WHERE "principalId" = ANY($1::uuid[])`, [principals]);
   await pool.query(`DELETE FROM "Identities" WHERE "id" = $1`, [ids.identity]);
   await pool.query(`DELETE FROM "ResourceRelationships" WHERE "parentResourceId" = $1`, [ids.role]);
-  await pool.query(`DELETE FROM "ResourceAssignments" WHERE "resourceId" = $1`, [ids.group]);
+  await pool.query(`DELETE FROM "ResourceAssignments" WHERE "resourceId" = ANY($1::uuid[])`, [[ids.group, ids.role]]);
   await pool.query(`DELETE FROM "Resources" WHERE "id" = ANY($1::uuid[])`, [[ids.group, ids.role]]);
   await pool.query(`DELETE FROM "Principals" WHERE "id" = ANY($1::uuid[])`, [principals]);
   await pool.query(`DELETE FROM "Systems" WHERE "id" = ANY($1::int[])`, [[ids.collecting, ids.silent]]);
@@ -207,5 +212,39 @@ describe('sign-in fields mean what the standard activity reports mean', () => {
     const rows = await run({ entity: 'user', conditions: [ours], columns: ['displayName', 'daysSinceLastSignIn'] });
     const byName = Object.fromEntries(rows.map(r => [r.displayName.slice(PREFIX.length), r.daysSinceLastSignIn]));
     expect(byName).toEqual({ recent: 10, stale: 100, never: null, uncollected: null });
+  });
+});
+
+describe('a business role of an account is one assigned to it', () => {
+  // The seed holds both readings at once: "recent" is assigned the business role,
+  // "stale" is only in the group that same business role contains. Only the first
+  // is a business role of the account — the second is what the resource-side
+  // businessRoles relation answers, from the other end.
+  it('lists the assigned business role, and never one reached through a group', async () => {
+    const rows = await run({
+      entity: 'user',
+      conditions: [{ field: 'displayName', op: 'startsWith', value: PREFIX }],
+      columns: ['displayName', 'businessRoles.names', 'memberOf.names'],
+    });
+    const by = Object.fromEntries(rows.map(r => [r.displayName.slice(PREFIX.length), r]));
+    expect(by.recent['businessRoles.names']).toBe(`${PREFIX}role`);
+    expect(by.recent['memberOf.names']).toBe(`${PREFIX}group`);
+    expect(by.stale['memberOf.names']).toBe(`${PREFIX}group`);
+    expect(by.stale['businessRoles.names']).toBeNull();
+  });
+
+  it('filters on the business role by name, and "has none" is the accounts it leaves out', async () => {
+    const ours = { field: 'displayName', op: 'startsWith', value: PREFIX };
+    const inRole = await run({
+      entity: 'user',
+      conditions: [ours, { type: 'relation', relation: 'businessRoles', quantifier: 'some', match: 'all', conditions: [{ field: 'displayName', op: 'contains', value: 'role' }] }],
+    });
+    expect(inRole.map(r => r.displayName)).toEqual([`${PREFIX}recent`]);
+
+    const without = await run({
+      entity: 'user',
+      conditions: [ours, { type: 'relation', relation: 'businessRoles', quantifier: 'none', match: 'all', conditions: [] }],
+    });
+    expect(without.map(r => r.displayName).sort()).toEqual([`${PREFIX}never`, `${PREFIX}stale`, `${PREFIX}uncollected`]);
   });
 });

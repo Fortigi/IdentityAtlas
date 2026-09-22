@@ -213,6 +213,14 @@ const EXAMPLES = [
     ], columns: [] } },
   },
   {
+    // Asking for a business-role COLUMN is not asking to leave out the users that
+    // have none: the column is added, no condition is.
+    q: 'users in Finance, with the business roles they have',
+    a: { kind: 'report', assumptions: ['"in Finance" means the department contains Finance.'], spec: { entity: 'user', match: 'all', conditions: [
+      { type: 'field', field: 'department', op: 'contains', value: 'Finance' },
+    ], columns: ['displayName', 'email', 'businessRoles.names'] } },
+  },
+  {
     q: 'security groups that have more than 20 members or that can be assigned to roles',
     a: { kind: 'report', assumptions: ['The "or" applies to the member count and role-assignable conditions.'], spec: { entity: 'group', match: 'all', conditions: [
       { type: 'field', field: 'securityEnabled', op: 'eq', value: true },
@@ -322,6 +330,7 @@ Field names of the entity; "manager.displayName" style for the manager; "<relati
 # Rules
 1. Pick the entity from the noun, using the glossary: persons → identity; users / accounts / guests → user; groups → group. Service principals, managed identities, AI agents, or accounts of every kind → account with a principalType condition. Roles, applications, permissions, business roles, Azure resources → resource with a resourceType condition. When a question about persons is really about their group memberships, access or ownership, use user.
 2. "guests" / "external users" = userType Guest. "disabled" = accountEnabled false; "active"/"enabled" = accountEnabled true. "roles" = resourceType EntraDirectoryRole unless the user means business roles; holding a role = the access relation, never memberOf.
+2a. A business role / access package is the businessRoles relation of a user, an account or a group — as a condition ("in business role X" = businessRoles some with displayName contains X) and as the column "businessRoles.names". Use access only when the request is about access of every kind.
 2b. When the request joins conditions with "or" ("either ... or"), put exactly those conditions in a group with match "any"; everything else stays outside that group.
 2c. Sign-in: "not signed in for N days" / "inactive for N days" = daysSinceLastSignIn gt N. "never signed in" = lastSignIn isEmpty AND signInDataCollected isNotEmpty (without the second condition, accounts from systems that collect no sign-in data would be listed too).
 3. A name fragment the user mentions (like "Finance" or "LIC") is a displayName contains filter, unless they say it must match exactly.
