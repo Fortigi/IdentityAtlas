@@ -106,7 +106,16 @@ export class IdentityAtlasBot extends TeamsActivityHandler {
    */
   async handleNoCaller(context, reason, t) {
     if (reason === 'no-token') {
-      return context.sendActivity(MessageFactory.attachment(await this.signInCard(context)));
+      const card = await this.signInCard(context);
+      // Log what the channel said about the send. A ResourceResponse with an id
+      // means Teams ACCEPTED the activity — so if nothing appears in the chat
+      // after that, the client dropped it and the problem is client-side (a
+      // stale cached app package will silently discard an OAuth card whose
+      // resource it does not recognise). Without this line those two are
+      // indistinguishable, and they need completely different fixes.
+      const sent = await context.sendActivity(MessageFactory.attachment(card));
+      console.log(`teams-bot: sign-in card sent, channel id=${sent?.id ?? 'none'}`);
+      return sent;
     }
     if (reason === 'forbidden') {
       return context.sendActivity(
