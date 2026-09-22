@@ -76,6 +76,21 @@ export class IdentityAtlasBot extends TeamsActivityHandler {
       return context.sendActivity(MessageFactory.attachment(welcomeCard(language)));
     }
 
+    // Every outbound activity and what the channel said about it. An OAuth card
+    // that is built, handed to the adapter and then never appears is otherwise
+    // indistinguishable from one that was never built — and that difference is
+    // the whole question when a sign-in never shows up. Typing indicators are
+    // skipped: they are sent every few seconds and would bury everything else.
+    context.onSendActivities(async (ctx, activities, next) => {
+      const responses = await next();
+      activities.forEach((a, i) => {
+        if (a.type === 'typing') return;
+        const kind = a.attachments?.[0]?.contentType ?? a.type;
+        console.log(`teams-bot: send ${kind} -> channel id=${responses?.[i]?.id ?? 'none'}`);
+      });
+      return responses;
+    });
+
     // Keep the chat alive while the dialog works. The dialog posts its own
     // visible acknowledgement once it knows it has a caller to answer for.
     const typing = setInterval(() => {

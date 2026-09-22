@@ -102,7 +102,7 @@ describe('when the caller cannot be answered', () => {
   it.each([
     ['no-token', /could not sign you in/i],
     ['forbidden', /no permission to ask/i],
-    ['invalid-token', new RegExp(EN.error)],
+    ['invalid-token', EN.error],
   ])('refuses %s without reaching the pipeline', async (reason, expected) => {
     const answerMessage = vi.fn();
     const dialog = makeDialog({ callerFromToken: vi.fn(async () => ({ ok: false, reason })), answerMessage });

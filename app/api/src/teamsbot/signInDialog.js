@@ -107,9 +107,17 @@ export class SignInAndAnswerDialog extends ComponentDialog {
     dialogs.add(this);
     const dialogContext = await dialogs.createContext(context);
     const result = await dialogContext.continueDialog();
+    // The dialog's own progress, per turn. A waterfall that is waiting looks
+    // exactly like one that never started unless the status is written down,
+    // and "waiting" vs "never started" are completely different faults.
+    let status = result.status;
     if (result.status === DialogTurnStatus.empty) {
-      await dialogContext.beginDialog(this.id, options);
+      status = (await dialogContext.beginDialog(this.id, options)).status;
     }
+    console.log(
+      `teams-bot: dialog status=${status} depth=${dialogContext.stack.length} `
+      + `delivery=${context.activity.deliveryMode ?? 'normal'}`,
+    );
   }
 }
 
