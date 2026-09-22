@@ -163,3 +163,62 @@ export async function systemBoundaryDenial({ tableName, keyColumns, records, sco
     || unscopedFullSyncDenial(tableName, syncMode, scope)
     || foreignRowDenial(tableName, keyColumns, records, allowed, conflictFilter);
 }
+
+// ─── Directory ownership (#1247) ────────────────────────────────────────────
+//
+// The note at the top of this file records that shipped crawlers legitimately
+// write the same row under more than one system — "Azure RM principal stubs are
+// existing Entra rows". Allowing that write was right; letting it TAKE OVER the
+// row was not. Each run stamped its own systemId on the shared Principal, so the
+// Entra and Azure RM crawlers overwrote each other every run: a Timeline full of
+// changes nobody made, an orphan check (crawlerPresence.js) that stopped finding
+// the user in the directory and dropped his Azure grants, and a row that escaped
+// the directory's own full-sync reconcile because scopedDelete filters on systemId.
+//
+// `Systems.directorySystemId` (migration 061) lets a system say where its
+// principals actually come from. A system that declares one is a DEPENDENT system:
+// it references the directory's principals and resources, it does not own them. It
+// may FILL a NULL systemId — that is how an Azure-RM-first tenant gets rows at all —
+// but it may never replace one. A directory system (directorySystemId IS NULL) has
+// no preserved columns, so it can always claim the row back; that asymmetry is the
+// whole point, and it is why this is not a "first writer wins" rule.
+
+// Tables where a row belongs to the directory that sources it, not to whoever
+// last touched it. Both are keyed on the source system's own object id, so two
+// systems looking at one directory address the same row.
+export const DIRECTORY_OWNED_TABLES = new Set(['Principals', 'Resources']);
+
+// The columns this batch must not overwrite, given the system it is ingesting as.
+// Returns an array for the upsert builder, or null when nothing is preserved.
+export async function preservedOwnerColumns(tableName, systemId) {
+  if (!DIRECTORY_OWNED_TABLES.has(tableName)) return null;
+  if (systemId === null || systemId === undefined) return null;
+  const row = await db.queryOne(
+    `SELECT "directorySystemId" FROM "Systems" WHERE "id" = $1`, [systemId]
+  );
+  return row?.directorySystemId ? ['systemId'] : null;
+}
+
+// Point every dependent system at the directory it reads from. The rule is the one
+// crawlerPresence.js used to hardcode — same tenant, systemType 'EntraID' — but it
+// now lives in the data rather than in one query, so presence, ingest and anything
+// later all read the same answer.
+//
+// Re-applied after each ingest/systems batch so either registration order works: the
+// Azure RM crawler may register before the Entra crawler exists, and this links it as
+// soon as the directory shows up. A tenant with more than one EntraID system is left
+// unlinked rather than pointed at an arbitrary one.
+export async function linkDirectorySystems() {
+  const r = await db.query(`
+    UPDATE "Systems" d
+       SET "directorySystemId" = s."id"
+      FROM "Systems" s
+     WHERE s."systemType" = 'EntraID'
+       AND d."systemType" <> 'EntraID'
+       AND d."tenantId" IS NOT NULL
+       AND d."tenantId" = s."tenantId"
+       AND d."directorySystemId" IS NULL
+       AND (SELECT count(*) FROM "Systems" e
+             WHERE e."systemType" = 'EntraID' AND e."tenantId" = d."tenantId") = 1`);
+  return r.rowCount || 0;
+}

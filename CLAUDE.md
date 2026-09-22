@@ -142,7 +142,7 @@ The data model supports importing authorization data from any system. Resources,
 ```
 
 **Tables:**
-- **Systems** — Connected authorization sources (EntraID, SharePoint, AzureRM, DevOps, etc.)
+- **Systems** — Connected authorization sources (EntraID, SharePoint, AzureRM, DevOps, etc.). A system that grants access to accounts sourced elsewhere points at that directory with `directorySystemId` (Azure RM → Entra ID). It may then *reference* the directory's Principals/Resources but never take ownership of them — the ingest enforces that, which is what stops two crawlers writing one objectId from overwriting each other. Auto-linked on `tenantId`; see `docs/sync/building-a-crawler.md` → "When your source reads a directory you don't own"
 - **Resources** — Any permission-granting resource (groups, roles, app roles, sites) **and** business roles (`resourceType='BusinessRole'`) with `extendedAttributes` JSON
 - **ResourceAssignments** — Who has access to what (`resourceId` + `principalId` + `assignmentType` ∈ {`Direct`, `Indirect`, `Eligible`}). Governance-driven assignments carry `governed=true`
 - **ResourceRelationships** — Resource-to-resource links (`Contains`, `GrantsAccessTo`). Business role resource grants use `relationshipType='Contains'`
