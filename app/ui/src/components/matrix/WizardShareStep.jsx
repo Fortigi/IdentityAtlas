@@ -9,9 +9,11 @@
 //     with the same add/remove, copy-link and stop-sharing controls as the
 //     matrix bar and Admin. The body is SharePanel in all three places, so they
 //     cannot drift.
-//   * not shared yet — just the people field. Picking people here does NOT
-//     share on its own: the wizard's one primary button saves the matrix and
-//     then shares it, so there is never a second "Share" button to find.
+//   * not shared yet — just the people field. Naming the first person IS the
+//     act of sharing: the matrix is saved (under a generated name if it has
+//     none) and the share created there and then, so the section immediately
+//     becomes the panel above — link included. There is no second button to
+//     press and no link to go looking for afterwards.
 //
 // Only rendered for a user who may share (useCanShareMatrix).
 

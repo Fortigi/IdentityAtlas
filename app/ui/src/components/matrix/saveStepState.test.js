@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   LENS_VALUES, lensOf, isDirty, primaryAction, nameProblem, savedMatrixBody, copyNameOf, detachesFromSaved,
+  autoMatrixName, nameForShare,
 } from './saveStepState';
 
 const EDITING = { id: 'sf-1', name: 'HR users', description: 'People in HR', filter: { managed: 'gaps' } };
@@ -138,5 +139,53 @@ describe('detachesFromSaved', () => {
   it('does nothing for a new matrix, or one already detached as a copy', () => {
     expect(detachesFromSaved({ editing: null, name: '' })).toBe(false);
     expect(detachesFromSaved({ editing: EDITING, copy: true, name: '' })).toBe(false);
+  });
+});
+
+// ─── Sharing saves the matrix ──────────────────────────────────────────────
+//
+// A share is a property of a SAVED matrix, so picking the first person has to
+// save one. The generated name is shown in the name field and can be changed,
+// so it has to be readable — and a second attempt has to stay tellable apart
+// from the first.
+
+describe('autoMatrixName', () => {
+  const AT = new Date(2026, 8, 22, 9, 5); // 22 Sep 2026, 09:05 — local time
+
+  it('reads as a date a person can recognise, zero-padded to the minute', () => {
+    expect(autoMatrixName(AT)).toBe('Matrix — 22 Sep 2026, 09:05');
+  });
+
+  it('numbers a second attempt from two, because the first one is not "(1)"', () => {
+    expect(autoMatrixName(AT, 1)).toBe('Matrix — 22 Sep 2026, 09:05 (2)');
+    expect(autoMatrixName(AT, 2)).toBe('Matrix — 22 Sep 2026, 09:05 (3)');
+  });
+
+  it('names the right month, not the one either side of it', () => {
+    expect(autoMatrixName(new Date(2026, 0, 1, 0, 0))).toBe('Matrix — 1 Jan 2026, 00:00');
+    expect(autoMatrixName(new Date(2026, 11, 31, 23, 59))).toBe('Matrix — 31 Dec 2026, 23:59');
+  });
+});
+
+describe('nameForShare', () => {
+  const AT = new Date(2026, 8, 22, 9, 5);
+
+  it('keeps the name the author typed, trimmed, and says it was not generated', () => {
+    expect(nameForShare({ name: '  Sales access ', now: AT })).toEqual({ name: 'Sales access', generated: false });
+  });
+
+  it('generates one when the field is empty, and says so', () => {
+    expect(nameForShare({ name: '', now: AT })).toEqual({ name: 'Matrix — 22 Sep 2026, 09:05', generated: true });
+  });
+
+  it('treats a field holding only spaces as empty, rather than saving a blank name', () => {
+    expect(nameForShare({ name: '   ', now: AT }).generated).toBe(true);
+  });
+
+  it('only numbers the attempt when the name is generated', () => {
+    // A name the author typed is theirs: a clash comes back to them on the
+    // field, and is never silently renamed to "… (2)".
+    expect(nameForShare({ name: 'Sales access', now: AT, attempt: 1 }).name).toBe('Sales access');
+    expect(nameForShare({ name: '', now: AT, attempt: 1 }).name).toBe('Matrix — 22 Sep 2026, 09:05 (2)');
   });
 });

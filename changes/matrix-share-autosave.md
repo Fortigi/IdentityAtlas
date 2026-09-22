@@ -1,0 +1,4 @@
+- Changing who a matrix is shared with now saves by itself — the **Save recipients** button is gone. Adding somebody used to leave them without access until a second, easily-missed click, while the list on screen already showed them.
+- Removing the last person no longer looks like a save that failed: the panel says a share needs at least one person and points at **Stop sharing**, which is what closing a link has always been.
+- Sharing a new matrix now shows the link straight away. Naming the first person saves the matrix and creates the share there and then, instead of leaving the link to be found by saving, reopening the matrix and coming back to the share step.
+- A matrix shared before it was named is saved under a name like "Matrix — 22 Sep 2026, 09:05", shown in the name field so it can be renamed.

@@ -91,36 +91,78 @@ describe('MatrixFilterWizard — Save & share', () => {
     expect(onApply).not.toHaveBeenCalled();
   });
 
-  describe('sharing as part of the same click', () => {
-    it('asks for a name when people are picked without one, sending nothing', async () => {
+  // Picking the first person IS sharing (#1202 follow-up). It used to set a
+  // pending list that only the primary button acted on, and the link it created
+  // was never shown — the author had to save, reopen the wizard and come back to
+  // the share step to find it.
+  describe('naming the first person saves and shares there and then', () => {
+    it('saves an unnamed matrix under a generated name and shares it, link and all', async () => {
       const { user, onApply, authFetch } = await openSaveStep();
       // A matrix nobody has yet gets the one-line introduction to sharing.
       expect(screen.getByText(/Send it to colleagues who have no Identity Atlas role/)).toBeInTheDocument();
       await pickPerson(user, 'Ann Manager');
-      expect(primary('Save & show')).toBeEnabled();
-      await user.click(primary('Save & show'));
-      expect(screen.getByRole('alert')).toHaveTextContent('Name this matrix to share it');
-      expect(authFetch.mock.calls.some(([, o]) => o?.method === 'POST' && o.body?.includes('"name"'))).toBe(false);
+
+      const [post] = await waitFor(() => {
+        const bodies = bodiesSent(authFetch, SAVED_URL, 'POST');
+        expect(bodies).toHaveLength(1);
+        return bodies;
+      });
+      // Named for the author to recognise and rename, not a uuid — and the field
+      // shows what the matrix is now called org-wide.
+      expect(post.name).toMatch(/^Matrix — \d{1,2} \w{3} \d{4}, \d{2}:\d{2}$/);
+      await waitFor(() => expect(nameField()).toHaveValue(post.name));
+      expect(bodiesSent(authFetch, '/api/matrix/shares', 'POST'))
+        .toEqual([{ savedFilterId: 'sf-new', recipients: [ANN_RECIPIENT] }]);
+      // The link is on screen immediately — the whole point of the change.
+      expect(await screen.findByRole('button', { name: /Copy share link/i })).toBeInTheDocument();
+      expect(screen.getByText(/#shared:sh-new-1$/)).toBeInTheDocument();
+      // Nothing was applied: the wizard stays open on the link.
       expect(onApply).not.toHaveBeenCalled();
     });
 
-    it('saves first, then shares the saved matrix by id, then shows it', async () => {
-      const { user, onApply, authFetch } = await openSaveStep();
+    it('keeps the name the author typed instead of generating one', async () => {
+      const { user, authFetch } = await openSaveStep();
       await user.type(nameField(), 'Sales access');
       await pickPerson(user, 'Ann Manager');
-      // No second "Share" button inside the step — the primary button does it.
+      await waitFor(() => expect(bodiesSent(authFetch, SAVED_URL, 'POST')[0]?.name).toBe('Sales access'));
+      // No second "Share" button to find, then or now.
       expect(screen.queryByRole('button', { name: /^Share matrix$|^Save & share$/ })).not.toBeInTheDocument();
-      await user.click(primary('Save & show'));
-
-      await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
-      const posts = authFetch.mock.calls.filter(([, o]) => o?.method === 'POST' && o.body).map(([u]) => u);
-      expect(posts.filter(u => u !== '/api/matrix/preview')).toEqual([SAVED_URL, '/api/matrix/shares']);
-      expect(bodiesSent(authFetch, '/api/matrix/shares', 'POST')).toEqual([{ savedFilterId: 'sf-new', recipients: [ANN_RECIPIENT] }]);
-      expect(onApply.mock.calls[0][0].savedFilterId).toBe('sf-new');
       expect(await screen.findByText(/saved\. Shared with 1 person\./)).toBeInTheDocument();
     });
 
-    it('keeps the saved matrix when the share fails, and a retry only shares', async () => {
+    it('generates a second name rather than blaming the author for a clash they did not cause', async () => {
+      let posts = 0;
+      const base = makeWizardFetch();
+      const authFetch = vi.fn(async (url, opts = {}) => {
+        if (url === SAVED_URL && opts.method === 'POST' && posts++ === 0) {
+          return jsonResponse({ error: 'A filter named "X" already exists' }, { ok: false, status: 409 });
+        }
+        return base(url, opts);
+      });
+      const { user } = await openSaveStep({}, authFetch);
+      await pickPerson(user, 'Ann Manager');
+
+      await waitFor(() => expect(bodiesSent(authFetch, SAVED_URL, 'POST')).toHaveLength(2));
+      const [first, second] = bodiesSent(authFetch, SAVED_URL, 'POST');
+      expect(second.name).toBe(`${first.name} (2)`);
+      expect(await screen.findByRole('button', { name: /Copy share link/i })).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('puts a clash on the name the author DID type, and shares nothing', async () => {
+      const fetch = makeWizardFetch({ post: jsonResponse({ error: 'A filter named "Sales access" already exists' }, { ok: false, status: 409 }) });
+      const { user, authFetch } = await openSaveStep({}, fetch);
+      await user.type(nameField(), 'Sales access');
+      await pickPerson(user, 'Ann Manager');
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('A filter named "Sales access" already exists');
+      expect(nameField()).toHaveAttribute('aria-invalid', 'true');
+      // Tried once under the author's own name, never renamed behind their back.
+      expect(bodiesSent(authFetch, SAVED_URL, 'POST')).toHaveLength(1);
+      expect(bodiesSent(authFetch, '/api/matrix/shares', 'POST')).toEqual([]);
+    });
+
+    it('keeps the saved matrix when the share itself fails, and a retry only shares', async () => {
       let shareAttempts = 0;
       const base = makeWizardFetch();
       const authFetch = vi.fn(async (url, opts = {}) => {
@@ -132,11 +174,9 @@ describe('MatrixFilterWizard — Save & share', () => {
       const { user, onApply } = await openSaveStep({}, authFetch);
       await user.type(nameField(), 'Sales access');
       await pickPerson(user, 'Ann Manager');
-      await user.click(primary('Save & show'));
 
       expect(await screen.findByText('Directory unavailable')).toBeInTheDocument();
-      expect(onApply).not.toHaveBeenCalled();
-      // The matrix exists now: the button no longer creates a second one.
+      // The matrix exists now: the retry must not create a second one.
       await user.click(await screen.findByRole('button', { name: 'Share & show' }));
       await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
       expect(bodiesSent(authFetch, SAVED_URL, 'POST')).toHaveLength(1);
@@ -308,13 +348,16 @@ describe('MatrixFilterWizard — Save & share', () => {
 
     it('shares an unchanged, unshared saved matrix without saving it again', async () => {
       const unshared = { ...SHARED, shared: false, recipientCount: 0 };
-      const { user, onApply, authFetch } = await openSaveStep({ initialFilter: HR_FILTER }, makeWizardFetch({ saved: [unshared] }));
+      const { user, authFetch } = await openSaveStep({ initialFilter: HR_FILTER }, makeWizardFetch({ saved: [unshared] }));
       await waitFor(() => expect(nameField()).toHaveValue('HR users'));
       await pickPerson(user, 'Ann Manager');
-      await user.click(primary('Share & show'));
-      await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+
+      // Already saved and unchanged: the share hangs on the matrix as it is.
+      await waitFor(() => expect(bodiesSent(authFetch, '/api/matrix/shares', 'POST'))
+        .toEqual([{ savedFilterId: 'sf-1', recipients: [ANN_RECIPIENT] }]));
       expect(bodiesSent(authFetch, `${SAVED_URL}/sf-1`, 'PUT')).toEqual([]);
-      expect(bodiesSent(authFetch, '/api/matrix/shares', 'POST')).toEqual([{ savedFilterId: 'sf-1', recipients: [ANN_RECIPIENT] }]);
+      expect(bodiesSent(authFetch, SAVED_URL, 'POST')).toEqual([]);
+      expect(await screen.findByRole('button', { name: /Copy share link/i })).toBeInTheDocument();
     });
   });
 

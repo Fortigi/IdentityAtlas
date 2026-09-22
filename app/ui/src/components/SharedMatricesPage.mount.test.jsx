@@ -55,6 +55,8 @@ const SHARES = [
   },
 ];
 
+const FIN = { id: '7fa85f64-5717-4562-b3fc-2c963f66afa6', displayName: 'Fin Ance', userPrincipalName: 'fin@example.com' };
+
 const SHARING_ON = { matrixSharing: true };
 const sharer = { permissions: new Set(['data.share']), hasWildcard: false, permissionsLoaded: true };
 
@@ -150,12 +152,12 @@ describe('SharedMatricesPage', () => {
 
   // #1202: Admin is a third window onto one share, not a second mechanism —
   // the row expands the same panel the matrix bar and the wizard host.
-  it('manages recipients in place, keeping the same link', async () => {
+  it('manages recipients in place, keeping the same link — and saves without a button', async () => {
     const user = userEvent.setup();
     const put = vi.fn(async () => jsonResponse({ id: 'share-unused', recipients: [] }));
     const authFetch = makeAuthFetch((url, opts) => {
       if (String(url).endsWith('/recipients')) return put(url, opts);
-      if (String(url).startsWith('/api/users')) return { data: [] };
+      if (String(url).startsWith('/api/users')) return { data: [FIN] };
       return SHARES;
     });
     renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch }, features: SHARING_ON });
@@ -166,12 +168,21 @@ describe('SharedMatricesPage', () => {
     // The link is shown again — copyable long after it was minted.
     expect(screen.getByText(/#shared:share-unused$/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Save recipients' }));
-    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+    // Adding somebody is the whole gesture: there is no Save to forget, which
+    // is what used to leave a named recipient without access.
+    expect(screen.queryByRole('button', { name: 'Save recipients' })).not.toBeInTheDocument();
+    await user.type(screen.getByRole('textbox', { name: /^Shared with/i }), 'Fin');
+    await user.click(await screen.findByRole('button', { name: /Fin Ance/i }, { timeout: 3000 }));
+
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1), { timeout: 3000 });
     expect(put.mock.calls[0][0]).toBe('/api/matrix/shares/share-unused/recipients');
     expect(put.mock.calls[0][1].method).toBe('PUT');
-    expect(JSON.parse(put.mock.calls[0][1].body).recipients)
-      .toEqual([{ principalId: null, userKey: 'payroll.owner@example.com', displayName: 'Pat Payroll' }]);
+    // The WHOLE list, not just the addition — a PUT that sent only the new
+    // person would quietly drop everybody already on the share.
+    expect(JSON.parse(put.mock.calls[0][1].body).recipients).toEqual([
+      { principalId: null, userKey: 'payroll.owner@example.com', displayName: 'Pat Payroll' },
+      { principalId: FIN.id, userKey: 'fin@example.com', displayName: 'Fin Ance' },
+    ]);
   });
 
   it('offers no Manage on a revoked share — there is nothing live to adjust', async () => {

@@ -55,14 +55,37 @@ export function makeWizardFetch(overrides = {}) {
     shares = [],
     preview = {},
   } = overrides;
+  // A share created during the test is SERVED BACK by the list, the way the API
+  // does: the wizard hands a freshly-shared matrix to SharePanel, which reads the
+  // live share to show its link. A stub whose list stayed empty would report that
+  // the matrix is not shared and hide the very link this is here to prove.
+  const created = [];
   // Saving and sharing — what the tests override.
   const savingRoute = (u, opts) => {
+    if (u.startsWith('/api/matrix/shares/') && u.endsWith('/recipients') && opts.method === 'PUT') {
+      const id = u.split('/')[4];
+      const row = created.find(c => c.id === id);
+      const { recipients } = JSON.parse(opts.body);
+      if (row) row.recipients = recipients;
+      return { id, recipients };
+    }
     if (u.startsWith('/api/matrix/saved-filters/') && opts.method === 'PUT') return put;
     if (u === '/api/matrix/saved-filters' && opts.method === 'POST') {
       return post ?? jsonResponse({ id: 'sf-new', ...JSON.parse(opts.body) }, { status: 201 });
     }
     if (u === '/api/matrix/saved-filters') return saved;
-    if (u === '/api/matrix/shares') return opts.method === 'POST' ? share : shares;
+    if (u === '/api/matrix/shares') {
+      if (opts.method !== 'POST') return [...shares, ...created];
+      const body = JSON.parse(opts.body);
+      created.push({
+        id: `sh-new-${created.length + 1}`,
+        name: 'Shared matrix',
+        savedFilterId: body.savedFilterId ?? 'sf-new',
+        recipients: body.recipients,
+        revokedAt: null,
+      });
+      return share;
+    }
     return undefined;
   };
   return makeAuthFetch((url, opts = {}) => {

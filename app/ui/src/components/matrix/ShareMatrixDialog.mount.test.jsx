@@ -203,18 +203,41 @@ describe('ShareMatrixDialog — sharing a matrix that is already saved', () => {
     // The link is copyable again — that is what addressing by id bought.
     expect(screen.getByText(buildShareUrl(SHARE_ID))).toBeInTheDocument();
 
-    // Replace Ann with Bob: one PUT with the whole list, and nothing re-minted.
+    // Replace Ann with Bob. There is no Save button any more: the list writes
+    // itself back once it settles, which is what stops somebody being added and
+    // silently never given access.
+    expect(screen.queryByRole('button', { name: /Save recipients/i })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Remove Ann Manager/i }));
     await pickPerson(user, 'Bob Owner');
-    await user.click(screen.getByRole('button', { name: /Save recipients/i }));
 
-    await waitFor(() => expect(authFetch).toHaveBeenCalledWith(`/api/matrix/shares/${SHARE_ID}/recipients`, expect.anything()));
+    await waitFor(
+      () => expect(authFetch).toHaveBeenCalledWith(`/api/matrix/shares/${SHARE_ID}/recipients`, expect.anything()),
+      { timeout: 3000 },
+    );
+    expect(await screen.findByText('Saved')).toBeInTheDocument();
     const [, opts] = authFetch.mock.calls.find(([url]) => String(url).endsWith('/recipients'));
     expect(opts.method).toBe('PUT');
     expect(JSON.parse(opts.body).recipients).toEqual([
       { principalId: BOB.id, userKey: 'bob@contoso.com', displayName: 'Bob Owner' },
     ]);
     expect(postBody(authFetch)).toBeNull();
+  });
+
+  it('never writes back an empty list, and points at Stop sharing instead', async () => {
+    const authFetch = stubApi({ shares: [LIVE_SHARE] });
+    renderWithProviders(
+      <ShareMatrixDialog filter={FILTER} managed="all" savedFilterId={SAVED_ID} savedName="Sales team access" onClose={() => {}} />,
+      { auth: { ...sharer, authFetch } },
+    );
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /Remove Ann Manager/i }));
+    // The API refuses a share addressed to nobody, so autosaving one would only
+    // produce an error the author cannot act on. Removing the last person is
+    // "stop sharing", which is a deliberate, confirmed act.
+    expect(await screen.findByText(/A share needs at least one person/)).toBeInTheDocument();
+    await new Promise(r => setTimeout(r, 1200));
+    expect(authFetch.mock.calls.some(([url]) => String(url).endsWith('/recipients'))).toBe(false);
   });
 
   it('stops sharing after a confirmation that says the saved matrix stays', async () => {

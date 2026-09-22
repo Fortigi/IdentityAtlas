@@ -84,3 +84,31 @@ export function savedMatrixBody({ name, description, filter, managed }) {
 export function copyNameOf(name) {
   return `${trimmed(name)} (copy)`;
 }
+
+// ─── Sharing saves the matrix (#1202 follow-up) ─────────────────────────────
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const pad = (n) => String(n).padStart(2, '0');
+
+// The name a matrix is saved under when somebody shares it before naming it.
+//
+// A share is a property of a SAVED matrix, so picking the first person has to
+// save one — and stopping to demand a name at that moment is the interruption
+// this removes. The name is shown in the field straight away and can be changed
+// like any other, so it has to be readable rather than clever: no uuid, no
+// "Untitled (3)". `attempt` is only used when the first name is already taken,
+// which needs a second one that a human can still tell apart.
+export function autoMatrixName(now = new Date(), attempt = 0) {
+  const stamp = `${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}, ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  return attempt > 0 ? `Matrix — ${stamp} (${attempt + 1})` : `Matrix — ${stamp}`;
+}
+
+// The name a share should save under: the one that was typed, else a generated
+// one. Returned with whether it was generated, because a generated name is put
+// INTO the field — the author must be able to see and change what their matrix
+// is now called org-wide.
+export function nameForShare({ name, now = new Date(), attempt = 0 }) {
+  const typed = trimmed(name);
+  if (typed) return { name: typed, generated: false };
+  return { name: autoMatrixName(now, attempt), generated: true };
+}

@@ -54,6 +54,7 @@ export default defineConfig({
       'src/components/matrix/matrixRequests.test.js',
       'src/components/matrix/matrixHistoryText.test.js',
       'src/components/matrix/matrixHealth.test.js',
+      'src/components/matrix/useRecipientAutosave.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },

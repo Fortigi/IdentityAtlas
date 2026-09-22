@@ -70,7 +70,7 @@ export default function WizardSaveStep({
         <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
           {/* An already-shared matrix says who has it right below, in the
               recipients editor; the introduction would only repeat that. */}
-          <SectionHeading hint={editing?.shared && !copy ? null : 'Send it to colleagues who have no Identity Atlas role. They see it read-only, as it stands.'}>
+          <SectionHeading hint={editing?.shared && !copy ? null : 'Send it to colleagues who have no Identity Atlas role. They see it read-only, as it stands. Naming the first person saves this matrix and shares it right away.'}>
             Share with
           </SectionHeading>
           <WizardShareStep

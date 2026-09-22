@@ -17,43 +17,42 @@ import { useFetch } from '@ui/hooks/useFetch';
 import { useDialog } from '@ui/components/dialogContext';
 import CopyButton from '@ui/components/CopyButton';
 import PeoplePicker from '@ui/components/inputs/PeoplePicker';
-import { ErrorBox, PrimaryButton, SecondaryButton } from '@ui/components/contexts/ModalPrimitives';
+import { ErrorBox, SecondaryButton } from '@ui/components/contexts/ModalPrimitives';
 import { buildShareUrl } from '@ui/App.helpers';
 import ShareMatrixForm from './ShareMatrixForm';
+import { sendJson } from './matrixRequests';
+import { useRecipientAutosave, autosaveNotice } from './useRecipientAutosave';
 import { activeShareOf, sharedWithLabel } from './shareState';
 
-// The editing half: the current recipients, changed and saved as one list.
+// The editing half: the current recipients, changed and SAVED AS THEY CHANGE.
+//
+// There is no Save button here any more. Adding somebody on this panel used to
+// leave them without access until a second, easily-missed click — while the
+// list on screen already showed them as a recipient. useRecipientAutosave owns
+// the writing; this renders the people, the link and the way out.
 export function ShareRecipientEditor({ share, onChanged }) {
   const { authFetch } = useAuth();
   const dialog = useDialog();
-  const [people, setPeople] = useState(() => (share.recipients || []).map(r => ({
-    principalId: r.principalId || null,
-    userKey: r.userKey,
-    displayName: r.displayName || r.userKey,
-  })));
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
+  const [stopError, setStopError] = useState(null);
   const url = buildShareUrl(share.id);
 
-  async function save() {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await authFetch(`/api/matrix/shares/${share.id}/recipients`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipients: people }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || `Could not update the people this is shared with (HTTP ${res.status})`);
-      dialog.toast('Shared with updated', { variant: 'success' });
-      onChanged?.();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const save = useCallback((people) => sendJson(authFetch, `/api/matrix/shares/${share.id}/recipients`, {
+    method: 'PUT',
+    body: { recipients: people },
+    fallback: 'Could not update the people this is shared with',
+  }), [authFetch, share.id]);
+
+  const { people, setPeople, status, error } = useRecipientAutosave({
+    initial: (share.recipients || []).map(r => ({
+      principalId: r.principalId || null,
+      userKey: r.userKey,
+      displayName: r.displayName || r.userKey,
+    })),
+    save,
+    onSaved: onChanged,
+  });
+  const notice = autosaveNotice(status);
 
   async function stopSharing() {
     const ok = await dialog.confirm({
@@ -70,7 +69,7 @@ export function ShareRecipientEditor({ share, onChanged }) {
       dialog.toast('Sharing stopped', { variant: 'success' });
       onChanged?.();
     } catch {
-      setError('Could not stop sharing. Please try again.');
+      setStopError('Could not stop sharing. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -87,12 +86,22 @@ export function ShareRecipientEditor({ share, onChanged }) {
         onChange={setPeople}
         inputId={`share-recipients-${share.id}`}
         label="Shared with"
-        help="Removing somebody takes their access away immediately. The link itself stays the same."
+        help="Changes are saved on their own. Removing somebody takes their access away immediately, and the link itself stays the same."
       />
+      {notice && (
+        <p
+          role="status"
+          className={notice.tone === 'warn'
+            ? 'text-[11px] text-amber-700 dark:text-amber-300'
+            : 'text-[11px] text-gray-600 dark:text-gray-400'}
+        >
+          {notice.text}
+        </p>
+      )}
       <p className="break-all rounded border border-gray-200 bg-gray-50 p-2 font-mono text-[11px] text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
         {url}
       </p>
-      <ErrorBox message={error} />
+      <ErrorBox message={error || stopError} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
@@ -102,12 +111,7 @@ export function ShareRecipientEditor({ share, onChanged }) {
         >
           Stop sharing
         </button>
-        <div className="flex items-center gap-2">
-          <CopyButton text={url} label="Copy share link" copiedLabel="Share link copied" />
-          <PrimaryButton onClick={save} disabled={busy || people.length === 0}>
-            {busy ? 'Saving…' : 'Save recipients'}
-          </PrimaryButton>
-        </div>
+        <CopyButton text={url} label="Copy share link" copiedLabel="Share link copied" />
       </div>
     </div>
   );
