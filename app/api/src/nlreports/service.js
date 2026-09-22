@@ -69,9 +69,49 @@ export function hasAnyMatch(spec) {
   return spec.conditions.some(c => (c.type === 'group' || c.type === 'relation') && c.match === 'any' && c.conditions.length > 1);
 }
 
-/** The question joins alternatives with "or"/"either", but the definition has no OR at all. */
+// Dutch "of" is BOTH "or" and "whether", and the two turn up in one sentence
+// often enough that telling them apart matters: "Kan je me vertellen OF William
+// aan groepen toegevoegd is OF eruit gehaald is" opens with the whether sense
+// and joins alternatives with the second. Treating either as a disjunction is
+// not free — a false positive sends the definition back for a repair round that
+// costs a model call and can turn a correct AND into a wrong OR.
+//
+// The one reliable signal: the whether sense follows a verb of asking or
+// finding out. That verb is what is checked for, rather than trying to parse
+// the clause.
+const DUTCH_WHETHER_VERBS = new Set([
+  'vertellen', 'zeggen', 'weten', 'zien', 'kijken', 'checken', 'controleren',
+  'vragen', 'nagaan', 'benieuwd', 'uitzoeken', 'opzoeken',
+]);
+
+// Dutch words that essentially never occur in an English sentence. Two of them
+// are needed before the "of" rule below is applied at all, because "of" is one
+// of the commonest words in ENGLISH — "a list of all guest accounts" — where it
+// is a preposition and means nothing of the sort. Without this gate the repair
+// fired on almost every English question.
+const DUTCH_MARKERS = new Set([
+  'welke', 'wie', 'hoeveel', 'zijn', 'heeft', 'hebben', 'geen', 'niet', 'deze', 'die',
+  'mijn', 'jouw', 'toegevoegd', 'verwijderd', 'gewijzigd', 'eigenaar', 'groepen',
+  'gebruikers', 'leden', 'worden', 'wordt', 'nog', 'laatste', 'wel', 'ook', 'waar',
+  'kan', 'kun', 'vertellen', 'laten', 'zonder', 'uit', 'aan',
+]);
+
+const looksDutch = (words) => words.filter(w => DUTCH_MARKERS.has(w)).length >= 2;
+
+/** Does the question offer alternatives — "X or Y", "X of Y", "X dan wel Y"? */
+export function hasDisjunction(question) {
+  const text = String(question ?? '').toLowerCase();
+  if (/\b(or|either)\b/.test(text)) return true;
+  if (/\bdan wel\b/.test(text)) return true;
+
+  const words = text.split(/[^a-zÀ-ɏ]+/).filter(Boolean);
+  if (!looksDutch(words)) return false;
+  return words.some((word, i) => word === 'of' && i > 0 && !DUTCH_WHETHER_VERBS.has(words[i - 1]));
+}
+
+/** The question joins alternatives, but the definition has no OR at all. */
 export function needsOrRepair(question, spec) {
-  return /\b(or|either)\b/i.test(question) && spec.conditions.length > 1 && !hasAnyMatch(spec);
+  return hasDisjunction(question) && spec.conditions.length > 1 && !hasAnyMatch(spec);
 }
 
 function parseReply(content) {

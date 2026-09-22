@@ -21,6 +21,7 @@
     "src/lib/principalActivity.js",
     "src/nlreports/compare.js",
     "src/nlreports/compile.js",
+    "src/nlreports/contradictions.js",
     "src/nlreports/explain.js",
     "src/nlreports/llamacpp.js",
     "src/nlreports/ollama.js",

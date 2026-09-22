@@ -7,7 +7,10 @@ vi.mock('./llm.js', () => ({ chat: vi.fn(), warm: vi.fn(), DEFAULT_MODEL: 'test-
 import { query, tx } from '../db/connection.js';
 import { chat, warm } from './llm.js';
 import { buildSystemPrompt, REPORT_ONLY_SCHEMA, RESPONSE_SCHEMA } from './prompt.js';
-import { ensureWarm, hasAnyMatch, interpret, needsOrRepair, runSpec, schemaFor, warmAtStartup, warmupState } from './service.js';
+import {
+  ensureWarm, hasAnyMatch, hasDisjunction, interpret, needsOrRepair, runSpec, schemaFor,
+  warmAtStartup, warmupState,
+} from './service.js';
 
 describe('warm-up at API start', () => {
   const env = { ...process.env };
@@ -286,5 +289,78 @@ describe('runSpec row shaping', () => {
     });
 
     expect(out.columns.map(c => c.key)).toEqual(['displayName', 'owns.names']);
+  });
+});
+
+describe('spotting alternatives in the question', () => {
+  // The repair for "X or Y" built as "X AND Y" reads the QUESTION, and read it
+  // in English only. This bot answers Dutch, where the word for "or" is also
+  // the word for "whether" — and both senses turn up in one sentence often
+  // enough that telling them apart is the whole job.
+
+  it('reads the Dutch question that this was found on', () => {
+    // "Kan je me vertellen OF William ... toegevoegd is OF uit groepen is weg
+    // gehaald": the first is "whether", the second is "or". Missing it meant
+    // the model's "Added AND Removed" was never sent back for repair.
+    expect(hasDisjunction(
+      'Kan je me vertellen of William in de laatste 180 dagen nog aan groepen toegevoegd is of uit groepen is weg gehaald?',
+    )).toBe(true);
+  });
+
+  it.each([
+    'Kan je me vertellen of er groepen zonder eigenaar zijn?',
+    'Laat me zien of Jan nog actief is',
+    'ik wil weten of dit klopt',
+    'kun je controleren of deze groep leeg is',
+  ])('does not read "whether" as "or" in: %s', (q) => {
+    // Every one of these costs a wasted model call if it fires, and can turn a
+    // correct AND into a wrong OR — so a miss is the cheaper mistake.
+    expect(hasDisjunction(q)).toBe(false);
+  });
+
+  it.each([
+    ['welke groepen heten Finance of HR', true],
+    ['groepen met eigenaar Jan dan wel Piet', true],
+    ['which groups are called Finance or HR', true],
+    ['either Finance or HR', true],
+    ['welke groepen hebben geen eigenaar', false],
+    ['which groups have no owner', false],
+  ])('reads %s as %s', (q, expected) => {
+    expect(hasDisjunction(q)).toBe(expected);
+  });
+
+  it.each([
+    'Can you give me a list of all guest accounts from the ACME?',
+    'a list of the members of these groups',
+    'the owner of each of the groups',
+  ])('never reads the English preposition "of" as a disjunction: %s', (q) => {
+    // The regression this gate exists for. "of" is one of the commonest words
+    // in English, and reading it as "or" sent almost every English question to
+    // a repair round that could turn a correct AND into a wrong OR. Dutch
+    // markers must be present before the Dutch rule applies at all.
+    expect(hasDisjunction(q)).toBe(false);
+  });
+
+  it('survives an empty or missing question', () => {
+    expect(hasDisjunction('')).toBe(false);
+    expect(hasDisjunction(null)).toBe(false);
+    expect(hasDisjunction(undefined)).toBe(false);
+  });
+
+  it('does not fire on a word that merely contains "of"', () => {
+    // "profiel", "software", "of" inside another word — the check is on whole
+    // words, and this is what would break it if it were not.
+    expect(hasDisjunction('welke accounts hebben een profiel in software')).toBe(false);
+  });
+
+  it('only asks for a repair when the definition actually has no OR', () => {
+    const anded = { conditions: [{ type: 'field' }, { type: 'field' }], match: 'all' };
+    const ored = { conditions: [{ type: 'field' }, { type: 'field' }], match: 'any' };
+    const question = 'welke groepen heten Finance of HR';
+
+    expect(needsOrRepair(question, anded)).toBe(true);
+    expect(needsOrRepair(question, ored)).toBe(false);
+    // One condition cannot be a missing alternative.
+    expect(needsOrRepair(question, { conditions: [{ type: 'field' }], match: 'all' })).toBe(false);
   });
 });

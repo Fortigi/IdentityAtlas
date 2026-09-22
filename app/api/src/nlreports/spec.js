@@ -18,6 +18,7 @@
 //             | 'compare.<similarity|shared|onlyHere|onlyReference|onlyHereNames|onlyReferenceNames>'
 
 import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE } from './catalog.js';
+import { contradictions } from './contradictions.js';
 import {
   COMPARE_COLUMNS, DEFAULT_COMPARE_COLUMNS, MAX_COMPARES, compareConditions, validateCompare,
 } from './compare.js';
@@ -378,5 +379,12 @@ export function validateSpec(raw, values = {}) {
 
   const spec = { entity: entityName, match: normalizeMatch(raw.match), conditions, columns, limit };
   if (sort) spec.sort = sort;
+
+  // Last, and only once the fields are known good: a definition that cannot
+  // match anything. It runs fine and returns nothing, which reads exactly like
+  // a truthful answer — see contradictions.js. Reported as a validation error
+  // so the existing repair round shows the model what it built.
+  for (const message of contradictions(spec)) err(message);
+
   return { ok: errors.length === 0, spec, errors };
 }
