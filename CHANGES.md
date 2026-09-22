@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- The matrix name menu has a new **History…** entry: it shows who first saved a matrix, who has changed it since, and what each change touched — a rename, the subjects, the resources, the roll-up or the governed lens.
+- The "Open a matrix" list now says who last changed each saved matrix, not only when.
+- Changes to saved matrices are recorded from this release onwards, so a matrix saved earlier starts its trail at its next change.
+
+## Changes in this PR
+
 - The system a crawler registers is now named after the crawler itself for every crawler type — Entra ID, Azure RM, Omada, midPoint and SCIM. A crawler called "HBR EntraID" now shows up as the system "HBR EntraID" instead of "Entra ID (contoso.onmicrosoft.com)", so several connectors of the same type are finally distinguishable on the Systems page, in the matrix and in every system filter.
 - Renaming a crawler renames its system on the next run: the existing system is renamed in place, not duplicated.
 - An explicitly set System name in the crawler's wizard still wins over the crawler's name.
