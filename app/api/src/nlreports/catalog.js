@@ -25,8 +25,13 @@ const lastSignIn = (t) => `(SELECT MAX(${lastSignInExpr('pa')}) FROM "PrincipalA
           WHERE pa."principalId" = ${t}."id" AND ${aggregateRowWhere('pa')})`;
 const signInMeasuredAt = (t) =>
   `(SELECT sm."measuredAt" FROM ${SIGNIN_MEASUREMENT.name} sm WHERE sm."systemId" = ${t}."systemId")`;
-const ext = (key) => (t) => `${t}."extendedAttributes"->>'${key}'`;
-const extBool = (key) => (t) => `(${t}."extendedAttributes"->>'${key}')::boolean`;
+// `extKey` on the returned template records WHICH extendedAttributes key a field
+// reads. extFields.js uses it to skip keys the static catalog already covers, so
+// `userType` does not also show up as a raw `ext.userType` field.
+const tagged = (key, fn) => Object.assign(fn, { extKey: key });
+const ext = (key) => tagged(key, (t) => `${t}."extendedAttributes"->>'${key}'`);
+const extBool = (key) => tagged(key, (t) => `(${t}."extendedAttributes"->>'${key}')::boolean`);
+
 const col = (name) => (t) => `${t}."${name}"`;
 // Ids are UUID columns, but the catalog offers them as text (contains, starts with,
 // is empty …). Without the cast, text operators are invalid SQL on a UUID — found by
@@ -381,7 +386,30 @@ export const ENTITIES = {
   resource: BASE.resource,
 };
 
+// ─── Fields, including the discovered extendedAttributes ones ────────
+//
+// The static catalog above is the vocabulary every deployment shares. On top of
+// it, each install has its own `extendedAttributes` keys — `sfDepartmentID`,
+// `fgGroupDN_OuPath`, whatever the crawlers stamp — and an analyst must be able
+// to filter, show and group on those too. They are discovered per request (see
+// extFields.js) and merged in HERE rather than mutated into ENTITIES, so nothing
+// deployment-specific ever reaches the byte-stable system prompt or leaks between
+// tests.
+
+/** The entity's own fields, plus the discovered `ext.*` fields handed in. */
+export function fieldsOf(entityName, extFields) {
+  const base = ENTITIES[entityName].fields;
+  const extra = extFields?.[entityName];
+  return extra ? { ...base, ...extra } : base;
+}
+
+/** The `extendedAttributes` keys the static fields of an entity already read. */
+export function staticExtKeys(entityName) {
+  return new Set(Object.values(ENTITIES[entityName].fields).map(f => f.sql.extKey).filter(Boolean));
+}
+
 // Words analysts use interchangeably. Rendered into the prompt, so the model maps
+
 // every synonym to the same entity or filter. Dutch terms included: questions
 // arrive in both languages.
 export const GLOSSARY = [

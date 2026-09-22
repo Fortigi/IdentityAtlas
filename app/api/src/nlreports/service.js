@@ -10,9 +10,11 @@ import { ENTITIES, VALUE_QUERIES } from './catalog.js';
 import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
-import { buildSystemPrompt, buildValuesBlock, RESPONSE_SCHEMA, REPORT_ONLY_SCHEMA } from './prompt.js';
+import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
+import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
 import { chat, DEFAULT_MODEL } from './llm.js';
 import { createWarmup, prepareAtStartup } from './warmup.js';
+
 import { resolveNamedObjects } from './references.js';
 import { correctionMessage, findTerms, locateTerms, termConfirmation, termHint, unusedTerms } from './terms.js';
 import { isFeatureEnabled } from '../featureFlags.js';
@@ -82,8 +84,9 @@ function parseReply(content) {
  * The conversation sent to the model: system prompt, earlier turns, then the
  * question with the deployment's values in front of it (when there are any).
  */
-function buildMessages(question, history, values, located = []) {
-  const context = [buildValuesBlock(values), termHint(located)].filter(Boolean).join('\n\n');
+function buildMessages(question, history, values, located = [], attributes = []) {
+  const context = [buildValuesBlock(values), termHint(located), attributesBlock(attributes)].filter(Boolean).join('\n\n');
+
   return [
     { role: 'system', content: buildSystemPrompt() },
     ...history,
@@ -91,14 +94,21 @@ function buildMessages(question, history, values, located = []) {
   ];
 }
 
-/** After MAX_CLARIFY_ROUNDS clarifying questions the model must produce a report. */
-export function schemaFor(history) {
+/**
+ * The reply grammar for this turn: report-only after MAX_CLARIFY_ROUNDS clarifying
+ * questions, and widened with the discovered fields the question named.
+ */
+export function schemaFor(history, extraFieldNames = []) {
+  const { response, reportOnly } = buildReplySchemas(extraFieldNames);
   const clarifyRounds = history.filter(h => h.role === 'assistant' && parseReply(h.content)?.kind === 'clarify').length;
-  return clarifyRounds >= MAX_CLARIFY_ROUNDS ? REPORT_ONLY_SCHEMA : RESPONSE_SCHEMA;
+  return clarifyRounds >= MAX_CLARIFY_ROUNDS ? reportOnly : response;
 }
 
+
 // A turn is the state of one interpret() call as the repair rounds move it along:
-// { raw, reply, timing, repaired }. The context `ctx` is { question, model, messages, values }.
+// { raw, reply, timing, repaired }. The context `ctx` is
+// { question, model, messages, values, extFields, reportSchema }.
+
 
 /** The fields every interpret() reply ends with. */
 function replyMeta(ctx, turn) {
@@ -110,7 +120,10 @@ async function askForCorrection(ctx, turn, correction) {
   turn.repaired = true;
   const retry = await chat({
     model: ctx.model,
-    schema: REPORT_ONLY_SCHEMA,
+    // The same grammar the question itself was answered under, so a repair can
+    // still name the attributes that question was allowed to name.
+    schema: ctx.reportSchema,
+
     messages: [
       ...ctx.messages,
       { role: 'assistant', content: turn.raw },
@@ -129,14 +142,14 @@ async function repairInvalidSpec(ctx, turn, result) {
   if (retry.reply?.kind !== 'report') return result;
   turn.raw = retry.content;
   turn.reply = retry.reply;
-  return validateSpec(turn.reply.spec, ctx.values);
+  return validateSpec(turn.reply.spec, ctx.values, ctx.extFields);
 }
 
 /** The most common small-model mistake: "X or Y" compiled as X AND Y. */
 async function repairMissingOr(ctx, turn, result) {
   if (!result.ok || !needsOrRepair(ctx.question, result.spec)) return result;
   const retry = await askForCorrection(ctx, turn, OR_REPAIR_MESSAGE);
-  const retriedResult = retry.reply?.kind === 'report' ? validateSpec(retry.reply.spec, ctx.values) : null;
+  const retriedResult = retry.reply?.kind === 'report' ? validateSpec(retry.reply.spec, ctx.values, ctx.extFields) : null;
   // Only take the correction when it is valid and actually contains an "any".
   if (!retriedResult?.ok || !hasAnyMatch(retriedResult.spec)) return result;
   turn.raw = retry.content;
@@ -149,7 +162,7 @@ async function repairUnusedTerms(ctx, turn, result) {
   const unused = result.ok ? unusedTerms(result.spec, ctx.located) : [];
   if (!unused.length) return result;
   const retry = await askForCorrection(ctx, turn, correctionMessage(unused));
-  const retriedResult = retry.reply?.kind === 'report' ? validateSpec(retry.reply.spec, ctx.values) : null;
+  const retriedResult = retry.reply?.kind === 'report' ? validateSpec(retry.reply.spec, ctx.values, ctx.extFields) : null;
   // Only take the correction when it is valid and uses more of the names.
   if (!retriedResult?.ok || unusedTerms(retriedResult.spec, ctx.located).length >= unused.length) return result;
   turn.raw = retry.content;
@@ -179,7 +192,7 @@ function termCheck(ctx, spec, assumptions) {
 
 /** A report reply: repair it if needed, look named objects up, and shape the answer. */
 async function answerReport(ctx, turn) {
-  let result = validateSpec(turn.reply.spec, ctx.values);
+  let result = validateSpec(turn.reply.spec, ctx.values, ctx.extFields);
   result = await repairInvalidSpec(ctx, turn, result);
   result = await repairMissingOr(ctx, turn, result);
   result = await repairUnusedTerms(ctx, turn, result);
@@ -201,12 +214,13 @@ async function answerReport(ctx, turn) {
   if (confirm) {
     return { kind: 'confirm', spec: result.spec, confirm, assumptions, ...replyMeta(ctx, turn) };
   }
-  const compiled = compileSpec(result.spec);
+  const compiled = compileSpec(result.spec, ctx.extFields);
   return {
     kind: 'report',
     spec: result.spec,
     assumptions,
-    explanation: explainSpec(result.spec),
+    explanation: explainSpec(result.spec, ctx.extFields),
+
     warnings: errors,
     sql: compiled.text,
     ...replyMeta(ctx, turn),
@@ -235,12 +249,21 @@ export async function interpret({ question, history = [], model = DEFAULT_MODEL 
   // Never let this sink the question itself — the model answers either way.
   await ensureWarm().promise.catch(() => {});
   const values = await loadValues();
-  const schema = schemaFor(history);
+  const extFields = await loadExtFields();
+  // The attributes THIS question names — never the whole set. See extFields.js.
+  const attributes = matchQuestionAttributes(question, extFields);
+  const extraFieldNames = attributeFieldNames(attributes);
+  const schema = schemaFor(history, extraFieldNames);
   const terms = findTerms(question, values);
   const located = terms.length ? await locateTerms(terms, query, values) : [];
-  const ctx = { question, model, values, located, messages: buildMessages(question, history, values, located) };
+  const ctx = {
+    question, model, values, located, extFields,
+    reportSchema: buildReplySchemas(extraFieldNames).reportOnly,
+    messages: buildMessages(question, history, values, located, attributes),
+  };
 
   const first = await chat({ model, messages: ctx.messages, schema });
+
   const turn = { raw: first.content, reply: parseReply(first.content), timing: first.timing, repaired: false };
 
   if (turn.reply?.kind === 'report') return answerReport(ctx, turn);
@@ -262,12 +285,14 @@ function formatCell(type, v) {
  */
 export async function runSpec(rawSpec) {
   const values = await loadValues();
-  const { ok, spec, errors } = validateSpec(rawSpec, values);
+  const extFields = await loadExtFields();
+  const { ok, spec, errors } = validateSpec(rawSpec, values, extFields);
   if (!ok) return { ok: false, errors, spec };
   const { confirm } = await resolveNamedObjects(spec, query);
   if (confirm) return { ok: false, errors: [confirm.message], confirm, spec };
 
-  const compiled = compileSpec(spec);
+  const compiled = compileSpec(spec, extFields);
+
   const started = Date.now();
   const result = await tx(async (client) => {
     await client.query('SET TRANSACTION READ ONLY');
@@ -279,15 +304,22 @@ export async function runSpec(rawSpec) {
   const truncated = result.rows.length > spec.limit;
   const kind = ENTITIES[spec.entity].detailKind;
   const rows = result.rows.slice(0, spec.limit).map(r => {
-    const row = { _entity: { kind, id: r.__id } };
-    for (const c of compiled.columns) row[c.key] = formatCell(c.type, r[c.key]);
+    // A grouped row is a value with a count, not a record, so it carries no
+    // entity: the renderer then offers no detail link, which is right — there is
+    // no single record behind "Finance — 42".
+    const row = spec.groupBy ? {} : { _entity: { kind, id: r.__id } };
+    // Read by alias, write by key: a column whose name is too long for a Postgres
+    // alias is selected under a short one (see compile.js).
+    for (const c of compiled.columns) row[c.key] = formatCell(c.type, r[c.alias]);
+
     return row;
   });
 
   return {
     ok: true,
     spec,
-    explanation: explainSpec(spec),
+    explanation: explainSpec(spec, extFields),
+
     columns: compiled.columns.map(({ key, label }) => ({ key, label })),
     rows,
     total: rows.length,

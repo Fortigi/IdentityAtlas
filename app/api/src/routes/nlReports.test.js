@@ -10,7 +10,11 @@ vi.mock('../nlreports/service.js', () => ({
   ensureWarm: vi.fn(),
   warmupState: vi.fn(() => 'ready'),
 }));
+// Discovery talks to the database; these tests are about the routes. Tests that
+// care hand it a field set of their own with mockResolvedValue.
+vi.mock('../nlreports/extFields.js', () => ({ loadExtFields: vi.fn(async () => ({})) }));
 vi.mock('../nlreports/llm.js', () => ({
+
   listModels: vi.fn(async () => [{ name: 'test-model', loaded: true }]),
   modelState: vi.fn(async () => 'ready'),
   MODEL_IS_FIXED: true,
@@ -37,6 +41,7 @@ import { interpret, runSpec, ensureWarm } from '../nlreports/service.js';
 import { modelState } from '../nlreports/llm.js';
 import { applyChoice, resolveNamedObjects } from '../nlreports/references.js';
 import { createSavedReport, deleteSavedReport, prepareSavedReport } from '../nlreports/savedReports.js';
+import { loadExtFields } from '../nlreports/extFields.js';
 import router, { parseInterpretRequest } from './nlReports.js';
 import { MAX_CONDITIONS } from '../nlreports/spec.js';
 
@@ -339,5 +344,41 @@ describe('admin: the model is fixed by the release', () => {
 
     const cfg = await api().get('/api/admin/nl-reports/config');
     expect(cfg.body).toMatchObject({ model: 'test-model', reachable: true, fixed: true });
+  });
+});
+
+describe('the catalog', () => {
+  const RAW = 'extension_a1b2c3d4e5f60718293a4b5c6d7e8f90_sfDepartmentID';
+
+  it('offers the catalog fields plus this deployment own attributes, marked as such', async () => {
+    loadExtFields.mockResolvedValueOnce({
+      user: {
+        [`ext.${RAW}`]: {
+          label: 'sfDepartmentID', type: 'text', extKey: RAW, discovered: true,
+          sql: (t) => `${t}."extendedAttributes"->>'${RAW}'`,
+        },
+      },
+    });
+
+    const res = await api().get('/api/nl-reports/catalog');
+    expect(res.status).toBe(200);
+
+    const user = res.body.entities.user;
+    expect(user.fields).toContainEqual({ name: 'department', label: 'Department', type: 'text' });
+    expect(user.fields).toContainEqual({ name: `ext.${RAW}`, label: 'sfDepartmentID', type: 'text', discovered: true });
+    expect(user.columns).toContainEqual({ key: `ext.${RAW}`, label: 'sfDepartmentID', discovered: true });
+    // An attribute can be grouped on; a timestamp cannot.
+    expect(user.groupableFields).toContainEqual({ name: `ext.${RAW}`, label: 'sfDepartmentID', discovered: true });
+    expect(user.groupableFields.map(f => f.name)).toContain('department');
+    expect(user.groupableFields.map(f => f.name)).not.toContain('createdDateTime');
+    // An attribute of the Principals table is not offered on groups.
+    expect(res.body.entities.group.fields.map(f => f.name)).not.toContain(`ext.${RAW}`);
+  });
+
+  it('serves the catalog on an install whose data has no extra attributes at all', async () => {
+    const res = await api().get('/api/nl-reports/catalog');
+    expect(res.status).toBe(200);
+    expect(res.body.entities.user.fields.every(f => !f.discovered)).toBe(true);
+    expect(res.body.entities.user.groupableFields.length).toBeGreaterThan(0);
   });
 });

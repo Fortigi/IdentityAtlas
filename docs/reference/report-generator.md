@@ -116,8 +116,18 @@ Three failure modes are handled in code rather than left to the model:
   cloud model, no API key to a provider, and no telemetry in this path.
 - **The model receives**: the analyst's question, the catalog (entity, field and relation names with
   their descriptions), the type values that exist in this deployment (account types, resource types,
-  system names), while refining the current report definition, and — for a name the question
-  mentions — **which fields that name occurs in**.
+  system names), while refining the current report definition, for a name the question
+  mentions — **which fields that name occurs in** — and, for an attribute the question names, **the
+  name of that attribute**.
+- **Attribute names, never attribute values.** A deployment's own `extendedAttributes` keys
+  (`sfDepartmentID`, an OU path) are not in the catalog: they differ per tenant, and there can be
+  hundreds. When a question names one, the API matches it against the keys discovered in the data and
+  tells the model the field name to use — `"sfDepartmentID" is the field ext.sfDepartmentID`. No
+  value of that attribute is looked up, sent, or counted. An attribute the question does not name is
+  not sent at all: it goes with the question, so the system prompt itself never changes between
+  questions and the saved prompt cache keeps working (see below).
+
+
 - **That last one is the only thing looked up in the data for the model, and it is deliberately
   narrow.** When a question names something ("guest accounts from Contoso"), the API checks, per name,
   whether it occurs as a whole word in a fixed set of text fields (name, email, company, department, job

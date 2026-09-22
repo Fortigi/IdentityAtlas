@@ -692,8 +692,11 @@ paths:
       operationId: getCustomReportCatalog
       description: >
         The entities, fields, relations, operators and pickable columns a report definition may
-        use, with the known values of enumerated fields. Requires `data.write.reports`; answers
-        404 while the `customReports` feature is off.
+        use, with the known values of enumerated fields. Alongside the fields every deployment has,
+        this includes the `extendedAttributes` keys discovered in this deployment's own data, named
+        `ext.<rawKey>` and marked `discovered`. Requires `data.write.reports`; answers 404 while the
+        `customReports` feature is off.
+
       security:
         - EntraIdBearer: []
       responses:
@@ -731,7 +734,13 @@ paths:
                                 type: array
                                 description: Known values, for enumerated fields only.
                                 items: { type: string }
+                              discovered:
+                                type: boolean
+                                description: >
+                                  Present on a field read from this deployment's own
+                                  `extendedAttributes` rather than from the shared catalog.
                         relations:
+
                           type: array
                           items:
                             type: object
@@ -744,7 +753,17 @@ paths:
                           type: array
                           items:
                             $ref: '#/components/schemas/ReportColumn'
+                        groupableFields:
+                          type: array
+                          description: The fields this entity can be counted per (no date fields).
+                          items:
+                            type: object
+                            properties:
+                              name: { type: string }
+                              label: { type: string }
+                              discovered: { type: boolean }
                   operators:
+
                     type: object
                     additionalProperties:
                       type: object
@@ -2077,14 +2096,21 @@ components:
           type: string
         label:
           type: string
+        discovered:
+          type: boolean
+          description: >
+            Only in the builder catalog: the column reads an `extendedAttributes` key found in this
+            deployment's own data rather than a field of the shared catalog.
+
 
     ReportDefinition:
       type: object
       description: >
-        A custom report definition — `{ entity, match, conditions, columns, sort?, limit? }`.
+        A custom report definition — `{ entity, match, conditions, columns, groupBy?, sort?, limit? }`.
         Conditions are `field`, `relation`, `group` or `compare` objects; the catalog lists the
         entities, fields, relations and operators they may use. The server validates every
         definition and returns the normalised form.
+
       required: [entity]
       additionalProperties: true
       properties:
@@ -2104,8 +2130,17 @@ components:
           maxItems: 15
           items:
             type: string
+        groupBy:
+          type: string
+          description: >
+            Count records per distinct value of this field instead of listing them. The result then
+            has two columns — the value and `count` — and no record to open per row. Not combinable
+            with a compare condition, and not allowed on a date field.
         sort:
           type: object
+          description: >
+            On a grouped definition the field must be the grouped field or `count`; the default is
+            the largest count first.
           properties:
             field:
               type: string
@@ -2115,6 +2150,7 @@ components:
           type: integer
           maximum: 5000
           default: 1000
+
 
     ReportConfirmation:
       type: object

@@ -22,7 +22,9 @@
     "src/nlreports/compare.js",
     "src/nlreports/compile.js",
     "src/nlreports/explain.js",
+    "src/nlreports/extFields.js",
     "src/nlreports/llamacpp.js",
+
     "src/nlreports/ollama.js",
     "src/nlreports/prompt.js",
     "src/nlreports/references.js",

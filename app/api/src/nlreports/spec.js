@@ -7,9 +7,15 @@
 // Errors are returned as plain sentences so they can be fed back to the model
 // for one repair attempt.
 //
+// Fields are the catalog's own plus this deployment's discovered
+// `extendedAttributes` fields (`ext.<rawKey>`, see extFields.js), which the caller
+// hands in — validation is the same for both, so an attribute a crawler stamped
+// filters, shows and groups exactly like a built-in field.
+//
 // Spec shape:
 //   { entity, match: 'all'|'any', conditions: [Condition], columns: [string],
-//     sort?: { field, direction }, limit? }
+//     groupBy?: 'field', sort?: { field, direction }, limit? }
+
 //   Condition = { type:'field', field, op, value? }
 //             | { type:'relation', relation, quantifier:'some'|'none', match?, conditions:[field conditions] }
 //             | { type:'group', match, conditions:[field or relation conditions] }
@@ -17,12 +23,21 @@
 //   Column    = 'field' | '<one-relation>.<field>' | '<many-relation>.count' | '<many-relation>.names'
 //             | 'compare.<similarity|shared|onlyHere|onlyReference|onlyHereNames|onlyReferenceNames>'
 
-import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE } from './catalog.js';
+import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE, fieldsOf } from './catalog.js';
+
 import {
   COMPARE_COLUMNS, DEFAULT_COMPARE_COLUMNS, MAX_COMPARES, compareConditions, validateCompare,
 } from './compare.js';
 
+// The count column of a grouped report. Not a field of any entity: it is produced
+// by the grouping itself, which is why it is spelled out here and understood by
+// the sort validator, the compiler and the column picker.
+export const COUNT_COLUMN = 'count';
+// Grouping a date puts every row in its own group, which is not a report.
+export const GROUPABLE_TYPES = ['text', 'enum', 'boolean', 'number'];
+
 export const MAX_CONDITIONS = 25;
+
 export const MAX_COLUMNS = 15;
 export const DEFAULT_LIMIT = 1000;
 export const MAX_LIMIT = 5000;
@@ -128,18 +143,24 @@ function coerceValue(fieldName, field, op, value, values, err) {
   return coerce(fieldName, field, value, values, err);
 }
 
-function validateFieldCondition(entityName, c, values, err) {
+function validateFieldCondition(entityName, c, ctx, err) {
   const entity = ENTITIES[entityName];
-  const field = has(entity.fields, c.field) ? entity.fields[c.field] : null;
+  const fields = fieldsOf(entityName, ctx.extFields);
+  const field = has(fields, c.field) ? fields[c.field] : null;
   if (!field && isImpliedType(entity, c)) {
     if (c.op === 'eq' && String(c.value).toLowerCase() === entity.implicit.value.toLowerCase()) return null;
     err(`the ${entityName} entity only contains ${entity.implicit.field} ${entity.implicit.value}; use the ${entityName === 'user' ? 'account' : 'resource'} entity for other types`);
     return null;
   }
   if (!field) {
+    // Only the catalog's own fields are listed back: a deployment can have
+    // hundreds of discovered ones, and this message is fed to the model to repair
+    // its answer. The attributes it may use were named in the question's own
+    // prompt block (extFields.js).
     err(`"${c.field}" is not a field of ${entityName}. Fields: ${Object.keys(entity.fields).join(', ')}`);
     return null;
   }
+
   const allowed = OPERATORS_BY_TYPE[field.type];
   if (!has(OPERATORS, c.op) || !allowed.includes(c.op)) {
     err(`operator "${c.op}" is not allowed on "${c.field}" (${field.type}). Allowed: ${allowed.join(', ')}`);
@@ -147,7 +168,8 @@ function validateFieldCondition(entityName, c, values, err) {
   }
   const out = { type: 'field', field: c.field, op: c.op };
   if (c.checked === true) out.checked = true; // the analyst chose to keep a name that was not found
-  const value = coerceValue(c.field, field, c.op, c.value, values, err);
+  const value = coerceValue(c.field, field, c.op, c.value, ctx.values, err);
+
   if (value !== undefined) out.value = value;
   return out;
 }
@@ -156,13 +178,14 @@ function normalizeMatch(m) {
   return m === 'any' ? 'any' : 'all';
 }
 
-function validateConditionList(entityName, list, values, err, depth) {
+function validateConditionList(entityName, list, ctx, err, depth) {
   if (list === undefined) return [];
   if (!Array.isArray(list)) { err('conditions must be a list'); return []; }
-  return list.map(c => validateCondition(entityName, c, values, err, depth)).filter(Boolean);
+  return list.map(c => validateCondition(entityName, c, ctx, err, depth)).filter(Boolean);
 }
 
-function validateRelationCondition(entityName, c, values, err, depth) {
+function validateRelationCondition(entityName, c, ctx, err, depth) {
+
   const entity = ENTITIES[entityName];
   const rel = has(entity.relations, c.relation) ? entity.relations[c.relation] : null;
   if (!rel) {
@@ -170,7 +193,8 @@ function validateRelationCondition(entityName, c, values, err, depth) {
     return null;
   }
   if (depth > 0) { err('a relation condition cannot be nested inside another relation'); return null; }
-  const inner = validateConditionList(rel.target, c.conditions, values, err, depth + 1)
+  const inner = validateConditionList(rel.target, c.conditions, ctx, err, depth + 1)
+
     .filter(ic => {
       if (ic.type === 'field') return true;
       err(`conditions inside relation "${c.relation}" must be plain field conditions`);
@@ -183,18 +207,20 @@ function validateRelationCondition(entityName, c, values, err, depth) {
   };
 }
 
-function validateCompareCondition(entityName, c, values, err, depth) {
+function validateCompareCondition(entityName, c, ctx, err, depth) {
+
   if (depth > 0) { err('a compare condition cannot be nested inside a relation'); return null; }
   return validateCompare(entityName, c, err, aliasOf);
 }
 
-function validateGroupCondition(entityName, c, values, err, depth) {
+function validateGroupCondition(entityName, c, ctx, err, depth) {
   if (depth > 0) { err('groups cannot be nested'); return null; }
   const inner = (Array.isArray(c.conditions) ? c.conditions : [])
     .map(ic => {
       if (inferType(ic) === 'group') { err('groups cannot be nested'); return null; }
-      return validateCondition(entityName, ic, values, err, 0);
+      return validateCondition(entityName, ic, ctx, err, 0);
     })
+
     .filter(Boolean);
   if (inner.length === 0) return null;
   return { type: 'group', match: normalizeMatch(c.match), conditions: inner };
@@ -207,23 +233,29 @@ const CONDITION_VALIDATORS = {
   group: validateGroupCondition,
 };
 
-function validateCondition(entityName, c, values, err, depth) {
+function validateCondition(entityName, c, ctx, err, depth) {
   if (!c || typeof c !== 'object') { err('each condition must be an object'); return null; }
   const type = inferType(c);
   if (!has(CONDITION_VALIDATORS, type)) {
     err(`unknown condition type "${type}"`);
     return null;
   }
-  return CONDITION_VALIDATORS[type](entityName, c, values, err, depth);
+  return CONDITION_VALIDATORS[type](entityName, c, ctx, err, depth);
 }
 
+
 /** Resolve a column reference to { key, label, kind, ... } or null. */
-export function resolveColumn(entityName, ref) {
+export function resolveColumn(entityName, ref, extFields) {
   const entity = ENTITIES[entityName];
+  const fields = fieldsOf(entityName, extFields);
   if (typeof ref !== 'string') return null;
-  if (has(entity.fields, ref)) {
-    return { key: ref, label: entity.fields[ref].label, kind: 'field', field: ref };
+  if (has(fields, ref)) {
+    const field = fields[ref];
+    // `discovered` travels with the column so the picker can keep this
+    // deployment's own attributes out of the way of the catalog's fields.
+    return { key: ref, label: field.label, kind: 'field', field: ref, ...(field.discovered ? { discovered: true } : {}) };
   }
+
   const [relName, sub, extra] = ref.split('.');
   if (relName === 'compare' && extra === undefined && has(COMPARE_COLUMNS, sub)) {
     return { key: ref, label: COMPARE_COLUMNS[sub].label, kind: 'compare', sub };
@@ -241,9 +273,10 @@ export function resolveColumn(entityName, ref) {
 }
 
 /** Every column a user could pick for an entity — drives the column picker. */
-export function availableColumns(entityName) {
+export function availableColumns(entityName, extFields) {
   const entity = ENTITIES[entityName];
-  const refs = [...Object.keys(entity.fields)];
+  const refs = [...Object.keys(fieldsOf(entityName, extFields))];
+
   for (const [name, rel] of Object.entries(entity.relations)) {
     if (rel.cardinality === 'one') {
       for (const f of ['displayName', 'email', 'accountEnabled']) {
@@ -254,8 +287,16 @@ export function availableColumns(entityName) {
     }
   }
   refs.push(...Object.keys(COMPARE_COLUMNS).map(s => `compare.${s}`));
-  return refs.map(r => resolveColumn(entityName, r));
+  return refs.map(r => resolveColumn(entityName, r, extFields));
 }
+
+/** Every field an entity can be grouped on — drives the "group by" picker. */
+export function groupableFields(entityName, extFields) {
+  return Object.entries(fieldsOf(entityName, extFields))
+    .filter(([, f]) => GROUPABLE_TYPES.includes(f.type))
+    .map(([name, f]) => ({ name, label: f.label, ...(f.discovered ? { discovered: true } : {}) }));
+}
+
 
 // The requested columns, deduplicated; falls back to the entity's defaults and
 // adds the comparison columns when the report compares but asked for none.
@@ -265,13 +306,14 @@ function isSkippedColumn(entity, ref, comparing) {
   return typeof ref === 'string' && ref.startsWith('compare.') && !comparing;
 }
 
-function validateColumns(entityName, rawColumns, comparing, err) {
+function validateColumns(entityName, rawColumns, comparing, extFields, err) {
   const entity = ENTITIES[entityName];
   let columns = [];
   const seen = new Set();
   for (const ref of Array.isArray(rawColumns) ? rawColumns : []) {
     if (isSkippedColumn(entity, ref, comparing)) continue;
-    const colDef = resolveColumn(entityName, ref);
+    const colDef = resolveColumn(entityName, ref, extFields);
+
     if (!colDef) { err(`"${ref}" is not a valid column for ${entityName}`); continue; }
     if (!seen.has(colDef.key)) { seen.add(colDef.key); columns.push(colDef.key); }
   }
@@ -281,14 +323,49 @@ function validateColumns(entityName, rawColumns, comparing, err) {
   return columns;
 }
 
-function validateSort(entityName, rawSort, err) {
+function validateSort(entityName, rawSort, groupBy, extFields, err) {
   if (!rawSort || !rawSort.field) return undefined;
-  if (!has(ENTITIES[entityName].fields, rawSort.field)) {
+  const direction = rawSort.direction === 'desc' ? 'desc' : 'asc';
+  // A grouped report has two columns and neither is a plain field of the entity:
+  // the value grouped on, and the count the grouping produced.
+  if (groupBy) {
+    if (rawSort.field !== groupBy && rawSort.field !== COUNT_COLUMN) {
+      err(`a grouped report can only be sorted on "${groupBy}" or "${COUNT_COLUMN}"`);
+      return undefined;
+    }
+    return { field: rawSort.field, direction };
+  }
+  if (!has(fieldsOf(entityName, extFields), rawSort.field)) {
     err(`cannot sort on "${rawSort.field}"`);
     return undefined;
   }
-  return { field: rawSort.field, direction: rawSort.direction === 'desc' ? 'desc' : 'asc' };
+  return { field: rawSort.field, direction };
 }
+
+/**
+ * "How many users per department" — one row per distinct value of ONE field, with
+ * the number of rows that hold it. Rejected for anything that would produce a
+ * group per row (a date) or that has nothing to count (a comparison, whose
+ * columns describe one row against one reference).
+ * @returns {string|undefined} the field name to group on
+ */
+function validateGroupBy(entityName, raw, comparing, extFields, err) {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  if (typeof raw !== 'string') { err('groupBy must be the name of a field'); return undefined; }
+  const fields = fieldsOf(entityName, extFields);
+  if (!has(fields, raw)) {
+    err(`"${raw}" is not a field of ${entityName}, so a report cannot be grouped on it`);
+    return undefined;
+  }
+  const field = fields[raw];
+  if (!GROUPABLE_TYPES.includes(field.type)) {
+    err(`"${raw}" holds a ${field.type}, which would put nearly every row in a group of its own. Group on a text, enum, number or true/false field.`);
+    return undefined;
+  }
+  if (comparing) { err('a report that compares sets cannot also be grouped'); return undefined; }
+  return raw;
+}
+
 
 function normalizeLimit(rawLimit) {
   if (rawLimit === undefined || rawLimit === null) return DEFAULT_LIMIT;
@@ -300,9 +377,10 @@ function normalizeLimit(rawLimit) {
  * Validate and normalise a spec.
  * @param {object} raw     the spec as produced by the model (or edited in the UI)
  * @param {object} values  known enum values keyed by catalog `valuesFrom`
+ * @param {object} extFields  this deployment's discovered fields, by entity (extFields.js)
  * @returns {{ ok: boolean, spec: object|null, errors: string[] }}
  */
-export function validateSpec(raw, values = {}) {
+export function validateSpec(raw, values = {}, extFields = {}) {
   const errors = [];
   const err = (m) => errors.push(m);
   if (!raw || typeof raw !== 'object') return { ok: false, spec: null, errors: ['spec must be an object'] };
@@ -311,16 +389,22 @@ export function validateSpec(raw, values = {}) {
   if (!entityName) {
     return { ok: false, spec: null, errors: [`unknown entity "${raw.entity}". Use one of: ${Object.keys(ENTITIES).join(', ')}`] };
   }
-  const conditions = validateConditionList(entityName, raw.conditions, values, err, 0);
+  const ctx = { values, extFields };
+  const conditions = validateConditionList(entityName, raw.conditions, ctx, err, 0);
   if (conditions.length > MAX_CONDITIONS) err(`at most ${MAX_CONDITIONS} conditions`);
   const compares = compareConditions({ conditions });
   if (compares.length > MAX_COMPARES) err(`at most ${MAX_COMPARES} compare conditions`);
 
-  const columns = validateColumns(entityName, raw.columns, compares.length > 0, err);
-  const sort = validateSort(entityName, raw.sort, err);
+  const groupBy = validateGroupBy(entityName, raw.groupBy, compares.length > 0, extFields, err);
+  // Columns are kept even while grouping — they are not used by a grouped report,
+  // but switching grouping back off in the editor must not lose the picked ones.
+  const columns = validateColumns(entityName, raw.columns, compares.length > 0, extFields, err);
+  const sort = validateSort(entityName, raw.sort, groupBy, extFields, err);
   const limit = normalizeLimit(raw.limit);
 
   const spec = { entity: entityName, match: normalizeMatch(raw.match), conditions, columns, limit };
+  if (groupBy) spec.groupBy = groupBy;
   if (sort) spec.sort = sort;
   return { ok: errors.length === 0, spec, errors };
 }
+
