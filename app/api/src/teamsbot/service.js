@@ -37,14 +37,19 @@ import { setPending, takePending } from './state.js';
 /**
  * How long the caller waits before being told it failed.
  *
- * 180 s, not the 90 s the POC spec first proposed. The published measurements
- * for this model on 2 vCPU are a median of 49 s and a p90 of 107 s for the model
- * alone (docs/reference/report-generator.md), so a 90 s ceiling would have cut
- * off roughly the slowest third of real questions and reported them as failures
- * — measuring the timeout instead of the feature. 180 s clears the p90 with room
- * for the query, and the interim message keeps the chat honest meanwhile.
+ * 420 s. The published measurements for this model on 2 vCPU are a median of
+ * 49 s and a p90 of 107 s (docs/reference/report-generator.md) — but those are
+ * for ONE model call, and that is the figure an earlier 180 s budget was set
+ * from. A question whose first definition fails validation costs a REPAIR
+ * ROUND, which is a second call of the same size: measured here at 99 s each,
+ * so 200 s for a question that eventually answers correctly. A budget that cuts
+ * those off reports the feature as broken when it is merely slow.
+ *
+ * Waiting this long is only tolerable because the chat never goes quiet: the
+ * bot acknowledges the question immediately and says it is still going at
+ * PROGRESS_AFTER_MS. Lower it on faster hardware.
  */
-export const DEADLINE_MS = Number(process.env.TEAMS_BOT_DEADLINE_MS) || 180_000;
+export const DEADLINE_MS = Number(process.env.TEAMS_BOT_DEADLINE_MS) || 420_000;
 
 /** When to tell the caller it is still going. Teams drops a typing indicator well before this. */
 export const PROGRESS_AFTER_MS = Number(process.env.TEAMS_BOT_PROGRESS_MS) || 45_000;

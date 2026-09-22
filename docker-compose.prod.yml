@@ -143,6 +143,14 @@ services:
       TEAMS_BOT_APP_TENANT_ID: "${TEAMS_BOT_APP_TENANT_ID:-}"
       TEAMS_BOT_CONNECTION_NAME: "${TEAMS_BOT_CONNECTION_NAME:-}"
       TEAMS_BOT_LOG_RETENTION_DAYS: "${TEAMS_BOT_LOG_RETENTION_DAYS:-}"
+      # Timing. Raise the deadline on slower hardware: the published median is
+      # for ONE model call, and a question that needs a repair round pays it
+      # twice. Measured here at ~99 s per call on 2 vCPU, so two calls overrun a
+      # 180 s budget. The caller is not left guessing meanwhile — the bot
+      # acknowledges immediately and nudges again at TEAMS_BOT_PROGRESS_MS.
+      TEAMS_BOT_DEADLINE_MS: "${TEAMS_BOT_DEADLINE_MS:-}"
+      TEAMS_BOT_PROGRESS_MS: "${TEAMS_BOT_PROGRESS_MS:-}"
+      TEAMS_BOT_TOKEN_TIMEOUT_MS: "${TEAMS_BOT_TOKEN_TIMEOUT_MS:-}"
       # Where a bot answer's "Open the full report" link points. Without it,
       # cards that cannot show the whole answer simply carry no link.
       PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-}"

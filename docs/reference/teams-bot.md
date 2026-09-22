@@ -138,7 +138,7 @@ Environment variables on the web container:
 | `TEAMS_BOT_APP_TYPE` | no | `SingleTenant` (the default) |
 | `TEAMS_BOT_CONNECTION_NAME` | no | The OAuth connection name from step 2.4. Default `identityatlas` |
 | `PUBLIC_BASE_URL` | no | e.g. `https://fortigi.identityatlas.io`. Without it, cards that cannot show the whole answer have no "Open the full report" link |
-| `TEAMS_BOT_DEADLINE_MS` | no | How long a caller waits before being told it failed. Default `180000` — see [Latency](#latency) |
+| `TEAMS_BOT_DEADLINE_MS` | no | How long a caller waits before being told it failed. Default `420000` — see [Latency](#latency) |
 | `TEAMS_BOT_PROGRESS_MS` | no | When to send the "still going" nudge. Default `45000` — the bot already posts a visible acknowledgement the moment it accepts a question |
 | `TEAMS_BOT_LOG_RETENTION_DAYS` | no | How long conversations — and therefore deep links — survive. Default `90` |
 
@@ -205,9 +205,17 @@ for this model on 2 vCPU ([Report Generator](report-generator.md)):
 | First question after the model unloaded | **76 s** |
 | First question with no restored prompt cache | **266 s** |
 
-So the bot sends a typing indicator immediately and refreshes it, says "still working on it"
-at 20 seconds, and gives up at **180 seconds** with a reply that says how long it waited. It
-never leaves a question unanswered.
+!!! warning "Those figures are for ONE model call"
+    A question whose first definition fails validation costs a **repair round** — a second
+    call of the same size. Observed on fortigi.identityatlas.io: 18.9 s prompt eval + 80.1 s
+    generation ≈ **99 s per call**, so a question that repairs once takes **~200 s and still
+    answers correctly**. An earlier 180 s budget was set from the single-call p90 and cut
+    exactly those off, reporting a slow success as a failure.
+
+So the bot acknowledges the question immediately with a visible line, sends a typing
+indicator and refreshes it, says "still going" at 45 seconds, and gives up at **420 seconds**
+with a reply that says how long it waited. It never leaves a question unanswered — which is
+what makes a wait that long tolerable rather than alarming.
 
 !!! warning "One question at a time, for everyone"
     The model server has a **single slot**. Two managers asking at once are served one after
