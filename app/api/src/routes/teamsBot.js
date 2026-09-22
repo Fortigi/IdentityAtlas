@@ -19,10 +19,14 @@
 // /api/bot-answers/:id is an ordinary signed-in route and is gated normally.
 
 import { Router } from 'express';
-import { CloudAdapter, ConfigurationBotFrameworkAuthentication } from 'botbuilder';
+import {
+  CloudAdapter, ConfigurationBotFrameworkAuthentication,
+  MemoryStorage, TeamsSSOTokenExchangeMiddleware,
+} from 'botbuilder';
 import { requirePermission } from '../middleware/auth.js';
 import { requireFeature } from '../featureFlags.js';
 import { IdentityAtlasBot } from '../teamsbot/handler.js';
+import { CONNECTION_NAME } from '../teamsbot/auth.js';
 import { findAnswerForCaller } from '../teamsbot/log.js';
 import { runSpec } from '../nlreports/service.js';
 import { forLog } from '../nlreports/assistantHttp.js';
@@ -51,6 +55,21 @@ export function botAdapter() {
       MicrosoftAppType: process.env.TEAMS_BOT_APP_TYPE || 'SingleTenant',
     });
     adapter = new CloudAdapter(auth);
+
+    // Silent SSO. Without this the bot shows a sign-in card, Teams performs the
+    // exchange and posts `signin/tokenExchange` — and nothing ever redeems it,
+    // so the token never reaches the token store, `getUserToken` keeps returning
+    // null, and the card comes back with "Something went wrong. Please try
+    // again." forever. This middleware is what actually redeems the exchange,
+    // and it also deduplicates: a user signed into Teams on desktop and phone
+    // produces one invoke per client with the same `value.id`, and only one may
+    // be processed. On success it calls next(), so the turn still runs and the
+    // question the caller already asked is answered rather than retyped.
+    //
+    // MemoryStorage is the deduplication store. Correct for a single container,
+    // which is what this POC is; more than one replica needs a shared store, for
+    // the same reason teamsbot/state.js does.
+    adapter.use(new TeamsSSOTokenExchangeMiddleware(new MemoryStorage(), CONNECTION_NAME));
     // A crash inside a turn must not take the answer down silently: the caller
     // is told, and the detail goes to the server log, never to the chat.
     adapter.onTurnError = async (context, error) => {

@@ -18,11 +18,21 @@ import { EN } from './text.js';
 const ANSWER = attachment([{ type: 'TextBlock', text: 'the answer', wrap: true }]);
 
 /** Drive one activity through the bot and return everything it sent. */
-async function run(activity, { caller = { ok: true, oid: 'oid-1' }, answer = ANSWER, answerImpl, sent = [] } = {}) {
+async function run(activity, { caller = { ok: true, oid: 'oid-1' }, answer = ANSWER, answerImpl, sent = [], tokenClient } = {}) {
   const adapter = new TestAdapter(async (context) => {
     await bot.run(context);
   });
   adapter.onTurnError = async (_ctx, err) => { throw err; };
+
+  // The Bot Framework token service, as the handler reaches it: through a key on
+  // the adapter and a slot in turnState. Absent unless a test supplies one.
+  if (tokenClient) {
+    adapter.UserTokenClientKey = 'utc';
+    adapter.use(async (context, next) => {
+      context.turnState.set('utc', tokenClient);
+      await next();
+    });
+  }
 
   const answerMessage = answerImpl ?? vi.fn(async () => ({ attachment: answer, outcome: 'answered', conversationLogId: 'log-1' }));
   const bot = new IdentityAtlasBot({
@@ -160,6 +170,73 @@ describe('silent SSO', () => {
     expect(answerMessage).not.toHaveBeenCalled();
     expect(sent.find(a => a.attachments?.length)?.attachments[0].contentType)
       .toBe('application/vnd.microsoft.card.oauth');
+  });
+
+  it('puts the token-exchange resource on the sign-in card, so Teams signs in silently', async () => {
+    // THE field that decides whether SSO happens at all. Without it Teams never
+    // attempts an exchange, the signin/tokenExchange invoke never arrives, and
+    // the card comes back forever with "Something went wrong. Please try again."
+    const tokenClient = {
+      getSignInResource: vi.fn(async () => ({
+        signInLink: 'https://token.botframework.com/signin?code=abc',
+        tokenExchangeResource: { id: 'exchange-1', uri: 'api://fortigi.example/bot-id' },
+        tokenPostResource: { sasUrl: 'https://token.botframework.com/post' },
+      })),
+    };
+
+    const { sent } = await run(message('q'), { caller: { ok: false, reason: 'no-token' }, tokenClient });
+
+    const card = sent.find(a => a.attachments?.length).attachments[0];
+    expect(card.content.tokenExchangeResource).toEqual({ id: 'exchange-1', uri: 'api://fortigi.example/bot-id' });
+    expect(card.content.buttons?.[0]?.value).toBe('https://token.botframework.com/signin?code=abc');
+    expect(tokenClient.getSignInResource).toHaveBeenCalledWith('test-connection', expect.anything(), null);
+  });
+
+  it('still offers a tappable card when the token service cannot be reached', async () => {
+    // A card without the exchange resource is worse but not useless — the
+    // caller can still sign in by tapping. Silence would be worse than both.
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const tokenClient = { getSignInResource: vi.fn(async () => { throw new Error('token service unavailable'); }) };
+
+    const { sent } = await run(message('q'), { caller: { ok: false, reason: 'no-token' }, tokenClient });
+
+    const card = sent.find(a => a.attachments?.length).attachments[0];
+    expect(card.contentType).toBe('application/vnd.microsoft.card.oauth');
+    expect(card.content.tokenExchangeResource).toBeUndefined();
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
+  });
+});
+
+describe('help', () => {
+  it('is answered without identifying the caller at all', async () => {
+    // The one command that must work before sign-in: it is three example
+    // questions and reveals nothing about the directory. Requiring consent
+    // first makes the quickest "is this bot even reachable?" check impossible.
+    const callerFromTurn = vi.fn();
+    const adapterSent = [];
+    const bot = new IdentityAtlasBot({
+      answerMessage: vi.fn(),
+      callerFromTurn,
+      connectionName: 'test-connection',
+    });
+    const adapter = new TestAdapter(async (context) => { await bot.run(context); });
+    const original = adapter.sendActivities.bind(adapter);
+    adapter.sendActivities = async (context, activities) => {
+      adapterSent.push(...activities);
+      return original(context, activities);
+    };
+
+    await adapter.receiveActivity(message('help'));
+
+    expect(callerFromTurn).not.toHaveBeenCalled();
+    const body = JSON.stringify(adapterSent.find(a => a.attachments?.length).attachments[0].content.body);
+    expect(body).toContain(EN.welcome);
+  });
+
+  it('does not swallow a real question that merely contains the word', async () => {
+    const { answerMessage } = await run(message('who can help with the Finance group?'));
+    expect(answerMessage).toHaveBeenCalledTimes(1);
   });
 });
 

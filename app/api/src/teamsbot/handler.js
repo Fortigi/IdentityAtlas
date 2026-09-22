@@ -8,7 +8,7 @@
 // a channel, or a tenant.
 
 import { CardFactory, MessageFactory, TeamsActivityHandler } from 'botbuilder';
-import { answerMessage } from './service.js';
+import { answerMessage, isHelp } from './service.js';
 import { welcomeCard } from './card.js';
 import { callerFromTurn, CONNECTION_NAME } from './auth.js';
 import { detectLanguage, strings } from './text.js';
@@ -49,6 +49,14 @@ export class IdentityAtlasBot extends TeamsActivityHandler {
     const language = detectLanguage(question);
     const t = strings(language);
 
+    // `help` is answered before anyone is identified. It reveals nothing about
+    // the directory — it is three example questions — and needing to sign in
+    // first makes the one command that should always work the one that cannot
+    // be used to check whether the bot is reachable at all.
+    if (isHelp(question)) {
+      return context.sendActivity(MessageFactory.attachment(welcomeCard(language)));
+    }
+
     const caller = await this.resolveTurnCaller(context, { connectionName: this.connectionName });
     if (!caller.ok) return this.handleNoCaller(context, caller.reason, t);
 
@@ -78,11 +86,7 @@ export class IdentityAtlasBot extends TeamsActivityHandler {
    */
   async handleNoCaller(context, reason, t) {
     if (reason === 'no-token') {
-      return context.sendActivity(MessageFactory.attachment(CardFactory.oauthCard(
-        this.connectionName,
-        'Sign in to Identity Atlas',
-        'I need to know who you are before I can answer. This uses your existing account — it takes one tap.',
-      )));
+      return context.sendActivity(MessageFactory.attachment(await this.signInCard(context)));
     }
     if (reason === 'forbidden') {
       return context.sendActivity(
@@ -90,6 +94,37 @@ export class IdentityAtlasBot extends TeamsActivityHandler {
       );
     }
     return context.sendActivity(t.error);
+  }
+
+  /**
+   * The sign-in card, carrying the token-exchange resource that makes Teams do
+   * the sign-in SILENTLY.
+   *
+   * A bare OAuthCard is the difference between one tap and none — and, worse,
+   * between working and not: Teams only attempts the exchange when the card
+   * advertises a `tokenExchangeResource`, and without that attempt the
+   * `signin/tokenExchange` invoke never arrives, nothing is ever redeemed, and
+   * the card returns with "Something went wrong. Please try again." on a loop.
+   * The resource is produced by the token service for this connection, so it
+   * cannot be hand-built; it has to be asked for per turn.
+   *
+   * Falls back to a plain card if the token service cannot be reached, because a
+   * card the caller can tap beats no reply at all.
+   */
+  async signInCard(context) {
+    const title = 'Sign in to Identity Atlas';
+    const text = 'I need to know who you are before I can answer. This uses your existing account — it takes one tap.';
+    try {
+      const client = context.turnState.get(context.adapter.UserTokenClientKey);
+      const resource = await client.getSignInResource(this.connectionName, context.activity, null);
+      return CardFactory.oauthCard(
+        this.connectionName, title, text,
+        resource.signInLink, resource.tokenExchangeResource, resource.tokenPostResource,
+      );
+    } catch (err) {
+      console.error(`teams-bot: could not build a sign-in resource: ${err.message}`);
+      return CardFactory.oauthCard(this.connectionName, title, text);
+    }
   }
 
   // Silent SSO in Teams: the client exchanges a token without showing the card.
