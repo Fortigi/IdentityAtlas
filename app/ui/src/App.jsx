@@ -82,7 +82,7 @@ export default function App() {
   // How it opens this time: on which step, and whether as a fresh matrix (#1202).
   const [wizardMode, setWizardMode] = useReducer(setStateReducer, wizardOpening());
 
-  const { data, rollup, counts, accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, loading, refreshing, error, forceRefresh, hasData, defaultFilter, refetchPreChecks } = useMatrix(matrixFilter);
+  const { data, rollup, counts, missingContextIds, accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, loading, refreshing, error, forceRefresh, hasData, defaultFilter, refetchPreChecks } = useMatrix(matrixFilter);
   const { account, logout, authFetch } = useAuth();
   const [page, navigate] = useHashPage();
   const [moduleVersion, setModuleVersion] = useState(null);
@@ -322,7 +322,7 @@ export default function App() {
 
   const detailRouteProps = { page, detailCacheRef, onCacheData, openDetailTab, closeDetailTab };
   const matrixProps = {
-    rollup, data, matrixFilter, counts, managedFilter, setManagedFilter,
+    rollup, data, matrixFilter, counts, missingContextIds, managedFilter, setManagedFilter,
     shareUrl, refreshing, onOpenDetail: openDetailTab, setMatrixFilter,
     accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, hasData,
     wizardOpen,

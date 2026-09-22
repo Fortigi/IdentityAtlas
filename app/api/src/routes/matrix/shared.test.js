@@ -98,6 +98,9 @@ describe('normaliseSortAttributes (re-exported from shared)', () => {
   });
 });
 
+const GONE = '99999999-9999-9999-9999-999999999999';
+const LIVE = '88888888-8888-8888-8888-888888888888';
+
 describe('buildSubqueries', () => {
   it('returns render closures + false presence flags for an empty filter', async () => {
     const built = await buildSubqueries(parseFilter({ filter: {} }));
@@ -119,6 +122,35 @@ describe('buildSubqueries', () => {
     expect(built.hasResource).toBe(true);
     // subject + resource each contribute their warnings.
     expect(built.warnings).toEqual(['w', 'w']);
+  });
+
+  // ── Contexts that no longer exist ─────────────────────────────────
+  // A matrix that names a deleted context still RUNS — the condition is quietly
+  // dropped — so the view needs to be told which ones are gone to explain why
+  // the result no longer looks like the matrix that was saved.
+  it('reports the contexts the lookup could not resolve', async () => {
+    dbQuery.mockResolvedValue({ rows: [] });
+    const built = await buildSubqueries(parseFilter({ filter: {
+      rollupKind: 'context', rollupContextId: GONE, sortHierarchy: { contextId: LIVE },
+    } }));
+    expect(new Set(built.missingContextIds)).toEqual(new Set([GONE, LIVE]));
+  });
+
+  it('reports nothing missing for the contexts that did resolve', async () => {
+    // Only LIVE comes back: the roll-up tree is gone, the sort tree is not.
+    dbQuery.mockResolvedValue({ rows: [{ id: LIVE, targetType: 'Identity' }] });
+    const built = await buildSubqueries(parseFilter({ filter: {
+      rollupKind: 'context', rollupContextId: GONE, sortHierarchy: { contextId: LIVE },
+    } }));
+    expect(built.missingContextIds).toEqual([GONE]);
+  });
+
+  it('resolves the roll-up and sort trees in the same lookup as the conditions', async () => {
+    dbQuery.mockResolvedValue({ rows: [] });
+    await buildSubqueries(parseFilter({ filter: { rollupKind: 'context', rollupContextId: GONE } }));
+    const lookups = dbQuery.mock.calls.filter(([sql]) => /FROM "Contexts"/.test(sql));
+    expect(lookups).toHaveLength(1);
+    expect(lookups[0][1]).toEqual([[GONE]]);
   });
 
   // ── Default row visibility (#937) ──────────────────────────────────

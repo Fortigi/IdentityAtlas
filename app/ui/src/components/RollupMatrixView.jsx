@@ -6,6 +6,7 @@ import { getAccessPackageColor } from '@ui/utils/colors';
 import { exportRollupToExcel } from '@ui/utils/exportRollupToExcel';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import MatrixCell from './matrix/MatrixCell';
+import MatrixEmptyState from './matrix/MatrixEmptyState';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
 import { MatrixLegendButton } from './matrix/GridCornerControls';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
@@ -136,6 +137,7 @@ function BreadcrumbNav({ contextMode, layered, breadcrumb, jumpToCrumb }) {
 export default function RollupMatrixView({
   rollup, filter, counts, managedFilter, setManagedFilter,
   refreshing, onOpenDetail, onAdjustFilter, onLoadSaved, onFilterChange, onShareView,
+  missingContextIds,
 }) {
   const { authFetch } = useAuth();
   const isDark = useIsDark();
@@ -702,7 +704,7 @@ export default function RollupMatrixView({
               </tr>
             ))}
             {orderedResources.length === 0 && (
-              <tr><td colSpan={columns.length + trailingCols} className="px-3 py-6 text-center text-gray-500 dark:text-gray-400">No assignments match the current filter.</td></tr>
+              <tr><td colSpan={columns.length + trailingCols}><MatrixEmptyState message="No assignments match the current filter." missingContextIds={missingContextIds} /></td></tr>
             )}
             {truncated > 0 && (
               <tr><td colSpan={columns.length + trailingCols} className="px-3 py-2 text-center text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20">

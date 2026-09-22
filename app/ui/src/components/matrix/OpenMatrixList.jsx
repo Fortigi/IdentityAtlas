@@ -13,6 +13,7 @@ import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import { formatRelativeTime } from '@ui/utils/formatters';
 import { savedMatrixLoadArgs, sharedWithLabel } from './shareState';
 import { lastChangedLine } from './matrixHistoryText';
+import BrokenMatrixBadge from './BrokenMatrixBadge';
 
 const CARD = 'border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-10 bg-white dark:bg-gray-800';
 
@@ -39,6 +40,7 @@ function SavedMatrixItem({ row, onOpen }) {
         <span className="min-w-0">
           <span className="flex items-center gap-2">
             <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{row.name}</span>
+            <BrokenMatrixBadge row={row} />
             {row.isDefault && (
               <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-300">org default</span>
             )}

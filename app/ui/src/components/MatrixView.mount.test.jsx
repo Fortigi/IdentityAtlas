@@ -163,6 +163,7 @@ function renderView(props = {}, authFetch = makeFetch()) {
       onAdjustFilter,
       onLoadSaved: props.onLoadSaved,
       hasData: 'hasData' in props ? props.hasData : true,
+      missingContextIds: props.missingContextIds,
     }),
     { auth: { authFetch } },
   );
@@ -230,6 +231,15 @@ describe('MatrixView (mounted)', () => {
   it('renders the no-matching-assignments message when data is empty', () => {
     renderView({ data: [] });
     expect(screen.getByText(/No assignments match the current filter/i)).toBeInTheDocument();
+  });
+
+  it('explains an empty matrix whose context has been deleted', () => {
+    // Same empty result, two reasons: without the missing-context list the view
+    // can only say "nothing matched", which is what made a broken matrix look
+    // like a correctly empty one.
+    renderView({ data: [], missingContextIds: ['c-gone'] });
+    expect(screen.getByText(/No assignments match the current filter/i)).toBeInTheDocument();
+    expect(screen.getByText(/refers to 1 context that no longer exists/i)).toBeInTheDocument();
   });
 
   it('shows the refreshing overlay when refreshing', async () => {

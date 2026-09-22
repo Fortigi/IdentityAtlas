@@ -1,0 +1,2 @@
+- A saved matrix that filters on a context somebody has since deleted is now marked **broken** in "Open a matrix" and in the matrix name menu, with a note saying how many of its contexts are gone and that those conditions are being ignored.
+- A matrix that comes back empty now says whether a deleted context is the reason, instead of only "no assignments match the current filter".

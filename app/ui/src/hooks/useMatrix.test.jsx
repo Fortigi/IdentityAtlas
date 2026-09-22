@@ -57,6 +57,7 @@ describe('useMatrix', () => {
         resourceCount: 3,
         resourceTotal: 5,
         assignmentCount: 7,
+        missingContextIds: ['c-gone'],
       },
       '/api/access-package-groups': [],
       '/api/entity-tags': [],
@@ -78,6 +79,8 @@ describe('useMatrix', () => {
     ]);
     expect(result.current.counts.assignmentCount).toBe(7);
     expect(result.current.totalUsers).toBe(10);
+    // The view needs this to explain an empty or unrecognisable result.
+    expect(result.current.missingContextIds).toEqual(['c-gone']);
     expect(result.current.loading).toBe(false);
 
     const matrixCall = authFetch.mock.calls.find((c) => String(c[0]).includes('/api/matrix/data'));

@@ -15,6 +15,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDialog } from '@ui/components/dialogContext';
 import { sharedWithLabel } from './shareState';
+import BrokenMatrixBadge from './BrokenMatrixBadge';
 
 // Asks before deleting; resolves true when the analyst confirmed.
 function confirmDeleteSavedMatrix(dialog, row) {
@@ -42,7 +43,10 @@ function SavedMatrixRow({ row, isCurrent, onPick, onDelete }) {
       >
         <span aria-hidden="true" className="w-3 shrink-0 text-blue-700 dark:text-blue-300">{isCurrent ? '✓' : ''}</span>
         <span className="min-w-0">
-          <span className={`block truncate ${isCurrent ? 'font-semibold' : ''}`}>{row.name}</span>
+          <span className="flex items-center gap-1.5">
+            <span className={`truncate ${isCurrent ? 'font-semibold' : ''}`}>{row.name}</span>
+            <BrokenMatrixBadge row={row} />
+          </span>
           {row.shared && (
             <span className="block text-[10px] text-blue-700 dark:text-blue-300">{sharedWithLabel(row.recipientCount)}</span>
           )}

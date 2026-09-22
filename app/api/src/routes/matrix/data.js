@@ -199,6 +199,7 @@ async function handleAttributeFold(res, ctx) {
       ...inhFold.counts,
     ],
     ...counts, totalUsers: counts.subjectTotal, warnings: built.warnings,
+    missingContextIds: built.missingContextIds,
   });
 }
 
@@ -307,6 +308,7 @@ async function handleContextLayered(res, ctx) {
       ...inhCounts,
     ],
     ...layerCounts, totalUsers: layerCounts.subjectTotal, warnings: built.warnings,
+    missingContextIds: built.missingContextIds,
   });
 }
 
@@ -367,6 +369,7 @@ async function handleContextZoom(res, ctx) {
     nodes: orderedFrontier.map(id => nodeMeta.get(id) || { id, displayName: id, parent: null, total: 0, directMembers: 0, childCount: 0 }),
     groupTotals: ctxTotals,
     ...counts, totalUsers: counts.subjectTotal, warnings: built.warnings,
+    missingContextIds: built.missingContextIds,
   };
 
   const z = { values, identityJoin, ctxSubjectId, frontier, ctxTotals, shared };
@@ -545,6 +548,7 @@ async function handleRollupRoles(res, ctx, resolved, groupTotals) {
     ...counts,
     totalUsers: counts.subjectTotal,
     warnings: built.warnings,
+    missingContextIds: built.missingContextIds,
   });
 }
 
@@ -650,6 +654,7 @@ async function handleRollupResources(res, ctx, resolved, groupTotals) {
     ...counts,
     totalUsers: counts.subjectTotal,
     warnings: built.warnings,
+    missingContextIds: built.missingContextIds,
   });
 }
 
@@ -778,6 +783,7 @@ async function handleFlatGrid(res, ctx) {
     managedByPackages,
     resourceContexts,
     warnings: built.warnings,
+    missingContextIds: built.missingContextIds,
   });
 }
 

@@ -205,6 +205,14 @@ describe('MatrixNameBar — the name menu', () => {
     expect(screen.getByText('wim@example.com saved this matrix')).toBeInTheDocument();
   });
 
+  it('marks the matrix whose context was deleted in the list, and only that one', async () => {
+    const { user } = render({ saved: [savedRow({ missingContextIds: ['c-gone'] }), everyone] });
+    const list = await openMenu(user, 'HR users');
+    const [hr, all] = within(list).getAllByRole('listitem');
+    expect(within(hr).getByLabelText(/Refers to 1 context that no longer exists/)).toHaveTextContent('broken');
+    expect(within(all).queryByText('broken')).not.toBeInTheDocument();
+  });
+
   it('closes on a click outside it', async () => {
     const { user } = render();
     await openMenu(user, 'HR users');

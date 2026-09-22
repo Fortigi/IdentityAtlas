@@ -16,6 +16,7 @@ import * as db from '../../db/connection.js';
 import { UUID_RE } from '../../matrix/filterSql.js';
 import { savedMatrixShape } from './shareLinking.js';
 import { savedMatrixHistory } from './savedFilterHistory.js';
+import { contextHealthPlan } from '../../matrix/filterContexts.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -47,7 +48,17 @@ router.get('/matrix/saved-filters', async (req, res) => {
         ) sh ON TRUE
        ORDER BY LOWER(f."name")
     `);
-    res.json(r.rows);
+    // A saved matrix that names a context somebody has since deleted keeps
+    // naming it: the condition is dropped at query time (filterSql.js) and the
+    // matrix silently stops filtering the way it was saved. Flagging it here
+    // costs one lookup for the whole list, and never runs a matrix.
+    const plan = contextHealthPlan(r.rows);
+    let existing = new Set();
+    if (plan.lookup.length > 0) {
+      const c = await db.query(`SELECT id FROM "Contexts" WHERE id = ANY($1::uuid[])`, [plan.lookup]);
+      existing = new Set(c.rows.map(row => row.id));
+    }
+    res.json(plan.label(existing));
   } catch (err) {
     console.error('GET matrix/saved-filters failed:', err.message);
     res.status(500).json({ error: 'Failed to list saved filters' });

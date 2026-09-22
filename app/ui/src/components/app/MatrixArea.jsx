@@ -16,7 +16,7 @@ const RollupMatrixView = lazy(() => import('@ui/components/RollupMatrixView'));
 // saved matrix and applying one from the wizard are the same act (#1202).
 //
 export default function MatrixArea({
-  rollup, data, matrixFilter, counts, managedFilter, setManagedFilter,
+  rollup, data, matrixFilter, counts, missingContextIds, managedFilter, setManagedFilter,
   shareUrl, refreshing, onOpenDetail, onAdjustFilter, setMatrixFilter,
   accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, hasData,
   onWizardApply, onShareView,
@@ -28,6 +28,7 @@ export default function MatrixArea({
           rollup={rollup}
           filter={matrixFilter}
           counts={counts}
+          missingContextIds={missingContextIds}
           managedFilter={managedFilter}
           setManagedFilter={setManagedFilter}
           shareUrl={shareUrl}
@@ -43,6 +44,7 @@ export default function MatrixArea({
           data={data}
           filter={matrixFilter}
           counts={counts}
+          missingContextIds={missingContextIds}
           managedFilter={managedFilter}
           setManagedFilter={setManagedFilter}
           refreshing={refreshing}
@@ -61,6 +63,7 @@ export default function MatrixArea({
           resourceContexts={resourceContexts}
           filter={matrixFilter}
           counts={counts}
+          missingContextIds={missingContextIds}
           managedFilter={managedFilter}
           setManagedFilter={setManagedFilter}
           groupTagMap={groupTagMap}

@@ -10,10 +10,10 @@ const FILTER = { rowType: 'principal', subject: { include: [], exclude: [] }, re
 const NOW = new Date('2026-09-14T12:00:00Z');
 
 const rows = [
-  { id: 'sf-1', name: 'Everyone', filter: { ...FILTER, managed: 'gaps' }, isDefault: true, shared: false, recipientCount: 0, updatedAt: '2026-09-11T12:00:00Z' },
+  { id: 'sf-1', name: 'Everyone', filter: { ...FILTER, managed: 'gaps' }, isDefault: true, shared: false, recipientCount: 0, updatedAt: '2026-09-11T12:00:00Z', missingContextIds: [] },
   // Attributed and unattributed side by side: a list that hard-coded either
   // spelling of the last-changed label fails one of the two.
-  { id: 'sf-2', name: 'HR users', filter: { ...FILTER, rowType: 'identity' }, isDefault: false, shared: true, recipientCount: 3, updatedAt: '2026-09-14T09:00:00Z', updatedBy: 'anna@example.com' },
+  { id: 'sf-2', name: 'HR users', filter: { ...FILTER, rowType: 'identity' }, isDefault: false, shared: true, recipientCount: 3, updatedAt: '2026-09-14T09:00:00Z', updatedBy: 'anna@example.com', missingContextIds: ['c-gone'] },
 ];
 
 function render({ saved = rows, hasData = true, sharedView = false, authFetch } = {}) {
@@ -99,5 +99,17 @@ describe('OpenMatrixList', () => {
     const { container, authFetch } = render({ sharedView: true });
     expect(container).toBeEmptyDOMElement();
     expect(authFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('OpenMatrixList — matrices that no longer work', () => {
+  it('marks only the matrix whose context was deleted, and says why', async () => {
+    render();
+    const list = await screen.findByRole('list', { name: 'Saved matrices' });
+    const [everyone, hr] = within(list).getAllByRole('button');
+
+    expect(within(hr).getByLabelText(/Refers to 1 context that no longer exists/)).toHaveTextContent('broken');
+    // The healthy matrix carries no marker — a badge on everything says nothing.
+    expect(within(everyone).queryByText('broken')).not.toBeInTheDocument();
   });
 });

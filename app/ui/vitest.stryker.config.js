@@ -53,6 +53,7 @@ export default defineConfig({
       'src/components/matrix/saveStepState.test.js',
       'src/components/matrix/matrixRequests.test.js',
       'src/components/matrix/matrixHistoryText.test.js',
+      'src/components/matrix/matrixHealth.test.js',
     ],
     exclude: ['**/node_modules/**'],
   },

@@ -12,6 +12,7 @@ import {
   discoverColumnValues, discoverExtendedAttrValues, mergeValueSets, valuePageSize,
 } from '../../db/columnCache.js';
 import { buildEntitySubquery, collectContextIds } from '../../matrix/filterSql.js';
+import { referencedContextIds, missingContextIds } from '../../matrix/filterContexts.js';
 import { resourceMeta, buildAssignmentExprs } from '../../db/matrixHelpers.js';
 import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
 import { shouldHideDefaultResourceTypes, visibleResourceTypesSql } from '../../lib/resourceVisibility.js';
@@ -165,7 +166,11 @@ export function normaliseBlock(b) {
 // ─── Subquery + scope helpers ───────────────────────────────────────
 
 export async function resolveContextTypes(filter) {
-  const ids = collectContextIds(filter);
+  // The FULL dependency set, not just the conditions: resolving the roll-up
+  // and sort-hierarchy trees here too is what lets the caller tell which of a
+  // matrix's contexts have been deleted from one lookup. Extra entries in the
+  // map are harmless — buildEntitySubquery only reads the ids it meets.
+  const ids = referencedContextIds(filter);
   if (ids.length === 0) return new Map();
   const r = await db.query(
     `SELECT id, "targetType" FROM "Contexts" WHERE id = ANY($1::uuid[])`,
@@ -232,6 +237,11 @@ export async function buildSubqueries(filter) {
   const subjectBuilt = subject(t.bind);
   const resourceBuilt = buildEntitySubquery({ ...resourceArgs, bind: t.bind });
   const warnings = [...subjectBuilt.warnings, ...resourceBuilt.warnings];
+  // Which contexts this matrix names that no longer exist — structurally, from
+  // the ids it referenced minus the ones that resolved, rather than by reading
+  // the warning strings back. The matrix still runs (the condition is dropped);
+  // this is what lets the view say WHY it came back empty or far too wide.
+  const missing = missingContextIds(referencedContextIds(filter), contextTypes);
 
   return {
     subject,
@@ -244,6 +254,7 @@ export async function buildSubqueries(filter) {
     hidesDefaultResourceTypes: hideDefaults,
     resourceTotalWhere: hideDefaults ? ` WHERE ${visibleResourceTypesSql()}` : '',
     warnings,
+    missingContextIds: missing,
     principalCols,
     resourceCols,
     identityCols,

@@ -79,6 +79,10 @@ export function useMatrix(filter) {
   // Roll-up payload (null when not in roll-up mode):
   //   { attribute, resources:[…], groupValues:[…], counts:[{resourceId,groupValue,directCount}] }
   const [rollup, setRollup] = useReducer(valueReducer, null);
+  // Contexts this matrix filters on that no longer exist. The API drops those
+  // conditions and runs the matrix anyway, so this is the only way the view can
+  // say why the result is not the matrix that was saved.
+  const [missingContextIds, setMissingContextIds] = useReducer(valueReducer, []);
   const [loading, setLoading]       = useReducer(valueReducer, false);
   const [refreshing, setRefreshing] = useReducer(valueReducer, false);
   const [error, setError]           = useReducer(valueReducer, null);
@@ -169,6 +173,7 @@ export function useMatrix(filter) {
       setResourceContexts([]);
       setRollup(null);
       setCounts({ subjectCount: 0, subjectTotal: 0, resourceCount: 0, resourceTotal: 0, assignmentCount: 0 });
+      setMissingContextIds([]);
       setLoading(false);
       setRefreshing(false);
       setError(null);
@@ -203,6 +208,7 @@ export function useMatrix(filter) {
         setResourceContexts(body.rollup ? [] : (body.resourceContexts || []));
         setRowType(body.rowType || 'principal');
         setCounts(toCounts(body));
+        setMissingContextIds(Array.isArray(body.missingContextIds) ? body.missingContextIds : []);
         setError(null);
       } catch (err) {
         if (cancelled || err.name === 'AbortError') return;
@@ -234,6 +240,7 @@ export function useMatrix(filter) {
     rollup,
     rowType,
     counts,
+    missingContextIds,
     totalUsers: counts.subjectTotal,
     accessPackageGroups: accessPackageGroupsAliased,
     managedByPackages,

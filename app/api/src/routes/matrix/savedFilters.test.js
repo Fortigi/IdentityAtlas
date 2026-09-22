@@ -25,7 +25,8 @@ describe('matrix saved-filters', () => {
     query.mockResolvedValue({ rows });
     const res = await request(app).get('/api/matrix/saved-filters');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual(rows);
+    // A filterless row leans on no context, so nothing is broken about it.
+    expect(res.body).toEqual([{ ...rows[0], missingContextIds: [] }]);
 
     const sql = query.mock.calls[0][0];
     // Shared state comes from a LIVE share only — a revoked one must not make a
@@ -195,5 +196,42 @@ describe('matrix saved-filter history', () => {
     queryOne.mockResolvedValue(ROW);
     query.mockRejectedValue(new Error('boom'));
     expect((await request(app).get(`/api/matrix/saved-filters/${VALID}/history`)).status).toBe(500);
+  });
+});
+
+describe('matrix saved-filters — contexts that no longer exist', () => {
+  const GONE = '99999999-9999-9999-9999-999999999999';
+  const LIVE = '88888888-8888-8888-8888-888888888888';
+  const ctx = (id) => ({ kind: 'context', contextId: id });
+
+  it('flags the matrix whose context was deleted and leaves its neighbour alone', async () => {
+    const rows = [
+      { id: VALID, name: 'Still fine', filter: { subject: { include: [ctx(LIVE)] } } },
+      { id: VALID, name: 'Broken', filter: { subject: { include: [ctx(GONE)] } } },
+    ];
+    query
+      .mockResolvedValueOnce({ rows })                      // the listing
+      .mockResolvedValueOnce({ rows: [{ id: LIVE }] });     // which contexts exist
+
+    const res = await request(app).get('/api/matrix/saved-filters');
+    expect(res.status).toBe(200);
+    expect(res.body.map(r => [r.name, r.missingContextIds])).toEqual([
+      ['Still fine', []],
+      ['Broken', [GONE]],
+    ]);
+
+    const [sql, params] = query.mock.calls[1];
+    expect(sql).toMatch(/FROM "Contexts" WHERE id = ANY\(\$1::uuid\[\]\)/);
+    // Both matrices' contexts in one lookup, not one query per row.
+    expect(new Set(params[0])).toEqual(new Set([LIVE, GONE]));
+    expect(query).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not look anything up for a list that names no context', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: VALID, name: 'Plain', filter: { subject: { include: [] } } }] });
+    const res = await request(app).get('/api/matrix/saved-filters');
+    expect(res.status).toBe(200);
+    expect(res.body[0].missingContextIds).toEqual([]);
+    expect(query).toHaveBeenCalledTimes(1);
   });
 });

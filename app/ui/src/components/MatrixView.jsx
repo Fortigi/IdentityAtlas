@@ -10,6 +10,7 @@ import { useNestedGroupExpand } from '@ui/hooks/useNestedGroupExpand';
 import { useMatrixBusinessRoleLayer } from '@ui/hooks/useMatrixBusinessRoleLayer';
 import useResizableGridHeight from '@ui/hooks/useResizableGridHeight';
 import GridResizeHandle from './matrix/GridResizeHandle';
+import MatrixEmptyState from './matrix/MatrixEmptyState';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import { ColumnAxisControls, RowAxisControls } from './matrix/GridCornerControls';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
@@ -66,6 +67,7 @@ export default function MatrixView({
   onLoadSaved,
   hasData,
   onShareView,
+  missingContextIds,
 }) {
   // ─── Nested group expansion ─────────────────────────────────────
   const { authFetch } = useAuth();
@@ -589,9 +591,10 @@ export default function MatrixView({
       {!filterIsApplied ? (
         <OpenMatrixList hasData={hasData} onLoad={onLoadSaved} onNew={() => onAdjustFilter?.({ fresh: true })} />
       ) : users.length === 0 || orderedGroups.length === 0 ? (
-        <div className="text-center text-gray-500 dark:text-gray-400 py-12">
-          No assignments match the current filter. Adjust the subjects or resources to widen the view.
-        </div>
+        <MatrixEmptyState
+          message="No assignments match the current filter. Adjust the subjects or resources to widen the view."
+          missingContextIds={missingContextIds}
+        />
       ) : (
         <>
         <div ref={scrollRef} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto" style={{ maxHeight: gridMaxH ? `${gridMaxH}px` : undefined }}>
