@@ -685,3 +685,34 @@ describe('the answer deadline', () => {
     expect(NL.timeoutHint(seconds)).toContain(seconds);
   });
 });
+
+describe('what the log says about a slow answer', () => {
+  it('records whether the model needed a second attempt', async () => {
+    // On this hardware the model writes ~2 tokens/second, so a repair round
+    // roughly doubles the wait. Without this line the only way to tell one
+    // round from two was to divide elapsed time by the length of the stored
+    // definition and read the ratio.
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const d = deps({
+        interpret: vi.fn(async () => ({
+          kind: 'report', spec: structuredClone(reportSpec), timing: {}, repaired: true,
+        })),
+      });
+      await answerMessage(msg(), d);
+      expect(log.mock.calls.flat().join(' ')).toContain('repaired=true');
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it('says so plainly when it got there first time', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await answerMessage(msg(), deps());
+      expect(log.mock.calls.flat().join(' ')).toContain('repaired=false');
+    } finally {
+      log.mockRestore();
+    }
+  });
+});

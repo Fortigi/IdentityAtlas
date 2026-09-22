@@ -259,9 +259,17 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
   // every time, because reconstructing this afterwards meant reading report
   // definitions back out of the database to find out that the model had simply
   // not written the token.
+  //
+  // `repaired` is here for a different question that keeps coming up: why did
+  // that take so long? On this hardware the model writes about two tokens a
+  // second, so a REPAIR ROUND — a second definition of the same size — roughly
+  // doubles the wait. Without this the only way to tell one round from two was
+  // to divide the elapsed time by the length of the stored definition and read
+  // the ratio, which is not a diagnosis anybody should have to perform twice.
   console.log(
     `teams-bot: follow-up offered=${carried?.records?.length ?? 0} kind=${carried?.kind ?? '-'} `
-    + `sentinel=${usedPrevious(withCaller, bySentinel)} narrowed=${usedPrevious(bySentinel, spec)}`,
+    + `sentinel=${usedPrevious(withCaller, bySentinel)} narrowed=${usedPrevious(bySentinel, spec)} `
+    + `repaired=${reply.repaired === true}`,
   );
 
   const result = await run(spec);
