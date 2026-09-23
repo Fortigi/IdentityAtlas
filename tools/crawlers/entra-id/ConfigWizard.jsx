@@ -205,6 +205,7 @@ export const ENTRA_OBJECT_TYPES_FALLBACK = [
   { key: 'principalRelationships', label: 'Agent Owners & Guest Sponsors', description: 'Owners of AI agents and sponsors of guest accounts — the person accountable for each non-human / external identity, shown on its relations tab' },
   { key: 'directoryRoles', label: 'Directory Roles', description: 'Entra ID directory role assignments' },
   { key: 'pim', label: 'PIM', description: 'Privileged Identity Management eligible group memberships' },
+  { key: 'profilePhotos', label: 'Profile Photos', description: 'Each user’s profile picture, shown next to their name. A photo is a separate Graph request per user, so this adds time to the crawl; already-known photos are re-checked only every 30 days. Profile photos are personal data — enable deliberately.' },
   { key: 'signInLogs', label: 'Sign-in Logs (per-app activity)', description: 'Aggregated sign-in events — last activity per (user, app) pair' },
   { key: 'oauth2Grants', label: 'OAuth2 Delegated Grants', description: 'Per-user consent grants (user X allowed app Y to call API Z with scope W). Tenant-wide consents are skipped.' },
 ];

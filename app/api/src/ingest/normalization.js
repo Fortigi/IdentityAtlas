@@ -81,6 +81,17 @@ function resolveExternalRefs(rec, normalized, coreSet, sysPrefix) {
   }
 }
 
+// Columns whose target type is BYTEA. JSON can't carry binary, so crawlers
+// send these base64-encoded and we decode to a Buffer here — node-postgres
+// binds a Buffer straight to a bytea parameter. Validation has already
+// rejected anything that isn't well-formed base64 (see validation.helpers.js),
+// so a value reaching this point is safe to decode.
+//
+// A name list rather than a schema lookup because normalizeRecords works off
+// the table's real columns and never sees the entity schema. Keep in sync with
+// the `type: 'base64'` fields in ingest/validation.js.
+export const BINARY_COLUMNS = new Set(['photo']);
+
 // Copy every core column present on the record into a fresh normalized object,
 // coercing each value. Only property names from the trusted coreSet are written
 // (never user-supplied record keys) to avoid remote-property-injection.
@@ -88,7 +99,10 @@ function pickCoreColumns(rec, coreSet) {
   const normalized = {};
   for (const key of coreSet) {
     if (Object.prototype.hasOwnProperty.call(rec, key)) {
-      normalized[key] = coerceValue(rec[key]);
+      const value = coerceValue(rec[key]);
+      normalized[key] = (value !== null && BINARY_COLUMNS.has(key))
+        ? Buffer.from(String(value), 'base64')
+        : value;
     }
   }
   return normalized;

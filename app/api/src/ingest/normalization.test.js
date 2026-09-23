@@ -363,3 +363,41 @@ describe('extendedAttributesBoundsError', () => {
     expect(extendedAttributesBoundsError([{ displayName: 'x' }, { extendedAttributes: '"just a string"' }], 0)).toBeNull();
   });
 });
+
+// ── binary columns ───────────────────────────────────────────────────────────
+//
+// A bytea column is fed a Buffer; node-postgres binds that directly. If the
+// base64 string reached the driver unconverted it would be stored as the TEXT
+// of the encoding rather than the image, which is why these assert the decoded
+// byte values and not merely "something changed".
+describe('normalizeRecords — binary columns', () => {
+  const cols = ['id', 'displayName', 'photo', 'photoContentType'];
+
+  it('decodes a base64 photo into the original bytes', () => {
+    const [out] = normalizeRecords([{ id: 'u1', photo: 'AQID' }], cols);
+    expect(Buffer.isBuffer(out.photo)).toBe(true);
+    expect([...out.photo]).toEqual([1, 2, 3]);
+  });
+
+  it('leaves a non-binary column holding base64-looking text as a string', () => {
+    // displayName is not a binary column. Decoding by value-shape rather than
+    // by column name would mangle ordinary names that happen to look like
+    // base64 — 'QUJD' is a perfectly legal display name.
+    const [out] = normalizeRecords([{ id: 'u1', displayName: 'QUJD' }], cols);
+    expect(out.displayName).toBe('QUJD');
+  });
+
+  it('keeps an explicit null photo as null rather than an empty buffer', () => {
+    // This is the "we asked, this user has no photo" record. An empty Buffer
+    // would be a stored-but-blank image, which reads back as a photo that
+    // exists and renders broken, instead of falling back to the initial.
+    const [out] = normalizeRecords([{ id: 'u1', photo: null }], cols);
+    expect(out.photo).toBeNull();
+  });
+
+  it('does not invent a photo column when the record has none', () => {
+    // Partial principal updates must not touch columns they omit.
+    const [out] = normalizeRecords([{ id: 'u1', displayName: 'Ada' }], cols);
+    expect('photo' in out).toBe(false);
+  });
+});

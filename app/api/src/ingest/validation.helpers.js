@@ -9,6 +9,24 @@
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Canonical base64: a whole number of 4-character groups, padding only at the
+// end. Deliberately strict — Buffer.from() accepts malformed input and
+// silently drops the bad tail, so a loose check here would store truncated
+// bytes that only surface as a corrupt image much later.
+//
+// The length check is what makes the grouping rule cheap. Expressing it in the
+// pattern instead — `^(?:[A-Za-z0-9+/]{4})*(?:..==|...=)?$` — nests a
+// quantifier inside a quantified group, which backtracks catastrophically on a
+// long almost-matching string. These values arrive from a crawler and may be
+// hundreds of kilobytes, so that is a denial-of-service, not a style point.
+// Below, the payload class and `=` are disjoint, so matching is linear.
+const BASE64_CHARS_RE = /^[A-Za-z0-9+/]*={0,2}$/;
+
+export function isBase64(value) {
+  if (value.length % 4 !== 0) return false;
+  return BASE64_CHARS_RE.test(value);
+}
+
 /** A field counts as "not supplied" when it is undefined, null, or empty string. */
 export function isBlank(val) {
   return val === undefined || val === null || val === '';
@@ -175,6 +193,19 @@ export function validateFieldValue(field, def, val, i, schema, idGeneration) {
   }
   if (def.enum && !def.enum.includes(val)) {
     errors.push(`Record ${i}: '${field}' must be one of: ${def.enum.join(', ')}`);
+  }
+  // Binary payloads travel as base64 because JSON has no binary type. Reject
+  // anything that isn't — an unpadded or otherwise malformed string would be
+  // silently truncated by Buffer.from(..., 'base64') and stored as corrupt
+  // bytes that only surface as a broken image much later.
+  if (def.type === 'base64') {
+    if (typeof val !== 'string') {
+      errors.push(`Record ${i}: '${field}' must be a base64 string`);
+    } else if (!isBase64(val)) {
+      errors.push(`Record ${i}: '${field}' is not valid base64`);
+    } else if (def.maxBytes && Buffer.byteLength(val, 'base64') > def.maxBytes) {
+      errors.push(`Record ${i}: '${field}' exceeds max size of ${def.maxBytes} bytes`);
+    }
   }
 
   return errors;

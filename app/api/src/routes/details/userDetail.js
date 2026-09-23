@@ -8,6 +8,7 @@ import * as db from '../../db/connection.js';
 import { timedQuery } from '../../perf/sqlTimer.js';
 import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
+import { toPhotoDataUri } from '../../auth/resolveMe.js';
 import { cleanRow, countHistory } from './shared.js';
 
 // 1. Current attributes from Principals (+ parsed extendedAttributes). Returns
@@ -22,6 +23,13 @@ export async function fetchUserAttributes(pool, res, userId) {
   if (attributes.extendedAttributes) {
     attributes.extendedAttributesParsed = parseJsonbColumn(attributes.extendedAttributes);
   }
+  // Profile photo. The SELECT p.* above already pulled the bytes, so shape
+  // them here rather than querying again. The raw Buffer must NOT survive into
+  // the response: JSON.stringify turns it into {"type":"Buffer","data":[...]},
+  // an integer-per-byte blow-up that would also render as a junk row in the
+  // detail page's attribute table.
+  attributes.photoDataUri = toPhotoDataUri(attributes);
+  delete attributes.photo;
   return attributes;
 }
 

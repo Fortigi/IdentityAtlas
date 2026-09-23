@@ -10,6 +10,7 @@ export default function AuthGate({ children }) {
     roles: [],
     hasWildcard: true,        // open-mode default; flipped on /auth-me response
     loaded: false,
+    me: null,                 // signed-in user mapped onto crawled data
   });
   const msalRef = useRef(null);
   const configRef = useRef(null);
@@ -130,7 +131,9 @@ export default function AuthGate({ children }) {
   // A failure/degraded auth surfaces as "no permissions resolved"; UI gating
   // then hides write controls, which is the safe default.
   const refreshPermissions = useCallback(() => {
-    const degraded = () => setPermState({ permissions: new Set(), roles: [], hasWildcard: false, loaded: true });
+    const degraded = () => setPermState({
+      permissions: new Set(), roles: [], hasWildcard: false, loaded: true, me: null,
+    });
     return authFetch('/api/auth-me')
       .then((res) => {
         if (!res.ok) { degraded(); return undefined; }
@@ -140,6 +143,11 @@ export default function AuthGate({ children }) {
             roles: body.roles || [],
             hasWildcard: !!body.hasWildcard,
             loaded: true,
+            // The signed-in user mapped onto crawled data: their Principal and
+            // Identity. Null when unauthenticated, unmatched, or before the
+            // first crawl. Drives the header avatar, and is the mapping any
+            // first-person feature ("my groups") needs.
+            me: body.me || null,
           });
         });
       })
@@ -186,6 +194,7 @@ export default function AuthGate({ children }) {
       roles: permState.roles,
       hasWildcard: permState.hasWildcard,
       permissionsLoaded: permState.loaded,
+      me: permState.me,
       refreshPermissions,
     }}>
       {/* Banner + app live in one min-h-screen flex column so the 100vh

@@ -100,6 +100,10 @@ const INTENTIONALLY_UNDOCUMENTED = {
   'GET /crawlers/delta-tokens/{endpoint}': 'delta-token',
   'PUT /crawlers/delta-tokens/{endpoint}': 'delta-token',
   'DELETE /crawlers/delta-tokens/{endpoint}': 'delta-token',
+  // Profile-photo fetch state (selfService.js). Crawler-internal, same class as
+  // the delta tokens above: it tells the photo phase which principals it has
+  // already resolved so it can skip them. Not part of the public read surface.
+  'GET /crawlers/photo-state': 'worker-protocol',
   // internal ingest / seed helpers (ingest.js)
   'POST /ingest/classify-business-role-assignments': 'internal-ingest',
   'POST /ingest/context-members': 'internal-ingest',

@@ -98,6 +98,26 @@ function Get-FGDeltaToken {
     return $null
 }
 
+# Which principals of this system already have a photo answer, as
+# @{ principalId = <ISO timestamp> }. Empty on any failure, which degrades to
+# "check everyone" — slower, never wrong.
+function Get-EntraKnownPhotoDates {
+    [CmdletBinding()]
+    param([int]$SystemId)
+    $result = @{}
+    try {
+        $headers = @{ 'Authorization' = "Bearer $ApiKey" }
+        $uri = "$ApiBaseUrl/crawlers/photo-state?systemId=$SystemId"
+        $r = Invoke-RestMethod -Uri $uri -Method Get -Headers $headers -TimeoutSec 30
+        if ($r.state) {
+            foreach ($p in $r.state.PSObject.Properties) { $result[$p.Name] = $p.Value }
+        }
+    } catch {
+        Write-Host "  (photo state lookup failed — will check every user this run)" -ForegroundColor DarkGray
+    }
+    return $result
+}
+
 function Set-FGDeltaToken {
     [CmdletBinding()]
     param([int]$SystemId, [string]$Endpoint, [string]$Token, [int]$RecordsLastSeen = 0)
