@@ -11,14 +11,24 @@
     still built by hand — see [Custom Reports](../ui/custom-reports.md). The feature as a whole is off
     until an operator enables it under **Admin → Experimental**.
 
-!!! note "The table predates the `change` entity and grouping; the held-out set was re-run with both"
-    The table below was measured against a system prompt without the `change` entity (~1600
-    characters) and without counting per value (rule 9). The held-out set was run again on
-    23 September 2026 with the current prompt, on a 2-CPU host with real directory data:
-    **14/17**, the same score — 13 on the first pass, and one more once the definition check
-    started refusing a count field that contradicts the relation it counts (see
-    [What the mistakes look like](#what-the-mistakes-look-like)). Median 75 s and p90 114 s on
-    that host; the latency figures further down are from the tuning host.
+!!! note "The table predates the `change` entity, grouping and the chat; both sets were re-run on 23 September 2026"
+    The table below was measured against a system prompt without the `change` entity and
+    without counting per value. On 23 September 2026, on a 2-CPU host with real directory data
+    and the corrections described under [What the mistakes look like](#what-the-mistakes-look-like):
+
+    - **held-out set: 15/17** (13/15 with a non-empty answer), median 74 s, p90 109 s, one
+      question over the 5-minute limit (a subset comparison that failed after two rounds);
+    - **conversation set (`chat.json`, 58 graded answers): 58/58** — the questions people typed
+      into the Teams bot and the Ask tab in Dutch and English, 10 follow-ups in the same chat,
+      10 out-of-scope requests declined, 8 questions about data we do not have asked back or
+      declined, 2 about a person who does not exist asked back, 2 genuinely ambiguous ones asked
+      back, 2 counts kept; median 75 s, p90 168 s, slowest 293 s, none over 5 minutes. The
+      number is the sum of one full run (51/58) and a re-run of the seven rows whose fixes
+      landed during it, on the same build.
+
+    The chat's first run that day scored 28/58 with a median of 77 s and two answers over the
+    limit; everything between those two numbers is in the list below, none of it a change of
+    model. The latency figures further down are from the tuning host.
 
 ## Why this exists
 
@@ -90,11 +100,12 @@ definition can also produce; counting only questions with a non-empty answer, th
 33/41 and 12/15. Re-run any time with `tools/nl-reports/eval.mjs` —
 see [Measuring it yourself](#measuring-it-yourself).
 
-The held-out re-run of 23 September 2026 (current prompt, real data) missed three: a question with
-"either … or" whose alternatives were dropped, a subset comparison ("business roles whose members are
-all in group X") read as a name filter, and a correction round that removed the condition it was
-asked to fix. Two of the three also carried a `groupBy` the question never asked for — the one
-new prompt rule since the table, and the first candidate for a change, with this set as the gate.
+The held-out run of 23 September 2026 (final build) missed two: a subset comparison ("business roles
+whose members are all in group X"), which remains the weakest kind of question, and one over-specified
+name filter (name **and** description must contain "License", one group differs). The conversation set
+missed nothing on that build; the categories it grades — scope, unknown data, a person who does not
+exist, an ambiguous question, follow-ups — are the ones a chat gets wrong in ways a report page never
+shows, and each has its own row in `tools/nl-reports/chat.json`.
 
 ### What the mistakes look like
 
