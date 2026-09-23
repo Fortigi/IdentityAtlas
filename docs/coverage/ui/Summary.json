@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generatedon": "2026-09-22T15:19:10Z",
+    "generatedon": "2026-09-23T08:29:47Z",
     "parser": "LCov",
     "assemblies": 1,
     "classes": 320,
@@ -10,7 +10,7 @@
     "coverablelines": 9309,
     "totallines": 33667,
     "linecoverage": 86,
-    "coveredbranches": 7744,
+    "coveredbranches": 7742,
     "totalbranches": 10116,
     "branchcoverage": 76.5,
     "coveredmethods": 2662,
@@ -21,7 +21,7 @@
  },
   "coverage": {
     "assemblies": [
-      { "name": "Default", "classes": 320, "coverage": 86, "coveredlines": 8013, "coverablelines": 9309, "totallines": 33667, "branchcoverage": 76.5, "coveredbranches": 7744, "totalbranches": 10116, "methodcoverage": 76.1, "fullmethodcoverage": 82.4, "coveredmethods": 2662, "fullcoveredmethods": 2883, "totalmethods": 3496, "classesinassembly": [
+      { "name": "Default", "classes": 320, "coverage": 86, "coveredlines": 8013, "coverablelines": 9309, "totallines": 33667, "branchcoverage": 76.5, "coveredbranches": 7742, "totalbranches": 10116, "methodcoverage": 76.1, "fullmethodcoverage": 82.4, "coveredmethods": 2662, "fullcoveredmethods": 2883, "totalmethods": 3496, "classesinassembly": [
         { "name": "src/App.helpers.js", "coverage": 100, "coveredlines": 17, "coverablelines": 17, "totallines": 99, "branchcoverage": 100, "coveredbranches": 20, "totalbranches": 20, "methodcoverage": 88.8, "fullmethodcoverage": 100, "coveredmethods": 8, "fullcoveredmethods": 9, "totalmethods": 9 },
         { "name": "src/App.jsx", "coverage": 68.3, "coveredlines": 97, "coverablelines": 142, "totallines": 355, "branchcoverage": 50, "coveredbranches": 47, "totalbranches": 94, "methodcoverage": 44, "fullmethodcoverage": 57.6, "coveredmethods": 26, "fullcoveredmethods": 34, "totalmethods": 59 },
         { "name": "src/AppRoot.jsx", "coverage": 100, "coveredlines": 5, "coverablelines": 5, "totallines": 24, "branchcoverage": 100, "coveredbranches": 2, "totalbranches": 2, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 2, "fullcoveredmethods": 2, "totalmethods": 2 },
@@ -31,7 +31,7 @@
         { "name": "src/auth/usePermissions.js", "coverage": 100, "coveredlines": 20, "coverablelines": 20, "totallines": 55, "branchcoverage": 100, "coveredbranches": 6, "totalbranches": 6, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 18, "fullcoveredmethods": 18, "totalmethods": 18 },
         { "name": "src/components/AboutPage.jsx", "coverage": 0, "coveredlines": 0, "coverablelines": 6, "totallines": 150, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 4 },
         { "name": "src/components/AccessPackageDetailPage.jsx", "coverage": 97, "coveredlines": 33, "coverablelines": 34, "totallines": 178, "branchcoverage": 92.3, "coveredbranches": 48, "totalbranches": 52, "methodcoverage": 92.8, "fullmethodcoverage": 92.8, "coveredmethods": 13, "fullcoveredmethods": 13, "totalmethods": 14 },
-        { "name": "src/components/AccessPackageGovernance.jsx", "coverage": 63.6, "coveredlines": 28, "coverablelines": 44, "totallines": 172, "branchcoverage": 44.5, "coveredbranches": 45, "totalbranches": 101, "methodcoverage": 66.6, "fullmethodcoverage": 76.1, "coveredmethods": 14, "fullcoveredmethods": 16, "totalmethods": 21 },
+        { "name": "src/components/AccessPackageGovernance.jsx", "coverage": 63.6, "coveredlines": 28, "coverablelines": 44, "totallines": 172, "branchcoverage": 42.5, "coveredbranches": 43, "totalbranches": 101, "methodcoverage": 66.6, "fullmethodcoverage": 76.1, "coveredmethods": 14, "fullcoveredmethods": 16, "totalmethods": 21 },
         { "name": "src/components/accessPackages/AccessPackageRow.jsx", "coverage": 85.7, "coveredlines": 6, "coverablelines": 7, "totallines": 53, "branchcoverage": 72.7, "coveredbranches": 8, "totalbranches": 11, "methodcoverage": 85.7, "fullmethodcoverage": 85.7, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 7 },
         { "name": "src/components/accessPackages/AccessPackagesFilterBar.jsx", "coverage": 100, "coveredlines": 5, "coverablelines": 5, "totallines": 24, "branchcoverage": 83.3, "coveredbranches": 5, "totalbranches": 6, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 4, "fullcoveredmethods": 4, "totalmethods": 4 },
         { "name": "src/components/accessPackages/AccessPackagesHeader.jsx", "coverage": 100, "coveredlines": 1, "coverablelines": 1, "totallines": 4, "branchcoverage": 75, "coveredbranches": 3, "totalbranches": 4, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },

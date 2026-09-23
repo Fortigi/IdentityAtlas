@@ -1,29 +1,29 @@
 {
   "summary": {
-    "generatedon": "2026-09-22T15:19:11Z",
+    "generatedon": "2026-09-23T08:29:48Z",
     "parser": "JaCoCo",
     "assemblies": 13,
     "classes": 149,
     "files": 149,
-    "coveredlines": 6189,
+    "coveredlines": 6195,
     "uncoveredlines": 541,
-    "coverablelines": 6730,
-    "totallines": 18486,
+    "coverablelines": 6736,
+    "totallines": 18531,
     "linecoverage": 91.9,
     "coveredbranches": 0,
     "totalbranches": 0,
-    "coveredmethods": 625,
-    "fullcoveredmethods": 581,
-    "totalmethods": 642,
+    "coveredmethods": 626,
+    "fullcoveredmethods": 582,
+    "totalmethods": 643,
     "methodcoverage": 97.3,
-    "fullmethodcoverage": 90.4
+    "fullmethodcoverage": 90.5
  },
   "coverage": {
     "assemblies": [
-      { "name": "tools/crawlers/azure-rm", "classes": 6, "coverage": 95.4, "coveredlines": 462, "coverablelines": 484, "totallines": 1304, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 98.5, "fullmethodcoverage": 98.5, "coveredmethods": 67, "fullcoveredmethods": 67, "totalmethods": 68, "classesinassembly": [
+      { "name": "tools/crawlers/azure-rm", "classes": 6, "coverage": 95.5, "coveredlines": 468, "coverablelines": 490, "totallines": 1349, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 98.5, "fullmethodcoverage": 98.5, "coveredmethods": 68, "fullcoveredmethods": 68, "totalmethods": 69, "classesinassembly": [
         { "name": "tools/crawlers/azure-rm/AzureRMCrawler.Functions", "coverage": 100, "coveredlines": 35, "coverablelines": 35, "totallines": 146, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 8, "fullcoveredmethods": 8, "totalmethods": 8 },
-        { "name": "tools/crawlers/azure-rm/AzureRMCrawler.Phases", "coverage": 100, "coveredlines": 256, "coverablelines": 256, "totallines": 541, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 29, "fullcoveredmethods": 29, "totalmethods": 29 },
-        { "name": "tools/crawlers/azure-rm/AzureRMCrawler.Transform", "coverage": 100, "coveredlines": 50, "coverablelines": 50, "totallines": 117, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 6 },
+        { "name": "tools/crawlers/azure-rm/AzureRMCrawler.Phases", "coverage": 100, "coveredlines": 262, "coverablelines": 262, "totallines": 572, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 30, "fullcoveredmethods": 30, "totalmethods": 30 },
+        { "name": "tools/crawlers/azure-rm/AzureRMCrawler.Transform", "coverage": 100, "coveredlines": 50, "coverablelines": 50, "totallines": 131, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 6 },
         { "name": "tools/crawlers/azure-rm/Get-AzureRGHelpers", "coverage": 100, "coveredlines": 77, "coverablelines": 77, "totallines": 275, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 14, "fullcoveredmethods": 14, "totalmethods": 14 },
         { "name": "tools/crawlers/azure-rm/Get-AzureRMHelpers", "coverage": 100, "coveredlines": 44, "coverablelines": 44, "totallines": 142, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 10, "fullcoveredmethods": 10, "totalmethods": 10 },
         { "name": "tools/crawlers/azure-rm/Start-AzureRMCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 22, "totallines": 83, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
