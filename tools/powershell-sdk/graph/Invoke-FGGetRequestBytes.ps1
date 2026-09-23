@@ -1,3 +1,23 @@
+function ConvertTo-FGResponseBytes {
+    # Private helper: normalise a web response body to byte[], or $null when
+    # there is nothing in it.
+    #
+    # PowerShell 7 hands back byte[] directly; 5.1 can return a string for a
+    # content type it believes is text, which would otherwise be stored as the
+    # characters of the image rather than the image. ISO-8859-1 is the
+    # byte-preserving round trip for that case (every byte maps to one char).
+    #
+    # Split out of Invoke-FGGetRequestBytes so that function stays under the
+    # cognitive-complexity ceiling: its retry loop already nests a try/catch
+    # inside a while, and these branches sat two levels deeper again.
+    [cmdletbinding()]
+    Param($Content)
+
+    if ($null -eq $Content -or $Content.Length -eq 0) { return $null }
+    if ($Content -is [byte[]]) { return $Content }
+    return [System.Text.Encoding]::GetEncoding('ISO-8859-1').GetBytes([string]$Content)
+}
+
 function Invoke-FGGetRequestBytes {
     <#
     .SYNOPSIS
@@ -62,13 +82,7 @@ function Invoke-FGGetRequestBytes {
             if ($TimeoutSec -gt 0) { $iwrParams['TimeoutSec'] = $TimeoutSec }
 
             $response = Invoke-WebRequest @iwrParams
-            $content = $response.Content
-            if ($null -eq $content -or $content.Length -eq 0) { return $null }
-
-            # PS 7 gives byte[] directly; PS 5.1 can hand back a string for
-            # content types it believes are text. Normalise to bytes.
-            if ($content -is [byte[]]) { return $content }
-            return [System.Text.Encoding]::GetEncoding('ISO-8859-1').GetBytes([string]$content)
+            return ConvertTo-FGResponseBytes -Content $response.Content
         }
         catch {
             $statusCode = Get-FGResponseStatusCode -Exception $_.Exception

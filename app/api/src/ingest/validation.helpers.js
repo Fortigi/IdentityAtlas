@@ -171,6 +171,26 @@ export function validateIdField(rec, i, schema, idGeneration) {
 }
 
 /** Per-field type / length / enum constraints for a single field value. */
+/**
+ * Constraints for a base64-carried binary field.
+ *
+ * Binary payloads travel as base64 because JSON has no binary type. Reject
+ * anything malformed — Buffer.from(..., 'base64') accepts a bad string and
+ * silently drops the undecodable tail, storing corrupt bytes that only surface
+ * as a broken image much later.
+ *
+ * Split out of validateFieldValue so that function keeps one branch per field
+ * type rather than a nested chain (cognitive-complexity ratchet).
+ */
+export function validateBase64Value(field, def, val, i) {
+  if (typeof val !== 'string') return [`Record ${i}: '${field}' must be a base64 string`];
+  if (!isBase64(val)) return [`Record ${i}: '${field}' is not valid base64`];
+  if (def.maxBytes && Buffer.byteLength(val, 'base64') > def.maxBytes) {
+    return [`Record ${i}: '${field}' exceeds max size of ${def.maxBytes} bytes`];
+  }
+  return [];
+}
+
 export function validateFieldValue(field, def, val, i, schema, idGeneration) {
   const errors = [];
 
@@ -194,18 +214,8 @@ export function validateFieldValue(field, def, val, i, schema, idGeneration) {
   if (def.enum && !def.enum.includes(val)) {
     errors.push(`Record ${i}: '${field}' must be one of: ${def.enum.join(', ')}`);
   }
-  // Binary payloads travel as base64 because JSON has no binary type. Reject
-  // anything that isn't — an unpadded or otherwise malformed string would be
-  // silently truncated by Buffer.from(..., 'base64') and stored as corrupt
-  // bytes that only surface as a broken image much later.
   if (def.type === 'base64') {
-    if (typeof val !== 'string') {
-      errors.push(`Record ${i}: '${field}' must be a base64 string`);
-    } else if (!isBase64(val)) {
-      errors.push(`Record ${i}: '${field}' is not valid base64`);
-    } else if (def.maxBytes && Buffer.byteLength(val, 'base64') > def.maxBytes) {
-      errors.push(`Record ${i}: '${field}' exceeds max size of ${def.maxBytes} bytes`);
-    }
+    errors.push(...validateBase64Value(field, def, val, i));
   }
 
   return errors;
