@@ -129,18 +129,21 @@
       {
         "question": "Wie zijn de leden van deze groepen?",
         "expected": {
-          "entity": "group",
+          "entity": "user",
           "conditions": [
             {
-              "field": "id",
-              "op": "in",
-              "value": "@previous"
+              "relation": "memberOf",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "id",
+                  "op": "in",
+                  "value": "@previous"
+                }
+              ]
             }
           ]
-        },
-        "expectColumns": [
-          "members.names"
-        ]
+        }
       }
     ]
   },
@@ -192,18 +195,21 @@
       {
         "question": "Who are the members of these groups?",
         "expected": {
-          "entity": "group",
+          "entity": "user",
           "conditions": [
             {
-              "field": "id",
-              "op": "in",
-              "value": "@previous"
+              "relation": "memberOf",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "id",
+                  "op": "in",
+                  "value": "@previous"
+                }
+              ]
             }
           ]
-        },
-        "expectColumns": [
-          "members.names"
-        ]
+        }
       }
     ]
   },
