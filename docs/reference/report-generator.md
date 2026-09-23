@@ -124,9 +124,32 @@ with it). Every correction made this way is stated in the report's assumptions.
   and a count-per-value grouping the question never asked for is removed ("which groups was he
   added to" once came back as the number 5). A mistake with two readings ("empty and not
   empty") is still put to the model.
-- **A correction may only fix what it was told** — when the model is asked to correct a
-  definition, the corrected one is compared with the original leaf by leaf; if it lost a
-  condition no error named, the correction is refused and the original error shown.
+- **The person asking is put where they belong** — "van welke groepen ben ik eigenaar" whose
+  definition names nobody gets the caller added (into an empty owners/members relation, or on
+  the account itself); "which groups am I in" with the caller's id written inside the group
+  condition is moved to the account; "groups I have that william does not" with william on both
+  sides puts the caller on the side the question mentions first. Only when the definition names
+  somebody else is the model asked once to add the caller.
+- **Follow-up bookkeeping is corrected, not trusted** — the ids of "these groups" written on the
+  members relation, on a user report's own id, or on a change's account are moved to where that
+  kind of record is reached; "id is [a list]" is read as "one of"; a name written as an id is a
+  name.
+- **A kind of thing is not a name** — "in an access package" written as a comparison with a
+  reference named "access package", or as a resource type on a group or its members, is the
+  business-role relation; the column a question asks to see (members, owners, groups, access
+  packages, manager) is added when the definition left it out.
+- **An invented condition goes, an asked-for one does not** — a condition validation rejects is
+  checked against the question: one nothing in the question asks for ("accountCount > 0" inside
+  members) is dropped with a note; one the question did ask for ("MFA") goes to the correction
+  round, and a definition without it is never run.
+- **A loop stops early** — the reply grammar allows eight conditions per list (the largest
+  measured answer needs four) and 450 tokens; a model repeating one condition ran 13 minutes to
+  the old cap. Repeated conditions collapse to one.
+- **A correction may only fix what it was told** — every correction round (invalid definition,
+  "or", a name not used, the caller missing) compares the corrected definition with the original
+  leaf by leaf; one that lost a condition it was not told about is refused and the original
+  stands. The "or" correction once added "added or removed" and dropped the 90-day window,
+  turning 2 rows into 149.
 - **A first name is one person** — "william" written as a name-contains filter is looked up
   before the report runs: one match is pinned to that person (the reading says who), several
   are offered as a choice, none asks for the exact name. On a small directory the substring
