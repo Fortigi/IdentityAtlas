@@ -34,7 +34,7 @@ import { detectLanguage, strings } from './text.js';
 import { logConversation, newConversationId, OUTCOMES, SURFACES } from './log.js';
 import { forLog } from '../nlreports/assistantHttp.js';
 import { setPending, takePending, rememberAnswer, recallAnswer } from './state.js';
-import { carriedRecords, narrowToPrevious, previousContextBlock, usedPrevious } from './followUp.js';
+import { carriedRecords, carryForward, narrowToPrevious, previousContextBlock, usedPrevious } from './followUp.js';
 
 /**
  * How long the caller waits before being told it failed.
@@ -287,7 +287,7 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
   // caller, so there is nothing for them to refer back to, and replacing the
   // previous set with an empty one would break a follow-up to the answer
   // before it.
-  const nowCarried = carriedRecords(result);
+  const nowCarried = carryForward(carried, carriedRecords(result));
   if (nowCarried) rememberAnswer(message.conversationId, nowCarried);
 
   return {

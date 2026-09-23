@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  carriedRecords, narrowToPrevious, previousContextBlock, refersToPrevious, substitutePrevious,
+  carriedRecords, carryForward, narrowToPrevious, previousContextBlock, refersToPrevious, substitutePrevious,
   usedPrevious, MAX_CARRIED,
 } from './followUp.js';
 import { MAX_CONDITIONS, PREVIOUS_SENTINEL } from './spec.js';
@@ -454,5 +454,21 @@ describe('narrowToPrevious — "these" inside an any-group', () => {
     const out = narrowToPrevious({ entity: 'resource', match: 'all', conditions: [isGroup, { type: 'group', match: 'any', conditions: [inRole, these] }, these] },
       carried, 'welke van deze groepen zijn onderdeel van een access package?');
     expect(out.conditions).toEqual([isGroup, inRole, these]);
+  });
+});
+
+describe('carryForward — what the chat carries after an answer', () => {
+  const groups = { kind: 'resource', records: [{ id: 'g1', name: 'A' }], spec: { entity: 'group' } };
+  const changes = { kind: null, records: [], spec: { entity: 'change' } };
+
+  it('keeps the earlier records when the new answer carries none, and takes the new definition', () => {
+    expect(carryForward(groups, changes)).toEqual({ kind: 'resource', records: groups.records, spec: { entity: 'change' } });
+  });
+
+  it('replaces the set when the new answer has records of its own, and starts from nothing', () => {
+    const users = { kind: 'user', records: [{ id: 'u1', name: 'B' }], spec: { entity: 'user' } };
+    expect(carryForward(groups, users)).toBe(users);
+    expect(carryForward(null, changes)).toBe(changes);
+    expect(carryForward(groups, null)).toBe(groups);
   });
 });

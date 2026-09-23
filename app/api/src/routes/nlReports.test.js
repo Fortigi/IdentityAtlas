@@ -672,3 +672,25 @@ describe('a refinement on the web gets the previous definition', () => {
     expect(interpret.mock.calls.at(-1)[0].previousSpec).toEqual(spec);
   });
 });
+
+describe('a chat keeps "these groups" across an answer that carries nothing', () => {
+  it('still narrows the third question to the groups after a changes answer in between', async () => {
+    const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'wim@example.com' }));
+    const groups = { entity: 'group', match: 'all', conditions: [], columns: ['displayName'], limit: 1000 };
+    const changes = { entity: 'change', match: 'all', conditions: [], columns: ['changedAt'], limit: 1000 };
+    runSpec.mockResolvedValueOnce({ ok: true, spec: groups, truncated: false, columns: [{ key: 'displayName' }],
+      rows: [{ displayName: 'A', _entity: { kind: 'resource', id: 'g1' } }, { displayName: 'B', _entity: { kind: 'resource', id: 'g2' } }] });
+    await request(signedIn).post('/api/nl-reports/run').send({ spec: groups, conversationId: 'chat-3' });
+    runSpec.mockResolvedValueOnce({ ok: true, spec: changes, truncated: false, columns: [{ key: 'changedAt' }],
+      rows: [{ changedAt: '2026-09-01', _entity: { kind: null, id: 'c1' } }] });
+    await request(signedIn).post('/api/nl-reports/run').send({ spec: changes, conversationId: 'chat-3' });
+
+    interpret.mockResolvedValue({ kind: 'report', spec: groups, raw: 'r', substituted: [] });
+    const res = await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'wie zijn de leden van deze groepen?', conversationId: 'chat-3' });
+    expect(res.body.followedUp).toBe(true);
+    expect(res.body.spec.conditions.at(-1)).toEqual({ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] });
+    // And the definition the refinement rule sees is the latest one.
+    expect(interpret.mock.calls.at(-1)[0].previousSpec).toEqual(changes);
+  });
+});

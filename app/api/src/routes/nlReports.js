@@ -45,7 +45,7 @@ import { getReportModel, setReportModel } from '../nlreports/settings.js';
 import { MEASURES, manyRelationsOf } from '../nlreports/compare.js';
 import { resolveNamedObjects, searchNames } from '../nlreports/references.js';
 import { PREVIOUS_SENTINEL, validateSpec } from '../nlreports/spec.js';
-import { carriedRecords, narrowToPrevious, previousContextBlock, usedPrevious } from '../nlreports/followUp.js';
+import { carriedRecords, carryForward, narrowToPrevious, previousContextBlock, usedPrevious } from '../nlreports/followUp.js';
 import { recallAnswer, rememberAnswer } from '../nlreports/state.js';
 import { explainSpec } from '../nlreports/explain.js';
 import { query } from '../db/connection.js';
@@ -280,8 +280,9 @@ router.post('/nl-reports/run', askGate, async (req, res) => {
     if (conversationId) {
       // Written after a successful run only: a failed one put nothing in front
       // of the caller, so there is nothing to refer back to.
-      const nowCarried = carriedRecords(result);
-      if (nowCarried) rememberAnswer(threadKey(req, conversationId), nowCarried);
+      const key = threadKey(req, conversationId);
+      const nowCarried = carryForward(recallAnswer(key), carriedRecords(result));
+      if (nowCarried) rememberAnswer(key, nowCarried);
     }
     if (logId) {
       // Best-effort and guarded inside: only the waiting row, for this caller,

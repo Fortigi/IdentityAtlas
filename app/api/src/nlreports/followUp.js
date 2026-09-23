@@ -73,6 +73,23 @@ export function carriedRecords(result) {
   return result?.spec && (result.rows ?? []).length ? { kind: null, records: [], spec: result.spec } : null;
 }
 
+/**
+ * What the chat carries after this answer, given what it carried before.
+ *
+ * An answer with records of its own replaces the set. An answer with none —
+ * a list of changes, which have no page to refer back to — keeps the earlier
+ * set and only updates the definition: after "van welke groepen ben ik
+ * eigenaar" and "zijn er updates aan deze groepen", the third question "wie
+ * zijn de leden van deze groepen" still means those 29 groups.
+ * @param {object|null} before  what was remembered for this chat
+ * @param {object|null} now     carriedRecords() of the answer just given
+ */
+export function carryForward(before, now) {
+  if (!now) return before;
+  if (now.records?.length || !before?.records?.length) return now;
+  return { ...before, spec: now.spec ?? before.spec };
+}
+
 function carriedFrom(result) {
   const rows = result?.rows ?? [];
   if (rows.length === 0) return null;

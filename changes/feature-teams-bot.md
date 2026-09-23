@@ -57,3 +57,4 @@
 - A condition on yourself that the model added to a question that never said "my" or "I" ("changes to these groups") is removed, and the answer says the report is not limited to you.
 - "Not via an access package" / "niet via een access package" keeps its negation when the model wrote the positive relation.
 - "Who is in the group?" / "Wie zit er in de groep?" — one particular record, named by nothing — is answered with "which one do you mean?" straight away instead of a report about every group with "group" in its name.
+- "These groups" survives an answer in between that has no records of its own (a list of changes): the third question in a chat still refers to the groups.
