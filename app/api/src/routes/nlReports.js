@@ -44,7 +44,9 @@ export { parseInterpretRequest };
 import { getReportModel, setReportModel } from '../nlreports/settings.js';
 import { MEASURES, manyRelationsOf } from '../nlreports/compare.js';
 import { resolveNamedObjects, searchNames } from '../nlreports/references.js';
-import { validateSpec } from '../nlreports/spec.js';
+import { PREVIOUS_SENTINEL, validateSpec } from '../nlreports/spec.js';
+import { carriedRecords, narrowToPrevious, previousContextBlock, usedPrevious } from '../nlreports/followUp.js';
+import { recallAnswer, rememberAnswer } from '../nlreports/state.js';
 import { explainSpec } from '../nlreports/explain.js';
 import { query } from '../db/connection.js';
 import {
@@ -147,6 +149,14 @@ router.post('/nl-reports/interpret', askGate, async (req, res) => {
   // caller and the builder works exactly as it always did; "my" then means
   // nothing, and the scope caveat says so.
   const caller = req.user?.oid ? await resolveCaller(req.user.oid).catch(() => null) : null;
+  // The records the previous answer in this chat put on screen, so "these
+  // groups" means something — the same bookkeeping the Teams bot does, because
+  // the model reliably gets the subject of a follow-up right and reliably
+  // forgets to write the placeholder (see nlreports/followUp.js).
+  const carried = recallAnswer(threadKey(req, conversationId));
+  const substitutions = callerSubstitutions(caller);
+  if (carried?.records?.length) substitutions.set(PREVIOUS_SENTINEL, carried.records.map(r => r.id));
+  const context = [caller ? callerContextBlock(caller) : '', previousContextBlock(carried)].filter(Boolean).join('\n\n');
   // Allocated up front: /run completes this row later, so the id has to exist
   // before anything is written, exactly as the bot's deep link does.
   const logId = newConversationId();
@@ -169,12 +179,20 @@ router.post('/nl-reports/interpret', askGate, async (req, res) => {
     // `caller=` last: the line's shape up to the question is a contract the
     // audit test pins, and a resolved caller is an addition to it, not a change.
     console.log(`nl-reports interpret: ${who} model=${forLog(model, 100)} question="${forLog(question)}" caller=${caller ? 'resolved' : '-'}`);
-    const reply = await interpret({
-      question, history: cleanHistory, model,
-      context: caller ? callerContextBlock(caller) : '',
-      substitutions: callerSubstitutions(caller),
-    });
+    const reply = await interpret({ question, history: cleanHistory, model, context, substitutions });
+    if (reply.kind === 'report' && reply.spec) {
+      const narrowed = narrowToPrevious(reply.spec, carried, question);
+      const narrowedIt = usedPrevious(reply.spec, narrowed);
+      if (narrowedIt) {
+        reply.spec = narrowed;
+        reply.explanation = explainSpec(narrowed, await loadExtFields());
+      }
+      reply.followedUp = narrowedIt || (reply.substituted ?? []).includes(PREVIOUS_SENTINEL);
+    }
     console.log(`nl-reports interpret: ${who} outcome=${reply.kind}${reply.repaired ? ' repaired' : ''} ms=${Date.now() - started}`);
+    // Its own line: whether the previous answer was offered and what became of
+    // it — the line above is a contract the audit test pins.
+    if (carried) console.log(`nl-reports follow-up: ${who} offered=${carried.records.length} used=${reply.followedUp === true}`);
     // The same row the Teams bot writes, so an evaluation reads one table. A
     // report is `interpreted` until /run says what it returned.
     await record({
@@ -205,6 +223,11 @@ const WEB_OUTCOME = Object.freeze({
 });
 
 const LOG_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// What "these groups" refers to is remembered per chat, per signed-in user: a
+// chat id is client-generated, so on its own it would let one caller's
+// follow-up inherit another's answer.
+const threadKey = (req, conversationId) => (conversationId ? `${req.user?.oid ?? '-'}:${conversationId}` : null);
 
 // Re-exported: applying a "did you mean" answer is pipeline logic, not HTTP, and
 // it now lives beside interpret()/runSpec() so a second front end (the Teams bot)
@@ -237,11 +260,20 @@ router.post('/nl-reports/run', askGate, async (req, res) => {
   // Optional: the builder runs edited definitions with no row behind them.
   const logId = req.body.logId === undefined ? null : String(req.body.logId);
   if (logId !== null && !LOG_ID.test(logId)) return res.status(400).json({ error: 'Invalid log id' });
+  // The chat this answer belongs to, so the next question in it can say "these".
+  const conversationId = req.body.conversationId === undefined || req.body.conversationId === null ? null : String(req.body.conversationId);
+  if (conversationId !== null && !CONVERSATION_ID.test(conversationId)) return res.status(400).json({ error: 'Invalid conversation id' });
   try {
     // "@me" in the definition means whoever runs it — see runSpec().
     const caller = req.user?.oid ? await resolveCaller(req.user.oid).catch(() => null) : null;
     const result = await runSpec(req.body.spec, callerSubstitutions(caller));
     if (!result.ok) return res.status(400).json({ error: 'Invalid report definition', errors: result.errors, confirm: result.confirm, spec: result.spec });
+    if (conversationId) {
+      // Written after a successful run only: a failed one put nothing in front
+      // of the caller, so there is nothing to refer back to.
+      const nowCarried = carriedRecords(result);
+      if (nowCarried) rememberAnswer(threadKey(req, conversationId), nowCarried);
+    }
     if (logId) {
       // Best-effort and guarded inside: only the waiting row, for this caller,
       // for exactly this definition. An edited-and-rerun report is a different

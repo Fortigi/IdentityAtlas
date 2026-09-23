@@ -81,7 +81,7 @@ export function useAskConversation({ authFetch, currentSpec, onReport }) {
       });
       addTurn({ role: 'assistant', reply });
       setHistory(h => [...h, { role: 'user', content: question }, { role: 'assistant', content: reply.raw || '' }].slice(-MAX_HISTORY));
-      if (reply.kind === 'report') onReport(reply, question);
+      if (reply.kind === 'report') onReport(reply, question, conversationId);
       if (reply.kind === 'confirm') lastQuestion.current = question;
     });
   };
@@ -96,7 +96,7 @@ export function useAskConversation({ authFetch, currentSpec, onReport }) {
       addTurn({ role: 'assistant', reply: { ...next, kind: 'confirm', confirm: resolved.confirm, timing: null } });
     } else {
       addTurn({ role: 'assistant', reply: { ...next, kind: 'report', timing: null } });
-      onReport({ ...next, kind: 'report' }, lastQuestion.current);
+      onReport({ ...next, kind: 'report' }, lastQuestion.current, conversationId);
     }
   });
 
@@ -122,7 +122,8 @@ export function useAskConversation({ authFetch, currentSpec, onReport }) {
     setHistory(sent.slice(-MAX_HISTORY));
     setInput('');
     lastQuestion.current = '';
-    if (lastReport) onReport(lastReport.reply, lastReport.question);
+    // Under the picked-up chat's id, so a follow-up there still knows what "these" means.
+    if (lastReport) onReport(lastReport.reply, lastReport.question, id);
   };
 
   // Start over: a new thread id, and nothing on screen or in the history the

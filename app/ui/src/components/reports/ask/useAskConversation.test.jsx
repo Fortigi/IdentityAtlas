@@ -39,7 +39,7 @@ describe('useAskConversation', () => {
 
     await act(() => result.current.confirmChoice(again, { name: 'Sales EMEA' }));
     expect(onReport).toHaveBeenCalledTimes(1);
-    expect(onReport).toHaveBeenCalledWith(expect.objectContaining({ kind: 'report', spec: { v: 2 }, explanation: 'done' }), 'members of sales');
+    expect(onReport).toHaveBeenCalledWith(expect.objectContaining({ kind: 'report', spec: { v: 2 }, explanation: 'done' }), 'members of sales', expect.any(String));
     expect(result.current.turns.filter(t => t.reply?.kind === 'chosen').map(t => t.reply.name)).toEqual(['Sales role', 'Sales EMEA']);
   });
 
@@ -136,7 +136,7 @@ describe('picking a stored conversation back up', () => {
     expect(result.current.turns.map(t => t.role)).toEqual(['user', 'assistant', 'user', 'assistant']);
     expect(result.current.turns[1].reply).toMatchObject({ kind: 'report', assumptions: ['owner means owns'], timing: null });
     expect(result.current.turns[3].reply).toMatchObject({ kind: 'clarify', question: 'Which packages?', options: ['All', 'Only mine'] });
-    expect(onReport).toHaveBeenCalledWith(expect.objectContaining({ kind: 'report' }), 'van welke groepen ben ik owner?');
+    expect(onReport).toHaveBeenCalledWith(expect.objectContaining({ kind: 'report' }), 'van welke groepen ben ik owner?', expect.any(String));
   });
 
   it('sends the model the replies it actually gave, as the history of the next question', async () => {

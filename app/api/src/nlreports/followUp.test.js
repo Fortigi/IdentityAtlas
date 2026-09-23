@@ -12,7 +12,7 @@ import {
   carriedRecords, narrowToPrevious, previousContextBlock, refersToPrevious, substitutePrevious,
   usedPrevious, MAX_CARRIED,
 } from './followUp.js';
-import { MAX_CONDITIONS, PREVIOUS_SENTINEL } from '../nlreports/spec.js';
+import { MAX_CONDITIONS, PREVIOUS_SENTINEL } from './spec.js';
 
 const group = (id, name) => ({ id, name, kind: 'resource' });
 

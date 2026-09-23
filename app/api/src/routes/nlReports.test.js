@@ -53,6 +53,7 @@ import { createSavedReport, deleteSavedReport, prepareSavedReport } from '../nlr
 import { loadExtFields } from '../nlreports/extFields.js';
 import { query } from '../db/connection.js';
 import { resolveCaller } from '../nlreports/caller.js';
+import { clearPending } from '../nlreports/state.js';
 import router, { parseInterpretRequest } from './nlReports.js';
 import { MAX_CONDITIONS } from '../nlreports/spec.js';
 
@@ -583,5 +584,63 @@ describe('earlier conversations', () => {
     const res = await request(signedIn).get('/api/nl-reports/conversations/' + encodeURIComponent('a b'));
     expect(res.status).toBe(400);
     expect(query).not.toHaveBeenCalled();
+  });
+});
+
+describe('follow-up questions on the web', () => {
+  // "Van welke groepen ben ik owner?" then "zijn er updates geweest aan deze
+  // groepen?" — the second is about the 29 groups the first put on screen. The
+  // Teams bot has done this bookkeeping since day one; the Ask tab sent the
+  // chat history and hoped. Now /run remembers what it showed, per chat and
+  // per caller, and /interpret narrows the next question to it.
+  const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'wim@example.com' }));
+  const otherUser = mountRouterAs(router, () => ({ oid: 'ffffffff-0000-0000-0000-000000000000', email: 'x@example.com' }));
+  const GROUPS = { entity: 'group', match: 'all', conditions: [], columns: ['displayName'], limit: 1000 };
+  const shown = {
+    ok: true, spec: GROUPS, truncated: false, columns: [{ key: 'displayName' }],
+    rows: [{ displayName: 'A', _entity: { kind: 'resource', id: 'g1' } }, { displayName: 'B', _entity: { kind: 'resource', id: 'g2' } }],
+  };
+
+  beforeEach(() => { clearPending(); });
+
+  it('narrows "these groups" to the records the previous answer showed, for the same caller only', async () => {
+    runSpec.mockResolvedValue(shown);
+    await request(signedIn).post('/api/nl-reports/run').send({ spec: GROUPS, conversationId: 'chat-1' });
+
+    interpret.mockResolvedValue({ kind: 'report', spec: GROUPS, raw: 'r', substituted: [] });
+    const res = await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'welke van deze groepen zijn openbaar?', conversationId: 'chat-1' });
+
+    const call = interpret.mock.calls.at(-1)[0];
+    expect(call.context).toMatch(/previous answer in this chat listed 2 groups/);
+    expect(call.substitutions.get('@previous')).toEqual(['g1', 'g2']);
+    expect(res.body.followedUp).toBe(true);
+    expect(res.body.spec.conditions).toEqual([{ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] }]);
+    expect(res.body.explanation.lines.map(l => l.text).join(' ')).toMatch(/ID/);
+
+    // Another signed-in user with the same client-generated chat id inherits nothing.
+    interpret.mockClear();
+    await request(otherUser).post('/api/nl-reports/interpret').send({ question: 'welke van deze groepen zijn openbaar?', conversationId: 'chat-1' });
+    expect(interpret.mock.calls.at(-1)[0].substitutions.has('@previous')).toBe(false);
+  });
+
+  it('leaves a question that stands on its own alone, and a chat without a run', async () => {
+    runSpec.mockResolvedValue(shown);
+    await request(signedIn).post('/api/nl-reports/run').send({ spec: GROUPS, conversationId: 'chat-2' });
+    interpret.mockResolvedValue({ kind: 'report', spec: GROUPS, raw: 'r', substituted: [] });
+
+    const alone = await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'welke groepen zijn openbaar?', conversationId: 'chat-2' });
+    expect(alone.body.followedUp).toBe(false);
+    expect(alone.body.spec.conditions).toEqual([]);
+
+    const fresh = await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'welke van deze groepen zijn openbaar?', conversationId: 'chat-3' });
+    expect(fresh.body.followedUp).toBe(false);
+    expect(interpret.mock.calls.at(-1)[0].context).not.toMatch(/previous answer/);
+  });
+
+  it('refuses a malformed chat id on /run before running anything', async () => {
+    const res = await request(signedIn).post('/api/nl-reports/run').send({ spec: GROUPS, conversationId: 'not ok!' });
+    expect(res.status).toBe(400);
+    expect(runSpec).not.toHaveBeenCalled();
   });
 });

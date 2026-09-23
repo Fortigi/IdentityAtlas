@@ -17,10 +17,8 @@
     "src/teamsbot/auth.js",
     "src/teamsbot/callerSpec.js",
     "src/teamsbot/card.js",
-    "src/teamsbot/followUp.js",
     "src/teamsbot/service.js",
     "src/teamsbot/signInDialog.js",
-    "src/teamsbot/state.js",
     "src/teamsbot/text.js"
   ],
   "mutationExclusions": {
@@ -28,7 +26,9 @@
     "src/routes/teamsBot.js": "Wiring, not logic: it constructs the CloudAdapter from environment variables, memoises it, and hands the request to it. Every rule it applies is a middleware declared one line at a time -- requirePermission, requireFeature, and their ORDER -- and the order is what actually matters here (permission first, so a disabled bot cannot be discovered by a caller without permission). That is asserted directly, against a real Express app with auth enabled, in src/routes/teamsBot.test.js; a mutant that swapped the two would be caught there rather than by mutating the adapter construction around them.",
     "src/teamsbot/log.js": "A one-line re-export of nlreports/conversations.js since migration 071 moved the store where both front ends share it. The store itself is mutated in stryker.reports.config.json; there is no statement here for a mutant to change.",
     "src/teamsbot/caller.js": "A one-line re-export of nlreports/caller.js: caller resolution moved into the pipeline when the Ask tab needed it too. The moved module is mutated in stryker.reports.config.json; there is no statement here for a mutant to change.",
-    "src/teamsbot/specValues.js": "A one-line re-export of nlreports/sentinels.js: substitution moved inside interpret(), before validation. The moved module is mutated in stryker.reports.config.json; there is no statement here for a mutant to change."
+    "src/teamsbot/specValues.js": "A one-line re-export of nlreports/sentinels.js: substitution moved inside interpret(), before validation. The moved module is mutated in stryker.reports.config.json; there is no statement here for a mutant to change.",
+    "src/teamsbot/followUp.js": "A one-line re-export of nlreports/followUp.js: the follow-up bookkeeping moved into the pipeline when the Ask tab needed it too. Mutated in stryker.reports.config.json.",
+    "src/teamsbot/state.js": "A one-line re-export of nlreports/state.js, moved with the follow-up logic. Mutated in stryker.reports.config.json."
   },
   "thresholds": {
     "high": 90,

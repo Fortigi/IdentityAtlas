@@ -63,9 +63,9 @@ export default function AskPage({ onOpenDetail }) {
   // here there is nothing to edit, so waiting would only be a second click.
   // A resumed conversation reports its last answer the same way, so its rows
   // come back with it — a query, never a model call.
-  const onReport = (reply, asked) => {
+  const onReport = (reply, asked, conversationId) => {
     setQuestion(asked);
-    preview.run(reply.spec, reply.logId);
+    preview.run(reply.spec, reply.logId, conversationId);
   };
 
   // The page owns the conversation, so the history can load one into it.

@@ -187,7 +187,7 @@ describe('AskAssistant', () => {
     await userEvent.type(await screen.findByRole('textbox', { name: /Describe the report you want/ }), '  guest accounts without a manager  ');
     await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
 
-    await waitFor(() => expect(onReport).toHaveBeenCalledWith(REPORT_REPLY, 'guest accounts without a manager'));
+    await waitFor(() => expect(onReport).toHaveBeenCalledWith(REPORT_REPLY, 'guest accounts without a manager', expect.any(String)));
     expect(onReport).toHaveBeenCalledTimes(1);
     // The stub matches URLs by substring, so pin the exact endpoint and verb here.
     expect(authFetch).toHaveBeenCalledWith('/api/nl-reports/interpret', expect.objectContaining({ method: 'POST' }));
@@ -238,7 +238,7 @@ describe('AskAssistant', () => {
         { role: 'assistant', content: CLARIFY_REPLY.raw },
       ],
     }));
-    await waitFor(() => expect(onReport).toHaveBeenCalledWith(REPORT_REPLY, 'No manager set'));
+    await waitFor(() => expect(onReport).toHaveBeenCalledWith(REPORT_REPLY, 'No manager set', expect.any(String)));
   });
 
   it('lets the model decide, sending that as the answer rather than an empty one', async () => {
@@ -274,7 +274,7 @@ describe('AskAssistant', () => {
       kind: 'report',
       spec: RESOLVED_SPEC,
       explanation: 'Users in business role Fortigi - Algemeen - Maten',
-    }, 'members of algemene maten'));
+    }, 'members of algemene maten', expect.any(String)));
     expect(screen.getByText('Using “Fortigi - Algemeen - Maten”.')).toBeInTheDocument();
     // One model round-trip for the whole exchange.
     expect(bodiesFor(authFetch, '/nl-reports/interpret')).toHaveLength(1);
@@ -297,7 +297,7 @@ describe('AskAssistant', () => {
     await userEvent.type(questionBox(), 'all guest accounts');
     await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
 
-    await waitFor(() => expect(onReport).toHaveBeenCalledWith(REPORT_REPLY, 'all guest accounts'));
+    await waitFor(() => expect(onReport).toHaveBeenCalledWith(REPORT_REPLY, 'all guest accounts', expect.any(String)));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
