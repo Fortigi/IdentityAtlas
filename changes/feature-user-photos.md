@@ -1,5 +1,0 @@
-- Added optional profile photo syncing for Microsoft Entra ID. When enabled, each user's profile picture is collected during the crawl and shown next to their name on the user detail page.
-- The signed-in user's own profile photo now appears in the header, in place of their initial.
-- Profile photos are off by default and are enabled per crawler under "Profile Photos" in the Entra ID setup wizard, which warns that photos are personal data and that the first crawl fetches one photo per user. Turning them on is a deliberate choice rather than something a crawl picks up automatically.
-- Photos already collected are re-checked only every 30 days, and accounts without a photo are remembered as such, so repeat crawls stay fast.
-- Where no photo is available the initial is shown, exactly as before.

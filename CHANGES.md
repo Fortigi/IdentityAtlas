@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Added optional profile photo syncing for Microsoft Entra ID. When enabled, each user's profile picture is collected during the crawl and shown next to their name on the user detail page.
+- The signed-in user's own profile photo now appears in the header, in place of their initial.
+- Profile photos are off by default and are enabled per crawler under "Profile Photos" in the Entra ID setup wizard, which warns that photos are personal data and that the first crawl fetches one photo per user. Turning them on is a deliberate choice rather than something a crawl picks up automatically.
+- Photos already collected are re-checked only every 30 days, and accounts without a photo are remembered as such, so repeat crawls stay fast.
+- Where no photo is available the initial is shown, exactly as before.
+
+## Changes in this PR
+
 - Fixed accounts bouncing between systems when two crawlers see the same directory: the Entra ID and Azure RM crawlers each claimed the same user on every run, which filled the user's Timeline with changes nobody made. A system now records which directory its accounts come from, and only that directory owns them.
 - Fixed Azure role assignments disappearing and reappearing between runs. Because the shared account had been reassigned to the Azure RM system, the next Azure RM run no longer recognised it as a directory account and removed its role assignments as orphaned.
 - Fixed the Azure RM crawler re-enabling accounts that are disabled in Entra ID. It no longer reports account state it cannot know.
