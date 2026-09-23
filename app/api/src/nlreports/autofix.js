@@ -29,6 +29,7 @@
 
 import { ENTITIES } from './catalog.js';
 import { countSays } from './contradictions.js';
+import { isVocabulary } from './terms.js';
 
 // The words a request uses when it wants counts per value rather than a list.
 // Deliberately generous: a grouping the request DID ask for and this rule
@@ -51,6 +52,28 @@ export function dropUnaskedGrouping(spec, question) {
 }
 
 const show = (v) => (typeof v === 'string' ? `"${v}"` : String(v));
+
+/**
+ * A comparison whose reference is a KIND of thing, not a named one — "in an
+ * access package", "part of a business role" — is the plain relation: has any.
+ * Left as a comparison, the name lookup fuzzy-matches "access package" to
+ * whichever group has those words in its name and asks the caller to confirm
+ * it, which is a question about a record nobody mentioned.
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function genericCompareToRelation(spec) {
+  const notes = [];
+  const fix = (conditions) => (conditions ?? []).map((c) => {
+    if (c.type === 'group') return { ...c, conditions: fix(c.conditions) };
+    // The vocabulary is kept word by word ("access package" is two of them), so a name is generic when every word of it is.
+    const generic = (name) => String(name).split(/[^p{L}p{N}]+/u).filter(Boolean).every(w => isVocabulary(w, {}));
+    if (c.type !== 'compare' || c.reference?.id || !c.reference?.name || !generic(c.reference.name)) return c;
+    notes.push(`Read "${c.reference.name}" as any ${c.reference.name}, not as one named so.`);
+    return { type: 'relation', relation: c.relation, quantifier: 'some', match: 'all', conditions: [] };
+  });
+  const conditions = fix(spec?.conditions);
+  return { spec: notes.length ? { ...spec, conditions } : spec, notes };
+}
 const isField = (c) => c?.type === 'field';
 
 /** Two or more "is" conditions on one field become one "any" group of them. */

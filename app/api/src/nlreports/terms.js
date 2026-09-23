@@ -124,7 +124,7 @@ export function clearKnownNamesCache() {
 }
 
 /** Enum values of this deployment (Guest, ServicePrincipal …) are vocabulary too; system names are not. */
-function isVocabulary(term, values) {
+export function isVocabulary(term, values) {
   const n = normalizeName(term);
   if (vocabulary.has(n)) return true;
   return Object.entries(values || {}).some(([key, list]) => key !== 'systemName' && list.some(v => normalizeName(v) === n));

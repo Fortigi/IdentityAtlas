@@ -235,6 +235,35 @@ function limitFor(entity, carried) {
 }
 
 /**
+ * The carried ids written INSIDE a relation whose records are not of their
+ * kind, moved to the report's own id field.
+ *
+ * Asked "welke van deze groepen zijn onderdeel van een access package?", the
+ * model wrote the 118 group ids on the members relation — a list of groups
+ * where a list of accounts belongs — and nothing matched. It did the hard
+ * part (this is a follow-up about those groups) and got the bookkeeping
+ * wrong, so the bookkeeping is corrected. The list is recognised by its
+ * contents, never by its shape alone: an id list the caller built is left
+ * where it is.
+ */
+function relocateMisplaced(spec, carried) {
+  if (entityKind(spec.entity) !== carried.kind) return spec;
+  const ids = new Set(carried.records.map(r => r.id));
+  const holdsCarried = (c) => isIdList(c) && Array.isArray(c.value) && c.value.length === ids.size && c.value.every(v => ids.has(v));
+  let moved = false;
+  const conditions = (spec.conditions ?? []).flatMap((c) => {
+    if (c.type !== 'relation' || !(c.conditions ?? []).some(holdsCarried)) return [c];
+    const target = has(ENTITIES, spec.entity) ? ENTITIES[spec.entity].relations?.[c.relation]?.target : null;
+    if (target && entityKind(target) === carried.kind) return [c];
+    moved = true;
+    const rest = c.conditions.filter(x => !holdsCarried(x));
+    return rest.length ? [{ ...c, conditions: rest }] : [];
+  });
+  if (!moved) return spec;
+  return { ...spec, conditions: [...conditions, { type: 'field', field: 'id', op: 'in', value: [...ids] }] };
+}
+
+/**
  * Limit a definition to the records the previous answer produced.
  *
  * Returns the definition unchanged unless all four hold: something was carried,
@@ -244,6 +273,7 @@ function limitFor(entity, carried) {
  */
 export function narrowToPrevious(spec, carried, question) {
   if (!carried?.records?.length || !spec) return spec;
+  spec = relocateMisplaced(spec, carried);
   if (!refersToPrevious(question, carried.kind)) return spec;
   if (alreadyNarrowed(spec)) return spec;
 

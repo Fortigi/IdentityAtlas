@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { asksForCounts, autofixSpec, dropUnaskedGrouping, leaves, lostLeaves } from './autofix.js';
+import { asksForCounts, autofixSpec, dropUnaskedGrouping, genericCompareToRelation, leaves, lostLeaves } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -137,5 +137,28 @@ describe('what a correction dropped', () => {
     const after = { ...before, conditions: [before.conditions[0], before.conditions[2]] };
     expect(lostLeaves(before, after, ['"action" cannot be both "Added" and "Removed" at the same time']))
       .toEqual(['changedAt withinLastDays 90']);
+  });
+});
+
+describe('a comparison with a kind of thing where a name should be', () => {
+  it('turns "businessRoles containsAll <access package>" into "in any business role", and says so', () => {
+    // Verbatim from the conversation set: the follow-up "welke van deze groepen
+    // zijn onderdeel van een access package?" — the name lookup then matched
+    // "access package" to a group called "Special Access Package Approvers".
+    const { spec, notes } = genericCompareToRelation({
+      entity: 'group', match: 'all',
+      conditions: [field('id', 'in', ['g1', 'g2']),
+        { type: 'compare', relation: 'businessRoles', measure: 'containsAll', reference: { entity: 'resource', name: 'access package' } }],
+    });
+    expect(spec.conditions[1]).toEqual({ type: 'relation', relation: 'businessRoles', quantifier: 'some', match: 'all', conditions: [] });
+    expect(spec.conditions[0]).toEqual(field('id', 'in', ['g1', 'g2']));
+    expect(notes[0]).toMatch(/any access package/);
+  });
+
+  it('leaves a comparison with a real name, or an already resolved record, alone', () => {
+    const named = { entity: 'group', match: 'all', conditions: [{ type: 'compare', relation: 'members', measure: 'identical', reference: { entity: 'group', name: 'Finance Team' } }] };
+    expect(genericCompareToRelation(named).spec).toBe(named);
+    const resolved = { entity: 'group', match: 'all', conditions: [{ type: 'compare', relation: 'businessRoles', measure: 'containsAll', reference: { entity: 'resource', name: 'group', id: 'r1' } }] };
+    expect(genericCompareToRelation(resolved).spec).toBe(resolved);
   });
 });

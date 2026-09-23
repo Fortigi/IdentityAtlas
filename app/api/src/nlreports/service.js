@@ -11,7 +11,7 @@ import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
-import { autofixSpec, dropUnaskedGrouping, lostLeaves } from './autofix.js';
+import { autofixSpec, dropUnaskedGrouping, genericCompareToRelation, lostLeaves } from './autofix.js';
 import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
@@ -436,12 +436,14 @@ export async function interpret({ question, context = '', history = [], model = 
   // along as `fixes`, so the answer can say so.
   ctx.validate = (spec) => {
     const grouping = dropUnaskedGrouping(spec, ctx.question);
-    const first = validateSpec(substituteValues(grouping.spec, ctx.substitutions), ctx.values, ctx.extFields);
-    if (first.ok || !first.spec) return grouping.notes.length ? { ...first, fixes: grouping.notes } : first;
+    const generic = genericCompareToRelation(grouping.spec);
+    const before = [...grouping.notes, ...generic.notes];
+    const first = validateSpec(substituteValues(generic.spec, ctx.substitutions), ctx.values, ctx.extFields);
+    if (first.ok || !first.spec) return before.length ? { ...first, fixes: before } : first;
     const fixed = autofixSpec(first.spec);
     if (!fixed.notes.length) return first;
     const again = validateSpec(fixed.spec, ctx.values, ctx.extFields);
-    return again.ok ? { ...again, fixes: [...grouping.notes, ...fixed.notes] } : first;
+    return again.ok ? { ...again, fixes: [...before, ...fixed.notes] } : first;
   };
 
   const first = await chat({ model, messages: ctx.messages, schema });

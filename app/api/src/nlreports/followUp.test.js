@@ -350,3 +350,43 @@ describe('narrowing a report that is not about the carried kind', () => {
     expect(narrowToPrevious(identities, carried, 'welke van deze groepen')).toEqual(identities);
   });
 });
+
+describe('narrowToPrevious — the carried ids written on the wrong relation', () => {
+  const carried = { kind: 'resource', records: [{ id: 'g1', name: 'A' }, { id: 'g2', name: 'B' }] };
+  const inRole = { type: 'relation', relation: 'businessRoles', quantifier: 'some', match: 'all', conditions: [] };
+
+  it('moves the group ids from the members relation to the group itself', () => {
+    // Verbatim shape: "welke van deze groepen zijn onderdeel van een access package?"
+    const written = { entity: 'group', match: 'all', conditions: [
+      { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] }] },
+      inRole,
+    ] };
+    const out = narrowToPrevious(written, carried, 'welke van deze groepen zijn onderdeel van een access package?');
+    expect(out.conditions).toEqual([inRole, { type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] }]);
+  });
+
+  it('keeps other conditions of that relation, and leaves a list that is not the carried one alone', () => {
+    const mixed = { entity: 'group', match: 'all', conditions: [
+      { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [
+        { type: 'field', field: 'accountEnabled', op: 'eq', value: true },
+        { type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] },
+      ] },
+    ] };
+    const out = narrowToPrevious(mixed, carried, 'deze groepen');
+    expect(out.conditions[0].conditions).toEqual([{ type: 'field', field: 'accountEnabled', op: 'eq', value: true }]);
+    expect(out.conditions[1]).toEqual({ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] });
+
+    const other = { entity: 'group', match: 'all', conditions: [
+      { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'in', value: ['u9'] }] },
+    ] };
+    expect(narrowToPrevious(other, carried, 'welke groepen zijn openbaar').conditions[0].conditions[0].value).toEqual(['u9']);
+  });
+
+  it('leaves the ids where they are when that relation IS of the carried kind', () => {
+    // Changes on these groups: the group ids belong on change.resource.
+    const changes = { entity: 'change', match: 'all', conditions: [
+      { type: 'relation', relation: 'resource', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] }] },
+    ] };
+    expect(narrowToPrevious(changes, carried, 'updates aan deze groepen').conditions).toEqual(changes.conditions);
+  });
+});
