@@ -100,7 +100,7 @@ export function callerContextBlock(caller) {
     `Write ${ME} as the value whenever a condition should match that person's own account,`,
     `for example "my direct reports" = accounts whose manager relation has id ${ME};`,
     `"my groups" = the group entity with members some id ${ME};`,
-    `"groups I have that X does not" = the group entity with members some id ${ME} AND members none for X (never the user entity).`,
+    `"groups I have that X does not" / "groepen die ik wel heb, die X niet heeft" = the group entity with members some id ${ME} AND members none for X — ${ME} on the "some" side, X on the "none" side, never the same person on both (and never the user entity).`,
   ].join(' ');
 }
 

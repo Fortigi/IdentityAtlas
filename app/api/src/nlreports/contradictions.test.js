@@ -295,3 +295,27 @@ describe('a count field against the relation it counts', () => {
     expect([...counted].sort()).toEqual(['accountCount -> accounts', 'groupCount -> memberOf', 'memberCount -> members', 'ownerCount -> owners']);
   });
 });
+
+describe('the same relation required to have and not have the same records', () => {
+  const william = { type: 'field', field: 'displayName', op: 'eq', value: 'William Overweg' };
+  const rel = (quantifier, ...conditions) => ({ type: 'relation', relation: 'members', quantifier, match: 'all', conditions });
+
+  it('rejects "members some William" beside "members none William", and says the fix', () => {
+    // Verbatim: "welke groepen heb ik wel, die william niet heeft" with william on both sides.
+    const { ok, errors } = validateSpec({ entity: 'group', match: 'all', conditions: [rel('some', william), rel('none', william)] });
+    expect(ok).toBe(false);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatch(/"members" cannot both have and not have the same records \("William Overweg"\)/);
+    expect(errors[0]).toMatch(/@me/);
+  });
+
+  it('accepts the question asked properly, and two different people, and an OR level', () => {
+    const me = { type: 'field', field: 'id', op: 'eq', value: 'u-me' };
+    expect(validateSpec({ entity: 'group', match: 'all', conditions: [rel('some', me), rel('none', william)] }).ok).toBe(true);
+    expect(contradictions({ entity: 'group', match: 'any', conditions: [rel('some', william), rel('none', william)] })).toEqual([]);
+  });
+
+  it('also catches "has members" beside "has no members"', () => {
+    expect(contradictions({ entity: 'group', match: 'all', conditions: [rel('some'), rel('none')] })).toHaveLength(1);
+  });
+});

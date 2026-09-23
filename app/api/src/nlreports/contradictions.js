@@ -124,10 +124,33 @@ function countConflicts(conditions, match, entity) {
  * @param {object} spec  a spec that has already passed field validation
  * @returns {string[]} one message per conflict, empty when it is satisfiable
  */
+/**
+ * The same relation required to have AND not have the same records, at one
+ * AND level: "members some William" beside "members none William". Asked for
+ * "the groups I am in that william is not", the model wrote william on both
+ * sides. The message says what the one sensible fix is, because the repair
+ * round is fed exactly this text.
+ */
+function relationConflicts(conditions, match) {
+  if (match === 'any') return [];
+  const relations = (conditions ?? []).filter(c => c.type === 'relation');
+  const found = [];
+  for (const some of relations.filter(c => c.quantifier !== 'none')) {
+    for (const none of relations.filter(c => c.relation === some.relation && c.quantifier === 'none')) {
+      if (JSON.stringify(some.conditions ?? []) !== JSON.stringify(none.conditions ?? [])) continue;
+      const what = (some.conditions ?? []).map(c => show(c.value)).join(', ') || 'anything';
+      found.push(`"${some.relation}" cannot both have and not have the same records (${what}) at the same time`
+        + ' — one of the two conditions must be about somebody else (the person asking is id @me, when the request says "I" or "my")');
+    }
+  }
+  return found;
+}
+
 export function contradictions(spec) {
   const found = [];
   const walk = (conditions, match, entity) => {
     found.push(...countConflicts(conditions, match, entity));
+    found.push(...relationConflicts(conditions, match));
     const fields = andedFieldConditions(conditions, match);
     for (let i = 0; i < fields.length; i++) {
       for (let j = i + 1; j < fields.length; j++) {

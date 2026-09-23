@@ -41,3 +41,4 @@
 - The deployment's value lists are now cached behind the system prompt, so every question starts about twenty seconds sooner on a CPU-only server; the cache is prepared in seconds from the system-prompt cache and refreshed by itself when the lists change.
 - "In an access package" / "part of a business role" with no package named is read as "in any", instead of being matched to whichever group happens to have those words in its name.
 - A follow-up whose definition put "these groups" on the wrong relation (the members instead of the groups themselves) is corrected instead of returning nothing.
+- A definition that requires the same relation to both have and not have the same records ("groups william is in that william is not in") is refused with a message that says which side must be the person asking.
