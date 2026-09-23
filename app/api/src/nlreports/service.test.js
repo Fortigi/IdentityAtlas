@@ -811,3 +811,25 @@ describe('interpret — a question about the caller whose definition names nobod
     expect(r.assumptions.join(' ')).toMatch(/Read "ik" as you/);
   });
 });
+
+describe('every correction round keeps what the definition had', () => {
+  it('keeps the first definition when the OR correction grouped the actions but dropped the window', async () => {
+    // Verbatim: the first attempt was right (2 rows); the correction added
+    // "Added or Removed" and lost "within 90 days" (149 rows).
+    clearValuesCache();
+    query.mockImplementation(async (sql) => (sql.includes('OVER()')
+      ? { rows: [{ id: 'u-w', displayName: 'William Overweg', type: 'User', total: 1 }] }
+      : { rows: [{ v: 'Added' }, { v: 'Removed' }, { v: 'Group' }] }));
+    const william = { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'william' }] };
+    const groups = { type: 'relation', relation: 'resource', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'Group' }] };
+    const window = { type: 'field', field: 'changedAt', op: 'withinLastDays', value: 90 };
+    const either = { type: 'group', match: 'any', conditions: [{ type: 'field', field: 'action', op: 'eq', value: 'Added' }, { type: 'field', field: 'action', op: 'eq', value: 'Removed' }] };
+    chat.mockResolvedValueOnce(reply({ entity: 'change', match: 'all', columns: [], conditions: [william, groups, window] }))
+      .mockResolvedValueOnce(reply({ entity: 'change', match: 'all', columns: [], conditions: [william, groups, either] }));
+    const r = await interpret({ question: 'Kan je me vertellen aan welke groepen william in de laatste 90 dagen is toegevoegd? En of hij uit groepen is verwijderd?', model: 'm' });
+    expect(chat).toHaveBeenCalledTimes(2);
+    expect(r.kind).toBe('report');
+    expect(r.spec.conditions.some(c => c.op === 'withinLastDays')).toBe(true);
+    expect(r.spec.conditions.some(c => c.type === 'group')).toBe(false);
+  });
+});

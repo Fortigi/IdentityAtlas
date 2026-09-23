@@ -51,3 +51,4 @@
 - The column a question asks to see (the members, the owners, the groups, the access packages, the manager) is added when the definition left it out — "who are the members of these groups" no longer answers with the groups alone.
 - A condition the model invented that matches nothing in the question (a field that does not exist on that kind of record) is dropped with a note instead of failing the answer; one the question did ask for still goes back to the model.
 - A person written as an id ("id is william") is read as a name and looked up, instead of matching nothing.
+- No correction round may lose a condition it was not asked to change — the "or" correction that added "added or removed" but dropped the 90-day window is refused, and the first answer stands.

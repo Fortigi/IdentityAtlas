@@ -250,13 +250,22 @@ async function repairInvalidSpec(ctx, turn, result) {
   return retried;
 }
 
+/**
+ * Did a correction keep everything the definition had? Every correction
+ * round may add or restructure; none may lose a condition it was not told
+ * about. Asked to put "added or removed" in an any-group, the model did —
+ * and dropped the 90-day window, turning 2 rows into 149.
+ */
+const keepsTheRest = (before, after, allowed = []) => !!before?.spec && !!after?.spec
+  && lostLeaves(before.spec, after.spec, allowed.map(f => `"${f}"`)).length === 0;
+
 /** The most common small-model mistake: "X or Y" compiled as X AND Y. */
 async function repairMissingOr(ctx, turn, result) {
   if (!result.ok || !needsOrRepair(ctx.question, result.spec)) return result;
   const retry = await askForCorrection(ctx, turn, orRepairMessage(ctx.question));
   const retriedResult = retry.reply?.kind === 'report' ? ctx.validate(retry.reply.spec) : null;
-  // Only take the correction when it is valid and actually contains an "any".
-  if (!retriedResult?.ok || !hasAnyMatch(retriedResult.spec)) return result;
+  // Only take the correction when it is valid, actually contains an "any", and lost nothing.
+  if (!retriedResult?.ok || !hasAnyMatch(retriedResult.spec) || !keepsTheRest(result, retriedResult)) return result;
   turn.raw = retry.content;
   turn.reply = retry.reply;
   return retriedResult;
@@ -282,7 +291,7 @@ async function repairMissingSelf(ctx, turn, result) {
     + `"which access packages am I in" = entity user with id ${ME} and the businessRoles.names column — and keep everything else exactly as it was. `
     + 'Reply with the corrected complete JSON.');
   const retried = retry.reply?.kind === 'report' ? ctx.validate(retry.reply.spec) : null;
-  if (!retried?.ok || !sentinelsIn(retry.reply.spec, ctx.substitutions).includes(ME)) return result;
+  if (!retried?.ok || !sentinelsIn(retry.reply.spec, ctx.substitutions).includes(ME) || !keepsTheRest(result, retried)) return result;
   turn.raw = retry.content;
   turn.reply = retry.reply;
   return retried;
@@ -294,8 +303,9 @@ async function repairUnusedTerms(ctx, turn, result) {
   if (!unused.length) return result;
   const retry = await askForCorrection(ctx, turn, correctionMessage(unused));
   const retriedResult = retry.reply?.kind === 'report' ? ctx.validate(retry.reply.spec) : null;
-  // Only take the correction when it is valid and uses more of the names.
-  if (!retriedResult?.ok || unusedTerms(retriedResult.spec, ctx.located).length >= unused.length) return result;
+  // Only take the correction when it is valid, uses more of the names, and lost nothing.
+  // The message asks the model to remove the condition it used in the name's place — a guessed system — so losing that one is the correction.
+  if (!retriedResult?.ok || unusedTerms(retriedResult.spec, ctx.located).length >= unused.length || !keepsTheRest(result, retriedResult, ['system'])) return result;
   turn.raw = retry.content;
   turn.reply = retry.reply;
   return retriedResult;
