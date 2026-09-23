@@ -1502,6 +1502,91 @@ paths:
           $ref: '#/components/responses/ModelServerFailed'
 
   # ─── Context Assistant (experimental) ──────────────────────────
+  /nl-reports/conversations:
+    get:
+      tags: [Custom Reports]
+      summary: Earlier conversations of the signed-in person
+      operationId: listCustomReportConversations
+      description: >
+        The Ask tab's history: this person's earlier conversations, newest first, one line each.
+        Scoped to the caller; with nobody signed in the list is empty. Requires
+        `data.read.reports`; answers 404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Conversations, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        conversationId: { type: string }
+                        firstQuestion: { type: string }
+                        startedAt: { type: string, format: date-time }
+                        lastAt: { type: string, format: date-time }
+                        turns: { type: integer }
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+
+  /nl-reports/conversations/{id}:
+    get:
+      tags: [Custom Reports]
+      summary: The turns of one earlier conversation
+      operationId: getCustomReportConversation
+      description: >
+        Everything said in one conversation, in order, with the model's raw replies — what the
+        Ask tab needs to pick the conversation back up. A conversation that is not the caller's
+        answers 404 exactly like one that does not exist. Requires `data.read.reports`; answers
+        404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9:_-]{1,100}$' }
+      responses:
+        '200':
+          description: The conversation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversationId: { type: string }
+                  turns:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        question: { type: string }
+                        definition:
+                          $ref: '#/components/schemas/ReportDefinition'
+                        outcome: { type: string }
+                        clarification: { type: string, nullable: true }
+                        rawReply: { type: string, nullable: true }
+                        rowCount: { type: integer, nullable: true }
+                        createdAt: { type: string, format: date-time }
+        '400':
+          description: The id is not a plain key
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          description: No such conversation for this caller, or the feature is off
+
   /context-assistant/options:
     get:
       tags: [Context Assistant]

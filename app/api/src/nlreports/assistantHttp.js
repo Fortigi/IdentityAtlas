@@ -33,7 +33,7 @@ const isHistoryTurn = (h) => !!h && ['user', 'assistant'].includes(h.role) && ty
  */
 // Client-generated, one per chat, so the turns of a conversation share a thread
 // in the store. Shape-checked only: it is a grouping key, not a credential.
-const CONVERSATION_ID = /^[A-Za-z0-9:_-]{1,100}$/;
+export const CONVERSATION_ID = /^[A-Za-z0-9:_-]{1,100}$/;
 
 export function parseInterpretRequest(body) {
   const question = typeof body?.question === 'string' ? body.question.trim() : '';

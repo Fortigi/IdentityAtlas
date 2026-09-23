@@ -28,12 +28,14 @@ import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE, fieldsOf } from '../nlreports/c
 import { availableColumns, groupableFields } from '../nlreports/spec.js';
 import { loadExtFields } from '../nlreports/extFields.js';
 import { applyResolveChoice, ensureWarm, interpret, loadValues, runSpec, warmupState } from '../nlreports/service.js';
-import { completeRun, logConversation, newConversationId, OUTCOMES, SURFACES } from '../nlreports/conversations.js';
+import {
+  completeRun, getConversation, listConversations, logConversation, newConversationId, OUTCOMES, SURFACES,
+} from '../nlreports/conversations.js';
 import { detectLanguage } from '../teamsbot/text.js';
 import { callerContextBlock, callerSubstitutions, resolveCaller } from '../nlreports/caller.js';
 import { MODEL_IS_FIXED, listModels } from '../nlreports/llm.js';
 import {
-  forLog, generatorStatus, oneQuestionAtATime, parseInterpretRequest, userOf, warmHandler,
+  CONVERSATION_ID, forLog, generatorStatus, oneQuestionAtATime, parseInterpretRequest, userOf, warmHandler,
 } from '../nlreports/assistantHttp.js';
 
 // Re-exported: the request shape is shared with the context assistant and lives with the
@@ -259,6 +261,34 @@ router.post('/nl-reports/run', askGate, async (req, res) => {
 });
 
 // ── Saved reports ────────────────────────────────────────────────────────────
+
+// GET /api/nl-reports/conversations — this person's earlier chats, newest first.
+// Scoped to the signed-in caller inside the store; with nobody signed in there
+// is nobody to list them for, and the answer is an empty list, not everyone's.
+router.get('/nl-reports/conversations', askGate, async (req, res) => {
+  try {
+    const conversations = await listConversations(req.user?.oid ?? null, { limit: req.query.limit });
+    res.json({ conversations });
+  } catch (err) {
+    fail(res, 'conversations', err);
+  }
+});
+
+// GET /api/nl-reports/conversations/:id — the turns of one, for picking it up
+// again. Unknown and not-yours are the same 404 on purpose: the id is a
+// grouping key the client chose, not a secret, and the caller scope inside
+// getConversation is what decides whose turns come back.
+router.get('/nl-reports/conversations/:id', askGate, async (req, res) => {
+  const id = String(req.params.id);
+  if (!CONVERSATION_ID.test(id)) return res.status(400).json({ error: 'Invalid conversation id' });
+  try {
+    const turns = await getConversation(req.user?.oid ?? null, id);
+    if (!turns.length) return res.status(404).json({ error: 'No such conversation' });
+    res.json({ conversationId: id, turns });
+  } catch (err) {
+    fail(res, 'conversation', err);
+  }
+});
 
 router.get('/nl-reports/saved/:id', askGate, async (req, res) => {
   try {

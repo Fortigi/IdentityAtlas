@@ -13,6 +13,35 @@ export const MAX_HISTORY = 10;
 const freshConversationId = () =>
   globalThis.crypto?.randomUUID?.() ?? `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
+/**
+ * A stored turn, rebuilt as the reply the screen shows.
+ *
+ * The store keeps the model's raw reply, so a resumed conversation shows what
+ * the model actually said rather than a paraphrase — and the definition, kept
+ * separately, is the one that ran. What cannot be rebuilt is left out: timings
+ * (they were true once, for that machine on that day) and the choices of a
+ * "did you mean" (those were the options of the moment).
+ */
+export function replyFromStored({ rawReply, definition, outcome, clarification }) {
+  let parsed = null;
+  try { parsed = rawReply ? JSON.parse(rawReply) : null; } catch { parsed = null; }
+  if (parsed?.kind === 'clarify') {
+    return { kind: 'clarify', question: parsed.question ?? clarification ?? '', options: Array.isArray(parsed.options) ? parsed.options : [], raw: rawReply, timing: null };
+  }
+  if (definition || parsed?.kind === 'report') {
+    return {
+      kind: 'report', spec: definition ?? parsed?.spec ?? null,
+      assumptions: Array.isArray(parsed?.assumptions) ? parsed.assumptions : [],
+      raw: rawReply, timing: null, resumed: true,
+    };
+  }
+  if (outcome === 'confirm') {
+    return { kind: 'confirm', confirm: { message: clarification ?? 'A name needed confirming.', choices: [] }, spec: definition ?? null, raw: rawReply, timing: null };
+  }
+  const message = outcome === 'timeout' ? 'That took too long, so it was stopped.' : 'This turn could not be turned into a report.';
+  return { kind: 'error', message, errors: [], timing: null };
+}
+
 // The builder's current definition (possibly edited by hand) is the latest
 // truth, so it is sent as the last thing "said" before the new message.
 export function specContext(currentSpec) {
@@ -71,6 +100,31 @@ export function useAskConversation({ authFetch, currentSpec, onReport }) {
     }
   });
 
+  // Pick a stored conversation back up: what was said, rebuilt for the screen,
+  // and the model's own replies, rebuilt as the history it is sent — so the
+  // next question continues the thread the model actually had. The last
+  // answer is reported again so the page can show its rows; that is a query,
+  // not a model call.
+  const load = (id, storedTurns) => {
+    if (busy) return;
+    const shown = [];
+    const sent = [];
+    let lastReport = null;
+    for (const t of storedTurns ?? []) {
+      shown.push({ role: 'user', text: t.question });
+      const reply = replyFromStored(t);
+      shown.push({ role: 'assistant', reply });
+      if (t.rawReply) sent.push({ role: 'user', content: t.question }, { role: 'assistant', content: t.rawReply });
+      if (reply.kind === 'report' && reply.spec) lastReport = { reply, question: t.question };
+    }
+    setConversationId(id);
+    setTurns(shown);
+    setHistory(sent.slice(-MAX_HISTORY));
+    setInput('');
+    lastQuestion.current = '';
+    if (lastReport) onReport(lastReport.reply, lastReport.question);
+  };
+
   // Start over: a new thread id, and nothing on screen or in the history the
   // model is sent. The old conversation stays in the store under its own id.
   const newConversation = () => {
@@ -87,6 +141,6 @@ export function useAskConversation({ authFetch, currentSpec, onReport }) {
 
   return {
     input, setInput, turns, busy, error, ask, confirmChoice, awaitingAnswer,
-    conversationId, newConversation,
+    conversationId, newConversation, load,
   };
 }

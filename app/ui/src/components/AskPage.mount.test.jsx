@@ -45,6 +45,7 @@ function routes({ run = RUN_RESULT, status = STATUS } = {}) {
     if (String(url).includes('/nl-reports/status')) return jsonResponse(status);
     if (String(url).includes('/nl-reports/interpret')) return jsonResponse(REPORT_REPLY);
     if (String(url).includes('/nl-reports/run')) return jsonResponse(run);
+    if (String(url).includes('/nl-reports/conversations')) return jsonResponse({ conversations: [] });
     return jsonResponse({});
   });
 }
@@ -132,5 +133,77 @@ describe('AskPage', () => {
     await screen.findByRole('textbox');
     expect(screen.queryByText(/Understood as/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+});
+
+describe('history on the Ask page', () => {
+  const LIST = [{ conversationId: 'c-old', firstQuestion: 'van welke groepen ben ik owner?', lastAt: '2026-09-22T15:25:00Z', turns: 1 }];
+  const OLD_TURNS = [{
+    question: 'van welke groepen ben ik owner?', outcome: 'answered', definition: REPORT_REPLY.spec,
+    rawReply: JSON.stringify({ kind: 'report', assumptions: [], spec: REPORT_REPLY.spec }), createdAt: '2026-09-22T15:25:00Z',
+  }];
+
+  function withHistory({ list = LIST, turns = OLD_TURNS } = {}) {
+    return makeAuthFetch((url) => {
+      const u = String(url);
+      if (u.includes('/nl-reports/status')) return jsonResponse(STATUS);
+      if (u.includes('/nl-reports/conversations/')) return jsonResponse({ conversationId: 'c-old', turns });
+      if (u.includes('/nl-reports/conversations')) return jsonResponse({ conversations: list });
+      if (u.includes('/nl-reports/interpret')) return jsonResponse(REPORT_REPLY);
+      if (u.includes('/nl-reports/run')) return jsonResponse(RUN_RESULT);
+      return jsonResponse({});
+    });
+  }
+
+  it('lists earlier conversations beside the chat', async () => {
+    renderPage({ authFetch: withHistory() });
+    expect(await screen.findByText('van welke groepen ben ik owner?')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /New conversation/ })).toBeInTheDocument();
+  });
+
+  it('opens an earlier conversation: its turns come back on screen and its last answer is run again', async () => {
+    const authFetch = withHistory();
+    renderPage({ authFetch });
+    const { fireEvent } = await import('@testing-library/react');
+    fireEvent.click(await screen.findByText('van welke groepen ben ik owner?'));
+
+    // The question is now in the chat as well as in the sidebar.
+    await waitFor(() => expect(screen.getAllByText('van welke groepen ben ik owner?').length).toBeGreaterThan(1));
+    expect(await screen.findByText(/updated the report definition/)).toBeInTheDocument();
+    await waitFor(() => expect(authFetch.mock.calls.map(c => String(c[0])).some(u => u.includes('/nl-reports/run'))).toBe(true));
+    expect(await screen.findByText('ASML')).toBeInTheDocument();
+  });
+
+  it('says so when an earlier conversation cannot be opened', async () => {
+    const authFetch = makeAuthFetch((url) => {
+      const u = String(url);
+      if (u.includes('/nl-reports/status')) return jsonResponse(STATUS);
+      if (u.includes('/nl-reports/conversations/')) return jsonResponse({ error: 'gone' }, { ok: false, status: 404 });
+      if (u.includes('/nl-reports/conversations')) return jsonResponse({ conversations: LIST });
+      return jsonResponse({});
+    });
+    renderPage({ authFetch });
+    const { fireEvent } = await import('@testing-library/react');
+    fireEvent.click(await screen.findByText('van welke groepen ben ik owner?'));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/);
+  });
+
+  it('starts a new conversation with an empty chat', async () => {
+    renderPage({ authFetch: withHistory() });
+    await ask();
+    expect(await screen.findByText(/Understood as/i)).toBeInTheDocument();
+    const { fireEvent } = await import('@testing-library/react');
+    fireEvent.click(screen.getByRole('button', { name: /New conversation/ }));
+    await waitFor(() => expect(screen.queryByText(/Understood as/i)).not.toBeInTheDocument());
+  });
+
+  it('re-reads the list once a question has been answered, so the new chat appears', async () => {
+    const authFetch = withHistory();
+    renderPage({ authFetch });
+    await screen.findByText('van welke groepen ben ik owner?');
+    const before = authFetch.mock.calls.filter(c => /\/nl-reports\/conversations$/.test(String(c[0]))).length;
+    await ask();
+    await screen.findByText(/Understood as/i);
+    await waitFor(() => expect(authFetch.mock.calls.filter(c => /\/nl-reports\/conversations$/.test(String(c[0]))).length).toBeGreaterThan(before));
   });
 });

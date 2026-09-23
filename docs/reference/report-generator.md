@@ -133,6 +133,13 @@ reports an analyst depends on; an analyst holds both, so nothing they could do b
 changes. Warming the model stays with `data.write.reports` — one model server, one slot,
 shared by everyone, so spending its CPU is not a read action.
 
+Every question on the Ask tab is kept in the conversation store for the store's retention period
+(90 days by default, `TEAMS_BOT_LOG_RETENTION_DAYS`), per person. The tab lists your earlier
+conversations beside the chat; opening one brings its turns back and re-runs its last answer — a
+query, never a model call — and the next question continues the thread the model actually had.
+Nobody sees anyone else's conversations, and a deployment without sign-in has nobody to list them
+for, so it shows none.
+
 The Ask tab appears only when **custom reports** is switched on *and* the caller holds
 the permission. It is hidden rather than shown-and-refused, because the routes behind it
 answer 403 and a door that does not open is worse than no door.

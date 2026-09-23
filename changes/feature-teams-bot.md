@@ -22,3 +22,4 @@
 - The Ask tab now knows who is asking: "my groups" and "mijn medewerkers" mean you, exactly as in the Teams bot.
 - A first name typed in lower case ("william") is now recognised as a name and looked up, instead of being guessed to be a group.
 - Fixed: a question that referred to yourself could take a second model round for no reason. The model was told to write a placeholder for your account, then told that placeholder was invalid, then made to try again. The placeholder is now resolved before the check.
+- The Ask tab now keeps your conversations: earlier ones are listed beside the chat, you can open one to pick it up where you left off (its last answer comes back with it), and start a fresh one with one click.

@@ -527,3 +527,49 @@ describe('who is asking, on the web', () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe('earlier conversations', () => {
+  const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const signedIn = mountRouterAs(router, () => ({ oid: OID }));
+  const ROWS = [
+    { id: '11111111-1111-1111-1111-111111111111', question: 'van welke groepen ben ik owner?', definition: SPEC, outcome: 'answered', rawReply: '{"kind":"report"}', createdAt: '2026-09-23T09:00:00Z' },
+  ];
+
+  it('lists nothing for nobody, without asking the database', async () => {
+    const res = await api().get('/api/nl-reports/conversations');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ conversations: [] });
+    expect(query.mock.calls.some(c => /GROUP BY "conversationId"/.test(c[0]))).toBe(false);
+  });
+
+  it('lists the signed-in person\u2019s own conversations', async () => {
+    query.mockResolvedValue({ rows: [{ conversationId: 'c-1', firstQuestion: 'q', turns: 1 }] });
+    const res = await request(signedIn).get('/api/nl-reports/conversations?limit=5');
+    expect(res.status).toBe(200);
+    expect(res.body.conversations).toHaveLength(1);
+    const [, params] = query.mock.calls.find(c => /GROUP BY "conversationId"/.test(c[0]));
+    expect(params).toEqual([OID, 'web', 5]);
+  });
+
+  it('returns the turns of one conversation, in order, with what resuming needs', async () => {
+    query.mockResolvedValue({ rows: ROWS });
+    const res = await request(signedIn).get('/api/nl-reports/conversations/c-1');
+    expect(res.status).toBe(200);
+    expect(res.body.conversationId).toBe('c-1');
+    expect(res.body.turns[0]).toMatchObject({ question: 'van welke groepen ben ik owner?', rawReply: '{"kind":"report"}' });
+    const [, params] = query.mock.calls.find(c => /"conversationId" = \$2/.test(c[0]));
+    expect(params).toEqual([OID, 'c-1']);
+  });
+
+  it('answers 404 for a conversation that is not this person\u2019s, and for one that does not exist', async () => {
+    query.mockResolvedValue({ rows: [] });
+    expect((await request(signedIn).get('/api/nl-reports/conversations/c-9')).status).toBe(404);
+    expect((await api().get('/api/nl-reports/conversations/c-1')).status).toBe(404);
+  });
+
+  it('refuses an id that is not a plain key before touching the database', async () => {
+    const res = await request(signedIn).get('/api/nl-reports/conversations/' + encodeURIComponent('a b'));
+    expect(res.status).toBe(400);
+    expect(query).not.toHaveBeenCalled();
+  });
+});

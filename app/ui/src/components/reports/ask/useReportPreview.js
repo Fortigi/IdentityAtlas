@@ -54,5 +54,10 @@ export function useReportPreview(authFetch) {
   // A hand edit: the preview no longer shows this definition.
   const editSpec = (s) => { setSpec(s); setDirty(true); };
 
-  return { spec, setSpec, editSpec, dirty, result, running, runError, confirm, run, confirmChoice };
+  // Back to nothing: no definition, no result, no pending choice. What the Ask
+  // tab does when a conversation starts over or another one is opened — a
+  // result left on screen from the previous chat would read as this one's.
+  const reset = () => { setSpec(null); setDirty(false); setResult(null); setRunError(null); setConfirm(null); };
+
+  return { spec, setSpec, editSpec, dirty, result, running, runError, confirm, run, confirmChoice, reset };
 }

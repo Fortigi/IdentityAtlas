@@ -19,9 +19,12 @@
 // analyst sees are different rights, and this page is for people who should
 // only have the first.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useFetch } from '@ui/hooks/useFetch';
 import AskAssistant from '@ui/components/reports/ask/AskAssistant';
+import AskHistory from '@ui/components/AskHistory';
+import { useAskConversation } from '@ui/components/reports/ask/useAskConversation';
 import ListReportRenderer from '@ui/components/reports/ListReportRenderer';
 import { useReportPreview } from '@ui/components/reports/ask/useReportPreview';
 import ReportNotices from '@ui/components/reports/ReportNotices';
@@ -53,19 +56,58 @@ export default function AskPage({ onOpenDetail }) {
   const { authFetch } = useAuth();
   const preview = useReportPreview(authFetch);
   const [question, setQuestion] = useState('');
+  const [openError, setOpenError] = useState(null);
 
   // A definition came back from the model: run it straight away. The builder
   // waits for the analyst to press Run because they may want to edit it first;
   // here there is nothing to edit, so waiting would only be a second click.
+  // A resumed conversation reports its last answer the same way, so its rows
+  // come back with it — a query, never a model call.
   const onReport = (reply, asked) => {
     setQuestion(asked);
     preview.run(reply.spec, reply.logId);
   };
 
+  // The page owns the conversation, so the history can load one into it.
+  const convo = useAskConversation({ authFetch, currentSpec: null, onReport });
+
+  // This person's earlier conversations. Re-read whenever a turn lands, so the
+  // one in progress appears in the list as soon as it has been recorded.
+  const history = useFetch('/api/nl-reports/conversations', { authFetch, transform: d => d.conversations ?? [] });
+  const turnCount = convo.turns.length;
+  const reloadHistory = history.reload;
+  useEffect(() => { if (turnCount) reloadHistory(); }, [turnCount, reloadHistory]);
+
+  const openConversation = async (id) => {
+    setOpenError(null);
+    try {
+      const res = await authFetch(`/api/nl-reports/conversations/${encodeURIComponent(id)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { turns } = await res.json();
+      preview.reset();
+      convo.load(id, turns);
+    } catch (e) {
+      setOpenError(e.message);
+    }
+  };
+
+  const startNew = () => {
+    convo.newConversation();
+    setQuestion('');
+    preview.reset();
+  };
+
   const { result, running, runError, confirm } = preview;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-4">
+    <div className="mx-auto max-w-6xl p-4 md:grid md:grid-cols-[15rem_1fr] md:gap-8">
+      <aside className="mb-6 md:mb-0">
+        <AskHistory conversations={history.data ?? []} activeId={convo.conversationId}
+                    loading={history.loading} error={history.error?.message ?? openError}
+                    busy={convo.busy || running} onNew={startNew} onOpen={openConversation} />
+      </aside>
+
+      <div className="space-y-6">
       <header>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Ask</h1>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
@@ -74,7 +116,7 @@ export default function AskPage({ onOpenDetail }) {
         </p>
       </header>
 
-      <AskAssistant onReport={onReport} />
+      <AskAssistant onReport={onReport} conversation={convo} />
 
       {running && (
         <p className="text-sm text-gray-600 dark:text-gray-400" aria-live="polite">
@@ -107,6 +149,7 @@ export default function AskPage({ onOpenDetail }) {
           </p>
         </section>
       )}
+      </div>
     </div>
   );
 }

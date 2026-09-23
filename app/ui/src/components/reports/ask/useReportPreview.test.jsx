@@ -72,3 +72,17 @@ describe('the conversation-store row', () => {
     expect(seen[1]).not.toHaveProperty('logId');
   });
 });
+
+describe('starting over', () => {
+  it('clears the definition, the result and a pending choice together', async () => {
+    // The Ask tab calls this when a conversation starts over or another one is
+    // opened. A result left on screen from the previous chat would read as
+    // this one's answer.
+    const { hook } = setup({ '/run': { spec: NORMALISED, total: 3 } });
+    await act(() => hook.result.current.run(SENT));
+    expect(hook.result.current.result.total).toBe(3);
+
+    act(() => hook.result.current.reset());
+    expect(hook.result.current).toMatchObject({ spec: null, dirty: false, result: null, runError: null, confirm: null });
+  });
+});
