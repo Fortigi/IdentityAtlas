@@ -31,6 +31,10 @@ const isHistoryTurn = (h) => !!h && ['user', 'assistant'].includes(h.role) && ty
  * Shared by both assistants.
  * @returns {{ error: string } | { question: string, history: {role:string, content:string}[] }}
  */
+// Client-generated, one per chat, so the turns of a conversation share a thread
+// in the store. Shape-checked only: it is a grouping key, not a credential.
+const CONVERSATION_ID = /^[A-Za-z0-9:_-]{1,100}$/;
+
 export function parseInterpretRequest(body) {
   const question = typeof body?.question === 'string' ? body.question.trim() : '';
   const history = Array.isArray(body?.history) ? body.history : [];
@@ -39,11 +43,18 @@ export function parseInterpretRequest(body) {
   // `model` in the body is an evaluation override (tools/nl-reports/eval.mjs); the UI never sends it.
   if (body?.model !== undefined && !MODEL_NAME.test(String(body.model))) return { error: 'Invalid model name' };
   if (!history.every(isHistoryTurn)) return { error: 'Invalid conversation history' };
+  const conversationId = body?.conversationId === undefined || body?.conversationId === null
+    ? null : String(body.conversationId);
+  if (conversationId !== null && !CONVERSATION_ID.test(conversationId)) return { error: 'Invalid conversation id' };
   const cleanHistory = history.map(h => ({ role: h.role, content: h.content }));
   if (cleanHistory.reduce((n, h) => n + h.content.length, 0) > MAX_HISTORY_CHARS) {
     return { error: 'Conversation is too long — start a new question' };
   }
-  return { question, history: cleanHistory };
+  // Present only when the client sent one: a caller that never threads its
+  // questions gets exactly the shape it always got.
+  return conversationId === null
+    ? { question, history: cleanHistory }
+    : { question, history: cleanHistory, conversationId };
 }
 
 export const userOf = (req) => (req.user && (req.user.email || req.user.upn || req.user.preferred_username || req.user.name)) || 'unknown';

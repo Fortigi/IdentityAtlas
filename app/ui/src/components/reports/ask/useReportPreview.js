@@ -16,12 +16,15 @@ export function useReportPreview(authFetch) {
 
   // Stable, so the saved-report preview fires once per definition rather than on
   // every render.
-  const run = useCallback(async (s) => {
+  // `logId` is the conversation-store row /interpret wrote for this definition;
+  // /run fills in what it returned. The builder runs edited definitions with no
+  // row behind them and passes nothing.
+  const run = useCallback(async (s, logId) => {
     setRunning(true);
     setRunError(null);
     setConfirm(null);
     try {
-      const r = await postJson(authFetch, '/api/nl-reports/run', { spec: s });
+      const r = await postJson(authFetch, '/api/nl-reports/run', logId ? { spec: s, logId } : { spec: s });
       setResult(r);
       setSpec(r.spec);
       setDirty(false);

@@ -31,7 +31,7 @@ import {
   MAX_ROWS as MAX_CARD_ROWS, MAX_COLUMNS as MAX_CARD_COLUMNS,
 } from './card.js';
 import { detectLanguage, strings } from './text.js';
-import { logConversation, newConversationId } from './log.js';
+import { logConversation, newConversationId, OUTCOMES, SURFACES } from './log.js';
 import { forLog } from '../nlreports/assistantHttp.js';
 import { setPending, takePending, rememberAnswer, recallAnswer } from './state.js';
 import {
@@ -237,16 +237,16 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
         { role: 'assistant', content: reply.raw },
       ],
     });
-    return { kind: 'clarify', question: reply.question, options: reply.options, timing: reply.timing };
+    return { kind: 'clarify', question: reply.question, options: reply.options, timing: reply.timing, ...told(reply) };
   }
 
   if (reply.kind === 'confirm') {
     setPending(message.conversationId, { kind: 'confirm', confirm: reply.confirm, spec: reply.spec });
-    return { kind: 'confirm', confirm: reply.confirm, timing: reply.timing };
+    return { kind: 'confirm', confirm: reply.confirm, timing: reply.timing, ...told(reply) };
   }
 
   if (reply.kind !== 'report' || !reply.spec) {
-    return { kind: 'not-understood', errors: reply.errors, timing: reply.timing };
+    return { kind: 'not-understood', errors: reply.errors, timing: reply.timing, ...told(reply) };
   }
 
   // The caller's own account, then the previous answer's records — by the
@@ -293,6 +293,21 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
     result,
     followedUp,
     carriedCount: carried?.records?.length ?? 0,
+    ...told(reply),
+  };
+}
+
+/**
+ * What the pipeline was told and what it replied, carried to the log. An
+ * answer built without a model call (a "did you mean" applied straight to the
+ * previous definition) has none of it, and records nulls.
+ */
+function told(reply) {
+  return {
+    context: reply?.context ?? null,
+    raw: reply?.raw ?? null,
+    repaired: typeof reply?.repaired === 'boolean' ? reply.repaired : null,
+    model: reply?.model ?? null,
   };
 }
 
@@ -306,8 +321,13 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
  */
 async function finish(outcome, ctx) {
   const common = {
+    surface: SURFACES.TEAMS,
     callerPrincipalId: ctx.caller.principalId,
     modelMs: outcome.timing?.totalMs ?? outcome.timing?.total ?? null,
+    context: outcome.context ?? null,
+    rawReply: outcome.raw ?? null,
+    repaired: outcome.repaired ?? null,
+    model: outcome.model ?? null,
   };
   if (outcome.kind === 'clarify') return finishClarify(outcome, ctx, common);
   if (outcome.kind === 'confirm') return finishConfirm(outcome, ctx, common);
@@ -329,10 +349,12 @@ async function finishClarify(outcome, { id, record, language }, common) {
  */
 async function finishConfirm(outcome, { id, record, language }, common) {
   const { message: ask, choices = [] } = outcome.confirm;
-  await record({ ...common, outcome: 'clarified', clarification: ask });
+  // Its own outcome since 071: the model was unsure of a NAME, not of the
+  // question, and an evaluation wants to count those apart.
+  await record({ ...common, outcome: OUTCOMES.CONFIRM, clarification: ask });
   return {
     attachment: clarifyCard(ask, choices.map(c => c.name).filter(Boolean), language),
-    outcome: 'clarified',
+    outcome: OUTCOMES.CONFIRM,
     conversationLogId: id,
   };
 }

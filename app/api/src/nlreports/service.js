@@ -123,9 +123,18 @@ function parseReply(content) {
  * The conversation sent to the model: system prompt, earlier turns, then the
  * question with the deployment's values in front of it (when there are any).
  */
-function buildMessages(question, history, values, located = [], attributes = [], callerContext = '') {
-  const context = [callerContext, buildValuesBlock(values), termHint(located), attributesBlock(attributes)]
+/**
+ * Everything put in front of the question for the model on this turn. Kept as
+ * its own value — not just assembled inside the messages — because it is what
+ * the conversation store records: an evaluation that cannot see what the model
+ * was told cannot say whether the model or the prompt got it wrong.
+ */
+export function contextFor({ values, located = [], attributes = [], callerContext = '' }) {
+  return [callerContext, buildValuesBlock(values), termHint(located), attributesBlock(attributes)]
     .filter(Boolean).join('\n\n');
+}
+
+function buildMessages(question, history, context) {
   return [
     { role: 'system', content: buildSystemPrompt() },
     ...history,
@@ -151,7 +160,9 @@ export function schemaFor(history, extraFieldNames = []) {
 
 /** The fields every interpret() reply ends with. */
 function replyMeta(ctx, turn) {
-  return { raw: turn.raw, timing: turn.timing, model: ctx.model, repaired: turn.repaired };
+  // `context` is what the model was told beside the question; `raw` is its
+  // last reply. Both go to the conversation store, on every surface.
+  return { raw: turn.raw, timing: turn.timing, model: ctx.model, repaired: turn.repaired, context: ctx.context ?? '' };
 }
 
 /** Ask again after the model's last answer, with a correction. Counts as a repair. */
@@ -311,10 +322,12 @@ export async function interpret({ question, context = '', history = [], model = 
   // presented as the answer to "which groups do I own".
   const terms = findTerms(question, values);
   const located = terms.length ? await locateTerms(terms, query, values) : [];
+  const sent = contextFor({ values, located, attributes, callerContext: context });
   const ctx = {
     question, model, values, located, extFields,
+    context: sent,
     reportSchema: buildReplySchemas(extraFieldNames).reportOnly,
-    messages: buildMessages(question, history, values, located, attributes, context),
+    messages: buildMessages(question, history, sent),
   };
 
   const first = await chat({ model, messages: ctx.messages, schema });

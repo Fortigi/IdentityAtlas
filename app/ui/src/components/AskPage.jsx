@@ -59,7 +59,7 @@ export default function AskPage({ onOpenDetail }) {
   // here there is nothing to edit, so waiting would only be a second click.
   const onReport = (reply, asked) => {
     setQuestion(asked);
-    preview.run(reply.spec);
+    preview.run(reply.spec, reply.logId);
   };
 
   const { result, running, runError, confirm } = preview;

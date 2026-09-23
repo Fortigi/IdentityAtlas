@@ -235,7 +235,7 @@ describe('answerMessage — when the model is unsure', () => {
     const d = deps({ interpret: vi.fn(async () => ({ kind: 'confirm', confirm, spec, timing: {} })) });
 
     const asked = await answerMessage(msg({ text: 'which groups is Jan in' }), d);
-    expect(asked.outcome).toBe('clarified');
+    expect(asked.outcome).toBe('confirm');
     expect(text(asked.attachment)).toContain('Jan de Vries');
 
     d.interpret.mockClear();
@@ -717,5 +717,51 @@ describe('what the log says about a slow answer', () => {
     } finally {
       log.mockRestore();
     }
+  });
+});
+
+describe('what the bot leaves in the conversation store', () => {
+  // Since migration 071 the store is the evidence for "was the answer right",
+  // not only "how long did it take". That needs what the model was told and
+  // what it said, on every outcome that involved the model.
+  it('records the surface, the context the model was given and its raw reply', async () => {
+    const d = deps({
+      interpret: vi.fn(async () => ({
+        kind: 'report', spec: structuredClone(reportSpec), timing: { totalMs: 1 },
+        context: 'The person asking this question is Wim', raw: '{"kind":"report"}', repaired: true, model: 'qwen3:4b',
+      })),
+    });
+    await answerMessage(msg(), d);
+    const row = d.log.mock.calls[0][0];
+    expect(row.surface).toBe('teams');
+    expect(row.context).toContain('Wim');
+    expect(row.rawReply).toBe('{"kind":"report"}');
+    expect(row.repaired).toBe(true);
+    expect(row.model).toBe('qwen3:4b');
+  });
+
+  it('records them for a clarifying question too — that turn is the one worth reviewing', async () => {
+    const d = deps({
+      interpret: vi.fn(async () => ({ kind: 'clarify', question: 'Which Finance?', options: [], raw: '{"kind":"clarify"}', context: 'ctx', repaired: false })),
+    });
+    await answerMessage(msg(), d);
+    const row = d.log.mock.calls[0][0];
+    expect(row.rawReply).toBe('{"kind":"clarify"}');
+    expect(row.context).toBe('ctx');
+    expect(row.repaired).toBe(false);
+  });
+
+  it('records nulls, not the previous turn, when no model call was made', async () => {
+    // Answering a "did you mean" applies the choice to the earlier definition
+    // without asking the model. There is nothing it was told this turn.
+    const d = deps({ runSpec: vi.fn(async () => runResult()) });
+    const confirm = { kind: 'reference', path: [0], name: 'Fin', message: 'Did you mean?', choices: [{ name: 'Finance', id: 'g1' }] };
+    const first = deps({ interpret: vi.fn(async () => ({ kind: 'confirm', confirm, spec: structuredClone(reportSpec), timing: {}, raw: 'r', context: 'c' })) });
+    await answerMessage(msg({ text: 'members of Fin' }), first);
+    await answerMessage(msg({ text: 'Finance' }), d);
+    const row = d.log.mock.calls[0][0];
+    expect(row.rawReply).toBe(null);
+    expect(row.context).toBe(null);
+    expect(row.repaired).toBe(null);
   });
 });

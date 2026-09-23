@@ -8,6 +8,11 @@ import { useBusyRun } from '@ui/hooks/useBusyRun';
 
 export const MAX_HISTORY = 10;
 
+// One per chat. It ties the turns together in the conversation store, which is
+// what makes a history list and "continue this conversation" possible at all.
+const freshConversationId = () =>
+  globalThis.crypto?.randomUUID?.() ?? `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
 // The builder's current definition (possibly edited by hand) is the latest
 // truth, so it is sent as the last thing "said" before the new message.
 export function specContext(currentSpec) {
@@ -30,6 +35,7 @@ export function useAskConversation({ authFetch, currentSpec, onReport }) {
   const [history, setHistory] = useState([]);
   const { busy, error, run } = useBusyRun();
   const lastQuestion = useRef('');
+  const [conversationId, setConversationId] = useState(freshConversationId);
 
   const addTurn = (turn) => setTurns(t => [...t, turn]);
 
@@ -40,7 +46,9 @@ export function useAskConversation({ authFetch, currentSpec, onReport }) {
     await run(async () => {
       addTurn({ role: 'user', text: question });
       const reply = await postJson(authFetch, '/api/nl-reports/interpret', {
-        question, history: [...history, ...specContext(currentSpec)].slice(-MAX_HISTORY),
+        question,
+        history: [...history, ...specContext(currentSpec)].slice(-MAX_HISTORY),
+        conversationId,
       });
       addTurn({ role: 'assistant', reply });
       setHistory(h => [...h, { role: 'user', content: question }, { role: 'assistant', content: reply.raw || '' }].slice(-MAX_HISTORY));
@@ -63,8 +71,22 @@ export function useAskConversation({ authFetch, currentSpec, onReport }) {
     }
   });
 
+  // Start over: a new thread id, and nothing on screen or in the history the
+  // model is sent. The old conversation stays in the store under its own id.
+  const newConversation = () => {
+    if (busy) return;
+    setConversationId(freshConversationId());
+    setTurns([]);
+    setHistory([]);
+    setInput('');
+    lastQuestion.current = '';
+  };
+
   const lastTurn = turns[turns.length - 1];
   const awaitingAnswer = lastTurn?.role === 'assistant' && lastTurn.reply.kind === 'clarify';
 
-  return { input, setInput, turns, busy, error, ask, confirmChoice, awaitingAnswer };
+  return {
+    input, setInput, turns, busy, error, ask, confirmChoice, awaitingAnswer,
+    conversationId, newConversation,
+  };
 }

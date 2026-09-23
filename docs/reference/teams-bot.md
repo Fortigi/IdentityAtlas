@@ -342,7 +342,10 @@ Every question writes one row to `BotConversations`:
 
 - who asked (Entra object id), which conversation, when;
 - the question **as typed**, and the language detected;
-- the **validated** report definition (never the model's raw reply);
+- the **validated** report definition — and, since the conversation store (migration 071), the
+  context the model was given and its **raw reply**, so a stronger model can review answer
+  quality later. The reply is read, never run; it contains nothing the question and the
+  definition did not already contain;
 - the outcome, and the clarifying question if one was asked;
 - the row count and the **column names** — never the rows themselves;
 - model time, query time, total time.

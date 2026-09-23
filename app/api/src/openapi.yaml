@@ -703,7 +703,7 @@ paths:
         The entities, fields, relations, operators and pickable columns a report definition may
         use, with the known values of enumerated fields. Alongside the fields every deployment has,
         this includes the `extendedAttributes` keys discovered in this deployment's own data, named
-        `ext.<rawKey>` and marked `discovered`. Requires `data.write.reports`; answers 404 while the
+        `ext.<rawKey>` and marked `discovered`. Requires `data.read.reports`; answers 404 while the
         `customReports` feature is off.
 
       security:
@@ -803,7 +803,7 @@ paths:
       operationId: lookupCustomReportNames
       description: >
         Fuzzy name search used by the builder's reference picker. A search text shorter than 2
-        or longer than 100 characters returns an empty list. Requires `data.write.reports`;
+        or longer than 100 characters returns an empty list. Requires `data.read.reports`;
         answers 404 while the `customReports` feature is off.
       security:
         - EntraIdBearer: []
@@ -854,7 +854,7 @@ paths:
       description: >
         Whether the local model server is reachable and serves the configured model. Never fails
         on an unreachable server — it reports `available: false` with a reason instead. Requires
-        `data.write.reports`; answers 404 while the `customReports` feature is off.
+        `data.read.reports`; answers 404 while the `customReports` feature is off.
       security:
         - EntraIdBearer: []
       responses:
@@ -934,7 +934,7 @@ paths:
         Sends a plain-language question (plus earlier conversation turns) to the local model and
         returns a validated report definition (`report`), a definition whose named objects need
         confirming (`confirm`), a clarifying question (`clarify`), or `error` when the model's
-        answer could not be used. Requires `data.write.reports`; answers 404 while the
+        answer could not be used. Requires `data.read.reports`; answers 404 while the
         `customReports` feature is off.
       security:
         - EntraIdBearer: []
@@ -967,6 +967,12 @@ paths:
                   type: string
                   pattern: '^[A-Za-z0-9._:/-]{1,100}$'
                   description: Evaluation override of the configured model; the UI never sends it.
+                conversationId:
+                  type: string
+                  pattern: '^[A-Za-z0-9:_-]{1,100}$'
+                  description: >
+                    Client-generated key shared by every turn of one chat, so the conversation
+                    store can thread them. Optional.
       responses:
         '200':
           description: The model's interpretation
@@ -1010,6 +1016,15 @@ paths:
                   raw:
                     type: string
                     description: The model's raw reply.
+                  context:
+                    type: string
+                    description: What was put in front of the question for the model on this turn.
+                  logId:
+                    type: string
+                    format: uuid
+                    description: >
+                      The conversation-store row this turn wrote. Pass it to /nl-reports/run so
+                      the row is completed with what the definition returned.
                   timing:
                     type: object
                     additionalProperties: true
@@ -1040,7 +1055,7 @@ paths:
       description: >
         Validates a report definition, applies the analyst's answer to a "did you mean"
         confirmation (when `choice` is given), and looks up the objects it names again. No model
-        is involved. Requires `data.write.reports`; answers 404 while the `customReports` feature
+        is involved. Requires `data.read.reports`; answers 404 while the `customReports` feature
         is off.
       security:
         - EntraIdBearer: []
@@ -1105,7 +1120,7 @@ paths:
         Validates and runs a report definition in a read-only transaction with a statement
         timeout. A definition that is invalid, or names an object that still needs confirming,
         answers 400 with the errors, the confirmation and the validated definition. Requires
-        `data.write.reports`; answers 404 while the `customReports` feature is off.
+        `data.read.reports`; answers 404 while the `customReports` feature is off.
       security:
         - EntraIdBearer: []
       requestBody:
@@ -1118,6 +1133,13 @@ paths:
               properties:
                 spec:
                   $ref: '#/components/schemas/ReportDefinition'
+                logId:
+                  type: string
+                  format: uuid
+                  description: >
+                    The row /nl-reports/interpret wrote for this definition. When given, and only
+                    when the definition run is exactly the one logged, the row is completed with
+                    the row count, column names and query time. Optional.
       responses:
         '200':
           description: Report rows
@@ -1326,7 +1348,7 @@ paths:
       operationId: getSavedCustomReport
       description: >
         One saved report with its definition, for editing in the builder. Requires
-        `data.write.reports`; answers 404 while the `customReports` feature is off.
+        `data.read.reports`; answers 404 while the `customReports` feature is off.
       security:
         - EntraIdBearer: []
       responses:

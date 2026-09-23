@@ -28,6 +28,8 @@ import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE, fieldsOf } from '../nlreports/c
 import { availableColumns, groupableFields } from '../nlreports/spec.js';
 import { loadExtFields } from '../nlreports/extFields.js';
 import { applyResolveChoice, ensureWarm, interpret, loadValues, runSpec, warmupState } from '../nlreports/service.js';
+import { completeRun, logConversation, newConversationId, OUTCOMES, SURFACES } from '../nlreports/conversations.js';
+import { detectLanguage } from '../teamsbot/text.js';
 import { MODEL_IS_FIXED, listModels } from '../nlreports/llm.js';
 import {
   forLog, generatorStatus, oneQuestionAtATime, parseInterpretRequest, userOf, warmHandler,
@@ -133,10 +135,24 @@ router.post('/nl-reports/warm', analystGate, warmHandler({ ensureWarm, warmupSta
 router.post('/nl-reports/interpret', askGate, async (req, res) => {
   const parsed = parseInterpretRequest(req.body);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  const { question, history: cleanHistory } = parsed;
+  const { question, history: cleanHistory, conversationId } = parsed;
   const started = Date.now();
   const who = claimQuestion(req, res);
   if (!who) return;
+  // Allocated up front: /run completes this row later, so the id has to exist
+  // before anything is written, exactly as the bot's deep link does.
+  const logId = newConversationId();
+  const record = (fields) => logConversation({
+    id: logId,
+    surface: SURFACES.WEB,
+    callerOid: req.user?.oid ?? null,
+    callerPrincipalId: null,
+    conversationId,
+    question,
+    language: detectLanguage(question),
+    totalMs: Date.now() - started,
+    ...fields,
+  });
   try {
     const model = req.body?.model ? String(req.body.model) : await getReportModel();
     // Audit trail: who asked what, with which model — logged on arrival, so a question
@@ -145,12 +161,36 @@ router.post('/nl-reports/interpret', askGate, async (req, res) => {
     console.log(`nl-reports interpret: ${who} model=${forLog(model, 100)} question="${forLog(question)}"`);
     const reply = await interpret({ question, history: cleanHistory, model });
     console.log(`nl-reports interpret: ${who} outcome=${reply.kind}${reply.repaired ? ' repaired' : ''} ms=${Date.now() - started}`);
-    res.json(reply);
+    // The same row the Teams bot writes, so an evaluation reads one table. A
+    // report is `interpreted` until /run says what it returned.
+    await record({
+      outcome: WEB_OUTCOME[reply.kind] ?? OUTCOMES.NOT_UNDERSTOOD,
+      definition: reply.spec ?? null,
+      clarification: reply.kind === 'clarify' ? reply.question : reply.confirm?.message ?? null,
+      error: reply.kind === 'error' ? reply.message : null,
+      modelMs: reply.timing?.totalMs ?? reply.timing?.total ?? null,
+      context: reply.context ?? null,
+      rawReply: reply.raw ?? null,
+      repaired: reply.repaired,
+      model: reply.model ?? model,
+    });
+    res.json({ ...reply, logId });
   } catch (err) {
     console.log(`nl-reports interpret: ${who} outcome=failed ms=${Date.now() - started}`);
+    await record({ outcome: OUTCOMES.FAILED, error: err.message });
     fail(res, 'interpret', err, 502);
   }
 });
+
+/** What each reply kind is filed as. Every value is one the CHECK constraint accepts. */
+const WEB_OUTCOME = Object.freeze({
+  report: OUTCOMES.INTERPRETED,
+  clarify: OUTCOMES.CLARIFIED,
+  confirm: OUTCOMES.CONFIRM,
+  error: OUTCOMES.NOT_UNDERSTOOD,
+});
+
+const LOG_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Re-exported: applying a "did you mean" answer is pipeline logic, not HTTP, and
 // it now lives beside interpret()/runSpec() so a second front end (the Teams bot)
@@ -179,9 +219,27 @@ router.post('/nl-reports/resolve', askGate, async (req, res) => {
 
 router.post('/nl-reports/run', askGate, async (req, res) => {
   if (!req.body?.spec || typeof req.body.spec !== 'object') return res.status(400).json({ error: 'spec is required' });
+  // The row /interpret wrote, when the caller is running that same definition.
+  // Optional: the builder runs edited definitions with no row behind them.
+  const logId = req.body.logId === undefined ? null : String(req.body.logId);
+  if (logId !== null && !LOG_ID.test(logId)) return res.status(400).json({ error: 'Invalid log id' });
   try {
     const result = await runSpec(req.body.spec);
     if (!result.ok) return res.status(400).json({ error: 'Invalid report definition', errors: result.errors, confirm: result.confirm, spec: result.spec });
+    if (logId) {
+      // Best-effort and guarded inside: only the waiting row, for this caller,
+      // for exactly this definition. An edited-and-rerun report is a different
+      // report and leaves the original question's row alone.
+      await completeRun({
+        id: logId,
+        callerOid: req.user?.oid ?? null,
+        definition: result.spec,
+        rowCount: result.rows.length,
+        columns: result.columns.map(c => c.key),
+        truncated: !!result.truncated,
+        queryMs: result.elapsedMs ?? null,
+      });
+    }
     res.json(result);
   } catch (err) {
     fail(res, 'run', err);

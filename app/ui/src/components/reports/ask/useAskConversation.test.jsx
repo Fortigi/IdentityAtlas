@@ -86,3 +86,36 @@ describe('useAskConversation', () => {
     expect(specContext(null)).toEqual([]);
   });
 });
+
+describe('the conversation thread', () => {
+  it('sends the same conversation id with every question of one chat', async () => {
+    const bodies = [];
+    const { result } = setup((url, body) => {
+      bodies.push(body);
+      return json({ kind: 'clarify', question: 'Which?', raw: 'r' });
+    });
+    await act(() => result.current.ask('first'));
+    await act(() => result.current.ask('second'));
+
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0].conversationId).toMatch(/^[A-Za-z0-9:_-]{1,100}$/);
+    expect(bodies[1].conversationId).toBe(bodies[0].conversationId);
+    expect(result.current.conversationId).toBe(bodies[0].conversationId);
+  });
+
+  it('starts a new conversation with a fresh id and nothing on screen', async () => {
+    const bodies = [];
+    const { result } = setup((url, body) => { bodies.push(body); return json({ kind: 'clarify', question: 'Which?', raw: 'r' }); });
+    await act(() => result.current.ask('first'));
+    const before = result.current.conversationId;
+
+    act(() => result.current.newConversation());
+    expect(result.current.turns).toEqual([]);
+    expect(result.current.conversationId).not.toBe(before);
+
+    await act(() => result.current.ask('again'));
+    expect(bodies[1].conversationId).toBe(result.current.conversationId);
+    // The model is not sent the old chat's history either.
+    expect(bodies[1].history).toEqual([]);
+  });
+});

@@ -88,10 +88,18 @@ function renderAsk({
   return { ...rendered, onReport };
 }
 
-// The JSON bodies actually posted to one endpoint, in order.
+// The JSON bodies actually posted to one endpoint, in order — without the
+// conversation id, which every /interpret carries since the conversation store
+// and is asserted on its own below. Leaving it in would make every exact-body
+// assertion in this file repeat the same expect.any(String).
 const bodiesFor = (authFetch, path) => authFetch.mock.calls
   .filter(([url]) => String(url).includes(path))
-  .map(([, opts]) => JSON.parse(opts.body));
+  .map(([, opts]) => { const { conversationId, ...body } = JSON.parse(opts.body); return body; });
+
+/** The conversation ids /interpret was sent, in order. */
+const threadsFor = (authFetch) => authFetch.mock.calls
+  .filter(([url]) => String(url).includes('/nl-reports/interpret'))
+  .map(([, opts]) => JSON.parse(opts.body).conversationId);
 
 const questionBox = (name = /Describe the report you want/) => screen.getByRole('textbox', { name });
 
@@ -332,5 +340,19 @@ describe('AskAssistant', () => {
     await waitFor(() => expect(bodiesFor(authFetch, '/nl-reports/interpret')).toEqual([
       { question: 'disabled users\nstill in a group', history: [] },
     ]));
+  });
+});
+
+describe('the conversation thread', () => {
+  it('sends one conversation id with every question, so the store can thread them', async () => {
+    const { authFetch } = renderAsk({ interpret: thenReport(CLARIFY_REPLY) });
+    await userEvent.type(await screen.findByRole('textbox'), 'accounts without a manager');
+    await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'No manager set' }));
+
+    await waitFor(() => expect(threadsFor(authFetch)).toHaveLength(2));
+    const [first, second] = threadsFor(authFetch);
+    expect(first).toMatch(/^[A-Za-z0-9:_-]{1,100}$/);
+    expect(second).toBe(first);
   });
 });

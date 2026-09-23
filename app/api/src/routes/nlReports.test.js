@@ -47,6 +47,7 @@ import { modelState } from '../nlreports/llm.js';
 import { applyChoice, resolveNamedObjects } from '../nlreports/references.js';
 import { createSavedReport, deleteSavedReport, prepareSavedReport } from '../nlreports/savedReports.js';
 import { loadExtFields } from '../nlreports/extFields.js';
+import { query } from '../db/connection.js';
 import router, { parseInterpretRequest } from './nlReports.js';
 import { MAX_CONDITIONS } from '../nlreports/spec.js';
 
@@ -385,5 +386,80 @@ describe('the catalog', () => {
     expect(res.status).toBe(200);
     expect(res.body.entities.user.fields.every(f => !f.discovered)).toBe(true);
     expect(res.body.entities.user.groupableFields.length).toBeGreaterThan(0);
+  });
+});
+
+describe('the conversation store, from the web', () => {
+  // /interpret writes the same row the Teams bot does; /run completes it. The
+  // database is the automocked connection, so what is asserted is the SQL
+  // that was sent and the id that came back, not a stored row.
+  const insertSql = () => query.mock.calls.map(c => c[0]).find(s => /INSERT INTO "BotConversations"/.test(s));
+  const insertParams = () => query.mock.calls.find(c => /INSERT INTO "BotConversations"/.test(c[0]))[1];
+  const updateCall = () => query.mock.calls.find(c => /UPDATE "BotConversations"/.test(c[0]));
+
+  it('records a question with its context, raw reply and thread, and hands back the row id', async () => {
+    interpret.mockResolvedValue({
+      kind: 'report', spec: SPEC, raw: '{"kind":"report"}', context: 'values block', repaired: false, model: 'm', timing: { totalMs: 5 },
+    });
+    const res = await api().post('/api/nl-reports/interpret').send({ question: 'all guests', conversationId: 'chat-1' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.logId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(insertSql()).toBeTruthy();
+    const p = insertParams();
+    expect(p).toContain('web');
+    expect(p).toContain('chat-1');
+    expect(p).toContain('{"kind":"report"}');
+    expect(p).toContain('values block');
+    expect(p).toContain('interpreted');
+    expect(p).toContain(res.body.logId);
+  });
+
+  it('files a clarifying question and a confirmation under their own outcomes', async () => {
+    interpret.mockResolvedValue({ kind: 'clarify', question: 'Which Finance?', raw: 'r' });
+    await api().post('/api/nl-reports/interpret').send({ question: 'finance' });
+    expect(insertParams()).toContain('clarified');
+    expect(insertParams()).toContain('Which Finance?');
+
+    query.mockClear();
+    interpret.mockResolvedValue({ kind: 'confirm', spec: SPEC, confirm: { message: 'Did you mean Finance?' }, raw: 'r' });
+    await api().post('/api/nl-reports/interpret').send({ question: 'fin' });
+    expect(insertParams()).toContain('confirm');
+    expect(insertParams()).toContain('Did you mean Finance?');
+  });
+
+  it('records a question the model never answered as failed, with the error', async () => {
+    interpret.mockRejectedValue(new Error('connect ECONNREFUSED'));
+    const res = await api().post('/api/nl-reports/interpret').send({ question: 'all guests' });
+    expect(res.status).toBe(502);
+    expect(insertParams()).toContain('failed');
+    expect(insertParams().join(' ')).toContain('ECONNREFUSED');
+  });
+
+  it('refuses a conversation id that is not a plain key', async () => {
+    const res = await api().post('/api/nl-reports/interpret').send({ question: 'x', conversationId: 'a b' });
+    expect(res.status).toBe(400);
+    expect(query.mock.calls.some(c => /INSERT INTO "BotConversations"/.test(c[0]))).toBe(false);
+  });
+
+  it('completes the row when /run is given its id, and leaves the store alone when it is not', async () => {
+    runSpec.mockResolvedValue({ ok: true, spec: SPEC, rows: [{}, {}], columns: [{ key: 'displayName' }], truncated: false, elapsedMs: 12 });
+    query.mockResolvedValue({ rowCount: 1 });
+
+    await api().post('/api/nl-reports/run').send({ spec: SPEC });
+    expect(updateCall()).toBeUndefined();
+
+    const logId = '3f1c2a9e-6b1d-4c2e-9a7b-1234567890ab';
+    await api().post('/api/nl-reports/run').send({ spec: SPEC, logId });
+    const [, params] = updateCall();
+    expect(params[0]).toBe(logId);
+    expect(params).toContain(2);
+    expect(params).toContain(12);
+  });
+
+  it('refuses a log id that is not a uuid before running anything', async () => {
+    const res = await api().post('/api/nl-reports/run').send({ spec: SPEC, logId: 'nope' });
+    expect(res.status).toBe(400);
+    expect(runSpec).not.toHaveBeenCalled();
   });
 });

@@ -18,3 +18,4 @@
 - The bot now waits up to 10 minutes for an answer instead of 7. On the hardware this runs on, an ordinary question that needs a second attempt takes about 8 minutes, and those were being reported as failures.
 - Added an **Ask** tab beside Dashboard: the same plain-language questions the Teams bot answers, in the app itself, with no Teams or Azure setup needed. It shows what it understood above the answer, and the rows link through to the records.
 - Asking a question and building saved reports are now separate rights. Someone with "Ask questions in plain language" can use the Ask tab and the bot without also being able to create, edit or delete the saved reports everyone sees.
+- Every question asked — in the Ask tab or the Teams bot — is now recorded against the person who asked it, together with what the model was told and what it replied, so the quality of answers can be reviewed afterwards. An answer’s rows are still never stored.
