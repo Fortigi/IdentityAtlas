@@ -8,7 +8,7 @@ import { query, tx } from '../db/connection.js';
 import { chat, warm } from './llm.js';
 import { buildSystemPrompt, REPORT_ONLY_SCHEMA, RESPONSE_SCHEMA } from './prompt.js';
 import {
-  ensureWarm, hasAnyMatch, hasDisjunction, interpret, needsOrRepair, runSpec, schemaFor,
+  clearValuesCache, ensureWarm, hasAnyMatch, hasDisjunction, interpret, needsOrRepair, runSpec, schemaFor,
   warmAtStartup, warmupState,
 } from './service.js';
 import { clearExtFieldsCache } from './extFields.js';
@@ -557,5 +557,80 @@ describe('runSpec and the caller placeholder', () => {
     const out = await runSpec(mine);
     expect(out.ok).toBe(false);
     expect(out.errors.join(' ')).toMatch(/@me/);
+  });
+});
+
+describe('interpret — corrections that need no model round', () => {
+  const values = { rows: [{ v: 'Added' }, { v: 'Removed' }] };
+  const change = (conditions, extra = {}) => ({ entity: 'change', match: 'all', conditions, columns: [], ...extra });
+  const william = { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'william' }] };
+  const window = { type: 'field', field: 'changedAt', op: 'withinLastDays', value: 90 };
+
+  // The person lookup (references.js) finds exactly one William; every other
+  // query is a value list.
+  beforeEach(() => {
+    clearValuesCache();
+    query.mockImplementation(async (sql) => (sql.includes('OVER()')
+      ? { rows: [{ id: 'u1', displayName: 'William Overweg', type: 'User', total: 1 }] }
+      : values));
+  });
+
+  it('answers "Added AND Removed" as either, in ONE model call, and says so', async () => {
+    // The definition that once cost a repair round and came back worse.
+    chat.mockResolvedValueOnce(reply(change([william, window,
+      { type: 'field', field: 'action', op: 'eq', value: 'Added' },
+      { type: 'field', field: 'action', op: 'eq', value: 'Removed' }])));
+    const r = await interpret({ question: 'aan welke groepen is william in 90 dagen toegevoegd of verwijderd?', model: 'm' });
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(r.kind).toBe('report');
+    expect(r.repaired).toBe(false);
+    expect(r.spec.conditions).toHaveLength(3);
+    expect(r.spec.conditions[2]).toMatchObject({ type: 'group', match: 'any' });
+    expect(r.spec.conditions[1]).toEqual(window); // the window survived
+    expect(r.spec.conditions[0].conditions[0]).toMatchObject({ op: 'eq', value: 'William Overweg' }); // and the person was pinned
+    expect(r.assumptions.join(' ')).toMatch(/either one/);
+  });
+
+  it('lists the records when the request did not ask for counts, keeping a grouping it did ask for', async () => {
+    chat.mockResolvedValueOnce(reply(change([window], { groupBy: 'action' })));
+    const list = await interpret({ question: 'welke wijzigingen waren er in de laatste 90 dagen?', model: 'm' });
+    expect(list.spec).not.toHaveProperty('groupBy');
+    expect(list.assumptions.join(' ')).toMatch(/not a count per action/);
+
+    chat.mockResolvedValueOnce(reply(change([window], { groupBy: 'action' })));
+    const counted = await interpret({ question: 'hoeveel wijzigingen waren er per actie in de laatste 90 dagen?', model: 'm' });
+    expect(counted.spec.groupBy).toBe('action');
+  });
+
+  it('still spends a repair round on a mistake with two readings', async () => {
+    const twoReadings = change([{ type: 'field', field: 'displayName', op: 'isEmpty', value: null }, { type: 'field', field: 'displayName', op: 'isNotEmpty', value: null }]);
+    chat.mockResolvedValueOnce(reply(twoReadings)).mockResolvedValueOnce(reply(change([window])));
+    const r = await interpret({ question: 'changes', model: 'm' });
+    expect(chat).toHaveBeenCalledTimes(2);
+    expect(r.kind).toBe('report');
+    expect(r.repaired).toBe(true);
+  });
+});
+
+describe('interpret — a repair round may fix only what it was told', () => {
+  const values = { rows: [{ v: 'Added' }, { v: 'Removed' }] };
+  const window = { type: 'field', field: 'changedAt', op: 'withinLastDays', value: 90 };
+  const bad = { entity: 'change', match: 'all', columns: [], conditions: [window,
+    { type: 'field', field: 'displayName', op: 'isEmpty', value: null }, { type: 'field', field: 'displayName', op: 'isNotEmpty', value: null }] };
+
+  beforeEach(() => { clearValuesCache(); query.mockResolvedValue(values); });
+
+  it('tells the model to leave everything else alone', async () => {
+    chat.mockResolvedValueOnce(reply(bad)).mockResolvedValueOnce(reply({ ...bad, conditions: [window] }));
+    await interpret({ question: 'changes in 90 days', model: 'm' });
+    expect(chat.mock.calls[1][0].messages.at(-1).content).toMatch(/Keep every other condition, value, time window and column/);
+  });
+
+  it('refuses a correction that dropped a condition no error named, and says what went', async () => {
+    // Valid, runnable, and the answer to a different question: the window is gone.
+    chat.mockResolvedValueOnce(reply(bad)).mockResolvedValueOnce(reply({ ...bad, conditions: [] }));
+    const r = await interpret({ question: 'changes in 90 days', model: 'm' });
+    expect(r.kind).toBe('error');
+    expect(r.errors.join(' ')).toMatch(/dropped what the request asked for: changedAt withinLastDays 90/);
   });
 });

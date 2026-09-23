@@ -78,7 +78,7 @@ const show = (v) => (typeof v === 'string' ? `"${v}"` : String(v));
 const conflict = (a, b) => conflictBetween(a, b) ?? conflictBetween(b, a);
 
 /** What a number condition on a count forces: none at all, at least one, or neither. */
-function countSays(c) {
+export function countSays(c) {
   const n = Number(c.value);
   if ((c.op === 'eq' && n === 0) || (c.op === 'lt' && n <= 1)) return 'zero';
   if ((c.op === 'gt' && n >= 0) || (c.op === 'neq' && n === 0)) return 'some';

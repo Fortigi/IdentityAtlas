@@ -11,6 +11,7 @@ import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
+import { autofixSpec, dropUnaskedGrouping, lostLeaves } from './autofix.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
 import { chat, DEFAULT_MODEL } from './llm.js';
@@ -26,6 +27,9 @@ const MAX_CLARIFY_ROUNDS = 2;
 const STATEMENT_TIMEOUT = '15s';
 
 let valuesCache = { at: 0, values: null };
+
+/** Test seam: forget the cached value lists, so a test can supply its own. */
+export function clearValuesCache() { valuesCache = { at: 0, values: null }; }
 
 // The prompt-cache warm-up for the report prompt. Why it re-restores on every call
 // instead of remembering an earlier success: see warmup.js.
@@ -193,15 +197,30 @@ async function askForCorrection(ctx, turn, correction) {
   return { content: retry.content, reply: parseReply(retry.content) };
 }
 
-/** One repair round: show the model exactly what the validator rejected. */
+/**
+ * One repair round: show the model exactly what the validator rejected.
+ *
+ * The correction is held to what it was asked: a definition that comes back
+ * valid but without a condition no error named is refused, and the original
+ * error stands. Asked to fix "Added AND Removed", the model once returned a
+ * definition with Removed AND the 90-day window gone — valid, ran, and answered
+ * a different question than the one asked. A stated failure beats that.
+ */
 async function repairInvalidSpec(ctx, turn, result) {
   if (result.ok) return result;
   const retry = await askForCorrection(ctx, turn,
-    `That definition has problems:\n- ${result.errors.join('\n- ')}\nReply with the corrected complete JSON.`);
+    `That definition has problems:\n- ${result.errors.join('\n- ')}\n`
+    + 'Fix only what is listed. Keep every other condition, value, time window and column exactly as it was. '
+    + 'Reply with the corrected complete JSON.');
   if (retry.reply?.kind !== 'report') return result;
+  const retried = ctx.validate(retry.reply.spec);
+  const lost = retried.ok && result.spec ? lostLeaves(result.spec, retried.spec, result.errors) : [];
+  if (lost.length) {
+    return { ...result, errors: [...result.errors, `the correction dropped what the request asked for: ${lost.join('; ')}`] };
+  }
   turn.raw = retry.content;
   turn.reply = retry.reply;
-  return ctx.validate(turn.reply.spec);
+  return retried;
 }
 
 /** The most common small-model mistake: "X or Y" compiled as X AND Y. */
@@ -263,7 +282,10 @@ async function answerReport(ctx, turn) {
   if (!result.ok || !result.spec) {
     return { kind: 'error', message: 'The model produced a report definition that could not be used.', errors, ...replyMeta(ctx, turn) };
   }
-  const assumptions = Array.isArray(turn.reply.assumptions) ? turn.reply.assumptions.map(String) : [];
+  const assumptions = [
+    ...(Array.isArray(turn.reply.assumptions) ? turn.reply.assumptions.map(String) : []),
+    ...(result.fixes ?? []),
+  ];
   const termConfirm = termCheck(ctx, result.spec, assumptions);
   if (termConfirm) {
     return { kind: 'confirm', spec: result.spec, confirm: termConfirm, assumptions, ...replyMeta(ctx, turn) };
@@ -349,7 +371,20 @@ export async function interpret({ question, context = '', history = [], model = 
   // placeholders resolved BEFORE it is validated. Otherwise a model that wrote
   // `@me` exactly as instructed is told that is invalid and sent round again,
   // a full second model call on this hardware, to copy the uuid instead.
-  ctx.validate = (spec) => validateSpec(substituteValues(spec, ctx.substitutions), ctx.values, ctx.extFields);
+  // Validation, with the corrections that need no model round (autofix.js)
+  // applied in between: a grouping the request never asked for goes before
+  // validation, and a definition validation rejects is corrected and checked
+  // once more before a repair round is spent on it. What was corrected rides
+  // along as `fixes`, so the answer can say so.
+  ctx.validate = (spec) => {
+    const grouping = dropUnaskedGrouping(spec, ctx.question);
+    const first = validateSpec(substituteValues(grouping.spec, ctx.substitutions), ctx.values, ctx.extFields);
+    if (first.ok || !first.spec) return grouping.notes.length ? { ...first, fixes: grouping.notes } : first;
+    const fixed = autofixSpec(first.spec);
+    if (!fixed.notes.length) return first;
+    const again = validateSpec(fixed.spec, ctx.values, ctx.extFields);
+    return again.ok ? { ...again, fixes: [...grouping.notes, ...fixed.notes] } : first;
+  };
 
   const first = await chat({ model, messages: ctx.messages, schema });
 

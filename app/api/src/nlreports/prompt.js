@@ -27,9 +27,12 @@ const allRelationNames = [...new Set(Object.values(ENTITIES).flatMap(e => Object
 export const REPLY_LIMITS = {
   conditions: MAX_CONDITIONS,
   columns: MAX_COLUMNS,
-  assumptions: 5,
+  // Two short assumptions, not five long ones: on the CPU box this runs on
+  // every token is close to a second, and a reply that explained itself in
+  // three sentences of prose spent longer on the prose than on the definition.
+  assumptions: 2,
   options: 6,
-  prose: 300,      // an assumption, a clarifying question
+  prose: 160,      // an assumption, a clarifying question
   option: 120,     // one clarifying option
   value: 200,      // a text value or a referenced record's name
 };
