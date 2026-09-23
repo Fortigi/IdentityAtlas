@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, lostLeaves, resolveSelfAgainstPerson } from './autofix.js';
+import { asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, lostLeaves, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -210,5 +210,43 @@ describe('a condition written more than once', () => {
   it('returns the same object when nothing repeats', () => {
     const plain = { entity: 'group', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'a' }] };
     expect(dedupeConditions(plain).spec).toBe(plain);
+  });
+});
+
+describe('the caller placeholder where it cannot mean the caller', () => {
+  const ME = '@me';
+  const self = { type: 'field', field: 'id', op: 'eq', value: ME };
+
+  it('moves "@me" out of memberOf onto the account itself', () => {
+    // Verbatim: "Which groups am I a member of?" → user where memberOf some id @me.
+    const { spec, notes } = relocateSelf({ entity: 'user', match: 'all', columns: ['memberOf.names'],
+      conditions: [{ type: 'relation', relation: 'memberOf', quantifier: 'some', match: 'all', conditions: [self] }] }, ME);
+    expect(spec.conditions).toEqual([self]);
+    expect(notes).toHaveLength(1);
+  });
+
+  it('moves "@me" from a group\'s own id into its members', () => {
+    const { spec } = relocateSelf({ entity: 'group', match: 'all', conditions: [self, { type: 'field', field: 'displayName', op: 'contains', value: 'Fin' }] }, ME);
+    expect(spec.conditions).toEqual([
+      { type: 'field', field: 'displayName', op: 'contains', value: 'Fin' },
+      { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [self] },
+    ]);
+  });
+
+  it('keeps the other conditions of the relation it was taken from', () => {
+    const { spec } = relocateSelf({ entity: 'user', match: 'all',
+      conditions: [{ type: 'relation', relation: 'memberOf', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'Admin' }, self] }] }, ME);
+    expect(spec.conditions[0].conditions).toEqual([{ type: 'field', field: 'displayName', op: 'contains', value: 'Admin' }]);
+    expect(spec.conditions[1]).toEqual(self);
+  });
+
+  it('leaves it where it does mean the caller: the account itself, members, manager, an account relation of a change', () => {
+    const right = [
+      { entity: 'user', match: 'all', conditions: [self] },
+      { entity: 'group', match: 'all', conditions: [{ type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [self] }] },
+      { entity: 'user', match: 'all', conditions: [{ type: 'relation', relation: 'manager', quantifier: 'some', match: 'all', conditions: [self] }] },
+      { entity: 'change', match: 'all', conditions: [{ type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [self] }] },
+    ];
+    for (const spec of right) expect(relocateSelf(spec, ME).spec).toBe(spec);
   });
 });

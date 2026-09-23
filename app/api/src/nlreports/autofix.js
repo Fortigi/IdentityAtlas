@@ -95,6 +95,48 @@ export function resolveSelfAgainstPerson(spec, question, me) {
   };
 }
 
+const ACCOUNT_KINDS = new Set(['user', 'identity']);
+const isSelf = (c, me) => c?.type === 'field' && c.field === 'id' && c.op === 'eq' && c.value === me;
+
+/**
+ * The caller's placeholder where it cannot mean the caller.
+ *
+ * "id is @me" is the caller's ACCOUNT id. Written inside memberOf — a group
+ * whose id is the caller's — or on a group report's own id, it matches
+ * nothing, tidily. Asked "which groups am I a member of", the model wrote
+ * exactly that. The placeholder is moved to where it means the caller: the
+ * report's own id when the report is about accounts or persons, the members
+ * relation when it is about groups or resources. A relation left empty by
+ * the move goes with it.
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function relocateSelf(spec, me) {
+  const entity = ENTITIES[spec?.entity];
+  if (!entity) return { spec, notes: [] };
+  const onAccounts = ACCOUNT_KINDS.has(entity.detailKind);
+  const misplaced = (c) => {
+    if (c.type === 'relation') {
+      const target = ENTITIES[entity.relations?.[c.relation]?.target];
+      return !!target && !ACCOUNT_KINDS.has(target.detailKind) && (c.conditions ?? []).some(x => isSelf(x, me));
+    }
+    return !onAccounts && isSelf(c, me);
+  };
+  if (!(spec.conditions ?? []).some(misplaced)) return { spec, notes: [] };
+  const kept = spec.conditions.flatMap((c) => {
+    if (!misplaced(c)) return [c];
+    if (c.type !== 'relation') return [];
+    const rest = c.conditions.filter(x => !isSelf(x, me));
+    return rest.length ? [{ ...c, conditions: rest }] : [];
+  });
+  const self = { type: 'field', field: 'id', op: 'eq', value: me };
+  const placed = onAccounts ? self : (entity.relations?.members ? { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [self] } : null);
+  if (!placed) return { spec, notes: [] };
+  return {
+    spec: { ...spec, conditions: [...kept, placed] },
+    notes: [onAccounts ? 'Read the request as being about your own account.' : 'Read the request as: groups/resources you are a member of.'],
+  };
+}
+
 /**
  * A comparison whose reference is a KIND of thing, not a named one — "in an
  * access package", "part of a business role" — is the plain relation: has any.
