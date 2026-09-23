@@ -24,55 +24,86 @@ ALTER TABLE "Principals" ADD COLUMN IF NOT EXISTS "photoFetchedAt"   TIMESTAMPTZ
 
 -- ─── Keep photo bytes out of the audit history ───────────────────────────
 --
--- "Principals" is in the fg_record_history() tracked set (009_history.sql).
--- That trigger stores to_jsonb(NEW) — and to_jsonb() renders a bytea as a hex
--- string, two characters per byte. Worse, an UPDATE stores both rowData AND
--- prevData, so every unrelated change to a user (job title, department, a
--- disabled account) would write the photo to "_history" twice. On a tenant of
--- any size that dominates the audit log with data nobody ever reviews, and
--- history is never pruned.
+-- "Principals" is in the fg_record_history() tracked set. That trigger stores
+-- to_jsonb(NEW) — and to_jsonb() renders a bytea as a hex string, two
+-- characters per byte. Worse, an UPDATE stores both rowData AND prevData, so
+-- every unrelated change to a user (a job title, a department, a disabled
+-- account) would write the photo to "_history" twice. On a tenant of any size
+-- that dominates the audit log with data nobody ever reviews, and history is
+-- never pruned.
 --
--- So strip the blob columns before recording. The '-' operator on jsonb
--- removes a key; the columns keep their audit value through "photoFetchedAt",
--- which stays in the record, so you can still see WHEN a photo changed —
--- just not the pixels.
+-- So strip the blob before recording. `jsonb - 'photo'` removes the key, and
+-- is a no-op on the tracked tables that have no such column. The audit value
+-- is kept through "photoFetchedAt", which stays in the record: you can still
+-- see WHEN a photo changed, just not the pixels.
 --
--- This redefines the shared function used by all seven tracked tables. Tables
--- without a "photo" key are unaffected: `jsonb - 'photo'` on an object that
--- lacks the key is a no-op.
+-- THIS BODY IS 022_history_composite_keys.sql's, NOT 009_history.sql's.
+-- Read that before touching it again. 009 keyed every history row by
+-- rowData->>'id'; 022 replaced the function because the composite-PK tables
+-- (ResourceAssignments, ResourceRelationships, IdentityMembers) have no id
+-- column, so their changes were silently never recorded at all. A
+-- CREATE OR REPLACE built on 009's body — as the first version of this
+-- migration was — reintroduces exactly that: assignment history goes quiet
+-- while every id-keyed table keeps working, so nothing looks broken. It was
+-- caught only because the demo timeline's governed-% trend flattened.
+--
+-- The rule this file is an instance of: a CREATE OR REPLACE of a shared
+-- function must start from the LATEST definition of it, not the first one a
+-- grep finds.
 
 CREATE OR REPLACE FUNCTION fg_record_history() RETURNS trigger AS $$
 DECLARE
   v_new_data jsonb;
   v_old_data jsonb;
+  v_key_src  jsonb;
   v_id       text;
   v_op       char(1);
 BEGIN
   IF TG_OP = 'DELETE' THEN
     v_old_data := to_jsonb(OLD) - 'photo';
     v_new_data := NULL;
-    v_id := COALESCE(v_old_data->>'id', v_old_data->>'Id');
+    v_key_src  := v_old_data;
     v_op := 'D';
   ELSIF TG_OP = 'INSERT' THEN
     v_new_data := to_jsonb(NEW) - 'photo';
     v_old_data := NULL;
-    v_id := COALESCE(v_new_data->>'id', v_new_data->>'Id');
+    v_key_src  := v_new_data;
     v_op := 'I';
   ELSE -- UPDATE
     v_new_data := to_jsonb(NEW) - 'photo';
     v_old_data := to_jsonb(OLD) - 'photo';
-    -- Defensive — also caught by the trigger WHEN clause. Note this now also
-    -- means a run that ONLY changed the photo records no history row, which is
-    -- what we want: the pixels aren't audit-relevant.
+    -- Comparing the STRIPPED rows also means a run that changed only the photo
+    -- records no history row, which is what we want: the pixels aren't audit
+    -- relevant, and a nightly photo refresh should not write a row per user.
     IF v_old_data = v_new_data THEN
       RETURN NEW;
     END IF;
-    v_id := COALESCE(v_new_data->>'id', v_new_data->>'Id');
+    v_key_src := v_new_data;
     v_op := 'U';
   END IF;
 
+  -- Prefer a surrogate id when the table has one.
+  v_id := COALESCE(v_key_src->>'id', v_key_src->>'Id');
+
+  -- Composite-PK fallbacks. Build a stable `a|b|c` key so a single
+  -- assignment's history can be queried back by rowId.
   IF v_id IS NULL THEN
-    -- No id column to key by — skip silently rather than fail the parent statement
+    IF TG_TABLE_NAME = 'ResourceAssignments' THEN
+      v_id := COALESCE(v_key_src->>'resourceId','')   || '|' ||
+              COALESCE(v_key_src->>'principalId','')  || '|' ||
+              COALESCE(v_key_src->>'assignmentType','');
+    ELSIF TG_TABLE_NAME = 'ResourceRelationships' THEN
+      v_id := COALESCE(v_key_src->>'parentResourceId','') || '|' ||
+              COALESCE(v_key_src->>'childResourceId','')  || '|' ||
+              COALESCE(v_key_src->>'relationshipType','');
+    ELSIF TG_TABLE_NAME = 'IdentityMembers' THEN
+      v_id := COALESCE(v_key_src->>'identityId','')  || '|' ||
+              COALESCE(v_key_src->>'principalId','');
+    END IF;
+  END IF;
+
+  IF v_id IS NULL OR v_id = '||' OR v_id = '|' THEN
+    -- Still nothing to key by — skip rather than fail the parent statement.
     RETURN COALESCE(NEW, OLD);
   END IF;
 
