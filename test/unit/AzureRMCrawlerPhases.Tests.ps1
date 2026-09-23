@@ -401,7 +401,7 @@ Describe 'Resolve-AzureRMOrphans' {
         @($ctx.Grants).Count | Should -Be 1
     }
 
-    It 'drops grants for principals absent from Entra when the filter is ON' {
+    It 'drops grants for principals absent from the directory when the filter is ON' {
         Mock Invoke-IngestAPI { @{ crawlerDataAvailable = $true; present = @('p1') } }
         $ctx = New-TestCtx
         $ctx.Grants.Add(@{ resourceId = 'cap1'; principalId = 'p1'; assignmentType = 'Direct' })
@@ -412,7 +412,42 @@ Describe 'Resolve-AzureRMOrphans' {
         @($ctx.Grants).Count | Should -Be 1
         @($ctx.Grants)[0].principalId | Should -Be 'p1'
         @($ctx.RoleResources).Count | Should -Be 1   # cap2 pruned (nobody holds it)
-        @($ctx.PrincipalStubs['User']).Count | Should -Be 1
+        # No stub survives: p1 is the directory's to describe, and p2's grant just
+        # went away. Writing either would upsert a row this crawler does not own.
+        @($ctx.PrincipalStubs['User']).Count | Should -Be 0
+    }
+
+    # The heart of #1247. A stub for a principal the directory already holds upserts
+    # the directory's OWN Principal row and stamps this system's id onto it — which
+    # is what made the Entra and Azure RM crawlers overwrite each other every run.
+    It 'never writes a stub for a principal the directory already knows' {
+        Mock Invoke-IngestAPI { @{ crawlerDataAvailable = $true; present = @('p1', 'p3') } }
+        $ctx = New-TestCtx -ConfigOver @{ onlyEntraPrincipals = $false }
+        $ctx.Grants.Add(@{ resourceId = 'cap1'; principalId = 'p1'; assignmentType = 'Direct' })
+        $ctx.Grants.Add(@{ resourceId = 'cap2'; principalId = 'p2'; assignmentType = 'Direct' })
+        $ctx.Grants.Add(@{ resourceId = 'cap3'; principalId = 'p3'; assignmentType = 'Direct' })
+        $ctx.PrincipalStubs['User'].Add(@{ id = 'p1' })              # in the directory
+        $ctx.PrincipalStubs['User'].Add(@{ id = 'p2' })              # not in the directory
+        $ctx.PrincipalStubs['ServicePrincipal'].Add(@{ id = 'p3' })  # in the directory
+        Resolve-AzureRMOrphans -Ctx $ctx
+
+        # Both buckets are filtered, and only the absent principal is left. Its
+        # grant is untouched — the filter is OFF, so nothing is dropped.
+        @($ctx.PrincipalStubs['User'] | ForEach-Object { $_.id }) | Should -Be @('p2')
+        @($ctx.PrincipalStubs['ServicePrincipal']).Count | Should -Be 0
+        @($ctx.Grants).Count | Should -Be 3
+    }
+
+    # Presence must be answered against THIS crawler's declared directory, not
+    # re-derived from the tenant — see app/api/src/ingest/crawlerPresence.js.
+    It 'asks for presence with its own systemId so the API can resolve the directory' {
+        $script:body = $null
+        Mock Invoke-IngestAPI { $script:body = $Body; @{ crawlerDataAvailable = $false } }
+        $ctx = New-TestCtx
+        $ctx.Grants.Add(@{ resourceId = 'cap1'; principalId = 'p1'; assignmentType = 'Direct' })
+        Resolve-AzureRMOrphans -Ctx $ctx
+        $script:body.systemId | Should -Be $ctx.SystemId
+        $script:body.tenantId | Should -Be $ctx.Config.tenantId
     }
 
     It 'flags orphan stubs but keeps assignments when the filter is OFF' {

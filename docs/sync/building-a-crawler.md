@@ -178,6 +178,44 @@ column, and an existing row is *renamed* rather than duplicated.
 
 ---
 
+## When your source reads a directory you don't own
+
+Some sources don't have accounts of their own — they grant access to accounts that live somewhere
+else. Azure RM is the clearest case: every role assignment names an Entra ID objectId, so the Azure
+RM crawler and the Entra ID crawler are looking at *the same* account, not at two accounts that
+happen to correlate.
+
+`Principals` is keyed on that objectId, so both crawlers write the **same row**. Whoever writes it
+last stamps their `systemId` on it — and before this was modelled, the two crawlers flipped every
+shared principal back and forth on every run: a fake "changed" event per run on the user's Timeline,
+an orphan check that stopped recognising its own users, and rows that escaped the directory's
+full-sync reconcile.
+
+A system says where its principals come from with **`Systems.directorySystemId`**. The API sets it
+automatically for a system whose `tenantId` matches exactly one `EntraID` system, so an Azure-plane
+crawler gets it without doing anything. What the link changes:
+
+- **The ingest protects ownership.** A system with a `directorySystemId` may *fill* a NULL
+  `systemId` on a `Principals` / `Resources` row, but never replace one. The directory has no link
+  of its own and can therefore always claim a row back — which is what makes an "Azure RM ran
+  first" tenant converge once the directory crawler runs, rather than freezing ownership on
+  whichever crawler happened to be first.
+- **`/ingest/principals-presence` answers against that directory.** Send your own `systemId`
+  alongside `tenantId` and the API resolves the link for you.
+
+Two rules for a crawler in this position:
+
+1. **Don't write a principal the directory already has.** Call `/ingest/principals-presence` first
+   and send stubs only for the objectIds it does *not* know — those are genuinely yours (a deleted
+   service principal with a dangling assignment exists nowhere else). For everything else, just
+   reference the objectId from your assignments, the way Azure RM has always handled groups.
+2. **Assert only what your source actually knows.** A stub carries the objectId and nothing more.
+   A delta upsert COALESCEs any non-NULL value you send over the stored one, so a field you filled
+   in "to be safe" silently overwrites the directory's — `accountEnabled = $true` on an Azure RM
+   stub used to re-enable every disabled user with an Azure role, once per run.
+
+---
+
 ## The Ingest API
 
 `/ingest/principals` above is one of many ingest endpoints — the full, authoritative reference is the live OpenAPI spec the running app already serves:

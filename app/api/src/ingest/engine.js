@@ -95,6 +95,30 @@ export function updatedAtStamp(allColumns, activeColumns) {
   return has(allColumns) && !has(activeColumns) ? ', "updatedAt" = now()' : '';
 }
 
+// The `DO UPDATE SET` list for an upsert. One builder for both write paths —
+// ingest() here and endSession() in sessions.js — so the three rules below can
+// only ever disagree by being changed in one place.
+//
+//   * preserved (systemBoundary.preservedOwnerColumns, #1247) — the stored value
+//     wins and the incoming one only fills a NULL. A dependent system referencing
+//     the directory's principals must not stamp itself onto them.
+//   * delta — COALESCE(EXCLUDED, stored): a delta payload is partial (Graph's
+//     /users/delta returns only what changed), so a NULL means "not sent", not
+//     "cleared". Plain `col = EXCLUDED.col` would blank every unchanged field.
+//   * full — the payload is authoritative, so NULL genuinely means cleared.
+//
+// Pure. Exported for unit tests.
+export function buildUpdateSet(nonKeyCols, tableName, options = {}) {
+  const { syncMode = 'full', preserveColumns = null } = options;
+  const preserved = new Set(preserveColumns || []);
+  return nonKeyCols.map((c) => {
+    const stored = `"${tableName}"."${c.name}"`;
+    if (preserved.has(c.name)) return `"${c.name}" = COALESCE(${stored}, EXCLUDED."${c.name}")`;
+    if (syncMode === 'delta') return `"${c.name}" = COALESCE(EXCLUDED."${c.name}", ${stored})`;
+    return `"${c.name}" = EXCLUDED."${c.name}"`;
+  }).join(', ');
+}
+
 /**
  * Core ingest operation. Bulk-COPY records into a temp table, then upsert
  * from the temp table into the target.
@@ -109,6 +133,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     scopeDeleteFilter = null,
     conflictFilter = null,
     restrictSystemIds = null,
+    preserveColumns = null,
   } = options;
 
   if (!records || records.length === 0) {
@@ -180,15 +205,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
 
     let upsertSql;
     if (nonKeyCols.length > 0) {
-      // Delta syncs send partial records (Graph's /users/delta returns only
-      // fields that changed). Using plain `col = EXCLUDED.col` would
-      // overwrite every unchanged field with NULL, silently corrupting the
-      // stored row. COALESCE preserves the existing value when the incoming
-      // value is NULL. In full-sync the payload is authoritative — NULL
-      // explicitly means "cleared" — so we keep the direct assignment.
-      const updateSet = syncMode === 'delta'
-        ? nonKeyCols.map(c => `"${c.name}" = COALESCE(EXCLUDED."${c.name}", "${tableName}"."${c.name}")`).join(', ')
-        : nonKeyCols.map(c => `"${c.name}" = EXCLUDED."${c.name}"`).join(', ');
+      const updateSet = buildUpdateSet(nonKeyCols, tableName, { syncMode, preserveColumns });
       upsertSql = `
         INSERT INTO "${tableName}" (${insertCols})
         SELECT ${insertCols} FROM "${tempName}"

@@ -9,11 +9,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('../db/connection.js');
-import { query } from '../db/connection.js';
+import { query, queryOne } from '../db/connection.js';
 import {
   NO_SYSTEM_COLUMN_TABLES, SERVER_MANAGED_COLUMNS, writableCoreColumns, restrictedSystemIds,
   ownedRowPredicate, recordSystemDenial, unscopedFullSyncDenial, foreignExistingRowSql,
   foreignParentSql, foreignRowDenial, systemBoundaryDenial,
+  preservedOwnerColumns, linkDirectorySystems,
 } from './systemBoundary.js';
 
 beforeEach(() => {
@@ -207,5 +208,70 @@ describe('systemBoundaryDenial — order of checks', () => {
     const err = await systemBoundaryDenial({ ...base, records: [{ id: 'i1' }], syncMode: 'delta' });
     expect(err).toBeNull();
     expect(query).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── Directory ownership (#1247) ─────────────────────────────────────────────
+//
+// A system that declares a directorySystemId references the directory's rows; it
+// does not own them. These tests assert which SIDE of that line each case falls
+// on, because getting it backwards is exactly the bug: the Entra and Azure RM
+// crawlers each stamped their own systemId onto the same Principal every run.
+describe('preservedOwnerColumns', () => {
+  beforeEach(() => { queryOne.mockReset(); });
+
+  it('protects systemId for a system that reads from a directory', async () => {
+    queryOne.mockResolvedValue({ directorySystemId: 1 });
+    expect(await preservedOwnerColumns('Principals', 33)).toEqual(['systemId']);
+    expect(await preservedOwnerColumns('Resources', 33)).toEqual(['systemId']);
+  });
+
+  it('protects nothing for the directory itself, so it can always claim a row', async () => {
+    // The asymmetry that separates this from "first writer wins" — without it an
+    // Azure-RM-first tenant would keep its stubs on the Azure system forever.
+    queryOne.mockResolvedValue({ directorySystemId: null });
+    expect(await preservedOwnerColumns('Principals', 1)).toBeNull();
+  });
+
+  it('leaves tables the directory does not source alone, without asking the database', async () => {
+    queryOne.mockResolvedValue({ directorySystemId: 1 });
+    expect(await preservedOwnerColumns('ResourceAssignments', 33)).toBeNull();
+    expect(await preservedOwnerColumns('Contexts', 33)).toBeNull();
+    expect(queryOne).not.toHaveBeenCalled();
+  });
+
+  it('protects nothing when the batch names no system', async () => {
+    expect(await preservedOwnerColumns('Principals', null)).toBeNull();
+    expect(await preservedOwnerColumns('Principals', undefined)).toBeNull();
+    expect(queryOne).not.toHaveBeenCalled();
+  });
+
+  it('protects nothing for a system that does not exist', async () => {
+    queryOne.mockResolvedValue(null);
+    expect(await preservedOwnerColumns('Principals', 999)).toBeNull();
+  });
+});
+
+describe('linkDirectorySystems', () => {
+  beforeEach(() => { query.mockReset(); });
+
+  it('links only non-directory systems that share a tenant with exactly one EntraID system', async () => {
+    query.mockResolvedValue({ rowCount: 2 });
+    expect(await linkDirectorySystems()).toBe(2);
+    const sql = query.mock.calls[0][0];
+    // Each clause carries a decision, and dropping any one of them links the
+    // wrong pair: without the type guard an EntraID system becomes its own
+    // dependent; without the IS NULL guard a hand-set link is overwritten;
+    // without the count guard an ambiguous tenant is linked arbitrarily.
+    expect(sql).toContain(`s."systemType" = 'EntraID'`);
+    expect(sql).toContain(`d."systemType" <> 'EntraID'`);
+    expect(sql).toContain('d."tenantId" = s."tenantId"');
+    expect(sql).toContain('d."directorySystemId" IS NULL');
+    expect(sql).toMatch(/count\(\*\)[\s\S]*= 1/);
+  });
+
+  it('reports zero rather than undefined when nothing needed linking', async () => {
+    query.mockResolvedValue({ rowCount: null });
+    expect(await linkDirectorySystems()).toBe(0);
   });
 });

@@ -14,7 +14,7 @@ import { startSession, endSession, hasSession } from '../ingest/sessions.js';
 import { SOFT_DELETE_TABLES } from '../ingest/engine.js';
 import {
   applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor,
-  discoverCoreColumns, handleSessionPath, applyDeleteByIds, lookupSystemIds, writeAuditLog,
+  discoverCoreColumns, handleSessionPath, applyDeleteByIds, lookupSystemIds, linkSystemDirectories, writeAuditLog,
 } from './ingest.js';
 
 const UUID = '11111111-1111-1111-1111-111111111111';
@@ -244,5 +244,28 @@ describe('ingestErrorResponse — session cap (M-07)', () => {
 
   it('keeps 500 for any other failure', () => {
     expect(ingestErrorResponse(new Error('x')).status).toBe(500);
+  });
+});
+
+describe('linkSystemDirectories', () => {
+  it('only runs for the systems endpoint', async () => {
+    db.query.mockReset();
+    expect(await linkSystemDirectories('principals')).toBe(0);
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('links dependent systems after a systems batch', async () => {
+    db.query.mockReset();
+    db.query.mockResolvedValue({ rowCount: 1 });
+    expect(await linkSystemDirectories('systems')).toBe(1);
+    expect(db.query).toHaveBeenCalledOnce();
+  });
+
+  it('never fails the registration it follows', async () => {
+    // The link is a correctness improvement on the NEXT principal batch. A crawler
+    // that just registered successfully must not get a 500 because of it.
+    db.query.mockReset();
+    db.query.mockRejectedValue(new Error('deadlock detected'));
+    await expect(linkSystemDirectories('systems')).resolves.toBe(0);
   });
 });
