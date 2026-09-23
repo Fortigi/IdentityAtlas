@@ -262,6 +262,9 @@ async function repairMissingOr(ctx, turn, result) {
 // the caller. "I" only as the capital word (the English pronoun).
 const SELF_RE = /\b(ik|mijn|mijne|my|mine|myself)\b|\bI\b/;
 const selfWord = (question) => String(question ?? '').match(SELF_RE)?.[0] ?? null;
+// Either the placeholder or the caller's id copied out literally counts: both are about them.
+const mentionsCaller = (spec, substitutions) => sentinelsIn(spec, substitutions).includes(ME)
+  || JSON.stringify(spec ?? null).includes(String(substitutions.get(ME)));
 
 /**
  * The question is about the person asking, the pipeline knows who that is,
@@ -271,7 +274,7 @@ const selfWord = (question) => String(question ?? '').match(SELF_RE)?.[0] ?? nul
  */
 async function repairMissingSelf(ctx, turn, result) {
   const word = result.ok && ctx.substitutions.has(ME) ? selfWord(ctx.question) : null;
-  if (!word || sentinelsIn(turn.reply?.spec, ctx.substitutions).includes(ME)) return result;
+  if (!word || mentionsCaller(turn.reply?.spec, ctx.substitutions)) return result;
   const retry = await askForCorrection(ctx, turn,
     `The request says "${word}": it is about the person asking, but your definition has no condition for them. `
     + `Add the condition with value ${ME} on the right relation — their own account is id ${ME}; "my groups" = members some id ${ME}; `
