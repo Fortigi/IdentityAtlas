@@ -128,22 +128,34 @@
       },
       {
         "question": "Wie zijn de leden van deze groepen?",
-        "expected": {
-          "entity": "user",
-          "conditions": [
-            {
-              "relation": "memberOf",
-              "quantifier": "some",
-              "conditions": [
-                {
-                  "field": "id",
-                  "op": "in",
-                  "value": "@previous"
-                }
-              ]
-            }
-          ]
-        }
+        "expected": [
+          {
+            "entity": "user",
+            "conditions": [
+              {
+                "relation": "memberOf",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "id",
+                    "op": "in",
+                    "value": "@previous"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "entity": "group",
+            "conditions": [
+              {
+                "field": "id",
+                "op": "in",
+                "value": "@previous"
+              }
+            ]
+          }
+        ]
       }
     ]
   },
@@ -194,22 +206,34 @@
       },
       {
         "question": "Who are the members of these groups?",
-        "expected": {
-          "entity": "user",
-          "conditions": [
-            {
-              "relation": "memberOf",
-              "quantifier": "some",
-              "conditions": [
-                {
-                  "field": "id",
-                  "op": "in",
-                  "value": "@previous"
-                }
-              ]
-            }
-          ]
-        }
+        "expected": [
+          {
+            "entity": "user",
+            "conditions": [
+              {
+                "relation": "memberOf",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "id",
+                    "op": "in",
+                    "value": "@previous"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "entity": "group",
+            "conditions": [
+              {
+                "field": "id",
+                "op": "in",
+                "value": "@previous"
+              }
+            ]
+          }
+        ]
       }
     ]
   },
@@ -644,16 +668,34 @@
     "followUps": [
       {
         "question": "Van welke groepen zijn deze accounts nog lid?",
-        "expected": {
-          "entity": "account",
-          "conditions": [
-            {
-              "field": "id",
-              "op": "in",
-              "value": "@previous"
-            }
-          ]
-        },
+        "expected": [
+          {
+            "entity": "account",
+            "conditions": [
+              {
+                "field": "id",
+                "op": "in",
+                "value": "@previous"
+              }
+            ]
+          },
+          {
+            "entity": "group",
+            "conditions": [
+              {
+                "relation": "members",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "id",
+                    "op": "in",
+                    "value": "@previous"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
         "expectColumns": [
           "memberOf.names"
         ]
@@ -677,16 +719,34 @@
     "followUps": [
       {
         "question": "Which groups are these accounts still in?",
-        "expected": {
-          "entity": "account",
-          "conditions": [
-            {
-              "field": "id",
-              "op": "in",
-              "value": "@previous"
-            }
-          ]
-        },
+        "expected": [
+          {
+            "entity": "account",
+            "conditions": [
+              {
+                "field": "id",
+                "op": "in",
+                "value": "@previous"
+              }
+            ]
+          },
+          {
+            "entity": "group",
+            "conditions": [
+              {
+                "relation": "members",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "id",
+                    "op": "in",
+                    "value": "@previous"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
         "expectColumns": [
           "memberOf.names"
         ]

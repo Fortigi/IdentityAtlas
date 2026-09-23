@@ -14,7 +14,10 @@
 //                                  [--max-seconds 300]
 //
 // What a question may say about its right answer:
-//   expected      a definition; the answer is right when it returns the same rows
+//   expected      a definition; the answer is right when it returns the same rows —
+//                 or a list of definitions when more than one reading is right
+//                 ("which groups are these accounts in": the groups, or the
+//                 accounts with a groups column); the answer must match one
 //   expectKind    'clarify' | 'decline' | 'confirm', or a list of them — the right
 //                 answer is not a report at all: a question back, a refusal, or a
 //                 "which one did you mean" that finds nobody. No definition then.
@@ -138,6 +141,7 @@ async function shownSets(spec) {
   return [new Set(rows.map(row => row._entity?.id).filter(Boolean)), ...lists];
 }
 const expectedKinds = (q) => (Array.isArray(q.expectKind) ? q.expectKind : (q.expectKind ? [q.expectKind] : []));
+const expectedList = (q) => (Array.isArray(q.expected) ? q.expected : (q.expected ? [q.expected] : []));
 
 /** "@previous" in an expected definition stands for the ids the opening question's expected answer returned. */
 function withPrevious(node, previousIds) {
@@ -154,11 +158,12 @@ if (args.check) {
   for (const q of questions) {
     if (!q.expected) { console.log(`${q.id.padEnd(28)}   expects: ${expectedKinds(q).join(' | ')}`); continue; }
     try {
-      const s = await ids(q.expected);
+      const s = await ids(expectedList(q)[0]);
       console.log(`${q.id.padEnd(28)} ${String(s.size).padStart(5)} rows${s.size === 0 ? '   <-- empty (weak test)' : ''}`);
       for (const [i, fu] of (q.followUps ?? []).entries()) {
-        const f = await ids(withPrevious(fu.expected, [...s]));
-        console.log(`${`${q.id}>${i + 1}`.padEnd(28)} ${String(f.size).padStart(5)} rows${f.size === 0 ? '   <-- empty (weak test)' : ''}`);
+        const sizes = [];
+        for (const e of expectedList(fu)) sizes.push((await ids(withPrevious(e, [...s]))).size);
+        console.log(`${`${q.id}>${i + 1}`.padEnd(28)} ${sizes.map(n => String(n).padStart(5)).join(' |')} rows${sizes.every(n => n === 0) ? '   <-- empty (weak test)' : ''}`);
       }
     } catch (e) {
       console.log(`${q.id.padEnd(28)} INVALID: ${e.message}`);
@@ -247,13 +252,16 @@ for (const model of models) {
       if (!pass) error = `expected ${kinds.join(' or ')}, got ${reply?.kind}${reply?.kind === 'report' ? ' — it answered' : ''}`;
     } else if (!error && reply?.kind === 'report') {
       try {
-        const expected = previousIds ? withPrevious(q.expected, previousIds) : q.expected;
-        const [exp, act] = await Promise.all([ids(expected), ids(reply.spec)]);
-        expectedIds = [...exp];
-        expectedCount = exp.size; actualCount = act.size;
-        pass = sameSet(exp, act);
+        const readings = expectedList(q).map(e => (previousIds ? withPrevious(e, previousIds) : e));
+        const exps = [];
+        for (const e of readings) exps.push(await ids(e));
+        const act = await ids(reply.spec);
+        expectedIds = [...exps[0]];
+        expectedCount = exps[0].size; actualCount = act.size;
+        pass = exps.some(exp => sameSet(exp, act));
         if (!pass && !reply.spec.groupBy) {
-          const shown = (await shownSets(reply.spec)).find(set => sameSet(exp, set));
+          const sets = await shownSets(reply.spec);
+          const shown = sets.find(set => exps.some(exp => sameSet(exp, set)));
           if (shown) { pass = true; actualCount = shown.size; shownAs = 'a list inside one row'; }
         }
       } catch (e) { error = `run: ${e.message}`; }
