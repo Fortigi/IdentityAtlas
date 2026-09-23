@@ -26,8 +26,8 @@ import pg from 'pg';
 let pool;
 let systemId;
 
-const RES = 'b0000000-0000-0000-0000-0000000h0701';
-const PRIN = 'b0000000-0000-0000-0000-0000000h0702';
+const RES = 'b0000000-0000-0000-0000-00000000a701';
+const PRIN = 'b0000000-0000-0000-0000-00000000a702';
 
 const histFor = (table, rowId) => pool.query(
   `SELECT "operation", "rowData", "prevData" FROM "_history"
@@ -93,7 +93,7 @@ describe('fg_record_history — row keying', () => {
   });
 
   it('records a ResourceRelationships insert under its composite key', async () => {
-    const child = 'b0000000-0000-0000-0000-0000000h0703';
+    const child = 'b0000000-0000-0000-0000-00000000a703';
     for (const [id, name] of [[RES, 'Parent'], [child, 'Child']]) {
       await pool.query(
         `INSERT INTO "Resources" (id, "systemId", "displayName", "resourceType") VALUES ($1, $2, $3, 'Group')`,

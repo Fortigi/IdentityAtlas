@@ -25,7 +25,13 @@
 # Requires User.Read.All, which the crawler already holds for /users — no
 # additional consent.
 
-Set-StrictMode -Version Latest
+# NO Set-StrictMode HERE. This file is dot-sourced by Start-EntraIDCrawler.ps1,
+# and Set-StrictMode applies to the CALLER's scope, not just this file — so
+# adding it here switched strict mode on for the entire crawler and turned
+# every tolerated missing-property read in the other phase files into a hard
+# error ("The property 'SyncAppOwners' cannot be found on this object"). No
+# other file under tools/crawlers/ sets it; a library file must not change how
+# its caller behaves.
 
 # Smallest size Graph offers. A header/detail avatar renders at 28-40 CSS px,
 # so 48 covers a 2x display without storing anything larger.
