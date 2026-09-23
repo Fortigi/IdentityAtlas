@@ -19,3 +19,6 @@
 - Added an **Ask** tab beside Dashboard: the same plain-language questions the Teams bot answers, in the app itself, with no Teams or Azure setup needed. It shows what it understood above the answer, and the rows link through to the records.
 - Asking a question and building saved reports are now separate rights. Someone with "Ask questions in plain language" can use the Ask tab and the bot without also being able to create, edit or delete the saved reports everyone sees.
 - Every question asked — in the Ask tab or the Teams bot — is now recorded against the person who asked it, together with what the model was told and what it replied, so the quality of answers can be reviewed afterwards. An answer’s rows are still never stored.
+- The Ask tab now knows who is asking: "my groups" and "mijn medewerkers" mean you, exactly as in the Teams bot.
+- A first name typed in lower case ("william") is now recognised as a name and looked up, instead of being guessed to be a group.
+- Fixed: a question that referred to yourself could take a second model round for no reason. The model was told to write a placeholder for your account, then told that placeholder was invalid, then made to try again. The placeholder is now resolved before the check.

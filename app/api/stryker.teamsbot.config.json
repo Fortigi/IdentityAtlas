@@ -15,20 +15,20 @@
   },
   "mutate": [
     "src/teamsbot/auth.js",
-    "src/teamsbot/caller.js",
     "src/teamsbot/callerSpec.js",
     "src/teamsbot/card.js",
     "src/teamsbot/followUp.js",
     "src/teamsbot/service.js",
     "src/teamsbot/signInDialog.js",
-    "src/teamsbot/specValues.js",
     "src/teamsbot/state.js",
     "src/teamsbot/text.js"
   ],
   "mutationExclusions": {
     "src/teamsbot/handler.js": "Teams routing, not logic. Since the OAuthPrompt rewrite this file only decides WHICH turns go where: help is answered inline, every other message and both signin/* invokes are handed to the dialog, membersAdded gets the welcome, and dialog state is saved at the end of a turn. Those are assertions about routing, and they are made directly against the Bot Framework TestAdapter in handler.test.js with a spy dialog -- a mutant that stopped handing an invoke to the dialog fails there. What the bot decides moved to signInDialog.js and service.js, which ARE mutated.",
     "src/routes/teamsBot.js": "Wiring, not logic: it constructs the CloudAdapter from environment variables, memoises it, and hands the request to it. Every rule it applies is a middleware declared one line at a time -- requirePermission, requireFeature, and their ORDER -- and the order is what actually matters here (permission first, so a disabled bot cannot be discovered by a caller without permission). That is asserted directly, against a real Express app with auth enabled, in src/routes/teamsBot.test.js; a mutant that swapped the two would be caught there rather than by mutating the adapter construction around them.",
-    "src/teamsbot/log.js": "A one-line re-export of nlreports/conversations.js since migration 071 moved the store where both front ends share it. The store itself is mutated in stryker.reports.config.json; there is no statement here for a mutant to change."
+    "src/teamsbot/log.js": "A one-line re-export of nlreports/conversations.js since migration 071 moved the store where both front ends share it. The store itself is mutated in stryker.reports.config.json; there is no statement here for a mutant to change.",
+    "src/teamsbot/caller.js": "A one-line re-export of nlreports/caller.js: caller resolution moved into the pipeline when the Ask tab needed it too. The moved module is mutated in stryker.reports.config.json; there is no statement here for a mutant to change.",
+    "src/teamsbot/specValues.js": "A one-line re-export of nlreports/sentinels.js: substitution moved inside interpret(), before validation. The moved module is mutated in stryker.reports.config.json; there is no statement here for a mutant to change."
   },
   "thresholds": {
     "high": 90,

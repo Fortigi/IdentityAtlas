@@ -19,6 +19,17 @@ import { answerMessage, withDeadline, matchChoice, toAppliedChoice, isHelp, defa
 import { clearPending } from './state.js';
 import { EN, NL } from './text.js';
 import { CALLER_SENTINEL, PREVIOUS_SENTINEL } from '../nlreports/spec.js';
+import { sentinelsIn, substituteValues } from '../nlreports/sentinels.js';
+
+// What the real interpret() does with the placeholders it is handed: resolve
+// them in the definition and say which it saw. Mocks that skip this would let
+// the bot pass every test below without ever supplying the substitutions.
+const asPipeline = (spec) => vi.fn(async ({ substitutions } = {}) => ({
+  kind: 'report',
+  spec: substituteValues(structuredClone(spec), substitutions ?? new Map()),
+  timing: { totalMs: 49_000 },
+  substituted: sentinelsIn(spec, substitutions ?? new Map()),
+}));
 
 const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const CALLER = { principalId: OID, displayName: 'Wim van den Heijkant', email: 'wim@example.com' };
@@ -45,7 +56,7 @@ const runResult = (over = {}) => ({
 function deps(over = {}) {
   return {
     resolveCaller: vi.fn(async () => CALLER),
-    interpret: vi.fn(async () => ({ kind: 'report', spec: structuredClone(reportSpec), timing: { totalMs: 49_000 } })),
+    interpret: asPipeline(reportSpec),
     runSpec: vi.fn(async () => runResult()),
     log: vi.fn(async (e) => e.id),
     reportLink: (id) => `https://ia.example/#bot-answer:${id}`,
@@ -478,7 +489,7 @@ describe('following one answer up with another question', () => {
     await answerMessage(msg({ text: 'van welke groepen ben ik owner?' }), d);
 
     const follow = deps({
-      interpret: vi.fn(async () => ({ kind: 'report', spec: structuredClone(second), timing: {} })),
+      interpret: asPipeline(second),
       runSpec: vi.fn(async () => runResult()),
     });
     await answerMessage(msg({ text: 'en zijn die onderdeel van een access package?' }), follow);
@@ -571,7 +582,7 @@ describe('following one answer up with another question', () => {
     await answerMessage(msg({ text: 'van welke groepen ben ik owner?' }), d);
 
     const follow = deps({
-      interpret: vi.fn(async () => ({ kind: 'report', spec: structuredClone(referringSpec), timing: {} })),
+      interpret: asPipeline(referringSpec),
       runSpec: vi.fn(async () => runResult()),
     });
     const out = await answerMessage(msg({ text: 'en zijn die onderdeel van een access package?' }), follow);
@@ -763,5 +774,39 @@ describe('what the bot leaves in the conversation store', () => {
     expect(row.rawReply).toBe(null);
     expect(row.context).toBe(null);
     expect(row.repaired).toBe(null);
+  });
+});
+
+describe('what the bot hands the pipeline to resolve', () => {
+  // Since the placeholders are resolved inside interpret(), the bot's part is
+  // to SUPPLY them. Every assertion above about a real id in the definition
+  // that runs only holds because these maps reach the pipeline.
+  it('supplies the caller as @me on every question', async () => {
+    const d = deps();
+    await answerMessage(msg(), d);
+    const { substitutions } = d.interpret.mock.calls[0][0];
+    expect(substitutions.get(CALLER_SENTINEL)).toBe(OID);
+    expect(substitutions.has(PREVIOUS_SENTINEL)).toBe(false);
+  });
+
+  it('adds the previous answer as @previous once there is one', async () => {
+    const d = deps({ runSpec: vi.fn(async () => ({
+      ok: true, explanation: 'x', columns: [{ key: 'owns.names', label: 'Owner of' }], truncated: false, elapsedMs: 1,
+      rows: [{ 'owns.names': 'ASML, Bestuur', _entity: { kind: 'user', id: OID },
+        _links: { 'owns.names': [{ id: 'g1', name: 'ASML', kind: 'resource' }, { id: 'g2', name: 'Bestuur', kind: 'resource' }] } }],
+    })) });
+    await answerMessage(msg({ text: 'van welke groepen ben ik owner?' }), d);
+    await answerMessage(msg({ text: 'en die?' }), d);
+    const { substitutions } = d.interpret.mock.calls[1][0];
+    expect(substitutions.get(CALLER_SENTINEL)).toBe(OID);
+    expect(substitutions.get(PREVIOUS_SENTINEL)).toEqual(['g1', 'g2']);
+  });
+
+  it('no longer resolves anything itself — a definition the pipeline left alone stays as it is', async () => {
+    // A mock that ignores the map stands in for a pipeline that was not given
+    // one. The bot must not paper over that with a second substitution.
+    const d = deps({ interpret: vi.fn(async () => ({ kind: 'report', spec: structuredClone(reportSpec), timing: {} })) });
+    await answerMessage(msg(), d);
+    expect(JSON.stringify(d.runSpec.mock.calls[0][0])).toContain(CALLER_SENTINEL);
   });
 });

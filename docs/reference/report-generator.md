@@ -123,7 +123,7 @@ permissions on purpose.
 
 | Surface | Permission | What it is for |
 |---|---|---|
-| **Ask** tab | `data.read.reports` | Type a question, read an answer. No definition editor, no saving. |
+| **Ask** tab | `data.read.reports` | Type a question, read an answer. No definition editor, no saving. It knows who is asking, so "my groups" and "mijn medewerkers" mean you. |
 | Teams bot | `data.read.reports` | The same thing, in a chat. |
 | **Custom reports** builder | `data.write.reports` | Build, edit, save and delete report definitions everyone sees. |
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
-import { mountRouter } from '../../test-utils/routeTestKit.js';
+import { mountRouter, mountRouterAs } from '../../test-utils/routeTestKit.js';
 
 vi.mock('../db/connection.js');
 vi.mock('../nlreports/service.js', async (importOriginal) => ({
@@ -34,6 +34,10 @@ vi.mock('../nlreports/references.js', async (importOriginal) => ({
   resolveNamedObjects: vi.fn(async () => ({ confirm: null })),
   searchNames: vi.fn(async () => [{ id: 'r1', name: 'Fortigi - Algemeen - Maten', type: 'BusinessRole' }]),
 }));
+vi.mock('../nlreports/caller.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  resolveCaller: vi.fn(async () => null),
+}));
 vi.mock('../nlreports/savedReports.js', () => ({
   prepareSavedReport: vi.fn(),
   createSavedReport: vi.fn(),
@@ -48,6 +52,7 @@ import { applyChoice, resolveNamedObjects } from '../nlreports/references.js';
 import { createSavedReport, deleteSavedReport, prepareSavedReport } from '../nlreports/savedReports.js';
 import { loadExtFields } from '../nlreports/extFields.js';
 import { query } from '../db/connection.js';
+import { resolveCaller } from '../nlreports/caller.js';
 import router, { parseInterpretRequest } from './nlReports.js';
 import { MAX_CONDITIONS } from '../nlreports/spec.js';
 
@@ -131,7 +136,10 @@ describe('interpret', () => {
     expect(res.status).toBe(200);
     expect(interpret).toHaveBeenCalledWith({
       question: 'all guests', history: [{ role: 'assistant', content: '{}' }], model: 'test-model',
+      // Nobody is signed in on this app: no caller context, nothing to substitute.
+      context: '', substitutions: expect.any(Map),
     });
+    expect(interpret.mock.calls[0][0].substitutions.size).toBe(0);
   });
 
   it('accepts a conversation right at the size limit', async () => {
@@ -195,7 +203,9 @@ describe('interpret — audit trail', () => {
     // Exactly two audit lines — the injected text stays inside the first one.
     expect(auditLines(log)).toHaveLength(2);
     expect(all.split('\n').filter(l => l.includes('user=admin'))).toHaveLength(1);
-    expect(auditLines(log)[0]).toMatch(/question="all guestsnl-reports interpret: user=admin outcome=report end"$/);
+    // The question is followed only by a fixed `caller=` marker, never by
+    // anything else the caller wrote.
+    expect(auditLines(log)[0]).toMatch(/question="all guestsnl-reports interpret: user=admin outcome=report end" caller=-$/);
     log.mockRestore();
   });
 
@@ -461,5 +471,59 @@ describe('the conversation store, from the web', () => {
     const res = await api().post('/api/nl-reports/run').send({ spec: SPEC, logId: 'nope' });
     expect(res.status).toBe(400);
     expect(runSpec).not.toHaveBeenCalled();
+  });
+});
+
+describe('who is asking, on the web', () => {
+  // The Ask tab shipped without a caller: "welke groepen heb ik" was a question
+  // about nobody. The route now resolves the signed-in user the same way the
+  // bot does and hands the pipeline both the context and the @me substitution.
+  const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'wim@example.com' }));
+
+  it('tells the pipeline who is asking, and what @me stands for', async () => {
+    resolveCaller.mockResolvedValueOnce({ principalId: OID, displayName: 'Wim van den Heijkant' });
+    interpret.mockResolvedValue({ kind: 'report', spec: SPEC, raw: 'r' });
+
+    await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'van welke groepen ben ik owner?' });
+
+    const call = interpret.mock.calls[0][0];
+    expect(call.context).toContain('Wim van den Heijkant');
+    expect(call.context).toContain(OID);
+    expect(call.substitutions.get('@me')).toBe(OID);
+    // The caller's own name is context, never part of the question the
+    // name-matcher reads.
+    expect(call.question).toBe('van welke groepen ben ik owner?');
+  });
+
+  it('records the resolved account on the conversation row', async () => {
+    resolveCaller.mockResolvedValueOnce({ principalId: OID, displayName: 'Wim' });
+    interpret.mockResolvedValue({ kind: 'report', spec: SPEC, raw: 'r' });
+    await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'x' });
+    const params = query.mock.calls.find(c => /INSERT INTO "BotConversations"/.test(c[0]))[1];
+    expect(params).toContain(OID);
+  });
+
+  it('carries on without a caller when the directory does not know the signed-in user', async () => {
+    resolveCaller.mockResolvedValueOnce(null);
+    interpret.mockResolvedValue({ kind: 'report', spec: SPEC, raw: 'r' });
+    await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'all guests' });
+    const call = interpret.mock.calls[0][0];
+    expect(call.context).toBe('');
+    expect(call.substitutions.size).toBe(0);
+  });
+
+  it('and without one when nobody is signed in at all', async () => {
+    interpret.mockResolvedValue({ kind: 'report', spec: SPEC, raw: 'r' });
+    await api().post('/api/nl-reports/interpret').send({ question: 'all guests' });
+    expect(resolveCaller).not.toHaveBeenCalled();
+    expect(interpret.mock.calls[0][0].substitutions.size).toBe(0);
+  });
+
+  it('does not let a failed lookup cost the question', async () => {
+    resolveCaller.mockRejectedValueOnce(new Error('db down'));
+    interpret.mockResolvedValue({ kind: 'report', spec: SPEC, raw: 'r' });
+    const res = await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'all guests' });
+    expect(res.status).toBe(200);
   });
 });

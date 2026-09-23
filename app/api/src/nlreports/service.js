@@ -10,12 +10,15 @@ import { ENTITIES, VALUE_QUERIES } from './catalog.js';
 import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
+import { sentinelsIn, substituteValues } from './sentinels.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
 import { chat, DEFAULT_MODEL } from './llm.js';
 import { createWarmup, prepareAtStartup } from './warmup.js';
 import { applyChoice, resolveNamedObjects } from './references.js';
-import { applyTermChoice, correctionMessage, findTerms, locateTerms, termConfirmation, termHint, unusedTerms } from './terms.js';
+import {
+  applyTermChoice, correctionMessage, findTerms, loadKnownNames, locateTerms, termConfirmation, termHint, unusedTerms,
+} from './terms.js';
 import { isFeatureEnabled } from '../featureFlags.js';
 
 const VALUES_TTL_MS = 5 * 60 * 1000;
@@ -162,7 +165,13 @@ export function schemaFor(history, extraFieldNames = []) {
 function replyMeta(ctx, turn) {
   // `context` is what the model was told beside the question; `raw` is its
   // last reply. Both go to the conversation store, on every surface.
-  return { raw: turn.raw, timing: turn.timing, model: ctx.model, repaired: turn.repaired, context: ctx.context ?? '' };
+  // `substituted` says which placeholders the final definition used — "did it
+  // write @me when told to" cannot be read off the substituted definition.
+  return {
+    raw: turn.raw, timing: turn.timing, model: ctx.model, repaired: turn.repaired,
+    context: ctx.context ?? '',
+    substituted: sentinelsIn(turn.reply?.spec, ctx.substitutions),
+  };
 }
 
 /** Ask again after the model's last answer, with a correction. Counts as a repair. */
@@ -192,14 +201,14 @@ async function repairInvalidSpec(ctx, turn, result) {
   if (retry.reply?.kind !== 'report') return result;
   turn.raw = retry.content;
   turn.reply = retry.reply;
-  return validateSpec(turn.reply.spec, ctx.values, ctx.extFields);
+  return ctx.validate(turn.reply.spec);
 }
 
 /** The most common small-model mistake: "X or Y" compiled as X AND Y. */
 async function repairMissingOr(ctx, turn, result) {
   if (!result.ok || !needsOrRepair(ctx.question, result.spec)) return result;
   const retry = await askForCorrection(ctx, turn, OR_REPAIR_MESSAGE);
-  const retriedResult = retry.reply?.kind === 'report' ? validateSpec(retry.reply.spec, ctx.values, ctx.extFields) : null;
+  const retriedResult = retry.reply?.kind === 'report' ? ctx.validate(retry.reply.spec) : null;
   // Only take the correction when it is valid and actually contains an "any".
   if (!retriedResult?.ok || !hasAnyMatch(retriedResult.spec)) return result;
   turn.raw = retry.content;
@@ -212,7 +221,7 @@ async function repairUnusedTerms(ctx, turn, result) {
   const unused = result.ok ? unusedTerms(result.spec, ctx.located) : [];
   if (!unused.length) return result;
   const retry = await askForCorrection(ctx, turn, correctionMessage(unused));
-  const retriedResult = retry.reply?.kind === 'report' ? validateSpec(retry.reply.spec, ctx.values, ctx.extFields) : null;
+  const retriedResult = retry.reply?.kind === 'report' ? ctx.validate(retry.reply.spec) : null;
   // Only take the correction when it is valid and uses more of the names.
   if (!retriedResult?.ok || unusedTerms(retriedResult.spec, ctx.located).length >= unused.length) return result;
   turn.raw = retry.content;
@@ -242,7 +251,7 @@ function termCheck(ctx, spec, assumptions) {
 
 /** A report reply: repair it if needed, look named objects up, and shape the answer. */
 async function answerReport(ctx, turn) {
-  let result = validateSpec(turn.reply.spec, ctx.values, ctx.extFields);
+  let result = ctx.validate(turn.reply.spec);
   result = await repairInvalidSpec(ctx, turn, result);
   result = await repairMissingOr(ctx, turn, result);
   result = await repairUnusedTerms(ctx, turn, result);
@@ -299,8 +308,12 @@ function answerClarify(ctx, turn) {
  *                                but kept out of `question` — see below
  * @param {object[]} [args.history]
  * @param {string} [args.model]
+ * @param {Map<string, unknown>} [args.substitutions]  placeholder → value, resolved in every
+ *                                definition the model produces BEFORE it is validated
+ *                                (sentinels.js): `@me` → the caller's account id, `@previous`
+ *                                → the ids of the last answer
  */
-export async function interpret({ question, context = '', history = [], model = DEFAULT_MODEL }) {
+export async function interpret({ question, context = '', history = [], model = DEFAULT_MODEL, substitutions = new Map() }) {
   // Put the processed system prompt back in the server before asking, in case it
   // restarted since the last question. A hit costs ~0.1 s and saves ~3 minutes; a
   // miss is no worse than asking cold, and leaves the cache saved for next time.
@@ -320,15 +333,23 @@ export async function interpret({ question, context = '', history = [], model = 
   // caller's account id came back as `Name contains "Wim" OR Name contains
   // "Heijkant"`: a directory-wide report about everyone with a similar name,
   // presented as the answer to "which groups do I own".
-  const terms = findTerms(question, values);
+  // Names the directory knows, so a first name typed in lower case is still
+  // looked up. Server-side only; the model never sees this list.
+  const knownNames = await loadKnownNames(query);
+  const terms = findTerms(question, values, knownNames);
   const located = terms.length ? await locateTerms(terms, query, values) : [];
   const sent = contextFor({ values, located, attributes, callerContext: context });
   const ctx = {
-    question, model, values, located, extFields,
+    question, model, values, located, extFields, substitutions,
     context: sent,
     reportSchema: buildReplySchemas(extraFieldNames).reportOnly,
     messages: buildMessages(question, history, sent),
   };
+  // Every definition the model produces — the first and each repair — has its
+  // placeholders resolved BEFORE it is validated. Otherwise a model that wrote
+  // `@me` exactly as instructed is told that is invalid and sent round again,
+  // a full second model call on this hardware, to copy the uuid instead.
+  ctx.validate = (spec) => validateSpec(substituteValues(spec, ctx.substitutions), ctx.values, ctx.extFields);
 
   const first = await chat({ model, messages: ctx.messages, schema });
 

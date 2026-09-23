@@ -115,7 +115,7 @@ function coerceEnum(fieldName, field, value, values, err) {
 
 // The Teams bot lets the model write "@me" where the caller's own account
 // belongs, and substitutes the caller's id before validation
-// (teamsbot/callerSpec.js). By the time a definition gets here the sentinel is
+// (nlreports/sentinels.js, inside interpret()). By the time a definition gets here the sentinel is
 // therefore always already gone — so one that survives means the substitution
 // did not run, and the condition would silently match an account literally
 // named "@me" (i.e. nothing) instead of the person asking. Failing loudly is
@@ -129,7 +129,7 @@ export const CALLER_SENTINEL = '@me';
  *
  * The same bargain as `@me`, for the other thing a chat knows and a report
  * builder does not: what "these groups" refers to. The bot replaces it with the
- * actual ids before validation (teamsbot/followUp.js), so — exactly as above —
+ * actual ids before validation (the bot hands them to interpret()), so — exactly as above —
  * one that survives to here means the substitution did not run, and the
  * condition would match a record literally named "@previous" instead of the
  * 27 groups the caller is looking at.

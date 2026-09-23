@@ -30,6 +30,7 @@ import { loadExtFields } from '../nlreports/extFields.js';
 import { applyResolveChoice, ensureWarm, interpret, loadValues, runSpec, warmupState } from '../nlreports/service.js';
 import { completeRun, logConversation, newConversationId, OUTCOMES, SURFACES } from '../nlreports/conversations.js';
 import { detectLanguage } from '../teamsbot/text.js';
+import { callerContextBlock, callerSubstitutions, resolveCaller } from '../nlreports/caller.js';
 import { MODEL_IS_FIXED, listModels } from '../nlreports/llm.js';
 import {
   forLog, generatorStatus, oneQuestionAtATime, parseInterpretRequest, userOf, warmHandler,
@@ -139,6 +140,11 @@ router.post('/nl-reports/interpret', askGate, async (req, res) => {
   const started = Date.now();
   const who = claimQuestion(req, res);
   if (!who) return;
+  // Who is asking, so "my" means something here as it does in the bot. A signed-in
+  // user the directory does not know — or no signed-in user at all — gets no
+  // caller and the builder works exactly as it always did; "my" then means
+  // nothing, and the scope caveat says so.
+  const caller = req.user?.oid ? await resolveCaller(req.user.oid).catch(() => null) : null;
   // Allocated up front: /run completes this row later, so the id has to exist
   // before anything is written, exactly as the bot's deep link does.
   const logId = newConversationId();
@@ -146,7 +152,7 @@ router.post('/nl-reports/interpret', askGate, async (req, res) => {
     id: logId,
     surface: SURFACES.WEB,
     callerOid: req.user?.oid ?? null,
-    callerPrincipalId: null,
+    callerPrincipalId: caller?.principalId ?? null,
     conversationId,
     question,
     language: detectLanguage(question),
@@ -158,8 +164,14 @@ router.post('/nl-reports/interpret', askGate, async (req, res) => {
     // Audit trail: who asked what, with which model — logged on arrival, so a question
     // is on record even if the model never answers — and then what came back. The
     // question is analyst text. No rows or results are ever logged.
-    console.log(`nl-reports interpret: ${who} model=${forLog(model, 100)} question="${forLog(question)}"`);
-    const reply = await interpret({ question, history: cleanHistory, model });
+    // `caller=` last: the line's shape up to the question is a contract the
+    // audit test pins, and a resolved caller is an addition to it, not a change.
+    console.log(`nl-reports interpret: ${who} model=${forLog(model, 100)} question="${forLog(question)}" caller=${caller ? 'resolved' : '-'}`);
+    const reply = await interpret({
+      question, history: cleanHistory, model,
+      context: caller ? callerContextBlock(caller) : '',
+      substitutions: callerSubstitutions(caller),
+    });
     console.log(`nl-reports interpret: ${who} outcome=${reply.kind}${reply.repaired ? ' repaired' : ''} ms=${Date.now() - started}`);
     // The same row the Teams bot writes, so an evaluation reads one table. A
     // report is `interpreted` until /run says what it returned.

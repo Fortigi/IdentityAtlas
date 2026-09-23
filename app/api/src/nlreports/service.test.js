@@ -483,3 +483,59 @@ describe('interpret — attributes this deployment has', () => {
     expect(messages.at(-1).content).not.toContain('Attributes from');
   });
 });
+
+describe('interpret — placeholders are resolved before validation', () => {
+  // The whole reason the substitution moved here. spec.js rejects a surviving
+  // "@me"; when the bot substituted AFTER interpret(), a model that wrote "@me"
+  // exactly as told was sent round a repair — a full second model call — to
+  // copy the uuid instead.
+  const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const ME_SPEC = {
+    entity: 'user',
+    conditions: [{ type: 'relation', relation: 'manager', quantifier: 'some', conditions: [{ field: 'id', op: 'eq', value: '@me' }] }],
+  };
+  const me = () => new Map([['@me', OID]]);
+
+  it('accepts a definition that uses @me in ONE model call, with the real id in it', async () => {
+    chat.mockResolvedValueOnce(reply(ME_SPEC));
+    const r = await interpret({ question: 'my direct reports', model: 'm', substitutions: me() });
+
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(r.kind).toBe('report');
+    expect(JSON.stringify(r.spec)).not.toContain('@me');
+    expect(r.spec.conditions[0].conditions[0].value).toBe(OID);
+  });
+
+  it('says which placeholders the final definition used', async () => {
+    chat.mockResolvedValueOnce(reply(ME_SPEC));
+    const r = await interpret({ question: 'my direct reports', model: 'm', substitutions: me() });
+    expect(r.substituted).toEqual(['@me']);
+  });
+
+  it('reports none when the model copied a literal instead — the case worth counting', async () => {
+    chat.mockResolvedValueOnce(reply({ ...ME_SPEC, conditions: [{ ...ME_SPEC.conditions[0], conditions: [{ field: 'id', op: 'eq', value: OID }] }] }));
+    const r = await interpret({ question: 'my direct reports', model: 'm', substitutions: me() });
+    expect(r.kind).toBe('report');
+    expect(r.substituted).toEqual([]);
+  });
+
+  it('still rejects a surviving @me when nothing is in force, so the builder cannot smuggle one in', async () => {
+    chat.mockResolvedValueOnce(reply(ME_SPEC)).mockResolvedValueOnce(reply(ME_SPEC));
+    const r = await interpret({ question: 'my direct reports', model: 'm' });
+
+    expect(chat).toHaveBeenCalledTimes(2);   // the repair round ran, and the model insisted
+    expect(r.kind).toBe('error');
+    expect(chat.mock.calls[1][0].messages.at(-1).content).toContain('@me');
+  });
+
+  it('resolves the definition a repair round produced, too', async () => {
+    const BAD = { ...ME_SPEC, conditions: [...ME_SPEC.conditions, { type: 'field', field: 'noSuchField', op: 'eq', value: 'x' }] };
+    chat.mockResolvedValueOnce(reply(BAD)).mockResolvedValueOnce(reply(ME_SPEC));
+    const r = await interpret({ question: 'my direct reports', model: 'm', substitutions: me() });
+
+    expect(chat).toHaveBeenCalledTimes(2);
+    expect(r.kind).toBe('report');
+    expect(r.spec.conditions[0].conditions[0].value).toBe(OID);
+    expect(r.repaired).toBe(true);
+  });
+});

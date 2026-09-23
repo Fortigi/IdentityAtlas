@@ -22,6 +22,8 @@
     "src/nlreports/compare.js",
     "src/nlreports/compile.js",
     "src/nlreports/contradictions.js",
+    "src/nlreports/caller.js",
+    "src/nlreports/sentinels.js",
     "src/nlreports/conversations.js",
     "src/nlreports/explain.js",
     "src/nlreports/extFields.js",

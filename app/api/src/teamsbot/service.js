@@ -23,9 +23,9 @@
 
 import { applyResolveChoice, interpret, loadValues, runSpec } from '../nlreports/service.js';
 import { loadExtFields } from '../nlreports/extFields.js';
-import { validateSpec } from '../nlreports/spec.js';
-import { resolveCaller, callerContextBlock } from './caller.js';
-import { substituteCaller, needsScopeCaveat } from './callerSpec.js';
+import { PREVIOUS_SENTINEL, validateSpec } from '../nlreports/spec.js';
+import { resolveCaller, callerContextBlock, callerSubstitutions } from './caller.js';
+import { needsScopeCaveat } from './callerSpec.js';
 import {
   answerCard, clarifyCard, notUnderstoodCard, unknownCallerCard, timeoutCard, errorCard, welcomeCard,
   MAX_ROWS as MAX_CARD_ROWS, MAX_COLUMNS as MAX_CARD_COLUMNS,
@@ -34,9 +34,7 @@ import { detectLanguage, strings } from './text.js';
 import { logConversation, newConversationId, OUTCOMES, SURFACES } from './log.js';
 import { forLog } from '../nlreports/assistantHttp.js';
 import { setPending, takePending, rememberAnswer, recallAnswer } from './state.js';
-import {
-  carriedRecords, narrowToPrevious, previousContextBlock, substitutePrevious, usedPrevious,
-} from './followUp.js';
+import { carriedRecords, narrowToPrevious, previousContextBlock, usedPrevious } from './followUp.js';
 
 /**
  * How long the caller waits before being told it failed.
@@ -224,7 +222,11 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
   const context = history.length
     ? ''
     : [callerContextBlock(caller), previousContextBlock(carried)].filter(Boolean).join('\n\n');
-  const reply = await ask({ question, context, history });
+  // Both placeholders are resolved INSIDE interpret(), before validation — a
+  // model that writes them as instructed no longer pays a repair round for it.
+  const substitutions = callerSubstitutions(caller);
+  if (carried?.records?.length) substitutions.set(PREVIOUS_SENTINEL, carried.records.map(r => r.id));
+  const reply = await ask({ question, context, history, substitutions });
 
   if (reply.kind === 'clarify') {
     setPending(message.conversationId, {
@@ -249,15 +251,13 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
     return { kind: 'not-understood', errors: reply.errors, timing: reply.timing, ...told(reply) };
   }
 
-  // The caller's own account, then the previous answer's records — by the
-  // sentinel when the model wrote one, and otherwise by reading the question.
-  // The second path is the one that carries the feature: the model reliably
-  // gets the SUBJECT of a follow-up right and reliably forgets the
+  // The definition arrives with real ids in it (see the substitutions above).
+  // What is left is the deterministic path for "these groups": the model
+  // reliably gets the SUBJECT of a follow-up right and reliably forgets the
   // bookkeeping, so the bookkeeping is not asked of it (see followUp.js).
-  const withCaller = substituteCaller(reply.spec, caller.principalId);
-  const bySentinel = substitutePrevious(withCaller, carried);
-  const spec = narrowToPrevious(bySentinel, carried, question);
-  const followedUp = usedPrevious(withCaller, spec);
+  const bySentinel = (reply.substituted ?? []).includes(PREVIOUS_SENTINEL);
+  const spec = narrowToPrevious(reply.spec, carried, question);
+  const followedUp = bySentinel || usedPrevious(reply.spec, spec);
 
   // Whether the previous answer was offered, and what became of it. Written
   // every time, because reconstructing this afterwards meant reading report
@@ -272,7 +272,7 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
   // the ratio, which is not a diagnosis anybody should have to perform twice.
   console.log(
     `teams-bot: follow-up offered=${carried?.records?.length ?? 0} kind=${carried?.kind ?? '-'} `
-    + `sentinel=${usedPrevious(withCaller, bySentinel)} narrowed=${usedPrevious(bySentinel, spec)} `
+    + `sentinel=${bySentinel} narrowed=${usedPrevious(reply.spec, spec)} `
     + `repaired=${reply.repaired === true}`,
   );
 

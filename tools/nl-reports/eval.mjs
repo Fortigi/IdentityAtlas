@@ -11,6 +11,10 @@
 // Usage (on the sidekick, against the running stack):
 //   node tools/nl-reports/eval.mjs --check                       # validate expected specs only
 //   node tools/nl-reports/eval.mjs --models qwen2.5-coder:3b,qwen3:4b [--file holdout.json] [--only id1,id2] [--out file.json]
+//
+// Against a stack with authentication on, pass a bearer token for a signed-in
+// analyst (--token or EVAL_TOKEN): every call here is a POST, which a read-only
+// API key may not make, and warm-up needs data.write.reports besides.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
@@ -23,6 +27,7 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) =>
 }, []));
 
 const BASE = args.base || 'http://localhost:3001';
+const TOKEN = args.token || process.env.EVAL_TOKEN || '';
 const here = dirname(fileURLToPath(import.meta.url));
 let questions = JSON.parse(readFileSync(args.file || join(here, 'questions.json'), 'utf8'));
 if (args.only) questions = questions.filter(q => args.only.split(',').includes(q.id));
@@ -38,7 +43,11 @@ function post(path, body) {
   return new Promise((resolve, reject) => {
     const req = http.request(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+        ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}),
+      },
     }, (res) => {
       let text = '';
       res.on('data', (c) => { text += c; });

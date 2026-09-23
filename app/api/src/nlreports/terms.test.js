@@ -8,8 +8,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { validateSpec } from './spec.js';
 import {
-  applyTermChoice, correctionMessage, findTerms, locateTerms, termConfirmation, termHint,
-  ungroundedSystemConditions, unusedTerms, wholeWordPattern,
+  applyTermChoice, clearKnownNamesCache, correctionMessage, findTerms, loadKnownNames, locateTerms,
+  termConfirmation, termHint, ungroundedSystemConditions, unusedTerms, wholeWordPattern,
 } from './terms.js';
 
 const VALUES = { userType: ['Guest', 'Member'], principalType: ['User', 'ServicePrincipal'], systemName: ['Azure RM (3c4f204d)', 'Entra ID', 'Omada'] };
@@ -221,5 +221,66 @@ describe('applyTermChoice', () => {
       expect(applyTermChoice(spec, { ...choice, drop: [[0]] })).toBe(false);
       expect(spec).toEqual(guestsInSystem());
     }
+  });
+});
+
+describe('a first name typed in lower case', () => {
+  // "welke groepen heb ik die william niet heeft?" — not quoted, not
+  // capitalised, not a phrase, so nothing found it; no hint reached the model
+  // and it guessed William was a group. The directory knew better.
+  const KNOWN = new Set(['william', 'wim', 'overweg', 'heijkant']);
+
+  it('is found when the directory knows it as a name', () => {
+    expect(findTerms('welke groepen heb ik die william niet heeft?', VALUES, KNOWN)).toEqual(['william']);
+  });
+
+  it('is not found without that list — the behaviour every caller had before', () => {
+    expect(findTerms('welke groepen heb ik die william niet heeft?', VALUES)).toEqual([]);
+    expect(findTerms('welke groepen heb ik die william niet heeft?', VALUES, new Set())).toEqual([]);
+  });
+
+  it('admits only words the directory knows, never every lower-case word', () => {
+    // "groepen", "heeft" and the rest are not names; a list that admitted them
+    // would send the model a hint about every word in the question.
+    expect(findTerms('welke groepen heeft william', VALUES, KNOWN)).toEqual(['william']);
+  });
+
+  it('does not double a name that was found as a capitalised word already', () => {
+    expect(findTerms('groups that Wim has that William lacks', VALUES, KNOWN)).toEqual(['Wim', 'William']);
+  });
+
+  it('still leaves catalog vocabulary alone even when someone is called that', () => {
+    // A user whose surname is "Group" must not turn the word into a name hint.
+    expect(findTerms('all group members', VALUES, new Set(['group']))).toEqual([]);
+  });
+});
+
+describe('loadKnownNames', () => {
+  it('lower-cases and normalises the tokens, drops the short ones, and caches', async () => {
+    clearKnownNamesCache();
+    const query = vi.fn(async () => ({ rows: [{ v: 'william' }, { v: 'heijkant,' }, { v: 'de' }, { v: 'j.' }] }));
+    const names = await loadKnownNames(query);
+    expect(names.has('william')).toBe(true);
+    expect(names.has('heijkant')).toBe(true);   // the comma is not part of the name
+    expect(names.has('de')).toBe(false);         // two letters: as a substring it is everywhere
+    await loadKnownNames(query);
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks for user display-name tokens only, from the live rows', async () => {
+    clearKnownNamesCache();
+    const query = vi.fn(async () => ({ rows: [] }));
+    await loadKnownNames(query);
+    const sql = query.mock.calls[0][0];
+    expect(sql).toContain('"principalType" = \'User\'');
+    expect(sql).toContain('"deletedAt" IS NULL');
+    expect(sql).toContain('"displayName"');
+  });
+
+  it('yields an empty set, not an error, when the lookup fails or returns nothing', async () => {
+    clearKnownNamesCache();
+    expect((await loadKnownNames(vi.fn(async () => { throw new Error('down'); }))).size).toBe(0);
+    clearKnownNamesCache();
+    expect((await loadKnownNames(vi.fn(async () => undefined))).size).toBe(0);
   });
 });
