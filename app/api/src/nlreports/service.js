@@ -11,7 +11,7 @@ import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
-import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, autofixSpec, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, autofixSpec, isRelationLeaf, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
 import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
@@ -462,8 +462,11 @@ export async function interpret({ question, context = '', history = [], model = 
     // those. When nothing in the request asked for it ("accountCount gt 0"
     // inside members), the model made it up, and the definition without it
     // is the one asked for: it goes, and the answer says so.
+    // A rejected RELATION is never noise: "access none" on a resource report
+    // ("directory roles that nobody holds") is the members relation misnamed,
+    // and dropping it answers with every role. The repair round renames it.
     const lost = lostLeaves(substituted, first.spec, []);
-    if (lost.some(leaf => askedForLeaf(leaf, ctx.question))) return first;
+    if (lost.some(leaf => isRelationLeaf(leaf) || askedForLeaf(leaf, ctx.question))) return first;
     const noise = lost.map(leaf => `Dropped "${leaf}": nothing in the request asks for it.`);
     const fixed = autofixSpec(first.spec);
     if (!fixed.notes.length && !noise.length) return first;

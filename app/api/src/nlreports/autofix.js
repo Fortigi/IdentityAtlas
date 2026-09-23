@@ -541,6 +541,9 @@ export function askedForLeaf(leaf, question) {
   return words.some(w => text.includes(w));
 }
 
+/** A relation leaf ("access none"): a rejected one is a misnamed relation, never an invention. */
+export const isRelationLeaf = (leaf) => /^\S+ (some|none)$/.test(String(leaf));
+
 /**
  * The leaves a correction removed although no error named their field.
  *

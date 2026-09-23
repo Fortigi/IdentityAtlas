@@ -857,3 +857,23 @@ describe('interpret — a refinement keeps the previous definition', () => {
     expect(r.assumptions.join(' ')).toMatch(/Kept the earlier definition/);
   });
 });
+
+describe('interpret — a rejected relation is never noise', () => {
+  it('spends the repair round on "access none" written on a resource report', async () => {
+    // Verbatim: "directory roles that nobody holds" — access is a user's
+    // relation; on a resource the model meant members. Dropped as noise, the
+    // answer was every role (145 where 137 were asked).
+    clearValuesCache();
+    query.mockResolvedValue({ rows: [{ v: 'EntraDirectoryRole' }, { v: 'Group' }] });
+    const misnamed = { entity: 'resource', match: 'all', columns: [], conditions: [
+      { type: 'field', field: 'resourceType', op: 'eq', value: 'EntraDirectoryRole' },
+      { type: 'relation', relation: 'access', quantifier: 'none', match: 'all', conditions: [] },
+    ] };
+    const fixed = { ...misnamed, conditions: [misnamed.conditions[0], { type: 'relation', relation: 'members', quantifier: 'none', match: 'all', conditions: [] }] };
+    chat.mockResolvedValueOnce(reply(misnamed)).mockResolvedValueOnce(reply(fixed));
+    const r = await interpret({ question: 'directory roles that nobody holds', model: 'm' });
+    expect(chat).toHaveBeenCalledTimes(2);
+    expect(r.kind).toBe('report');
+    expect(r.spec.conditions[1]).toMatchObject({ relation: 'members', quantifier: 'none' });
+  });
+});
