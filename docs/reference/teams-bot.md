@@ -120,6 +120,11 @@ Two consequences worth knowing:
 
 This is not conversation memory: exactly one answer is remembered, and only its records.
 
+The same bookkeeping serves the **Ask** tab in the web app: the tab sends its chat id with
+every run, the API remembers what that run showed (per chat and per signed-in person), and
+the next question in the chat is narrowed exactly as above. Before this the tab sent the
+chat history and hoped; *"welke 5?"* came back as another count.
+
 ## Setting it up
 
 Five things, in this order. Steps 1–3 are in Azure, step 4 is in Identity Atlas, step 5 is
@@ -264,6 +269,13 @@ adding it lands in the compiled SQL rather than in card rendering.
 Also out of scope for v1: proactive messages (the bot never starts a conversation), any
 write operation (no approvals, revocations or certifications), channel and group chats
 (personal chat only), and memory beyond the records of the previous answer.
+
+**It declines what it should not answer.** A question that is not about the directory
+(*"Is Trump de president van Amerika?"*, the weather, a poem) or that asks to change access
+(*"verwijder william uit alle groepen"*) gets one sentence back and no report — the model
+replies with a `decline` instead of a definition, and the card says what the bot can do
+instead. These are recorded as `declined`, not as questions it failed to understand, so
+"how often does it refuse, and was it right to" can be counted.
 
 ## Latency
 

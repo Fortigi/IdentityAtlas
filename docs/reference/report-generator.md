@@ -112,7 +112,28 @@ not part of it") is among the three that pass. For a comparison that matters, bu
 **+ compare with…** in the editor — once built, a comparison is exact; only the translation from
 words is uncertain.
 
-Three failure modes are handled in code rather than left to the model:
+Several failure modes are handled in code rather than left to the model. Two of them were once
+handed back to the model to fix and are now corrected on the spot — at about a token a second on
+the CPU box a correction round costs one to three minutes, and the model's correction was not
+reliably better (asked to fix "added AND removed" it dropped "removed" and the 90-day window
+with it). Every correction made this way is stated in the report's assumptions.
+
+- **A mistake with one sensible reading is corrected without asking** — "action is Added AND
+  action is Removed" becomes *either*; "owner count above zero" beside "has no owner" loses
+  the count; "within the last 90 days" beside "more than 180 days ago" keeps the recent bound;
+  and a count-per-value grouping the question never asked for is removed ("which groups was he
+  added to" once came back as the number 5). A mistake with two readings ("empty and not
+  empty") is still put to the model.
+- **A correction may only fix what it was told** — when the model is asked to correct a
+  definition, the corrected one is compared with the original leaf by leaf; if it lost a
+  condition no error named, the correction is refused and the original error shown.
+- **A first name is one person** — "william" written as a name-contains filter is looked up
+  before the report runs: one match is pinned to that person (the reading says who), several
+  are offered as a choice, none asks for the exact name. On a small directory the substring
+  happened to be right; on a large one it counts every William.
+- **Out of scope is declined, not guessed** — a request that is not about the data (general
+  knowledge, small talk, writing) or that asks to change access is answered with one sentence
+  and no report, in every front end, and filed as `declined` rather than as a failure.
 
 - **"or" read as "and"** — if the question contains *or* but the definition has no any-group, the
   generator asks the model once to correct it, and keeps the original if the correction is no better.
