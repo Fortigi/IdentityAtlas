@@ -1,22 +1,22 @@
 {
   "summary": {
-    "generatedon": "2026-09-23T08:29:48Z",
+    "generatedon": "2026-09-23T13:58:41Z",
     "parser": "JaCoCo",
     "assemblies": 13,
-    "classes": 149,
-    "files": 149,
-    "coveredlines": 6195,
-    "uncoveredlines": 541,
-    "coverablelines": 6736,
-    "totallines": 18531,
-    "linecoverage": 91.9,
+    "classes": 151,
+    "files": 151,
+    "coveredlines": 6252,
+    "uncoveredlines": 583,
+    "coverablelines": 6835,
+    "totallines": 18867,
+    "linecoverage": 91.4,
     "coveredbranches": 0,
     "totalbranches": 0,
-    "coveredmethods": 626,
-    "fullcoveredmethods": 582,
-    "totalmethods": 643,
-    "methodcoverage": 97.3,
-    "fullmethodcoverage": 90.5
+    "coveredmethods": 632,
+    "fullcoveredmethods": 587,
+    "totalmethods": 651,
+    "methodcoverage": 97,
+    "fullmethodcoverage": 90.1
  },
   "coverage": {
     "assemblies": [
@@ -36,18 +36,19 @@
         { "name": "tools/crawlers/custom-connector/Start-CustomConnector", "coverage": 0, "coveredlines": 0, "coverablelines": 1, "totallines": 10, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
       { "name": "tools/crawlers/demo", "classes": 1, "coverage": 0, "coveredlines": 0, "coverablelines": 31, "totallines": 99, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 2, "classesinassembly": [
         { "name": "tools/crawlers/demo/Start-DemoCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 31, "totallines": 99, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 2 } ] },
-      { "name": "tools/crawlers/entra-id", "classes": 11, "coverage": 91.9, "coveredlines": 1689, "coverablelines": 1836, "totallines": 4763, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 96.3, "fullmethodcoverage": 86, "coveredmethods": 131, "fullcoveredmethods": 117, "totalmethods": 136, "classesinassembly": [
+      { "name": "tools/crawlers/entra-id", "classes": 12, "coverage": 90.1, "coveredlines": 1720, "coverablelines": 1908, "totallines": 4995, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 95, "fullmethodcoverage": 85.2, "coveredmethods": 135, "fullcoveredmethods": 121, "totalmethods": 142, "classesinassembly": [
         { "name": "tools/crawlers/entra-id/EntraIDCrawler.AppOwners", "coverage": 92.9, "coveredlines": 92, "coverablelines": 99, "totallines": 235, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 50, "coveredmethods": 6, "fullcoveredmethods": 3, "totalmethods": 6 },
         { "name": "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions", "coverage": 98.9, "coveredlines": 96, "coverablelines": 97, "totallines": 238, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 87.5, "coveredmethods": 8, "fullcoveredmethods": 7, "totalmethods": 8 },
         { "name": "tools/crawlers/entra-id/EntraIDCrawler.AppRoles", "coverage": 100, "coveredlines": 65, "coverablelines": 65, "totallines": 155, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 6 },
         { "name": "tools/crawlers/entra-id/EntraIDCrawler.AttributeLabels", "coverage": 100, "coveredlines": 41, "coverablelines": 41, "totallines": 190, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 5, "fullcoveredmethods": 5, "totalmethods": 5 },
         { "name": "tools/crawlers/entra-id/EntraIDCrawler.DeltaSelect", "coverage": 100, "coveredlines": 10, "coverablelines": 10, "totallines": 73, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 2, "fullcoveredmethods": 2, "totalmethods": 2 },
-        { "name": "tools/crawlers/entra-id/EntraIDCrawler.Functions", "coverage": 89.6, "coveredlines": 165, "coverablelines": 184, "totallines": 584, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 92.8, "fullmethodcoverage": 92.8, "coveredmethods": 26, "fullcoveredmethods": 26, "totalmethods": 28 },
+        { "name": "tools/crawlers/entra-id/EntraIDCrawler.Functions", "coverage": 85.9, "coveredlines": 165, "coverablelines": 192, "totallines": 604, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 89.6, "fullmethodcoverage": 89.6, "coveredmethods": 26, "fullcoveredmethods": 26, "totalmethods": 29 },
         { "name": "tools/crawlers/entra-id/EntraIDCrawler.Orchestration", "coverage": 100, "coveredlines": 10, "coverablelines": 10, "totallines": 60, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
-        { "name": "tools/crawlers/entra-id/EntraIDCrawler.Phases", "coverage": 97.8, "coveredlines": 778, "coverablelines": 795, "totallines": 1858, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 82.2, "coveredmethods": 45, "fullcoveredmethods": 37, "totalmethods": 45 },
+        { "name": "tools/crawlers/entra-id/EntraIDCrawler.Phases", "coverage": 97.8, "coveredlines": 783, "coverablelines": 800, "totallines": 1868, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 82.2, "coveredmethods": 45, "fullcoveredmethods": 37, "totalmethods": 45 },
+        { "name": "tools/crawlers/entra-id/EntraIDCrawler.Photos", "coverage": 48.1, "coveredlines": 26, "coverablelines": 54, "totallines": 190, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 80, "fullmethodcoverage": 80, "coveredmethods": 4, "fullcoveredmethods": 4, "totalmethods": 5 },
         { "name": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships", "coverage": 44.4, "coveredlines": 24, "coverablelines": 54, "totallines": 154, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 60, "fullmethodcoverage": 20, "coveredmethods": 3, "fullcoveredmethods": 1, "totalmethods": 5 },
         { "name": "tools/crawlers/entra-id/EntraIDCrawler.Transform", "coverage": 100, "coveredlines": 408, "coverablelines": 408, "totallines": 851, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 29, "fullcoveredmethods": 29, "totalmethods": 29 },
-        { "name": "tools/crawlers/entra-id/Start-EntraIDCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 73, "totallines": 365, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
+        { "name": "tools/crawlers/entra-id/Start-EntraIDCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 78, "totallines": 377, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
       { "name": "tools/crawlers/midpoint", "classes": 5, "coverage": 90.7, "coveredlines": 876, "coverablelines": 965, "totallines": 2389, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 98.9, "fullmethodcoverage": 89.7, "coveredmethods": 97, "fullcoveredmethods": 88, "totalmethods": 98, "classesinassembly": [
         { "name": "tools/crawlers/midpoint/Invoke-MidpointApi", "coverage": 96.9, "coveredlines": 251, "coverablelines": 259, "totallines": 733, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 83.8, "coveredmethods": 31, "fullcoveredmethods": 26, "totalmethods": 31 },
         { "name": "tools/crawlers/midpoint/MidpointCrawler.Functions", "coverage": 100, "coveredlines": 71, "coverablelines": 71, "totallines": 179, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 12, "fullcoveredmethods": 12, "totalmethods": 12 },
@@ -76,7 +77,7 @@
         { "name": "tools/crawlers/shared/Get-CrawlerSystemName", "coverage": 100, "coveredlines": 6, "coverablelines": 6, "totallines": 60, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "tools/crawlers/shared/Get-NestedGroupUserSet", "coverage": 100, "coveredlines": 12, "coverablelines": 12, "totallines": 52, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "tools/crawlers/shared/Invoke-CrawlerIngest", "coverage": 99, "coveredlines": 110, "coverablelines": 111, "totallines": 304, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 92.3, "coveredmethods": 13, "fullcoveredmethods": 12, "totalmethods": 13 } ] },
-      { "name": "tools/powershell-sdk/graph", "classes": 71, "coverage": 94.7, "coveredlines": 982, "coverablelines": 1036, "totallines": 3412, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 99, "fullmethodcoverage": 92.1, "coveredmethods": 101, "fullcoveredmethods": 94, "totalmethods": 102, "classesinassembly": [
+      { "name": "tools/powershell-sdk/graph", "classes": 72, "coverage": 94.8, "coveredlines": 1008, "coverablelines": 1063, "totallines": 3516, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 99, "fullmethodcoverage": 91.3, "coveredmethods": 103, "fullcoveredmethods": 95, "totalmethods": 104, "classesinassembly": [
         { "name": "tools/powershell-sdk/graph/Add-FGGroupMember", "coverage": 100, "coveredlines": 5, "coverablelines": 5, "totallines": 23, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "tools/powershell-sdk/graph/Add-FGGroupToAccessPackage", "coverage": 100, "coveredlines": 17, "coverablelines": 17, "totallines": 39, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "tools/powershell-sdk/graph/Add-FGGroupToCatalog", "coverage": 100, "coveredlines": 11, "coverablelines": 11, "totallines": 30, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
@@ -118,6 +119,7 @@
         { "name": "tools/powershell-sdk/graph/Invoke-FGDeleteRequest", "coverage": 66.6, "coveredlines": 10, "coverablelines": 15, "totallines": 46, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 0, "coveredmethods": 1, "fullcoveredmethods": 0, "totalmethods": 1 },
         { "name": "tools/powershell-sdk/graph/Invoke-FGGetPage", "coverage": 100, "coveredlines": 34, "coverablelines": 34, "totallines": 110, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 4, "fullcoveredmethods": 4, "totalmethods": 4 },
         { "name": "tools/powershell-sdk/graph/Invoke-FGGetRequest", "coverage": 100, "coveredlines": 32, "coverablelines": 32, "totallines": 74, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
+        { "name": "tools/powershell-sdk/graph/Invoke-FGGetRequestBytes", "coverage": 96.2, "coveredlines": 26, "coverablelines": 27, "totallines": 104, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 50, "coveredmethods": 2, "fullcoveredmethods": 1, "totalmethods": 2 },
         { "name": "tools/powershell-sdk/graph/Invoke-FGGetRequestStream", "coverage": 100, "coveredlines": 12, "coverablelines": 12, "totallines": 76, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "tools/powershell-sdk/graph/Invoke-FGGetRequestToFile", "coverage": 71.4, "coveredlines": 15, "coverablelines": 21, "totallines": 50, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 0, "coveredmethods": 1, "fullcoveredmethods": 0, "totalmethods": 1 },
         { "name": "tools/powershell-sdk/graph/Invoke-FGPatchRequest", "coverage": 72.2, "coveredlines": 13, "coverablelines": 18, "totallines": 51, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 0, "coveredmethods": 1, "fullcoveredmethods": 0, "totalmethods": 1 },
