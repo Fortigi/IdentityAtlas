@@ -429,3 +429,13 @@ describe('narrowToPrevious — carried group ids on the wrong relation of a chan
     ]);
   });
 });
+
+describe('carriedRecords — the definition rides along', () => {
+  it('keeps the spec that produced the records beside them, and nothing when there are no records', () => {
+    const spec = { entity: 'group', match: 'all', conditions: [], columns: ['displayName'] };
+    const out = carriedRecords({ spec, rows: [{ _entity: { kind: 'resource', id: 'g1' } }, { _entity: { kind: 'resource', id: 'g2' } }] });
+    expect(out.spec).toBe(spec);
+    expect(out.records).toHaveLength(2);
+    expect(carriedRecords({ spec, rows: [] })).toBeNull();
+  });
+});

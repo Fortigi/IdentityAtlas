@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, nameWrittenAsId, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, nameWrittenAsId, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -370,5 +370,39 @@ describe('a name written as an id', () => {
     expect(spec.conditions[0].conditions[0]).toEqual({ type: 'field', field: 'id', op: 'eq', value: '@me' });
     expect(spec.conditions[1].conditions[0]).toEqual({ type: 'field', field: 'displayName', op: 'contains', value: 'william' });
     expect(spec.conditions[2].field).toBe('id');
+  });
+});
+
+describe('a refinement keeps the previous definition', () => {
+  const william = { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'eq', value: 'William Overweg' }] };
+  const me = { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: 'dda42659-89b1-43df-a057-b0fa36c86aaa' }] };
+  const groups = { type: 'relation', relation: 'resource', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'Group' }] };
+  const window = { type: 'field', field: 'changedAt', op: 'withinLastDays', value: 90 };
+  const added = { type: 'field', field: 'action', op: 'eq', value: 'Added' };
+  const previous = { entity: 'change', match: 'all', conditions: [william, groups, window] };
+
+  it('restores the person and the window the refinement never mentioned, and keeps the filter it asked for', () => {
+    // Verbatim: "Alleen de toevoegingen graag." after William's changes in 90 days.
+    const { spec, notes } = refineFromPrevious({ entity: 'change', match: 'all', conditions: [me, added, groups] }, previous, 'Alleen de toevoegingen graag.');
+    expect(spec.conditions).toEqual([william, added, groups, window]);
+    expect(notes).toHaveLength(1);
+  });
+
+  it('leaves a new question alone: one that names a kind of record, or changes the entity', () => {
+    const fresh = { entity: 'change', match: 'all', conditions: [me, added] };
+    expect(refineFromPrevious(fresh, previous, 'Welke van deze groepen zijn openbaar?').spec).toBe(fresh);
+    const other = { entity: 'group', match: 'all', conditions: [] };
+    expect(refineFromPrevious(other, previous, 'alleen de toevoegingen').spec).toBe(other);
+  });
+
+  it('does not restore what the refinement itself is about', () => {
+    // "Only the last 30 days" replaces the window on purpose.
+    const { spec } = refineFromPrevious({ entity: 'change', match: 'all', conditions: [william, groups, { ...window, value: 30 }] }, previous, 'only the last 30 days please');
+    expect(spec.conditions.find(c => c.field === 'changedAt').value).toBe(30);
+  });
+
+  it('adds nothing when everything is still there', () => {
+    const same = { entity: 'change', match: 'all', conditions: [william, groups, window, added] };
+    expect(refineFromPrevious(same, previous, 'alleen de toevoegingen').spec).toBe(same);
   });
 });

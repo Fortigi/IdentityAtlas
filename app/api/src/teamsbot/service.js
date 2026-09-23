@@ -226,7 +226,7 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
   // model that writes them as instructed no longer pays a repair round for it.
   const substitutions = callerSubstitutions(caller);
   if (carried?.records?.length) substitutions.set(PREVIOUS_SENTINEL, carried.records.map(r => r.id));
-  const reply = await ask({ question, context, history, substitutions });
+  const reply = await ask({ question, context, history, substitutions, previousSpec: carried?.spec ?? null });
 
   if (reply.kind === 'clarify') {
     setPending(message.conversationId, {

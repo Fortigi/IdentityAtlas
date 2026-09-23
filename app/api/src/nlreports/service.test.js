@@ -833,3 +833,26 @@ describe('every correction round keeps what the definition had', () => {
     expect(r.spec.conditions.some(c => c.type === 'group')).toBe(false);
   });
 });
+
+describe('interpret — a refinement keeps the previous definition', () => {
+  it('restores William and the window when "only the additions" swapped and dropped them', async () => {
+    clearValuesCache();
+    query.mockResolvedValue({ rows: [{ v: 'Added' }, { v: 'Removed' }, { v: 'Group' }] });
+    const william = { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'eq', value: 'William Overweg', checked: true }] };
+    const groups = { type: 'relation', relation: 'resource', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'Group' }] };
+    const window = { type: 'field', field: 'changedAt', op: 'withinLastDays', value: 90 };
+    const previousSpec = { entity: 'change', match: 'all', conditions: [william, groups, window], columns: [], limit: 1000 };
+    const swapped = { entity: 'change', match: 'all', columns: [], conditions: [
+      { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: '@me' }] },
+      { type: 'field', field: 'action', op: 'eq', value: 'Added' },
+      groups,
+    ] };
+    chat.mockResolvedValueOnce(reply(swapped));
+    const r = await interpret({ question: 'Alleen de toevoegingen graag.', model: 'm', substitutions: new Map([['@me', 'u-me']]), previousSpec });
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(r.kind).toBe('report');
+    expect(r.spec.conditions.map(c => c.type === 'relation' ? `${c.relation}:${c.conditions[0].field}` : `${c.field}`))
+      .toEqual(['account:displayName', 'action', 'resource:resourceType', 'changedAt']);
+    expect(r.assumptions.join(' ')).toMatch(/Kept the earlier definition/);
+  });
+});

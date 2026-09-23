@@ -137,8 +137,9 @@ describe('interpret', () => {
     expect(res.status).toBe(200);
     expect(interpret).toHaveBeenCalledWith({
       question: 'all guests', history: [{ role: 'assistant', content: '{}' }], model: 'test-model',
-      // Nobody is signed in on this app: no caller context, nothing to substitute.
-      context: '', substitutions: expect.any(Map),
+      // Nobody is signed in on this app: no caller context, nothing to substitute,
+      // and no earlier answer in this chat to refine.
+      context: '', substitutions: expect.any(Map), previousSpec: null,
     });
     expect(interpret.mock.calls[0][0].substitutions.size).toBe(0);
   });
@@ -655,5 +656,19 @@ describe('a declined question, on the web', () => {
     expect(insert, 'the question was recorded').toBeTruthy();
     expect(insert[1]).toContain('declined');
     expect(insert[1]).toContain('I only build reports on the directory.');
+  });
+});
+
+describe('a refinement on the web gets the previous definition', () => {
+  it('hands /interpret the definition the previous run in this chat produced', async () => {
+    const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'wim@example.com' }));
+    const spec = { entity: 'group', match: 'all', conditions: [], columns: ['displayName'], limit: 1000 };
+    runSpec.mockResolvedValue({ ok: true, spec, truncated: false, columns: [{ key: 'displayName' }],
+      rows: [{ displayName: 'A', _entity: { kind: 'resource', id: 'g1' } }, { displayName: 'B', _entity: { kind: 'resource', id: 'g2' } }] });
+    await request(signedIn).post('/api/nl-reports/run').send({ spec, conversationId: 'chat-9' });
+    interpret.mockResolvedValue({ kind: 'report', spec, raw: 'r', substituted: [] });
+    await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'alleen de openbare', conversationId: 'chat-9' });
+    expect(interpret.mock.calls.at(-1)[0].previousSpec).toEqual(spec);
   });
 });

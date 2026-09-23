@@ -11,7 +11,7 @@ import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
-import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, listEqualsToIn, lostLeaves, nameWrittenAsId, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, listEqualsToIn, lostLeaves, nameWrittenAsId, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
 import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
@@ -399,7 +399,7 @@ function answerClarify(ctx, turn) {
  *                                (sentinels.js): `@me` → the caller's account id, `@previous`
  *                                → the ids of the last answer
  */
-export async function interpret({ question, context = '', history = [], model = DEFAULT_MODEL, substitutions = new Map() }) {
+export async function interpret({ question, context = '', history = [], model = DEFAULT_MODEL, substitutions = new Map(), previousSpec = null }) {
   // Put the processed system prompt back in the server before asking, in case it
   // restarted since the last question. A hit costs ~0.1 s and saves ~3 minutes; a
   // miss is no worse than asking cold, and leaves the cache saved for next time.
@@ -427,6 +427,8 @@ export async function interpret({ question, context = '', history = [], model = 
   const sent = contextFor({ values, located, attributes, callerContext: context });
   const ctx = {
     question, model, values, located, extFields, substitutions,
+    // The definition the previous answer in this chat ran, when there was one.
+    previousSpec,
     context: sent,
     reportSchema: buildReplySchemas(extraFieldNames).reportOnly,
     messages: buildMessages(question, history, sent),
@@ -446,8 +448,10 @@ export async function interpret({ question, context = '', history = [], model = 
     const sides = ctx.substitutions.has(ME) ? resolveSelfAgainstPerson(generic.spec, ctx.question, ME) : { spec: generic.spec, notes: [] };
     const placed = ctx.substitutions.has(ME) ? relocateSelf(sides.spec, ME) : { spec: sides.spec, notes: [] };
     const added = ctx.substitutions.has(ME) ? addMissingSelf(placed.spec, ctx.question, ME) : { spec: placed.spec, notes: [] };
-    const before = [...grouping.notes, ...generic.notes, ...sides.notes, ...placed.notes, ...added.notes];
-    const substituted = substituteValues(addAskedColumns(added.spec, ctx.question).spec, ctx.substitutions);
+    // Compared after substitution, so the caller's id in both reads the same.
+    const refined = refineFromPrevious(substituteValues(addAskedColumns(added.spec, ctx.question).spec, ctx.substitutions), ctx.previousSpec, ctx.question);
+    const before = [...grouping.notes, ...generic.notes, ...sides.notes, ...placed.notes, ...added.notes, ...refined.notes];
+    const substituted = refined.spec;
     const first = validateSpec(substituted, ctx.values, ctx.extFields);
     if (first.ok || !first.spec) return before.length ? { ...first, fixes: before } : first;
     // Validation drops what it rejects and hands back the rest. When the

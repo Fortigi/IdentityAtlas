@@ -63,6 +63,13 @@ const KIND_NOUN = {
  * @returns {{kind: string, records: {id: string, name: string|null}[]}|null}
  */
 export function carriedRecords(result) {
+  const carried = carriedFrom(result);
+  // The definition that produced them, so a refinement ("only the additions")
+  // can keep what it never mentioned — see autofix.js refineFromPrevious().
+  return carried && result?.spec ? { ...carried, spec: result.spec } : carried;
+}
+
+function carriedFrom(result) {
   const rows = result?.rows ?? [];
   if (rows.length === 0) return null;
 

@@ -412,6 +412,45 @@ export function autofixSpec(spec) {
   return { spec: notes.length ? { ...spec, conditions } : spec, notes };
 }
 
+// The nouns a question uses to say what KIND of record it is about. A
+// follow-up without one ("alleen de toevoegingen graag", "only the additions")
+// is a refinement of the previous definition, not a new question.
+const ENTITY_NOUN = /\b(groep|groepen|groups?|accounts?|gebruikers?|users?|persoon|personen|people|identit(y|ies)|mensen|medewerkers?|wijziging(en)?|changes?|updates?|rol(len)?|roles?|applicaties?|applications?|apps?|rechten|rights|permissions?|packages?|pakket(ten)?|resources?|leden|members?|eigenaren|owners?|managers?|gasten|guests?)\b/i;
+
+/** Does the question say what kind of record it is about? */
+export const namesAKind = (question) => ENTITY_NOUN.test(String(question ?? ''));
+
+/** Top-level conditions compared by what they are about: the relation, the field, or "group". */
+const conditionKey = (c) => (c.type === 'relation' ? `relation:${c.relation}` : (c.type === 'field' ? `field:${c.field}` : c.type));
+const hasAll = (spec, leafSet) => [...leafSet].every(l => leaves(spec).has(l));
+
+/**
+ * A refinement of the previous definition keeps what the previous definition
+ * had. "Alleen de toevoegingen graag" after a question about William's
+ * group changes in 90 days came back with the action filter it asked for —
+ * and William replaced by the person asking, and the window gone. Neither
+ * change was asked for, so neither stands: a previous condition the question
+ * does not mention replaces a swapped counterpart (same relation or field,
+ * itself unasked for) or is re-added when it has none. The new conditions the
+ * refinement did ask for stay. Applied only when the question names no kind
+ * of record and the entity is unchanged: a new question is a new question.
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function refineFromPrevious(spec, previous, question) {
+  if (!previous?.conditions?.length || !spec || spec.entity !== previous.entity || namesAKind(question)) return { spec, notes: [] };
+  const unasked = (c) => ![...leaves({ conditions: [c] })].some(l => askedForLeaf(l, question));
+  let conditions = [...(spec.conditions ?? [])];
+  const restored = [];
+  for (const p of previous.conditions) {
+    if (hasAll(spec, leaves({ conditions: [p] })) || !unasked(p)) continue;
+    const at = conditions.findIndex(c => conditionKey(c) === conditionKey(p) && unasked(c));
+    if (at >= 0) conditions[at] = p; else conditions = [...conditions, p];
+    restored.push(p);
+  }
+  if (!restored.length) return { spec, notes: [] };
+  return { spec: { ...spec, conditions }, notes: ['Kept the earlier definition, changed only where the request said so.'] };
+}
+
 /**
  * Every "field op value" leaf of a definition, so two definitions can be
  * compared for what one dropped. Relations and groups are looked through;
@@ -444,7 +483,7 @@ export function askedForLeaf(leaf, question) {
   const words = [
     ...String(field).split(/[.\s]/).flatMap(w => w.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().split(' ')),
     ...rest.join(' ').replace(/^"|"$/g, '').toLowerCase().split(/[^\p{L}\p{N}]+/u),
-  ].filter(w => w.length >= 3);
+  ].filter(w => w.length >= 3 || /^\d+$/.test(w)); // a number is a word however short: "30 days"
   return words.some(w => text.includes(w));
 }
 

@@ -179,7 +179,7 @@ router.post('/nl-reports/interpret', askGate, async (req, res) => {
     // `caller=` last: the line's shape up to the question is a contract the
     // audit test pins, and a resolved caller is an addition to it, not a change.
     console.log(`nl-reports interpret: ${who} model=${forLog(model, 100)} question="${forLog(question)}" caller=${caller ? 'resolved' : '-'}`);
-    const reply = await interpret({ question, history: cleanHistory, model, context, substitutions });
+    const reply = await interpret({ question, history: cleanHistory, model, context, substitutions, previousSpec: carried?.spec ?? null });
     if (reply.kind === 'report' && reply.spec) {
       const narrowed = narrowToPrevious(reply.spec, carried, question);
       const narrowedIt = usedPrevious(reply.spec, narrowed);
