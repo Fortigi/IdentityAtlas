@@ -11,11 +11,14 @@
     still built by hand — see [Custom Reports](../ui/custom-reports.md). The feature as a whole is off
     until an operator enables it under **Admin → Experimental**.
 
-!!! note "These figures predate the `change` entity"
-    The accuracy and latency numbers below were measured against a system prompt without the
-    `change` entity, which added ~1600 characters to it. The prompt is cached on the model
-    server and re-read at API startup, so the first question after an upgrade is no slower
-    for a caller — but the measurements have not been repeated since.
+!!! note "The table predates the `change` entity and grouping; the held-out set was re-run with both"
+    The table below was measured against a system prompt without the `change` entity (~1600
+    characters) and without counting per value (rule 9). The held-out set was run again on
+    23 September 2026 with the current prompt, on a 2-CPU host with real directory data:
+    **14/17**, the same score — 13 on the first pass, and one more once the definition check
+    started refusing a count field that contradicts the relation it counts (see
+    [What the mistakes look like](#what-the-mistakes-look-like)). Median 75 s and p90 114 s on
+    that host; the latency figures further down are from the tuning host.
 
 ## Why this exists
 
@@ -86,6 +89,12 @@ small to tune further without fitting them. A few questions have an empty correc
 definition can also produce; counting only questions with a non-empty answer, the shipped model scores
 33/41 and 12/15. Re-run any time with `tools/nl-reports/eval.mjs` —
 see [Measuring it yourself](#measuring-it-yourself).
+
+The held-out re-run of 23 September 2026 (current prompt, real data) missed three: a question with
+"either … or" whose alternatives were dropped, a subset comparison ("business roles whose members are
+all in group X") read as a name filter, and a correction round that removed the condition it was
+asked to fix. Two of the three also carried a `groupBy` the question never asked for — the one
+new prompt rule since the table, and the first candidate for a change, with this set as the gate.
 
 ### What the mistakes look like
 
