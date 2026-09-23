@@ -37,3 +37,4 @@
 - The evaluation now grades what a chat assistant must also get right: a hard time limit per answer (5 minutes; a right answer that took longer counts as wrong), questions whose right answer is a refusal, a question back or "which one did you mean", real follow-ups that refer to the previous answer, and a score per category and per language.
 - The particles of a surname ("van", "den") and the ordinary words of a question are no longer mistaken for a person's name — "welke van deze groepen" no longer asks which "Van" you mean.
 - When a correction round replaced the model's first answer, the first answer is kept beside the final one, so a wrong correction can be traced.
+- A question about yourself ("in welke access packages zit ik?") whose definition forgot you is sent back once to add you, instead of answering about everyone.

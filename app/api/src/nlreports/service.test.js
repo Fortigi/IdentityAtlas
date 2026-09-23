@@ -671,3 +671,43 @@ describe('the OR correction names the alternatives', () => {
     expect(orRepairMessage('guests, or disabled accounts')).toMatch(/The request says "or", but/);
   });
 });
+
+describe('interpret — a question about the person asking that forgot them', () => {
+  const ME_ID = 'dddddddd-1111-2222-3333-444444444444';
+  const subs = () => new Map([['@me', ME_ID]]);
+  const everyone = { entity: 'user', match: 'all', conditions: [{ type: 'relation', relation: 'businessRoles', quantifier: 'some', match: 'all', conditions: [] }], columns: ['businessRoles.names'] };
+  const mine = { ...everyone, conditions: [{ type: 'field', field: 'id', op: 'eq', value: '@me' }] };
+
+  beforeEach(() => { clearValuesCache(); });
+
+  it('asks once for the missing @me, naming the word, and takes a correction that uses it', async () => {
+    chat.mockResolvedValueOnce(reply(everyone)).mockResolvedValueOnce(reply(mine));
+    const r = await interpret({ question: 'In welke access packages zit ik?', model: 'm', substitutions: subs() });
+    expect(chat).toHaveBeenCalledTimes(2);
+    expect(chat.mock.calls[1][0].messages.at(-1).content).toMatch(/says "ik"/);
+    expect(r.kind).toBe('report');
+    expect(r.spec.conditions[0]).toEqual({ type: 'field', field: 'id', op: 'eq', value: ME_ID });
+    expect(r.substituted).toEqual(['@me']);
+  });
+
+  it('keeps the first definition when the correction still forgets them', async () => {
+    chat.mockResolvedValueOnce(reply(everyone)).mockResolvedValueOnce(reply(everyone));
+    const r = await interpret({ question: 'Which access packages am I in?', model: 'm', substitutions: subs() });
+    expect(chat).toHaveBeenCalledTimes(2);
+    expect(r.spec.conditions[0].relation).toBe('businessRoles');
+  });
+
+  it('spends nothing when there is no caller, when the definition already says @me, or when "me" is only "give me"', async () => {
+    chat.mockResolvedValueOnce(reply(everyone));
+    await interpret({ question: 'In welke access packages zit ik?', model: 'm' });
+    expect(chat).toHaveBeenCalledTimes(1);
+
+    chat.mockResolvedValueOnce(reply(mine));
+    await interpret({ question: 'In welke access packages zit ik?', model: 'm', substitutions: subs() });
+    expect(chat).toHaveBeenCalledTimes(2);
+
+    chat.mockResolvedValueOnce(reply(everyone));
+    await interpret({ question: 'Kan je me een lijstje geven van accounts in een access package?', model: 'm', substitutions: subs() });
+    expect(chat).toHaveBeenCalledTimes(3);
+  });
+});

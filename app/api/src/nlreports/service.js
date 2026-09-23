@@ -12,6 +12,7 @@ import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
 import { autofixSpec, dropUnaskedGrouping, lostLeaves } from './autofix.js';
+import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
 import { chat, DEFAULT_MODEL } from './llm.js';
@@ -256,6 +257,33 @@ async function repairMissingOr(ctx, turn, result) {
   return retriedResult;
 }
 
+// First-person words that make a question about the person asking. "me" is
+// left out on purpose: "geef me een lijstje" / "give me a list" is not about
+// the caller. "I" only as the capital word (the English pronoun).
+const SELF_RE = /\b(ik|mijn|mijne|my|mine|myself)\b|\bI\b/;
+const selfWord = (question) => String(question ?? '').match(SELF_RE)?.[0] ?? null;
+
+/**
+ * The question is about the person asking, the pipeline knows who that is,
+ * and the definition says nothing about them. "In welke access packages zit
+ * ik?" came back as every user in a business role — a tidy, wrong answer. One
+ * correction round, taken only when the corrected definition does use @me.
+ */
+async function repairMissingSelf(ctx, turn, result) {
+  const word = result.ok && ctx.substitutions.has(ME) ? selfWord(ctx.question) : null;
+  if (!word || sentinelsIn(turn.reply?.spec, ctx.substitutions).includes(ME)) return result;
+  const retry = await askForCorrection(ctx, turn,
+    `The request says "${word}": it is about the person asking, but your definition has no condition for them. `
+    + `Add the condition with value ${ME} on the right relation — their own account is id ${ME}; "my groups" = members some id ${ME}; `
+    + `"which access packages am I in" = entity user with id ${ME} and the businessRoles.names column — and keep everything else exactly as it was. `
+    + 'Reply with the corrected complete JSON.');
+  const retried = retry.reply?.kind === 'report' ? ctx.validate(retry.reply.spec) : null;
+  if (!retried?.ok || !sentinelsIn(retry.reply.spec, ctx.substitutions).includes(ME)) return result;
+  turn.raw = retry.content;
+  turn.reply = retry.reply;
+  return retried;
+}
+
 /** A name from the question that occurs in the data but is not in the definition: say where it occurs. */
 async function repairUnusedTerms(ctx, turn, result) {
   const unused = result.ok ? unusedTerms(result.spec, ctx.located) : [];
@@ -294,6 +322,7 @@ async function answerReport(ctx, turn) {
   let result = ctx.validate(turn.reply.spec);
   result = await repairInvalidSpec(ctx, turn, result);
   result = await repairMissingOr(ctx, turn, result);
+  result = await repairMissingSelf(ctx, turn, result);
   result = await repairUnusedTerms(ctx, turn, result);
   const errors = result.errors;
   // Still invalid after the repair round: say so. Validation drops what it rejects
