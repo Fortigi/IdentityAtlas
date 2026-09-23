@@ -103,7 +103,7 @@
     },
     "followUps": [
       {
-        "question": "Zijn er in de laatste 30 dagen updates geweest aan deze groepen?",
+        "question": "Zijn er in de laatste 180 dagen updates geweest aan deze groepen?",
         "expected": {
           "entity": "change",
           "conditions": [
@@ -121,7 +121,7 @@
             {
               "field": "changedAt",
               "op": "withinLastDays",
-              "value": 30
+              "value": 180
             }
           ]
         }
@@ -166,7 +166,7 @@
     },
     "followUps": [
       {
-        "question": "Have there been any changes to these groups in the last 30 days?",
+        "question": "Have there been any changes to these groups in the last 180 days?",
         "expected": {
           "entity": "change",
           "conditions": [
@@ -184,7 +184,7 @@
             {
               "field": "changedAt",
               "op": "withinLastDays",
-              "value": 30
+              "value": 180
             }
           ]
         }
