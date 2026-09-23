@@ -48,3 +48,4 @@
 - A follow-up written as "is one of these" with the list on the wrong operator, or with the previous groups on a user report's own id, is corrected instead of failing or running about everyone.
 - A question about yourself whose definition names nobody ("van welke groepen ben ik eigenaar") is completed with you on the spot, instead of answering for everyone or asking the model again.
 - "In an access package" written as a resource type where no such field exists (on a group, or on its members) is read as the business-role relation instead of being dropped.
+- The column a question asks to see (the members, the owners, the groups, the access packages, the manager) is added when the definition left it out — "who are the members of these groups" no longer answers with the groups alone.

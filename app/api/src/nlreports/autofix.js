@@ -116,6 +116,46 @@ export function listEqualsToIn(spec) {
 const ACCOUNT_KINDS = new Set(['user', 'identity']);
 const isSelf = (c, me) => c?.type === 'field' && c.field === 'id' && c.op === 'eq' && c.value === me;
 
+// What a question asks to SEE, by the words it uses, per kind of report. "Wie
+// zijn de leden van deze groepen" answered with a list of the groups and no
+// member column is a page that does not answer the question; the column is
+// added. A column is only ever added, never removed, and only when the
+// report's entity has that relation.
+const ASKED_COLUMNS = {
+  resource: [
+    [/\b(leden|lid|members?|wie zit|wie zitten|who is in|who are in)\b/i, 'members.names'],
+    [/\b(eigenaar|eigenaren|owners?|owned by)\b/i, 'owners.names'],
+    [/\b(access ?packages?|business ?roles?|bedrijfsrol(len)?|toegangspakket(ten)?)\b/i, 'businessRoles.names'],
+  ],
+  user: [
+    [/\b(groepen|groups?|lid van|member of)\b/i, 'memberOf.names'],
+    [/\b(access ?packages?|business ?roles?|bedrijfsrol(len)?|toegangspakket(ten)?)\b/i, 'businessRoles.names'],
+    [/\b(eigenaar|eigenaren|owns?|owner of)\b/i, 'owns.names'],
+    [/\b(rechten|rights|permissions|toegang|access)\b/i, 'access.names'],
+    [/\b(manager|leidinggevende)\b/i, 'manager.displayName'],
+  ],
+};
+
+/**
+ * Add the column the question asks to see, when the definition lacks it.
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function addAskedColumns(spec, question) {
+  const entity = ENTITIES[spec?.entity];
+  const rules = entity ? ASKED_COLUMNS[entity.detailKind] : null;
+  if (!rules) return { spec, notes: [] };
+  const text = String(question ?? '');
+  const have = new Set(spec.columns ?? []);
+  const wanted = rules
+    .filter(([re, column]) => re.test(text) && !have.has(column) && entity.relations?.[column.split('.')[0]])
+    .map(([, column]) => column);
+  if (!wanted.length) return { spec, notes: [] };
+  // A definition with no columns lists the defaults; naming one means naming
+  // the name column too, as the prompt tells the model.
+  const columns = [...(have.size ? spec.columns : ['displayName']), ...wanted];
+  return { spec: { ...spec, columns }, notes: [] };
+}
+
 const isBusinessRoleType = (c) => c?.type === 'field' && c.field === 'resourceType' && c.op === 'eq' && String(c.value).toLowerCase() === 'businessrole';
 
 /**

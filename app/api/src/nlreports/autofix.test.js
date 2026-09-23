@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { accessPackageAsRelation, addMissingSelf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -323,5 +323,27 @@ describe('"in an access package" written as a resource type where there is none'
     expect(accessPackageAsRelation(resources).spec).toBe(resources);
     const { spec } = accessPackageAsRelation({ entity: 'group', match: 'all', conditions: [br, inRole] });
     expect(spec.conditions).toEqual([inRole]);
+  });
+});
+
+describe('the column the question asks to see', () => {
+  it('adds members.names to a group report about members, keeping the model\'s columns', () => {
+    // Verbatim: "Wie zijn de leden van deze groepen?" answered as the groups, no members.
+    const { spec } = addAskedColumns({ entity: 'group', match: 'all', conditions: [], columns: ['displayName', 'description', 'memberCount'] }, 'Wie zijn de leden van deze groepen?');
+    expect(spec.columns).toEqual(['displayName', 'description', 'memberCount', 'members.names']);
+  });
+
+  it('starts from the name column when the model listed none, and adds what a user report was asked for', () => {
+    const { spec } = addAskedColumns({ entity: 'user', match: 'all', conditions: [], columns: [] }, 'Which groups am I a member of?');
+    expect(spec.columns).toEqual(['displayName', 'memberOf.names']);
+    const { spec: m } = addAskedColumns({ entity: 'user', match: 'all', conditions: [], columns: [] }, 'wie is de manager van Jan?');
+    expect(m.columns).toEqual(['displayName', 'manager.displayName']);
+  });
+
+  it('never doubles a column it already has, and leaves a change report alone', () => {
+    const has = { entity: 'group', match: 'all', conditions: [], columns: ['displayName', 'members.names'] };
+    expect(addAskedColumns(has, 'wie zijn de leden?').spec).toBe(has);
+    const change = { entity: 'change', match: 'all', conditions: [], columns: [] };
+    expect(addAskedColumns(change, 'leden toegevoegd aan groepen').spec).toBe(change);
   });
 });
