@@ -138,6 +138,27 @@ export function nameWrittenAsId(spec) {
 const ACCOUNT_KINDS = new Set(['user', 'identity']);
 const isSelf = (c, me) => c?.type === 'field' && c.field === 'id' && c.op === 'eq' && c.value === me;
 
+/**
+ * The caller's id copied out literally becomes the placeholder. The caller
+ * block tells the model the id so it can write @me; often enough it writes
+ * the uuid instead, and every rule about the caller then looks past it —
+ * "changes to these groups" kept "account is <uuid>" that the unasked-caller
+ * rule would have removed. One form, before those rules run; substitution
+ * turns it back into the id afterwards.
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function canonicaliseSelf(spec, me, literal) {
+  if (!literal) return { spec, notes: [] };
+  let changed = 0;
+  const fix = (conditions) => (conditions ?? []).map((c) => {
+    if (c.type === 'group' || c.type === 'relation') return { ...c, conditions: fix(c.conditions) };
+    if (c.type === 'field' && c.field === 'id' && c.op === 'eq' && c.value === literal) { changed++; return { ...c, value: me }; }
+    return c;
+  });
+  const conditions = fix(spec?.conditions);
+  return changed ? { spec: { ...spec, conditions }, notes: [] } : { spec, notes: [] };
+}
+
 // What a question asks to SEE, by the words it uses, per kind of report. "Wie
 // zijn de leden van deze groepen" answered with a list of the groups and no
 // member column is a page that does not answer the question; the column is

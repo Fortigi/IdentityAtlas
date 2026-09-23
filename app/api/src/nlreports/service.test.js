@@ -899,3 +899,20 @@ describe('interpret — "the group" with nothing to say which', () => {
     expect(chat).toHaveBeenCalledTimes(4);
   });
 });
+
+describe('interpret — the caller\'s literal id counts as the caller', () => {
+  it('removes "account is <uuid>" from a question that never said "my"', async () => {
+    clearValuesCache();
+    query.mockResolvedValue({ rows: [{ v: 'Group' }, { v: 'Added' }] });
+    const uuid = 'dda42659-89b1-43df-a057-b0fa36c86aaa';
+    const groups = { type: 'relation', relation: 'resource', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'Group' }] };
+    const spec = { entity: 'change', match: 'all', columns: [], conditions: [groups,
+      { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: uuid }] },
+      { type: 'field', field: 'changedAt', op: 'withinLastDays', value: 180 }] };
+    chat.mockResolvedValueOnce(reply(spec));
+    const r = await interpret({ question: 'Have there been any changes to these groups in the last 180 days?', model: 'm', substitutions: new Map([['@me', uuid]]) });
+    expect(r.kind).toBe('report');
+    expect(JSON.stringify(r.spec)).not.toContain(uuid);
+    expect(r.assumptions.join(' ')).toMatch(/Not limited to you/);
+  });
+});

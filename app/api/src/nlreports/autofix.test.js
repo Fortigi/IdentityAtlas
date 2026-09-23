@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, canonicaliseSelf, autofixSpec, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -468,5 +468,20 @@ describe('the column the question asks to see — "access package" is not "acces
     expect(spec.columns).toEqual(['displayName', 'businessRoles.names']);
     const { spec: rights } = addAskedColumns({ entity: 'user', match: 'all', conditions: [], columns: ['displayName'] }, 'welke rechten heb ik?');
     expect(rights.columns).toEqual(['displayName', 'access.names']);
+  });
+});
+
+describe('the caller\'s id written out literally', () => {
+  it('becomes the placeholder wherever it sits, and nothing else changes', () => {
+    const uuid = 'dda42659-89b1-43df-a057-b0fa36c86aaa';
+    const { spec } = canonicaliseSelf({ entity: 'change', match: 'all', conditions: [
+      { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: uuid }] },
+      { type: 'field', field: 'id', op: 'in', value: [uuid] },
+    ] }, '@me', uuid);
+    expect(spec.conditions[0].conditions[0].value).toBe('@me');
+    expect(spec.conditions[1].value).toEqual([uuid]);
+    const plain = { entity: 'user', match: 'all', conditions: [] };
+    expect(canonicaliseSelf(plain, '@me', uuid).spec).toBe(plain);
+    expect(canonicaliseSelf(plain, '@me', undefined).spec).toBe(plain);
   });
 });

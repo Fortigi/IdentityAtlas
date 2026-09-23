@@ -11,7 +11,7 @@ import { PREVIOUS_SENTINEL, validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
-import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, autofixSpec, isRelationLeaf, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, autofixSpec, canonicaliseSelf, isRelationLeaf, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
 import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
@@ -472,7 +472,9 @@ export async function interpret({ question, context = '', history = [], model = 
     const grouping = dropUnaskedGrouping(nameWrittenAsId(listEqualsToIn(dedupeConditions(spec).spec).spec).spec, ctx.question);
     const negated = negatedBusinessRole(accessPackageAsRelation(grouping.spec).spec, ctx.question);
     const generic = genericCompareToRelation(negated.spec);
-    const sides = ctx.substitutions.has(ME) ? resolveSelfAgainstPerson(generic.spec, ctx.question, ME) : { spec: generic.spec, notes: [] };
+    // The caller's id copied out literally is the placeholder for every rule below.
+    const canonical = canonicaliseSelf(generic.spec, ME, ctx.substitutions.get(ME)).spec;
+    const sides = ctx.substitutions.has(ME) ? resolveSelfAgainstPerson(canonical, ctx.question, ME) : { spec: canonical, notes: [] };
     const unasked = ctx.substitutions.has(ME) ? dropUnaskedSelf(sides.spec, ctx.question, ME) : { spec: sides.spec, notes: [] };
     const placed = ctx.substitutions.has(ME) ? relocateSelf(unasked.spec, ME) : { spec: unasked.spec, notes: [] };
     const added = ctx.substitutions.has(ME) ? addMissingSelf(placed.spec, ctx.question, ME) : { spec: placed.spec, notes: [] };
