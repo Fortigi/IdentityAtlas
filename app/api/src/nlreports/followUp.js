@@ -247,9 +247,16 @@ function limitFor(entity, carried) {
  * where it is.
  */
 function relocateMisplaced(spec, carried) {
-  if (entityKind(spec.entity) !== carried.kind) return spec;
   const ids = new Set(carried.records.map(r => r.id));
   const holdsCarried = (c) => isIdList(c) && Array.isArray(c.value) && c.value.length === ids.size && c.value.every(v => ids.has(v));
+  if (entityKind(spec.entity) !== carried.kind) {
+    // Group ids on a USER report's own id: they belong on the relation that
+    // reaches groups from a user (memberOf), or nowhere.
+    if (!(spec.conditions ?? []).some(holdsCarried)) return spec;
+    const limit = limitFor(spec.entity, carried);
+    if (!limit) return spec;
+    return { ...spec, conditions: [...spec.conditions.filter(c => !holdsCarried(c)), limit] };
+  }
   let moved = false;
   const conditions = (spec.conditions ?? []).flatMap((c) => {
     if (c.type !== 'relation' || !(c.conditions ?? []).some(holdsCarried)) return [c];

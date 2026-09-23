@@ -11,7 +11,7 @@ import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
-import { autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, lostLeaves, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
+import { autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
 import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
@@ -431,13 +431,18 @@ export async function interpret({ question, context = '', history = [], model = 
   // once more before a repair round is spent on it. What was corrected rides
   // along as `fixes`, so the answer can say so.
   ctx.validate = (spec) => {
-    const grouping = dropUnaskedGrouping(dedupeConditions(spec).spec, ctx.question);
+    const grouping = dropUnaskedGrouping(listEqualsToIn(dedupeConditions(spec).spec).spec, ctx.question);
     const generic = genericCompareToRelation(grouping.spec);
     const sides = ctx.substitutions.has(ME) ? resolveSelfAgainstPerson(generic.spec, ctx.question, ME) : { spec: generic.spec, notes: [] };
     const placed = ctx.substitutions.has(ME) ? relocateSelf(sides.spec, ME) : { spec: sides.spec, notes: [] };
     const before = [...grouping.notes, ...generic.notes, ...sides.notes, ...placed.notes];
-    const first = validateSpec(substituteValues(placed.spec, ctx.substitutions), ctx.values, ctx.extFields);
+    const substituted = substituteValues(placed.spec, ctx.substitutions);
+    const first = validateSpec(substituted, ctx.values, ctx.extFields);
     if (first.ok || !first.spec) return before.length ? { ...first, fixes: before } : first;
+    // Validation drops what it rejects and hands back the rest. A correction
+    // applied to THAT would make a definition missing a condition look sound
+    // — the repair round exists for exactly those, so it gets them.
+    if (lostLeaves(substituted, first.spec, []).length) return first;
     const fixed = autofixSpec(first.spec);
     if (!fixed.notes.length) return first;
     const again = validateSpec(fixed.spec, ctx.values, ctx.extFields);

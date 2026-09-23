@@ -745,3 +745,21 @@ describe('interpret — "groups I have that william does not" with william on bo
     expect(r.assumptions.join(' ')).toMatch(/the person asking has/);
   });
 });
+
+describe('interpret — a correction is never applied to a definition validation already stripped', () => {
+  it('spends the repair round when a condition was rejected, even if the rest could be corrected', async () => {
+    clearValuesCache();
+    query.mockResolvedValue({ rows: [{ v: 'Added' }, { v: 'Removed' }] });
+    // A rejected field AND a contradiction: the contradiction alone could be
+    // corrected, but the definition without "nosuchfield" is not the one asked.
+    const bad = { entity: 'change', match: 'all', columns: [], conditions: [
+      { type: 'field', field: 'nosuchfield', op: 'eq', value: 'x' },
+      { type: 'field', field: 'action', op: 'eq', value: 'Added' },
+      { type: 'field', field: 'action', op: 'eq', value: 'Removed' },
+    ] };
+    chat.mockResolvedValueOnce(reply(bad)).mockResolvedValueOnce(reply(bad));
+    const r = await interpret({ question: 'changes', model: 'm' });
+    expect(chat).toHaveBeenCalledTimes(2);
+    expect(r.kind).toBe('error');
+  });
+});

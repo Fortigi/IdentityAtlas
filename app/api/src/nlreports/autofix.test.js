@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, lostLeaves, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
+import { asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -248,5 +248,20 @@ describe('the caller placeholder where it cannot mean the caller', () => {
       { entity: 'change', match: 'all', conditions: [{ type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [self] }] },
     ];
     for (const spec of right) expect(relocateSelf(spec, ME).spec).toBe(spec);
+  });
+});
+
+describe('"is" with a list', () => {
+  it('becomes "one of", wherever it sits, and a single value is left alone', () => {
+    const { spec } = listEqualsToIn({ entity: 'user', match: 'all', conditions: [
+      { type: 'field', field: 'id', op: 'eq', value: ['a', 'b'] },
+      { type: 'relation', relation: 'memberOf', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: ['g1'] }] },
+      { type: 'field', field: 'displayName', op: 'eq', value: 'Jan' },
+    ] });
+    expect(spec.conditions[0]).toMatchObject({ op: 'in', value: ['a', 'b'] });
+    expect(spec.conditions[1].conditions[0]).toMatchObject({ op: 'in' });
+    expect(spec.conditions[2]).toMatchObject({ op: 'eq', value: 'Jan' });
+    const plain = { entity: 'user', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'eq', value: 'Jan' }] };
+    expect(listEqualsToIn(plain).spec).toBe(plain);
   });
 });

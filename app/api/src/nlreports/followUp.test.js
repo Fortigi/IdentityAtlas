@@ -254,9 +254,13 @@ describe('narrowing a definition to the previous answer', () => {
 
   it('matches the carried kind against the ENTITY, not its name', () => {
     // The model answers about groups with entity "group", whose records are
-    // resource detail pages — the same kind the carried set has.
+    // resource detail pages — the same kind the carried set has: the ids go on
+    // the group itself. An ACCOUNT report about "these groups" reaches them
+    // through memberOf (the account entity says so, narrowVia).
     expect(narrowToPrevious(MODEL_SPEC, carried, QUESTION).conditions).toHaveLength(2);
-    expect(narrowToPrevious({ ...MODEL_SPEC, entity: 'account' }, carried, QUESTION)).toEqual({ ...MODEL_SPEC, entity: 'account' });
+    const accounts = narrowToPrevious({ ...MODEL_SPEC, entity: 'account' }, carried, QUESTION);
+    expect(accounts.conditions.at(-1)).toEqual({ type: 'relation', relation: 'memberOf', quantifier: 'some', match: 'all',
+      conditions: [{ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] }] });
   });
 
   it('leaves a question that points at nothing alone', () => {
@@ -388,5 +392,20 @@ describe('narrowToPrevious — the carried ids written on the wrong relation', (
       { type: 'relation', relation: 'resource', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] }] },
     ] };
     expect(narrowToPrevious(changes, carried, 'updates aan deze groepen').conditions).toEqual(changes.conditions);
+  });
+});
+
+describe('narrowToPrevious — carried group ids on a user report\'s own id', () => {
+  it('moves them onto memberOf, where a user reaches groups', () => {
+    // Verbatim: the follow-up written as user where id in [group ids].
+    const carried = { kind: 'resource', records: [{ id: 'g1', name: 'A' }, { id: 'g2', name: 'B' }] };
+    const written = { entity: 'user', match: 'all', conditions: [
+      { type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] },
+      { type: 'relation', relation: 'businessRoles', quantifier: 'some', match: 'all', conditions: [] },
+    ] };
+    const out = narrowToPrevious(written, carried, 'which of these groups are in an access package?');
+    expect(out.conditions[0]).toMatchObject({ relation: 'businessRoles' });
+    expect(out.conditions[1]).toEqual({ type: 'relation', relation: 'memberOf', quantifier: 'some', match: 'all',
+      conditions: [{ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] }] });
   });
 });

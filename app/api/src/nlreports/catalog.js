@@ -76,6 +76,8 @@ const BASE = {
     label: 'Account',
     table: 'Principals',
     detailKind: 'user',
+    // How a follow-up about 'these groups' reaches them from here (followUp.js).
+    narrowVia: { resource: 'memberOf' },
     description:
       'An account in a connected system: a person\'s user account (member or guest), a service principal, ' +
       'a managed identity or an AI agent. Use this entity only when non-human accounts matter or the request says "accounts" in general.',
@@ -288,6 +290,8 @@ const BASE = {
     label: 'Resource',
     table: 'Resources',
     detailKind: 'resource',
+    // How a follow-up about 'these accounts' reaches them from here (followUp.js).
+    narrowVia: { user: 'members' },
     description:
       'Anything that grants access: a group, a directory role, an application, an app role, a permission, ' +
       'a business role (access package) or an Azure resource. For groups use the group entity.',

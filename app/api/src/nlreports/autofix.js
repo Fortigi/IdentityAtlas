@@ -95,6 +95,24 @@ export function resolveSelfAgainstPerson(spec, question, me) {
   };
 }
 
+/**
+ * "id is [a, b, c]" — the model reached for eq with the list the follow-up
+ * bookkeeping handed it. A list can only mean "one of", so the operator is
+ * corrected; validation would otherwise drop the whole condition as a type
+ * error and the report would be about everyone.
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function listEqualsToIn(spec) {
+  let changed = 0;
+  const fix = (conditions) => (conditions ?? []).map((c) => {
+    if (c.type === 'group' || c.type === 'relation') return { ...c, conditions: fix(c.conditions) };
+    if (c.type === 'field' && c.op === 'eq' && Array.isArray(c.value)) { changed++; return { ...c, op: 'in' }; }
+    return c;
+  });
+  const conditions = fix(spec?.conditions);
+  return changed ? { spec: { ...spec, conditions }, notes: [] } : { spec, notes: [] };
+}
+
 const ACCOUNT_KINDS = new Set(['user', 'identity']);
 const isSelf = (c, me) => c?.type === 'field' && c.field === 'id' && c.op === 'eq' && c.value === me;
 
