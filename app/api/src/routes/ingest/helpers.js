@@ -9,7 +9,7 @@
 import * as db from '../../db/connection.js';
 import { SOFT_DELETE_TABLES } from '../../ingest/engine.js';
 import { startSession, continueSession, endSession, hasSession, SessionLimitError } from '../../ingest/sessions.js';
-import { ownedRowPredicate } from '../../ingest/systemBoundary.js';
+import { ownedRowPredicate, linkDirectorySystems } from '../../ingest/systemBoundary.js';
 
 export function applyIngestDefaults(entityType, body) {
   if (!Array.isArray(body.records)) body.records = [];
@@ -93,7 +93,7 @@ export async function handleSessionPath(body, ctx) {
   if (body.syncSession === 'start') {
     const result = await startSession(null, tableName, keyColumns, normalized, {
       systemId: body.systemId, scope, syncMode: body.syncMode || 'full',
-      scopeDeleteFilter, conflictFilter,
+      scopeDeleteFilter, conflictFilter, preserveColumns: ctx.preserveColumns ?? null,
       crawlerId: ctx.crawlerId, isWorker: ctx.isWorker, restrictSystemIds: ctx.restrictSystemIds ?? null,
     });
     return { status: 201, body: {
@@ -152,6 +152,23 @@ export function deleteOwnershipClause(tableName, restrictSystemIds, deletedIds) 
   if (!Array.isArray(restrictSystemIds)) return { clause: '', params: [deletedIds] };
   const owned = ownedRowPredicate(tableName, 't', '$2') || 'false';
   return { clause: ` AND COALESCE((${owned}), false)`, params: [deletedIds, restrictSystemIds] };
+}
+
+// Systems endpoint only: point each dependent system at the directory it reads
+// from (#1247). A registration can complete a pair in either order — the Azure RM
+// crawler may register before the Entra one exists — so this re-runs after every
+// systems batch rather than only when a row is new. Best-effort: the link is a
+// correctness improvement on the NEXT principal batch, never a reason to fail the
+// registration that just succeeded. Returns the number of systems linked.
+// Exported for unit tests.
+export async function linkSystemDirectories(entityType) {
+  if (entityType !== 'systems') return 0;
+  try {
+    return await linkDirectorySystems();
+  } catch (linkErr) {
+    console.error('Failed to link dependent systems to their directory:', linkErr.message);
+    return 0;
+  }
 }
 
 // Systems endpoint only: resolve the resulting system IDs so crawlers can use

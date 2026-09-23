@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../db/connection.js');
+// Discovered attributes need a live database to read the JSON keys; the bot's
+// own tests are about what it does with a definition, not what fields exist.
+vi.mock('../nlreports/extFields.js', () => ({ loadExtFields: vi.fn(async () => ({})) }));
 vi.mock('../nlreports/service.js', async (importOriginal) => ({
   // applyResolveChoice is real: the "answering a did-you-mean" path below is
   // its behaviour, and a stub would make those tests assert the stub.

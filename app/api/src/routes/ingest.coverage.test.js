@@ -573,3 +573,45 @@ describe('data-plane endpoints (M-05)', () => {
     expect((await request(appAs(WORKER)).post('/ingest/matrix-default-filter').send(body)).status).toBe(201);
   });
 });
+
+// ── Directory ownership reaches the engine (#1247) ──────────────────────────
+//
+// The rule itself is unit-tested in ingest/systemBoundary.test.js and
+// ingest/engine.test.js. What is asserted here is the WIRING: a rule the handler
+// forgets to pass on is a rule that does not exist. Both write paths are checked,
+// because the Azure RM crawler's stubs go through the single-batch one while the
+// Entra crawler's principals go through a session.
+describe('ingest handler — a dependent system may not take over ownership', () => {
+  const stageDirectoryLink = (directorySystemId) => {
+    mockQueryOne.mockImplementation(async (sql) => (
+      String(sql).includes('"directorySystemId"') ? { directorySystemId } : null
+    ));
+  };
+
+  it('passes preserveColumns for a system that reads from a directory', async () => {
+    stageDirectoryLink(1);
+    const res = await request(app).post('/ingest/principals')
+      .send({ systemId: 33, syncMode: 'delta', records: [{ id: UUID, displayName: 'William' }] });
+
+    expect(res.status).toBe(201);
+    expect(mockIngest.mock.calls[0][4]).toMatchObject({ preserveColumns: ['systemId'] });
+  });
+
+  it('passes nothing for the directory system itself', async () => {
+    stageDirectoryLink(null);
+    const res = await request(app).post('/ingest/principals')
+      .send({ systemId: 1, syncMode: 'full', records: [{ displayName: 'William' }] });
+
+    expect(res.status).toBe(201);
+    expect(mockIngest.mock.calls[0][4].preserveColumns).toBeNull();
+  });
+
+  it('carries the rule into a multi-batch session as well', async () => {
+    stageDirectoryLink(1);
+    const res = await request(app).post('/ingest/principals')
+      .send({ systemId: 33, syncSession: 'start', syncMode: 'delta', records: [{ id: UUID, displayName: 'W' }] });
+
+    expect(res.status).toBe(201);
+    expect(mockStart.mock.calls[0][4]).toMatchObject({ preserveColumns: ['systemId'] });
+  });
+});

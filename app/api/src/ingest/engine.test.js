@@ -7,7 +7,7 @@
 // way, so these tests assert against `reconcileSql`.
 
 import { describe, it, expect } from 'vitest';
-import { scopedDelete, reconcileBounds, reconcileAllowed } from './engine.js';
+import { scopedDelete, reconcileBounds, reconcileAllowed, buildUpdateSet } from './engine.js';
 
 // A fake pg client. Records every query() call and returns an empty result.
 // The CREATE INDEX / ANALYZE preamble and the reconcile statement flow through here.
@@ -193,5 +193,50 @@ describe('scopedDelete — the unbounded-reconcile guard', () => {
     await scopedDelete(client, 'IdentityMembers', ['identityId', 'principalId'], '_tmp_ingest_im', 7, {}, 'systemId',
       new Set(['identityId', 'principalId', 'linkConfidence', 'analystOverride']));
     expect(client.reconcileSql).toContain('DELETE FROM "IdentityMembers"');
+  });
+});
+
+// ── buildUpdateSet — the DO UPDATE list, and who may overwrite what ─────────
+//
+// Three rules share one builder (#1247), so each is asserted against a case the
+// other two would get wrong: a preserved column must keep the STORED value even
+// in a full sync (where the payload is otherwise authoritative), and a delta must
+// still protect unchanged fields from a NULL payload.
+describe('buildUpdateSet', () => {
+  const cols = [{ name: 'systemId' }, { name: 'displayName' }];
+
+  it('takes the incoming value on a full sync', () => {
+    const sql = buildUpdateSet(cols, 'Principals', { syncMode: 'full' });
+    expect(sql).toBe('"systemId" = EXCLUDED."systemId", "displayName" = EXCLUDED."displayName"');
+  });
+
+  it('keeps the stored value when a delta omits a field', () => {
+    const sql = buildUpdateSet(cols, 'Principals', { syncMode: 'delta' });
+    expect(sql).toContain('"displayName" = COALESCE(EXCLUDED."displayName", "Principals"."displayName")');
+  });
+
+  it('lets a preserved column only FILL a NULL, never replace a value', () => {
+    // The COALESCE arguments are the decision: stored first means the dependent
+    // system's id can never displace the directory's. Reversed, this is the bug.
+    const sql = buildUpdateSet(cols, 'Principals', { syncMode: 'delta', preserveColumns: ['systemId'] });
+    expect(sql).toContain('"systemId" = COALESCE("Principals"."systemId", EXCLUDED."systemId")');
+    expect(sql).not.toContain('COALESCE(EXCLUDED."systemId"');
+  });
+
+  it('preserves a column even in a full sync, where the payload is otherwise authoritative', () => {
+    const sql = buildUpdateSet(cols, 'Principals', { syncMode: 'full', preserveColumns: ['systemId'] });
+    expect(sql).toContain('"systemId" = COALESCE("Principals"."systemId", EXCLUDED."systemId")');
+    // Only the preserved column changes behaviour — the rest stays authoritative.
+    expect(sql).toContain('"displayName" = EXCLUDED."displayName"');
+  });
+
+  it('leaves columns that are not in the preserve list alone', () => {
+    const sql = buildUpdateSet(cols, 'Principals', { syncMode: 'full', preserveColumns: ['accountEnabled'] });
+    expect(sql).toBe('"systemId" = EXCLUDED."systemId", "displayName" = EXCLUDED."displayName"');
+  });
+
+  it('defaults to full-sync semantics and no preserved columns', () => {
+    expect(buildUpdateSet(cols, 'Principals')).toBe(
+      '"systemId" = EXCLUDED."systemId", "displayName" = EXCLUDED."displayName"');
   });
 });

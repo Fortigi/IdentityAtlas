@@ -109,7 +109,7 @@ $EntitlementByDn    = @{}
 # ─── Phase: Systems ──────────────────────────────────────────────────────────
 # midPoint itself + each ResourceType become Identity Atlas Systems.
 if ($Sync.systems) {
-    $sys = Sync-MidpointSystems -RestRoot $RestRoot -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -PageSize $PageSize
+    $sys = Sync-MidpointSystems -RestRoot $RestRoot -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -PageSize $PageSize -ConfigName $MpCfg.configName
     $MidpointSystemId  = $sys.midpointSystemId
     $ResourceSystemId  = $sys.resourceSystemId
     $ResourceOidToName = $sys.resourceOidToName

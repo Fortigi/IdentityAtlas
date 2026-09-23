@@ -26,6 +26,8 @@ export default defineConfig({
       'src/accountlinking/orphanQuery.test.js',
       'src/nlreports/compare.test.js',
       'src/nlreports/compile.test.js',
+      'src/nlreports/extFields.test.js',
+
       'src/nlreports/llamacpp.test.js',
       'src/nlreports/ollama.test.js',
       'src/nlreports/references.test.js',

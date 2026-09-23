@@ -119,11 +119,27 @@ Describe 'New-AzurePrincipalStub' {
     It 'asserts principalType only for Users' {
         $u = New-AzurePrincipalStub -PrincipalId 'u1' -PrincipalType 'User'
         $u.id | Should -Be 'u1'
-        $u.accountEnabled | Should -BeTrue
         $u.principalType | Should -Be 'User'
     }
     It 'leaves principalType unset for ServicePrincipals (Entra crawler owns the typing)' {
         $sp = New-AzurePrincipalStub -PrincipalId 'sp1' -PrincipalType 'ServicePrincipal'
         $sp.ContainsKey('principalType') | Should -BeFalse
+    }
+    # A stub upserts the row the directory owns, and the delta upsert COALESCEs a
+    # non-NULL incoming value over the stored one — so a hardcoded accountEnabled
+    # flipped every user disabled in Entra back to enabled, once per run (#1247).
+    # Azure RBAC does not carry account state; the stub must not invent it.
+    It 'asserts nothing about account state, which Azure RBAC does not know' {
+        foreach ($t in @('User', 'ServicePrincipal')) {
+            (New-AzurePrincipalStub -PrincipalId 'x' -PrincipalType $t).ContainsKey('accountEnabled') |
+                Should -BeFalse
+        }
+    }
+    It 'carries nothing beyond the id and (for a User) the type' {
+        # An extra field here is an extra field the directory loses on every run.
+        $u = New-AzurePrincipalStub -PrincipalId 'u1' -PrincipalType 'User'
+        @($u.Keys | Sort-Object) | Should -Be @('id', 'principalType')
+        $sp = New-AzurePrincipalStub -PrincipalId 'sp1' -PrincipalType 'ServicePrincipal'
+        @($sp.Keys) | Should -Be @('id')
     }
 }

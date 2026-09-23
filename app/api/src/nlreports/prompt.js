@@ -35,12 +35,19 @@ export const REPLY_LIMITS = {
 };
 const boundedList = (items, maxItems) => ({ type: 'array', items, maxItems });
 
-const FIELD_CONDITION = {
+// The reply grammar is built per question, because the field names it allows are
+// not the same for every question: the catalog's own names always, plus the
+// handful of this deployment's `extendedAttributes` fields that the question
+// actually named (extFields.js). Everything else about it — and the whole system
+// prompt — stays identical for every deployment of a release, which is what lets
+// the prompt cache be prepared once at build time.
+const fieldCondition = (fieldNames) => ({
   type: 'object',
   properties: {
     type: { type: 'string', enum: ['field'] },
-    field: { type: 'string', enum: allFieldNames },
+    field: { type: 'string', enum: fieldNames },
     op: { type: 'string', enum: Object.keys(OPERATORS) },
+
     // Spelled out as anyOf rather than a type list, so the length limit is attached
     // to the string branch — a type list gives the grammar nowhere to put it.
     value: { anyOf: [
@@ -51,19 +58,20 @@ const FIELD_CONDITION = {
     ] },
   },
   required: ['type', 'field', 'op', 'value'],
-};
+});
 
-const RELATION_CONDITION = {
+const relationCondition = (fieldNames) => ({
   type: 'object',
   properties: {
     type: { type: 'string', enum: ['relation'] },
     relation: { type: 'string', enum: allRelationNames },
     quantifier: { type: 'string', enum: ['some', 'none'] },
     match: { type: 'string', enum: ['all', 'any'] },
-    conditions: boundedList(FIELD_CONDITION, REPLY_LIMITS.conditions),
+    conditions: boundedList(fieldCondition(fieldNames), REPLY_LIMITS.conditions),
   },
   required: ['type', 'relation', 'quantifier', 'match', 'conditions'],
-};
+});
+
 
 const COMPARE_CONDITION = {
   type: 'object',
@@ -84,36 +92,41 @@ const COMPARE_CONDITION = {
   required: ['type', 'relation', 'measure', 'minSimilarity', 'reference'],
 };
 
-const GROUP_CONDITION = {
+const groupCondition = (fieldNames) => ({
   type: 'object',
   properties: {
     type: { type: 'string', enum: ['group'] },
     match: { type: 'string', enum: ['all', 'any'] },
-    conditions: boundedList({ anyOf: [FIELD_CONDITION, RELATION_CONDITION, COMPARE_CONDITION] }, REPLY_LIMITS.conditions),
+    conditions: boundedList({ anyOf: [fieldCondition(fieldNames), relationCondition(fieldNames), COMPARE_CONDITION] }, REPLY_LIMITS.conditions),
   },
   required: ['type', 'match', 'conditions'],
-};
+});
 
-const SPEC = {
+const specSchema = (fieldNames) => ({
   type: 'object',
   properties: {
     entity: { type: 'string', enum: Object.keys(ENTITIES) },
     match: { type: 'string', enum: ['all', 'any'] },
-    conditions: boundedList({ anyOf: [FIELD_CONDITION, RELATION_CONDITION, COMPARE_CONDITION, GROUP_CONDITION] }, REPLY_LIMITS.conditions),
+    conditions: boundedList({ anyOf: [fieldCondition(fieldNames), relationCondition(fieldNames), COMPARE_CONDITION, groupCondition(fieldNames)] }, REPLY_LIMITS.conditions),
     columns: boundedList({ type: 'string', maxLength: REPLY_LIMITS.option }, REPLY_LIMITS.columns),
+    // Deliberately NOT in `required`: a reply that must always carry
+    // "groupBy":null spends tokens on every answer and puts the idea of grouping
+    // in front of a small model that was not asked for it.
+    groupBy: { type: 'string', enum: fieldNames },
   },
   required: ['entity', 'match', 'conditions', 'columns'],
-};
+});
 
-const REPORT_REPLY = {
+const reportReply = (fieldNames) => ({
   type: 'object',
   properties: {
     kind: { type: 'string', enum: ['report'] },
     assumptions: boundedList({ type: 'string', maxLength: REPLY_LIMITS.prose }, REPLY_LIMITS.assumptions),
-    spec: SPEC,
+    spec: specSchema(fieldNames),
   },
   required: ['kind', 'assumptions', 'spec'],
-};
+});
+
 
 const CLARIFY_REPLY = {
   type: 'object',
@@ -125,8 +138,27 @@ const CLARIFY_REPLY = {
   required: ['kind', 'question', 'options'],
 };
 
-export const RESPONSE_SCHEMA = { anyOf: [REPORT_REPLY, CLARIFY_REPLY] };
-export const REPORT_ONLY_SCHEMA = REPORT_REPLY;
+function buildSchemas(fieldNames) {
+  const report = reportReply(fieldNames);
+  return { response: { anyOf: [report, CLARIFY_REPLY] }, reportOnly: report };
+}
+
+// Most questions name no attribute of their own, so the grammar they are answered
+// under is the same object every time — built once, here.
+const DEFAULT_SCHEMAS = buildSchemas(allFieldNames);
+
+/**
+ * The two reply grammars for one question.
+ * @param {string[]} [extraFieldNames] discovered field names this question may use
+ * @returns {{ response: object, reportOnly: object }}
+ */
+export function buildReplySchemas(extraFieldNames = []) {
+  return extraFieldNames.length ? buildSchemas([...allFieldNames, ...extraFieldNames]) : DEFAULT_SCHEMAS;
+}
+
+export const RESPONSE_SCHEMA = DEFAULT_SCHEMAS.response;
+export const REPORT_ONLY_SCHEMA = DEFAULT_SCHEMAS.reportOnly;
+
 
 function describeEntity(name, entity) {
   const lines = [`## ${name}`, entity.description, 'fields:'];
@@ -181,6 +213,14 @@ const EXAMPLES = [
     ], columns: [] } },
   },
   {
+    // Asking for a business-role COLUMN is not asking to leave out the users that
+    // have none: the column is added, no condition is.
+    q: 'users in Finance, with the business roles they have',
+    a: { kind: 'report', assumptions: ['"in Finance" means the department contains Finance.'], spec: { entity: 'user', match: 'all', conditions: [
+      { type: 'field', field: 'department', op: 'contains', value: 'Finance' },
+    ], columns: ['displayName', 'email', 'businessRoles.names'] } },
+  },
+  {
     q: 'security groups that have more than 20 members or that can be assigned to roles',
     a: { kind: 'report', assumptions: ['The "or" applies to the member count and role-assignable conditions.'], spec: { entity: 'group', match: 'all', conditions: [
       { type: 'field', field: 'securityEnabled', op: 'eq', value: true },
@@ -218,7 +258,18 @@ const EXAMPLES = [
     ], columns: [] } },
   },
   {
+    q: 'How many users are there per department?',
+    a: { kind: 'report', assumptions: [], spec: { entity: 'user', match: 'all', conditions: [], columns: [], groupBy: 'department' } },
+  },
+  {
+    q: 'give me the unique job titles of enabled users, with the number of users for each',
+    a: { kind: 'report', assumptions: [], spec: { entity: 'user', match: 'all', conditions: [
+      { type: 'field', field: 'accountEnabled', op: 'eq', value: true },
+    ], columns: [], groupBy: 'jobTitle' } },
+  },
+  {
     q: 'users that do not have MFA enabled',
+
     a: { kind: 'clarify', question: 'There is no MFA / authentication-method information in the fields I can use, so I cannot build this report. Which field holds MFA status in your data?', options: [
       'Show all enabled users instead',
       'I will ask an administrator to import MFA data',
@@ -300,6 +351,7 @@ Field names of the entity; "manager.displayName" style for the manager; "<relati
 # Rules
 1. Pick the entity from the noun, using the glossary: persons → identity; users / accounts / guests → user; groups → group. Service principals, managed identities, AI agents, or accounts of every kind → account with a principalType condition. Roles, applications, permissions, business roles, Azure resources → resource with a resourceType condition. When a question about persons is really about their group memberships, access or ownership, use user.
 2. "guests" / "external users" = userType Guest. "disabled" = accountEnabled false; "active"/"enabled" = accountEnabled true. "roles" = resourceType EntraDirectoryRole unless the user means business roles; holding a role = the access relation, never memberOf.
+2a. A business role / access package is the businessRoles relation of a user, an account or a group — as a condition ("in business role X" = businessRoles some with displayName contains X) and as the column "businessRoles.names". Use access only when the request is about access of every kind.
 2b. When the request joins conditions with "or" ("either ... or"), put exactly those conditions in a group with match "any"; everything else stays outside that group.
 2c. Sign-in: "not signed in for N days" / "inactive for N days" = daysSinceLastSignIn gt N. "never signed in" = lastSignIn isEmpty AND signInDataCollected isNotEmpty (without the second condition, accounts from systems that collect no sign-in data would be listed too).
 3. A name fragment the user mentions (like "Finance" or "LIC") is a displayName contains filter, unless they say it must match exactly.
@@ -307,7 +359,9 @@ Field names of the entity; "manager.displayName" style for the manager; "<relati
 5. Record every interpretation choice you made as a short sentence in "assumptions".
 6. When the user refines an earlier report, reply with the COMPLETE updated definition.
 7. Questions that compare sets — "the same members as", "the same access as", "has everything X has", "similar to", "overlaps with" — use a compare condition. Put the name exactly as the user wrote it in reference.name; a business role or access package is entity resource. "same" = identical, "mostly the same / similar / overlap" = similar with minSimilarity 80 unless the user gives a percentage. Membership of a business role itself ("part of / in business role X") is the businessRoles relation with a displayName condition.
-8. Use ONLY the fields and relations listed above. When the request depends on information that is not listed (for example MFA, licence cost, passwords), do NOT substitute a different field: reply with {"kind":"clarify"} that names the missing information and asks which field holds it.
+8. Use ONLY the fields and relations listed above, plus any attribute named in an "Attributes from this deployment's own data" block in front of the request — those field names start with "ext." and are used exactly as written there. When the request depends on information that is neither listed nor in that block (for example MFA, licence cost, passwords), do NOT substitute a different field: reply with {"kind":"clarify"} that names the missing information and asks which field holds it.
+9. Counting per value — "how many users per department", "the number of X per Y", "a list of the unique Y with a count", "X grouped by Y" — is "groupBy": "<the Y field>" in the definition, with columns []. The report is then one row per distinct value of that field with the number of records that have it, instead of one row per record. Group on a field, never on a relation, and never together with a compare condition. A request that only asks which values exist ("which departments are there?") is the same report: the count comes with it.
+
 
 # Examples
 ${examples}`;

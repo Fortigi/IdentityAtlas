@@ -140,6 +140,82 @@ Update-CrawlerProgress -Step 'Complete' -Pct 100
 
 ---
 
+## Naming the system you register
+
+A pull crawler registers one Identity Atlas **System** for the endpoint it connects to. That row's
+display name is what an operator reads on the Systems page, in the matrix and in every system
+filter, so it follows the **crawler's own name** — never the crawler type. Two crawlers of one type
+are otherwise indistinguishable, and renaming a crawler would rename nothing.
+
+The name arrives as `_configName` (the dispatcher stamps `CrawlerConfigs.displayName` onto the job
+config). Don't re-derive the precedence — use the shared helper:
+
+```powershell
+. (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
+
+$displayName = Get-CrawlerSystemName `
+    -TypeDefault "My Source ($($Cfg.baseUrl))" `   # only used when the run carries no crawler name
+    -ConfigName  ([string]$Cfg._configName) `      # the crawler's own name — wins by default
+    -SystemName  ([string]$Cfg.systemName)         # optional wizard override — wins over both
+
+Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
+    syncMode = 'delta'
+    records  = @(@{ systemType = 'MySource'; displayName = $displayName; tenantId = $Cfg.baseUrl; enabled = $true; syncEnabled = $true })
+}
+```
+
+Two rules the helper encodes for you:
+
+- A stored `systemName` that is an **exact copy of your type default** counts as not set. An older
+  wizard that wrote its default into the field whenever the operator left it blank would otherwise
+  shadow the crawler's name on every run, forever.
+- **Only your own endpoint/tenant row follows the crawler name.** Systems you discover *through*
+  the source (Omada's connected systems, midPoint's resources) keep the name their source gives
+  them — renaming those after the crawler would make every account's origin unreadable.
+
+Systems merge on `(systemType, tenantId)`, so keep those two fields stable: the name is a payload
+column, and an existing row is *renamed* rather than duplicated.
+
+---
+
+## When your source reads a directory you don't own
+
+Some sources don't have accounts of their own — they grant access to accounts that live somewhere
+else. Azure RM is the clearest case: every role assignment names an Entra ID objectId, so the Azure
+RM crawler and the Entra ID crawler are looking at *the same* account, not at two accounts that
+happen to correlate.
+
+`Principals` is keyed on that objectId, so both crawlers write the **same row**. Whoever writes it
+last stamps their `systemId` on it — and before this was modelled, the two crawlers flipped every
+shared principal back and forth on every run: a fake "changed" event per run on the user's Timeline,
+an orphan check that stopped recognising its own users, and rows that escaped the directory's
+full-sync reconcile.
+
+A system says where its principals come from with **`Systems.directorySystemId`**. The API sets it
+automatically for a system whose `tenantId` matches exactly one `EntraID` system, so an Azure-plane
+crawler gets it without doing anything. What the link changes:
+
+- **The ingest protects ownership.** A system with a `directorySystemId` may *fill* a NULL
+  `systemId` on a `Principals` / `Resources` row, but never replace one. The directory has no link
+  of its own and can therefore always claim a row back — which is what makes an "Azure RM ran
+  first" tenant converge once the directory crawler runs, rather than freezing ownership on
+  whichever crawler happened to be first.
+- **`/ingest/principals-presence` answers against that directory.** Send your own `systemId`
+  alongside `tenantId` and the API resolves the link for you.
+
+Two rules for a crawler in this position:
+
+1. **Don't write a principal the directory already has.** Call `/ingest/principals-presence` first
+   and send stubs only for the objectIds it does *not* know — those are genuinely yours (a deleted
+   service principal with a dangling assignment exists nowhere else). For everything else, just
+   reference the objectId from your assignments, the way Azure RM has always handled groups.
+2. **Assert only what your source actually knows.** A stub carries the objectId and nothing more.
+   A delta upsert COALESCEs any non-NULL value you send over the stored one, so a field you filled
+   in "to be safe" silently overwrites the directory's — `accountEnabled = $true` on an Azure RM
+   stub used to re-enable every disabled user with an Azure role, once per run.
+
+---
+
 ## The Ingest API
 
 `/ingest/principals` above is one of many ingest endpoints — the full, authoritative reference is the live OpenAPI spec the running app already serves:

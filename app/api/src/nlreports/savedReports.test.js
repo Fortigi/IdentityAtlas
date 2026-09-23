@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../db/connection.js');
+// Saved reports are not what discovers this deployment's attributes; they only
+// pass them on. extFields.test.js covers the discovery itself.
+vi.mock('./extFields.js', () => ({ loadExtFields: vi.fn(async () => ({})) }));
 vi.mock('./service.js', () => ({
+
   loadValues: vi.fn(async () => ({ userType: ['Guest', 'Member'] })),
   runSpec: vi.fn(async () => ({ ok: true, rows: [{ displayName: 'Ann', _entity: { kind: 'user', id: 'u1' } }] })),
 }));
@@ -73,7 +77,7 @@ describe('storage', () => {
 
 describe('saved reports in the report registry', () => {
   it('shapes a saved report as an editable list report with compiled columns', async () => {
-    const t = toReportTemplate(ROW);
+    const t = await toReportTemplate(ROW);
     expect(reportMetadata(t)).toMatchObject({
       name: `custom-${ID}`, displayName: 'Guests', form: 'list',
       columns: [{ key: 'displayName', label: 'Name' }], editable: { builderId: ID },
@@ -87,20 +91,21 @@ describe('saved reports in the report registry', () => {
     expect(runSpec).toHaveBeenCalledWith(DEFINITION);
   });
 
-  it('says who built a saved report and who changed it last, with the time as ISO text', () => {
+  it('says who built a saved report and who changed it last, with the time as ISO text', async () => {
     // Postgres hands back a Date; the list is JSON, so it must not arrive as {}.
     const updatedAt = new Date('2026-09-16T08:30:00Z');
-    const t = toReportTemplate({ ...ROW, createdBy: 'ann@example.com', updatedBy: 'bob@example.com', updatedAt });
+    const t = await toReportTemplate({ ...ROW, createdBy: 'ann@example.com', updatedBy: 'bob@example.com', updatedAt });
     expect(reportMetadata(t).author).toEqual({
       createdBy: 'ann@example.com', updatedBy: 'bob@example.com', updatedAt: '2026-09-16T08:30:00.000Z',
     });
     // A row from before anyone was recorded still lists, with nothing invented.
-    expect(reportMetadata(toReportTemplate(ROW)).author).toEqual({ createdBy: null, updatedBy: null, updatedAt: null });
+    expect(reportMetadata(await toReportTemplate(ROW)).author).toEqual({ createdBy: null, updatedBy: null, updatedAt: null });
   });
 
   it('a saved report that no longer validates fails loudly when run', async () => {
     runSpec.mockResolvedValueOnce({ ok: false, errors: ['"gone" is not a field of user'] });
-    await expect(toReportTemplate(ROW).run()).rejects.toThrow(/no longer validates/);
+    await expect((await toReportTemplate(ROW)).run()).rejects.toThrow(/no longer validates/);
+
   });
 
   it('is invisible while the feature is switched off', async () => {

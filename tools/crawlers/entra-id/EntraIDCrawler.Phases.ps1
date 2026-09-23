@@ -29,6 +29,9 @@
     Resources block and read by the later blocks.
 #>
 
+# Get-CrawlerSystemName — shared crawler-name-before-type-literal rule (#1240).
+. (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
+
 # ─── Sync OAuth2 Delegated Grants ────────────────────────────────
 # Per-user consent grants: user authorized client-app X to call target-API Y on
 # their behalf with scope Z. Modelled as a child-resource tree:
@@ -1700,7 +1703,9 @@ function Initialize-EntraCrawlerRun {
     param(
         [Parameter(Mandatory)] [string]$ApiBaseUrl,
         [Parameter(Mandatory)] [string]$ApiKey,
-        [string]$TenantId, [string]$ClientId, [string]$ClientSecret
+        [string]$TenantId, [string]$ClientId, [string]$ClientSecret,
+        # The crawler's own name (`_configName`), threaded in from the entry point.
+        [string]$ConfigName
     )
     Write-Host "`n=== FortigiGraph EntraID Crawler ===" -ForegroundColor Cyan
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Starting EntraID sync via Ingest API" -ForegroundColor Cyan
@@ -1725,7 +1730,9 @@ function Initialize-EntraCrawlerRun {
         syncMode = 'delta'
         records  = @(@{
             systemType   = 'EntraID'
-            displayName  = "Entra ID ($Global:TenantId)"
+            # Named after the crawler when the run carries one; the type + tenant
+            # label is only the fallback for an unnamed/inline-config run (#1240).
+            displayName  = (Get-CrawlerSystemName -TypeDefault "Entra ID ($Global:TenantId)" -ConfigName $ConfigName)
             tenantId     = $Global:TenantId
             enabled      = $true
             syncEnabled  = $true

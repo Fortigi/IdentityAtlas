@@ -22,6 +22,7 @@
 //      shapes every branch below.
 
 import { applyResolveChoice, interpret, loadValues, runSpec } from '../nlreports/service.js';
+import { loadExtFields } from '../nlreports/extFields.js';
 import { validateSpec } from '../nlreports/spec.js';
 import { resolveCaller, callerContextBlock } from './caller.js';
 import { substituteCaller, needsScopeCaveat } from './callerSpec.js';
@@ -187,8 +188,11 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
     const choice = toAppliedChoice(waiting.confirm, matchChoice(waiting.confirm, question));
     if (choice) {
       const values = await loadValues();
-      const { ok, spec } = validateSpec(waiting.spec, values);
-      const next = ok ? applyResolveChoice(spec, choice, values) : null;
+      // This deployment's discovered attributes: a definition that names one
+      // must validate against the same set the web builder sees.
+      const extFields = await loadExtFields();
+      const { ok, spec } = validateSpec(waiting.spec, values, extFields);
+      const next = ok ? applyResolveChoice(spec, choice, values, extFields) : null;
       // `matchedName` carries the correction onto the card. A name that only
       // matched fuzzily is the single most expensive way a report is wrong —
       // "Jan de Vries" resolving to the other Jan produces a page of perfectly

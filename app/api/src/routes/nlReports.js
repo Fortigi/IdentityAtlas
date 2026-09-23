@@ -24,8 +24,9 @@
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
 import { requireFeature } from '../featureFlags.js';
-import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE } from '../nlreports/catalog.js';
-import { availableColumns } from '../nlreports/spec.js';
+import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE, fieldsOf } from '../nlreports/catalog.js';
+import { availableColumns, groupableFields } from '../nlreports/spec.js';
+import { loadExtFields } from '../nlreports/extFields.js';
 import { applyResolveChoice, ensureWarm, interpret, loadValues, runSpec, warmupState } from '../nlreports/service.js';
 import { MODEL_IS_FIXED, listModels } from '../nlreports/llm.js';
 import {
@@ -81,19 +82,27 @@ function fail(res, route, err, status = 500) {
 router.get('/nl-reports/catalog', askGate, async (req, res) => {
   try {
     const values = await loadValues();
+    // This deployment's own extendedAttributes fields are part of the catalog the
+    // builder offers: an attribute you can filter a list on is one you can build a
+    // report on. `discovered` travels with them so the UI can keep them apart from
+    // the fields every install has.
+    const extFields = await loadExtFields();
     const entities = Object.fromEntries(Object.entries(ENTITIES).map(([name, e]) => [name, {
       label: e.label,
       table: e.table,
       description: e.description,
       compareRelations: manyRelationsOf(name),
       defaultColumns: e.defaultColumns,
-      fields: Object.entries(e.fields).map(([fname, f]) => ({
+      fields: Object.entries(fieldsOf(name, extFields)).map(([fname, f]) => ({
         name: fname, label: f.label, type: f.type,
         values: f.valuesFrom ? values[f.valuesFrom] || [] : undefined,
+        discovered: f.discovered || undefined,
       })),
       relations: Object.entries(e.relations).map(([rname, r]) => ({ name: rname, label: r.label, target: r.target, cardinality: r.cardinality })),
-      columns: availableColumns(name).map(({ key, label }) => ({ key, label })),
+      columns: availableColumns(name, extFields).map(({ key, label, discovered }) => ({ key, label, discovered })),
+      groupableFields: groupableFields(name, extFields),
     }]));
+
     const operators = Object.fromEntries(Object.entries(OPERATORS).map(([k, o]) => [k, { label: o.label, needsValue: o.needsValue }]));
     const compareMeasures = Object.fromEntries(Object.entries(MEASURES).map(([k, m]) => [k, m.label]));
     res.json({ entities, operators, operatorsByType: OPERATORS_BY_TYPE, compareMeasures });
@@ -155,9 +164,11 @@ router.post('/nl-reports/resolve', askGate, async (req, res) => {
   if (!req.body?.spec || typeof req.body.spec !== 'object') return res.status(400).json({ error: 'spec is required' });
   try {
     const values = await loadValues();
-    const { ok, spec: validated, errors } = validateSpec(req.body.spec, values);
+    const extFields = await loadExtFields();
+    const { ok, spec: validated, errors } = validateSpec(req.body.spec, values, extFields);
     if (!ok) return res.status(400).json({ error: 'Invalid report definition', errors });
-    const spec = applyResolveChoice(validated, req.body.choice, values);
+    const spec = applyResolveChoice(validated, req.body.choice, values, extFields);
+
     if (!spec) return res.status(400).json({ error: 'That choice does not match anything in the report' });
     const { confirm } = await resolveNamedObjects(spec, query);
     res.json({ spec, confirm, explanation: explainSpec(spec) });

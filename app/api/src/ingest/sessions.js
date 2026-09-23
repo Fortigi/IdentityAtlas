@@ -11,7 +11,7 @@
 // timeout is a hard upper bound; idle sessions are reaped to free connections.
 
 import crypto from 'crypto';
-import { resolveActiveColumns, discoverColumns, writeSyncLog, scopedDelete } from './engine.js';
+import { resolveActiveColumns, discoverColumns, writeSyncLog, scopedDelete, buildUpdateSet } from './engine.js';
 import * as db from '../db/connection.js';
 import { createTempTable, bulkInsertIntoTemp } from './tempTableHelpers.js';
 
@@ -131,6 +131,10 @@ async function openSession(syncId, tableName, keyColumns, records, options) {
     systemIdColumn: options.systemIdColumn || 'systemId',
     scopeDeleteFilter: options.scopeDeleteFilter || null,
     conflictFilter: options.conflictFilter || null,
+    // Columns this system may not take over (#1247). Resolved once at start and
+    // kept on the session, so every batch of a multi-batch sync upserts under the
+    // same ownership rule a single-batch one does.
+    preserveColumns: options.preserveColumns || null,
     startedAt: Date.now(),
     recordCount: records.length,
   };
@@ -153,7 +157,13 @@ export function buildUpsertSql(session) {
   const conflictWhere = session.conflictFilter ? ` WHERE ${session.conflictFilter}` : '';
 
   if (nonKeyCols.length > 0) {
-    const updateSet = nonKeyCols.map(c => `"${c.name}" = EXCLUDED."${c.name}"`).join(', ');
+    // A session applies its whole payload in one upsert at end-of-sync, so the
+    // incoming values are authoritative the way a full sync's are — hence
+    // syncMode 'full', which is exactly what this line did before it shared a
+    // builder with engine.js.
+    const updateSet = buildUpdateSet(nonKeyCols, session.tableName, {
+      syncMode: 'full', preserveColumns: session.preserveColumns,
+    });
     return `
         INSERT INTO "${session.tableName}" (${insertCols})
         SELECT ${insertCols} FROM "${session.tempTable}"

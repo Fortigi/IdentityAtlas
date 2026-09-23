@@ -10,6 +10,8 @@ import { registerReportSource } from '../reports/registry.js';
 import { compileSpec } from './compile.js';
 import { validateSpec } from './spec.js';
 import { loadValues, runSpec } from './service.js';
+import { loadExtFields } from './extFields.js';
+
 import { resolveNamedObjects } from './references.js';
 import { isFeatureEnabled } from '../featureFlags.js';
 
@@ -37,7 +39,8 @@ export async function prepareSavedReport(body) {
   if (name.length > 200) errors.push('The name is too long (max 200 characters)');
   const description = typeof body?.description === 'string' ? body.description.trim().slice(0, 2000) : '';
   const question = typeof body?.question === 'string' ? body.question.trim().slice(0, 2000) : '';
-  const result = validateSpec(body?.definition, await loadValues());
+  const result = validateSpec(body?.definition, await loadValues(), await loadExtFields());
+
   if (!result.ok) errors.push(...result.errors);
   // Store the resolved record id, so a saved comparison survives a rename.
   if (result.ok) {
@@ -85,12 +88,21 @@ export async function deleteSavedReport(id) {
   return rowCount > 0;
 }
 
-/** A saved report, shaped as a report template for the registry. */
-export function toReportTemplate(row) {
-  const { spec } = validateSpec(row.definition);
+/**
+ * A saved report, shaped as a report template for the registry.
+ *
+ * The definition is re-validated against THIS deployment's values and discovered
+ * attributes. Without them a report saved on `ext.sfDepartmentID` — or grouped on
+ * it — would validate down to a smaller report here, and the column headers in
+ * the report list would stop matching the rows that running it returns.
+ */
+export async function toReportTemplate(row) {
+  const extFields = await loadExtFields();
+  const { spec } = validateSpec(row.definition, await loadValues(), extFields);
   let compiled = { columns: [] };
   try {
-    if (spec) compiled = compileSpec(spec);
+    if (spec) compiled = compileSpec(spec, extFields);
+
   } catch (err) {
     // An unresolvable definition must not break the whole report list; running it reports the problem.
     console.error(`saved report ${row.id} cannot be compiled:`, err.message);
@@ -120,7 +132,8 @@ export function toReportTemplate(row) {
 registerReportSource({
   async list() {
     if (!(await isFeatureEnabled('customReports'))) return [];
-    return (await listSavedReports()).map(toReportTemplate);
+    return Promise.all((await listSavedReports()).map(row => toReportTemplate(row)));
+
   },
   async get(name) {
     if (!name.startsWith(SAVED_PREFIX)) return null;

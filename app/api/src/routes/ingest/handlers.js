@@ -10,7 +10,10 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { ingest, writeSyncLog } from '../../ingest/engine.js';
 import { normalizeRecords, extendedAttributesBoundsError } from '../../ingest/normalization.js';
-import { restrictedSystemIds, writableCoreColumns, systemBoundaryDenial } from '../../ingest/systemBoundary.js';
+import {
+  restrictedSystemIds, writableCoreColumns, systemBoundaryDenial,
+  preservedOwnerColumns, linkDirectorySystems,
+} from '../../ingest/systemBoundary.js';
 import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, ENTITY_SCOPE_MAP } from '../../ingest/validation.js';
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/crawlerAuth.js';
 import { normalizePresenceQuery, lookupCrawlerPresence } from '../../ingest/crawlerPresence.js';
@@ -18,7 +21,7 @@ import { refreshMatrixViewsSerialized } from './matrixViews.js';
 import { buildSyncLogRow, classifyScope } from './dataPlane.js';
 import {
   applyIngestDefaults, coerceSystemsSyncMode, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
-  handleSessionPath, applyDeleteByIds, lookupSystemIds, writeAuditLog, ingestErrorResponse,
+  handleSessionPath, applyDeleteByIds, lookupSystemIds, linkSystemDirectories, writeAuditLog, ingestErrorResponse,
 } from './helpers.js';
 
 const router = Router();
@@ -83,9 +86,14 @@ function createIngestHandler(entityType) {
       const boundaryErr = await batchBoundaryError(req, body, allowed, { tableName, keyColumns, normalized, scope, conflictFilter });
       if (boundaryErr) return res.status(boundaryErr.status).json({ error: boundaryErr.error });
 
+      // A system that declares a directorySystemId reads the directory's principals
+      // and resources; it does not own them. Resolved once per batch — one PK lookup
+      // on a table with a handful of rows — and applied to both write paths (#1247).
+      const preserveColumns = await preservedOwnerColumns(tableName, body.systemId);
+
       // ── Session paths ─────────────────────────────────────────────
       const sessionRes = await handleSessionPath(body, {
-        tableName, keyColumns, normalized, scope, scopeDeleteFilter, conflictFilter,
+        tableName, keyColumns, normalized, scope, scopeDeleteFilter, conflictFilter, preserveColumns,
         crawlerId: req.crawler?.id, isWorker: crawlerHasPermission(req, 'admin'), restrictSystemIds: allowed,
       });
       if (sessionRes) return res.status(sessionRes.status).json(sessionRes.body);
@@ -98,7 +106,7 @@ function createIngestHandler(entityType) {
       // Short-circuiting here meant that batch was accepted and silently ignored.
       const result = await ingest(null, tableName, keyColumns, normalized, {
         syncMode: body.syncMode || 'delta', systemId: body.systemId, scope, scopeDeleteFilter, conflictFilter,
-        restrictSystemIds: allowed,
+        restrictSystemIds: allowed, preserveColumns,
       });
 
       const delErr = await applyDeleteByIds(body, tableName, result, allowed);
@@ -114,6 +122,7 @@ function createIngestHandler(entityType) {
       writeAuditLog(req, body);
 
       const durationMs = Date.now() - startTime.getTime();
+      await linkSystemDirectories(entityType);
       const systemIds = await lookupSystemIds(entityType, body.records);
 
       return res.status(201).json({
@@ -165,12 +174,13 @@ router.post('/ingest/principals-presence', async (req, res) => {
   if (!crawlerHasPermission(req, 'ingest')) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
-  const { tenantId, ids } = normalizePresenceQuery(req.body);
+  const { tenantId, ids, systemId } = normalizePresenceQuery(req.body);
   if (!tenantId) return res.status(400).json({ error: 'tenantId is required' });
   try {
     // A key restricted to specific systems only sees presence in those systems
-    // (SEC-2026-09 M-05); an unrestricted key keeps the tenant-wide lookup.
-    res.json(await lookupCrawlerPresence(db, tenantId, ids, restrictedSystemIds(req.crawler)));
+    // (SEC-2026-09 M-05); an unrestricted key keeps the tenant-wide lookup. The
+    // caller's own systemId (optional) resolves its declared directory (#1247).
+    res.json(await lookupCrawlerPresence(db, tenantId, ids, restrictedSystemIds(req.crawler), systemId));
   } catch (err) {
     console.error('principals-presence lookup failed:', err.message);
     res.status(500).json({ error: 'Lookup failed' });

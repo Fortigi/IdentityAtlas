@@ -24,7 +24,7 @@ router.use(matrixViewsRouter);
 
 export {
   applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
-  handleSessionPath, applyDeleteByIds, lookupSystemIds, writeAuditLog,
+  handleSessionPath, applyDeleteByIds, lookupSystemIds, linkSystemDirectories, writeAuditLog,
 } from './ingest/helpers.js';
 export { refreshKeyword, refreshMatrixViews } from './ingest/matrixViews.js';
 export default router;

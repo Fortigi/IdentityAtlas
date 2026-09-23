@@ -11,6 +11,7 @@ import {
   ensureWarm, hasAnyMatch, hasDisjunction, interpret, needsOrRepair, runSpec, schemaFor,
   warmAtStartup, warmupState,
 } from './service.js';
+import { clearExtFieldsCache } from './extFields.js';
 
 describe('warm-up at API start', () => {
   const env = { ...process.env };
@@ -230,7 +231,7 @@ describe('runSpec row shaping', () => {
     return runSpec(spec);
   };
 
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => { vi.clearAllMocks(); clearExtFieldsCache(); });
 
   it('hands back the records behind a name list, with the page each one opens', async () => {
     const out = await run({
@@ -362,5 +363,123 @@ describe('spotting alternatives in the question', () => {
     expect(needsOrRepair(question, ored)).toBe(false);
     // One condition cannot be a missing alternative.
     expect(needsOrRepair(question, { conditions: [{ type: 'field' }], match: 'all' })).toBe(false);
+  });
+});
+
+// ─── Running a definition, and the attributes a question names ───────
+
+const RAW_LONG = 'extension_a1b2c3d4e5f60718293a4b5c6d7e8f90_sfBusinessUnitIdentifier';
+
+// The discovery query is the one that reads the JSON keys; everything else in
+// these tests is a value list. The keys are stamped on Principals only, the way a
+// user attribute really is — which is why it turns up on user and account and
+// nowhere else.
+const withDiscovered = (...keys) => {
+  query.mockImplementation(async (sql) => {
+    if (!sql.includes('jsonb_object_keys')) return { rows: [{ v: 'Guest' }, { v: 'Member' }] };
+    return { rows: (sql.includes('"Principals"') ? keys : []).map(key => ({ key })) };
+  });
+};
+
+const returningRows = (rows) => {
+  tx.mockImplementation(async (fn) => fn({ query: async () => ({ rows }) }));
+};
+
+describe('runSpec', () => {
+  beforeEach(() => {
+    clearExtFieldsCache();
+    tx.mockReset();
+    withDiscovered();
+  });
+
+  it('gives a grouped report rows of values and counts, with nothing to open', async () => {
+    // Postgres hands back count(*) as a string; it must reach the UI as a number.
+    returningRows([{ department: 'Finance', count: '42' }, { department: null, count: '7' }]);
+
+    const result = await runSpec({ entity: 'user', groupBy: 'department' });
+
+    expect(result.ok).toBe(true);
+    expect(result.rows).toEqual([{ department: 'Finance', count: 42 }, { department: null, count: 7 }]);
+    expect(result.columns).toEqual([{ key: 'department', label: 'Department' }, { key: 'count', label: 'Count' }]);
+    expect(result.explanation.title).toBe('Users counted per department');
+    expect(result.truncated).toBe(false);
+  });
+
+  it('still attaches the record to open on an ungrouped report', async () => {
+    returningRows([{ __id: 'p1', displayName: 'Ada Lovelace' }]);
+
+    const result = await runSpec({ entity: 'user', columns: ['displayName'] });
+
+    expect(result.rows).toEqual([{ _entity: { kind: 'user', id: 'p1' }, displayName: 'Ada Lovelace' }]);
+  });
+
+  it('reads a column back under its own name even when Postgres was given a short alias', async () => {
+    withDiscovered(RAW_LONG);
+    // The SELECT aliases this one "c1" because its name is past 63 bytes.
+    returningRows([{ __id: 'p1', displayName: 'Ada Lovelace', c1: 'BU-7' }]);
+
+    const result = await runSpec({ entity: 'user', columns: ['displayName', `ext.${RAW_LONG}`] });
+
+    expect(result.rows[0][`ext.${RAW_LONG}`]).toBe('BU-7');
+    expect(result.sql).toContain('AS "c1"');
+  });
+
+  it('says so when the row limit cut the answer short', async () => {
+    returningRows([{ department: 'A', count: '2' }, { department: 'B', count: '1' }]);
+    const result = await runSpec({ entity: 'user', groupBy: 'department', limit: 1 });
+    expect(result.rows).toHaveLength(1);
+    expect(result.truncated).toBe(true);
+  });
+
+  it('refuses a definition the validator rejects, without touching the database', async () => {
+    const result = await runSpec({ entity: 'user', groupBy: 'createdDateTime' });
+    expect(result.ok).toBe(false);
+    expect(result.errors[0]).toContain('holds a date');
+    expect(tx).not.toHaveBeenCalled();
+  });
+});
+
+describe('interpret — attributes this deployment has', () => {
+  beforeEach(() => {
+    clearExtFieldsCache();
+    withDiscovered('sfDepartmentID');
+  });
+
+  it('offers the named attribute to the model without putting it in the system prompt', async () => {
+    chat.mockResolvedValueOnce({
+      content: JSON.stringify({
+        kind: 'report', assumptions: [],
+        spec: { entity: 'user', match: 'all', conditions: [], columns: [], groupBy: 'ext.sfDepartmentID' },
+      }),
+      timing: { totalMs: 10 },
+    });
+
+    const result = await interpret({ question: 'how many users per sfDepartmentID?', model: 'm' });
+
+    expect(result.kind).toBe('report');
+    expect(result.spec.groupBy).toBe('ext.sfDepartmentID');
+    expect(result.sql).toContain(`GROUP BY t0."extendedAttributes"->>'sfDepartmentID'`);
+
+    const { messages, schema } = chat.mock.calls[0][0];
+    // Told with the question…
+    expect(messages.at(-1).content).toContain('is the field ext.sfDepartmentID (on user and account)');
+    // …and allowed by the grammar for this question…
+    expect(JSON.stringify(schema)).toContain('ext.sfDepartmentID');
+    // …but never in the system prompt, which is identical for every deployment
+    // of a release and whose cache is prepared at build time.
+    expect(messages[0].content).not.toContain('sfDepartmentID');
+  });
+
+  it('leaves the grammar and the request alone when the question names no attribute', async () => {
+    chat.mockResolvedValueOnce({
+      content: JSON.stringify({ kind: 'report', assumptions: [], spec: { entity: 'user', match: 'all', conditions: [], columns: [] } }),
+      timing: { totalMs: 10 },
+    });
+
+    await interpret({ question: 'how many users are there?', model: 'm' });
+
+    const { messages, schema } = chat.mock.calls[0][0];
+    expect(JSON.stringify(schema)).not.toContain('ext.');
+    expect(messages.at(-1).content).not.toContain('Attributes from');
   });
 });

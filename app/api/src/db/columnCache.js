@@ -186,17 +186,22 @@ export async function discoverColumnValues(table, columns, pageSize = valuePageS
 // (SEC-2026-09 L-16). Far above what any shipped crawler writes.
 export const MAX_EXTENDED_ATTR_KEYS = 300;
 
-export async function discoverExtendedAttrValues(table, pageSize = valuePageSize(), maxKeys = MAX_EXTENDED_ATTR_KEYS) {
+// The scalar top-level keys of a table's `extendedAttributes`, most frequent
+// first. We use jsonb_typeof on the value so we only keep keys whose typical
+// content is something a user would filter on; if a key is mixed (string in some
+// rows, object in others) we'd lose the object rows, but the filter still matches
+// the scalar ones. Keys that are not safe identifiers are dropped in SQL, before
+// the cap, so they cannot use up the budget; the JS filter stays as defence in
+// depth — every caller interpolates these keys into SQL.
+//
+// Shared with the report builder's field catalog (nlreports/extFields.js), which
+// offers the same keys as report fields: one discovery rule, so an attribute you
+// can filter on in a list is one you can report on.
+export async function discoverExtendedAttrKeys(table, maxKeys = MAX_EXTENDED_ATTR_KEYS) {
   if (!SAFE_IDENT_RE.test(table)) throw new Error(`Invalid table name: ${table}`);
-
-  // Find distinct scalar top-level keys. We use jsonb_typeof on the value so
-  // we only keep keys whose typical content is something a user would filter
-  // on; if a key is mixed (string in some rows, object in others) we'd lose
-  // the object rows, but the filter still matches the scalar ones. Keys that are
-  // not safe identifiers are dropped in SQL, before the cap, so they cannot use
-  // up the budget; the JS filter below stays as defence in depth.
   const keysRes = await db.query(
     `SELECT key
+
        FROM "${table}", jsonb_object_keys("extendedAttributes") AS key
       WHERE "extendedAttributes" IS NOT NULL
         AND jsonb_typeof("extendedAttributes"->key) IN ('string', 'number', 'boolean')
@@ -206,8 +211,13 @@ export async function discoverExtendedAttrValues(table, pageSize = valuePageSize
       LIMIT $1`,
     [maxKeys]
   );
-  const keys = keysRes.rows.map(r => r.key).filter(k => SAFE_IDENT_RE.test(k));
+  return keysRes.rows.map(r => r.key).filter(k => SAFE_IDENT_RE.test(k));
+}
+
+export async function discoverExtendedAttrValues(table, pageSize = valuePageSize(), maxKeys = MAX_EXTENDED_ATTR_KEYS) {
+  const keys = await discoverExtendedAttrKeys(table, maxKeys);
   if (keys.length === 0) return { values: {}, truncated: {} };
+
 
   // One UNION ALL per key — same shape as discoverColumnValues, including the
   // ordered page + overflow probe. The `->> 'key'` form returns text for any

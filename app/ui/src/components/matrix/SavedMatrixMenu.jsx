@@ -64,7 +64,7 @@ function SavedMatrixRow({ row, isCurrent, onPick, onDelete }) {
 
 // The name menu's verbs: New matrix… always; the rest act on the current saved
 // matrix, so they only appear when there is one.
-function DocumentActions({ current, onNew, onRename, onDuplicate, onDelete, close }) {
+function DocumentActions({ current, onNew, onRename, onDuplicate, onDelete, onHistory, close }) {
   const act = (fn) => () => { close(); fn(); };
   const plain = `${ITEM} text-gray-800 dark:text-gray-200`;
   return (
@@ -74,6 +74,7 @@ function DocumentActions({ current, onNew, onRename, onDuplicate, onDelete, clos
         <>
           <button type="button" className={plain} onClick={act(() => onRename(current))}>Rename…</button>
           <button type="button" className={plain} onClick={act(() => onDuplicate(current))}>Duplicate…</button>
+          <button type="button" className={plain} onClick={act(() => onHistory(current))}>History…</button>
           <button type="button" className={`${ITEM} text-red-700 dark:text-red-300`} onClick={act(() => onDelete(current))}>Delete…</button>
         </>
       )}
@@ -83,7 +84,7 @@ function DocumentActions({ current, onNew, onRename, onDuplicate, onDelete, clos
 
 export default function SavedMatrixMenu({
   savedFilters, onLoad, onDelete, label = 'Load matrix',
-  triggerLabel, currentId = null, onNew, onRename, onDuplicate,
+  triggerLabel, currentId = null, onNew, onRename, onDuplicate, onHistory,
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -137,7 +138,7 @@ export default function SavedMatrixMenu({
             </ul>
           )}
           {nameMenu && (
-            <DocumentActions current={current} onNew={onNew} onRename={onRename} onDuplicate={onDuplicate} onDelete={confirmDelete} close={close} />
+            <DocumentActions current={current} onNew={onNew} onRename={onRename} onDuplicate={onDuplicate} onDelete={confirmDelete} onHistory={onHistory} close={close} />
           )}
         </div>
       )}

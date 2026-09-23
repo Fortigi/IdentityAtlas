@@ -62,6 +62,8 @@ const CATALOG = {
         { name: 'accountEnabled', label: 'Enabled', type: 'boolean' },
         { name: 'groupCount', label: 'Group count', type: 'number' },
         { name: 'createdDateTime', label: 'Created', type: 'date' },
+        // This deployment's own attribute, as the catalog route marks it.
+        { name: 'ext.sfDepartmentID', label: 'sfDepartmentID', type: 'text', discovered: true },
       ],
       relations: [
         { name: 'manager', label: 'Manager', target: 'user', cardinality: 'one' },
@@ -70,9 +72,17 @@ const CATALOG = {
       columns: [
         { key: 'displayName', label: 'Name' },
         { key: 'email', label: 'Email' },
+        { key: 'ext.sfDepartmentID', label: 'sfDepartmentID', discovered: true },
         { key: 'compare.similarity', label: 'Similarity %' },
       ],
+      // Dates are not here: counting per timestamp is one group per row.
+      groupableFields: [
+        { name: 'displayName', label: 'Name' },
+        { name: 'userType', label: 'User type' },
+        { name: 'ext.sfDepartmentID', label: 'sfDepartmentID', discovered: true },
+      ],
     },
+
     group: {
       label: 'Group',
       table: 'Resources',
@@ -364,5 +374,76 @@ describe('SpecEditor', () => {
     // A copy — the spec must never hand back the catalog's own array to mutate.
     expect(last(onChange).columns).not.toBe(CATALOG.entities.group.defaultColumns);
     expect(screen.getByRole('button', { name: 'Member count' })).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+// Counting per value, and this deployment's own attributes:
+//   • picking something to count per replaces the columns picker — a grouped
+//     report has two columns of its own and the picked ones do not apply
+//   • a sort belongs to the shape of the report, so changing that shape drops it
+//   • discovered attributes stay visually apart from the catalog's fields, and
+//     are offered everywhere a field is: filter, column and group
+describe('counting per value', () => {
+  it('reports what to count per, and takes the columns picker away', async () => {
+    const onChange = render(S([]));
+    expect(screen.getByText('Columns')).toBeInTheDocument();
+
+    await pick('Count per', 'User type');
+
+    expect(last(onChange)).toMatchObject({ entity: 'user', groupBy: 'userType' });
+    expect(screen.queryByText('Columns')).not.toBeInTheDocument();
+    expect(screen.getByText(/One row per distinct value/)).toBeInTheDocument();
+  });
+
+  it('goes back to listing users, and keeps the columns that were picked', async () => {
+    const onChange = render(S([], { groupBy: 'userType' }));
+
+    await pick('Count per', 'nothing — list every user');
+
+    expect(last(onChange).groupBy).toBeUndefined();
+    expect(last(onChange).columns).toEqual(['displayName']);
+    expect(screen.getByText('Columns')).toBeInTheDocument();
+  });
+
+  it('drops a sort that the new shape cannot have', async () => {
+    // Sorting on displayName is meaningless once the rows are values with counts.
+    const onChange = render(S([], { sort: { field: 'displayName', direction: 'asc' } }));
+
+    await pick('Count per', 'Name');
+
+    expect(last(onChange).sort).toBeUndefined();
+  });
+
+  it('offers nothing to count per while the definition compares sets', () => {
+    render(S([{ type: 'compare', relation: 'memberOf', measure: 'identical', minSimilarity: 100, reference: { entity: 'user', name: 'Ada' } }]));
+    expect(screen.queryByRole('combobox', { name: 'Count per' })).not.toBeInTheDocument();
+  });
+});
+
+describe('attributes from this deployment', () => {
+  it('keeps them in a group of their own, everywhere a field is offered', async () => {
+    const onChange = render(S([field('displayName', 'contains', 'a')]));
+
+    // In the field picker of a condition…
+    const fieldSelect = combo('Field');
+    expect(within(fieldSelect).getByRole('group', { name: 'From your data' })).toBeInTheDocument();
+    expect(within(within(fieldSelect).getByRole('group', { name: 'From your data' })).getByRole('option', { name: 'sfDepartmentID' })).toBeInTheDocument();
+
+    // …in the group-by picker…
+    expect(within(combo('Count per')).getByRole('group', { name: 'From your data' })).toBeInTheDocument();
+
+    // …and behind a summary in the columns picker, so hundreds of them cannot
+    // bury the catalog's own columns.
+    expect(screen.getByText('Attributes from your data (1)')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'sfDepartmentID' }));
+    expect(last(onChange).columns).toEqual(['displayName', 'ext.sfDepartmentID']);
+  });
+
+  it('filters on one, reported with the raw key the definition stores', async () => {
+    const onChange = render(S([field('displayName', 'contains', 'a')]));
+
+    await pick('Field', 'sfDepartmentID');
+
+    expect(last(onChange).conditions[0]).toEqual({ type: 'field', field: 'ext.sfDepartmentID', op: 'contains', value: '' });
   });
 });
