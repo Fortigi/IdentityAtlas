@@ -47,4 +47,16 @@ describe('Entra ID crawler ConfigWizard', () => {
       expect(o.key && o.label && o.description, `entry ${o.key} missing a field`).toBeTruthy();
     }
   });
+
+  // Profile photos are the only object type that is personal data AND costs a
+  // Graph request per user. Enabling it is meant to be a deliberate decision,
+  // so the warning is part of the feature, not decoration — without it the row
+  // reads like every other grey help text.
+  it('profile photos carry a warning, and nothing else does', () => {
+    const withWarning = ENTRA_OBJECT_TYPES_FALLBACK.filter(o => o.warning);
+    expect(withWarning.map(o => o.key)).toEqual(['profilePhotos']);
+    expect(withWarning[0].warning).toMatch(/personal data/i);
+    expect(withWarning[0].warning).toMatch(/per user/i);
+  });
+
 });
