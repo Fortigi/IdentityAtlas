@@ -34,7 +34,10 @@ export function clearValuesCache() { valuesCache = { at: 0, values: null }; }
 
 // The prompt-cache warm-up for the report prompt. Why it re-restores on every call
 // instead of remembering an earlier success: see warmup.js.
-export const { ensureWarm, warmupState } = createWarmup(buildSystemPrompt);
+// The value lists go into the cache behind the system prompt, so a question
+// reads only what follows them. For that they must be the FIRST thing in the
+// user message — contextFor() puts them there.
+export const { ensureWarm, warmupState } = createWarmup(buildSystemPrompt, async () => buildValuesBlock(await loadValues()));
 
 /**
  * Prepare the report prompt's cache when the API starts. See warmup.prepareAtStartup.
@@ -156,7 +159,9 @@ function parseReply(content) {
  * was told cannot say whether the model or the prompt got it wrong.
  */
 export function contextFor({ values, located = [], attributes = [], callerContext = '' }) {
-  return [callerContext, buildValuesBlock(values), termHint(located), attributesBlock(attributes)]
+  // Values first: they are the cached prefix of every user message (see the
+  // warm-up above). Everything after them is read per question.
+  return [buildValuesBlock(values), callerContext, termHint(located), attributesBlock(attributes)]
     .filter(Boolean).join('\n\n');
 }
 

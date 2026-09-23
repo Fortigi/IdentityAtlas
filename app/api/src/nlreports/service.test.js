@@ -6,9 +6,9 @@ vi.mock('./llm.js', () => ({ chat: vi.fn(), warm: vi.fn(), DEFAULT_MODEL: 'test-
 
 import { query, tx } from '../db/connection.js';
 import { chat, warm } from './llm.js';
-import { buildSystemPrompt, REPORT_ONLY_SCHEMA, RESPONSE_SCHEMA } from './prompt.js';
+import { buildSystemPrompt, buildValuesBlock, REPORT_ONLY_SCHEMA, RESPONSE_SCHEMA } from './prompt.js';
 import {
-  clearValuesCache, disjunctionPhrase, ensureWarm, hasAnyMatch, hasDisjunction, interpret, needsOrRepair, orRepairMessage, runSpec, schemaFor,
+  clearValuesCache, disjunctionPhrase, ensureWarm, hasAnyMatch, hasDisjunction, interpret, loadValues, needsOrRepair, orRepairMessage, runSpec, schemaFor,
   warmAtStartup, warmupState,
 } from './service.js';
 import { clearExtFieldsCache } from './extFields.js';
@@ -187,7 +187,8 @@ describe('prompt-cache warm-up', () => {
     expect(again).not.toBe(first);
     await again.promise;
     expect(warm).toHaveBeenCalledTimes(2);
-    expect(warm.mock.calls[1]).toEqual(['test-model', buildSystemPrompt()]);
+    expect(warm.mock.calls[1].slice(0, 2)).toEqual(['test-model', buildSystemPrompt()]);
+    expect(warm.mock.calls[1][2]).toMatch(/^Values that exist/); // the deployment prefix cached behind it
   });
 
   it('retries after a failed warm-up', async () => {
@@ -709,5 +710,20 @@ describe('interpret — a question about the person asking that forgot them', ()
     chat.mockResolvedValueOnce(reply(everyone));
     await interpret({ question: 'Kan je me een lijstje geven van accounts in een access package?', model: 'm', substitutions: subs() });
     expect(chat).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('the value lists are the cached start of every user message', () => {
+  it('puts them first, before the caller and the name hints, exactly as the warm-up caches them', async () => {
+    chat.mockResolvedValueOnce(reply(AND_SPEC));
+    await interpret({ question: 'all guests', model: 'm', context: 'The person asking this question is Wim.' });
+    const user = chat.mock.calls[0][0].messages.at(-1).content;
+    expect(user.startsWith(buildValuesBlock(await loadValues()))).toBe(true);
+    expect(user.indexOf('Values that exist')).toBeLessThan(user.indexOf('The person asking'));
+  });
+
+  it('hands the warm-up the same block, so the file it restores matches what a question sends', async () => {
+    await ensureWarm().promise;
+    expect(warm.mock.calls.at(-1)[2]).toBe(buildValuesBlock(await loadValues()));
   });
 });

@@ -264,6 +264,11 @@ tokens) — minutes on a small CPU. Three things fix that:
 2. **The processed instructions are saved to disk** (llama.cpp slot cache) and restored in ~0.1 s on
    every later start. That is measured on local disk; on Azure the 561 MB file lives on an Azure Files
    share, whose restore time has not been measured.
+   A second file holds the instructions **plus this deployment's value lists** — the first thing in
+   every user message — derived from the first file in seconds (restore it, read a few hundred
+   tokens, save). Questions start from that one, so the server reads only what follows the lists:
+   the caller, the name hints, the question. When the lists change, the next warm-up writes a fresh
+   file; until then the server reuses what still matches, which is the instructions.
 3. **Preparation runs in the background** at API startup, and the builder says "preparing" instead of
    blocking. `node tools/nl-reports/prepare-prompt-cache.mjs` does it on demand and verifies a restore
    actually works.

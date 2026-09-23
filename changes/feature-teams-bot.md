@@ -38,3 +38,4 @@
 - The particles of a surname ("van", "den") and the ordinary words of a question are no longer mistaken for a person's name — "welke van deze groepen" no longer asks which "Van" you mean.
 - When a correction round replaced the model's first answer, the first answer is kept beside the final one, so a wrong correction can be traced.
 - A question about yourself ("in welke access packages zit ik?") whose definition forgot you is sent back once to add you, instead of answering about everyone.
+- The deployment's value lists are now cached behind the system prompt, so every question starts about twenty seconds sooner on a CPU-only server; the cache is prepared in seconds from the system-prompt cache and refreshed by itself when the lists change.

@@ -24,9 +24,11 @@ import { getReportModel } from './settings.js';
 
 /**
  * @param {() => string} buildPrompt  the system prompt this warm-up keeps in the slot
+ * @param {() => Promise<string>} [buildPrefix]  the start of every user message on this
+ *   deployment (its value lists), cached behind the system prompt — see llamacpp.js warm()
  * @returns {{ ensureWarm: () => { state: string, promise: Promise<object> }, warmupState: () => string }}
  */
-export function createWarmup(buildPrompt) {
+export function createWarmup(buildPrompt, buildPrefix = async () => '') {
   let current = null;
 
   function ensureWarm() {
@@ -34,7 +36,10 @@ export function createWarmup(buildPrompt) {
     const entry = { state: 'warming', promise: null };
     entry.promise = (async () => {
       try {
-        const result = await warm(await getReportModel(), buildPrompt());
+        // A prefix that cannot be built (the database is not up yet) is no
+        // reason to skip the warm-up: the system prompt alone is most of it.
+        const prefix = await buildPrefix().catch(() => '');
+        const result = await warm(await getReportModel(), buildPrompt(), prefix);
         entry.state = 'ready';
         return result;
       } catch (err) {
