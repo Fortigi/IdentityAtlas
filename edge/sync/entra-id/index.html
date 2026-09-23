@@ -5419,6 +5419,11 @@
 <td>Sync per-(user, app) last activity from sign-in logs (window set by <code>-SignInLogsDays</code>, default 7)</td>
 </tr>
 <tr>
+<td><code>-SyncProfilePhotos</code></td>
+<td>Off</td>
+<td>Sync each user's profile photo, shown next to their name (re-check interval set by <code>-PhotoMaxAgeDays</code>, default 30)</td>
+</tr>
+<tr>
 <td><code>-RefreshViews</code></td>
 <td>On</td>
 <td>Refresh SQL views after sync</td>
@@ -5496,8 +5501,14 @@
 <td><code>-SyncPrincipalRelationships</code></td>
 <td>Low–moderate — only over agents + guests</td>
 </tr>
+<tr>
+<td>A face next to each user's name</td>
+<td><code>-SyncProfilePhotos</code></td>
+<td>High on the first run — a photo is a separate request per user; near-zero afterwards</td>
+</tr>
 </tbody>
 </table>
+<p><strong>A note on profile photos.</strong> They are personal data, and nothing else the crawler stores is of that kind, so the toggle is off until someone turns it on deliberately — check what your organisation's privacy agreements require before enabling it. The cost profile is unusual: a photo is not a user attribute in Graph but a separate resource per user, so the first run makes one request per account. After that, answers are remembered — including "this account has no photo" — and only re-checked every <code>-PhotoMaxAgeDays</code> days, so repeat crawls ask about almost nobody.</p>
 <p><code>-SyncServicePrincipals</code> is the prerequisite for meaningful <code>-SyncAppPermissions</code> and <code>-SyncPrincipalRelationships</code> output (both operate on service principals), and it's where AI-agent classification happens — add <code>-AINamePatterns</code> to catch agents your naming convention flags that the built-in patterns miss.</p>
 <hr />
 <h2 id="what-gets-synced">What Gets Synced<a class="headerlink" href="#what-gets-synced" title="Permanent link">&para;</a></h2>
