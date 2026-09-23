@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { PublicClientApplication } from '@azure/msal-browser';
 import { AuthContext } from './AuthGate';
 import { buildAuthHeaders } from './authFetchHeaders';
+import { degradedPermState, permStateFromAuthMe } from './authMeState';
 
 export default function AuthGate({ children }) {
   const [state, setState] = useState({ phase: 'loading', error: null });
@@ -131,25 +132,15 @@ export default function AuthGate({ children }) {
   // A failure/degraded auth surfaces as "no permissions resolved"; UI gating
   // then hides write controls, which is the safe default.
   const refreshPermissions = useCallback(() => {
-    const degraded = () => setPermState({
-      permissions: new Set(), roles: [], hasWildcard: false, loaded: true, me: null,
-    });
+    // Both shapes live in ./authMeState.js so they can be unit-tested without
+    // standing up MSAL. `me` there is the signed-in user mapped onto crawled
+    // data — the header avatar's source, and the mapping any first-person
+    // feature ("my groups") needs.
+    const degraded = () => setPermState(degradedPermState());
     return authFetch('/api/auth-me')
       .then((res) => {
         if (!res.ok) { degraded(); return undefined; }
-        return res.json().then((body) => {
-          setPermState({
-            permissions: new Set(body.permissions || []),
-            roles: body.roles || [],
-            hasWildcard: !!body.hasWildcard,
-            loaded: true,
-            // The signed-in user mapped onto crawled data: their Principal and
-            // Identity. Null when unauthenticated, unmatched, or before the
-            // first crawl. Drives the header avatar, and is the mapping any
-            // first-person feature ("my groups") needs.
-            me: body.me || null,
-          });
-        });
+        return res.json().then((body) => setPermState(permStateFromAuthMe(body)));
       })
       .catch(degraded);
   }, [authFetch]);
