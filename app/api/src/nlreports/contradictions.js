@@ -26,6 +26,18 @@
 // is why it did nothing here: the question was Dutch. This reads only the
 // definition, so it works the same in every language, including ones nobody
 // thought about.
+//
+// THE SECOND SHAPE, from the held-out evaluation. Asked for "groups without
+// owners that have more than 5 members", the model built
+//
+//     Owner count is more than 0   AND   has no owner   AND   Member count > 5
+//
+// — a count field and the relation it counts, pulling opposite ways. The
+// catalog says which relation a count field counts (`counts:` on the field),
+// so this is caught the same way, and the model is told which of the two to
+// keep.
+
+import { ENTITIES } from './catalog.js';
 
 const DAY_WINDOW = { withinLastDays: 'within', olderThanDays: 'older' };
 
@@ -65,6 +77,42 @@ const show = (v) => (typeof v === 'string' ? `"${v}"` : String(v));
 /** conflictBetween, tried both ways round, so order in the list does not matter. */
 const conflict = (a, b) => conflictBetween(a, b) ?? conflictBetween(b, a);
 
+/** What a number condition on a count forces: none at all, at least one, or neither. */
+function countSays(c) {
+  const n = Number(c.value);
+  if ((c.op === 'eq' && n === 0) || (c.op === 'lt' && n <= 1)) return 'zero';
+  if ((c.op === 'gt' && n >= 0) || (c.op === 'neq' && n === 0)) return 'some';
+  return null;
+}
+
+/**
+ * A count field and the relation it counts, at one AND level, that cannot both
+ * hold. "owner count above zero" with "has no owner at all" is one; "member
+ * count is zero" with "has a member (matching anything)" is the other. A
+ * relation with conditions under quantifier none is left alone: "has owners,
+ * none of them called Jan" is a real report.
+ */
+function countConflicts(conditions, match, entity) {
+  if (match === 'any' || !entity) return [];
+  const found = [];
+  const all = conditions ?? [];
+  for (const c of all.filter(x => x.type === 'field')) {
+    const counted = entity.fields?.[c.field]?.counts;
+    const says = counted ? countSays(c) : null;
+    if (!says) continue;
+    for (const r of all.filter(x => x.type === 'relation' && x.relation === counted)) {
+      if (says === 'some' && r.quantifier === 'none' && !(r.conditions?.length)) {
+        found.push(`"${c.field}" above zero and "${r.relation}" none cannot both hold`
+          + ` — for "without ${r.relation}" keep only the relation with quantifier none; for "with ${r.relation}" keep only "${c.field}" gt 0`);
+      }
+      if (says === 'zero' && r.quantifier !== 'none') {
+        found.push(`"${c.field}" of zero and "${r.relation}" some cannot both hold — keep one of them`);
+      }
+    }
+  }
+  return found;
+}
+
 /**
  * Every way this definition contradicts itself.
  *
@@ -78,7 +126,8 @@ const conflict = (a, b) => conflictBetween(a, b) ?? conflictBetween(b, a);
  */
 export function contradictions(spec) {
   const found = [];
-  const walk = (conditions, match) => {
+  const walk = (conditions, match, entity) => {
+    found.push(...countConflicts(conditions, match, entity));
     const fields = andedFieldConditions(conditions, match);
     for (let i = 0; i < fields.length; i++) {
       for (let j = i + 1; j < fields.length; j++) {
@@ -88,9 +137,12 @@ export function contradictions(spec) {
       }
     }
     for (const c of conditions ?? []) {
-      if (c.type === 'group' || c.type === 'relation') walk(c.conditions, c.match);
+      // A relation's conditions are about its target: the count fields in
+      // play there are the target's.
+      if (c.type === 'group') walk(c.conditions, c.match, entity);
+      if (c.type === 'relation') walk(c.conditions, c.match, ENTITIES[entity?.relations?.[c.relation]?.target]);
     }
   };
-  walk(spec?.conditions, spec?.match);
+  walk(spec?.conditions, spec?.match, ENTITIES[spec?.entity]);
   return found;
 }

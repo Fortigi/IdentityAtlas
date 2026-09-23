@@ -195,3 +195,103 @@ describe('validateSpec refuses an impossible report', () => {
     expect(errors.join(' ')).not.toContain('cannot be both');
   });
 });
+
+describe('a count field against the relation it counts', () => {
+  // From the held-out evaluation on the test deployment, verbatim: "groups
+  // without owners that have more than 5 members" became owner count above
+  // zero AND no owner. It ran, returned nothing, and nothing looked like an
+  // answer.
+  const unowned = { type: 'relation', relation: 'owners', quantifier: 'none', match: 'all', conditions: [] };
+
+  it('rejects "owner count above zero" together with "has no owner"', () => {
+    const { ok, errors } = validateSpec({
+      entity: 'group', match: 'all',
+      conditions: [field('ownerCount', 'gt', 0), field('memberCount', 'gt', 5), unowned],
+    });
+    expect(ok).toBe(false);
+    expect(errors).toHaveLength(1);
+    // The message names both halves, so the model knows which pair to fix.
+    expect(errors[0]).toContain('ownerCount');
+    expect(errors[0]).toContain('owners');
+  });
+
+  it('accepts the same question built properly: no owner, member count above 5', () => {
+    // memberCount is a count field too, and > 5 says "some"; there is no
+    // members relation beside it, so it must not trip on the owners one.
+    const { ok, errors } = validateSpec({
+      entity: 'group', match: 'all',
+      conditions: [unowned, field('memberCount', 'gt', 5)],
+    });
+    expect(errors).toEqual([]);
+    expect(ok).toBe(true);
+  });
+
+  it('leaves "has owners, none of them called Jan" alone', () => {
+    // quantifier none WITH conditions is not "no owners at all".
+    expect(contradictions({
+      entity: 'resource', match: 'all',
+      conditions: [field('ownerCount', 'gt', 0),
+        { type: 'relation', relation: 'owners', quantifier: 'none', match: 'all', conditions: [field('displayName', 'eq', 'Jan')] }],
+    })).toEqual([]);
+  });
+
+  it('rejects "member count is zero" together with "has a member", with or without conditions on the member', () => {
+    expect(contradictions({
+      entity: 'resource', match: 'all',
+      conditions: [field('memberCount', 'eq', 0), { type: 'relation', relation: 'members', quantifier: 'some', conditions: [] }],
+    })).toHaveLength(1);
+    expect(contradictions({
+      entity: 'resource', match: 'all',
+      conditions: [field('memberCount', 'eq', 0),
+        { type: 'relation', relation: 'members', quantifier: 'some', conditions: [field('displayName', 'eq', 'Jan')] }],
+    })).toHaveLength(1);
+    // Zero members and no members agree.
+    expect(contradictions({
+      entity: 'resource', match: 'all',
+      conditions: [field('memberCount', 'eq', 0), { type: 'relation', relation: 'members', quantifier: 'none', conditions: [] }],
+    })).toEqual([]);
+  });
+
+  it('reads "fewer than 1" as zero and "not 0" as some, and any other bound as neither', () => {
+    const none = { type: 'relation', relation: 'memberOf', quantifier: 'none', conditions: [] };
+    const some = { type: 'relation', relation: 'memberOf', quantifier: 'some', conditions: [] };
+    expect(contradictions({ entity: 'account', match: 'all', conditions: [field('groupCount', 'lt', 1), some] })).toHaveLength(1);
+    expect(contradictions({ entity: 'account', match: 'all', conditions: [field('groupCount', 'neq', 0), none] })).toHaveLength(1);
+    // "fewer than 5 groups" and "in no group" is satisfiable (0 < 5).
+    expect(contradictions({ entity: 'account', match: 'all', conditions: [field('groupCount', 'lt', 5), none] })).toEqual([]);
+    // "not exactly 3 groups" and "in a group" is satisfiable.
+    expect(contradictions({ entity: 'account', match: 'all', conditions: [field('groupCount', 'neq', 3), some] })).toEqual([]);
+  });
+
+  it('is not fooled by an OR level, and finds the pair inside a relation on the target entity', () => {
+    expect(contradictions({
+      entity: 'resource', match: 'any', conditions: [field('ownerCount', 'gt', 0), unowned],
+    })).toEqual([]);
+    // "accounts that are in a group that has zero members and has a member":
+    // the count field belongs to the group, reached through memberOf.
+    expect(contradictions({
+      entity: 'account', match: 'all',
+      conditions: [{
+        type: 'relation', relation: 'memberOf', quantifier: 'some', match: 'all',
+        conditions: [field('memberCount', 'eq', 0), { type: 'relation', relation: 'members', quantifier: 'some', conditions: [] }],
+      }],
+    })).toHaveLength(1);
+  });
+
+  it('every counts: in the catalog names a relation on its own entity', async () => {
+    // A count that points at a relation which does not exist would silently
+    // never be checked.
+    const { ENTITIES } = await import('./catalog.js');
+    // ENTITIES lists aliases (group, user) beside the entities they name, so
+    // count by pair, not by key.
+    const counted = new Set();
+    for (const [ename, e] of Object.entries(ENTITIES)) {
+      for (const [fname, f] of Object.entries(e.fields)) {
+        if (!f.counts) continue;
+        counted.add(`${fname} -> ${f.counts}`);
+        expect(e.relations, `${ename}.${fname} counts "${f.counts}"`).toHaveProperty(f.counts);
+      }
+    }
+    expect([...counted].sort()).toEqual(['accountCount -> accounts', 'groupCount -> memberOf', 'memberCount -> members', 'ownerCount -> owners']);
+  });
+});

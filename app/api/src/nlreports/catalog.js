@@ -113,7 +113,7 @@ const BASE = {
       system: { label: 'System', type: 'enum', sql: systemName, description: 'source system name', valuesFrom: 'systemName' },
       riskTier: { label: 'Risk tier', type: 'enum', sql: col('riskTier'), valuesFrom: 'principalRiskTier' },
       groupCount: {
-        label: 'Group count', type: 'number',
+        label: 'Group count', type: 'number', counts: 'memberOf',
         description: 'number of groups the account is a member of',
         sql: (t) => `(SELECT count(*) FROM "ResourceAssignments" ra JOIN "Resources" r ON r."id" = ra."resourceId"
           WHERE ra."principalId" = ${t}."id" AND ra."deletedAt" IS NULL AND r."deletedAt" IS NULL
@@ -253,7 +253,7 @@ const BASE = {
       analystVerified: { label: 'Verified by analyst', type: 'boolean', sql: col('analystVerified') },
       linkConfidence: { label: 'Link confidence', type: 'number', sql: col('linkConfidence'), description: 'how sure the account linking is, 0–100' },
       accountCount: {
-        label: 'Account count', type: 'number', description: 'number of accounts linked to this person',
+        label: 'Account count', type: 'number', counts: 'accounts', description: 'number of accounts linked to this person',
         sql: (t) => `(SELECT count(*) FROM "IdentityMembers" im JOIN "Principals" p ON p."id" = im."principalId"
           WHERE im."identityId" = ${t}."id" AND p."deletedAt" IS NULL)`,
       },
@@ -315,13 +315,13 @@ const BASE = {
       system: { label: 'System', type: 'enum', sql: systemName, valuesFrom: 'systemName' },
       riskTier: { label: 'Risk tier', type: 'enum', sql: col('riskTier'), valuesFrom: 'resourceRiskTier' },
       memberCount: {
-        label: 'Member count', type: 'number',
+        label: 'Member count', type: 'number', counts: 'members',
         description: 'number of accounts that hold this resource (members / assignees)',
         sql: (t) => `(SELECT count(*) FROM "ResourceAssignments" ra
           WHERE ra."resourceId" = ${t}."id" AND ra."deletedAt" IS NULL AND ra."assignmentType" IN ${HELD})`,
       },
       ownerCount: {
-        label: 'Owner count', type: 'number', description: 'number of owners',
+        label: 'Owner count', type: 'number', counts: 'owners', description: 'number of owners',
         sql: (t) => `(SELECT count(*) FROM "ResourceRelationships" rr JOIN "ResourceAssignments" ra ON ra."resourceId" = rr."childResourceId"
           WHERE rr."parentResourceId" = ${t}."id" AND rr."relationshipType" IN ('HasOwnership','HasAppOwnership') AND ra."deletedAt" IS NULL)`,
       },
