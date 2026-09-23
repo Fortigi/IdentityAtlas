@@ -117,11 +117,18 @@ describe('applyChoice', () => {
     expect(spec.conditions[0].reference).toEqual({ entity: 'resource', name: 'Typed name' });
   });
 
-  it('replaces a nested "name is" value, optionally marking it as checked', () => {
-    const spec = valid({ entity: 'group', conditions: [{ relation: 'businessRoles', quantifier: 'none', conditions: [{ field: 'displayName', op: 'eq', value: 'x' }] }] });
-    expect(applyChoice(spec, { path: [0, 0], name: 'Kept as written', keep: true })).toBe(true);
-    expect(spec.conditions[0].conditions[0]).toEqual({ type: 'field', field: 'displayName', op: 'eq', value: 'Kept as written', checked: true });
-    expect(valid(spec).conditions[0].conditions[0].checked).toBe(true); // survives re-validation
+  it('replaces a nested "name is" value, or keeps it as written — the choice\'s label never replaces it', () => {
+    const nested = () => valid({ entity: 'group', conditions: [{ relation: 'businessRoles', quantifier: 'none', conditions: [{ field: 'displayName', op: 'eq', value: 'x' }] }] });
+    const typed = nested();
+    expect(applyChoice(typed, { path: [0, 0], name: 'Typed name' })).toBe(true);
+    expect(typed.conditions[0].conditions[0]).toEqual({ type: 'field', field: 'displayName', op: 'eq', value: 'Typed name' });
+
+    // "Keep as written" is a choice whose name is only its label ("every
+    // account with … in the name"); the value stays what the model wrote.
+    const kept = nested();
+    expect(applyChoice(kept, { path: [0, 0], name: 'Keep “x” as written', keep: true })).toBe(true);
+    expect(kept.conditions[0].conditions[0]).toEqual({ type: 'field', field: 'displayName', op: 'eq', value: 'x', checked: true });
+    expect(valid(kept).conditions[0].conditions[0].checked).toBe(true); // survives re-validation
   });
 
   it('refuses a path or answer that does not point at a named object', () => {
@@ -170,5 +177,92 @@ describe('identities and the glossary', () => {
     expect(GLOSSARY.find(g => g.terms.includes('access package')).terms).toContain('business role');
     expect(GLOSSARY.find(g => g.terms.includes('person')).means).toMatch(/identity entity/);
     expect(GLOSSARY.find(g => g.terms.includes('principal')).terms).toEqual(expect.arrayContaining(['account', 'user']));
+  });
+});
+
+describe('resolveNamedObjects — a person written as "name contains X"', () => {
+  // The lookup is recognised by its running total; nothing else is queried
+  // unless the person is not found.
+  const persons = (rows, fuzzy = []) => vi.fn(async (sql) => {
+    if (sql.includes('OVER()')) return { rows: rows.map(r => ({ ...r, total: rows.length })) };
+    if (sql.includes('similarity(')) return { rows: fuzzy };
+    return { rows: [] };
+  });
+  const overweg = { id: 'u1', displayName: 'William Overweg', type: 'User' };
+  const smit = { id: 'u2', displayName: 'William Smit', type: 'User' };
+  const william = (entity = 'user') => valid({ entity, conditions: [{ field: 'displayName', op: 'contains', value: 'william' }] });
+
+  it('pins a single match to that person, so the report says who it is about', async () => {
+    const spec = william();
+    const query = persons([overweg]);
+    expect((await resolveNamedObjects(spec, query)).confirm).toBeNull();
+    expect(spec.conditions[0]).toEqual({ type: 'field', field: 'displayName', op: 'eq', value: 'William Overweg', checked: true });
+    expect(query).toHaveBeenCalledTimes(1);
+    // The pinned condition survives a second look-up untouched.
+    expect((await resolveNamedObjects(spec, query)).confirm).toBeNull();
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks which one when several match, offering everyone with the name as the LAST choice', async () => {
+    const { confirm } = await resolveNamedObjects(william(), persons([overweg, smit]));
+    expect(confirm).toMatchObject({ kind: 'person', path: [0], name: 'william', total: 2 });
+    expect(confirm.message).toMatch(/^2 users have "william"/);
+    expect(confirm.choices.slice(0, 2)).toEqual([
+      { id: 'u1', name: 'William Overweg', type: 'User' },
+      { id: 'u2', name: 'William Smit', type: 'User' },
+    ]);
+    expect(confirm.choices.at(-1)).toEqual({ name: 'every user with “william” in the name', keep: true });
+  });
+
+  it('asks for the exact name when nobody matches, with the fuzzy suggestions', async () => {
+    const { confirm } = await resolveNamedObjects(william(), persons([], [{ id: 'u1', displayName: 'Wilhelm Overweg', type: 'User', score: '0.5' }]));
+    expect(confirm).toMatchObject({ kind: 'value', name: 'william', choices: [{ id: 'u1', name: 'Wilhelm Overweg' }] });
+  });
+
+  it('looks a person up on the entity the condition is about — the members of a group', async () => {
+    const spec = valid({
+      entity: 'group',
+      conditions: [
+        { field: 'displayName', op: 'contains', value: 'License' }, // a group fragment: a filter, not a lookup
+        { relation: 'members', quantifier: 'some', conditions: [{ field: 'displayName', op: 'contains', value: 'william' }] },
+      ],
+    });
+    const query = persons([overweg]);
+    expect((await resolveNamedObjects(spec, query)).confirm).toBeNull();
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0][0]).toContain('"Principals"');
+    expect(spec.conditions[0]).toMatchObject({ op: 'contains', value: 'License' });
+    expect(spec.conditions[1].conditions[0]).toMatchObject({ op: 'eq', value: 'William Overweg', checked: true });
+  });
+
+  it('never looks up a person on the change entity\'s own name, only through its account', async () => {
+    // AssignmentChanges has a displayName too (the account's, denormalised);
+    // it is not a Principals row, so a fragment there stays a filter.
+    const spec = valid({ entity: 'change', conditions: [{ field: 'displayName', op: 'contains', value: 'william' }] });
+    const query = persons([overweg]);
+    expect((await resolveNamedObjects(spec, query)).confirm).toBeNull();
+    expect(query).not.toHaveBeenCalled();
+  });
+});
+
+describe('applyChoice — a person picked for a "contains"', () => {
+  const contains = () => valid({ entity: 'user', conditions: [{ field: 'displayName', op: 'contains', value: 'william' }] });
+
+  it('turns the fragment into exactly the chosen person', () => {
+    const spec = contains();
+    expect(applyChoice(spec, { path: [0], name: 'William Overweg', id: 'u1' })).toBe(true);
+    expect(spec.conditions[0]).toEqual({ type: 'field', field: 'displayName', op: 'contains', value: 'William Overweg', checked: true, ...{ op: 'eq' } });
+  });
+
+  it('keeps the fragment as written for "everyone with the name", ignoring the choice\'s label', () => {
+    const spec = contains();
+    expect(applyChoice(spec, { path: [0], name: 'every account with “william” in the name', keep: true })).toBe(true);
+    expect(spec.conditions[0]).toEqual({ type: 'field', field: 'displayName', op: 'contains', value: 'william', checked: true });
+  });
+
+  it('leaves a typed name as a fragment, to be looked up again', () => {
+    const spec = contains();
+    expect(applyChoice(spec, { path: [0], name: ' Overweg ' })).toBe(true);
+    expect(spec.conditions[0]).toEqual({ type: 'field', field: 'displayName', op: 'contains', value: 'Overweg' });
   });
 });

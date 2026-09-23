@@ -105,3 +105,34 @@ describe('ConfirmChoices — a name the report does not use', () => {
     for (const button of screen.getAllByRole('button')) expect(button).toBeDisabled();
   });
 });
+
+describe('ConfirmChoices — a person written as "contains"', () => {
+  const person = {
+    kind: 'person',
+    path: [1, 0],
+    name: 'william',
+    label: 'account',
+    total: 2,
+    message: '2 accounts have "william" in their name. Which one is meant?',
+    choices: [
+      { id: 'u1', name: 'William Overweg', type: 'User' },
+      { id: 'u2', name: 'William Smit', type: 'User' },
+      { name: 'every account with “william” in the name', keep: true },
+    ],
+  };
+
+  it('pins the chosen person by id, like a reference', async () => {
+    const onChoose = render(person);
+    await userEvent.click(screen.getByRole('button', { name: /William Smit/ }));
+    expect(onChoose).toHaveBeenCalledWith({ path: [1, 0], name: 'William Smit', id: 'u2' });
+  });
+
+  it('offers everyone with the name as the keep-as-written choice, not as one more person', async () => {
+    const onChoose = render(person);
+    // Two person buttons, not three.
+    expect(screen.getAllByRole('button').filter(b => /William/.test(b.textContent))).toHaveLength(2);
+    await userEvent.click(screen.getByRole('button', { name: /every account with/ }));
+    expect(onChoose).toHaveBeenCalledWith({ path: [1, 0], name: 'william', keep: true });
+    expect(screen.queryByText(/as written/)).not.toBeInTheDocument();
+  });
+});

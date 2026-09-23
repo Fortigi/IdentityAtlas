@@ -6,6 +6,14 @@
 //
 //   • compare references            → must resolve to exactly one record id
 //   • "name is X" field conditions  → the name must exist for that entity
+//   • "name contains X" on a PERSON → one match is pinned to that person; several
+//                                     are offered ("which one — or everyone with
+//                                     X in the name?"); none asks for the name
+//
+// The third is there because the model writes a first name as "contains"
+// ("william"), which is right on a small directory and quietly wrong on a
+// large one: every William is counted. A group name stays a substring filter —
+// "groups with License in the name" is a report, not a lookup.
 //
 // Matching, strictest first:
 //   exact (case-insensitive)                    → used silently
@@ -30,6 +38,10 @@ const typeSelect = (entity, t) => (TYPE_COLUMN[entity.table] ? `${t}."${TYPE_COL
 export const normalizeName = (s) => String(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 
 const entityWord = (entityName) => ENTITIES[entityName].label.toLowerCase();
+
+// Which entities are persons — accounts and the people behind them.
+const PERSON_TABLES = new Set(['Principals', 'Identities']);
+const isPerson = (entityName) => PERSON_TABLES.has(ENTITIES[entityName].table);
 
 async function exactMatches(query, entityName, name) {
   const entity = ENTITIES[entityName];
@@ -74,6 +86,7 @@ function* namedObjects(conditions, entityName, path = []) {
     const p = [...path, i];
     if (c.type === 'compare') yield { c, path: p, kind: 'reference', entityName: c.reference.entity };
     else if (c.type === 'field' && c.op === 'eq' && c.field === 'displayName' && !c.checked) yield { c, path: p, kind: 'value', entityName };
+    else if (c.type === 'field' && c.op === 'contains' && c.field === 'displayName' && !c.checked && isPerson(entityName)) yield { c, path: p, kind: 'person', entityName };
     else if (c.type === 'group') yield* namedObjects(c.conditions, entityName, p);
     else if (c.type === 'relation') yield* namedObjects(c.conditions, ENTITIES[entityName].relations[c.relation].target, p);
   }
@@ -124,15 +137,51 @@ async function resolveValue(query, c, path, entityName) {
   return confirmation('value', path, c.value, entityName, choices);
 }
 
+/** The persons whose name contains the text, a page of them plus how many there are in all. */
+async function personMatches(query, entityName, text) {
+  const entity = ENTITIES[entityName];
+  const t = 'n0';
+  const { rows } = await query(
+    `SELECT ${t}."id", ${t}."displayName", ${typeSelect(entity, t)} AS type, count(*) OVER() AS total
+     FROM "${entity.table}" ${t}
+     WHERE ${entity.where(t)} AND ${t}."displayName" ILIKE $1 ESCAPE '\\'
+     ORDER BY ${t}."displayName" LIMIT ${MAX_CHOICES}`,
+    [likeContains(text)],
+  );
+  return { rows, total: rows.length ? Number(rows[0].total) : 0 };
+}
+
+async function resolvePerson(query, c, path, entityName) {
+  const { rows, total } = await personMatches(query, entityName, c.value);
+  if (total === 1) {
+    // One person: the report is about them, and its explanation says so by name.
+    Object.assign(c, { op: 'eq', value: rows[0].displayName, checked: true });
+    return null;
+  }
+  if (total === 0) return confirmation('value', path, c.value, entityName, await fuzzyMatches(query, entityName, c.value));
+  const label = entityWord(entityName);
+  const choices = rows.map(r => ({ id: r.id, name: r.displayName, type: r.type }));
+  // Last, so it is never the "first suggestion" a hurried answer picks.
+  choices.push({ name: `every ${label} with “${c.value}” in the name`, keep: true });
+  return {
+    kind: 'person', path, name: c.value, label, total, choices,
+    message: `${total} ${label}s have "${c.value}" in their name. Which one is meant?`,
+  };
+}
+
+const RESOLVERS = {
+  reference: (query, item) => resolveReference(query, item.c, item.path),
+  value: (query, item) => resolveValue(query, item.c, item.path, item.entityName),
+  person: (query, item) => resolvePerson(query, item.c, item.path, item.entityName),
+};
+
 /**
  * Look up every named object in a validated spec, in place.
  * @returns {Promise<{ confirm: object|null }>} the first object the analyst has to confirm, if any
  */
 export async function resolveNamedObjects(spec, query) {
   for (const item of namedObjects(spec.conditions, spec.entity)) {
-    const confirm = item.kind === 'reference'
-      ? await resolveReference(query, item.c, item.path)
-      : await resolveValue(query, item.c, item.path, item.entityName);
+    const confirm = await RESOLVERS[item.kind](query, item);
     if (confirm) return { confirm };
   }
   return { confirm: null };
@@ -163,7 +212,8 @@ function conditionAt(spec, path) {
  * Apply the analyst's answer to a confirmation, in place.
  * @param {{ path: number[], name: string, id?: string, keep?: boolean }} choice
  *   name  the chosen (or typed) exact name · id  the chosen record, when known
- *   keep  use a "name is X" value as written, without checking it again
+ *   keep  use the value as written, without checking it again — the name is
+ *         then only a label for the choice and does not replace the value
  * @returns {boolean} false when the path does not point at a named object
  */
 export function applyChoice(spec, choice) {
@@ -177,8 +227,11 @@ export function applyChoice(spec, choice) {
     return true;
   }
   if (c?.type === 'field' && c.field === 'displayName') {
+    if (choice.keep === true) { c.checked = true; return true; }
     c.value = choice.name.trim();
-    if (choice.keep === true) c.checked = true;
+    // A picked record is exactly that name — for a "contains" that found
+    // several persons, this is what turns it into one person.
+    if (typeof choice.id === 'string') { c.op = 'eq'; c.checked = true; }
     return true;
   }
   return false;

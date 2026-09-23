@@ -460,7 +460,8 @@ export function toAppliedChoice(confirm, picked) {
   if (confirm.kind === 'term') {
     return { kind: 'term', term: confirm.name, fields: picked.fields, drop: confirm.drop };
   }
-  return { kind: confirm.kind, path: confirm.path, name: picked.name, id: picked.id };
+  // "everyone with X in the name" is a choice that keeps the value as written.
+  return { kind: confirm.kind, path: confirm.path, name: picked.name, id: picked.id, ...(picked.keep ? { keep: true } : {}) };
 }
 
 /** Where a bot answer opens in Identity Atlas. */

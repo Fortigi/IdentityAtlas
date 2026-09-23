@@ -423,6 +423,13 @@ describe('toAppliedChoice', () => {
       .toEqual({ kind: 'term', term: 'Contoso', fields: ['companyName'], drop: [[1]] });
   });
 
+  it('carries "keep" for the everyone-with-this-name choice, and nothing extra otherwise', () => {
+    const confirm = { kind: 'person', path: [1, 0], name: 'william', choices: [] };
+    expect(toAppliedChoice(confirm, { name: 'every account with “william” in the name', keep: true }))
+      .toEqual({ kind: 'person', path: [1, 0], name: 'every account with “william” in the name', id: undefined, keep: true });
+    expect(toAppliedChoice(confirm, { id: 'u1', name: 'William Overweg' })).not.toHaveProperty('keep');
+  });
+
   it('is null when nothing was picked', () => {
     expect(toAppliedChoice({ kind: 'value', path: [0] }, null)).toBeNull();
   });
