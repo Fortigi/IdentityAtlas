@@ -130,9 +130,12 @@ const sameSet = (a, b) => a.size === b.size && [...a].every(x => b.has(x));
 async function shownSets(spec) {
   const r = await post('run', { spec: { ...spec, limit: 5000 } });
   const rows = r.rows ?? [];
-  if (rows.length !== 1) return [new Set(rows.map(row => row._entity?.id).filter(Boolean))];
-  // One row: every list on it is something the caller sees ("owns", "member of").
-  return Object.values(rows[0]._links ?? {}).map(list => new Set(list.map(l => l.id)));
+  // The rows themselves, and every list column across them: "who are the
+  // members of these groups" answered as the groups with a members column
+  // shows exactly the members.
+  const columns = new Set(rows.flatMap(row => Object.keys(row._links ?? {})));
+  const lists = [...columns].map(col => new Set(rows.flatMap(row => (row._links?.[col] ?? []).map(l => l.id))));
+  return [new Set(rows.map(row => row._entity?.id).filter(Boolean)), ...lists];
 }
 const expectedKinds = (q) => (Array.isArray(q.expectKind) ? q.expectKind : (q.expectKind ? [q.expectKind] : []));
 
