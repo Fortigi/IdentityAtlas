@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Fixed accounts bouncing between systems when two crawlers see the same directory: the Entra ID and Azure RM crawlers each claimed the same user on every run, which filled the user's Timeline with changes nobody made. A system now records which directory its accounts come from, and only that directory owns them.
+- Fixed Azure role assignments disappearing and reappearing between runs. Because the shared account had been reassigned to the Azure RM system, the next Azure RM run no longer recognised it as a directory account and removed its role assignments as orphaned.
+- Fixed the Azure RM crawler re-enabling accounts that are disabled in Entra ID. It no longer reports account state it cannot know.
+- Fixed users deleted in Entra ID sometimes staying visible: an account that had been reassigned to another system fell outside the Entra ID crawler's own clean-up.
+- Existing environments are corrected automatically on upgrade — no re-crawl needed.
+
+## Changes in this PR
+
 - Custom reports can now show and filter on the business roles a user or account holds. "Add the business role column" and "users in business role X" previously came back as "there is no such field" — business roles could only be reached from the other end, starting at a group or a resource.
 
 ## Changes in this PR
