@@ -150,9 +150,11 @@ const ASKED_COLUMNS = {
     [/\b(access ?packages?|business ?roles?|bedrijfsrol(len)?|toegangspakket(ten)?)\b/i, 'businessRoles.names'],
   ],
   user: [
+    // "Van welke groepen ben ik eigenaar" is about the groups OWNED: the owner
+    // rule wins, and "groups" then adds nothing.
+    [/\b(eigenaar|eigenaren|owns?|owner of)\b/i, 'owns.names', /\b(groepen|groups?|lid van|member of)\b/i],
     [/\b(groepen|groups?|lid van|member of)\b/i, 'memberOf.names'],
     [/\b(access ?packages?|business ?roles?|bedrijfsrol(len)?|toegangspakket(ten)?)\b/i, 'businessRoles.names'],
-    [/\b(eigenaar|eigenaren|owns?|owner of)\b/i, 'owns.names'],
     [/\b(rechten|rights|permissions|toegang|access)\b/i, 'access.names'],
     [/\b(manager|leidinggevende)\b/i, 'manager.displayName'],
   ],
@@ -168,8 +170,11 @@ export function addAskedColumns(spec, question) {
   if (!rules) return { spec, notes: [] };
   const text = String(question ?? '');
   const have = new Set(spec.columns ?? []);
+  // A rule may name a second pattern it overrides: when the first matches,
+  // the second is not applied ("groups" in "groups I own").
+  const overridden = rules.filter(([re, , over]) => over && re.test(text)).map(([, , over]) => over);
   const wanted = rules
-    .filter(([re, column]) => re.test(text) && !have.has(column) && entity.relations?.[column.split('.')[0]])
+    .filter(([re, column]) => re.test(text) && !overridden.some(o => o.source === re.source) && !have.has(column) && entity.relations?.[column.split('.')[0]])
     .map(([, column]) => column);
   if (!wanted.length) return { spec, notes: [] };
   // A definition with no columns lists the defaults; naming one means naming

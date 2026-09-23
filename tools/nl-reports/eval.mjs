@@ -127,13 +127,12 @@ const sameSet = (a, b) => a.size === b.size && [...a].every(x => b.has(x));
  * the second is wrong; the caller reading the card says it is the same answer.
  * So an answer is also right when what it shows matches what was expected.
  */
-async function shownIds(spec) {
+async function shownSets(spec) {
   const r = await post('run', { spec: { ...spec, limit: 5000 } });
   const rows = r.rows ?? [];
-  if (rows.length !== 1) return new Set(rows.map(row => row._entity?.id).filter(Boolean));
-  const lists = Object.values(rows[0]._links ?? {});
-  const biggest = lists.reduce((best, l) => (l.length > (best?.length ?? 0) ? l : best), null);
-  return new Set((biggest ?? []).map(l => l.id));
+  if (rows.length !== 1) return [new Set(rows.map(row => row._entity?.id).filter(Boolean))];
+  // One row: every list on it is something the caller sees ("owns", "member of").
+  return Object.values(rows[0]._links ?? {}).map(list => new Set(list.map(l => l.id)));
 }
 const expectedKinds = (q) => (Array.isArray(q.expectKind) ? q.expectKind : (q.expectKind ? [q.expectKind] : []));
 
@@ -251,8 +250,8 @@ for (const model of models) {
         expectedCount = exp.size; actualCount = act.size;
         pass = sameSet(exp, act);
         if (!pass && !reply.spec.groupBy) {
-          const shown = await shownIds(reply.spec);
-          if (sameSet(exp, shown)) { pass = true; actualCount = shown.size; shownAs = 'a list inside one row'; }
+          const shown = (await shownSets(reply.spec)).find(set => sameSet(exp, set));
+          if (shown) { pass = true; actualCount = shown.size; shownAs = 'a list inside one row'; }
         }
       } catch (e) { error = `run: ${e.message}`; }
     } else if (!error) {

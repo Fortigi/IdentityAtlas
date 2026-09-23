@@ -406,3 +406,12 @@ describe('a refinement keeps the previous definition', () => {
     expect(refineFromPrevious(same, previous, 'alleen de toevoegingen').spec).toBe(same);
   });
 });
+
+describe('the column the question asks to see — owner words win over "groups"', () => {
+  it('adds owns.names only for "van welke groepen ben ik eigenaar"', () => {
+    const { spec } = addAskedColumns({ entity: 'user', match: 'all', conditions: [], columns: ['displayName'] }, 'Van welke groepen ben ik eigenaar?');
+    expect(spec.columns).toEqual(['displayName', 'owns.names']);
+    const { spec: en } = addAskedColumns({ entity: 'user', match: 'all', conditions: [], columns: ['displayName', 'owns.names'] }, 'Which groups do I own?');
+    expect(en.columns).toEqual(['displayName', 'owns.names']);
+  });
+});
