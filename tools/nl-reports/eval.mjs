@@ -118,6 +118,23 @@ async function ids(spec) {
 }
 
 const sameSet = (a, b) => a.size === b.size && [...a].every(x => b.has(x));
+
+/**
+ * The records an answer actually puts in front of the caller — the same
+ * reading the follow-up bookkeeping uses (nlreports/followUp.js). "Van welke
+ * groepen ben ik lid?" is answered two ways that are equally right: 118 group
+ * rows, or ONE row (the caller) with a cell listing 118 groups. Row ids say
+ * the second is wrong; the caller reading the card says it is the same answer.
+ * So an answer is also right when what it shows matches what was expected.
+ */
+async function shownIds(spec) {
+  const r = await post('run', { spec: { ...spec, limit: 5000 } });
+  const rows = r.rows ?? [];
+  if (rows.length !== 1) return new Set(rows.map(row => row._entity?.id).filter(Boolean));
+  const lists = Object.values(rows[0]._links ?? {});
+  const biggest = lists.reduce((best, l) => (l.length > (best?.length ?? 0) ? l : best), null);
+  return new Set((biggest ?? []).map(l => l.id));
+}
 const expectedKinds = (q) => (Array.isArray(q.expectKind) ? q.expectKind : (q.expectKind ? [q.expectKind] : []));
 
 /** "@previous" in an expected definition stands for the ids the opening question's expected answer returned. */
@@ -222,6 +239,7 @@ for (const model of models) {
     let expectedCount = null;
     let actualCount = null;
     let expectedIds = null;
+    let shownAs = null;
     if (!error && kinds.length) {
       pass = kinds.includes(reply?.kind);
       if (!pass) error = `expected ${kinds.join(' or ')}, got ${reply?.kind}${reply?.kind === 'report' ? ' — it answered' : ''}`;
@@ -232,6 +250,10 @@ for (const model of models) {
         expectedIds = [...exp];
         expectedCount = exp.size; actualCount = act.size;
         pass = sameSet(exp, act);
+        if (!pass && !reply.spec.groupBy) {
+          const shown = await shownIds(reply.spec);
+          if (sameSet(exp, shown)) { pass = true; actualCount = shown.size; shownAs = 'a list inside one row'; }
+        }
       } catch (e) { error = `run: ${e.message}`; }
     } else if (!error) {
       const said = reply?.kind === 'clarify' ? 'kept asking questions' : (reply?.kind === 'decline' ? `declined: ${reply.reason}` : (reply?.message || 'no report'));
@@ -246,7 +268,7 @@ for (const model of models) {
       weak: expectedCount === 0, ambiguous: !!q.ambiguous,
       clarified: clarifications.length > 0 || (kinds.includes('clarify') && reply?.kind === 'clarify'), clarifications, columnsOk,
       expectClarify: kinds.includes('clarify'), expectKinds: kinds,
-      confirmations, followedUp: reply?.followedUp,
+      confirmations, followedUp: reply?.followedUp, shownAs,
       replyKind: reply?.kind,
       replyQuestion: reply?.kind === 'clarify' ? reply.question : undefined,
       reason: reply?.kind === 'decline' ? reply.reason : undefined,
@@ -257,7 +279,7 @@ for (const model of models) {
     const flag = pass ? 'PASS' : 'FAIL';
     console.log(`${flag} ${q.id.padEnd(28)} ${(wallMs / 1000).toFixed(1).padStart(6)}s ` +
       `${row.clarified ? '[asked] ' : ''}${row.repaired ? '[repaired] ' : ''}${row.followedUp ? '[follow-up] ' : ''}${confirmations.length ? `[confirmed ${confirmations.map(c => c.chose).join(', ')}] ` : ''}` +
-      `${error ? `error: ${error}` : (kinds.length ? reply.kind : `rows ${actualCount}/${expectedCount}`)}`);
+      `${error ? `error: ${error}` : (kinds.length ? reply.kind : `rows ${actualCount}/${expectedCount}`)}${shownAs ? ` (${shownAs})` : ''}`);
     results.models[model] = { warmMs, rows };
     writeFileSync(outFile, JSON.stringify(results, null, 2));
     return { reply, text, history, expectedIds };
