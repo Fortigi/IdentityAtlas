@@ -23,3 +23,4 @@
 - A first name typed in lower case ("william") is now recognised as a name and looked up, instead of being guessed to be a group.
 - Fixed: a question that referred to yourself could take a second model round for no reason. The model was told to write a placeholder for your account, then told that placeholder was invalid, then made to try again. The placeholder is now resolved before the check.
 - The Ask tab now keeps your conversations: earlier ones are listed beside the chat, you can open one to pick it up where you left off (its last answer comes back with it), and start a fresh one with one click.
+- The accuracy evaluation script can now be pointed at a signed-in stack over HTTPS and mint its own bearer token before each request (`--token-cmd`), so a run that outlasts a one-hour token no longer dies halfway.

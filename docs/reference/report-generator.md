@@ -383,6 +383,9 @@ node tools/nl-reports/eval.mjs --check
 # accuracy + latency, per model
 node tools/nl-reports/eval.mjs --models qwen3:4b-instruct-2507-q4_K_M
 node tools/nl-reports/eval.mjs --models qwen3:4b-instruct-2507-q4_K_M --file tools/nl-reports/holdout.json
+
+# against a stack with sign-in on: a bearer for a signed-in analyst, or a command that mints one
+node tools/nl-reports/eval.mjs --check --base https://<host> --token-cmd "az account get-access-token --resource api://<web app id> --query accessToken -o tsv"
 ```
 
 Questions live in `tools/nl-reports/questions.json` (used while tuning) and `holdout.json` (kept

@@ -13,11 +13,15 @@
 //   node tools/nl-reports/eval.mjs --models qwen2.5-coder:3b,qwen3:4b [--file holdout.json] [--only id1,id2] [--out file.json]
 //
 // Against a stack with authentication on, pass a bearer token for a signed-in
-// analyst (--token or EVAL_TOKEN): every call here is a POST, which a read-only
+// analyst (--token or EVAL_TOKEN), or a command that prints one (--token-cmd or
+// EVAL_TOKEN_CMD, e.g. `az account get-access-token --resource api://<app id>
+// --query accessToken -o tsv`): every call here is a POST, which a read-only
 // API key may not make, and warm-up needs data.write.reports besides.
 
+import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
+import https from 'node:https';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -27,7 +31,17 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) =>
 }, []));
 
 const BASE = args.base || 'http://localhost:3001';
-const TOKEN = args.token || process.env.EVAL_TOKEN || '';
+// A bearer for a stack with authentication on. Either a fixed token, or a
+// command that prints a fresh one (--token-cmd / EVAL_TOKEN_CMD), run before
+// every request: a full run outlasts a one-hour token, and a run that dies at
+// question 12 of 17 because the token expired measures nothing. The command's
+// own caching (az keeps a token until it is about to expire) keeps it cheap.
+const TOKEN_CMD = args['token-cmd'] || process.env.EVAL_TOKEN_CMD || '';
+const FIXED_TOKEN = args.token || process.env.EVAL_TOKEN || '';
+function tokenFor() {
+  if (!TOKEN_CMD) return FIXED_TOKEN;
+  return execSync(TOKEN_CMD, { encoding: 'utf8', windowsHide: true }).trim();
+}
 const here = dirname(fileURLToPath(import.meta.url));
 let questions = JSON.parse(readFileSync(args.file || join(here, 'questions.json'), 'utf8'));
 if (args.only) questions = questions.filter(q => args.only.split(',').includes(q.id));
@@ -40,13 +54,14 @@ questions = questions.filter(q => !q.pending);
 function post(path, body) {
   const payload = JSON.stringify(body);
   const url = new URL(`${BASE}/api/nl-reports/${path}`);
+  const token = tokenFor();
   return new Promise((resolve, reject) => {
-    const req = http.request(url, {
+    const req = (url.protocol === 'https:' ? https : http).request(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(payload),
-        ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}),
+        ...(token ? { Authorization: 'Bearer ' + token } : {}),
       },
     }, (res) => {
       let text = '';
