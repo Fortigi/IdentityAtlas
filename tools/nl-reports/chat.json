@@ -938,9 +938,9 @@
     }
   },
   {
-    "id": "c-my-directory-roles-nl",
+    "id": "c-taekes-directory-roles-nl",
     "category": "question",
-    "question": "Welke directory rollen heb ik?",
+    "question": "Welke directory rollen heeft Taeke?",
     "expected": {
       "entity": "resource",
       "conditions": [
@@ -954,9 +954,9 @@
           "quantifier": "some",
           "conditions": [
             {
-              "field": "id",
+              "field": "displayName",
               "op": "eq",
-              "value": "@me"
+              "value": "Taeke Kooiker"
             }
           ]
         }
@@ -964,9 +964,9 @@
     }
   },
   {
-    "id": "c-my-directory-roles-en",
+    "id": "c-taekes-directory-roles-en",
     "category": "question",
-    "question": "Which directory roles do I have?",
+    "question": "Which directory roles does Taeke have?",
     "expected": {
       "entity": "resource",
       "conditions": [
@@ -980,9 +980,9 @@
           "quantifier": "some",
           "conditions": [
             {
-              "field": "id",
+              "field": "displayName",
               "op": "eq",
-              "value": "@me"
+              "value": "Taeke Kooiker"
             }
           ]
         }
