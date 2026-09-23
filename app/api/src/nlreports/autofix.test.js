@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, nameWrittenAsId, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -438,5 +438,26 @@ describe('the caller written in where the question never said "my"', () => {
       { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'userType', op: 'eq', value: 'Guest' }, meCond] }] },
     'changes for guests in these groups', ME);
     expect(spec.conditions[0].conditions).toEqual([{ type: 'field', field: 'userType', op: 'eq', value: 'Guest' }]);
+  });
+});
+
+describe('"not via an access package"', () => {
+  const some = { type: 'relation', relation: 'businessRoles', quantifier: 'some', match: 'all', conditions: [] };
+
+  it('turns an unconditioned "in a business role" into "in none", in both languages', () => {
+    for (const q of ['Which groups does william have that were not handed out through an access package?', 'Welke groepen heeft william die niet via een access package zijn uitgedeeld?']) {
+      const { spec, notes } = negatedBusinessRole({ entity: 'group', match: 'all', conditions: [some] }, q);
+      expect(spec.conditions[0].quantifier).toBe('none');
+      expect(notes).toHaveLength(1);
+    }
+  });
+
+  it('leaves a positive question, a named business role, and an already-negated one alone', () => {
+    const positive = { entity: 'group', match: 'all', conditions: [some] };
+    expect(negatedBusinessRole(positive, 'which groups are in an access package?').spec).toBe(positive);
+    const named = { entity: 'group', match: 'all', conditions: [{ ...some, conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'Finance' }] }] };
+    expect(negatedBusinessRole(named, 'groups not in business role Finance').spec).toBe(named);
+    const none = { entity: 'group', match: 'all', conditions: [{ ...some, quantifier: 'none' }] };
+    expect(negatedBusinessRole(none, 'groups without an access package').spec).toBe(none);
   });
 });

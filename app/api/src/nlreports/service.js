@@ -11,7 +11,7 @@ import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
-import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, autofixSpec, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, listEqualsToIn, lostLeaves, nameWrittenAsId, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, autofixSpec, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
 import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
@@ -444,14 +444,15 @@ export async function interpret({ question, context = '', history = [], model = 
   // along as `fixes`, so the answer can say so.
   ctx.validate = (spec) => {
     const grouping = dropUnaskedGrouping(nameWrittenAsId(listEqualsToIn(dedupeConditions(spec).spec).spec).spec, ctx.question);
-    const generic = genericCompareToRelation(accessPackageAsRelation(grouping.spec).spec);
+    const negated = negatedBusinessRole(accessPackageAsRelation(grouping.spec).spec, ctx.question);
+    const generic = genericCompareToRelation(negated.spec);
     const sides = ctx.substitutions.has(ME) ? resolveSelfAgainstPerson(generic.spec, ctx.question, ME) : { spec: generic.spec, notes: [] };
     const unasked = ctx.substitutions.has(ME) ? dropUnaskedSelf(sides.spec, ctx.question, ME) : { spec: sides.spec, notes: [] };
     const placed = ctx.substitutions.has(ME) ? relocateSelf(unasked.spec, ME) : { spec: unasked.spec, notes: [] };
     const added = ctx.substitutions.has(ME) ? addMissingSelf(placed.spec, ctx.question, ME) : { spec: placed.spec, notes: [] };
     // Compared after substitution, so the caller's id in both reads the same.
     const refined = refineFromPrevious(substituteValues(addAskedColumns(added.spec, ctx.question).spec, ctx.substitutions), ctx.previousSpec, ctx.question);
-    const before = [...grouping.notes, ...generic.notes, ...sides.notes, ...unasked.notes, ...placed.notes, ...added.notes, ...refined.notes];
+    const before = [...grouping.notes, ...negated.notes, ...generic.notes, ...sides.notes, ...unasked.notes, ...placed.notes, ...added.notes, ...refined.notes];
     const substituted = refined.spec;
     const first = validateSpec(substituted, ctx.values, ctx.extFields);
     if (first.ok || !first.spec) return before.length ? { ...first, fixes: before } : first;

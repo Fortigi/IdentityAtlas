@@ -221,6 +221,28 @@ export function accessPackageAsRelation(spec) {
   return moved ? { spec: { ...spec, conditions }, notes: ['Read "access package" / "business role" as: in a business role.'] } : { spec, notes: [] };
 }
 
+// "not via an access package", "niet via een access package", "without a
+// business role": a negation within a few words before the phrase.
+const NEGATED_ROLE = /\b(not|niet|geen|zonder|without|no|never|nooit)\b[^.?!]{0,40}?\b(access ?packages?|business ?roles?|bedrijfsrol(len)?|toegangspakket(ten)?)\b/i;
+
+/**
+ * "Not handed out through an access package" written as businessRoles SOME:
+ * the negation the question carries is applied to an unconditioned
+ * business-role relation. Only that shape — a relation with conditions
+ * ("not in business role X") says which one, and is left alone.
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function negatedBusinessRole(spec, question) {
+  if (!NEGATED_ROLE.test(String(question ?? ''))) return { spec, notes: [] };
+  let changed = 0;
+  const conditions = (spec?.conditions ?? []).map((c) => {
+    if (c.type !== 'relation' || c.relation !== 'businessRoles' || c.quantifier !== 'some' || (c.conditions ?? []).length) return c;
+    changed++;
+    return { ...c, quantifier: 'none' };
+  });
+  return changed ? { spec: { ...spec, conditions }, notes: ['Read "not via an access package" as: in no business role.'] } : { spec, notes: [] };
+}
+
 /** Does the definition say anything about a particular person or record, anywhere? */
 function namesSomeone(conditions) {
   return (conditions ?? []).some(c => (c.type === 'field' && (c.field === 'id' || c.field === 'displayName' || c.field === 'email'))
