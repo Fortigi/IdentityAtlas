@@ -3722,6 +3722,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#when-your-source-reads-a-directory-you-dont-own" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When your source reads a directory you don't own
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-ingest-api" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5358,6 +5369,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#when-your-source-reads-a-directory-you-dont-own" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When your source reads a directory you don't own
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-ingest-api" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5805,6 +5827,40 @@ config). Don't re-derive the precedence — use the shared helper:</p>
 </ul>
 <p>Systems merge on <code>(systemType, tenantId)</code>, so keep those two fields stable: the name is a payload
 column, and an existing row is <em>renamed</em> rather than duplicated.</p>
+<hr />
+<h2 id="when-your-source-reads-a-directory-you-dont-own">When your source reads a directory you don't own<a class="headerlink" href="#when-your-source-reads-a-directory-you-dont-own" title="Permanent link">&para;</a></h2>
+<p>Some sources don't have accounts of their own — they grant access to accounts that live somewhere
+else. Azure RM is the clearest case: every role assignment names an Entra ID objectId, so the Azure
+RM crawler and the Entra ID crawler are looking at <em>the same</em> account, not at two accounts that
+happen to correlate.</p>
+<p><code>Principals</code> is keyed on that objectId, so both crawlers write the <strong>same row</strong>. Whoever writes it
+last stamps their <code>systemId</code> on it — and before this was modelled, the two crawlers flipped every
+shared principal back and forth on every run: a fake "changed" event per run on the user's Timeline,
+an orphan check that stopped recognising its own users, and rows that escaped the directory's
+full-sync reconcile.</p>
+<p>A system says where its principals come from with <strong><code>Systems.directorySystemId</code></strong>. The API sets it
+automatically for a system whose <code>tenantId</code> matches exactly one <code>EntraID</code> system, so an Azure-plane
+crawler gets it without doing anything. What the link changes:</p>
+<ul>
+<li><strong>The ingest protects ownership.</strong> A system with a <code>directorySystemId</code> may <em>fill</em> a NULL
+  <code>systemId</code> on a <code>Principals</code> / <code>Resources</code> row, but never replace one. The directory has no link
+  of its own and can therefore always claim a row back — which is what makes an "Azure RM ran
+  first" tenant converge once the directory crawler runs, rather than freezing ownership on
+  whichever crawler happened to be first.</li>
+<li><strong><code>/ingest/principals-presence</code> answers against that directory.</strong> Send your own <code>systemId</code>
+  alongside <code>tenantId</code> and the API resolves the link for you.</li>
+</ul>
+<p>Two rules for a crawler in this position:</p>
+<ol>
+<li><strong>Don't write a principal the directory already has.</strong> Call <code>/ingest/principals-presence</code> first
+   and send stubs only for the objectIds it does <em>not</em> know — those are genuinely yours (a deleted
+   service principal with a dangling assignment exists nowhere else). For everything else, just
+   reference the objectId from your assignments, the way Azure RM has always handled groups.</li>
+<li><strong>Assert only what your source actually knows.</strong> A stub carries the objectId and nothing more.
+   A delta upsert COALESCEs any non-NULL value you send over the stored one, so a field you filled
+   in "to be safe" silently overwrites the directory's — <code>accountEnabled = $true</code> on an Azure RM
+   stub used to re-enable every disabled user with an Azure role, once per run.</li>
+</ol>
 <hr />
 <h2 id="the-ingest-api">The Ingest API<a class="headerlink" href="#the-ingest-api" title="Permanent link">&para;</a></h2>
 <p><code>/ingest/principals</code> above is one of many ingest endpoints — the full, authoritative reference is the live OpenAPI spec the running app already serves:</p>
