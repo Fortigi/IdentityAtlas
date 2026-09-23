@@ -564,8 +564,8 @@
     }
   },
   {
-    "id": "c-my-reports-groups-nl",
-    "question": "In welke groepen zitten mijn medewerkers?",
+    "id": "c-taekes-reports-groups-nl",
+    "question": "In welke groepen zitten de medewerkers van Taeke?",
     "expected": {
       "entity": "user",
       "conditions": [
@@ -574,9 +574,9 @@
           "quantifier": "some",
           "conditions": [
             {
-              "field": "id",
+              "field": "displayName",
               "op": "eq",
-              "value": "@me"
+              "value": "Taeke Kooiker"
             }
           ]
         }
@@ -587,8 +587,8 @@
     ]
   },
   {
-    "id": "c-my-reports-groups-en",
-    "question": "Which groups are my direct reports in?",
+    "id": "c-taekes-reports-groups-en",
+    "question": "Which groups are the people reporting to Taeke in?",
     "expected": {
       "entity": "user",
       "conditions": [
@@ -597,9 +597,9 @@
           "quantifier": "some",
           "conditions": [
             {
-              "field": "id",
+              "field": "displayName",
               "op": "eq",
-              "value": "@me"
+              "value": "Taeke Kooiker"
             }
           ]
         }
@@ -610,8 +610,8 @@
     ]
   },
   {
-    "id": "c-guests-added-30-nl",
-    "question": "Welke gasten zijn de afgelopen 30 dagen aan groepen toegevoegd?",
+    "id": "c-guests-added-180-nl",
+    "question": "Welke gasten zijn de afgelopen 180 dagen aan groepen toegevoegd?",
     "expected": {
       "entity": "change",
       "conditions": [
@@ -623,7 +623,7 @@
         {
           "field": "changedAt",
           "op": "withinLastDays",
-          "value": 30
+          "value": 180
         },
         {
           "relation": "account",
@@ -651,8 +651,8 @@
     }
   },
   {
-    "id": "c-guests-added-30-en",
-    "question": "Which guests were added to groups in the last 30 days?",
+    "id": "c-guests-added-180-en",
+    "question": "Which guests were added to groups in the last 180 days?",
     "expected": {
       "entity": "change",
       "conditions": [
@@ -664,7 +664,7 @@
         {
           "field": "changedAt",
           "op": "withinLastDays",
-          "value": 30
+          "value": 180
         },
         {
           "relation": "account",
