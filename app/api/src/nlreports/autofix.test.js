@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { accessPackageAsRelation, addAskedColumns, addMissingSelf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -345,5 +345,17 @@ describe('the column the question asks to see', () => {
     expect(addAskedColumns(has, 'wie zijn de leden?').spec).toBe(has);
     const change = { entity: 'change', match: 'all', conditions: [], columns: [] };
     expect(addAskedColumns(change, 'leden toegevoegd aan groepen').spec).toBe(change);
+  });
+});
+
+describe('was a lost condition asked for?', () => {
+  it('sees nothing of "accountCount gt 0" in a question about groups and william', () => {
+    expect(askedForLeaf('accountCount gt 0', 'Can you tell me which groups I have that william does not have?')).toBe(false);
+  });
+
+  it('sees "MFA" in the field and "Finance" in the value', () => {
+    expect(askedForLeaf('mfaEnabled eq false', 'users that do not have MFA enabled')).toBe(true);
+    expect(askedForLeaf('department eq "Finance"', 'everyone in finance')).toBe(true);
+    expect(askedForLeaf('resourceType eq "Groups"', 'which groups does he have')).toBe(true);
   });
 });

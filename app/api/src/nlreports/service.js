@@ -11,7 +11,7 @@ import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
-import { accessPackageAsRelation, addAskedColumns, addMissingSelf, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
 import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
@@ -440,14 +440,19 @@ export async function interpret({ question, context = '', history = [], model = 
     const substituted = substituteValues(addAskedColumns(added.spec, ctx.question).spec, ctx.substitutions);
     const first = validateSpec(substituted, ctx.values, ctx.extFields);
     if (first.ok || !first.spec) return before.length ? { ...first, fixes: before } : first;
-    // Validation drops what it rejects and hands back the rest. A correction
-    // applied to THAT would make a definition missing a condition look sound
-    // — the repair round exists for exactly those, so it gets them.
-    if (lostLeaves(substituted, first.spec, []).length) return first;
+    // Validation drops what it rejects and hands back the rest. When the
+    // request asked for what was dropped ("MFA"), a definition without it
+    // answers a different question — the repair round exists for exactly
+    // those. When nothing in the request asked for it ("accountCount gt 0"
+    // inside members), the model made it up, and the definition without it
+    // is the one asked for: it goes, and the answer says so.
+    const lost = lostLeaves(substituted, first.spec, []);
+    if (lost.some(leaf => askedForLeaf(leaf, ctx.question))) return first;
+    const noise = lost.map(leaf => `Dropped "${leaf}": nothing in the request asks for it.`);
     const fixed = autofixSpec(first.spec);
-    if (!fixed.notes.length) return first;
+    if (!fixed.notes.length && !noise.length) return first;
     const again = validateSpec(fixed.spec, ctx.values, ctx.extFields);
-    return again.ok ? { ...again, fixes: [...before, ...fixed.notes] } : first;
+    return again.ok ? { ...again, fixes: [...before, ...noise, ...fixed.notes] } : first;
   };
 
   const first = await chat({ model, messages: ctx.messages, schema });

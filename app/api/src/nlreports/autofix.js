@@ -409,6 +409,24 @@ export function leaves(spec) {
 }
 
 /**
+ * Does the question ask for what this leaf says? A leaf is "field op value";
+ * the field's words (accountCount → account, count) and the value are looked
+ * for in the question. "accountCount gt 0" inside members, for a question
+ * about groups and william, matches nothing: the model made it up, and a
+ * definition without it is the one asked for. "mfaEnabled eq false" for a
+ * question about MFA matches, and losing it would answer a different question.
+ */
+export function askedForLeaf(leaf, question) {
+  const text = String(question ?? '').toLowerCase();
+  const [field, , ...rest] = String(leaf).split(' ');
+  const words = [
+    ...String(field).split(/[.\s]/).flatMap(w => w.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().split(' ')),
+    ...rest.join(' ').replace(/^"|"$/g, '').toLowerCase().split(/[^\p{L}\p{N}]+/u),
+  ].filter(w => w.length >= 3);
+  return words.some(w => text.includes(w));
+}
+
+/**
  * The leaves a correction removed although no error named their field.
  *
  * A repair round is allowed to change what was wrong and nothing else. The

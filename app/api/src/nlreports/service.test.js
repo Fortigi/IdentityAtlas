@@ -119,7 +119,7 @@ describe('interpret — a definition still invalid after its repair round', () =
 
   it('is answered normally when the repair round fixes it', async () => {
     chat.mockResolvedValueOnce(reply(BAD)).mockResolvedValueOnce(reply(AND_SPEC));
-    const r = await interpret({ question: 'guests without a manager whose manager is disabled', model: 'm' });
+    const r = await interpret({ question: 'guests with noSuchField x, without a manager whose manager is disabled', model: 'm' });
     expect(r.kind).toBe('report');
     expect(r.repaired).toBe(true);
     expect(r.warnings).toEqual([]);
@@ -532,7 +532,7 @@ describe('interpret — placeholders are resolved before validation', () => {
   it('resolves the definition a repair round produced, too', async () => {
     const BAD = { ...ME_SPEC, conditions: [...ME_SPEC.conditions, { type: 'field', field: 'noSuchField', op: 'eq', value: 'x' }] };
     chat.mockResolvedValueOnce(reply(BAD)).mockResolvedValueOnce(reply(ME_SPEC));
-    const r = await interpret({ question: 'my direct reports', model: 'm', substitutions: me() });
+    const r = await interpret({ question: 'my direct reports with noSuchField x', model: 'm', substitutions: me() });
 
     expect(chat).toHaveBeenCalledTimes(2);
     expect(r.kind).toBe('report');
@@ -652,7 +652,7 @@ describe('interpret — the first attempt travels with a repaired answer', () =>
   it('carries the first reply only when a correction replaced it', async () => {
     const BAD = { ...AND_SPEC, conditions: [{ type: 'field', field: 'noSuchField', op: 'eq', value: 'x' }] };
     chat.mockResolvedValueOnce(reply(BAD)).mockResolvedValueOnce(reply(AND_SPEC));
-    const repaired = await interpret({ question: 'guests', model: 'm' });
+    const repaired = await interpret({ question: 'guests with noSuchField x', model: 'm' });
     expect(repaired.repaired).toBe(true);
     expect(JSON.parse(repaired.firstRaw).spec.conditions[0].field).toBe('noSuchField');
     expect(repaired.raw).not.toBe(repaired.firstRaw);
@@ -760,20 +760,40 @@ describe('interpret — "groups I have that william does not" with william on bo
 });
 
 describe('interpret — a correction is never applied to a definition validation already stripped', () => {
-  it('spends the repair round when a condition was rejected, even if the rest could be corrected', async () => {
+  it('spends the repair round when the request asked for the rejected condition, even if the rest could be corrected', async () => {
     clearValuesCache();
     query.mockResolvedValue({ rows: [{ v: 'Added' }, { v: 'Removed' }] });
-    // A rejected field AND a contradiction: the contradiction alone could be
-    // corrected, but the definition without "nosuchfield" is not the one asked.
+    // A rejected field the question DID ask for ("mfa") and a contradiction: the
+    // contradiction alone could be corrected, but a definition without MFA is
+    // not the one asked.
     const bad = { entity: 'change', match: 'all', columns: [], conditions: [
-      { type: 'field', field: 'nosuchfield', op: 'eq', value: 'x' },
+      { type: 'field', field: 'mfaEnabled', op: 'eq', value: false },
       { type: 'field', field: 'action', op: 'eq', value: 'Added' },
       { type: 'field', field: 'action', op: 'eq', value: 'Removed' },
     ] };
     chat.mockResolvedValueOnce(reply(bad)).mockResolvedValueOnce(reply(bad));
-    const r = await interpret({ question: 'changes', model: 'm' });
+    const r = await interpret({ question: 'changes for users without MFA', model: 'm' });
     expect(chat).toHaveBeenCalledTimes(2);
     expect(r.kind).toBe('error');
+  });
+
+  it('drops a rejected condition nothing in the request asked for, says so, and spends no round', async () => {
+    clearValuesCache();
+    query.mockImplementation(async (sql) => (sql.includes('OVER()')
+      ? { rows: [{ id: 'u-w', displayName: 'William Overweg', type: 'User', total: 1 }] }
+      : { rows: [{ v: 'Guest' }, { v: 'Member' }] }));
+    // Verbatim shape: accountCount (a person field) invented inside members.
+    const invented = { entity: 'group', match: 'all', columns: [], conditions: [
+      { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'accountCount', op: 'gt', value: 0 }] },
+      { type: 'relation', relation: 'members', quantifier: 'none', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'william' }] },
+      { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: '@me' }] },
+    ] };
+    chat.mockResolvedValueOnce(reply(invented));
+    const r = await interpret({ question: 'Which groups do I have that william does not have?', model: 'm', substitutions: new Map([['@me', 'u-me']]) });
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(r.kind).toBe('report');
+    expect(JSON.stringify(r.spec)).not.toMatch(/accountCount/);
+    expect(r.assumptions.join(' ')).toMatch(/Dropped "accountCount gt 0"/);
   });
 });
 
