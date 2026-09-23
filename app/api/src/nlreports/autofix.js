@@ -66,7 +66,7 @@ export function genericCompareToRelation(spec) {
   const fix = (conditions) => (conditions ?? []).map((c) => {
     if (c.type === 'group') return { ...c, conditions: fix(c.conditions) };
     // The vocabulary is kept word by word ("access package" is two of them), so a name is generic when every word of it is.
-    const generic = (name) => String(name).split(/[^p{L}p{N}]+/u).filter(Boolean).every(w => isVocabulary(w, {}));
+    const generic = (name) => String(name).split(/[^\p{L}\p{N}]+/u).filter(Boolean).every(w => isVocabulary(w, {}));
     if (c.type !== 'compare' || c.reference?.id || !c.reference?.name || !generic(c.reference.name)) return c;
     notes.push(`Read "${c.reference.name}" as any ${c.reference.name}, not as one named so.`);
     return { type: 'relation', relation: c.relation, quantifier: 'some', match: 'all', conditions: [] };
