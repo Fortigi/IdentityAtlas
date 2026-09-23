@@ -264,6 +264,38 @@ export function negatedBusinessRole(spec, question) {
   return changed ? { spec: { ...spec, conditions }, notes: ['Read "not via an access package" as: in no business role.'] } : { spec, notes: [] };
 }
 
+// "Which directory roles does X have": a question about ROLES.
+const ROLE_WORDS = /\b(directory ?rol(len)?|directory ?roles?|beheerrol(len)?|admin(istrator)? ?roles?|entra ?roles?|rol|rollen|roles?)\b/i;
+const mentionsRole = (c) => JSON.stringify(c).includes('"EntraDirectoryRole"');
+
+/**
+ * "Welke directory rollen heeft Taeke?" answered as Taeke with every
+ * resource he holds — 194 of them, roles among them, and a column cannot
+ * be filtered. A question about the roles of a person is a report OF ROLES:
+ * the resource entity, resourceType EntraDirectoryRole, members some for
+ * the person. Applied only to a user report that names the person in plain
+ * field conditions and says nothing about roles anywhere.
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function rolesOfPersonAsResources(spec, question) {
+  const entity = ENTITIES[spec?.entity];
+  if (!entity || entity.detailKind !== 'user' || !ROLE_WORDS.test(String(question ?? ''))) return { spec, notes: [] };
+  const conditions = spec.conditions ?? [];
+  if (!conditions.length || conditions.some(c => c.type !== 'field' || mentionsRole(c))) return { spec, notes: [] };
+  return {
+    spec: {
+      ...spec,
+      entity: 'resource',
+      conditions: [
+        { type: 'field', field: 'resourceType', op: 'eq', value: 'EntraDirectoryRole' },
+        { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions },
+      ],
+      columns: [],
+    },
+    notes: ['Read the request as: the directory roles this person holds.'],
+  };
+}
+
 /** Does the definition say anything about a particular person or record, anywhere? */
 function namesSomeone(conditions) {
   return (conditions ?? []).some(c => (c.type === 'field' && (c.field === 'id' || c.field === 'displayName' || c.field === 'email'))

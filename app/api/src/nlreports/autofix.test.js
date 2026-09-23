@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, canonicaliseSelf, autofixSpec, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, canonicaliseSelf, autofixSpec, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, rolesOfPersonAsResources } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -483,5 +483,27 @@ describe('the caller\'s id written out literally', () => {
     const plain = { entity: 'user', match: 'all', conditions: [] };
     expect(canonicaliseSelf(plain, '@me', uuid).spec).toBe(plain);
     expect(canonicaliseSelf(plain, '@me', undefined).spec).toBe(plain);
+  });
+});
+
+describe('the roles of a person are a report of roles', () => {
+  const taeke = { type: 'field', field: 'displayName', op: 'eq', value: 'Taeke Kooiker', checked: true };
+
+  it('flips "user Taeke with an access column" into directory roles whose members include Taeke', () => {
+    const { spec, notes } = rolesOfPersonAsResources({ entity: 'user', match: 'all', conditions: [taeke], columns: ['access.names'] }, 'Welke directory rollen heeft Taeke?');
+    expect(spec).toEqual({ entity: 'resource', match: 'all', columns: [], conditions: [
+      { type: 'field', field: 'resourceType', op: 'eq', value: 'EntraDirectoryRole' },
+      { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [taeke] },
+    ] });
+    expect(notes).toHaveLength(1);
+  });
+
+  it('leaves alone: a report that already says roles, one about groups, one with a relation, and a resource report', () => {
+    const withRoles = { entity: 'user', match: 'all', conditions: [taeke, { type: 'relation', relation: 'access', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'EntraDirectoryRole' }] }] };
+    expect(rolesOfPersonAsResources(withRoles, 'which roles does Taeke have').spec).toBe(withRoles);
+    const groups = { entity: 'user', match: 'all', conditions: [taeke], columns: ['memberOf.names'] };
+    expect(rolesOfPersonAsResources(groups, 'welke groepen heeft Taeke').spec).toBe(groups);
+    const resources = { entity: 'resource', match: 'all', conditions: [] };
+    expect(rolesOfPersonAsResources(resources, 'which roles exist').spec).toBe(resources);
   });
 });

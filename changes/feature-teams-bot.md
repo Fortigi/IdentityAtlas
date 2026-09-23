@@ -58,3 +58,4 @@
 - "Not via an access package" / "niet via een access package" keeps its negation when the model wrote the positive relation.
 - "Who is in the group?" / "Wie zit er in de groep?" — one particular record, named by nothing — is answered with "which one do you mean?" straight away instead of a report about every group with "group" in its name.
 - "These groups" survives an answer in between that has no records of its own (a list of changes): the third question in a chat still refers to the groups.
+- "Which directory roles does X have" is answered with the roles, not with everything X has access to.
