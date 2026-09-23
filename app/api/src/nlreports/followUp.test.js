@@ -439,3 +439,17 @@ describe('carriedRecords — the definition rides along', () => {
     expect(carriedRecords({ spec, rows: [] })).toBeNull();
   });
 });
+
+describe('narrowToPrevious — "these" inside an any-group', () => {
+  it('takes the id list out of the alternatives, so the other alternative is required again', () => {
+    // Verbatim: "Welke van deze groepen zijn onderdeel van een access package?"
+    // as resourceType Group AND (businessRoles some OR id in these) AND id in these.
+    const carried = { kind: 'resource', records: [{ id: 'g1', name: 'A' }, { id: 'g2', name: 'B' }] };
+    const inRole = { type: 'relation', relation: 'businessRoles', quantifier: 'some', match: 'all', conditions: [] };
+    const these = { type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] };
+    const isGroup = { type: 'field', field: 'resourceType', op: 'eq', value: 'Group' };
+    const out = narrowToPrevious({ entity: 'resource', match: 'all', conditions: [isGroup, { type: 'group', match: 'any', conditions: [inRole, these] }, these] },
+      carried, 'welke van deze groepen zijn onderdeel van een access package?');
+    expect(out.conditions).toEqual([isGroup, inRole, these]);
+  });
+});

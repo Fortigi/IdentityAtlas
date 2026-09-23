@@ -263,7 +263,17 @@ function relocateMisplaced(spec, carried) {
   const home = sameKind ? { type: 'field', field: 'id', op: 'in', value: [...ids] } : limitFor(spec.entity, carried);
   if (!home) return spec;
   let moved = false;
-  const conditions = (spec.conditions ?? []).flatMap((c) => {
+  // "These groups" is never one of several alternatives: an id list inside an
+  // any-group ("in a business role OR one of these") makes the other
+  // alternative optional and the answer is every carried record. The list
+  // comes out of the group; a group left with one alternative is that one.
+  const ungrouped = (spec.conditions ?? []).flatMap((c) => {
+    if (c.type !== 'group' || c.match !== 'any' || !(c.conditions ?? []).some(holdsCarried)) return [c];
+    moved = true;
+    const rest = c.conditions.filter(x => !holdsCarried(x));
+    return rest.length === 1 ? rest : (rest.length ? [{ ...c, conditions: rest }] : []);
+  });
+  const conditions = ungrouped.flatMap((c) => {
     // On the report's own id while it is about another kind (group ids on a user report).
     if (!sameKind && holdsCarried(c)) { moved = true; return []; }
     if (c.type !== 'relation' || !(c.conditions ?? []).some(holdsCarried)) return [c];
@@ -276,7 +286,9 @@ function relocateMisplaced(spec, carried) {
     return rest.length ? [{ ...c, conditions: rest }] : [];
   });
   if (!moved) return spec;
-  return { ...spec, conditions: [...conditions, home] };
+  // Not twice: the list may already sit where it belongs.
+  const placed = sameKind ? conditions.some(holdsCarried) : conditions.some(c => JSON.stringify(c) === JSON.stringify(home));
+  return { ...spec, conditions: placed ? conditions : [...conditions, home] };
 }
 
 /**
