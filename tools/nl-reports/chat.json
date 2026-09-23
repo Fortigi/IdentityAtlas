@@ -1,6 +1,7 @@
 [
   {
     "id": "c-my-groups-nl",
+    "category": "question",
     "question": "Van welke groepen ben ik lid?",
     "expected": {
       "entity": "group",
@@ -25,15 +26,9 @@
           "entity": "group",
           "conditions": [
             {
-              "relation": "members",
-              "quantifier": "some",
-              "conditions": [
-                {
-                  "field": "id",
-                  "op": "eq",
-                  "value": "@me"
-                }
-              ]
+              "field": "id",
+              "op": "in",
+              "value": "@previous"
             },
             {
               "relation": "businessRoles",
@@ -47,6 +42,7 @@
   },
   {
     "id": "c-my-groups-en",
+    "category": "question",
     "question": "Which groups am I a member of?",
     "expected": {
       "entity": "group",
@@ -71,15 +67,9 @@
           "entity": "group",
           "conditions": [
             {
-              "relation": "members",
-              "quantifier": "some",
-              "conditions": [
-                {
-                  "field": "id",
-                  "op": "eq",
-                  "value": "@me"
-                }
-              ]
+              "field": "id",
+              "op": "in",
+              "value": "@previous"
             },
             {
               "relation": "businessRoles",
@@ -92,7 +82,134 @@
     ]
   },
   {
+    "id": "c-my-owned-groups-nl",
+    "category": "question",
+    "question": "Van welke groepen ben ik eigenaar?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "owners",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "Zijn er in de laatste 30 dagen updates geweest aan deze groepen?",
+        "expected": {
+          "entity": "change",
+          "conditions": [
+            {
+              "relation": "resource",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "id",
+                  "op": "in",
+                  "value": "@previous"
+                }
+              ]
+            },
+            {
+              "field": "changedAt",
+              "op": "withinLastDays",
+              "value": 30
+            }
+          ]
+        }
+      },
+      {
+        "question": "Wie zijn de leden van deze groepen?",
+        "expected": {
+          "entity": "group",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "in",
+              "value": "@previous"
+            }
+          ]
+        },
+        "expectColumns": [
+          "members.names"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "c-my-owned-groups-en",
+    "category": "question",
+    "question": "Which groups do I own?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "owners",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "Have there been any changes to these groups in the last 30 days?",
+        "expected": {
+          "entity": "change",
+          "conditions": [
+            {
+              "relation": "resource",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "id",
+                  "op": "in",
+                  "value": "@previous"
+                }
+              ]
+            },
+            {
+              "field": "changedAt",
+              "op": "withinLastDays",
+              "value": 30
+            }
+          ]
+        }
+      },
+      {
+        "question": "Who are the members of these groups?",
+        "expected": {
+          "entity": "group",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "in",
+              "value": "@previous"
+            }
+          ]
+        },
+        "expectColumns": [
+          "members.names"
+        ]
+      }
+    ]
+  },
+  {
     "id": "c-my-groups-not-william-nl",
+    "category": "question",
     "question": "Kan je me vertellen welke groepen ik wel heb, die william niet heeft?",
     "expected": {
       "entity": "group",
@@ -124,6 +241,7 @@
   },
   {
     "id": "c-my-groups-not-william-en",
+    "category": "question",
     "question": "Can you tell me which groups I have that william does not have?",
     "expected": {
       "entity": "group",
@@ -155,6 +273,7 @@
   },
   {
     "id": "c-my-rights-not-william-nl",
+    "category": "question",
     "question": "Welke rechten heb ik, die william niet heeft?",
     "expected": {
       "entity": "resource",
@@ -186,6 +305,7 @@
   },
   {
     "id": "c-my-rights-not-william-en",
+    "category": "question",
     "question": "Which rights do I have that william does not have?",
     "expected": {
       "entity": "resource",
@@ -217,6 +337,7 @@
   },
   {
     "id": "c-william-changes-90-nl",
+    "category": "question",
     "question": "Kan je me vertellen aan welke groepen william in de laatste 90 dagen is toegevoegd? En of hij uit groepen is verwijderd?",
     "expected": {
       "entity": "change",
@@ -295,6 +416,7 @@
   },
   {
     "id": "c-william-changes-90-en",
+    "category": "question",
     "question": "Can you tell me which groups william was added to in the last 90 days? And whether he was removed from any?",
     "expected": {
       "entity": "change",
@@ -373,6 +495,7 @@
   },
   {
     "id": "c-william-recent-changes-nl",
+    "category": "question",
     "question": "Aan welke groepen is william recent toegevoegd of verwijderd?",
     "ambiguous": true,
     "expected": {
@@ -410,6 +533,7 @@
   },
   {
     "id": "c-william-recent-changes-en",
+    "category": "question",
     "question": "Which groups was william recently added to or removed from?",
     "ambiguous": true,
     "expected": {
@@ -447,6 +571,7 @@
   },
   {
     "id": "c-william-groups-not-ap-nl",
+    "category": "question",
     "question": "Welke groepen heeft william die niet via een access package zijn uitgedeeld?",
     "expected": {
       "entity": "group",
@@ -472,6 +597,7 @@
   },
   {
     "id": "c-william-groups-not-ap-en",
+    "category": "question",
     "question": "Which groups does william have that were not handed out through an access package?",
     "expected": {
       "entity": "group",
@@ -497,6 +623,7 @@
   },
   {
     "id": "c-disabled-list-nl",
+    "category": "question",
     "question": "Kan je me een lijstje geven van disabled accounts?",
     "expected": {
       "entity": "user",
@@ -507,10 +634,29 @@
           "value": false
         }
       ]
-    }
+    },
+    "followUps": [
+      {
+        "question": "Van welke groepen zijn deze accounts nog lid?",
+        "expected": {
+          "entity": "user",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "in",
+              "value": "@previous"
+            }
+          ]
+        },
+        "expectColumns": [
+          "memberOf.names"
+        ]
+      }
+    ]
   },
   {
     "id": "c-disabled-list-en",
+    "category": "question",
     "question": "Can you give me a list of disabled accounts?",
     "expected": {
       "entity": "user",
@@ -521,50 +667,29 @@
           "value": false
         }
       ]
-    }
-  },
-  {
-    "id": "c-my-owned-groups-nl",
-    "question": "Van welke groepen ben ik eigenaar?",
-    "expected": {
-      "entity": "group",
-      "conditions": [
-        {
-          "relation": "owners",
-          "quantifier": "some",
+    },
+    "followUps": [
+      {
+        "question": "Which groups are these accounts still in?",
+        "expected": {
+          "entity": "user",
           "conditions": [
             {
               "field": "id",
-              "op": "eq",
-              "value": "@me"
+              "op": "in",
+              "value": "@previous"
             }
           ]
-        }
-      ]
-    }
-  },
-  {
-    "id": "c-my-owned-groups-en",
-    "question": "Which groups do I own?",
-    "expected": {
-      "entity": "group",
-      "conditions": [
-        {
-          "relation": "owners",
-          "quantifier": "some",
-          "conditions": [
-            {
-              "field": "id",
-              "op": "eq",
-              "value": "@me"
-            }
-          ]
-        }
-      ]
-    }
+        },
+        "expectColumns": [
+          "memberOf.names"
+        ]
+      }
+    ]
   },
   {
     "id": "c-taekes-reports-groups-nl",
+    "category": "question",
     "question": "In welke groepen zitten de medewerkers van Taeke?",
     "expected": {
       "entity": "user",
@@ -588,6 +713,7 @@
   },
   {
     "id": "c-taekes-reports-groups-en",
+    "category": "question",
     "question": "Which groups are the people reporting to Taeke in?",
     "expected": {
       "entity": "user",
@@ -611,6 +737,7 @@
   },
   {
     "id": "c-guests-added-180-nl",
+    "category": "question",
     "question": "Welke gasten zijn de afgelopen 180 dagen aan groepen toegevoegd?",
     "expected": {
       "entity": "change",
@@ -652,6 +779,7 @@
   },
   {
     "id": "c-guests-added-180-en",
+    "category": "question",
     "question": "Which guests were added to groups in the last 180 days?",
     "expected": {
       "entity": "change",
@@ -693,6 +821,7 @@
   },
   {
     "id": "c-my-access-packages-nl",
+    "category": "question",
     "question": "In welke access packages zit ik?",
     "expected": {
       "entity": "resource",
@@ -718,6 +847,7 @@
   },
   {
     "id": "c-my-access-packages-en",
+    "category": "question",
     "question": "Which access packages am I in?",
     "expected": {
       "entity": "resource",
@@ -743,6 +873,7 @@
   },
   {
     "id": "c-my-directory-roles-nl",
+    "category": "question",
     "question": "Welke directory rollen heb ik?",
     "expected": {
       "entity": "resource",
@@ -768,6 +899,7 @@
   },
   {
     "id": "c-my-directory-roles-en",
+    "category": "question",
     "question": "Which directory roles do I have?",
     "expected": {
       "entity": "resource",
@@ -793,22 +925,202 @@
   },
   {
     "id": "c-same-groups-as-me-nl",
+    "category": "question",
     "question": "Wie heeft dezelfde groepen als ik?",
     "pending": "a comparison against the caller’s own account (@me in a compare reference) is not supported yet"
   },
   {
     "id": "c-same-groups-as-me-en",
+    "category": "question",
     "question": "Who has the same groups as I do?",
     "pending": "a comparison against the caller’s own account (@me in a compare reference) is not supported yet"
   },
   {
     "id": "c-members-of-williams-groups-nl",
+    "category": "question",
     "question": "Wie zit er in de groepen waarvan william eigenaar is?",
     "pending": "needs a relation inside a relation (the members of the groups owned by X), which the definition language does not allow"
   },
   {
     "id": "c-members-of-williams-groups-en",
+    "category": "question",
     "question": "Who is in the groups that william owns?",
     "pending": "needs a relation inside a relation (the members of the groups owned by X), which the definition language does not allow"
+  },
+  {
+    "id": "c-users-per-department-nl",
+    "category": "count",
+    "question": "Hoeveel gebruikers zijn er per afdeling?",
+    "expected": {
+      "entity": "user",
+      "conditions": [],
+      "groupBy": "department"
+    }
+  },
+  {
+    "id": "c-users-per-department-en",
+    "category": "count",
+    "question": "How many users are there per department?",
+    "expected": {
+      "entity": "user",
+      "conditions": [],
+      "groupBy": "department"
+    }
+  },
+  {
+    "id": "c-trump-nl",
+    "category": "scope",
+    "question": "Is Trump de president van Amerika?",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-trump-en",
+    "category": "scope",
+    "question": "Is Trump the president of the United States?",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-weather-nl",
+    "category": "scope",
+    "question": "Wat voor weer wordt het morgen in Amsterdam?",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-weather-en",
+    "category": "scope",
+    "question": "What will the weather be like in Amsterdam tomorrow?",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-poem-nl",
+    "category": "scope",
+    "question": "Schrijf een gedicht over onze groepen.",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-poem-en",
+    "category": "scope",
+    "question": "Write a poem about our groups.",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-remove-william-nl",
+    "category": "scope",
+    "question": "Verwijder william uit alle groepen.",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-remove-william-en",
+    "category": "scope",
+    "question": "Remove william from all groups.",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-make-me-admin-nl",
+    "category": "scope",
+    "question": "Voeg mij toe aan de Global Administrator rol.",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-make-me-admin-en",
+    "category": "scope",
+    "question": "Add me to the Global Administrator role.",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-password-nl",
+    "category": "unknown",
+    "question": "Wat is het wachtwoord van william?",
+    "expectKind": [
+      "decline",
+      "clarify"
+    ]
+  },
+  {
+    "id": "c-password-en",
+    "category": "unknown",
+    "question": "What is william’s password?",
+    "expectKind": [
+      "decline",
+      "clarify"
+    ]
+  },
+  {
+    "id": "c-salary-nl",
+    "category": "unknown",
+    "question": "Hoeveel verdient william per jaar?",
+    "expectKind": [
+      "decline",
+      "clarify"
+    ]
+  },
+  {
+    "id": "c-salary-en",
+    "category": "unknown",
+    "question": "How much does william earn per year?",
+    "expectKind": [
+      "decline",
+      "clarify"
+    ]
+  },
+  {
+    "id": "c-mfa-nl",
+    "category": "unknown",
+    "question": "Welke gebruikers hebben MFA uit staan?",
+    "expectKind": [
+      "clarify",
+      "decline"
+    ]
+  },
+  {
+    "id": "c-mfa-en",
+    "category": "unknown",
+    "question": "Which users have MFA switched off?",
+    "expectKind": [
+      "clarify",
+      "decline"
+    ]
+  },
+  {
+    "id": "c-lease-car-nl",
+    "category": "unknown",
+    "question": "Welke medewerkers hebben een Tesla als leaseauto?",
+    "expectKind": [
+      "clarify",
+      "decline"
+    ]
+  },
+  {
+    "id": "c-lease-car-en",
+    "category": "unknown",
+    "question": "Which employees have a Tesla as their lease car?",
+    "expectKind": [
+      "clarify",
+      "decline"
+    ]
+  },
+  {
+    "id": "c-nobody-nl",
+    "category": "nobody",
+    "question": "In welke groepen zit Voldemort?",
+    "expectKind": "confirm"
+  },
+  {
+    "id": "c-nobody-en",
+    "category": "nobody",
+    "question": "Which groups is Voldemort in?",
+    "expectKind": "confirm"
+  },
+  {
+    "id": "c-which-group-nl",
+    "category": "ambiguous",
+    "question": "Wie zit er in de groep?",
+    "expectKind": "clarify"
+  },
+  {
+    "id": "c-which-group-en",
+    "category": "ambiguous",
+    "question": "Who is in the group?",
+    "expectKind": "clarify"
   }
 ]
