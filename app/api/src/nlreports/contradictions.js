@@ -38,6 +38,7 @@
 // keep.
 
 import { ENTITIES } from './catalog.js';
+import { ME } from './caller.js';
 
 const DAY_WINDOW = { withinLastDays: 'within', olderThanDays: 'older' };
 
@@ -140,7 +141,7 @@ function relationConflicts(conditions, match) {
       if (JSON.stringify(some.conditions ?? []) !== JSON.stringify(none.conditions ?? [])) continue;
       const what = (some.conditions ?? []).map(c => show(c.value)).join(', ') || 'anything';
       found.push(`"${some.relation}" cannot both have and not have the same records (${what}) at the same time`
-        + ' — one of the two conditions must be about somebody else (the person asking is id @me, when the request says "I" or "my")');
+        + ` — one of the two conditions must be about somebody else (the person asking is id ${ME}, when the request says "I" or "my")`);
     }
   }
   return found;
