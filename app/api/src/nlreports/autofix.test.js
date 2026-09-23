@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, nameWrittenAsId, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -357,5 +357,18 @@ describe('was a lost condition asked for?', () => {
     expect(askedForLeaf('mfaEnabled eq false', 'users that do not have MFA enabled')).toBe(true);
     expect(askedForLeaf('department eq "Finance"', 'everyone in finance')).toBe(true);
     expect(askedForLeaf('resourceType eq "Groups"', 'which groups does he have')).toBe(true);
+  });
+});
+
+describe('a name written as an id', () => {
+  it('becomes a name condition, wherever it sits; uuids and placeholders stay ids', () => {
+    const { spec } = nameWrittenAsId({ entity: 'resource', match: 'all', conditions: [
+      { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: '@me' }] },
+      { type: 'relation', relation: 'members', quantifier: 'none', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: 'william' }] },
+      { type: 'field', field: 'id', op: 'eq', value: 'dda42659-89b1-43df-a057-b0fa36c86aaa' },
+    ] });
+    expect(spec.conditions[0].conditions[0]).toEqual({ type: 'field', field: 'id', op: 'eq', value: '@me' });
+    expect(spec.conditions[1].conditions[0]).toEqual({ type: 'field', field: 'displayName', op: 'contains', value: 'william' });
+    expect(spec.conditions[2].field).toBe('id');
   });
 });

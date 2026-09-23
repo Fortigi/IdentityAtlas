@@ -113,6 +113,28 @@ export function listEqualsToIn(spec) {
   return changed ? { spec: { ...spec, conditions }, notes: [] } : { spec, notes: [] };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * "id is william". An id is a uuid or a placeholder (@me, @previous); a word
+ * there is a name, and a name is a displayName condition — which the person
+ * lookup then pins to one record. Asked for "rights I have that william does
+ * not", the model wrote the caller's id correctly and then reached for the
+ * same field for william.
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function nameWrittenAsId(spec) {
+  let changed = 0;
+  const isName = (v) => typeof v === 'string' && !UUID.test(v) && !v.startsWith('@') && /\p{L}/u.test(v);
+  const fix = (conditions) => (conditions ?? []).map((c) => {
+    if (c.type === 'group' || c.type === 'relation') return { ...c, conditions: fix(c.conditions) };
+    if (c.type === 'field' && c.field === 'id' && c.op === 'eq' && isName(c.value)) { changed++; return { ...c, field: 'displayName', op: 'contains' }; }
+    return c;
+  });
+  const conditions = fix(spec?.conditions);
+  return changed ? { spec: { ...spec, conditions }, notes: [] } : { spec, notes: [] };
+}
+
 const ACCOUNT_KINDS = new Set(['user', 'identity']);
 const isSelf = (c, me) => c?.type === 'field' && c.field === 'id' && c.op === 'eq' && c.value === me;
 
