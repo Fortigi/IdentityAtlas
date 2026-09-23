@@ -877,3 +877,25 @@ describe('interpret — a rejected relation is never noise', () => {
     expect(r.spec.conditions[1]).toMatchObject({ relation: 'members', quantifier: 'none' });
   });
 });
+
+describe('interpret — "the group" with nothing to say which', () => {
+  beforeEach(() => { clearValuesCache(); query.mockResolvedValue({ rows: [{ v: 'Guest' }, { v: 'Member' }] }); });
+
+  it('asks which one, in the question\'s language, without a model call', async () => {
+    const nl = await interpret({ question: 'Wie zit er in de groep?', model: 'm' });
+    expect(chat).not.toHaveBeenCalled();
+    expect(nl).toMatchObject({ kind: 'clarify', question: expect.stringMatching(/^Welke groep bedoel je\?/), askedBy: 'pipeline' });
+    const en = await interpret({ question: 'Who is in the group?', model: 'm' });
+    expect(en.question).toMatch(/^Which group do you mean\?/);
+    expect(chat).not.toHaveBeenCalled();
+  });
+
+  it('asks the model when a name, "my", an earlier answer or a conversation says which', async () => {
+    chat.mockResolvedValue(reply(AND_SPEC));
+    await interpret({ question: 'Wie zit er in de groep Finance?', model: 'm' });
+    await interpret({ question: 'Wie zit er in de groep van mijn team?', model: 'm', substitutions: new Map([['@me', 'u']]) });
+    await interpret({ question: 'Wie zit er in de groep?', model: 'm', substitutions: new Map([['@previous', ['g1']]]) });
+    await interpret({ question: 'Wie zit er in de groep?', model: 'm', history: [{ role: 'user', content: 'x' }, { role: 'assistant', content: '{}' }] });
+    expect(chat).toHaveBeenCalledTimes(4);
+  });
+});

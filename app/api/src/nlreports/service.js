@@ -7,7 +7,7 @@
 
 import { query, tx } from '../db/connection.js';
 import { ENTITIES, VALUE_QUERIES } from './catalog.js';
-import { validateSpec } from './spec.js';
+import { PREVIOUS_SENTINEL, validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
@@ -372,6 +372,32 @@ async function answerReport(ctx, turn) {
   };
 }
 
+// "the group", "de groep": one particular record, named by nothing. With no
+// name in the question, no "my", nothing carried from an earlier answer and no
+// conversation so far, there is exactly one right response — which one? — and
+// it costs no model round. The model, asked, answers instead: "wie zit er in
+// de groep" came back as every group with "groep" in its name.
+const DEFINITE_UNNAMED = /\b(de|het|the)\s+(groep|group|rol|role|applicatie|application|app|account|gebruiker|user|persoon|person|afdeling|department|team)\b/i;
+const NOUN_PLURAL = { groep: 'groep', group: 'group', rol: 'rol', role: 'role', applicatie: 'applicatie', application: 'application', app: 'app', account: 'account', gebruiker: 'gebruiker', user: 'user', persoon: 'persoon', person: 'person', afdeling: 'afdeling', department: 'department', team: 'team' };
+
+/**
+ * A clarification the pipeline can ask by itself: which one?
+ * @returns {object|null} a clarify reply, or null when the question is not of that shape
+ */
+function askWhichOne(ctx, history, terms) {
+  if (history.length || terms.length || selfWord(ctx.question) || ctx.substitutions.has(PREVIOUS_SENTINEL)) return null;
+  const m = String(ctx.question ?? '').match(DEFINITE_UNNAMED);
+  if (!m) return null;
+  const noun = NOUN_PLURAL[m[2].toLowerCase()] ?? m[2];
+  const dutch = m[1].toLowerCase() !== 'the';
+  const question = dutch
+    ? `Welke ${noun} bedoel je? Noem de naam, dan zoek ik die op.`
+    : `Which ${noun} do you mean? Name it and I will look it up.`;
+  const reply = { kind: 'clarify', question, options: [] };
+  const turn = { raw: JSON.stringify(reply), first: null, reply, timing: { totalMs: 0, promptTokens: 0, outputTokens: 0 }, repaired: false };
+  return { ...answerClarify(ctx, turn), askedBy: 'pipeline' };
+}
+
 function answerClarify(ctx, turn) {
   return {
     kind: 'clarify',
@@ -473,6 +499,11 @@ export async function interpret({ question, context = '', history = [], model = 
     const again = validateSpec(fixed.spec, ctx.values, ctx.extFields);
     return again.ok ? { ...again, fixes: [...before, ...noise, ...fixed.notes] } : first;
   };
+
+  // "Which one?" is asked here, not by the model, when the question names
+  // one particular record and nothing says which.
+  const whichOne = askWhichOne(ctx, history, terms);
+  if (whichOne) return whichOne;
 
   const first = await chat({ model, messages: ctx.messages, schema });
 
