@@ -409,3 +409,23 @@ describe('narrowToPrevious — carried group ids on a user report\'s own id', ()
       conditions: [{ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] }] });
   });
 });
+
+describe('narrowToPrevious — carried group ids on the wrong relation of a change report', () => {
+  it('moves them from change.account onto change.resource, keeping the rest', () => {
+    // Verbatim: "Have there been any changes to these groups in the last 180 days?"
+    const carried = { kind: 'resource', records: [{ id: 'g1', name: 'A' }, { id: 'g2', name: 'B' }] };
+    const isGroup = { type: 'field', field: 'resourceType', op: 'eq', value: 'Group' };
+    const window = { type: 'field', field: 'changedAt', op: 'withinLastDays', value: 180 };
+    const written = { entity: 'change', match: 'all', conditions: [
+      { type: 'relation', relation: 'resource', quantifier: 'some', match: 'all', conditions: [isGroup] },
+      { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] }] },
+      window,
+    ] };
+    const out = narrowToPrevious(written, carried, 'changes to these groups in the last 180 days?');
+    expect(out.conditions).toEqual([
+      { type: 'relation', relation: 'resource', quantifier: 'some', match: 'all', conditions: [isGroup] },
+      window,
+      { type: 'relation', relation: 'resource', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] }] },
+    ]);
+  });
+});

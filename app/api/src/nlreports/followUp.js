@@ -249,25 +249,27 @@ function limitFor(entity, carried) {
 function relocateMisplaced(spec, carried) {
   const ids = new Set(carried.records.map(r => r.id));
   const holdsCarried = (c) => isIdList(c) && Array.isArray(c.value) && c.value.length === ids.size && c.value.every(v => ids.has(v));
-  if (entityKind(spec.entity) !== carried.kind) {
-    // Group ids on a USER report's own id: they belong on the relation that
-    // reaches groups from a user (memberOf), or nowhere.
-    if (!(spec.conditions ?? []).some(holdsCarried)) return spec;
-    const limit = limitFor(spec.entity, carried);
-    if (!limit) return spec;
-    return { ...spec, conditions: [...spec.conditions.filter(c => !holdsCarried(c)), limit] };
-  }
+  const sameKind = entityKind(spec.entity) === carried.kind;
+  const targetOf = (c) => (has(ENTITIES, spec.entity) ? ENTITIES[spec.entity].relations?.[c.relation]?.target : null);
+  // Where the list belongs: the report's own id when it is about that kind of
+  // record, else the relation that reaches that kind (narrowVia), else nowhere.
+  const home = sameKind ? { type: 'field', field: 'id', op: 'in', value: [...ids] } : limitFor(spec.entity, carried);
+  if (!home) return spec;
   let moved = false;
   const conditions = (spec.conditions ?? []).flatMap((c) => {
+    // On the report's own id while it is about another kind (group ids on a user report).
+    if (!sameKind && holdsCarried(c)) { moved = true; return []; }
     if (c.type !== 'relation' || !(c.conditions ?? []).some(holdsCarried)) return [c];
-    const target = has(ENTITIES, spec.entity) ? ENTITIES[spec.entity].relations?.[c.relation]?.target : null;
+    // Inside a relation of the right kind (change.resource for groups): left alone.
+    const target = targetOf(c);
     if (target && entityKind(target) === carried.kind) return [c];
+    // Inside a relation of the wrong kind (members of a group report, change.account): out.
     moved = true;
     const rest = c.conditions.filter(x => !holdsCarried(x));
     return rest.length ? [{ ...c, conditions: rest }] : [];
   });
   if (!moved) return spec;
-  return { ...spec, conditions: [...conditions, { type: 'field', field: 'id', op: 'in', value: [...ids] }] };
+  return { ...spec, conditions: [...conditions, home] };
 }
 
 /**
