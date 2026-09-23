@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, nameWrittenAsId, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, nameWrittenAsId, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -413,5 +413,30 @@ describe('the column the question asks to see — owner words win over "groups"'
     expect(spec.columns).toEqual(['displayName', 'owns.names']);
     const { spec: en } = addAskedColumns({ entity: 'user', match: 'all', conditions: [], columns: ['displayName', 'owns.names'] }, 'Which groups do I own?');
     expect(en.columns).toEqual(['displayName', 'owns.names']);
+  });
+});
+
+describe('the caller written in where the question never said "my"', () => {
+  const ME = '@me';
+  const meCond = { type: 'field', field: 'id', op: 'eq', value: ME };
+
+  it('drops "account is me" from a follow-up about these groups, relation and all', () => {
+    // Verbatim: "Have there been any changes to these groups in the last 180 days?"
+    const groups = { type: 'relation', relation: 'resource', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'Group' }] };
+    const window = { type: 'field', field: 'changedAt', op: 'withinLastDays', value: 180 };
+    const { spec, notes } = dropUnaskedSelf({ entity: 'change', match: 'all', conditions: [groups,
+      { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [meCond] }, window] },
+    'Have there been any changes to these groups in the last 180 days?', ME);
+    expect(spec.conditions).toEqual([groups, window]);
+    expect(notes[0]).toMatch(/did not say "my"/);
+  });
+
+  it('keeps it when the question does say so, and leaves other conditions of the relation', () => {
+    const mine = { entity: 'user', match: 'all', conditions: [meCond] };
+    expect(dropUnaskedSelf(mine, 'Which groups am I in?', ME).spec).toBe(mine);
+    const { spec } = dropUnaskedSelf({ entity: 'change', match: 'all', conditions: [
+      { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'userType', op: 'eq', value: 'Guest' }, meCond] }] },
+    'changes for guests in these groups', ME);
+    expect(spec.conditions[0].conditions).toEqual([{ type: 'field', field: 'userType', op: 'eq', value: 'Guest' }]);
   });
 });

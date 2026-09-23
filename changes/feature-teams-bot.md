@@ -54,3 +54,4 @@
 - No correction round may lose a condition it was not asked to change — the "or" correction that added "added or removed" but dropped the 90-day window is refused, and the first answer stands.
 - A refinement of the previous answer ("alleen de toevoegingen graag", "only the additions") keeps everything the earlier definition had that the refinement did not mention — the person, the time window — instead of quietly swapping or dropping them.
 - A follow-up that put "these groups" among alternatives ("in a business role or one of these") is corrected so the other condition applies again, instead of returning every group.
+- A condition on yourself that the model added to a question that never said "my" or "I" ("changes to these groups") is removed, and the answer says the report is not limited to you.

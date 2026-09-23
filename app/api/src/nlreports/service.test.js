@@ -851,8 +851,9 @@ describe('interpret — a refinement keeps the previous definition', () => {
     const r = await interpret({ question: 'Alleen de toevoegingen graag.', model: 'm', substitutions: new Map([['@me', 'u-me']]), previousSpec });
     expect(chat).toHaveBeenCalledTimes(1);
     expect(r.kind).toBe('report');
-    expect(r.spec.conditions.map(c => c.type === 'relation' ? `${c.relation}:${c.conditions[0].field}` : `${c.field}`))
-      .toEqual(['account:displayName', 'action', 'resource:resourceType', 'changedAt']);
+    // Order-insensitive: the swapped caller condition is removed first (no "my" in the question) and William restored after.
+    expect(r.spec.conditions.map(c => c.type === 'relation' ? `${c.relation}:${c.conditions[0].field}` : `${c.field}`).sort())
+      .toEqual(['account:displayName', 'action', 'changedAt', 'resource:resourceType']);
     expect(r.assumptions.join(' ')).toMatch(/Kept the earlier definition/);
   });
 });

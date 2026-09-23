@@ -263,6 +263,33 @@ export function addMissingSelf(spec, question, me) {
 }
 
 /**
+ * The caller written in where the question never said "my".
+ *
+ * "Have there been any changes to these groups in the last 180 days?" came
+ * back with "account is the person asking" added — the caller block invites
+ * @me, and the model reaches for it. A caller condition needs a first-person
+ * word in THIS question; what carries a chat forward is the previous answer's
+ * records, not the caller. The condition goes, and the answer says so.
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function dropUnaskedSelf(spec, question, me) {
+  if (selfWord(question) || !spec?.conditions?.length) return { spec, notes: [] };
+  let dropped = 0;
+  const fix = (conditions) => (conditions ?? []).flatMap((c) => {
+    if (isSelf(c, me)) { dropped++; return []; }
+    if (c.type !== 'group' && c.type !== 'relation') return [c];
+    const inner = fix(c.conditions);
+    if (inner.length === (c.conditions ?? []).length) return [c];
+    // A relation emptied by the move ("account some [me]") goes with it.
+    return inner.length || c.type === 'group' ? [{ ...c, conditions: inner }] : [];
+  });
+  const conditions = fix(spec.conditions);
+  return dropped
+    ? { spec: { ...spec, conditions }, notes: ['Not limited to you: the request did not say "my" or "I".'] }
+    : { spec, notes: [] };
+}
+
+/**
  * The caller's placeholder where it cannot mean the caller.
  *
  * "id is @me" is the caller's ACCOUNT id. Written inside memberOf — a group
