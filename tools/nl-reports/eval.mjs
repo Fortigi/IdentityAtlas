@@ -12,6 +12,11 @@
 //   node tools/nl-reports/eval.mjs --check                       # validate expected specs only
 //   node tools/nl-reports/eval.mjs --models qwen2.5-coder:3b,qwen3:4b [--file holdout.json] [--only id1,id2] [--out file.json]
 //
+// A question may carry `followUps`: further questions asked in the same
+// conversation, each with its own expected answer, graded the same way. They
+// are asked only when the opening question produced a report, with that
+// exchange as history — the way the Ask tab continues a chat.
+//
 // Against a stack with authentication on, pass a bearer token for a signed-in
 // analyst (--token or EVAL_TOKEN), or a command that prints one (--token-cmd or
 // EVAL_TOKEN_CMD, e.g. `az account get-access-token --resource api://<app id>
@@ -120,9 +125,27 @@ for (const model of models) {
   console.log(`warm-up (load + read system prompt): ${(warmMs / 1000).toFixed(1)}s`);
   const rows = [];
 
-  for (const q of questions) {
+  /** A "did you mean" confirmation: the simulated analyst accepts the first suggestion.
+   *  For a name the report did not use ("ACME"), that is the first field it was found in. */
+  async function settleConfirmations(reply, confirmations) {
+    while (reply.kind === 'confirm' && reply.confirm.choices.length && confirmations.length < 3) {
+      const { confirm } = reply;
+      const pick = confirm.choices[0];
+      confirmations.push({ kind: confirm.kind, asked: confirm.name, chose: pick.name });
+      const choice = confirm.kind === 'term'
+        ? { kind: 'term', path: [], name: pick.name, term: confirm.name, fields: pick.fields, drop: confirm.drop }
+        : { path: confirm.path, name: pick.name, id: pick.id };
+      const resolved = await post('resolve', { spec: reply.spec, choice });
+      reply = resolved.confirm
+        ? { ...reply, spec: resolved.spec, confirm: resolved.confirm }
+        : { ...reply, kind: 'report', spec: resolved.spec, explanation: resolved.explanation };
+    }
+    return reply;
+  }
+
+  /** Ask one question (answering clarifications), then grade it. */
+  async function askAndGrade(q, history) {
     const started = Date.now();
-    let history = [];
     let text = q.question;
     let reply;
     let timing;
@@ -133,21 +156,8 @@ for (const model of models) {
       for (let round = 0; round < 3; round++) {
         reply = await post('interpret', { model, question: text, history });
         timing = addTiming(timing, reply.timing || {});
+        reply = await settleConfirmations(reply, confirmations);
         // A question whose right answer IS a clarification must not be answered for the model.
-        // A "did you mean" confirmation: the simulated analyst accepts the first suggestion.
-        // For a name the report did not use ("ACME"), that is the first field it was found in.
-        while (reply.kind === 'confirm' && reply.confirm.choices.length && confirmations.length < 3) {
-          const { confirm } = reply;
-          const pick = confirm.choices[0];
-          confirmations.push({ kind: confirm.kind, asked: confirm.name, chose: pick.name });
-          const choice = confirm.kind === 'term'
-            ? { kind: 'term', path: [], name: pick.name, term: confirm.name, fields: pick.fields, drop: confirm.drop }
-            : { path: confirm.path, name: pick.name, id: pick.id };
-          const resolved = await post('resolve', { spec: reply.spec, choice });
-          reply = resolved.confirm
-            ? { ...reply, spec: resolved.spec, confirm: resolved.confirm }
-            : { ...reply, kind: 'report', spec: resolved.spec, explanation: resolved.explanation };
-        }
         if (reply.kind !== 'clarify' || round === 2 || q.expectKind === 'clarify') break;
         clarifications.push({ question: reply.question, options: reply.options });
         history = [...history, { role: 'user', content: text }, { role: 'assistant', content: reply.raw }];
@@ -191,6 +201,28 @@ for (const model of models) {
       `${error ? `error: ${error}` : `rows ${actualCount}/${expectedCount}`}`);
     results.models[model] = { warmMs, rows };
     writeFileSync(outFile, JSON.stringify(results, null, 2));
+    return { reply, text, history };
+  }
+
+  for (const q of questions) {
+    const opening = await askAndGrade(q, []);
+    // Follow-ups continue the same chat. An opening that produced no report
+    // has nothing to follow up on; they are recorded as errors, not skipped,
+    // so the totals stay comparable between runs.
+    let history = opening.history;
+    let last = opening;
+    for (const [i, fu] of (q.followUps ?? []).entries()) {
+      const id = `${q.id}>${i + 1}`;
+      if (last.reply?.kind !== 'report') {
+        rows.push({ id, pass: false, weak: false, ambiguous: false, clarified: false, clarifications: [], columnsOk: null,
+          expectClarify: false, confirmations: [], expectedCount: null, actualCount: null,
+          error: 'no report to follow up on', repaired: false, wallMs: 0, timing: undefined });
+        console.log(`FAIL ${id.padEnd(24)}    0.0s error: no report to follow up on`);
+        continue;
+      }
+      history = [...history, { role: 'user', content: last.text }, { role: 'assistant', content: last.reply.raw }];
+      last = await askAndGrade({ ...fu, id }, history);
+    }
   }
 
   const graded = rows.filter(r => !r.weak);

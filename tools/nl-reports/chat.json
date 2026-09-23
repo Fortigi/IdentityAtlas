@@ -1,0 +1,814 @@
+[
+  {
+    "id": "c-my-groups-nl",
+    "question": "Van welke groepen ben ik lid?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "Welke van deze groepen zijn onderdeel van een access package?",
+        "expected": {
+          "entity": "group",
+          "conditions": [
+            {
+              "relation": "members",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "id",
+                  "op": "eq",
+                  "value": "@me"
+                }
+              ]
+            },
+            {
+              "relation": "businessRoles",
+              "quantifier": "some",
+              "conditions": []
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "c-my-groups-en",
+    "question": "Which groups am I a member of?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "Which of these groups are part of an access package?",
+        "expected": {
+          "entity": "group",
+          "conditions": [
+            {
+              "relation": "members",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "id",
+                  "op": "eq",
+                  "value": "@me"
+                }
+              ]
+            },
+            {
+              "relation": "businessRoles",
+              "quantifier": "some",
+              "conditions": []
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "c-my-groups-not-william-nl",
+    "question": "Kan je me vertellen welke groepen ik wel heb, die william niet heeft?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        },
+        {
+          "relation": "members",
+          "quantifier": "none",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "William Overweg"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-groups-not-william-en",
+    "question": "Can you tell me which groups I have that william does not have?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        },
+        {
+          "relation": "members",
+          "quantifier": "none",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "William Overweg"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-rights-not-william-nl",
+    "question": "Welke rechten heb ik, die william niet heeft?",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        },
+        {
+          "relation": "members",
+          "quantifier": "none",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "William Overweg"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-rights-not-william-en",
+    "question": "Which rights do I have that william does not have?",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        },
+        {
+          "relation": "members",
+          "quantifier": "none",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "William Overweg"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-william-changes-90-nl",
+    "question": "Kan je me vertellen aan welke groepen william in de laatste 90 dagen is toegevoegd? En of hij uit groepen is verwijderd?",
+    "expected": {
+      "entity": "change",
+      "conditions": [
+        {
+          "relation": "account",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "William Overweg"
+            }
+          ]
+        },
+        {
+          "relation": "resource",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "Group"
+            }
+          ]
+        },
+        {
+          "field": "changedAt",
+          "op": "withinLastDays",
+          "value": 90
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "Alleen de toevoegingen graag.",
+        "expected": {
+          "entity": "change",
+          "conditions": [
+            {
+              "relation": "account",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "displayName",
+                  "op": "eq",
+                  "value": "William Overweg"
+                }
+              ]
+            },
+            {
+              "relation": "resource",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "resourceType",
+                  "op": "eq",
+                  "value": "Group"
+                }
+              ]
+            },
+            {
+              "field": "changedAt",
+              "op": "withinLastDays",
+              "value": 90
+            },
+            {
+              "field": "action",
+              "op": "eq",
+              "value": "Added"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "c-william-changes-90-en",
+    "question": "Can you tell me which groups william was added to in the last 90 days? And whether he was removed from any?",
+    "expected": {
+      "entity": "change",
+      "conditions": [
+        {
+          "relation": "account",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "William Overweg"
+            }
+          ]
+        },
+        {
+          "relation": "resource",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "Group"
+            }
+          ]
+        },
+        {
+          "field": "changedAt",
+          "op": "withinLastDays",
+          "value": 90
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "Only the additions, please.",
+        "expected": {
+          "entity": "change",
+          "conditions": [
+            {
+              "relation": "account",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "displayName",
+                  "op": "eq",
+                  "value": "William Overweg"
+                }
+              ]
+            },
+            {
+              "relation": "resource",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "resourceType",
+                  "op": "eq",
+                  "value": "Group"
+                }
+              ]
+            },
+            {
+              "field": "changedAt",
+              "op": "withinLastDays",
+              "value": 90
+            },
+            {
+              "field": "action",
+              "op": "eq",
+              "value": "Added"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "c-william-recent-changes-nl",
+    "question": "Aan welke groepen is william recent toegevoegd of verwijderd?",
+    "ambiguous": true,
+    "expected": {
+      "entity": "change",
+      "conditions": [
+        {
+          "relation": "account",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "William Overweg"
+            }
+          ]
+        },
+        {
+          "relation": "resource",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "Group"
+            }
+          ]
+        },
+        {
+          "field": "changedAt",
+          "op": "withinLastDays",
+          "value": 30
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-william-recent-changes-en",
+    "question": "Which groups was william recently added to or removed from?",
+    "ambiguous": true,
+    "expected": {
+      "entity": "change",
+      "conditions": [
+        {
+          "relation": "account",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "William Overweg"
+            }
+          ]
+        },
+        {
+          "relation": "resource",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "Group"
+            }
+          ]
+        },
+        {
+          "field": "changedAt",
+          "op": "withinLastDays",
+          "value": 30
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-william-groups-not-ap-nl",
+    "question": "Welke groepen heeft william die niet via een access package zijn uitgedeeld?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "William Overweg"
+            }
+          ]
+        },
+        {
+          "relation": "businessRoles",
+          "quantifier": "none",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-william-groups-not-ap-en",
+    "question": "Which groups does william have that were not handed out through an access package?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "William Overweg"
+            }
+          ]
+        },
+        {
+          "relation": "businessRoles",
+          "quantifier": "none",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-disabled-list-nl",
+    "question": "Kan je me een lijstje geven van disabled accounts?",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "field": "accountEnabled",
+          "op": "eq",
+          "value": false
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-disabled-list-en",
+    "question": "Can you give me a list of disabled accounts?",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "field": "accountEnabled",
+          "op": "eq",
+          "value": false
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-owned-groups-nl",
+    "question": "Van welke groepen ben ik eigenaar?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "owners",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-owned-groups-en",
+    "question": "Which groups do I own?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "owners",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-reports-groups-nl",
+    "question": "In welke groepen zitten mijn medewerkers?",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "relation": "manager",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    },
+    "expectColumns": [
+      "memberOf.names"
+    ]
+  },
+  {
+    "id": "c-my-reports-groups-en",
+    "question": "Which groups are my direct reports in?",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "relation": "manager",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    },
+    "expectColumns": [
+      "memberOf.names"
+    ]
+  },
+  {
+    "id": "c-guests-added-30-nl",
+    "question": "Welke gasten zijn de afgelopen 30 dagen aan groepen toegevoegd?",
+    "expected": {
+      "entity": "change",
+      "conditions": [
+        {
+          "field": "action",
+          "op": "eq",
+          "value": "Added"
+        },
+        {
+          "field": "changedAt",
+          "op": "withinLastDays",
+          "value": 30
+        },
+        {
+          "relation": "account",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "userType",
+              "op": "eq",
+              "value": "Guest"
+            }
+          ]
+        },
+        {
+          "relation": "resource",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "Group"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-guests-added-30-en",
+    "question": "Which guests were added to groups in the last 30 days?",
+    "expected": {
+      "entity": "change",
+      "conditions": [
+        {
+          "field": "action",
+          "op": "eq",
+          "value": "Added"
+        },
+        {
+          "field": "changedAt",
+          "op": "withinLastDays",
+          "value": 30
+        },
+        {
+          "relation": "account",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "userType",
+              "op": "eq",
+              "value": "Guest"
+            }
+          ]
+        },
+        {
+          "relation": "resource",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "Group"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-access-packages-nl",
+    "question": "In welke access packages zit ik?",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "BusinessRole"
+        },
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-access-packages-en",
+    "question": "Which access packages am I in?",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "BusinessRole"
+        },
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-directory-roles-nl",
+    "question": "Welke directory rollen heb ik?",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "EntraDirectoryRole"
+        },
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-directory-roles-en",
+    "question": "Which directory roles do I have?",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "EntraDirectoryRole"
+        },
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-same-groups-as-me-nl",
+    "question": "Wie heeft dezelfde groepen als ik?",
+    "pending": "a comparison against the caller’s own account (@me in a compare reference) is not supported yet"
+  },
+  {
+    "id": "c-same-groups-as-me-en",
+    "question": "Who has the same groups as I do?",
+    "pending": "a comparison against the caller’s own account (@me in a compare reference) is not supported yet"
+  },
+  {
+    "id": "c-members-of-williams-groups-nl",
+    "question": "Wie zit er in de groepen waarvan william eigenaar is?",
+    "pending": "needs a relation inside a relation (the members of the groups owned by X), which the definition language does not allow"
+  },
+  {
+    "id": "c-members-of-williams-groups-en",
+    "question": "Who is in the groups that william owns?",
+    "pending": "needs a relation inside a relation (the members of the groups owned by X), which the definition language does not allow"
+  }
+]

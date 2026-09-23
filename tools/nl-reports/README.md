@@ -70,6 +70,13 @@ Two sets, and the difference matters:
 
 - **`questions.json`** — the tuning set. Prompts, rules and examples were changed while
   looking at these, so a good score here is partly a score for our own fitting.
+- **`chat.json`** — the conversation set: the questions people actually typed into the
+  Teams bot and the Ask tab, in Dutch and in English, each pair sharing one expected
+  answer. "I" and "my" mean whoever runs the evaluation (`@me`, resolved from the
+  token), the person named is one that exists in the test directory, and some
+  questions carry a follow-up asked in the same chat. Needs a signed-in stack
+  (`--token-cmd`). Two entries are `pending`: the definition language cannot
+  express them yet, and they say why.
 - **`holdout.json`** — written before tuning and never used to improve anything. That is
   the number worth quoting.
 

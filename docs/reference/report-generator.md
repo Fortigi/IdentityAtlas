@@ -397,6 +397,8 @@ node tools/nl-reports/eval.mjs --models qwen3:4b-instruct-2507-q4_K_M --file too
 node tools/nl-reports/eval.mjs --check --base https://<host> --token-cmd "az account get-access-token --resource api://<web app id> --query accessToken -o tsv"
 ```
 
-Questions live in `tools/nl-reports/questions.json` (used while tuning) and `holdout.json` (kept
-untouched, so the number means something). Each question carries a hand-written reference definition;
-a model's answer counts only if it returns the same rows.
+Questions live in `tools/nl-reports/questions.json` (used while tuning), `holdout.json` (kept
+untouched, so the number means something) and `chat.json` (the questions people typed into the
+Teams bot and the Ask tab, in Dutch and English, with follow-ups asked in the same chat; "my" means
+whoever runs it, so it needs a signed-in stack). Each question carries a hand-written reference
+definition; a model's answer counts only if it returns the same rows.
