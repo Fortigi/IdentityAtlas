@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { PublicClientApplication } from '@azure/msal-browser';
 import { AuthContext } from './AuthGate';
 import { buildAuthHeaders } from './authFetchHeaders';
+import { degradedPermState, permStateFromAuthMe } from './authMeState';
 
 export default function AuthGate({ children }) {
   const [state, setState] = useState({ phase: 'loading', error: null });
@@ -10,6 +11,7 @@ export default function AuthGate({ children }) {
     roles: [],
     hasWildcard: true,        // open-mode default; flipped on /auth-me response
     loaded: false,
+    me: null,                 // signed-in user mapped onto crawled data
   });
   const msalRef = useRef(null);
   const configRef = useRef(null);
@@ -130,18 +132,15 @@ export default function AuthGate({ children }) {
   // A failure/degraded auth surfaces as "no permissions resolved"; UI gating
   // then hides write controls, which is the safe default.
   const refreshPermissions = useCallback(() => {
-    const degraded = () => setPermState({ permissions: new Set(), roles: [], hasWildcard: false, loaded: true });
+    // Both shapes live in ./authMeState.js so they can be unit-tested without
+    // standing up MSAL. `me` there is the signed-in user mapped onto crawled
+    // data — the header avatar's source, and the mapping any first-person
+    // feature ("my groups") needs.
+    const degraded = () => setPermState(degradedPermState());
     return authFetch('/api/auth-me')
       .then((res) => {
         if (!res.ok) { degraded(); return undefined; }
-        return res.json().then((body) => {
-          setPermState({
-            permissions: new Set(body.permissions || []),
-            roles: body.roles || [],
-            hasWildcard: !!body.hasWildcard,
-            loaded: true,
-          });
-        });
+        return res.json().then((body) => setPermState(permStateFromAuthMe(body)));
       })
       .catch(degraded);
   }, [authFetch]);
@@ -186,6 +185,7 @@ export default function AuthGate({ children }) {
       roles: permState.roles,
       hasWildcard: permState.hasWildcard,
       permissionsLoaded: permState.loaded,
+      me: permState.me,
       refreshPermissions,
     }}>
       {/* Banner + app live in one min-h-screen flex column so the 100vh

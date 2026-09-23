@@ -10,6 +10,7 @@ import { buildAttributeEntries } from '@ui/utils/attributeEntries';
 import { formatDate } from '@ui/utils/formatters';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import { tagPillStyle } from '@ui/utils/colors';
+import { Avatar } from './DepartmentBadges';
 
 const ACCOUNT_TYPE_COLORS = {
   Member:           'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-700',
@@ -26,6 +27,9 @@ const HIDDEN_FIELDS = new Set([
   'displayName', ...HEADER_FIELDS, ...RISK_FIELDS,
   'ValidFrom', 'ValidTo', 'extendedAttributes', 'extendedAttributesParsed',
   'managerId', 'contextId',
+  // Shown as the header avatar; as an attribute row it would print a
+  // multi-kilobyte data URI.
+  'photoDataUri', 'photoContentType', 'photoFetchedAt',
 ]);
 
 async function fetchUserData({ entityId, authFetch }) {
@@ -45,9 +49,12 @@ function UserHeader({ data }) {
   return (
     <>
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 flex items-center justify-center text-lg font-bold">
-          {(attributes.displayName || '?')[0]}
-        </div>
+        <Avatar
+          name={attributes.displayName}
+          tier={attributes.riskTier}
+          photo={attributes.photoDataUri}
+          size="w-10 h-10"
+        />
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{attributes.displayName}</h2>

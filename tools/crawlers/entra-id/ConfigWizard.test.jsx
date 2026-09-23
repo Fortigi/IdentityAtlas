@@ -40,11 +40,23 @@ describe('Entra ID crawler ConfigWizard', () => {
     expect(keys).toEqual([
       'identity', 'usersGroupsMembers', 'servicePrincipals', 'identityGovernance',
       'appsAppRoles', 'appOwners', 'appPermissions', 'principalRelationships',
-      'directoryRoles', 'pim', 'signInLogs', 'oauth2Grants',
+      'directoryRoles', 'pim', 'profilePhotos', 'signInLogs', 'oauth2Grants',
     ]);
     // Every entry needs key + label + description for the step-2 checkbox row.
     for (const o of ENTRA_OBJECT_TYPES_FALLBACK) {
       expect(o.key && o.label && o.description, `entry ${o.key} missing a field`).toBeTruthy();
     }
   });
+
+  // Profile photos are the only object type that is personal data AND costs a
+  // Graph request per user. Enabling it is meant to be a deliberate decision,
+  // so the warning is part of the feature, not decoration — without it the row
+  // reads like every other grey help text.
+  it('profile photos carry a warning, and nothing else does', () => {
+    const withWarning = ENTRA_OBJECT_TYPES_FALLBACK.filter(o => o.warning);
+    expect(withWarning.map(o => o.key)).toEqual(['profilePhotos']);
+    expect(withWarning[0].warning).toMatch(/personal data/i);
+    expect(withWarning[0].warning).toMatch(/per user/i);
+  });
+
 });

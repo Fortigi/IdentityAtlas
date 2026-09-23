@@ -12,6 +12,10 @@ export const AuthContext = createContext({
   hasWildcard: true,      // backwards-compat: pre-load + auth-disabled both
                           // return hasWildcard=true so the UI renders normally.
   permissionsLoaded: false, // false until /api/auth-me responds
+  // The signed-in user mapped onto the crawled data — see api/auth/resolveMe.js.
+  // { principal, identity, matchedOn, photo } or null when auth is off, nothing
+  // matched, or no crawl has run yet. Consumers must treat null as normal.
+  me: null,
   refreshPermissions: async () => {},
 });
 

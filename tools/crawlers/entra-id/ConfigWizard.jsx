@@ -205,6 +205,17 @@ export const ENTRA_OBJECT_TYPES_FALLBACK = [
   { key: 'principalRelationships', label: 'Agent Owners & Guest Sponsors', description: 'Owners of AI agents and sponsors of guest accounts — the person accountable for each non-human / external identity, shown on its relations tab' },
   { key: 'directoryRoles', label: 'Directory Roles', description: 'Entra ID directory role assignments' },
   { key: 'pim', label: 'PIM', description: 'Privileged Identity Management eligible group memberships' },
+  // The only entry carrying a `warning`. Its two costs are not obvious from
+  // the label and are both easy to regret: the first crawl makes one Graph
+  // request per user, and photos are personal data — the only such data this
+  // product stores. Rendered as its own amber line rather than appended to the
+  // description, where it would read like the eleven other grey help texts.
+  {
+    key: 'profilePhotos',
+    label: 'Profile Photos',
+    description: 'Each user’s profile picture, shown next to their name on their detail page.',
+    warning: 'Photos are personal data, and a photo is a separate request per user — the first crawl can take a while on a large tenant. Afterwards only new and 30-day-old entries are re-checked.',
+  },
   { key: 'signInLogs', label: 'Sign-in Logs (per-app activity)', description: 'Aggregated sign-in events — last activity per (user, app) pair' },
   { key: 'oauth2Grants', label: 'OAuth2 Delegated Grants', description: 'Per-user consent grants (user X allowed app Y to call API Z with scope W). Tenant-wide consents are skipped.' },
 ];
@@ -580,6 +591,9 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
                       <span className="text-sm font-medium dark:text-gray-200">{ot.label}</span>
                       <span className="text-xs text-gray-500 ml-2 dark:text-gray-400">{ot.description}</span>
                       {!canSelect && <span className="text-xs text-red-600 ml-2">(missing permissions)</span>}
+                      {ot.warning && (
+                        <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">{ot.warning}</p>
+                      )}
                     </div>
                   </label>
                 );

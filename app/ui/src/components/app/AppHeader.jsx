@@ -4,7 +4,7 @@ import AppNav from './AppNav';
 
 // App shell header: brand, account/settings menu, and the tab strip.
 export default function AppHeader({
-  isDark, settingsRef, account, settingsOpen, onToggleSettings, onCloseSettings,
+  isDark, settingsRef, account, me, settingsOpen, onToggleSettings, onCloseSettings,
   mode, setTheme, optionalTabs, visibleTabs, toggleTab, logout,
   navTabs, detailTabs, page, navigate, closeDetailTab,
 }) {
@@ -15,6 +15,7 @@ export default function AppHeader({
         <SettingsMenu
           settingsRef={settingsRef}
           account={account}
+          me={me}
           settingsOpen={settingsOpen}
           onToggle={onToggleSettings}
           onClose={onCloseSettings}

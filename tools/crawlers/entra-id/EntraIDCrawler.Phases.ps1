@@ -1641,6 +1641,13 @@ function Resolve-EntraSyncConfig {
         CustomGroupAttributes = @()
         AINamePatterns        = @()
         IdentityFilter        = @{}
+        # Profile photos are off unless explicitly selected: a photo is a
+        # separate Graph request per user, and they are personal data that a
+        # deployment should opt into rather than acquire by default.
+        SyncProfilePhotos     = $false
+        # Re-check a known photo after this many days. Photos change rarely,
+        # so a daily crawl otherwise re-downloads the whole tenant nightly.
+        PhotoMaxAgeDays       = 30
     }
 
     # selectedObjects.<key> -> toggle
@@ -1650,6 +1657,7 @@ function Resolve-EntraSyncConfig {
             identity = 'SyncPrincipals'; servicePrincipals = 'SyncServicePrincipals'
             identityGovernance = 'SyncGovernance'; pim = 'SyncPim'; signInLogs = 'SyncSignInLogs'
             oauth2Grants = 'SyncOAuth2Grants'; appsAppRoles = 'SyncAppRoles'; appOwners = 'SyncAppOwners'; appPermissions = 'SyncAppPermissions'; principalRelationships = 'SyncPrincipalRelationships'; directoryRoles = 'SyncDirectoryRoles'
+            profilePhotos = 'SyncProfilePhotos'
         })
         # usersGroupsMembers drives three toggles at once (applied after `identity` so it wins on SyncPrincipals).
         if ($objects.ContainsKey('usersGroupsMembers')) {
@@ -1664,6 +1672,7 @@ function Resolve-EntraSyncConfig {
         syncResources = 'SyncResources'; syncAssignments = 'SyncAssignments'; syncGovernance = 'SyncGovernance'
         syncSignInLogs = 'SyncSignInLogs'; syncOAuth2Grants = 'SyncOAuth2Grants'
         syncAppRoles = 'SyncAppRoles'; syncAppOwners = 'SyncAppOwners'; syncAppPermissions = 'SyncAppPermissions'; syncPrincipalRelationships = 'SyncPrincipalRelationships'; syncDirectoryRoles = 'SyncDirectoryRoles'
+        syncProfilePhotos = 'SyncProfilePhotos'
     })
     Set-EntraConfigExtras -Cfg $cfg -RawConfig $RawConfig
     return $cfg
@@ -1685,6 +1694,7 @@ function Set-EntraConfigExtras {
     [CmdletBinding()]
     param([hashtable]$Cfg, [hashtable]$RawConfig)
     if ($RawConfig.ContainsKey('signInLogsDays')) { $Cfg.SignInLogsDays = [int]$RawConfig['signInLogsDays'] }
+    if ($RawConfig.ContainsKey('photoMaxAgeDays')) { $Cfg.PhotoMaxAgeDays = [int]$RawConfig['photoMaxAgeDays'] }
     if ($RawConfig['customUserAttributes'])  { $Cfg.CustomUserAttributes  = @($RawConfig['customUserAttributes']) }
     if ($RawConfig['identityAttributes'])    { $Cfg.CustomUserAttributes += @($RawConfig['identityAttributes']); $Cfg.CustomUserAttributes = $Cfg.CustomUserAttributes | Select-Object -Unique }
     if ($RawConfig['customGroupAttributes']) { $Cfg.CustomGroupAttributes = @($RawConfig['customGroupAttributes']) }

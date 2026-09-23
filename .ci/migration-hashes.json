@@ -73,6 +73,7 @@
     "067_share_is_a_saved_matrix.sql": "8049d31fde744843e5cadd3d12cb555f032ca078eeea191f68c477069290d182",
     "068_saved_reports.sql": "8eb73303e1dda8f7d5d0e459554d15c92e9b79a43c2612915de9a2335783f08a",
     "069_saved_matrix_history.sql": "7453873e134c38dc9ca5213cdd308e8224cc7820d344dba8e4df39fbd3064790",
-    "070_system_directory_link.sql": "14dedc6ad067a65c28ab350fa3ae9fd9e4c5651a06968742b7e7ffb2a007e55f"
+    "070_system_directory_link.sql": "14dedc6ad067a65c28ab350fa3ae9fd9e4c5651a06968742b7e7ffb2a007e55f",
+    "071_principal_photo.sql": "c653ca483f94ce15fc771027da9bfe108e5ea4a08b831cf52fe699c3242afbe7"
   }
 }

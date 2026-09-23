@@ -56,6 +56,7 @@ Navigate to **Admin → Crawlers** and configure an Entra ID crawler. The wizard
 | `-SyncAppOwners` | Off | Sync app-registration and service-principal owners (fetched per app — slow on large tenants) |
 | `-SyncPrincipalRelationships` | Off | Sync AI-agent owners and guest-account sponsors |
 | `-SyncSignInLogs` | Off | Sync per-(user, app) last activity from sign-in logs (window set by `-SignInLogsDays`, default 7) |
+| `-SyncProfilePhotos` | Off | Sync each user's profile photo, shown next to their name (re-check interval set by `-PhotoMaxAgeDays`, default 30) |
 | `-RefreshViews` | On | Refresh SQL views after sync |
 | `-CustomUserAttributes` | Empty | Extra Graph attributes to capture for users |
 | `-CustomGroupAttributes` | Empty | Extra Graph attributes to capture for groups |
@@ -76,6 +77,9 @@ The defaults (users, groups, memberships, governance, contexts) cover core role-
 | App-only API permissions held by SPs / managed identities / agents | `-SyncAppPermissions` | High — fetched per service principal |
 | Who owns apps / SPs (can add a credential and impersonate the app) | `-SyncAppOwners` | High — fetched per app |
 | AI-agent owners and guest-account sponsors | `-SyncPrincipalRelationships` | Low–moderate — only over agents + guests |
+| A face next to each user's name | `-SyncProfilePhotos` | High on the first run — a photo is a separate request per user; near-zero afterwards |
+
+**A note on profile photos.** They are personal data, and nothing else the crawler stores is of that kind, so the toggle is off until someone turns it on deliberately — check what your organisation's privacy agreements require before enabling it. The cost profile is unusual: a photo is not a user attribute in Graph but a separate resource per user, so the first run makes one request per account. After that, answers are remembered — including "this account has no photo" — and only re-checked every `-PhotoMaxAgeDays` days, so repeat crawls ask about almost nobody.
 
 `-SyncServicePrincipals` is the prerequisite for meaningful `-SyncAppPermissions` and `-SyncPrincipalRelationships` output (both operate on service principals), and it's where AI-agent classification happens — add `-AINamePatterns` to catch agents your naming convention flags that the built-in patterns miss.
 

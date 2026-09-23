@@ -16,6 +16,23 @@ import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { authMiddleware } from './middleware/auth.js';
+import { resolveMe, getPrincipalPhoto } from './auth/resolveMe.js';
+import * as dbConnection from './db/connection.js';
+
+// Attach the caller's own photo to a resolveMe() result, so the header avatar
+// needs no second round trip. Only reads the blob when the resolver already
+// said there is one. A failure here must never fail /api/auth-me — the UI
+// depends on that call for its permission gating, and a missing face is
+// cosmetic.
+async function withMyPhoto(me) {
+  if (!me?.principal?.hasPhoto) return me;
+  try {
+    const pool = await dbConnection.getPool();
+    return { ...me, photo: await getPrincipalPhoto(pool, me.principal.id) };
+  } catch {
+    return me;
+  }
+}
 import { resolveModuleVersion } from './version.js';
 import { readFeatures } from './featureFlags.js';
 import { perfMetrics } from './middleware/perfMetrics.js';
@@ -320,9 +337,14 @@ export function createApp() {
   //     `permissions` excludes the '*' sentinel and `hasWildcard` is the
   //     boolean. Lets the UI distinguish "Admin (full access via *)" from
   //     "RoleMiner (these specific permissions)" for the badge display.
-  app.get('/api/auth-me', authMiddleware, (req, res) => {
+  //   - `me` maps the caller onto the crawled data: their Principal (account)
+  //     and Identity (person). Null when auth is off, nothing matched, or the
+  //     schema isn't up yet. Consumers: the header avatar today, and any
+  //     first-person question ("my groups", "my employees") later — see
+  //     auth/resolveMe.js.
+  app.get('/api/auth-me', authMiddleware, async (req, res) => {
     if (!isAuthEnabled()) {
-      return res.json({ enabled: false, hasWildcard: true, roles: [], permissions: [] });
+      return res.json({ enabled: false, hasWildcard: true, roles: [], permissions: [], me: null });
     }
     const perms = req.user?.permissions || new Set();
     const hasWildcard = perms.has('*');
@@ -331,6 +353,7 @@ export function createApp() {
       roles: req.user?.roles || [],
       permissions: Array.from(perms).filter(p => p !== '*'),
       hasWildcard,
+      me: await withMyPhoto(await resolveMe(req.user)),
     });
   });
 

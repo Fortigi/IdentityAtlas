@@ -319,3 +319,58 @@ describe('validateRecord', () => {
     expect(out).toEqual([]);
   });
 });
+
+// ── base64 fields (profile photos) ───────────────────────────────────────────
+//
+// Binary payloads travel as base64 because JSON has no binary type. The values
+// below are chosen so that a missing check FAILS: Buffer.from() accepts every
+// malformed string here and silently drops the undecodable tail, so without
+// validation these would be stored as truncated, corrupt bytes that only
+// surface as a broken image long after the crawl.
+describe('validateFieldValue — base64', () => {
+  const def = { type: 'base64' };
+
+  it('accepts canonical base64, padded and unpadded', () => {
+    expect(validateFieldValue('photo', def, 'AQID', 0, {}, 'native')).toEqual([]);
+    expect(validateFieldValue('photo', def, 'AQI=', 0, {}, 'native')).toEqual([]);
+    expect(validateFieldValue('photo', def, 'AQ==', 0, {}, 'native')).toEqual([]);
+  });
+
+  it('flags a non-string', () => {
+    const out = validateFieldValue('photo', def, 123, 0, {}, 'native');
+    expect(out).toEqual([`Record 0: 'photo' must be a base64 string`]);
+  });
+
+  it('flags characters outside the base64 alphabet', () => {
+    // '!' is not in the alphabet. Buffer.from would skip it and decode the
+    // rest, producing bytes that are wrong but not obviously so.
+    const out = validateFieldValue('photo', def, 'AQ!D', 0, {}, 'native');
+    expect(out).toEqual([`Record 0: 'photo' is not valid base64`]);
+  });
+
+  it('flags a length that cannot be a whole group', () => {
+    // 5 characters: one full group plus a single orphan character, which
+    // cannot encode any number of bytes.
+    const out = validateFieldValue('photo', def, 'AQIDA', 0, {}, 'native');
+    expect(out).toEqual([`Record 0: 'photo' is not valid base64`]);
+  });
+
+  it('flags padding that is not at the end', () => {
+    const out = validateFieldValue('photo', def, 'AQ==AQID', 0, {}, 'native');
+    expect(out).toEqual([`Record 0: 'photo' is not valid base64`]);
+  });
+
+  it('enforces maxBytes against the DECODED size, not the string length', () => {
+    // 8 base64 characters decode to 6 bytes. A cap of 6 must pass and a cap of
+    // 5 must fail — checking the string length instead would misjudge both.
+    const eightChars = 'AQIDBAUG';
+    expect(Buffer.byteLength(eightChars, 'base64')).toBe(6);
+    expect(validateFieldValue('photo', { type: 'base64', maxBytes: 6 }, eightChars, 0, {}, 'native')).toEqual([]);
+    expect(validateFieldValue('photo', { type: 'base64', maxBytes: 5 }, eightChars, 0, {}, 'native'))
+      .toEqual([`Record 0: 'photo' exceeds max size of 5 bytes`]);
+  });
+
+  it('accepts an empty string (nothing to decode, nothing to corrupt)', () => {
+    expect(validateFieldValue('photo', def, '', 0, {}, 'native')).toEqual([]);
+  });
+});

@@ -1085,3 +1085,156 @@ Describe 'Update-FGAccessTokenIfExpired - the debug gate' {
         finally { $Global:ClientSecret = $null }
     }
 }
+
+# ---------------------------------------------------------------------------
+# Invoke-FGGetRequestBytes — binary GET (profile photos and other media)
+# ---------------------------------------------------------------------------
+# The binary sibling of Invoke-FGGetRequest: same auth and retry contract, but
+# it must hand back raw bytes rather than a parsed object. The cases below pin
+# the two things that distinguish it — that it does NOT paginate, and that a
+# non-transient status (notably 404, which is how "this user has no photo"
+# arrives) is thrown rather than retried or swallowed.
+Describe 'Invoke-FGGetRequestBytes' {
+    BeforeAll { $Global:AccessToken = 'fake-token' }
+    AfterAll { $Global:AccessToken = $null }
+
+    It 'calls Invoke-WebRequest with GET, the URI and a Bearer header' {
+        Mock -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired { }
+        Mock -ModuleName IdentityAtlas Invoke-WebRequest {
+            [pscustomobject]@{ Content = [byte[]]@(1, 2, 3) }
+        }
+
+        Invoke-FGGetRequestBytes -URI 'https://graph.microsoft.com/beta/users/u1/photo' | Out-Null
+
+        Should -Invoke -ModuleName IdentityAtlas Invoke-WebRequest -Exactly 1 -ParameterFilter {
+            $Method -eq 'Get' -and
+            $Uri -eq 'https://graph.microsoft.com/beta/users/u1/photo' -and
+            $Headers['Authorization'] -eq 'Bearer fake-token'
+        }
+    }
+
+    It 'returns the bytes unchanged' {
+        Mock -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired { }
+        Mock -ModuleName IdentityAtlas Invoke-WebRequest {
+            [pscustomobject]@{ Content = [byte[]]@(137, 80, 78, 71) }
+        }
+
+        $bytes = Invoke-FGGetRequestBytes -URI 'https://graph.microsoft.com/x'
+
+        $bytes | Should -Be ([byte[]]@(137, 80, 78, 71))
+    }
+
+    It 'returns $null for an empty body' {
+        # Graph answers some unlicensed accounts with a 200 and no content
+        # instead of a 404. Returning an empty byte[] would be stored as a
+        # zero-length image; $null lets the caller record "no photo".
+        Mock -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired { }
+        Mock -ModuleName IdentityAtlas Invoke-WebRequest {
+            [pscustomobject]@{ Content = [byte[]]@() }
+        }
+
+        Invoke-FGGetRequestBytes -URI 'https://graph.microsoft.com/x' | Should -BeNullOrEmpty
+    }
+
+    It 'returns $null when the response carries no content at all' {
+        Mock -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired { }
+        Mock -ModuleName IdentityAtlas Invoke-WebRequest { [pscustomobject]@{ Content = $null } }
+
+        Invoke-FGGetRequestBytes -URI 'https://graph.microsoft.com/x' | Should -BeNullOrEmpty
+    }
+
+    It 'does not follow a nextLink — a media response is a single body' {
+        # The JSON siblings page; this one must not. A paging loop here would
+        # re-request the same photo until Graph rate-limited the crawl.
+        Mock -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired { }
+        Mock -ModuleName IdentityAtlas Invoke-WebRequest {
+            [pscustomobject]@{ Content = [byte[]]@(1); '@odata.nextLink' = 'https://graph.microsoft.com/p2' }
+        }
+
+        Invoke-FGGetRequestBytes -URI 'https://graph.microsoft.com/x' | Out-Null
+
+        Should -Invoke -ModuleName IdentityAtlas Invoke-WebRequest -Exactly 1
+    }
+
+    It 'throws a non-transient failure instead of retrying it' {
+        # "No photo" is a 404 and must reach the caller immediately. Retrying
+        # it would multiply the crawl's request count by the retry limit across
+        # every account without a picture — the majority in most tenants.
+        Mock -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired { }
+        Mock -ModuleName IdentityAtlas Invoke-WebRequest { throw 'not found' }
+        Mock -ModuleName IdentityAtlas Test-FGTransientError { $false }
+        Mock -ModuleName IdentityAtlas Start-Sleep { }
+
+        { Invoke-FGGetRequestBytes -URI 'https://graph.microsoft.com/x' } | Should -Throw
+
+        Should -Invoke -ModuleName IdentityAtlas Invoke-WebRequest -Exactly 1
+        Should -Invoke -ModuleName IdentityAtlas Start-Sleep -Exactly 0
+    }
+
+    It 'retries a transient error and returns the eventual body' {
+        Mock -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired { }
+        Mock -ModuleName IdentityAtlas Test-FGTransientError { $true }
+        Mock -ModuleName IdentityAtlas Get-FGRetryAfterWait { 0 }
+        Mock -ModuleName IdentityAtlas Start-Sleep { }
+        $script:byteAttempt = 0
+        Mock -ModuleName IdentityAtlas Invoke-WebRequest {
+            $script:byteAttempt++
+            if ($script:byteAttempt -lt 3) { throw 'transient' }
+            [pscustomobject]@{ Content = [byte[]]@(7) }
+        }
+
+        $bytes = Invoke-FGGetRequestBytes -URI 'https://graph.microsoft.com/x'
+
+        $bytes | Should -Be ([byte[]]@(7))
+        Should -Invoke -ModuleName IdentityAtlas Invoke-WebRequest -Exactly 3
+    }
+
+    It 'gives up after MaxRetries and rethrows' {
+        # The retry count is the bound on what one unreachable photo costs.
+        Mock -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired { }
+        Mock -ModuleName IdentityAtlas Test-FGTransientError { $true }
+        Mock -ModuleName IdentityAtlas Get-FGRetryAfterWait { 0 }
+        Mock -ModuleName IdentityAtlas Start-Sleep { }
+        Mock -ModuleName IdentityAtlas Invoke-WebRequest { throw 'always down' }
+
+        { Invoke-FGGetRequestBytes -URI 'https://graph.microsoft.com/x' -MaxRetries 2 } | Should -Throw
+
+        # 1 initial attempt + 2 retries.
+        Should -Invoke -ModuleName IdentityAtlas Invoke-WebRequest -Exactly 3
+    }
+
+    It 'refreshes the access token before retrying' {
+        # A long back-off can outlast the token. Without the refresh the retry
+        # would present an expired bearer and fail for a second, wrong reason.
+        Mock -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired { }
+        Mock -ModuleName IdentityAtlas Test-FGTransientError { $true }
+        Mock -ModuleName IdentityAtlas Get-FGRetryAfterWait { 0 }
+        Mock -ModuleName IdentityAtlas Start-Sleep { }
+        $script:refreshAttempt = 0
+        Mock -ModuleName IdentityAtlas Invoke-WebRequest {
+            $script:refreshAttempt++
+            if ($script:refreshAttempt -eq 1) { throw 'transient' }
+            [pscustomobject]@{ Content = [byte[]]@(1) }
+        }
+
+        Invoke-FGGetRequestBytes -URI 'https://graph.microsoft.com/x' | Out-Null
+
+        # Once up front, once before the retry.
+        Should -Invoke -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired -Exactly 2
+    }
+
+    It 'passes TimeoutSec through only when set' {
+        Mock -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired { }
+        Mock -ModuleName IdentityAtlas Invoke-WebRequest { [pscustomobject]@{ Content = [byte[]]@(1) } }
+
+        Invoke-FGGetRequestBytes -URI 'https://graph.microsoft.com/x' | Out-Null
+        Should -Invoke -ModuleName IdentityAtlas Invoke-WebRequest -Exactly 1 -ParameterFilter {
+            -not $PSBoundParameters.ContainsKey('TimeoutSec')
+        }
+
+        Invoke-FGGetRequestBytes -URI 'https://graph.microsoft.com/x' -TimeoutSec 5 | Out-Null
+        Should -Invoke -ModuleName IdentityAtlas Invoke-WebRequest -Exactly 1 -ParameterFilter {
+            $TimeoutSec -eq 5
+        }
+    }
+}

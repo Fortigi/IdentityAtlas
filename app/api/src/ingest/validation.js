@@ -68,6 +68,18 @@ const SCHEMAS = {
       contextId: { type: 'uuid' },
       createdDateTime: { type: 'string' },
       extendedAttributes: { type: 'json' },
+      // Profile photo. `photo` arrives base64-encoded (JSON has no binary
+      // type) and is decoded to BYTEA on the way into Postgres — see
+      // normalization.js. A crawler that looked and found none sends
+      // photo: null WITH photoFetchedAt set, which is how "no photo" is
+      // distinguished from "never asked".
+      // 256 KB is far above a profile thumbnail (a 96x96 JPEG is a few KB) but
+      // low enough that a misconfigured source can't push full-resolution
+      // portraits into every row. Photos are per-principal and ride the normal
+      // ingest batch, so the cap also keeps batch bodies predictable.
+      photo: { type: 'base64', maxBytes: 256 * 1024 },
+      photoContentType: { type: 'string', maxLength: 100 },
+      photoFetchedAt: { type: 'string' },
     },
   },
   resources: {

@@ -121,12 +121,15 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AppOwners.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AppPermissions.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.PrincipalRelationships.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.Photos.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Orchestration.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AttributeLabels.ps1')
 
 # Resolve all sync toggles + attribute lists from the job config.
 $cfg = Resolve-EntraSyncConfig -RawConfig $RawConfig
 $SyncMode              = $cfg.SyncMode
+$SyncProfilePhotos     = $cfg.SyncProfilePhotos
+$PhotoMaxAgeDays       = $cfg.PhotoMaxAgeDays
 $SyncPrincipals        = $cfg.SyncPrincipals
 $SyncServicePrincipals = $cfg.SyncServicePrincipals
 $SyncResources         = $cfg.SyncResources
@@ -196,6 +199,15 @@ $phaseTimings = [ordered]@{}
 if ($SyncPrincipals) {
     Sync-EntraPrincipals -SystemId $systemId -SyncMode $SyncMode `
         -CustomUserAttributes $CustomUserAttributes -IdentityFilter $IdentityFilter -Timings $phaseTimings
+}
+
+# ─── Sync Profile Photos ─────────────────────────────────────────
+# Opt-in, and runs after Principals because it works off the principals
+# already stored (it asks the API which ones still need a photo). Costs one
+# Graph request per user checked — a photo is a separate resource, not a
+# user property — so it is off unless explicitly selected.
+if ($SyncProfilePhotos) {
+    Sync-EntraUserPhotos -SystemId $systemId -MaxAgeDays $PhotoMaxAgeDays -Timings $phaseTimings
 }
 
 # ─── Sync Service Principals ─────────────────────────────────────
