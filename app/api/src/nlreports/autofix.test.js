@@ -461,3 +461,12 @@ describe('"not via an access package"', () => {
     expect(negatedBusinessRole(none, 'groups without an access package').spec).toBe(none);
   });
 });
+
+describe('the column the question asks to see — "access package" is not "access"', () => {
+  it('adds businessRoles.names only for "in welke access packages zit ik"', () => {
+    const { spec } = addAskedColumns({ entity: 'user', match: 'all', conditions: [], columns: ['displayName'] }, 'In welke access packages zit ik?');
+    expect(spec.columns).toEqual(['displayName', 'businessRoles.names']);
+    const { spec: rights } = addAskedColumns({ entity: 'user', match: 'all', conditions: [], columns: ['displayName'] }, 'welke rechten heb ik?');
+    expect(rights.columns).toEqual(['displayName', 'access.names']);
+  });
+});

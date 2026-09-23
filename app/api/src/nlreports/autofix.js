@@ -155,7 +155,7 @@ const ASKED_COLUMNS = {
     [/\b(eigenaar|eigenaren|owns?|owner of)\b/i, 'owns.names', /\b(groepen|groups?|lid van|member of)\b/i],
     [/\b(groepen|groups?|lid van|member of)\b/i, 'memberOf.names'],
     [/\b(access ?packages?|business ?roles?|bedrijfsrol(len)?|toegangspakket(ten)?)\b/i, 'businessRoles.names'],
-    [/\b(rechten|rights|permissions|toegang|access)\b/i, 'access.names'],
+    [/\b(rechten|rights|permissions|toegang|access(?! ?packages?))\b/i, 'access.names'], // "access package" is the rule above's
     [/\b(manager|leidinggevende)\b/i, 'manager.displayName'],
   ],
 };
