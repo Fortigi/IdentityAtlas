@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
+import { addMissingSelf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -263,5 +263,39 @@ describe('"is" with a list', () => {
     expect(spec.conditions[2]).toMatchObject({ op: 'eq', value: 'Jan' });
     const plain = { entity: 'user', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'eq', value: 'Jan' }] };
     expect(listEqualsToIn(plain).spec).toBe(plain);
+  });
+});
+
+describe('a question about the person asking whose definition names nobody', () => {
+  const ME = '@me';
+  const self = { type: 'field', field: 'id', op: 'eq', value: ME };
+
+  it('puts the caller on the account itself: "van welke groepen ben ik eigenaar"', () => {
+    const { spec, notes } = addMissingSelf({ entity: 'user', match: 'all', columns: ['owns.names'],
+      conditions: [{ type: 'relation', relation: 'owns', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'Group' }] }] },
+    'Van welke groepen ben ik eigenaar?', ME);
+    expect(spec.conditions.at(-1)).toEqual(self);
+    expect(spec.conditions).toHaveLength(2);
+    expect(notes[0]).toMatch(/Read "ik" as you/);
+  });
+
+  it('fills an empty relation that reaches accounts: "groups I own" as group where owners some', () => {
+    const { spec } = addMissingSelf({ entity: 'group', match: 'all',
+      conditions: [{ type: 'relation', relation: 'owners', quantifier: 'some', match: 'all', conditions: [] }] }, 'Which groups do I own?', ME);
+    expect(spec.conditions).toEqual([{ type: 'relation', relation: 'owners', quantifier: 'some', match: 'all', conditions: [self] }]);
+  });
+
+  it('falls back to members on a group report with nothing to fill', () => {
+    const { spec } = addMissingSelf({ entity: 'group', match: 'all', conditions: [{ type: 'field', field: 'securityEnabled', op: 'eq', value: true }] }, 'my security groups', ME);
+    expect(spec.conditions.at(-1)).toEqual({ type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [self] });
+  });
+
+  it('does nothing without a first-person word, or when the definition already names someone', () => {
+    const owners = { entity: 'group', match: 'all', conditions: [{ type: 'relation', relation: 'owners', quantifier: 'some', match: 'all', conditions: [] }] };
+    expect(addMissingSelf(owners, 'which groups have owners?', ME).spec).toBe(owners);
+    const jan = { entity: 'group', match: 'all', conditions: [{ type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'jan' }] }] };
+    expect(addMissingSelf(jan, 'my groups with jan', ME).spec).toBe(jan);
+    const mine = { entity: 'user', match: 'all', conditions: [self] };
+    expect(addMissingSelf(mine, 'my account', ME).spec).toBe(mine);
   });
 });

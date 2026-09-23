@@ -116,6 +116,47 @@ export function listEqualsToIn(spec) {
 const ACCOUNT_KINDS = new Set(['user', 'identity']);
 const isSelf = (c, me) => c?.type === 'field' && c.field === 'id' && c.op === 'eq' && c.value === me;
 
+/** Does the definition say anything about a particular person or record, anywhere? */
+function namesSomeone(conditions) {
+  return (conditions ?? []).some(c => (c.type === 'field' && (c.field === 'id' || c.field === 'displayName' || c.field === 'email'))
+    || c.type === 'compare'
+    || ((c.type === 'group' || c.type === 'relation') && namesSomeone(c.conditions)));
+}
+
+/**
+ * A question about the person asking whose definition names nobody at all.
+ *
+ * "Van welke groepen ben ik eigenaar?" came back as every account that owns
+ * a group; the correction round asked for the caller and the model still
+ * left them out. With a first-person word in the question, a known caller,
+ * and not one person or record named in the definition, there is one
+ * reading, and it is put in without asking: into the first empty relation
+ * that reaches accounts ("owners some" becomes "owners some id @me"), else
+ * on the report's own id when it is about accounts, else on its members.
+ * A definition that names anyone is left to resolveSelfAgainstPerson() and
+ * the correction round.
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function addMissingSelf(spec, question, me) {
+  const word = selfWord(question);
+  const entity = ENTITIES[spec?.entity];
+  if (!word || !entity || namesSomeone(spec.conditions)) return { spec, notes: [] };
+  const self = { type: 'field', field: 'id', op: 'eq', value: me };
+  const note = `Read "${word}" as you: the report is about your own account.`;
+  const conditions = spec.conditions ?? [];
+  const emptyToAccounts = conditions.findIndex(c => c.type === 'relation' && !(c.conditions ?? []).length
+    && ACCOUNT_KINDS.has(ENTITIES[entity.relations?.[c.relation]?.target]?.detailKind));
+  if (emptyToAccounts >= 0) {
+    const filled = conditions.map((c, i) => (i === emptyToAccounts ? { ...c, quantifier: 'some', conditions: [self] } : c));
+    return { spec: { ...spec, conditions: filled }, notes: [note] };
+  }
+  if (ACCOUNT_KINDS.has(entity.detailKind)) return { spec: { ...spec, conditions: [...conditions, self] }, notes: [note] };
+  if (entity.relations?.members) {
+    return { spec: { ...spec, conditions: [...conditions, { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [self] }] }, notes: [note] };
+  }
+  return { spec, notes: [] };
+}
+
 /**
  * The caller's placeholder where it cannot mean the caller.
  *

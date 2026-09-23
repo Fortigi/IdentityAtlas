@@ -681,19 +681,32 @@ describe('interpret — a question about the person asking that forgot them', ()
 
   beforeEach(() => { clearValuesCache(); });
 
-  it('asks once for the missing @me, naming the word, and takes a correction that uses it', async () => {
-    chat.mockResolvedValueOnce(reply(everyone)).mockResolvedValueOnce(reply(mine));
+  it('completes a definition that names nobody on the spot, in ONE call', async () => {
+    chat.mockResolvedValueOnce(reply(everyone));
     const r = await interpret({ question: 'In welke access packages zit ik?', model: 'm', substitutions: subs() });
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(r.kind).toBe('report');
+    expect(r.spec.conditions.at(-1)).toEqual({ type: 'field', field: 'id', op: 'eq', value: ME_ID });
+    expect(r.substituted).toEqual([]); // the MODEL never wrote @me — that is what this field counts
+  });
+
+  // With somebody else named, the definition is not completed blindly: the
+  // model is asked once, naming the word.
+  const withJan = { ...everyone, conditions: [{ type: 'relation', relation: 'businessRoles', quantifier: 'some', match: 'all',
+    conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'Jan' }] }] };
+  const mineWithJan = { ...withJan, conditions: [{ type: 'field', field: 'id', op: 'eq', value: '@me' }, ...withJan.conditions] };
+
+  it('asks once for the missing @me when someone else is named, and takes a correction that uses it', async () => {
+    chat.mockResolvedValueOnce(reply(withJan)).mockResolvedValueOnce(reply(mineWithJan));
+    const r = await interpret({ question: 'In welke access packages met Jan zit ik?', model: 'm', substitutions: subs() });
     expect(chat).toHaveBeenCalledTimes(2);
     expect(chat.mock.calls[1][0].messages.at(-1).content).toMatch(/says "ik"/);
-    expect(r.kind).toBe('report');
     expect(r.spec.conditions[0]).toEqual({ type: 'field', field: 'id', op: 'eq', value: ME_ID });
-    expect(r.substituted).toEqual(['@me']);
   });
 
   it('keeps the first definition when the correction still forgets them', async () => {
-    chat.mockResolvedValueOnce(reply(everyone)).mockResolvedValueOnce(reply(everyone));
-    const r = await interpret({ question: 'Which access packages am I in?', model: 'm', substitutions: subs() });
+    chat.mockResolvedValueOnce(reply(withJan)).mockResolvedValueOnce(reply(withJan));
+    const r = await interpret({ question: 'Which access packages with Jan am I in?', model: 'm', substitutions: subs() });
     expect(chat).toHaveBeenCalledTimes(2);
     expect(r.spec.conditions[0].relation).toBe('businessRoles');
   });
@@ -761,5 +774,20 @@ describe('interpret — a correction is never applied to a definition validation
     const r = await interpret({ question: 'changes', model: 'm' });
     expect(chat).toHaveBeenCalledTimes(2);
     expect(r.kind).toBe('error');
+  });
+});
+
+describe('interpret — a question about the caller whose definition names nobody is completed without a round', () => {
+  it('adds the caller and does not spend the correction round', async () => {
+    clearValuesCache();
+    query.mockResolvedValue({ rows: [{ v: 'Guest' }, { v: 'Member' }, { v: 'Group' }] });
+    const everyoneWhoOwns = { entity: 'user', match: 'all', columns: ['owns.names'],
+      conditions: [{ type: 'relation', relation: 'owns', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'Group' }] }] };
+    chat.mockResolvedValueOnce(reply(everyoneWhoOwns));
+    const r = await interpret({ question: 'Van welke groepen ben ik eigenaar?', model: 'm', substitutions: new Map([['@me', 'u-me']]) });
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(r.spec.conditions.at(-1)).toEqual({ type: 'field', field: 'id', op: 'eq', value: 'u-me' });
+    expect(r.substituted).toEqual([]); // the model did not write it; the pipeline did
+    expect(r.assumptions.join(' ')).toMatch(/Read "ik" as you/);
   });
 });

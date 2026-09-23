@@ -11,7 +11,7 @@ import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
-import { autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
+import { addMissingSelf, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
 import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
@@ -435,8 +435,9 @@ export async function interpret({ question, context = '', history = [], model = 
     const generic = genericCompareToRelation(grouping.spec);
     const sides = ctx.substitutions.has(ME) ? resolveSelfAgainstPerson(generic.spec, ctx.question, ME) : { spec: generic.spec, notes: [] };
     const placed = ctx.substitutions.has(ME) ? relocateSelf(sides.spec, ME) : { spec: sides.spec, notes: [] };
-    const before = [...grouping.notes, ...generic.notes, ...sides.notes, ...placed.notes];
-    const substituted = substituteValues(placed.spec, ctx.substitutions);
+    const added = ctx.substitutions.has(ME) ? addMissingSelf(placed.spec, ctx.question, ME) : { spec: placed.spec, notes: [] };
+    const before = [...grouping.notes, ...generic.notes, ...sides.notes, ...placed.notes, ...added.notes];
+    const substituted = substituteValues(added.spec, ctx.substitutions);
     const first = validateSpec(substituted, ctx.values, ctx.extFields);
     if (first.ok || !first.spec) return before.length ? { ...first, fixes: before } : first;
     // Validation drops what it rejects and hands back the rest. A correction
