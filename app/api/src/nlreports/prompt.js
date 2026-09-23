@@ -286,6 +286,13 @@ const EXAMPLES = [
     ], columns: [] } },
   },
   {
+    q: 'which rights does Piet Bakker have that Jan de Vries does not have?',
+    a: { kind: 'report', assumptions: ['Rights = every kind of resource held; no resourceType condition.'], spec: { entity: 'resource', match: 'all', conditions: [
+      { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'Piet Bakker' }] },
+      { type: 'relation', relation: 'members', quantifier: 'none', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'Jan de Vries' }] },
+    ], columns: [] } },
+  },
+  {
     q: 'was Jan de Vries added to or removed from any group in the last 90 days?',
     a: { kind: 'report', assumptions: ['Both additions and removals: no condition on action.'], spec: { entity: 'change', match: 'all', conditions: [
       { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'Jan de Vries' }] },
