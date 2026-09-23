@@ -53,6 +53,48 @@ export function dropUnaskedGrouping(spec, question) {
 
 const show = (v) => (typeof v === 'string' ? `"${v}"` : String(v));
 
+// First-person words that make a question about the person asking. "me" is
+// left out on purpose: "geef me een lijstje" / "give me a list" is not about
+// the caller. "I" only as the capital word (the English pronoun).
+const SELF_RE = /\b(ik|mijn|mijne|my|mine|myself)\b|\bI\b/;
+export const selfWord = (question) => String(question ?? '').match(SELF_RE)?.[0] ?? null;
+
+/**
+ * "Groups I have that william does not" written with william on BOTH sides:
+ * members some William AND members none William. The model has the shape
+ * right and the person on one side wrong, and which side follows the order
+ * of the question — the side mentioned first has, the second has not, in
+ * both languages ("ik wel … william niet", "I have … william does not",
+ * "william has … I don't"). The person asking replaces the duplicate on the
+ * side the question mentions them on. Anything less clear-cut (a name that is
+ * not in the question, no first-person word) is left to validation, which
+ * refuses the contradiction and sends it back with the same explanation.
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function resolveSelfAgainstPerson(spec, question, me) {
+  const text = String(question ?? '');
+  const self = text.match(SELF_RE);
+  if (!self) return { spec, notes: [] };
+  const relations = (spec?.conditions ?? []).filter(c => c.type === 'relation');
+  const some = relations.find(c => c.quantifier !== 'none' && (c.conditions ?? []).length);
+  const none = relations.find(c => c.quantifier === 'none' && c.relation === some?.relation);
+  if (!some || !none || JSON.stringify(some.conditions) !== JSON.stringify(none.conditions)) return { spec, notes: [] };
+  const named = some.conditions.find(c => c.field === 'displayName' && typeof c.value === 'string');
+  if (!named) return { spec, notes: [] };
+  const firstName = named.value.split(/[\s,]+/)[0].toLowerCase();
+  const at = text.toLowerCase().indexOf(firstName);
+  if (at < 0) return { spec, notes: [] };
+  const selfFirst = self.index < at;
+  const replaced = selfFirst ? some : none;
+  const conditions = spec.conditions.map(c => (c === replaced
+    ? { ...c, conditions: [{ type: 'field', field: 'id', op: 'eq', value: me }] }
+    : c));
+  return {
+    spec: { ...spec, conditions },
+    notes: [`Read the request as: the person asking ${selfFirst ? 'has' : 'has not'}, ${named.value} ${selfFirst ? 'has not' : 'has'}.`],
+  };
+}
+
 /**
  * A comparison whose reference is a KIND of thing, not a named one — "in an
  * access package", "part of a business role" — is the plain relation: has any.

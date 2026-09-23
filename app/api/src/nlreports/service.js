@@ -11,7 +11,7 @@ import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
-import { autofixSpec, dropUnaskedGrouping, genericCompareToRelation, lostLeaves } from './autofix.js';
+import { autofixSpec, dropUnaskedGrouping, genericCompareToRelation, lostLeaves, resolveSelfAgainstPerson, selfWord } from './autofix.js';
 import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
@@ -262,11 +262,6 @@ async function repairMissingOr(ctx, turn, result) {
   return retriedResult;
 }
 
-// First-person words that make a question about the person asking. "me" is
-// left out on purpose: "geef me een lijstje" / "give me a list" is not about
-// the caller. "I" only as the capital word (the English pronoun).
-const SELF_RE = /\b(ik|mijn|mijne|my|mine|myself)\b|\bI\b/;
-const selfWord = (question) => String(question ?? '').match(SELF_RE)?.[0] ?? null;
 // Either the placeholder or the caller's id copied out literally counts: both are about them.
 const mentionsCaller = (spec, substitutions) => sentinelsIn(spec, substitutions).includes(ME)
   || JSON.stringify(spec ?? null).includes(String(substitutions.get(ME)));
@@ -279,7 +274,8 @@ const mentionsCaller = (spec, substitutions) => sentinelsIn(spec, substitutions)
  */
 async function repairMissingSelf(ctx, turn, result) {
   const word = result.ok && ctx.substitutions.has(ME) ? selfWord(ctx.question) : null;
-  if (!word || mentionsCaller(turn.reply?.spec, ctx.substitutions)) return result;
+  // Checked on the VALIDATED definition: a correction made before validation (autofix.js) may already have put the caller in.
+  if (!word || mentionsCaller(result.spec, ctx.substitutions)) return result;
   const retry = await askForCorrection(ctx, turn,
     `The request says "${word}": it is about the person asking, but your definition has no condition for them. `
     + `Add the condition with value ${ME} on the right relation — their own account is id ${ME}; "my groups" = members some id ${ME}; `
@@ -437,8 +433,9 @@ export async function interpret({ question, context = '', history = [], model = 
   ctx.validate = (spec) => {
     const grouping = dropUnaskedGrouping(spec, ctx.question);
     const generic = genericCompareToRelation(grouping.spec);
-    const before = [...grouping.notes, ...generic.notes];
-    const first = validateSpec(substituteValues(generic.spec, ctx.substitutions), ctx.values, ctx.extFields);
+    const sides = ctx.substitutions.has(ME) ? resolveSelfAgainstPerson(generic.spec, ctx.question, ME) : { spec: generic.spec, notes: [] };
+    const before = [...grouping.notes, ...generic.notes, ...sides.notes];
+    const first = validateSpec(substituteValues(sides.spec, ctx.substitutions), ctx.values, ctx.extFields);
     if (first.ok || !first.spec) return before.length ? { ...first, fixes: before } : first;
     const fixed = autofixSpec(first.spec);
     if (!fixed.notes.length) return first;

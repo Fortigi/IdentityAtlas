@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { asksForCounts, autofixSpec, dropUnaskedGrouping, genericCompareToRelation, leaves, lostLeaves } from './autofix.js';
+import { asksForCounts, autofixSpec, dropUnaskedGrouping, genericCompareToRelation, leaves, lostLeaves, resolveSelfAgainstPerson } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -160,5 +160,35 @@ describe('a comparison with a kind of thing where a name should be', () => {
     expect(genericCompareToRelation(named).spec).toBe(named);
     const resolved = { entity: 'group', match: 'all', conditions: [{ type: 'compare', relation: 'businessRoles', measure: 'containsAll', reference: { entity: 'resource', name: 'group', id: 'r1' } }] };
     expect(genericCompareToRelation(resolved).spec).toBe(resolved);
+  });
+});
+
+describe('the person asking against a named person, on the right side', () => {
+  const william = { type: 'field', field: 'displayName', op: 'contains', value: 'william' };
+  const rel = (quantifier, ...conditions) => ({ type: 'relation', relation: 'members', quantifier, match: 'all', conditions });
+  const both = { entity: 'group', match: 'all', conditions: [rel('some', william), rel('none', william)] };
+  const ME = '@me';
+
+  it('puts the caller on the "some" side when the question mentions them first', () => {
+    // Verbatim: "welke groepen heb ik wel, die william niet heeft".
+    const { spec, notes } = resolveSelfAgainstPerson(both, 'Kan je me vertellen welke groepen ik wel heb, die william niet heeft?', ME);
+    expect(spec.conditions[0].conditions).toEqual([{ type: 'field', field: 'id', op: 'eq', value: ME }]);
+    expect(spec.conditions[1].conditions).toEqual([william]);
+    expect(notes[0]).toMatch(/the person asking has, william has not/);
+    expect(resolveSelfAgainstPerson(both, 'Which groups do I have that william does not have?', ME).spec.conditions[0].conditions[0].value).toBe(ME);
+  });
+
+  it('puts the caller on the "none" side when the named person comes first', () => {
+    const { spec } = resolveSelfAgainstPerson(both, 'Welke groepen heeft william die ik niet heb?', ME);
+    expect(spec.conditions[0].conditions).toEqual([william]);
+    expect(spec.conditions[1].conditions[0].value).toBe(ME);
+  });
+
+  it('leaves alone: two different people, no first-person word, a name not in the question, or one relation', () => {
+    const jan = { type: 'field', field: 'displayName', op: 'contains', value: 'jan' };
+    expect(resolveSelfAgainstPerson({ ...both, conditions: [rel('some', william), rel('none', jan)] }, 'groups I have that jan does not', ME).notes).toEqual([]);
+    expect(resolveSelfAgainstPerson(both, 'groups william is in that william is not in', ME).notes).toEqual([]);
+    expect(resolveSelfAgainstPerson(both, 'welke groepen heb ik wel die piet niet heeft', ME).notes).toEqual([]);
+    expect(resolveSelfAgainstPerson({ ...both, conditions: [rel('some', william)] }, 'my groups with william', ME).notes).toEqual([]);
   });
 });

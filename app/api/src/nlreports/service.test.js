@@ -727,3 +727,21 @@ describe('the value lists are the cached start of every user message', () => {
     expect(warm.mock.calls.at(-1)[2]).toBe(buildValuesBlock(await loadValues()));
   });
 });
+
+describe('interpret — "groups I have that william does not" with william on both sides', () => {
+  it('is resolved before validation, in ONE model call, with the caller on the side the question names first', async () => {
+    clearValuesCache();
+    query.mockImplementation(async (sql) => (sql.includes('OVER()')
+      ? { rows: [{ id: 'u-w', displayName: 'William Overweg', type: 'User', total: 1 }] }
+      : { rows: [{ v: 'Guest' }, { v: 'Member' }] }));
+    const william = { type: 'field', field: 'displayName', op: 'contains', value: 'william' };
+    const rel = (quantifier) => ({ type: 'relation', relation: 'members', quantifier, match: 'all', conditions: [william] });
+    chat.mockResolvedValueOnce(reply({ entity: 'group', match: 'all', conditions: [rel('some'), rel('none')], columns: [] }));
+    const r = await interpret({ question: 'Which groups do I have that william does not have?', model: 'm', substitutions: new Map([['@me', 'u-me']]) });
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(r.kind).toBe('report');
+    expect(r.spec.conditions[0].conditions[0]).toEqual({ type: 'field', field: 'id', op: 'eq', value: 'u-me' });
+    expect(r.spec.conditions[1].conditions[0]).toMatchObject({ op: 'eq', value: 'William Overweg' });
+    expect(r.assumptions.join(' ')).toMatch(/the person asking has/);
+  });
+});
