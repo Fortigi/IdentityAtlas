@@ -11,7 +11,7 @@ import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
-import { addMissingSelf, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
+import { accessPackageAsRelation, addMissingSelf, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson, selfWord } from './autofix.js';
 import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
@@ -432,7 +432,7 @@ export async function interpret({ question, context = '', history = [], model = 
   // along as `fixes`, so the answer can say so.
   ctx.validate = (spec) => {
     const grouping = dropUnaskedGrouping(listEqualsToIn(dedupeConditions(spec).spec).spec, ctx.question);
-    const generic = genericCompareToRelation(grouping.spec);
+    const generic = genericCompareToRelation(accessPackageAsRelation(grouping.spec).spec);
     const sides = ctx.substitutions.has(ME) ? resolveSelfAgainstPerson(generic.spec, ctx.question, ME) : { spec: generic.spec, notes: [] };
     const placed = ctx.substitutions.has(ME) ? relocateSelf(sides.spec, ME) : { spec: sides.spec, notes: [] };
     const added = ctx.substitutions.has(ME) ? addMissingSelf(placed.spec, ctx.question, ME) : { spec: placed.spec, notes: [] };

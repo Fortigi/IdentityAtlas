@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { addMissingSelf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
+import { accessPackageAsRelation, addMissingSelf, asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, relocateSelf, resolveSelfAgainstPerson } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -297,5 +297,31 @@ describe('a question about the person asking whose definition names nobody', () 
     expect(addMissingSelf(jan, 'my groups with jan', ME).spec).toBe(jan);
     const mine = { entity: 'user', match: 'all', conditions: [self] };
     expect(addMissingSelf(mine, 'my account', ME).spec).toBe(mine);
+  });
+});
+
+describe('"in an access package" written as a resource type where there is none', () => {
+  const inRole = { type: 'relation', relation: 'businessRoles', quantifier: 'some', match: 'all', conditions: [] };
+  const br = { type: 'field', field: 'resourceType', op: 'eq', value: 'BusinessRole' };
+
+  it('inside members of a group becomes the businessRoles relation, the members condition going with it', () => {
+    // Verbatim: "Which of these groups are part of an access package?"
+    const { spec, notes } = accessPackageAsRelation({ entity: 'group', match: 'all',
+      conditions: [{ type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [br] }] });
+    expect(spec.conditions).toEqual([inRole]);
+    expect(notes).toHaveLength(1);
+  });
+
+  it('on a group\'s own fields becomes the relation too, and keeps what else was there', () => {
+    const ids = { type: 'field', field: 'id', op: 'in', value: ['g1'] };
+    const { spec } = accessPackageAsRelation({ entity: 'group', match: 'all', conditions: [ids, br] });
+    expect(spec.conditions).toEqual([ids, inRole]);
+  });
+
+  it('leaves a resource report alone — there it is a real condition — and never doubles an existing relation', () => {
+    const resources = { entity: 'resource', match: 'all', conditions: [br] };
+    expect(accessPackageAsRelation(resources).spec).toBe(resources);
+    const { spec } = accessPackageAsRelation({ entity: 'group', match: 'all', conditions: [br, inRole] });
+    expect(spec.conditions).toEqual([inRole]);
   });
 });

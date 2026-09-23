@@ -47,3 +47,4 @@
 - "Which groups am I a member of" written with you inside the group condition (a group whose id is yours) is corrected to a report about your account, instead of returning nothing.
 - A follow-up written as "is one of these" with the list on the wrong operator, or with the previous groups on a user report's own id, is corrected instead of failing or running about everyone.
 - A question about yourself whose definition names nobody ("van welke groepen ben ik eigenaar") is completed with you on the spot, instead of answering for everyone or asking the model again.
+- "In an access package" written as a resource type where no such field exists (on a group, or on its members) is read as the business-role relation instead of being dropped.

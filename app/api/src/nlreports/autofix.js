@@ -116,6 +116,44 @@ export function listEqualsToIn(spec) {
 const ACCOUNT_KINDS = new Set(['user', 'identity']);
 const isSelf = (c, me) => c?.type === 'field' && c.field === 'id' && c.op === 'eq' && c.value === me;
 
+const isBusinessRoleType = (c) => c?.type === 'field' && c.field === 'resourceType' && c.op === 'eq' && String(c.value).toLowerCase() === 'businessrole';
+
+/**
+ * "In an access package" written as resourceType = BusinessRole where that
+ * field does not exist — on a group's own fields, or inside members (accounts
+ * have no resource type). Validation would drop the condition and the report
+ * would be about every group; the model has produced this shape three times.
+ * Where the entity has a businessRoles relation, that is what was meant.
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function accessPackageAsRelation(spec) {
+  const entity = ENTITIES[spec?.entity];
+  if (!entity?.relations?.businessRoles) return { spec, notes: [] };
+  const inRole = () => ({ type: 'relation', relation: 'businessRoles', quantifier: 'some', match: 'all', conditions: [] });
+  let moved = 0;
+  const fix = (conditions, owner) => {
+    const out = [];
+    let wanted = false;
+    for (const c of conditions ?? []) {
+      if (isBusinessRoleType(c) && !owner.fields?.resourceType) { wanted = true; continue; }
+      if (c.type === 'relation') {
+        const target = ENTITIES[owner.relations?.[c.relation]?.target];
+        const inner = (c.conditions ?? []).filter(x => !(isBusinessRoleType(x) && target && !target.fields?.resourceType));
+        if (inner.length !== (c.conditions ?? []).length) {
+          wanted = true;
+          if (inner.length) out.push({ ...c, conditions: inner });
+          continue;
+        }
+      }
+      out.push(c.type === 'group' ? { ...c, conditions: fix(c.conditions, owner) } : c);
+    }
+    if (wanted && !out.some(c => c.type === 'relation' && c.relation === 'businessRoles')) { out.push(inRole()); moved++; } else if (wanted) moved++;
+    return out;
+  };
+  const conditions = fix(spec.conditions, entity);
+  return moved ? { spec: { ...spec, conditions }, notes: ['Read "access package" / "business role" as: in a business role.'] } : { spec, notes: [] };
+}
+
 /** Does the definition say anything about a particular person or record, anywhere? */
 function namesSomeone(conditions) {
   return (conditions ?? []).some(c => (c.type === 'field' && (c.field === 'id' || c.field === 'displayName' || c.field === 'email'))
