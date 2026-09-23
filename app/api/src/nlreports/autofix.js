@@ -103,6 +103,30 @@ export function resolveSelfAgainstPerson(spec, question, me) {
  * it, which is a question about a record nobody mentioned.
  * @returns {{ spec: object, notes: string[] }}
  */
+/**
+ * The same condition written twice (or eight times) in one list is one
+ * condition. A model that starts repeating itself stops where the grammar's
+ * list limit says; what it wrote up to there is still the definition it
+ * meant, minus the echoes.
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function dedupeConditions(spec) {
+  let dropped = 0;
+  const fix = (conditions) => {
+    const seen = new Set();
+    const out = [];
+    for (const c of conditions ?? []) {
+      const key = JSON.stringify(c);
+      if (seen.has(key)) { dropped++; continue; }
+      seen.add(key);
+      out.push(c.type === 'group' || c.type === 'relation' ? { ...c, conditions: fix(c.conditions) } : c);
+    }
+    return out;
+  };
+  const conditions = fix(spec?.conditions);
+  return dropped ? { spec: { ...spec, conditions }, notes: [`Dropped ${dropped} repeated condition${dropped === 1 ? '' : 's'}.`] } : { spec, notes: [] };
+}
+
 export function genericCompareToRelation(spec) {
   const notes = [];
   const fix = (conditions) => (conditions ?? []).map((c) => {

@@ -23,6 +23,7 @@ const TIMEOUT_MS = Number(process.env.NL_REPORTS_LLM_TIMEOUT_MS) || 900_000;
 // control (Azure: no VNet, so the Container App has public ingress).
 const API_KEY = process.env.NL_REPORTS_LLM_API_KEY || '';
 const SLOT = 0;
+export const MAX_REPLY_TOKENS = 450;
 
 const call = (method, path, body) => httpJson({
   url: `${BASE_URL}${path}`,
@@ -109,7 +110,10 @@ function completionBody(messages, { schema, maxTokens }) {
  * @returns {Promise<{ content: string, timing: object }>}
  */
 export async function chat({ messages, schema }) {
-  const j = await ok('POST', '/v1/chat/completions', completionBody(messages, { schema, maxTokens: 1200 }));
+  // 450, not 1200: the largest sensible reply is ~250 tokens, and at about a
+  // token a second on the CPU box every token past that is a minute nobody
+  // waits for. A reply cut here was a loop, and is reported as one.
+  const j = await ok('POST', '/v1/chat/completions', completionBody(messages, { schema, maxTokens: MAX_REPLY_TOKENS }));
   const t = j.timings || {};
   return {
     content: j.choices?.[0]?.message?.content ?? '',

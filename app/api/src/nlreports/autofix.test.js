@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { asksForCounts, autofixSpec, dropUnaskedGrouping, genericCompareToRelation, leaves, lostLeaves, resolveSelfAgainstPerson } from './autofix.js';
+import { asksForCounts, autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, leaves, lostLeaves, resolveSelfAgainstPerson } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -190,5 +190,25 @@ describe('the person asking against a named person, on the right side', () => {
     expect(resolveSelfAgainstPerson(both, 'groups william is in that william is not in', ME).notes).toEqual([]);
     expect(resolveSelfAgainstPerson(both, 'welke groepen heb ik wel die piet niet heeft', ME).notes).toEqual([]);
     expect(resolveSelfAgainstPerson({ ...both, conditions: [rel('some', william)] }, 'my groups with william', ME).notes).toEqual([]);
+  });
+});
+
+describe('a condition written more than once', () => {
+  it('collapses the echoes, inside a relation too, and says how many went', () => {
+    const neq = { type: 'field', field: 'resourceType', op: 'neq', value: 'Group' };
+    const { spec, notes } = dedupeConditions({
+      entity: 'account', match: 'all',
+      conditions: [
+        { type: 'relation', relation: 'access', quantifier: 'none', match: 'all', conditions: [neq, neq, neq, neq] },
+        { type: 'relation', relation: 'access', quantifier: 'none', match: 'all', conditions: [neq, neq, neq, neq] },
+      ],
+    });
+    expect(spec.conditions).toEqual([{ type: 'relation', relation: 'access', quantifier: 'none', match: 'all', conditions: [neq] }]);
+    expect(notes).toEqual(['Dropped 4 repeated conditions.']);
+  });
+
+  it('returns the same object when nothing repeats', () => {
+    const plain = { entity: 'group', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'a' }] };
+    expect(dedupeConditions(plain).spec).toBe(plain);
   });
 });

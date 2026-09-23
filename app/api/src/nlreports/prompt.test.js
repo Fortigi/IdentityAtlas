@@ -48,20 +48,26 @@ describe('reply grammar', () => {
   });
 
   it("never lets the model emit more than validation accepts", () => {
-    // The two limits are one rule. If the grammar allowed more, a reply could be
-    // well-formed and still rejected; if it allowed fewer, a valid report could not
-    // be written at all.
+    // If the grammar allowed more than the validator, a reply could be well-formed
+    // and still rejected. It may allow LESS: the validator's limits are for
+    // definitions built by hand in the editor; the grammar's are what stops a
+    // model that has started repeating itself.
     const spec = RESPONSE_SCHEMA.anyOf[0].properties.spec.properties;
-    expect(spec.columns.maxItems).toBe(MAX_COLUMNS);
-    expect(spec.conditions.maxItems).toBe(MAX_CONDITIONS);
+    expect(spec.columns.maxItems).toBeLessThanOrEqual(MAX_COLUMNS);
+    expect(spec.conditions.maxItems).toBeLessThanOrEqual(MAX_CONDITIONS);
+    expect(spec.columns.maxItems).toBe(REPLY_LIMITS.columns);
+    expect(spec.conditions.maxItems).toBe(REPLY_LIMITS.conditions);
   });
 
   it('leaves room for the largest definition in the measured question sets', () => {
     // Observed maxima across 56 questions: 3 top-level conditions, 2 nested, 3
     // columns in the prompt examples. The limits are meant to stop a loop, never a
     // real report.
-    expect(REPLY_LIMITS.conditions).toBeGreaterThanOrEqual(3 * 4);
-    expect(REPLY_LIMITS.columns).toBeGreaterThanOrEqual(3 * 4);
+    // Largest list in any expected answer across the three sets: 4 conditions.
+    // Twice that is room; more than that is rope for a loop.
+    expect(REPLY_LIMITS.conditions).toBeGreaterThanOrEqual(4 * 2);
+    expect(REPLY_LIMITS.conditions).toBeLessThanOrEqual(10);
+    expect(REPLY_LIMITS.columns).toBeGreaterThanOrEqual(4 * 2);
   });
 });
 

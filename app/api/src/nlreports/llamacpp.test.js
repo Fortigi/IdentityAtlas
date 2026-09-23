@@ -52,7 +52,7 @@ describe('llama.cpp client', () => {
     const { chat } = await client();
     const r = await chat({ messages: [{ role: 'user', content: 'q' }], schema: { type: 'object' } });
     expect(calls[0].body).toEqual({
-      messages: [{ role: 'user', content: 'q' }], temperature: 0, max_tokens: 1200, cache_prompt: true,
+      messages: [{ role: 'user', content: 'q' }], temperature: 0, max_tokens: 450, cache_prompt: true,
       response_format: { type: 'json_schema', json_schema: { schema: { type: 'object' } } },
     });
     expect(r).toEqual({
@@ -180,5 +180,14 @@ describe('llama.cpp client — the deployment prefix behind the system prompt', 
     expect(calls[4].body.messages[1].content).toBe('ready?');
     expect(calls[6].body.messages[1].content).toBe('Values that exist: a | b\n\nRequest: ready?');
     expect(calls[5].body.filename).not.toBe(calls[7].body.filename);
+  });
+});
+
+describe('llama.cpp client — the reply cap', () => {
+  it('asks for at most 450 tokens: a longer reply is a loop, not a definition', async () => {
+    const { chat, MAX_REPLY_TOKENS } = await client();
+    await chat({ messages: [{ role: 'user', content: 'q' }] });
+    expect(MAX_REPLY_TOKENS).toBe(450);
+    expect(calls.find(c => c.url.endsWith('/v1/chat/completions')).body.max_tokens).toBe(450);
   });
 });

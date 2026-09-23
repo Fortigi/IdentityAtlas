@@ -25,8 +25,13 @@ const allRelationNames = [...new Set(Object.values(ENTITIES).flatMap(e => Object
 // grammar never allows what validation would reject anyway; the prose limits are
 // generous next to anything a useful reply says.
 export const REPLY_LIMITS = {
-  conditions: MAX_CONDITIONS,
-  columns: MAX_COLUMNS,
+  // Eight, not the validator's twenty-five: the largest definition any measured
+  // question needs has four conditions in one list, and a model that starts
+  // repeating a condition ("resourceType neq Group", fifteen tokens, again and
+  // again) stops where the grammar says — with twenty-five that was 13 minutes
+  // to the token cap and a reply that was no longer JSON.
+  conditions: Math.min(8, MAX_CONDITIONS),
+  columns: Math.min(8, MAX_COLUMNS),
   // Two short assumptions, not five long ones: on the CPU box this runs on
   // every token is close to a second, and a reply that explained itself in
   // three sentences of prose spent longer on the prose than on the definition.

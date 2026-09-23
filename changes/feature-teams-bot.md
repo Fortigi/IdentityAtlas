@@ -43,3 +43,4 @@
 - A follow-up whose definition put "these groups" on the wrong relation (the members instead of the groups themselves) is corrected instead of returning nothing.
 - A definition that requires the same relation to both have and not have the same records ("groups william is in that william is not in") is refused with a message that says which side must be the person asking.
 - "Which groups do I have that william does not" no longer needs a second model round when the model wrote william on both sides: the person asking is placed on the side the question mentions first, and the answer says so.
+- A reply in which the model starts repeating a condition now stops after a few items instead of running for thirteen minutes to the token limit; repeated conditions are collapsed to one.

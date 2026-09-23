@@ -11,7 +11,7 @@ import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
-import { autofixSpec, dropUnaskedGrouping, genericCompareToRelation, lostLeaves, resolveSelfAgainstPerson, selfWord } from './autofix.js';
+import { autofixSpec, dedupeConditions, dropUnaskedGrouping, genericCompareToRelation, lostLeaves, resolveSelfAgainstPerson, selfWord } from './autofix.js';
 import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
@@ -431,7 +431,7 @@ export async function interpret({ question, context = '', history = [], model = 
   // once more before a repair round is spent on it. What was corrected rides
   // along as `fixes`, so the answer can say so.
   ctx.validate = (spec) => {
-    const grouping = dropUnaskedGrouping(spec, ctx.question);
+    const grouping = dropUnaskedGrouping(dedupeConditions(spec).spec, ctx.question);
     const generic = genericCompareToRelation(grouping.spec);
     const sides = ctx.substitutions.has(ME) ? resolveSelfAgainstPerson(generic.spec, ctx.question, ME) : { spec: generic.spec, notes: [] };
     const before = [...grouping.notes, ...generic.notes, ...sides.notes];
