@@ -632,7 +632,7 @@
     "category": "question",
     "question": "Kan je me een lijstje geven van disabled accounts?",
     "expected": {
-      "entity": "user",
+      "entity": "account",
       "conditions": [
         {
           "field": "accountEnabled",
@@ -645,7 +645,7 @@
       {
         "question": "Van welke groepen zijn deze accounts nog lid?",
         "expected": {
-          "entity": "user",
+          "entity": "account",
           "conditions": [
             {
               "field": "id",
@@ -665,7 +665,7 @@
     "category": "question",
     "question": "Can you give me a list of disabled accounts?",
     "expected": {
-      "entity": "user",
+      "entity": "account",
       "conditions": [
         {
           "field": "accountEnabled",
@@ -678,7 +678,7 @@
       {
         "question": "Which groups are these accounts still in?",
         "expected": {
-          "entity": "user",
+          "entity": "account",
           "conditions": [
             {
               "field": "id",
