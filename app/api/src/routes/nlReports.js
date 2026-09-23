@@ -203,6 +203,7 @@ router.post('/nl-reports/interpret', askGate, async (req, res) => {
       modelMs: reply.timing?.totalMs ?? reply.timing?.total ?? null,
       context: reply.context ?? null,
       rawReply: reply.raw ?? null,
+      firstReply: reply.firstRaw ?? null,
       repaired: reply.repaired,
       model: reply.model ?? model,
     });

@@ -8,7 +8,7 @@ import { query, tx } from '../db/connection.js';
 import { chat, warm } from './llm.js';
 import { buildSystemPrompt, REPORT_ONLY_SCHEMA, RESPONSE_SCHEMA } from './prompt.js';
 import {
-  clearValuesCache, ensureWarm, hasAnyMatch, hasDisjunction, interpret, needsOrRepair, runSpec, schemaFor,
+  clearValuesCache, disjunctionPhrase, ensureWarm, hasAnyMatch, hasDisjunction, interpret, needsOrRepair, orRepairMessage, runSpec, schemaFor,
   warmAtStartup, warmupState,
 } from './service.js';
 import { clearExtFieldsCache } from './extFields.js';
@@ -642,5 +642,32 @@ describe('interpret — a request the assistant declines', () => {
     expect(chat).toHaveBeenCalledTimes(1);
     expect(r).toMatchObject({ kind: 'decline', reason: 'I only build reports on the directory.', raw: expect.any(String) });
     expect(r.spec).toBeUndefined();
+  });
+});
+
+describe('interpret — the first attempt travels with a repaired answer', () => {
+  beforeEach(() => { clearValuesCache(); });
+
+  it('carries the first reply only when a correction replaced it', async () => {
+    const BAD = { ...AND_SPEC, conditions: [{ type: 'field', field: 'noSuchField', op: 'eq', value: 'x' }] };
+    chat.mockResolvedValueOnce(reply(BAD)).mockResolvedValueOnce(reply(AND_SPEC));
+    const repaired = await interpret({ question: 'guests', model: 'm' });
+    expect(repaired.repaired).toBe(true);
+    expect(JSON.parse(repaired.firstRaw).spec.conditions[0].field).toBe('noSuchField');
+    expect(repaired.raw).not.toBe(repaired.firstRaw);
+
+    chat.mockResolvedValueOnce(reply(AND_SPEC));
+    const clean = await interpret({ question: 'guests', model: 'm' });
+    expect(clean.firstRaw).toBeNull();
+  });
+});
+
+describe('the OR correction names the alternatives', () => {
+  it('quotes the words either side of "or" / "of", and falls back to the generic wording', () => {
+    expect(orRepairMessage('is william toegevoegd of verwijderd uit groepen?')).toMatch(/says "toegevoegd of verwijderd": those are alternatives/);
+    expect(orRepairMessage('accounts that are either a guest or disabled')).toMatch(/says "guest or disabled"/);
+    // "vertellen of" is "tell whether", not an alternative.
+    expect(disjunctionPhrase('kan je me vertellen of william lid is')).toBeNull();
+    expect(orRepairMessage('guests, or disabled accounts')).toMatch(/The request says "or", but/);
   });
 });

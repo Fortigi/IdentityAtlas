@@ -98,7 +98,9 @@ export function callerContextBlock(caller) {
     `The person asking this question is ${name}, whose account id is ${caller.principalId}.`,
     'When the request says "my", "mine", "I", "mijn" or "ik", it refers to them.',
     `Write ${ME} as the value whenever a condition should match that person's own account,`,
-    `for example "my direct reports" = accounts whose manager relation has id ${ME}.`,
+    `for example "my direct reports" = accounts whose manager relation has id ${ME};`,
+    `"my groups" = the group entity with members some id ${ME};`,
+    `"groups I have that X does not" = the group entity with members some id ${ME} AND members none for X (never the user entity).`,
   ].join(' ');
 }
 

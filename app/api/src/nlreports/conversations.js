@@ -73,6 +73,7 @@ const cap = (s, n) => (s === null || s === undefined ? null : String(s).slice(0,
  * @param {string|null} entry.language
  * @param {string|null} [entry.context]   what was put in front of the question for the model
  * @param {string|null} [entry.rawReply]  the model's last reply, verbatim
+ * @param {string|null} [entry.firstReply] its first reply, when a correction round replaced it
  * @param {boolean|null} [entry.repaired] whether it took a second attempt
  * @param {string|null} [entry.model]
  * @param {object|null} entry.definition  the VALIDATED definition, never the raw reply
@@ -94,8 +95,8 @@ export async function logConversation(entry, q = query) {
          "id", "surface", "callerOid", "callerPrincipalId", "conversationId",
          "question", "language", "context", "rawReply", "repaired", "model",
          "definition", "outcome", "clarification",
-         "rowCount", "columns", "truncated", "modelMs", "queryMs", "totalMs", "error"
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+         "rowCount", "columns", "truncated", "modelMs", "queryMs", "totalMs", "error", "firstReply"
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
       [
         entry.id,
         entry.surface ?? SURFACES.TEAMS,
@@ -125,6 +126,7 @@ export async function logConversation(entry, q = query) {
         entry.queryMs ?? null,
         entry.totalMs ?? null,
         entry.error ? forLog(entry.error, 500) : null,
+        cap(entry.firstReply, MAX_TEXT),
       ],
     );
     return entry.id;

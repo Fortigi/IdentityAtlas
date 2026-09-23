@@ -41,6 +41,32 @@ const SEARCHABLE = [
 const STOPWORDS = new Set(['i', 'id', 'ids', 'or', 'and', 'not', 'ok', 'upn']);
 const MIN_TERM_LENGTH = 3;
 
+// Tokens of a person's display name that are not the person: the particles of
+// a Dutch or German surname, titles, and the words a question is made of.
+// "Wim van den Heijkant" put "van" and "den" among the names the directory
+// knows, and "Welke VAN deze groepen" then asked the caller which Van they
+// meant. The list is a floor, not a dictionary: a lower-case word is admitted
+// as a name only when the directory knows it AND it is not one of these.
+const NOT_A_NAME = new Set([
+  // surname particles and titles
+  'van', 'den', 'der', 'de', 'het', 'von', 'vom', 'zu', 'zur', 'la', 'le', 'du', 'des', 'di', 'da', 'dos', 'del', 'della',
+  'ten', 'ter', 'op', 'aan', 'bij', 'in', 'en', 'of', 'the', 'and', 'mr', 'mrs', 'ms', 'dr', 'ir', 'ing', 'drs', 'jr', 'sr', 'bsc', 'msc',
+  // words a question is made of (Dutch)
+  'welke', 'wie', 'wat', 'waar', 'hoe', 'hoeveel', 'deze', 'die', 'dat', 'dit', 'een', 'ben', 'bent', 'zijn', 'was', 'waren',
+  'heb', 'hebt', 'heeft', 'hebben', 'had', 'kan', 'kun', 'kunnen', 'mag', 'moet', 'wil', 'zou', 'wordt', 'worden', 'werd',
+  'niet', 'geen', 'wel', 'ook', 'nog', 'dan', 'dus', 'maar', 'als', 'met', 'voor', 'door', 'naar', 'over', 'onder', 'uit',
+  'tot', 'per', 'via', 'alle', 'alles', 'elke', 'iedere', 'ieder', 'mijn', 'mij', 'ons', 'onze', 'jouw', 'jou', 'zijn', 'haar',
+  'hun', 'lid', 'leden', 'groep', 'groepen', 'laat', 'toon', 'geef', 'zien', 'graag', 'even', 'meer', 'minder', 'veel', 'weinig',
+  'laatste', 'recent', 'sinds', 'binnen', 'nieuw', 'oud', 'welk', 'zonder', 'behalve',
+  // words a question is made of (English)
+  'who', 'what', 'where', 'when', 'how', 'many', 'much', 'which', 'this', 'that', 'these', 'those', 'are', 'were', 'has', 'have',
+  'had', 'can', 'could', 'may', 'might', 'must', 'will', 'would', 'should', 'does', 'did', 'not', 'all', 'any', 'some', 'each',
+  'every', 'with', 'from', 'into', 'out', 'for', 'per', 'via', 'our', 'your', 'their', 'his', 'her', 'its', 'own', 'list',
+  'show', 'give', 'tell', 'find', 'get', 'see', 'more', 'less', 'last', 'recent', 'since', 'within', 'new', 'old', 'only',
+  'also', 'still', 'than', 'then', 'but', 'yes', 'please',
+]);
+const couldBeAName = (normalised) => normalised.length >= MIN_TERM_LENGTH && !NOT_A_NAME.has(normalised);
+
 const vocabulary = (() => {
   const words = new Set(STOPWORDS);
   const add = (text) => String(text).split(/[^\p{L}\p{N}]+/u).filter(Boolean).forEach(w => words.add(normalizeName(w)));
@@ -87,7 +113,7 @@ export async function loadKnownNames(query) {
     // is where things stood before. It must never cost the question.
     rows = [];
   }
-  const names = new Set(rows.map(r => normalizeName(r.v)).filter(n => n.length >= MIN_TERM_LENGTH));
+  const names = new Set(rows.map(r => normalizeName(r.v)).filter(couldBeAName));
   knownNamesCache = { at: Date.now(), names };
   return names;
 }
@@ -119,7 +145,7 @@ export function findTerms(question, values, knownNames = null) {
   if (knownNames?.size) {
     for (const m of unquoted.matchAll(/\p{L}[\p{L}\p{N}'-]{2,}/gu)) {
       const w = m[0];
-      if (!isCapitalised(w) && !isAllCaps(w) && knownNames.has(normalizeName(w))) candidates.push(w);
+      if (!isCapitalised(w) && !isAllCaps(w) && couldBeAName(normalizeName(w)) && knownNames.has(normalizeName(w))) candidates.push(w);
     }
   }
   for (const candidate of candidates) {

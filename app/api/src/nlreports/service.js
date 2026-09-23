@@ -66,10 +66,28 @@ function addTiming(a, b) {
   return out;
 }
 
-const OR_REPAIR_MESSAGE =
-  'The request says "or", but your definition requires ALL conditions at the same time. ' +
-  'Put the alternatives that are joined by "or" together in a group with match "any"; keep the other conditions outside that group. ' +
-  'Reply with the corrected complete JSON.';
+/**
+ * The correction for "X or Y" built as X AND Y, naming X and Y when the
+ * question makes them easy to find. Told only that the request "says or", the
+ * model once grouped the resource type with the date window and left the two
+ * actions ANDed; told which words are the alternatives it has less to guess.
+ */
+export function orRepairMessage(question) {
+  const phrase = disjunctionPhrase(question);
+  const which = phrase
+    ? `The request says "${phrase}": those are alternatives, and your definition requires both at the same time. Put the conditions for exactly those two together in a group with match "any"`
+    : 'The request says "or", but your definition requires ALL conditions at the same time. Put the alternatives that are joined by "or" together in a group with match "any"';
+  return `${which}; keep the other conditions outside that group. Reply with the corrected complete JSON.`;
+}
+
+/** "toegevoegd of verwijderd", "guest or disabled" — the words either side of the or, when there are single words there. */
+export function disjunctionPhrase(question) {
+  const m = String(question ?? '').match(/(\p{L}+)\s+(?:or|of|dan wel)\s+(\p{L}+)/iu);
+  if (!m) return null;
+  const [, left, right] = m;
+  if (DUTCH_WHETHER_VERBS.has(left.toLowerCase())) return null;
+  return `${left} ${m[0].slice(left.length, m[0].length - right.length).trim()} ${right}`;
+}
 
 /** True when the spec has an OR anywhere: top-level, in a group, or inside a relation. */
 export function hasAnyMatch(spec) {
@@ -173,6 +191,9 @@ function replyMeta(ctx, turn) {
   // write @me when told to" cannot be read off the substituted definition.
   return {
     raw: turn.raw, timing: turn.timing, model: ctx.model, repaired: turn.repaired,
+    // The model's FIRST reply, when a correction round replaced it: what the
+    // repair started from is the half of the story the final reply cannot tell.
+    firstRaw: turn.repaired && turn.first !== turn.raw ? turn.first : null,
     context: ctx.context ?? '',
     substituted: sentinelsIn(turn.reply?.spec, ctx.substitutions),
   };
@@ -226,7 +247,7 @@ async function repairInvalidSpec(ctx, turn, result) {
 /** The most common small-model mistake: "X or Y" compiled as X AND Y. */
 async function repairMissingOr(ctx, turn, result) {
   if (!result.ok || !needsOrRepair(ctx.question, result.spec)) return result;
-  const retry = await askForCorrection(ctx, turn, OR_REPAIR_MESSAGE);
+  const retry = await askForCorrection(ctx, turn, orRepairMessage(ctx.question));
   const retriedResult = retry.reply?.kind === 'report' ? ctx.validate(retry.reply.spec) : null;
   // Only take the correction when it is valid and actually contains an "any".
   if (!retriedResult?.ok || !hasAnyMatch(retriedResult.spec)) return result;
@@ -388,7 +409,7 @@ export async function interpret({ question, context = '', history = [], model = 
 
   const first = await chat({ model, messages: ctx.messages, schema });
 
-  const turn = { raw: first.content, reply: parseReply(first.content), timing: first.timing, repaired: false };
+  const turn = { raw: first.content, first: first.content, reply: parseReply(first.content), timing: first.timing, repaired: false };
 
   if (turn.reply?.kind === 'report') return answerReport(ctx, turn);
   if (turn.reply?.kind === 'clarify') return answerClarify(ctx, turn);

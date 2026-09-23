@@ -284,3 +284,21 @@ describe('loadKnownNames', () => {
     expect((await loadKnownNames(vi.fn(async () => undefined))).size).toBe(0);
   });
 });
+
+describe('the particles of a surname are not names', () => {
+  it('never puts "van" or "den" among the names the directory knows', async () => {
+    // "Wim van den Heijkant" — the whole reason. With "van" in the list, "Welke
+    // VAN deze groepen" asked the caller which Van they meant.
+    clearKnownNamesCache();
+    const query = vi.fn(async () => ({ rows: [{ v: 'wim' }, { v: 'van' }, { v: 'den' }, { v: 'heijkant' }] }));
+    const names = await loadKnownNames(query);
+    expect([...names].sort()).toEqual(['heijkant', 'wim']);
+  });
+
+  it('refuses one even when a stale list still contains it', () => {
+    expect(findTerms('Welke van deze groepen zijn onderdeel van een access package?', VALUES, new Set(['van', 'william']))).toEqual([]);
+    expect(findTerms('Wie zijn de leden van deze groepen?', VALUES, new Set(['van', 'den', 'leden']))).toEqual([]);
+    // A real first name in the same sentence is still found.
+    expect(findTerms('Welke van deze groepen heeft william?', VALUES, new Set(['van', 'william']))).toEqual(['william']);
+  });
+});

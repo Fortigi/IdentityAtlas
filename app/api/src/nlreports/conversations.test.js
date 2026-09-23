@@ -206,3 +206,14 @@ describe('a history sidebar reads', () => {
     expect(await getConversation(OID, 'conv-1', q)).toEqual([]);
   });
 });
+
+describe('what 073 added', () => {
+  it('records the first reply beside the final one, verbatim, and nothing when there was none', async () => {
+    const q = vi.fn(async () => ({}));
+    await logConversation(entry({ rawReply: '{"kind":"report","spec":{"b":1}}', firstReply: '{"kind":"report","spec":{"a":1}}', repaired: true }), q);
+    expect(inserted(q).firstReply).toBe('{"kind":"report","spec":{"a":1}}');
+    const q2 = vi.fn(async () => ({}));
+    await logConversation(entry(), q2);
+    expect(inserted(q2).firstReply).toBeNull();
+  });
+});

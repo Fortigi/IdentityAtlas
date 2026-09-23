@@ -310,6 +310,7 @@ function told(reply) {
   return {
     context: reply?.context ?? null,
     raw: reply?.raw ?? null,
+    firstRaw: reply?.firstRaw ?? null,
     repaired: typeof reply?.repaired === 'boolean' ? reply.repaired : null,
     model: reply?.model ?? null,
   };
@@ -330,6 +331,7 @@ async function finish(outcome, ctx) {
     modelMs: outcome.timing?.totalMs ?? outcome.timing?.total ?? null,
     context: outcome.context ?? null,
     rawReply: outcome.raw ?? null,
+    firstReply: outcome.firstRaw ?? null,
     repaired: outcome.repaired ?? null,
     model: outcome.model ?? null,
   };
