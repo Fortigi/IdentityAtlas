@@ -238,7 +238,9 @@ router.post('/nl-reports/run', askGate, async (req, res) => {
   const logId = req.body.logId === undefined ? null : String(req.body.logId);
   if (logId !== null && !LOG_ID.test(logId)) return res.status(400).json({ error: 'Invalid log id' });
   try {
-    const result = await runSpec(req.body.spec);
+    // "@me" in the definition means whoever runs it — see runSpec().
+    const caller = req.user?.oid ? await resolveCaller(req.user.oid).catch(() => null) : null;
+    const result = await runSpec(req.body.spec, callerSubstitutions(caller));
     if (!result.ok) return res.status(400).json({ error: 'Invalid report definition', errors: result.errors, confirm: result.confirm, spec: result.spec });
     if (logId) {
       // Best-effort and guarded inside: only the waiting row, for this caller,

@@ -419,10 +419,14 @@ function buildRow(r, columns, kind, grouped) {
  * @param {object} rawSpec  a spec (from the model or edited in the UI)
  * @returns {Promise<object>} { ok:false, errors } or the run result
  */
-export async function runSpec(rawSpec) {
+// `substitutions` resolves the caller's placeholder (@me) in a definition that
+// still carries it: a saved "my groups" report opened by someone else, or an
+// evaluation's expected answer. The bot and the Ask tab hand in definitions
+// with the ids already in (interpret() substitutes before validating).
+export async function runSpec(rawSpec, substitutions = new Map()) {
   const values = await loadValues();
   const extFields = await loadExtFields();
-  const { ok, spec, errors } = validateSpec(rawSpec, values, extFields);
+  const { ok, spec, errors } = validateSpec(substituteValues(rawSpec, substitutions), values, extFields);
   if (!ok) return { ok: false, errors, spec };
   const { confirm } = await resolveNamedObjects(spec, query);
   if (confirm) return { ok: false, errors: [confirm.message], confirm, spec };

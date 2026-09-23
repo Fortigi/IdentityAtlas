@@ -481,6 +481,18 @@ describe('who is asking, on the web', () => {
   const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
   const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'wim@example.com' }));
 
+  it('resolves "@me" to the caller before RUNNING too, and to nothing for an unknown caller', async () => {
+    // A saved "my groups" report is about whoever opens it.
+    runSpec.mockResolvedValue({ ok: true, spec: SPEC, rows: [], columns: [], truncated: false });
+    resolveCaller.mockResolvedValueOnce({ principalId: OID, displayName: 'Wim' });
+    await request(signedIn).post('/api/nl-reports/run').send({ spec: SPEC });
+    expect(runSpec.mock.calls.at(-1)[1].get('@me')).toBe(OID);
+
+    resolveCaller.mockResolvedValueOnce(null);
+    await request(signedIn).post('/api/nl-reports/run').send({ spec: SPEC });
+    expect(runSpec.mock.calls.at(-1)[1].size).toBe(0);
+  });
+
   it('tells the pipeline who is asking, and what @me stands for', async () => {
     resolveCaller.mockResolvedValueOnce({ principalId: OID, displayName: 'Wim van den Heijkant' });
     interpret.mockResolvedValue({ kind: 'report', spec: SPEC, raw: 'r' });

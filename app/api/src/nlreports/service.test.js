@@ -539,3 +539,23 @@ describe('interpret — placeholders are resolved before validation', () => {
     expect(r.repaired).toBe(true);
   });
 });
+
+describe('runSpec and the caller placeholder', () => {
+  const mine = { entity: 'group', conditions: [{ relation: 'members', quantifier: 'some', conditions: [{ field: 'id', op: 'eq', value: '@me' }] }], columns: ['displayName'] };
+
+  beforeEach(() => { vi.clearAllMocks(); clearExtFieldsCache(); });
+
+  it('runs a definition that still says "@me" for the caller it is given', async () => {
+    query.mockResolvedValue({ rows: [] });
+    tx.mockImplementation(async (fn) => fn({ query: async () => ({ rows: [] }) }));
+    const out = await runSpec(mine, new Map([['@me', 'u-wim']]));
+    expect(out.ok).toBe(true);
+    expect(out.spec.conditions[0].conditions[0].value).toBe('u-wim');
+  });
+
+  it('refuses it when there is nobody to stand for "@me"', async () => {
+    const out = await runSpec(mine);
+    expect(out.ok).toBe(false);
+    expect(out.errors.join(' ')).toMatch(/@me/);
+  });
+});
