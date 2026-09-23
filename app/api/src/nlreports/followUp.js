@@ -66,7 +66,11 @@ export function carriedRecords(result) {
   const carried = carriedFrom(result);
   // The definition that produced them, so a refinement ("only the additions")
   // can keep what it never mentioned — see autofix.js refineFromPrevious().
-  return carried && result?.spec ? { ...carried, spec: result.spec } : carried;
+  // It rides along even when no records can be carried (a change has no page
+  // to refer back to; a set too large is not carried): the answer was still
+  // shown, and "alleen de toevoegingen" after it is still a refinement.
+  if (carried) return result?.spec ? { ...carried, spec: result.spec } : carried;
+  return result?.spec && (result.rows ?? []).length ? { kind: null, records: [], spec: result.spec } : null;
 }
 
 function carriedFrom(result) {

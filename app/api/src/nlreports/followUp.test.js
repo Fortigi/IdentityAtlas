@@ -437,6 +437,9 @@ describe('carriedRecords — the definition rides along', () => {
     expect(out.spec).toBe(spec);
     expect(out.records).toHaveLength(2);
     expect(carriedRecords({ spec, rows: [] })).toBeNull();
+    // A change answer: rows with no page to refer back to still carry the definition.
+    const changes = carriedRecords({ spec, rows: [{ _entity: { kind: null, id: 'c1' } }, { _entity: { kind: null, id: 'c2' } }] });
+    expect(changes).toEqual({ kind: null, records: [], spec });
   });
 });
 
