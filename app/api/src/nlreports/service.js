@@ -392,6 +392,8 @@ export async function interpret({ question, context = '', history = [], model = 
 
   if (turn.reply?.kind === 'report') return answerReport(ctx, turn);
   if (turn.reply?.kind === 'clarify') return answerClarify(ctx, turn);
+  // Not about the data, or asking for a change: one sentence, no report.
+  if (turn.reply?.kind === 'decline') return { kind: 'decline', reason: String(turn.reply.reason || ''), ...replyMeta(ctx, turn) };
   return { kind: 'error', message: 'The model reply was not valid JSON.', ...replyMeta(ctx, turn) };
 }
 

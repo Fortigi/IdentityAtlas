@@ -48,6 +48,7 @@ export const OUTCOMES = Object.freeze({
   CONFIRM: 'confirm',           // a "did you mean" — the model was unsure of a NAME, not the question
   UNKNOWN_CALLER: 'unknown-caller',
   NOT_UNDERSTOOD: 'not-understood',
+  DECLINED: 'declined',         // not about the data, or a request to change something — refused on purpose
   TIMEOUT: 'timeout',
   FAILED: 'failed',
 });

@@ -92,7 +92,7 @@ describe('every outcome the code can write is one the database accepts', () => {
   // silently drop the row. So the names in code and the CHECK constraint in
   // the migration are held to be the same set, here.
   const migration = readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), '..', 'db', 'migrations', '071_conversation_store.sql'), 'utf8',
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'db', 'migrations', '072_declined_outcome.sql'), 'utf8', // the newest migration that restates the constraint
   );
   const allowed = migration
     .match(/ck_BotConversations_outcome"\s*CHECK \("outcome" IN \(([^)]*)\)\)/s)[1]

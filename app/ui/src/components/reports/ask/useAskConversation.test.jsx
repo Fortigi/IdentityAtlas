@@ -8,7 +8,7 @@
 //   • the history sent to the model is capped to the last MAX_HISTORY messages
 import { describe, it, expect, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { MAX_HISTORY, specContext, useAskConversation } from './useAskConversation';
+import { MAX_HISTORY, specContext, useAskConversation, replyFromStored } from './useAskConversation';
 
 const json = (body, ok = true, status = 200) => Promise.resolve({ ok, status, json: () => Promise.resolve(body) });
 
@@ -179,5 +179,14 @@ describe('picking a stored conversation back up', () => {
     act(() => result.current.newConversation());
     expect(result.current.turns).toEqual([]);
     expect(result.current.conversationId).not.toBe('c-1');
+  });
+});
+
+describe('replyFromStored — a declined question', () => {
+  it('comes back as a decline with its reason, from the raw reply or the stored clarification', () => {
+    expect(replyFromStored({ rawReply: '{"kind":"decline","reason":"Not about the data."}', outcome: 'declined' }))
+      .toMatchObject({ kind: 'decline', reason: 'Not about the data.' });
+    expect(replyFromStored({ rawReply: null, outcome: 'declined', clarification: 'Stored reason.' }))
+      .toMatchObject({ kind: 'decline', reason: 'Stored reason.' });
   });
 });

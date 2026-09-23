@@ -817,3 +817,15 @@ describe('what the bot hands the pipeline to resolve', () => {
     expect(JSON.stringify(d.runSpec.mock.calls[0][0])).toContain(CALLER_SENTINEL);
   });
 });
+
+describe('answerMessage — a question the assistant declines', () => {
+  it('says so in the caller\'s language with the model\'s reason, files it as declined, and runs nothing', async () => {
+    const d = deps({ interpret: vi.fn(async () => ({ kind: 'decline', reason: 'I only report on access.', raw: '{"kind":"decline"}', timing: {} })) });
+    const out = await answerMessage(msg({ text: 'Is Trump the president of the United States?' }), d);
+    expect(out.outcome).toBe('declined');
+    expect(text(out.attachment)).toContain(EN.declined);
+    expect(text(out.attachment)).toContain('I only report on access.');
+    expect(d.log.mock.calls[0][0]).toMatchObject({ outcome: 'declined', clarification: 'I only report on access.' });
+    expect(d.runSpec).not.toHaveBeenCalled();
+  });
+});

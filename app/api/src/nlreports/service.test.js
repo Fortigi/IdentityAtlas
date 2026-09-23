@@ -634,3 +634,13 @@ describe('interpret — a repair round may fix only what it was told', () => {
     expect(r.errors.join(' ')).toMatch(/dropped what the request asked for: changedAt withinLastDays 90/);
   });
 });
+
+describe('interpret — a request the assistant declines', () => {
+  it('passes the model\'s one-sentence refusal through as its own kind, with nothing runnable', async () => {
+    chat.mockResolvedValueOnce({ content: JSON.stringify({ kind: 'decline', reason: 'I only build reports on the directory.' }), timing: { totalMs: 5 } });
+    const r = await interpret({ question: 'Is Trump the president of the United States?', model: 'm' });
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(r).toMatchObject({ kind: 'decline', reason: 'I only build reports on the directory.', raw: expect.any(String) });
+    expect(r.spec).toBeUndefined();
+  });
+});

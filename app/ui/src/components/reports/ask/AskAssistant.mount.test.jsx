@@ -356,3 +356,19 @@ describe('the conversation thread', () => {
     expect(second).toBe(first);
   });
 });
+
+describe('AskAssistant — a question the assistant declines', () => {
+  it('shows the one-sentence reason and hands nothing to the builder', async () => {
+    const authFetch = makeAuthFetch((url) => {
+      if (String(url).includes('/nl-reports/status')) return jsonResponse({ available: true, model: 'm', warm: 'ready' });
+      if (String(url).includes('/nl-reports/interpret')) return jsonResponse({ kind: 'decline', reason: 'I only build reports on the directory.', raw: '{}' });
+      return jsonResponse({});
+    });
+    const onReport = vi.fn();
+    renderWithProviders(<AskAssistant onReport={onReport} />, { auth: { authFetch } });
+    const box = await screen.findByRole('textbox');
+    await userEvent.type(box, 'Is Trump the president of the United States?{enter}');
+    expect(await screen.findByText('I only build reports on the directory.')).toBeInTheDocument();
+    expect(onReport).not.toHaveBeenCalled();
+  });
+});

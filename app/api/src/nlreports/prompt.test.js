@@ -125,3 +125,34 @@ describe('the prompt only offers what the grammar can express', () => {
     expect([...expected].filter(op => !offered.has(op))).toEqual([]);
   });
 });
+
+describe('the reply kinds', () => {
+  it('lets the model decline a request that is not about the data, but not once a report is demanded', () => {
+    const kinds = (schema) => schema.anyOf.map(s => s.properties.kind.enum[0]);
+    expect(kinds(RESPONSE_SCHEMA)).toEqual(['report', 'clarify', 'decline']);
+    expect(REPORT_ONLY_SCHEMA.properties.kind.enum).toEqual(['report']);
+  });
+
+  it('shows the model a decline for an out-of-scope question and for a change request, and the rule behind them', () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toMatch(/"kind":"decline"/);
+    expect(prompt).toMatch(/Is Trump the president/);
+    expect(prompt).toMatch(/remove Jan de Vries from the Finance group/);
+    expect(prompt).toMatch(/never answer such a request with a report or a clarification/);
+  });
+
+  it('every report example is a definition validation accepts', async () => {
+    // An example that does not validate teaches the model a shape it will be
+    // corrected for.
+    const { validateSpec } = await import('./spec.js');
+    const prompt = buildSystemPrompt();
+    const replies = [...prompt.matchAll(/^Reply: (\{.*\})$/gm)].map(m => JSON.parse(m[1]));
+    const reports = replies.filter(r => r.kind === 'report');
+    expect(reports.length).toBeGreaterThan(8);
+    for (const r of reports) {
+      const { ok, errors } = validateSpec(r.spec, { changeAction: ['Added', 'Removed'] });
+      expect(errors, JSON.stringify(r.spec)).toEqual([]);
+      expect(ok).toBe(true);
+    }
+  });
+});

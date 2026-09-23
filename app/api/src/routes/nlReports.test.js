@@ -644,3 +644,16 @@ describe('follow-up questions on the web', () => {
     expect(runSpec).not.toHaveBeenCalled();
   });
 });
+
+describe('a declined question, on the web', () => {
+  it('is handed back as its own kind and filed as declined, with the reason where a clarification would go', async () => {
+    interpret.mockResolvedValue({ kind: 'decline', reason: 'I only build reports on the directory.', raw: '{"kind":"decline"}' });
+    const res = await api().post('/api/nl-reports/interpret').send({ question: 'Is Trump the president of the United States?' });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ kind: 'decline', reason: 'I only build reports on the directory.' });
+    const insert = query.mock.calls.find(c => /INSERT INTO "BotConversations"/.test(String(c[0])));
+    expect(insert, 'the question was recorded').toBeTruthy();
+    expect(insert[1]).toContain('declined');
+    expect(insert[1]).toContain('I only build reports on the directory.');
+  });
+});

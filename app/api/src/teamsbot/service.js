@@ -27,7 +27,7 @@ import { PREVIOUS_SENTINEL, validateSpec } from '../nlreports/spec.js';
 import { resolveCaller, callerContextBlock, callerSubstitutions } from './caller.js';
 import { needsScopeCaveat } from './callerSpec.js';
 import {
-  answerCard, clarifyCard, notUnderstoodCard, unknownCallerCard, timeoutCard, errorCard, welcomeCard,
+  answerCard, clarifyCard, declinedCard, notUnderstoodCard, unknownCallerCard, timeoutCard, errorCard, welcomeCard,
   MAX_ROWS as MAX_CARD_ROWS, MAX_COLUMNS as MAX_CARD_COLUMNS,
 } from './card.js';
 import { detectLanguage, strings } from './text.js';
@@ -247,6 +247,10 @@ async function resolveAnswer({ question, caller, message, ask, run }) {
     return { kind: 'confirm', confirm: reply.confirm, timing: reply.timing, ...told(reply) };
   }
 
+  if (reply.kind === 'decline') {
+    return { kind: 'decline', reason: reply.reason, timing: reply.timing, ...told(reply) };
+  }
+
   if (reply.kind !== 'report' || !reply.spec) {
     return { kind: 'not-understood', errors: reply.errors, timing: reply.timing, ...told(reply) };
   }
@@ -331,6 +335,7 @@ async function finish(outcome, ctx) {
   };
   if (outcome.kind === 'clarify') return finishClarify(outcome, ctx, common);
   if (outcome.kind === 'confirm') return finishConfirm(outcome, ctx, common);
+  if (outcome.kind === 'decline') return finishDeclined(outcome, ctx, common);
   if (outcome.kind === 'not-understood' || !outcome.result?.ok) return finishNotUnderstood(outcome, ctx, common);
   return finishAnswered(outcome, ctx, common);
 }
@@ -357,6 +362,12 @@ async function finishConfirm(outcome, { id, record, language }, common) {
     outcome: OUTCOMES.CONFIRM,
     conversationLogId: id,
   };
+}
+
+/** Refused on purpose: not about the data, or a request to change something. */
+async function finishDeclined(outcome, { id, record, language }, common) {
+  await record({ ...common, outcome: OUTCOMES.DECLINED, clarification: outcome.reason || null });
+  return { attachment: declinedCard(outcome.reason, language), outcome: OUTCOMES.DECLINED, conversationLogId: id };
 }
 
 /** Nothing usable came back. The errors are logged, never shown. */

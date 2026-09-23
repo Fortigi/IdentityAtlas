@@ -141,9 +141,22 @@ const CLARIFY_REPLY = {
   required: ['kind', 'question', 'options'],
 };
 
+// A request the assistant should not answer at all: not about the data, or
+// asking for a change. One sentence back, never a report. Not in the
+// report-only grammar: a caller who has answered two clarifications and is
+// still asking about access has earned a report.
+const DECLINE_REPLY = {
+  type: 'object',
+  properties: {
+    kind: { type: 'string', enum: ['decline'] },
+    reason: { type: 'string', maxLength: REPLY_LIMITS.prose },
+  },
+  required: ['kind', 'reason'],
+};
+
 function buildSchemas(fieldNames) {
   const report = reportReply(fieldNames);
-  return { response: { anyOf: [report, CLARIFY_REPLY] }, reportOnly: report };
+  return { response: { anyOf: [report, CLARIFY_REPLY, DECLINE_REPLY] }, reportOnly: report };
 }
 
 // Most questions name no attribute of their own, so the grammar they are answered
@@ -261,6 +274,21 @@ const EXAMPLES = [
     ], columns: [] } },
   },
   {
+    q: 'groups that Piet Bakker is in but Jan de Vries is not',
+    a: { kind: 'report', assumptions: [], spec: { entity: 'group', match: 'all', conditions: [
+      { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'Piet Bakker' }] },
+      { type: 'relation', relation: 'members', quantifier: 'none', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'Jan de Vries' }] },
+    ], columns: [] } },
+  },
+  {
+    q: 'was Jan de Vries added to or removed from any group in the last 90 days?',
+    a: { kind: 'report', assumptions: ['Both additions and removals: no condition on action.'], spec: { entity: 'change', match: 'all', conditions: [
+      { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'Jan de Vries' }] },
+      { type: 'relation', relation: 'resource', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'Group' }] },
+      { type: 'field', field: 'changedAt', op: 'withinLastDays', value: 90 },
+    ], columns: [] } },
+  },
+  {
     q: 'How many users are there per department?',
     a: { kind: 'report', assumptions: [], spec: { entity: 'user', match: 'all', conditions: [], columns: [], groupBy: 'department' } },
   },
@@ -269,6 +297,14 @@ const EXAMPLES = [
     a: { kind: 'report', assumptions: [], spec: { entity: 'user', match: 'all', conditions: [
       { type: 'field', field: 'accountEnabled', op: 'eq', value: true },
     ], columns: [], groupBy: 'jobTitle' } },
+  },
+  {
+    q: 'Is Trump the president of the United States?',
+    a: { kind: 'decline', reason: 'I only build reports on the accounts, groups, access and changes in Identity Atlas.' },
+  },
+  {
+    q: 'remove Jan de Vries from the Finance group',
+    a: { kind: 'decline', reason: 'I can only report on access, not change it — ask an administrator to make the change.' },
   },
   {
     q: 'users that do not have MFA enabled',
@@ -359,11 +395,13 @@ Field names of the entity; "manager.displayName" style for the manager; "<relati
 2c. Sign-in: "not signed in for N days" / "inactive for N days" = daysSinceLastSignIn gt N. "never signed in" = lastSignIn isEmpty AND signInDataCollected isNotEmpty (without the second condition, accounts from systems that collect no sign-in data would be listed too).
 3. A name fragment the user mentions (like "Finance" or "LIC") is a displayName contains filter, unless they say it must match exactly.
 4. Reply with {"kind":"clarify"} ONLY when the request is genuinely ambiguous in a way that changes which rows are returned. Give 2-3 short options. Never ask about columns, sorting or formatting. When the user has answered a question or says to use your judgement, reply with a report.
-5. Record every interpretation choice you made as a short sentence in "assumptions".
+5. Record an interpretation choice you made as one short sentence in "assumptions" — at most two, and none when there was nothing to choose.
 6. When the user refines an earlier report, reply with the COMPLETE updated definition.
 7. Questions that compare sets — "the same members as", "the same access as", "has everything X has", "similar to", "overlaps with" — use a compare condition. Put the name exactly as the user wrote it in reference.name; a business role or access package is entity resource. "same" = identical, "mostly the same / similar / overlap" = similar with minSimilarity 80 unless the user gives a percentage. Membership of a business role itself ("part of / in business role X") is the businessRoles relation with a displayName condition.
+7a. "What X has that Y does not" — "groups I am in that Jan is not", "rights Piet has that Jan lacks" — is NOT a comparison: it is two conditions on the same relation of the group/resource, one with quantifier some for X and one with quantifier none for Y.
 8. Use ONLY the fields and relations listed above, plus any attribute named in an "Attributes from this deployment's own data" block in front of the request — those field names start with "ext." and are used exactly as written there. When the request depends on information that is neither listed nor in that block (for example MFA, licence cost, passwords), do NOT substitute a different field: reply with {"kind":"clarify"} that names the missing information and asks which field holds it.
-9. Counting per value — "how many users per department", "the number of X per Y", "a list of the unique Y with a count", "X grouped by Y" — is "groupBy": "<the Y field>" in the definition, with columns []. The report is then one row per distinct value of that field with the number of records that have it, instead of one row per record. Group on a field, never on a relation, and never together with a compare condition. A request that only asks which values exist ("which departments are there?") is the same report: the count comes with it.
+9. Counting per value — ONLY when the request asks "how many … per …", "the number of X per Y", "hoeveel … per …", "a breakdown / distribution by Y", "the unique values of Y with a count" — is "groupBy": "<the Y field>" in the definition, with columns []. The report is then one row per distinct value of that field with the number of records that have it. A request for WHICH records ("which groups", "welke groepen", "list", "show", "aan welke") is never grouped, even when it mentions a field or a count: it lists the records. Group on a field, never on a relation, and never together with a compare condition.
+10. A request that is not about the accounts, persons, groups, resources, access or changes described above — general knowledge, news, people outside the directory, opinions, small talk, writing or translation tasks — or that asks to CHANGE anything (add, remove, delete, grant, revoke, reset, disable, invite) is answered with {"kind":"decline","reason":"<one short sentence>"}. You only produce read-only report definitions; never answer such a request with a report or a clarification, and never guess.
 
 
 # Examples

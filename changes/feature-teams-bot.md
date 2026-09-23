@@ -32,3 +32,5 @@
 - A correction round may now only change what it was told was wrong; a corrected definition that quietly lost another condition (the 90-day window, the "removed" half) is refused and the error shown, instead of running as the answer to a different question.
 - Replies carry at most two short assumptions, which on the small CPU box shaves tens of seconds off every answer.
 - Follow-up questions now work in the Ask tab as they do in Teams: "which of these groups…" or "zijn er updates aan deze groepen" is about the records the previous answer showed, per chat and per person — and the answer says so.
+- The assistant now declines what it should not answer — general knowledge ("is Trump the president?"), small talk, and any request to change access ("remove X from group Y") — with one sentence saying what it can do instead, in Teams and in the Ask tab. Such questions are recorded as "declined", not as failures.
+- Grouped counts are produced only when the question asks for counts ("how many … per …"); "which groups …" always lists the groups.

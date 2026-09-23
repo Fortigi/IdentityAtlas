@@ -28,6 +28,9 @@ export function replyFromStored({ rawReply, definition, outcome, clarification }
   if (parsed?.kind === 'clarify') {
     return { kind: 'clarify', question: parsed.question ?? clarification ?? '', options: Array.isArray(parsed.options) ? parsed.options : [], raw: rawReply, timing: null };
   }
+  if (parsed?.kind === 'decline' || outcome === 'declined') {
+    return { kind: 'decline', reason: parsed?.reason ?? clarification ?? '', raw: rawReply, timing: null };
+  }
   if (definition || parsed?.kind === 'report') {
     return {
       kind: 'report', spec: definition ?? parsed?.spec ?? null,

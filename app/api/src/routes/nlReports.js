@@ -198,7 +198,7 @@ router.post('/nl-reports/interpret', askGate, async (req, res) => {
     await record({
       outcome: WEB_OUTCOME[reply.kind] ?? OUTCOMES.NOT_UNDERSTOOD,
       definition: reply.spec ?? null,
-      clarification: reply.kind === 'clarify' ? reply.question : reply.confirm?.message ?? null,
+      clarification: askedBack(reply),
       error: reply.kind === 'error' ? reply.message : null,
       modelMs: reply.timing?.totalMs ?? reply.timing?.total ?? null,
       context: reply.context ?? null,
@@ -219,8 +219,16 @@ const WEB_OUTCOME = Object.freeze({
   report: OUTCOMES.INTERPRETED,
   clarify: OUTCOMES.CLARIFIED,
   confirm: OUTCOMES.CONFIRM,
+  decline: OUTCOMES.DECLINED,
   error: OUTCOMES.NOT_UNDERSTOOD,
 });
+
+/** What the assistant said back instead of a report, for the store's clarification column. */
+function askedBack(reply) {
+  if (reply.kind === 'clarify') return reply.question;
+  if (reply.kind === 'decline') return reply.reason;
+  return reply.confirm?.message ?? null;
+}
 
 const LOG_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

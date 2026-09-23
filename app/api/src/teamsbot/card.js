@@ -202,6 +202,17 @@ export function clarifyCard(question, options = [], language = 'en') {
  * Shows the examples again rather than an error, because "I did not understand"
  * without a way forward is where a pilot user stops using the bot.
  */
+/** The assistant declined: the model's one sentence, then what it can do instead. */
+export function declinedCard(reason, language = 'en') {
+  const t = strings(language);
+  return attachment([
+    text(t.declined, { weight: 'Bolder' }),
+    ...(reason ? [text(reason)] : []),
+    text(t.notUnderstoodHint),
+    ...t.examples.map(e => text(`• ${e}`)),
+  ]);
+}
+
 export function notUnderstoodCard(language = 'en') {
   const t = strings(language);
   return attachment([
