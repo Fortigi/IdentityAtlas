@@ -475,8 +475,8 @@ limit, how many correction rounds were spent, and median / p90 / slowest times.
 | question | Welke gasten zijn nog nooit ingelogd? | Which guests have never signed in? | user rows |
 | scope | Wat was mijn vraag? | What was my question? | declined (or clarify) |
 | question | Wie kan de rol Global Administrator aanvragen? | Who is eligible for the Global Administrator role? | resource rows _or_ user rows |
-| question | Heeft bram de rol Global Administrator? | Does bram have the Global Administrator role? | resource rows; then → _En kan hij die rol aanvragen?_ |
-| question | Zit bram in de groep ACME - Algemeen - Partners? | Is bram a member of the group ACME - Algemeen - Partners? | group rows |
+| question | Heeft bram de rol Global Administrator? | Does bram have the Global Administrator role? | resource rows _or_ user rows; then → _En kan hij die rol aanvragen?_ |
+| question | Zit bram in de groep ACME - Algemeen - Partners? | Is bram a member of the group ACME - Algemeen - Partners? | group rows _or_ user rows |
 | nobody | In welke groepen zit Voldemort? | Which groups is Voldemort in? | asked which person |
 | ambiguous | Wie zit er in de groep? | Who is in the group? | asked back |
 

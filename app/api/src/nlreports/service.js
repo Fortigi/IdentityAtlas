@@ -11,6 +11,7 @@ import { PREVIOUS_SENTINEL, validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
+import { keepThePerson } from './autofix.followup.js';
 import { guestsWhenAsked, isYesNoAboutPerson, listsEverythingOfPerson, notSignedInFor } from './autofix.activity.js';
 import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, autofixSpec, canonicaliseSelf, isRelationLeaf, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, rolesOfPersonAsResources, selfWord } from './autofix.js';
 import { ME } from './caller.js';
@@ -515,8 +516,9 @@ export async function interpret({ question, context = '', history = [], model = 
     const added = ctx.substitutions.has(ME) ? addMissingSelf(placed.spec, ctx.question, ME) : { spec: placed.spec, notes: [] };
     // Compared after substitution, so the caller's id in both reads the same.
     const refined = refineFromPrevious(substituteValues(addAskedColumns(added.spec, ctx.question).spec, ctx.substitutions), ctx.previousSpec, ctx.question);
-    const before = [...grouping.notes, ...roles.notes, ...negated.notes, ...guests.notes, ...signIn.notes, ...generic.notes, ...sides.notes, ...unasked.notes, ...placed.notes, ...added.notes, ...refined.notes];
-    const substituted = refined.spec;
+    const person = keepThePerson(refined.spec, ctx.previousSpec, ctx.question);
+    const before = [...grouping.notes, ...roles.notes, ...negated.notes, ...guests.notes, ...signIn.notes, ...generic.notes, ...sides.notes, ...unasked.notes, ...placed.notes, ...added.notes, ...refined.notes, ...person.notes];
+    const substituted = person.spec;
     const first = validateSpec(substituted, ctx.values, ctx.extFields);
     if (first.ok || !first.spec) return before.length ? { ...first, fixes: before } : first;
     // Validation drops what it rejects and hands back the rest. When the

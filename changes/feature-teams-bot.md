@@ -64,3 +64,4 @@
 - Ask / Teams: a yes/no question about one person ("does Bram have the Global Administrator role?", "zit Bram in groep X?") is answered with that one role or group — a row means yes, no rows means no — instead of everything the person holds.
 - Custom reports: eligible (PIM) assignments are now askable — "who can request / activate the Global Administrator role" (eligible members of a resource) and "what can X activate" (what an account is eligible for).
 - Ask / Teams: the reading the pipeline applied ("Read the request as …") is listed before the model's own assumptions, because it describes what actually ran.
+- Ask / Teams: a follow-up that only says "he" or "she" ("and can he request that role?") keeps the person of the earlier question, also when the answer is now asked from the other side (the role instead of the person).

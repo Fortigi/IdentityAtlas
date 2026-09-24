@@ -1349,27 +1349,50 @@
     "id": "c-bram-has-ga-nl",
     "category": "question",
     "question": "Heeft bram de rol Global Administrator?",
-    "expected": {
-      "entity": "resource",
-      "conditions": [
-        {
-          "field": "displayName",
-          "op": "contains",
-          "value": "Global Administrator"
-        },
-        {
-          "relation": "members",
-          "quantifier": "some",
-          "conditions": [
-            {
-              "field": "displayName",
-              "op": "eq",
-              "value": "Bram de Groot"
-            }
-          ]
-        }
-      ]
-    },
+    "expected": [
+      {
+        "entity": "resource",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "contains",
+            "value": "Global Administrator"
+          },
+          {
+            "relation": "members",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "eq",
+                "value": "Bram de Groot"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "entity": "user",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "eq",
+            "value": "Bram de Groot"
+          },
+          {
+            "relation": "access",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "Global Administrator"
+              }
+            ]
+          }
+        ]
+      }
+    ],
     "followUps": [
       {
         "question": "En kan hij die rol aanvragen?",
@@ -1424,27 +1447,50 @@
     "id": "c-bram-has-ga-en",
     "category": "question",
     "question": "Does bram have the Global Administrator role?",
-    "expected": {
-      "entity": "resource",
-      "conditions": [
-        {
-          "field": "displayName",
-          "op": "contains",
-          "value": "Global Administrator"
-        },
-        {
-          "relation": "members",
-          "quantifier": "some",
-          "conditions": [
-            {
-              "field": "displayName",
-              "op": "eq",
-              "value": "Bram de Groot"
-            }
-          ]
-        }
-      ]
-    },
+    "expected": [
+      {
+        "entity": "resource",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "contains",
+            "value": "Global Administrator"
+          },
+          {
+            "relation": "members",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "eq",
+                "value": "Bram de Groot"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "entity": "user",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "eq",
+            "value": "Bram de Groot"
+          },
+          {
+            "relation": "access",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "Global Administrator"
+              }
+            ]
+          }
+        ]
+      }
+    ],
     "followUps": [
       {
         "question": "And can he request that role?",
@@ -1499,53 +1545,99 @@
     "id": "c-bram-in-partners-nl",
     "category": "question",
     "question": "Zit bram in de groep ACME - Algemeen - Partners?",
-    "expected": {
-      "entity": "group",
-      "conditions": [
-        {
-          "field": "displayName",
-          "op": "contains",
-          "value": "ACME - Algemeen - Partners"
-        },
-        {
-          "relation": "members",
-          "quantifier": "some",
-          "conditions": [
-            {
-              "field": "displayName",
-              "op": "eq",
-              "value": "Bram de Groot"
-            }
-          ]
-        }
-      ]
-    }
+    "expected": [
+      {
+        "entity": "group",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "contains",
+            "value": "ACME - Algemeen - Partners"
+          },
+          {
+            "relation": "members",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "eq",
+                "value": "Bram de Groot"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "entity": "user",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "eq",
+            "value": "Bram de Groot"
+          },
+          {
+            "relation": "memberOf",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "ACME - Algemeen - Partners"
+              }
+            ]
+          }
+        ]
+      }
+    ]
   },
   {
     "id": "c-bram-in-partners-en",
     "category": "question",
     "question": "Is bram a member of the group ACME - Algemeen - Partners?",
-    "expected": {
-      "entity": "group",
-      "conditions": [
-        {
-          "field": "displayName",
-          "op": "contains",
-          "value": "ACME - Algemeen - Partners"
-        },
-        {
-          "relation": "members",
-          "quantifier": "some",
-          "conditions": [
-            {
-              "field": "displayName",
-              "op": "eq",
-              "value": "Bram de Groot"
-            }
-          ]
-        }
-      ]
-    }
+    "expected": [
+      {
+        "entity": "group",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "contains",
+            "value": "ACME - Algemeen - Partners"
+          },
+          {
+            "relation": "members",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "eq",
+                "value": "Bram de Groot"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "entity": "user",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "eq",
+            "value": "Bram de Groot"
+          },
+          {
+            "relation": "memberOf",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "ACME - Algemeen - Partners"
+              }
+            ]
+          }
+        ]
+      }
+    ]
   },
   {
     "id": "c-nobody-nl",
