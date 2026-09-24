@@ -431,12 +431,14 @@ describe('narrowToPrevious — carried group ids on the wrong relation of a chan
 });
 
 describe('carriedRecords — the definition rides along', () => {
-  it('keeps the spec that produced the records beside them, and nothing when there are no records', () => {
+  it('keeps the spec that produced the records beside them, and the spec alone when there are no records', () => {
     const spec = { entity: 'group', match: 'all', conditions: [], columns: ['displayName'] };
     const out = carriedRecords({ spec, rows: [{ _entity: { kind: 'resource', id: 'g1' } }, { _entity: { kind: 'resource', id: 'g2' } }] });
     expect(out.spec).toBe(spec);
     expect(out.records).toHaveLength(2);
-    expect(carriedRecords({ spec, rows: [] })).toBeNull();
+    // A "no" (zero rows) still carries its definition: "and can he request it?" refers to it.
+    expect(carriedRecords({ spec, rows: [] })).toEqual({ kind: null, records: [], spec });
+    expect(carriedRecords({ rows: [] })).toBeNull();
     // A change answer: rows with no page to refer back to still carry the definition.
     const changes = carriedRecords({ spec, rows: [{ _entity: { kind: null, id: 'c1' } }, { _entity: { kind: null, id: 'c2' } }] });
     expect(changes).toEqual({ kind: null, records: [], spec });

@@ -66,3 +66,4 @@
 - Ask / Teams: the reading the pipeline applied ("Read the request as …") is listed before the model's own assumptions, because it describes what actually ran.
 - Ask / Teams: a follow-up that only says "he" or "she" ("and can he request that role?") keeps the person of the earlier question, also when the answer is now asked from the other side (the role instead of the person).
 - Ask / Teams: "in which access packages am I" on a report of resources gets the business-role type written in when the model left it out, instead of listing every resource held.
+- Ask / Teams: a "no" answer (a yes/no question with no matching rows) is remembered like any other, so a follow-up such as "and can he request it?" still refers to the same person and role.

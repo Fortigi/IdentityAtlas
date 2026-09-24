@@ -67,10 +67,13 @@ export function carriedRecords(result) {
   // The definition that produced them, so a refinement ("only the additions")
   // can keep what it never mentioned — see autofix.js refineFromPrevious().
   // It rides along even when no records can be carried (a change has no page
-  // to refer back to; a set too large is not carried): the answer was still
-  // shown, and "alleen de toevoegingen" after it is still a refinement.
+  // to refer back to; a set too large is not carried; an answer with NO rows —
+  // "does Bram have Global Administrator?" answered no): the answer was still
+  // shown, and "alleen de toevoegingen" or "and can he request it?" after it
+  // still refers to it. Without the spec of a "no", the follow-up lost the
+  // person and answered about everyone (live test, 24 Sep 2026).
   if (carried) return result?.spec ? { ...carried, spec: result.spec } : carried;
-  return result?.spec && (result.rows ?? []).length ? { kind: null, records: [], spec: result.spec } : null;
+  return result?.spec ? { kind: null, records: [], spec: result.spec } : null;
 }
 
 /**
