@@ -32,6 +32,13 @@
 //                 ambiguous, count …); follow-ups are always 'followup'
 //   pending       recorded but not run: the engine cannot express it yet
 //
+// The sets name made-up people and groups (Bram de Groot, ACME - Algemeen -
+// Partners). --names <file> (or EVAL_NAMES) maps each made-up name onto a real
+// one in the directory being tested: {"Bram de Groot": "<real display name>"}.
+// First names follow ("bram" → the real first name, in either case), so a
+// question typed in lower case still finds its person. Keep that file OUT of
+// the repository — tools/nl-reports/*.local.json is ignored for that reason.
+//
 // Every answer must arrive within --max-seconds (300): a right answer that took
 // six minutes is counted as wrong, because nobody waited for it.
 //
@@ -68,10 +75,35 @@ function tokenFor() {
 }
 const here = dirname(fileURLToPath(import.meta.url));
 let questions = JSON.parse(readFileSync(args.file || join(here, 'questions.json'), 'utf8'));
+questions = withRealNames(questions, args.names || process.env.EVAL_NAMES);
 if (args.only) questions = questions.filter(q => args.only.split(',').includes(q.id));
 // Questions that need a capability the engine does not have yet are recorded but not run.
 for (const q of questions.filter(x => x.pending)) console.log(`SKIP ${q.id}: ${q.pending}`);
 questions = questions.filter(q => !q.pending);
+
+/** Every string in the questions, with the made-up names replaced by the real ones. */
+function withRealNames(list, file) {
+  if (!file) return list;
+  const map = JSON.parse(readFileSync(file, 'utf8'));
+  const pairs = [];
+  for (const [fake, real] of Object.entries(map)) {
+    pairs.push([fake, real]);
+    const [fakeFirst] = fake.split(/[\s,]+/);
+    const [realFirst] = real.split(/[\s,]+/);
+    if (fakeFirst && realFirst && fakeFirst !== fake) {
+      pairs.push([fakeFirst, realFirst], [fakeFirst.toLowerCase(), realFirst.toLowerCase()]);
+    }
+  }
+  const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const rename = (text) => pairs.reduce((t, [a, b]) => t.replace(new RegExp(`(?<![\\p{L}])${escape(a)}(?![\\p{L}])`, 'gu'), b), text);
+  const walk = (node) => {
+    if (typeof node === 'string') return rename(node);
+    if (Array.isArray(node)) return node.map(walk);
+    if (node && typeof node === 'object') return Object.fromEntries(Object.entries(node).map(([k, v]) => [k, k === 'id' ? v : walk(v)]));
+    return node;
+  };
+  return walk(list);
+}
 
 // node:http, not fetch(): fetch gives up after 300 s waiting for response headers,
 // and a cold model answering a hard question can take longer than that.

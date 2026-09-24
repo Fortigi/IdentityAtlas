@@ -70,6 +70,11 @@ Two sets, and the difference matters:
 
 - **`questions.json`** — the tuning set. Prompts, rules and examples were changed while
   looking at these, so a good score here is partly a score for our own fitting.
+All three sets name **made-up** people and groups (Bram de Groot, Kees van den Berg, Anna Visser,
+"ACME - Algemeen - Partners"). To run them against a real directory, pass `--names names.local.json`
+with `{"Bram de Groot": "<a real display name>", ...}`; first names follow automatically. That file
+names real people and stays out of the repository (`*.local.json` is ignored).
+
 - **`chat.json`** — the conversation set: the questions people actually typed into the
   Teams bot and the Ask tab, in Dutch and in English, each pair sharing one expected
   answer. "I" and "my" mean whoever runs the evaluation (`@me`, resolved from the
