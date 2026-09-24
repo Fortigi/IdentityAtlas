@@ -754,7 +754,7 @@
     ]
   },
   {
-    "id": "c-annas-reports-groups-nl",
+    "id": "c-taekes-reports-groups-nl",
     "category": "question",
     "question": "In welke groepen zitten de medewerkers van Anna?",
     "expected": {
@@ -778,7 +778,7 @@
     ]
   },
   {
-    "id": "c-annas-reports-groups-en",
+    "id": "c-taekes-reports-groups-en",
     "category": "question",
     "question": "Which groups are the people reporting to Anna in?",
     "expected": {
@@ -938,7 +938,7 @@
     }
   },
   {
-    "id": "c-annas-directory-roles-nl",
+    "id": "c-taekes-directory-roles-nl",
     "category": "question",
     "question": "Welke directory rollen heeft Anna?",
     "expected": {
@@ -964,7 +964,7 @@
     }
   },
   {
-    "id": "c-annas-directory-roles-en",
+    "id": "c-taekes-directory-roles-en",
     "category": "question",
     "question": "Which directory roles does Anna have?",
     "expected": {
@@ -1164,6 +1164,388 @@
       "clarify",
       "decline"
     ]
+  },
+  {
+    "id": "c-guests-stale-90-nl",
+    "category": "question",
+    "question": "Welke gastaccounts hebben de laatste 90 dagen niet ingelogd?",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Guest"
+        },
+        {
+          "field": "daysSinceLastSignIn",
+          "op": "gt",
+          "value": 90
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-guests-stale-90-en",
+    "category": "question",
+    "question": "Which guest accounts have not signed in for the last 90 days?",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Guest"
+        },
+        {
+          "field": "daysSinceLastSignIn",
+          "op": "gt",
+          "value": 90
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-guests-never-nl",
+    "category": "question",
+    "question": "Welke gasten zijn nog nooit ingelogd?",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Guest"
+        },
+        {
+          "field": "lastSignIn",
+          "op": "isEmpty"
+        },
+        {
+          "field": "signInDataCollected",
+          "op": "isNotEmpty"
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-guests-never-en",
+    "category": "question",
+    "question": "Which guests have never signed in?",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Guest"
+        },
+        {
+          "field": "lastSignIn",
+          "op": "isEmpty"
+        },
+        {
+          "field": "signInDataCollected",
+          "op": "isNotEmpty"
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-question-nl",
+    "category": "scope",
+    "question": "Wat was mijn vraag?",
+    "expectKind": [
+      "decline",
+      "clarify"
+    ]
+  },
+  {
+    "id": "c-my-question-en",
+    "category": "scope",
+    "question": "What was my question?",
+    "expectKind": [
+      "decline",
+      "clarify"
+    ]
+  },
+  {
+    "id": "c-eligible-ga-nl",
+    "category": "question",
+    "question": "Wie kan de rol Global Administrator aanvragen?",
+    "expected": [
+      {
+        "entity": "resource",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "contains",
+            "value": "Global Administrator"
+          },
+          {
+            "relation": "eligibleMembers",
+            "quantifier": "some",
+            "conditions": []
+          }
+        ]
+      },
+      {
+        "entity": "user",
+        "conditions": [
+          {
+            "relation": "eligibleFor",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "Global Administrator"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "c-eligible-ga-en",
+    "category": "question",
+    "question": "Who is eligible for the Global Administrator role?",
+    "expected": [
+      {
+        "entity": "resource",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "contains",
+            "value": "Global Administrator"
+          },
+          {
+            "relation": "eligibleMembers",
+            "quantifier": "some",
+            "conditions": []
+          }
+        ]
+      },
+      {
+        "entity": "user",
+        "conditions": [
+          {
+            "relation": "eligibleFor",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "Global Administrator"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "c-bram-has-ga-nl",
+    "category": "question",
+    "question": "Heeft bram de rol Global Administrator?",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "displayName",
+          "op": "contains",
+          "value": "Global Administrator"
+        },
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Bram de Groot"
+            }
+          ]
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "En kan hij die rol aanvragen?",
+        "expected": [
+          {
+            "entity": "resource",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "Global Administrator"
+              },
+              {
+                "relation": "eligibleMembers",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "displayName",
+                    "op": "eq",
+                    "value": "Bram de Groot"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "entity": "user",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "eq",
+                "value": "Bram de Groot"
+              },
+              {
+                "relation": "eligibleFor",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "displayName",
+                    "op": "contains",
+                    "value": "Global Administrator"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "c-bram-has-ga-en",
+    "category": "question",
+    "question": "Does bram have the Global Administrator role?",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "displayName",
+          "op": "contains",
+          "value": "Global Administrator"
+        },
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Bram de Groot"
+            }
+          ]
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "And can he request that role?",
+        "expected": [
+          {
+            "entity": "resource",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "Global Administrator"
+              },
+              {
+                "relation": "eligibleMembers",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "displayName",
+                    "op": "eq",
+                    "value": "Bram de Groot"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "entity": "user",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "eq",
+                "value": "Bram de Groot"
+              },
+              {
+                "relation": "eligibleFor",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "displayName",
+                    "op": "contains",
+                    "value": "Global Administrator"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "c-bram-in-partners-nl",
+    "category": "question",
+    "question": "Zit bram in de groep ACME - Algemeen - Partners?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "field": "displayName",
+          "op": "contains",
+          "value": "ACME - Algemeen - Partners"
+        },
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Bram de Groot"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-bram-in-partners-en",
+    "category": "question",
+    "question": "Is bram a member of the group ACME - Algemeen - Partners?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "field": "displayName",
+          "op": "contains",
+          "value": "ACME - Algemeen - Partners"
+        },
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Bram de Groot"
+            }
+          ]
+        }
+      ]
+    }
   },
   {
     "id": "c-nobody-nl",

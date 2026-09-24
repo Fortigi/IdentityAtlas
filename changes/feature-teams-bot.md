@@ -59,3 +59,7 @@
 - "Who is in the group?" / "Wie zit er in de groep?" — one particular record, named by nothing — is answered with "which one do you mean?" straight away instead of a report about every group with "group" in its name.
 - "These groups" survives an answer in between that has no records of its own (a list of changes): the third question in a chat still refers to the groups.
 - "Which directory roles does X have" is answered with the roles, not with everything X has access to.
+- Ask / Teams: "guest accounts that have not signed in for N days" and "never signed in" are now read the same way every time (guests = accounts of type Guest, N days counted from the sign-in collection date), whatever the model wrote first.
+- Ask / Teams: "what was my question", "I want to know…", "can I get a list of…" no longer make a question about the person asking.
+- Ask / Teams: a yes/no question about one person ("does Bram have the Global Administrator role?", "zit Bram in groep X?") is answered with that one role or group — a row means yes, no rows means no — instead of everything the person holds.
+- Custom reports: eligible (PIM) assignments are now askable — "who can request / activate the Global Administrator role" (eligible members of a resource) and "what can X activate" (what an account is eligible for).

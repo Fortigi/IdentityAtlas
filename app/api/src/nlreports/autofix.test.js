@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, canonicaliseSelf, autofixSpec, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, rolesOfPersonAsResources } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, canonicaliseSelf, autofixSpec, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, rolesOfPersonAsResources, selfWord } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -505,5 +505,40 @@ describe('the roles of a person are a report of roles', () => {
     expect(rolesOfPersonAsResources(groups, 'welke groepen heeft Anna').spec).toBe(groups);
     const resources = { entity: 'resource', match: 'all', conditions: [] };
     expect(rolesOfPersonAsResources(resources, 'which roles exist').spec).toBe(resources);
+  });
+});
+
+describe('first-person words that are about the conversation, not the caller', () => {
+  it.each([
+    'Wat was mijn vraag?',
+    'wat was mijn vorige vraag',
+    'What was my last question?',
+    'kan ik een lijst krijgen van alle gasten die 90 dagen niet zijn ingelogd',
+    'I want to know which guests never signed in',
+    "I'd like a list of disabled accounts",
+    'Ik bedoelde de groep met HR in de naam',
+    'can I see the members of the finance group?',
+  ])('does not make "%s" about the caller', (q) => {
+    expect(selfWord(q)).toBeNull();
+  });
+
+  it.each([
+    ['Welke groepen heb ik?', 'ik'],
+    ['van welke groepen ben ik owner', 'ik'],
+    ['waar heb ik allemaal toegang toe', 'ik'],
+    ['my groups', 'my'],
+    ['Which groups do I own?', 'I'],
+    ["I'd like the groups I own", 'I'],
+    ['ik wil weten welke groepen ik heb', 'ik'],
+  ])('still reads "%s" as about the caller', (q, word) => {
+    expect(selfWord(q)).toBe(word);
+  });
+
+  it('leaves the two-sided comparison alone when the only first-person word is asker talk', () => {
+    const ME = '@me';
+    const bram = [{ type: 'field', field: 'displayName', op: 'contains', value: 'bram' }];
+    const rel = (quantifier) => ({ type: 'relation', relation: 'memberOf', quantifier, match: 'all', conditions: bram });
+    const both = { entity: 'user', match: 'all', conditions: [rel('some'), rel('none')] };
+    expect(resolveSelfAgainstPerson(both, 'I want to know which groups bram has that bram does not', ME).notes).toEqual([]);
   });
 });

@@ -8,7 +8,7 @@ import { query, tx } from '../db/connection.js';
 import { chat, warm } from './llm.js';
 import { buildSystemPrompt, buildValuesBlock, REPORT_ONLY_SCHEMA, RESPONSE_SCHEMA } from './prompt.js';
 import {
-  clearValuesCache, disjunctionPhrase, ensureWarm, hasAnyMatch, hasDisjunction, interpret, loadValues, needsOrRepair, orRepairMessage, runSpec, schemaFor,
+  clearValuesCache, disjunctionPhrase, ensureWarm, hasAnyMatch, hasDisjunction, interpret, loadValues, needsOrRepair, orRepairMessage, runSpec, schemaFor, YES_NO_NOTE,
   warmAtStartup, warmupState,
 } from './service.js';
 import { clearExtFieldsCache } from './extFields.js';
@@ -914,5 +914,42 @@ describe('interpret — the caller\'s literal id counts as the caller', () => {
     expect(r.kind).toBe('report');
     expect(JSON.stringify(r.spec)).not.toContain(uuid);
     expect(r.assumptions.join(' ')).toMatch(/Not limited to you/);
+  });
+});
+
+describe('interpret — a yes/no question answered with everything the person holds', () => {
+  const bram = { type: 'field', field: 'displayName', op: 'contains', value: 'bram' };
+  const PERSON = { entity: 'user', match: 'all', columns: ['displayName', 'memberOf.names'], conditions: [bram] };
+  const ROLE = { entity: 'group', match: 'all', columns: [], conditions: [
+    { type: 'field', field: 'displayName', op: 'contains', value: 'Global Administrator' },
+    { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [bram] },
+  ] };
+
+  it('asks once for the report of the thing itself, and says how to read the answer', async () => {
+    chat.mockReset();
+    chat.mockResolvedValueOnce(reply(PERSON)).mockResolvedValueOnce(reply(ROLE));
+    const r = await interpret({ question: 'Is bram a member of the Finance group?', model: 'm' });
+    expect(chat).toHaveBeenCalledTimes(2);
+    expect(String(chat.mock.calls[1][1] ?? chat.mock.calls[1][0]?.messages?.at(-1)?.content ?? JSON.stringify(chat.mock.calls[1]))).toMatch(/ONE particular thing/);
+    expect(['report', 'confirm']).toContain(r.kind);   // confirm: the person lookup on the mocked rows
+    expect(r.spec.entity).toBe('group');
+    expect(JSON.stringify(r)).toContain(YES_NO_NOTE);
+  });
+
+  it('keeps the first definition when the correction is still a list of the person', async () => {
+    chat.mockReset();
+    chat.mockResolvedValueOnce(reply(PERSON)).mockResolvedValueOnce(reply(PERSON));
+    const r = await interpret({ question: 'Zit bram in de groep Finance?', model: 'm' });
+    expect(chat).toHaveBeenCalledTimes(2);
+    expect(r.spec.entity).toBe('user');
+    expect(r.assumptions ?? []).not.toContain(YES_NO_NOTE);
+  });
+
+  it('spends no round on a question that asks for a list', async () => {
+    chat.mockReset();
+    chat.mockResolvedValueOnce(reply(PERSON));
+    const r = await interpret({ question: 'Which groups does bram have?', model: 'm' });
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(r.spec.entity).toBe('user');
   });
 });

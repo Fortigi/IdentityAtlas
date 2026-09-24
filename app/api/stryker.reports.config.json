@@ -22,6 +22,7 @@
     "src/nlreports/compare.js",
     "src/nlreports/compile.js",
     "src/nlreports/contradictions.js",
+    "src/nlreports/autofix.activity.js",
     "src/nlreports/autofix.js",
     "src/nlreports/followUp.js",
     "src/nlreports/state.js",

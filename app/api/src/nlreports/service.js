@@ -11,6 +11,7 @@ import { PREVIOUS_SENTINEL, validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
+import { guestsWhenAsked, isYesNoAboutPerson, listsEverythingOfPerson, notSignedInFor } from './autofix.activity.js';
 import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, autofixSpec, canonicaliseSelf, isRelationLeaf, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, rolesOfPersonAsResources, selfWord } from './autofix.js';
 import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
@@ -312,6 +313,31 @@ async function repairUnusedTerms(ctx, turn, result) {
 }
 
 /**
+ * A yes/no question about one person answered with everything they hold.
+ * "Does Bram have global admin?" came back as Bram with all his groups — the
+ * reader has to search the list for the answer, and the answer is not even in
+ * it when the thing is a role. One correction round asks for the report of
+ * the thing itself; it is taken only when the corrected definition is about
+ * something other than accounts and still names the person somewhere.
+ */
+export const YES_NO_NOTE = 'A yes/no question: a row below means yes, no rows means no.';
+async function repairYesNo(ctx, turn, result) {
+  if (!result.ok || !isYesNoAboutPerson(ctx.question) || !listsEverythingOfPerson(result.spec)) return result;
+  const retry = await askForCorrection(ctx, turn,
+    'The request asks whether ONE person holds ONE particular thing (a role, group or package named in the request); '
+    + 'your definition lists everything of that kind the person holds, without naming the thing. Reply with a report of that thing '
+    + 'instead: entity resource (group when it is a group), a displayName contains condition with the name asked about, and a members '
+    + 'relation with quantifier some whose condition is the person exactly as you had them. Columns []. Reply with the corrected complete JSON.');
+  const retried = retry.reply?.kind === 'report' ? ctx.validate(retry.reply.spec) : null;
+  const namesTheThing = (spec) => (spec.conditions ?? []).some(c => c.type === 'field' && c.field === 'displayName')
+    && (spec.conditions ?? []).some(c => c.type === 'relation' && (c.conditions ?? []).length);
+  if (!retried?.ok || listsEverythingOfPerson(retried.spec) || ENTITIES[retried.spec.entity]?.detailKind === 'user' || !namesTheThing(retried.spec)) return result;
+  turn.raw = retry.content;
+  turn.reply = retry.reply;
+  return { ...retried, fixes: [...(retried.fixes ?? []), YES_NO_NOTE] };
+}
+
+/**
  * Still ignoring a name after the correction: the analyst chooses where it applies
  * (no guess is run). When the name does not occur on the report's own entity there
  * is nothing to offer, so the report says it left the name out.
@@ -338,6 +364,7 @@ async function answerReport(ctx, turn) {
   result = await repairMissingOr(ctx, turn, result);
   result = await repairMissingSelf(ctx, turn, result);
   result = await repairUnusedTerms(ctx, turn, result);
+  result = await repairYesNo(ctx, turn, result);
   const errors = result.errors;
   // Still invalid after the repair round: say so. Validation drops what it rejects
   // and still hands back a spec, so returning that as a report would quietly answer
@@ -472,7 +499,9 @@ export async function interpret({ question, context = '', history = [], model = 
     const grouping = dropUnaskedGrouping(nameWrittenAsId(listEqualsToIn(dedupeConditions(spec).spec).spec).spec, ctx.question);
     const roles = rolesOfPersonAsResources(grouping.spec, ctx.question);
     const negated = negatedBusinessRole(accessPackageAsRelation(roles.spec).spec, ctx.question);
-    const generic = genericCompareToRelation(negated.spec);
+    const guests = guestsWhenAsked(negated.spec, ctx.question);
+    const signIn = notSignedInFor(guests.spec, ctx.question);
+    const generic = genericCompareToRelation(signIn.spec);
     // The caller's id copied out literally is the placeholder for every rule below.
     const canonical = canonicaliseSelf(generic.spec, ME, ctx.substitutions.get(ME)).spec;
     const sides = ctx.substitutions.has(ME) ? resolveSelfAgainstPerson(canonical, ctx.question, ME) : { spec: canonical, notes: [] };
@@ -481,7 +510,7 @@ export async function interpret({ question, context = '', history = [], model = 
     const added = ctx.substitutions.has(ME) ? addMissingSelf(placed.spec, ctx.question, ME) : { spec: placed.spec, notes: [] };
     // Compared after substitution, so the caller's id in both reads the same.
     const refined = refineFromPrevious(substituteValues(addAskedColumns(added.spec, ctx.question).spec, ctx.substitutions), ctx.previousSpec, ctx.question);
-    const before = [...grouping.notes, ...roles.notes, ...negated.notes, ...generic.notes, ...sides.notes, ...unasked.notes, ...placed.notes, ...added.notes, ...refined.notes];
+    const before = [...grouping.notes, ...roles.notes, ...negated.notes, ...guests.notes, ...signIn.notes, ...generic.notes, ...sides.notes, ...unasked.notes, ...placed.notes, ...added.notes, ...refined.notes];
     const substituted = refined.spec;
     const first = validateSpec(substituted, ctx.values, ctx.extFields);
     if (first.ok || !first.spec) return before.length ? { ...first, fixes: before } : first;

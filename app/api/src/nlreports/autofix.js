@@ -57,7 +57,20 @@ const show = (v) => (typeof v === 'string' ? `"${v}"` : String(v));
 // left out on purpose: "geef me een lijstje" / "give me a list" is not about
 // the caller. "I" only as the capital word (the English pronoun).
 const SELF_RE = /\b(ik|mijn|mijne|my|mine|myself)\b|\bI\b/;
-export const selfWord = (question) => String(question ?? '').match(SELF_RE)?.[0] ?? null;
+
+// First-person words that are about the CONVERSATION, not the caller's access:
+// "wat was mijn vraag", "I want to know which guests…", "kan ik een lijst
+// krijgen van…". Asked "wat was mijn vraag", the pipeline read "mijn" as "my
+// account" and put the caller into a report nobody asked for. These phrases
+// are blanked before the first-person test, so a later real one still counts
+// ("I'd like the groups I own" is still about the caller, through the second I).
+const ASKER_TALK = [
+  /\b(mijn|my)\s+(vorige|laatste|eerdere|previous|last|earlier|first|eerste)?\s*(vraag|vragen|question|questions|antwoord|answer|verzoek|request|opmerking|zoekopdracht|search|rapport|rapportage|report)\b/gi,
+  /\b(ik|I)(?:\s+|'d\s+|'m\s+|'ve\s+)(wil|wilde|zou|zoek|vraag|vroeg|bedoel|bedoelde|ben benieuwd|want|wanted|need|would like|like|am looking|looking|was wondering|wonder|mean|meant|asked|ask)\b/g,
+  /\b(kan|kun|mag|zou|can|could|may|would)\s+(ik|I)\s+(hier\s+)?(een|a|an|the|de|het|dat|this|that)?\s*(lijst|lijstje|overzicht|list|overview|rapport|report|zien|krijgen|see|get|have)\b/gi,
+];
+const withoutAskerTalk = (text) => ASKER_TALK.reduce((t, re) => t.replace(re, (m) => ' '.repeat(m.length)), text);
+export const selfWord = (question) => withoutAskerTalk(String(question ?? '')).match(SELF_RE)?.[0] ?? null;
 
 /**
  * "Groups I have that bram does not" written with bram on BOTH sides:
@@ -72,7 +85,7 @@ export const selfWord = (question) => String(question ?? '').match(SELF_RE)?.[0]
  * @returns {{ spec: object, notes: string[] }}
  */
 export function resolveSelfAgainstPerson(spec, question, me) {
-  const text = String(question ?? '');
+  const text = withoutAskerTalk(String(question ?? ''));
   const self = text.match(SELF_RE);
   if (!self) return { spec, notes: [] };
   const relations = (spec?.conditions ?? []).filter(c => c.type === 'relation');

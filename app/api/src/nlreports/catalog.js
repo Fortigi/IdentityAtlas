@@ -200,6 +200,20 @@ const BASE = {
           };
         },
       },
+      eligibleFor: {
+        label: 'Eligible for', target: 'resource', cardinality: 'many',
+        compareNoun: 'eligible assignments',
+        some: 'is eligible for a resource', none: 'is not eligible for any resource',
+        description: 'roles and other resources the account is ELIGIBLE for (PIM): it can activate or request them, but does not hold them until it does. Use for "eligible", "can activate", "can request", "kan aanvragen", "kan activeren"',
+        from: (outer, inner, u) => {
+          const ra = u();
+          return {
+            from: `"ResourceAssignments" ${ra} JOIN "Resources" ${inner} ON ${inner}."id" = ${ra}."resourceId"`,
+            where: `${ra}."principalId" = ${outer}."id" AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}
+              AND ${ra}."assignmentType" = 'Eligible'`,
+          };
+        },
+      },
       owns: {
         label: 'Owner of', target: 'resource', cardinality: 'many',
         compareNoun: 'ownerships',
@@ -342,6 +356,20 @@ const BASE = {
             from: `"ResourceAssignments" ${ra} JOIN "Principals" ${inner} ON ${inner}."id" = ${ra}."principalId"`,
             where: `${ra}."resourceId" = ${outer}."id" AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}
               AND ${ra}."assignmentType" IN ${HELD}`,
+          };
+        },
+      },
+      eligibleMembers: {
+        label: 'Eligible members', target: 'account', cardinality: 'many',
+        compareNoun: 'eligible members',
+        some: 'has an eligible member', none: 'has no eligible members',
+        description: 'accounts that are ELIGIBLE for this resource (PIM): they can activate or request it but do not hold it now. NOT the same as members. Use for "who can request / activate X", "wie kan X aanvragen", "eligible for X"',
+        from: (outer, inner, u) => {
+          const ra = u();
+          return {
+            from: `"ResourceAssignments" ${ra} JOIN "Principals" ${inner} ON ${inner}."id" = ${ra}."principalId"`,
+            where: `${ra}."resourceId" = ${outer}."id" AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}
+              AND ${ra}."assignmentType" = 'Eligible'`,
           };
         },
       },
@@ -539,6 +567,7 @@ export const GLOSSARY = [
   { terms: ['guest', 'external user', 'B2B user', 'gast', 'externe gebruiker'], means: 'userType Guest' },
   { terms: ['disabled', 'inactive', 'blocked', 'uitgeschakeld'], means: 'accountEnabled false' },
   { terms: ['owner', 'eigenaar'], means: 'the owners / owns relation — never membership' },
+  { terms: ['eligible', 'PIM', 'can activate', 'can request', 'may request', 'in aanmerking', 'kan aanvragen', 'kan activeren', 'aanvraagbaar'], means: 'an assignment of type Eligible: the eligibleMembers relation of a resource ("who can request X") or the eligibleFor relation of a user ("what can X activate"); members and access are what is held NOW' },
   { terms: ['rights', 'rechten', 'permissions', 'entitlements', 'toegang', 'toegangsrechten', 'bevoegdheden'], means: 'every kind of resource an account holds. "Which rights does X have" = the resource entity with NO resourceType condition and members some for X; "who has right X" = the user entity with the access relation' },
   { terms: ['change', 'changed', 'changes', 'added', 'removed', 'new', 'recent', 'recently', 'lately', 'wijziging', 'wijzigingen', 'veranderd', 'toegevoegd', 'verwijderd', 'nieuw'], means: 'the change entity — what was added or removed over time. Every other entity only describes the present. "added" / "toegevoegd" = action Added; "removed" / "verwijderd" = action Removed; "added or removed", "changes", "updates" = no condition on action. The account changed is the account relation, the group is the resource relation (resourceType Group).' },
   { terms: ['my people', 'my team', 'my staff', 'my employees', 'mijn medewerkers', 'mijn team', 'mijn mensen'], means: 'the accounts whose manager is the person asking' },
