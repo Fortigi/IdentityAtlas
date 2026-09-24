@@ -505,6 +505,15 @@ X") remain the held-out miss; "disabled accounts" is read literally (every disab
 service principals included); a third follow-up in one chat whose question has no noun of its
 own can still copy the previous definition.
 
+**24 September 2026.** The set grew to 72 graded answers (six pairs from a live test that morning:
+guests not signed in for N days, "what was my question", who is eligible for a role, and yes/no
+questions about one person, with a follow-up), five more corrections went in (sign-in windows, guests,
+the business-role type, a yes/no question answered with everything the person holds, and "he" in a
+follow-up keeping the person), and the same sets were run on larger models with more CPU. On the
+shipped 4B model the set scores 67/72 at 2 threads and 68/72 at 8; the 30B-A3B mixture-of-experts
+model scores 69/72 with every follow-up right, at half the time. The full table and what it means are
+in [Larger models on more CPU](report-generator.md#larger-models-on-more-cpu-24-september-2026).
+
 ### Running it
 
 ```bash

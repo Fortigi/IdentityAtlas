@@ -107,6 +107,58 @@ missed nothing on that build; the categories it grades — scope, unknown data, 
 exist, an ambiguous question, follow-ups — are the ones a chat gets wrong in ways a report page never
 shows, and each has its own row in `tools/nl-reports/chat.json`.
 
+### Larger models on more CPU (24 September 2026)
+
+The question behind this run: is the 4B model the ceiling, or does a bigger model on a bigger
+CPU budget answer more questions right? Measured on a fresh install in Azure (one
+`Standard_E8bds_v5` VM — 8 vCPU, 64 GB, Docker, the same compose files a customer gets), with a
+copy of the same tenant, the same prompt and the same two sets: the held-out set (17 questions) and
+the conversation set (72 graded turns: 64 questions in Dutch and English, 12 follow-ups, and the
+scope / unknown-data / unknown-person / ambiguous rows). Every model runs through the same
+pipeline, so the corrections it makes on the model's behalf count for all of them. The VM's cores are
+about 1.3× faster than the reference host's (median 58 s against 74 s for the same run), so read the
+times relative to each other.
+
+| Model | RAM for the model server | Threads | Held-out | Conversation set | NL / EN | Follow-ups | Median | p90 | Slowest | Over 5 min |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Qwen3-4B-Instruct-2507 (shipped) | 4 GB | 2 | 14/17 | 67/72 | 35/36 · 32/36 | 11/12 | 68 s | 143 s | 352 s | 1 |
+| Qwen3-8B (thinking off) | 10 GB | 4 | 13/17 | 63/72 | 32/36 · 31/36 | 10/12 | 45 s | 102 s | 250 s | 0 |
+| Qwen3-14B (thinking off) | 22 GB | 8 | 14/17 | 64/72 | 31/36 · 33/36 | 11/12 | 53 s | 102 s | 160 s | 0 |
+| **Qwen3-30B-A3B-Instruct-2507** | 24 GB | 8 | **16/17** | **69/72** | 34/36 · 35/36 | **12/12** | **34 s** | **80 s** | 191 s | 0 |
+| Gemma 3 12B | 20 GB | 8 | abandoned | — | — | — | ~355 s | — | — | every question |
+| Qwen3-4B-Instruct-2507, more threads | 4 GB | 8 | 14/17 | 68/72 | 35/36 · 33/36 | 11/12 | 32 s | 72 s | 113 s | 0 |
+
+What the table says:
+
+- **The 30B-A3B model is the one that helps.** It is a mixture-of-experts model: 30B parameters on
+  disk, 3B active per token, so it *reads* like a big model and *writes* at the speed of a small
+  one — the fastest tier here and the most accurate, with every follow-up right and both languages
+  level. Its three misses on the conversation set are two readings of "the groups of Anna's direct
+  reports" (a relation inside a relation, which the definition language cannot express) and one
+  "access packages" question answered as every resource — corrected by a pipeline rule since. What it
+  needs: about 24 GB of memory for the model server (the 18.6 GB model file plus the context; measured 14 GB resident with the rest in the page cache) and 8 CPU threads; at 2 threads it would be
+  about four times slower.
+- **8B and 14B do not help.** They are the older hybrid generation (April 2025) run with thinking
+  off, because thinking tokens at CPU speed would blow the time limit; in that mode they are no more
+  accurate than the 4B Instruct-2507 and make different mistakes (dropping the person from a change
+  question, leaving out a principal type). More threads make them faster, not better.
+- **Gemma 3 does not work with this design at all**: llama.cpp cannot reuse the saved prompt cache
+  for its sliding-window attention, so every question re-reads the whole prompt — about six minutes
+  each, the same finding as with Gemma 3 4B earlier.
+- **The 4B is not far behind.** Its misses are model wobble: the same question passes on one run and
+  fails on the next (13 to 15 of 17 across runs today; the conversation set gave 66, 67 and 68 of 72 on three runs), an invented condition, a name filter also
+  applied to the description. That is what the correction rules in the pipeline exist for, and it is
+  why the 30B's cleaner first attempts show up more in the follow-ups and in the repair count (five
+  repair rounds in 72 turns against eight) than in the raw score.
+
+The "License" question every model misses (name **and** description must contain the word — one group
+differs) and the subset comparison remain the two standing misses of the held-out set.
+
+To run the same matrix: build the images with the other models' URL and checksum
+(`setup/docker/Dockerfile.report-generator` takes them as build arguments), set
+`REPORT_GENERATOR_CPUS` / `REPORT_GENERATOR_MEMORY`, and run `tools/nl-reports/eval.mjs` for
+`holdout.json` and `chat.json` — see [Measuring it yourself](#measuring-it-yourself).
+
 ### What the mistakes look like
 
 About one question in seven comes back wrong, so the point is not perfection but **visible**
