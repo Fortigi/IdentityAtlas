@@ -806,7 +806,7 @@
   },
   {
     "id": "rolemining-same-members-as-br",
-    "question": "Show me all groups that have the same members as business role \"Fortigi - Algemeen - Maten\" but which are not part of the business role",
+    "question": "Show me all groups that have the same members as business role \"ACME - Algemeen - Partners\" but which are not part of the business role",
     "expected": {
       "entity": "group",
       "conditions": [
@@ -816,7 +816,7 @@
           "measure": "identical",
           "reference": {
             "entity": "resource",
-            "name": "Fortigi - Algemeen - Maten"
+            "name": "ACME - Algemeen - Partners"
           }
         },
         {
@@ -826,17 +826,17 @@
             {
               "field": "displayName",
               "op": "eq",
-              "value": "Fortigi - Algemeen - Maten"
+              "value": "ACME - Algemeen - Partners"
             }
           ]
         }
       ]
     },
-    "note": "ground truth: Fortigi Members, Fortigi.Maten"
+    "note": "ground truth: Fortigi Members, ACME.Partners"
   },
   {
     "id": "rm-contains-all-br",
-    "question": "groups that contain all members of business role Fortigi - Algemeen - Maten",
+    "question": "groups that contain all members of business role ACME - Algemeen - Partners",
     "expected": {
       "entity": "group",
       "conditions": [
@@ -846,7 +846,7 @@
           "measure": "containsAll",
           "reference": {
             "entity": "resource",
-            "name": "Fortigi - Algemeen - Maten"
+            "name": "ACME - Algemeen - Partners"
           }
         }
       ]

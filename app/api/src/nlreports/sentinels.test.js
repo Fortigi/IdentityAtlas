@@ -27,7 +27,7 @@ describe('sentinelsIn', () => {
   it('reports nothing for a definition that copied a literal instead', () => {
     // The case the sentinel exists to avoid — and the case an evaluation
     // wants to count, because a copied uuid is right only by luck.
-    const spec = { conditions: [{ type: 'field', field: 'id', op: 'eq', value: 'dda42659-89b1-43df-a057-b0fa36c86aaa' }] };
+    const spec = { conditions: [{ type: 'field', field: 'id', op: 'eq', value: '3f7c1d2e-9a4b-4c6d-8e1f-2b3c4d5e6f70' }] };
     expect(sentinelsIn(spec, ME)).toEqual([]);
   });
 

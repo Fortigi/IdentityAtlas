@@ -18,7 +18,7 @@ const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 
 const entry = (over = {}) => ({
   id: ID, callerOid: OID, callerPrincipalId: null, conversationId: 'conv-1',
-  question: 'welke groepen heb ik die william niet heeft?', language: 'nl',
+  question: 'welke groepen heb ik die bram niet heeft?', language: 'nl',
   definition: { entity: 'user', conditions: [] }, outcome: OUTCOMES.INTERPRETED,
   modelMs: 66_400, totalMs: 66_900, ...over,
 });
@@ -47,7 +47,7 @@ describe('what 071 added to a logged question', () => {
     // are read back as what the model saw and said.
     const q = vi.fn(async () => ({}));
     await logConversation(entry({
-      context: 'The person asking is Wim.\n\nRequest: welke groepen',
+      context: 'The person asking is Kees.\n\nRequest: welke groepen',
       rawReply: '{"kind":"report",\n"spec":{}}',
     }), q);
     const p = inserted(q);

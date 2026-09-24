@@ -238,9 +238,9 @@
     ]
   },
   {
-    "id": "c-my-groups-not-william-nl",
+    "id": "c-my-groups-not-bram-nl",
     "category": "question",
-    "question": "Kan je me vertellen welke groepen ik wel heb, die william niet heeft?",
+    "question": "Kan je me vertellen welke groepen ik wel heb, die bram niet heeft?",
     "expected": {
       "entity": "group",
       "conditions": [
@@ -262,7 +262,7 @@
             {
               "field": "displayName",
               "op": "eq",
-              "value": "William Overweg"
+              "value": "Bram de Groot"
             }
           ]
         }
@@ -270,9 +270,9 @@
     }
   },
   {
-    "id": "c-my-groups-not-william-en",
+    "id": "c-my-groups-not-bram-en",
     "category": "question",
-    "question": "Can you tell me which groups I have that william does not have?",
+    "question": "Can you tell me which groups I have that bram does not have?",
     "expected": {
       "entity": "group",
       "conditions": [
@@ -294,7 +294,7 @@
             {
               "field": "displayName",
               "op": "eq",
-              "value": "William Overweg"
+              "value": "Bram de Groot"
             }
           ]
         }
@@ -302,9 +302,9 @@
     }
   },
   {
-    "id": "c-my-rights-not-william-nl",
+    "id": "c-my-rights-not-bram-nl",
     "category": "question",
-    "question": "Welke rechten heb ik, die william niet heeft?",
+    "question": "Welke rechten heb ik, die bram niet heeft?",
     "expected": {
       "entity": "resource",
       "conditions": [
@@ -326,7 +326,7 @@
             {
               "field": "displayName",
               "op": "eq",
-              "value": "William Overweg"
+              "value": "Bram de Groot"
             }
           ]
         }
@@ -334,9 +334,9 @@
     }
   },
   {
-    "id": "c-my-rights-not-william-en",
+    "id": "c-my-rights-not-bram-en",
     "category": "question",
-    "question": "Which rights do I have that william does not have?",
+    "question": "Which rights do I have that bram does not have?",
     "expected": {
       "entity": "resource",
       "conditions": [
@@ -358,7 +358,7 @@
             {
               "field": "displayName",
               "op": "eq",
-              "value": "William Overweg"
+              "value": "Bram de Groot"
             }
           ]
         }
@@ -366,9 +366,9 @@
     }
   },
   {
-    "id": "c-william-changes-90-nl",
+    "id": "c-bram-changes-90-nl",
     "category": "question",
-    "question": "Kan je me vertellen aan welke groepen william in de laatste 90 dagen is toegevoegd? En of hij uit groepen is verwijderd?",
+    "question": "Kan je me vertellen aan welke groepen bram in de laatste 90 dagen is toegevoegd? En of hij uit groepen is verwijderd?",
     "expected": {
       "entity": "change",
       "conditions": [
@@ -379,7 +379,7 @@
             {
               "field": "displayName",
               "op": "eq",
-              "value": "William Overweg"
+              "value": "Bram de Groot"
             }
           ]
         },
@@ -414,7 +414,7 @@
                 {
                   "field": "displayName",
                   "op": "eq",
-                  "value": "William Overweg"
+                  "value": "Bram de Groot"
                 }
               ]
             },
@@ -445,9 +445,9 @@
     ]
   },
   {
-    "id": "c-william-changes-90-en",
+    "id": "c-bram-changes-90-en",
     "category": "question",
-    "question": "Can you tell me which groups william was added to in the last 90 days? And whether he was removed from any?",
+    "question": "Can you tell me which groups bram was added to in the last 90 days? And whether he was removed from any?",
     "expected": {
       "entity": "change",
       "conditions": [
@@ -458,7 +458,7 @@
             {
               "field": "displayName",
               "op": "eq",
-              "value": "William Overweg"
+              "value": "Bram de Groot"
             }
           ]
         },
@@ -493,7 +493,7 @@
                 {
                   "field": "displayName",
                   "op": "eq",
-                  "value": "William Overweg"
+                  "value": "Bram de Groot"
                 }
               ]
             },
@@ -524,9 +524,9 @@
     ]
   },
   {
-    "id": "c-william-recent-changes-nl",
+    "id": "c-bram-recent-changes-nl",
     "category": "question",
-    "question": "Aan welke groepen is william recent toegevoegd of verwijderd?",
+    "question": "Aan welke groepen is bram recent toegevoegd of verwijderd?",
     "ambiguous": true,
     "expected": {
       "entity": "change",
@@ -538,7 +538,7 @@
             {
               "field": "displayName",
               "op": "eq",
-              "value": "William Overweg"
+              "value": "Bram de Groot"
             }
           ]
         },
@@ -562,9 +562,9 @@
     }
   },
   {
-    "id": "c-william-recent-changes-en",
+    "id": "c-bram-recent-changes-en",
     "category": "question",
-    "question": "Which groups was william recently added to or removed from?",
+    "question": "Which groups was bram recently added to or removed from?",
     "ambiguous": true,
     "expected": {
       "entity": "change",
@@ -576,7 +576,7 @@
             {
               "field": "displayName",
               "op": "eq",
-              "value": "William Overweg"
+              "value": "Bram de Groot"
             }
           ]
         },
@@ -600,9 +600,9 @@
     }
   },
   {
-    "id": "c-william-groups-not-ap-nl",
+    "id": "c-bram-groups-not-ap-nl",
     "category": "question",
-    "question": "Welke groepen heeft william die niet via een access package zijn uitgedeeld?",
+    "question": "Welke groepen heeft bram die niet via een access package zijn uitgedeeld?",
     "expected": {
       "entity": "group",
       "conditions": [
@@ -613,7 +613,7 @@
             {
               "field": "displayName",
               "op": "eq",
-              "value": "William Overweg"
+              "value": "Bram de Groot"
             }
           ]
         },
@@ -626,9 +626,9 @@
     }
   },
   {
-    "id": "c-william-groups-not-ap-en",
+    "id": "c-bram-groups-not-ap-en",
     "category": "question",
-    "question": "Which groups does william have that were not handed out through an access package?",
+    "question": "Which groups does bram have that were not handed out through an access package?",
     "expected": {
       "entity": "group",
       "conditions": [
@@ -639,7 +639,7 @@
             {
               "field": "displayName",
               "op": "eq",
-              "value": "William Overweg"
+              "value": "Bram de Groot"
             }
           ]
         },
@@ -754,9 +754,9 @@
     ]
   },
   {
-    "id": "c-taekes-reports-groups-nl",
+    "id": "c-annas-reports-groups-nl",
     "category": "question",
-    "question": "In welke groepen zitten de medewerkers van Taeke?",
+    "question": "In welke groepen zitten de medewerkers van Anna?",
     "expected": {
       "entity": "user",
       "conditions": [
@@ -767,7 +767,7 @@
             {
               "field": "displayName",
               "op": "eq",
-              "value": "Taeke Kooiker"
+              "value": "Anna Visser"
             }
           ]
         }
@@ -778,9 +778,9 @@
     ]
   },
   {
-    "id": "c-taekes-reports-groups-en",
+    "id": "c-annas-reports-groups-en",
     "category": "question",
-    "question": "Which groups are the people reporting to Taeke in?",
+    "question": "Which groups are the people reporting to Anna in?",
     "expected": {
       "entity": "user",
       "conditions": [
@@ -791,7 +791,7 @@
             {
               "field": "displayName",
               "op": "eq",
-              "value": "Taeke Kooiker"
+              "value": "Anna Visser"
             }
           ]
         }
@@ -938,9 +938,9 @@
     }
   },
   {
-    "id": "c-taekes-directory-roles-nl",
+    "id": "c-annas-directory-roles-nl",
     "category": "question",
-    "question": "Welke directory rollen heeft Taeke?",
+    "question": "Welke directory rollen heeft Anna?",
     "expected": {
       "entity": "resource",
       "conditions": [
@@ -956,7 +956,7 @@
             {
               "field": "displayName",
               "op": "eq",
-              "value": "Taeke Kooiker"
+              "value": "Anna Visser"
             }
           ]
         }
@@ -964,9 +964,9 @@
     }
   },
   {
-    "id": "c-taekes-directory-roles-en",
+    "id": "c-annas-directory-roles-en",
     "category": "question",
-    "question": "Which directory roles does Taeke have?",
+    "question": "Which directory roles does Anna have?",
     "expected": {
       "entity": "resource",
       "conditions": [
@@ -982,7 +982,7 @@
             {
               "field": "displayName",
               "op": "eq",
-              "value": "Taeke Kooiker"
+              "value": "Anna Visser"
             }
           ]
         }
@@ -1002,15 +1002,15 @@
     "pending": "a comparison against the caller’s own account (@me in a compare reference) is not supported yet"
   },
   {
-    "id": "c-members-of-williams-groups-nl",
+    "id": "c-members-of-brams-groups-nl",
     "category": "question",
-    "question": "Wie zit er in de groepen waarvan william eigenaar is?",
+    "question": "Wie zit er in de groepen waarvan bram eigenaar is?",
     "pending": "needs a relation inside a relation (the members of the groups owned by X), which the definition language does not allow"
   },
   {
-    "id": "c-members-of-williams-groups-en",
+    "id": "c-members-of-brams-groups-en",
     "category": "question",
-    "question": "Who is in the groups that william owns?",
+    "question": "Who is in the groups that bram owns?",
     "pending": "needs a relation inside a relation (the members of the groups owned by X), which the definition language does not allow"
   },
   {
@@ -1070,15 +1070,15 @@
     "expectKind": "decline"
   },
   {
-    "id": "c-remove-william-nl",
+    "id": "c-remove-bram-nl",
     "category": "scope",
-    "question": "Verwijder william uit alle groepen.",
+    "question": "Verwijder bram uit alle groepen.",
     "expectKind": "decline"
   },
   {
-    "id": "c-remove-william-en",
+    "id": "c-remove-bram-en",
     "category": "scope",
-    "question": "Remove william from all groups.",
+    "question": "Remove bram from all groups.",
     "expectKind": "decline"
   },
   {
@@ -1096,7 +1096,7 @@
   {
     "id": "c-password-nl",
     "category": "unknown",
-    "question": "Wat is het wachtwoord van william?",
+    "question": "Wat is het wachtwoord van bram?",
     "expectKind": [
       "decline",
       "clarify"
@@ -1105,7 +1105,7 @@
   {
     "id": "c-password-en",
     "category": "unknown",
-    "question": "What is william’s password?",
+    "question": "What is bram’s password?",
     "expectKind": [
       "decline",
       "clarify"
@@ -1114,7 +1114,7 @@
   {
     "id": "c-salary-nl",
     "category": "unknown",
-    "question": "Hoeveel verdient william per jaar?",
+    "question": "Hoeveel verdient bram per jaar?",
     "expectKind": [
       "decline",
       "clarify"
@@ -1123,7 +1123,7 @@
   {
     "id": "c-salary-en",
     "category": "unknown",
-    "question": "How much does william earn per year?",
+    "question": "How much does bram earn per year?",
     "expectKind": [
       "decline",
       "clarify"

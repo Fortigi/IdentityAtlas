@@ -118,7 +118,7 @@ mistakes. Typical failures, all of which show up in the plain-language reading:
   on **neither** of the two deliberately ambiguous questions.
 
 **Comparisons are the weakest kind of question: 3 of 6 correct** across both sets. The one this feature
-was demonstrated with ("groups with the same members as business role *Fortigi - Algemeen - Maten*,
+was demonstrated with ("groups with the same members as business role *ACME - Algemeen - Partners*,
 not part of it") is among the three that pass. For a comparison that matters, build it with
 **+ compare with…** in the editor — once built, a comparison is exact; only the translation from
 words is uncertain.
@@ -138,7 +138,7 @@ with it). Every correction made this way is stated in the report's assumptions.
 - **The person asking is put where they belong** — "van welke groepen ben ik eigenaar" whose
   definition names nobody gets the caller added (into an empty owners/members relation, or on
   the account itself); "which groups am I in" with the caller's id written inside the group
-  condition is moved to the account; "groups I have that william does not" with william on both
+  condition is moved to the account; "groups I have that bram does not" with bram on both
   sides puts the caller on the side the question mentions first. Only when the definition names
   somebody else is the model asked once to add the caller.
 - **Follow-up bookkeeping is corrected, not trusted** — the ids of "these groups" written on the
@@ -161,10 +161,10 @@ with it). Every correction made this way is stated in the report's assumptions.
   leaf by leaf; one that lost a condition it was not told about is refused and the original
   stands. The "or" correction once added "added or removed" and dropped the 90-day window,
   turning 2 rows into 149.
-- **A first name is one person** — "william" written as a name-contains filter is looked up
+- **A first name is one person** — "bram" written as a name-contains filter is looked up
   before the report runs: one match is pinned to that person (the reading says who), several
   are offered as a choice, none asks for the exact name. On a small directory the substring
-  happened to be right; on a large one it counts every William.
+  happened to be right; on a large one it counts every Bram.
 - **Out of scope is declined, not guessed** — a request that is not about the data (general
   knowledge, small talk, writing) or that asks to change access is answered with one sentence
   and no report, in every front end, and filed as `declined` rather than as a failure.

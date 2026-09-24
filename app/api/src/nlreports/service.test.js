@@ -237,7 +237,7 @@ describe('runSpec row shaping', () => {
   it('hands back the records behind a name list, with the page each one opens', async () => {
     const out = await run({
       __id: 'u1',
-      displayName: 'Wim',
+      displayName: 'Kees',
       'owns.names': 'ASML, Bestuur',
       'owns.names__links': [{ id: 'g1', name: 'ASML' }, { id: 'g2', name: 'Bestuur' }],
     });
@@ -253,20 +253,20 @@ describe('runSpec row shaping', () => {
     // and the report table change with it.
     const out = await run({
       __id: 'u1',
-      displayName: 'Wim',
+      displayName: 'Kees',
       'owns.names': 'ASML, Bestuur',
       'owns.names__links': [{ id: 'g1', name: 'ASML' }, { id: 'g2', name: 'Bestuur' }],
     });
 
     expect(out.rows[0]['owns.names']).toBe('ASML, Bestuur');
-    expect(out.rows[0].displayName).toBe('Wim');
+    expect(out.rows[0].displayName).toBe('Kees');
     expect(out.rows[0]._entity).toEqual({ kind: 'user', id: 'u1' });
   });
 
   it('owns nothing: no _links key at all rather than an empty one', async () => {
     // jsonb_agg over no rows is NULL, not []. A row that carries `_links: {}`
     // reads as "has links" to every caller that tests for the key.
-    const out = await run({ __id: 'u1', displayName: 'Wim', 'owns.names': null, 'owns.names__links': null });
+    const out = await run({ __id: 'u1', displayName: 'Kees', 'owns.names': null, 'owns.names__links': null });
 
     expect(out.rows[0]).not.toHaveProperty('_links');
     expect(out.rows[0]['owns.names']).toBe(null);
@@ -274,7 +274,7 @@ describe('runSpec row shaping', () => {
 
   it('adds nothing to a report without a name list', async () => {
     const out = await run(
-      { __id: 'u1', displayName: 'Wim', 'owns.count': 27 },
+      { __id: 'u1', displayName: 'Kees', 'owns.count': 27 },
       { entity: 'account', conditions: [], columns: ['displayName', 'owns.count'] },
     );
 
@@ -286,7 +286,7 @@ describe('runSpec row shaping', () => {
     // The companion is an implementation detail of the row, not a column
     // anybody should render — a table that shows it prints raw JSON.
     const out = await run({
-      __id: 'u1', displayName: 'Wim', 'owns.names': 'ASML',
+      __id: 'u1', displayName: 'Kees', 'owns.names': 'ASML',
       'owns.names__links': [{ id: 'g1', name: 'ASML' }],
     });
 
@@ -301,11 +301,11 @@ describe('spotting alternatives in the question', () => {
   // enough that telling them apart is the whole job.
 
   it('reads the Dutch question that this was found on', () => {
-    // "Kan je me vertellen OF William ... toegevoegd is OF uit groepen is weg
+    // "Kan je me vertellen OF Bram ... toegevoegd is OF uit groepen is weg
     // gehaald": the first is "whether", the second is "or". Missing it meant
     // the model's "Added AND Removed" was never sent back for repair.
     expect(hasDisjunction(
-      'Kan je me vertellen of William in de laatste 180 dagen nog aan groepen toegevoegd is of uit groepen is weg gehaald?',
+      'Kan je me vertellen of Bram in de laatste 180 dagen nog aan groepen toegevoegd is of uit groepen is weg gehaald?',
     )).toBe(true);
   });
 
@@ -549,9 +549,9 @@ describe('runSpec and the caller placeholder', () => {
   it('runs a definition that still says "@me" for the caller it is given', async () => {
     query.mockResolvedValue({ rows: [] });
     tx.mockImplementation(async (fn) => fn({ query: async () => ({ rows: [] }) }));
-    const out = await runSpec(mine, new Map([['@me', 'u-wim']]));
+    const out = await runSpec(mine, new Map([['@me', 'u-kees']]));
     expect(out.ok).toBe(true);
-    expect(out.spec.conditions[0].conditions[0].value).toBe('u-wim');
+    expect(out.spec.conditions[0].conditions[0].value).toBe('u-kees');
   });
 
   it('refuses it when there is nobody to stand for "@me"', async () => {
@@ -564,31 +564,31 @@ describe('runSpec and the caller placeholder', () => {
 describe('interpret — corrections that need no model round', () => {
   const values = { rows: [{ v: 'Added' }, { v: 'Removed' }] };
   const change = (conditions, extra = {}) => ({ entity: 'change', match: 'all', conditions, columns: [], ...extra });
-  const william = { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'william' }] };
+  const bram = { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'bram' }] };
   const window = { type: 'field', field: 'changedAt', op: 'withinLastDays', value: 90 };
 
-  // The person lookup (references.js) finds exactly one William; every other
+  // The person lookup (references.js) finds exactly one Bram; every other
   // query is a value list.
   beforeEach(() => {
     clearValuesCache();
     query.mockImplementation(async (sql) => (sql.includes('OVER()')
-      ? { rows: [{ id: 'u1', displayName: 'William Overweg', type: 'User', total: 1 }] }
+      ? { rows: [{ id: 'u1', displayName: 'Bram de Groot', type: 'User', total: 1 }] }
       : values));
   });
 
   it('answers "Added AND Removed" as either, in ONE model call, and says so', async () => {
     // The definition that once cost a repair round and came back worse.
-    chat.mockResolvedValueOnce(reply(change([william, window,
+    chat.mockResolvedValueOnce(reply(change([bram, window,
       { type: 'field', field: 'action', op: 'eq', value: 'Added' },
       { type: 'field', field: 'action', op: 'eq', value: 'Removed' }])));
-    const r = await interpret({ question: 'aan welke groepen is william in 90 dagen toegevoegd of verwijderd?', model: 'm' });
+    const r = await interpret({ question: 'aan welke groepen is bram in 90 dagen toegevoegd of verwijderd?', model: 'm' });
     expect(chat).toHaveBeenCalledTimes(1);
     expect(r.kind).toBe('report');
     expect(r.repaired).toBe(false);
     expect(r.spec.conditions).toHaveLength(3);
     expect(r.spec.conditions[2]).toMatchObject({ type: 'group', match: 'any' });
     expect(r.spec.conditions[1]).toEqual(window); // the window survived
-    expect(r.spec.conditions[0].conditions[0]).toMatchObject({ op: 'eq', value: 'William Overweg' }); // and the person was pinned
+    expect(r.spec.conditions[0].conditions[0]).toMatchObject({ op: 'eq', value: 'Bram de Groot' }); // and the person was pinned
     expect(r.assumptions.join(' ')).toMatch(/either one/);
   });
 
@@ -665,10 +665,10 @@ describe('interpret — the first attempt travels with a repaired answer', () =>
 
 describe('the OR correction names the alternatives', () => {
   it('quotes the words either side of "or" / "of", and falls back to the generic wording', () => {
-    expect(orRepairMessage('is william toegevoegd of verwijderd uit groepen?')).toMatch(/says "toegevoegd of verwijderd": those are alternatives/);
+    expect(orRepairMessage('is bram toegevoegd of verwijderd uit groepen?')).toMatch(/says "toegevoegd of verwijderd": those are alternatives/);
     expect(orRepairMessage('accounts that are either a guest or disabled')).toMatch(/says "guest or disabled"/);
     // "vertellen of" is "tell whether", not an alternative.
-    expect(disjunctionPhrase('kan je me vertellen of william lid is')).toBeNull();
+    expect(disjunctionPhrase('kan je me vertellen of bram lid is')).toBeNull();
     expect(orRepairMessage('guests, or disabled accounts')).toMatch(/The request says "or", but/);
   });
 });
@@ -729,7 +729,7 @@ describe('interpret — a question about the person asking that forgot them', ()
 describe('the value lists are the cached start of every user message', () => {
   it('puts them first, before the caller and the name hints, exactly as the warm-up caches them', async () => {
     chat.mockResolvedValueOnce(reply(AND_SPEC));
-    await interpret({ question: 'all guests', model: 'm', context: 'The person asking this question is Wim.' });
+    await interpret({ question: 'all guests', model: 'm', context: 'The person asking this question is Kees.' });
     const user = chat.mock.calls[0][0].messages.at(-1).content;
     expect(user.startsWith(buildValuesBlock(await loadValues()))).toBe(true);
     expect(user.indexOf('Values that exist')).toBeLessThan(user.indexOf('The person asking'));
@@ -741,20 +741,20 @@ describe('the value lists are the cached start of every user message', () => {
   });
 });
 
-describe('interpret — "groups I have that william does not" with william on both sides', () => {
+describe('interpret — "groups I have that bram does not" with bram on both sides', () => {
   it('is resolved before validation, in ONE model call, with the caller on the side the question names first', async () => {
     clearValuesCache();
     query.mockImplementation(async (sql) => (sql.includes('OVER()')
-      ? { rows: [{ id: 'u-w', displayName: 'William Overweg', type: 'User', total: 1 }] }
+      ? { rows: [{ id: 'u-w', displayName: 'Bram de Groot', type: 'User', total: 1 }] }
       : { rows: [{ v: 'Guest' }, { v: 'Member' }] }));
-    const william = { type: 'field', field: 'displayName', op: 'contains', value: 'william' };
-    const rel = (quantifier) => ({ type: 'relation', relation: 'members', quantifier, match: 'all', conditions: [william] });
+    const bram = { type: 'field', field: 'displayName', op: 'contains', value: 'bram' };
+    const rel = (quantifier) => ({ type: 'relation', relation: 'members', quantifier, match: 'all', conditions: [bram] });
     chat.mockResolvedValueOnce(reply({ entity: 'group', match: 'all', conditions: [rel('some'), rel('none')], columns: [] }));
-    const r = await interpret({ question: 'Which groups do I have that william does not have?', model: 'm', substitutions: new Map([['@me', 'u-me']]) });
+    const r = await interpret({ question: 'Which groups do I have that bram does not have?', model: 'm', substitutions: new Map([['@me', 'u-me']]) });
     expect(chat).toHaveBeenCalledTimes(1);
     expect(r.kind).toBe('report');
     expect(r.spec.conditions[0].conditions[0]).toEqual({ type: 'field', field: 'id', op: 'eq', value: 'u-me' });
-    expect(r.spec.conditions[1].conditions[0]).toMatchObject({ op: 'eq', value: 'William Overweg' });
+    expect(r.spec.conditions[1].conditions[0]).toMatchObject({ op: 'eq', value: 'Bram de Groot' });
     expect(r.assumptions.join(' ')).toMatch(/the person asking has/);
   });
 });
@@ -780,16 +780,16 @@ describe('interpret — a correction is never applied to a definition validation
   it('drops a rejected condition nothing in the request asked for, says so, and spends no round', async () => {
     clearValuesCache();
     query.mockImplementation(async (sql) => (sql.includes('OVER()')
-      ? { rows: [{ id: 'u-w', displayName: 'William Overweg', type: 'User', total: 1 }] }
+      ? { rows: [{ id: 'u-w', displayName: 'Bram de Groot', type: 'User', total: 1 }] }
       : { rows: [{ v: 'Guest' }, { v: 'Member' }] }));
     // Verbatim shape: accountCount (a person field) invented inside members.
     const invented = { entity: 'group', match: 'all', columns: [], conditions: [
       { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'accountCount', op: 'gt', value: 0 }] },
-      { type: 'relation', relation: 'members', quantifier: 'none', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'william' }] },
+      { type: 'relation', relation: 'members', quantifier: 'none', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'bram' }] },
       { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: '@me' }] },
     ] };
     chat.mockResolvedValueOnce(reply(invented));
-    const r = await interpret({ question: 'Which groups do I have that william does not have?', model: 'm', substitutions: new Map([['@me', 'u-me']]) });
+    const r = await interpret({ question: 'Which groups do I have that bram does not have?', model: 'm', substitutions: new Map([['@me', 'u-me']]) });
     expect(chat).toHaveBeenCalledTimes(1);
     expect(r.kind).toBe('report');
     expect(JSON.stringify(r.spec)).not.toMatch(/accountCount/);
@@ -818,15 +818,15 @@ describe('every correction round keeps what the definition had', () => {
     // "Added or Removed" and lost "within 90 days" (149 rows).
     clearValuesCache();
     query.mockImplementation(async (sql) => (sql.includes('OVER()')
-      ? { rows: [{ id: 'u-w', displayName: 'William Overweg', type: 'User', total: 1 }] }
+      ? { rows: [{ id: 'u-w', displayName: 'Bram de Groot', type: 'User', total: 1 }] }
       : { rows: [{ v: 'Added' }, { v: 'Removed' }, { v: 'Group' }] }));
-    const william = { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'william' }] };
+    const bram = { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'bram' }] };
     const groups = { type: 'relation', relation: 'resource', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'Group' }] };
     const window = { type: 'field', field: 'changedAt', op: 'withinLastDays', value: 90 };
     const either = { type: 'group', match: 'any', conditions: [{ type: 'field', field: 'action', op: 'eq', value: 'Added' }, { type: 'field', field: 'action', op: 'eq', value: 'Removed' }] };
-    chat.mockResolvedValueOnce(reply({ entity: 'change', match: 'all', columns: [], conditions: [william, groups, window] }))
-      .mockResolvedValueOnce(reply({ entity: 'change', match: 'all', columns: [], conditions: [william, groups, either] }));
-    const r = await interpret({ question: 'Kan je me vertellen aan welke groepen william in de laatste 90 dagen is toegevoegd? En of hij uit groepen is verwijderd?', model: 'm' });
+    chat.mockResolvedValueOnce(reply({ entity: 'change', match: 'all', columns: [], conditions: [bram, groups, window] }))
+      .mockResolvedValueOnce(reply({ entity: 'change', match: 'all', columns: [], conditions: [bram, groups, either] }));
+    const r = await interpret({ question: 'Kan je me vertellen aan welke groepen bram in de laatste 90 dagen is toegevoegd? En of hij uit groepen is verwijderd?', model: 'm' });
     expect(chat).toHaveBeenCalledTimes(2);
     expect(r.kind).toBe('report');
     expect(r.spec.conditions.some(c => c.op === 'withinLastDays')).toBe(true);
@@ -835,13 +835,13 @@ describe('every correction round keeps what the definition had', () => {
 });
 
 describe('interpret — a refinement keeps the previous definition', () => {
-  it('restores William and the window when "only the additions" swapped and dropped them', async () => {
+  it('restores Bram and the window when "only the additions" swapped and dropped them', async () => {
     clearValuesCache();
     query.mockResolvedValue({ rows: [{ v: 'Added' }, { v: 'Removed' }, { v: 'Group' }] });
-    const william = { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'eq', value: 'William Overweg', checked: true }] };
+    const bram = { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'eq', value: 'Bram de Groot', checked: true }] };
     const groups = { type: 'relation', relation: 'resource', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'Group' }] };
     const window = { type: 'field', field: 'changedAt', op: 'withinLastDays', value: 90 };
-    const previousSpec = { entity: 'change', match: 'all', conditions: [william, groups, window], columns: [], limit: 1000 };
+    const previousSpec = { entity: 'change', match: 'all', conditions: [bram, groups, window], columns: [], limit: 1000 };
     const swapped = { entity: 'change', match: 'all', columns: [], conditions: [
       { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: '@me' }] },
       { type: 'field', field: 'action', op: 'eq', value: 'Added' },
@@ -851,7 +851,7 @@ describe('interpret — a refinement keeps the previous definition', () => {
     const r = await interpret({ question: 'Alleen de toevoegingen graag.', model: 'm', substitutions: new Map([['@me', 'u-me']]), previousSpec });
     expect(chat).toHaveBeenCalledTimes(1);
     expect(r.kind).toBe('report');
-    // Order-insensitive: the swapped caller condition is removed first (no "my" in the question) and William restored after.
+    // Order-insensitive: the swapped caller condition is removed first (no "my" in the question) and Bram restored after.
     expect(r.spec.conditions.map(c => c.type === 'relation' ? `${c.relation}:${c.conditions[0].field}` : `${c.field}`).sort())
       .toEqual(['account:displayName', 'action', 'changedAt', 'resource:resourceType']);
     expect(r.assumptions.join(' ')).toMatch(/Kept the earlier definition/);
@@ -904,7 +904,7 @@ describe('interpret — the caller\'s literal id counts as the caller', () => {
   it('removes "account is <uuid>" from a question that never said "my"', async () => {
     clearValuesCache();
     query.mockResolvedValue({ rows: [{ v: 'Group' }, { v: 'Added' }] });
-    const uuid = 'dda42659-89b1-43df-a057-b0fa36c86aaa';
+    const uuid = '3f7c1d2e-9a4b-4c6d-8e1f-2b3c4d5e6f70';
     const groups = { type: 'relation', relation: 'resource', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'Group' }] };
     const spec = { entity: 'change', match: 'all', columns: [], conditions: [groups,
       { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: uuid }] },

@@ -14,12 +14,12 @@ import ConfirmChoices from './ConfirmChoices';
 const reference = {
   kind: 'reference',
   path: [0],
-  name: 'Algemene maten',
+  name: 'Algemene partners',
   label: 'business role',
-  message: 'No business role is named exactly "Algemene maten". Did you mean:',
+  message: 'No business role is named exactly "Algemene partners". Did you mean:',
   choices: [
-    { id: 'br1', name: 'Fortigi - Algemeen - Maten', type: 'BusinessRole', score: 0.61 },
-    { id: 'g1', name: 'Fortigi.Maten', type: 'Group', score: 0.4 },
+    { id: 'br1', name: 'ACME - Algemeen - Partners', type: 'BusinessRole', score: 0.61 },
+    { id: 'g1', name: 'ACME.Partners', type: 'Group', score: 0.4 },
   ],
 };
 const value = { ...reference, kind: 'value', choices: [reference.choices[0]] };
@@ -36,8 +36,8 @@ describe('ConfirmChoices', () => {
     expect(screen.getByText(reference.message)).toBeInTheDocument();
     expect(screen.getByText('business role')).toBeInTheDocument(); // the type of the first suggestion
 
-    await userEvent.click(screen.getByRole('button', { name: /Fortigi\.Maten/ }));
-    expect(onChoose).toHaveBeenCalledWith({ path: [0], name: 'Fortigi.Maten', id: 'g1' });
+    await userEvent.click(screen.getByRole('button', { name: /ACME.Partners/ }));
+    expect(onChoose).toHaveBeenCalledWith({ path: [0], name: 'ACME.Partners', id: 'g1' });
   });
 
   it('sends a typed name, trimmed, and no id', async () => {
@@ -49,14 +49,14 @@ describe('ConfirmChoices', () => {
 
   it('pins no id for a "name is X" condition — the value is the name itself', async () => {
     const onChoose = render(value);
-    await userEvent.click(screen.getByRole('button', { name: /Fortigi - Algemeen - Maten/ }));
-    expect(onChoose).toHaveBeenCalledWith({ path: [0], name: 'Fortigi - Algemeen - Maten', id: undefined });
+    await userEvent.click(screen.getByRole('button', { name: /ACME - Algemeen - Partners/ }));
+    expect(onChoose).toHaveBeenCalledWith({ path: [0], name: 'ACME - Algemeen - Partners', id: undefined });
   });
 
   it('offers "keep as written" for a name condition', async () => {
     const onChoose = render(value);
     await userEvent.click(screen.getByRole('button', { name: /Keep/ }));
-    expect(onChoose).toHaveBeenCalledWith({ path: [0], name: 'Algemene maten', keep: true });
+    expect(onChoose).toHaveBeenCalledWith({ path: [0], name: 'Algemene partners', keep: true });
   });
 
   it('never offers it for a comparison reference, which cannot run without a record', () => {
@@ -110,29 +110,29 @@ describe('ConfirmChoices — a person written as "contains"', () => {
   const person = {
     kind: 'person',
     path: [1, 0],
-    name: 'william',
+    name: 'bram',
     label: 'account',
     total: 2,
-    message: '2 accounts have "william" in their name. Which one is meant?',
+    message: '2 accounts have "bram" in their name. Which one is meant?',
     choices: [
-      { id: 'u1', name: 'William Overweg', type: 'User' },
-      { id: 'u2', name: 'William Smit', type: 'User' },
-      { name: 'every account with “william” in the name', keep: true },
+      { id: 'u1', name: 'Bram de Groot', type: 'User' },
+      { id: 'u2', name: 'Bram Smit', type: 'User' },
+      { name: 'every account with “bram” in the name', keep: true },
     ],
   };
 
   it('pins the chosen person by id, like a reference', async () => {
     const onChoose = render(person);
-    await userEvent.click(screen.getByRole('button', { name: /William Smit/ }));
-    expect(onChoose).toHaveBeenCalledWith({ path: [1, 0], name: 'William Smit', id: 'u2' });
+    await userEvent.click(screen.getByRole('button', { name: /Bram Smit/ }));
+    expect(onChoose).toHaveBeenCalledWith({ path: [1, 0], name: 'Bram Smit', id: 'u2' });
   });
 
   it('offers everyone with the name as the keep-as-written choice, not as one more person', async () => {
     const onChoose = render(person);
     // Two person buttons, not three.
-    expect(screen.getAllByRole('button').filter(b => /William/.test(b.textContent))).toHaveLength(2);
+    expect(screen.getAllByRole('button').filter(b => /Bram/.test(b.textContent))).toHaveLength(2);
     await userEvent.click(screen.getByRole('button', { name: /every account with/ }));
-    expect(onChoose).toHaveBeenCalledWith({ path: [1, 0], name: 'william', keep: true });
+    expect(onChoose).toHaveBeenCalledWith({ path: [1, 0], name: 'bram', keep: true });
     expect(screen.queryByText(/as written/)).not.toBeInTheDocument();
   });
 });

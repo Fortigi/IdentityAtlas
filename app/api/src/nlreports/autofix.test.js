@@ -88,9 +88,9 @@ describe('a grouping the request never asked for', () => {
   const grouped = { entity: 'change', match: 'all', conditions: [field('action', 'eq', 'Added')], columns: [], groupBy: 'action' };
 
   it('is removed, and the assumption says a list was given instead', () => {
-    // Verbatim: "aan welke groepen is william toegevoegd" came back as a count
+    // Verbatim: "aan welke groepen is bram toegevoegd" came back as a count
     // per action, and the caller read "5" where five names were wanted.
-    const { spec, notes } = dropUnaskedGrouping(grouped, 'Kan je me vertellen aan welke groepen william in de laatste 90 dagen is toegevoegd?');
+    const { spec, notes } = dropUnaskedGrouping(grouped, 'Kan je me vertellen aan welke groepen bram in de laatste 90 dagen is toegevoegd?');
     expect(spec).not.toHaveProperty('groupBy');
     expect(spec.conditions).toBe(grouped.conditions);
     expect(notes[0]).toMatch(/not a count per action/);
@@ -113,7 +113,7 @@ describe('what a correction dropped', () => {
   const before = {
     entity: 'change', match: 'all',
     conditions: [
-      { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [field('displayName', 'contains', 'william')] },
+      { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [field('displayName', 'contains', 'bram')] },
       field('changedAt', 'withinLastDays', 90),
       field('action', 'eq', 'Added'),
       field('action', 'eq', 'Removed'),
@@ -122,7 +122,7 @@ describe('what a correction dropped', () => {
 
   it('lists every leaf, looking through relations and groups', () => {
     expect([...leaves(before)]).toEqual([
-      'account some', 'displayName contains "william"', 'changedAt withinLastDays 90', 'action eq "Added"', 'action eq "Removed"',
+      'account some', 'displayName contains "bram"', 'changedAt withinLastDays 90', 'action eq "Added"', 'action eq "Removed"',
     ]);
   });
 
@@ -164,32 +164,32 @@ describe('a comparison with a kind of thing where a name should be', () => {
 });
 
 describe('the person asking against a named person, on the right side', () => {
-  const william = { type: 'field', field: 'displayName', op: 'contains', value: 'william' };
+  const bram = { type: 'field', field: 'displayName', op: 'contains', value: 'bram' };
   const rel = (quantifier, ...conditions) => ({ type: 'relation', relation: 'members', quantifier, match: 'all', conditions });
-  const both = { entity: 'group', match: 'all', conditions: [rel('some', william), rel('none', william)] };
+  const both = { entity: 'group', match: 'all', conditions: [rel('some', bram), rel('none', bram)] };
   const ME = '@me';
 
   it('puts the caller on the "some" side when the question mentions them first', () => {
-    // Verbatim: "welke groepen heb ik wel, die william niet heeft".
-    const { spec, notes } = resolveSelfAgainstPerson(both, 'Kan je me vertellen welke groepen ik wel heb, die william niet heeft?', ME);
+    // Verbatim: "welke groepen heb ik wel, die bram niet heeft".
+    const { spec, notes } = resolveSelfAgainstPerson(both, 'Kan je me vertellen welke groepen ik wel heb, die bram niet heeft?', ME);
     expect(spec.conditions[0].conditions).toEqual([{ type: 'field', field: 'id', op: 'eq', value: ME }]);
-    expect(spec.conditions[1].conditions).toEqual([william]);
-    expect(notes[0]).toMatch(/the person asking has, william has not/);
-    expect(resolveSelfAgainstPerson(both, 'Which groups do I have that william does not have?', ME).spec.conditions[0].conditions[0].value).toBe(ME);
+    expect(spec.conditions[1].conditions).toEqual([bram]);
+    expect(notes[0]).toMatch(/the person asking has, bram has not/);
+    expect(resolveSelfAgainstPerson(both, 'Which groups do I have that bram does not have?', ME).spec.conditions[0].conditions[0].value).toBe(ME);
   });
 
   it('puts the caller on the "none" side when the named person comes first', () => {
-    const { spec } = resolveSelfAgainstPerson(both, 'Welke groepen heeft william die ik niet heb?', ME);
-    expect(spec.conditions[0].conditions).toEqual([william]);
+    const { spec } = resolveSelfAgainstPerson(both, 'Welke groepen heeft bram die ik niet heb?', ME);
+    expect(spec.conditions[0].conditions).toEqual([bram]);
     expect(spec.conditions[1].conditions[0].value).toBe(ME);
   });
 
   it('leaves alone: two different people, no first-person word, a name not in the question, or one relation', () => {
     const jan = { type: 'field', field: 'displayName', op: 'contains', value: 'jan' };
-    expect(resolveSelfAgainstPerson({ ...both, conditions: [rel('some', william), rel('none', jan)] }, 'groups I have that jan does not', ME).notes).toEqual([]);
-    expect(resolveSelfAgainstPerson(both, 'groups william is in that william is not in', ME).notes).toEqual([]);
+    expect(resolveSelfAgainstPerson({ ...both, conditions: [rel('some', bram), rel('none', jan)] }, 'groups I have that jan does not', ME).notes).toEqual([]);
+    expect(resolveSelfAgainstPerson(both, 'groups bram is in that bram is not in', ME).notes).toEqual([]);
     expect(resolveSelfAgainstPerson(both, 'welke groepen heb ik wel die piet niet heeft', ME).notes).toEqual([]);
-    expect(resolveSelfAgainstPerson({ ...both, conditions: [rel('some', william)] }, 'my groups with william', ME).notes).toEqual([]);
+    expect(resolveSelfAgainstPerson({ ...both, conditions: [rel('some', bram)] }, 'my groups with bram', ME).notes).toEqual([]);
   });
 });
 
@@ -349,8 +349,8 @@ describe('the column the question asks to see', () => {
 });
 
 describe('was a lost condition asked for?', () => {
-  it('sees nothing of "accountCount gt 0" in a question about groups and william', () => {
-    expect(askedForLeaf('accountCount gt 0', 'Can you tell me which groups I have that william does not have?')).toBe(false);
+  it('sees nothing of "accountCount gt 0" in a question about groups and bram', () => {
+    expect(askedForLeaf('accountCount gt 0', 'Can you tell me which groups I have that bram does not have?')).toBe(false);
   });
 
   it('sees "MFA" in the field and "Finance" in the value', () => {
@@ -364,27 +364,27 @@ describe('a name written as an id', () => {
   it('becomes a name condition, wherever it sits; uuids and placeholders stay ids', () => {
     const { spec } = nameWrittenAsId({ entity: 'resource', match: 'all', conditions: [
       { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: '@me' }] },
-      { type: 'relation', relation: 'members', quantifier: 'none', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: 'william' }] },
-      { type: 'field', field: 'id', op: 'eq', value: 'dda42659-89b1-43df-a057-b0fa36c86aaa' },
+      { type: 'relation', relation: 'members', quantifier: 'none', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: 'bram' }] },
+      { type: 'field', field: 'id', op: 'eq', value: '3f7c1d2e-9a4b-4c6d-8e1f-2b3c4d5e6f70' },
     ] });
     expect(spec.conditions[0].conditions[0]).toEqual({ type: 'field', field: 'id', op: 'eq', value: '@me' });
-    expect(spec.conditions[1].conditions[0]).toEqual({ type: 'field', field: 'displayName', op: 'contains', value: 'william' });
+    expect(spec.conditions[1].conditions[0]).toEqual({ type: 'field', field: 'displayName', op: 'contains', value: 'bram' });
     expect(spec.conditions[2].field).toBe('id');
   });
 });
 
 describe('a refinement keeps the previous definition', () => {
-  const william = { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'eq', value: 'William Overweg' }] };
-  const me = { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: 'dda42659-89b1-43df-a057-b0fa36c86aaa' }] };
+  const bram = { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'eq', value: 'Bram de Groot' }] };
+  const me = { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: '3f7c1d2e-9a4b-4c6d-8e1f-2b3c4d5e6f70' }] };
   const groups = { type: 'relation', relation: 'resource', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'Group' }] };
   const window = { type: 'field', field: 'changedAt', op: 'withinLastDays', value: 90 };
   const added = { type: 'field', field: 'action', op: 'eq', value: 'Added' };
-  const previous = { entity: 'change', match: 'all', conditions: [william, groups, window] };
+  const previous = { entity: 'change', match: 'all', conditions: [bram, groups, window] };
 
   it('restores the person and the window the refinement never mentioned, and keeps the filter it asked for', () => {
-    // Verbatim: "Alleen de toevoegingen graag." after William's changes in 90 days.
+    // Verbatim: "Alleen de toevoegingen graag." after Bram's changes in 90 days.
     const { spec, notes } = refineFromPrevious({ entity: 'change', match: 'all', conditions: [me, added, groups] }, previous, 'Alleen de toevoegingen graag.');
-    expect(spec.conditions).toEqual([william, added, groups, window]);
+    expect(spec.conditions).toEqual([bram, added, groups, window]);
     expect(notes).toHaveLength(1);
   });
 
@@ -397,12 +397,12 @@ describe('a refinement keeps the previous definition', () => {
 
   it('does not restore what the refinement itself is about', () => {
     // "Only the last 30 days" replaces the window on purpose.
-    const { spec } = refineFromPrevious({ entity: 'change', match: 'all', conditions: [william, groups, { ...window, value: 30 }] }, previous, 'only the last 30 days please');
+    const { spec } = refineFromPrevious({ entity: 'change', match: 'all', conditions: [bram, groups, { ...window, value: 30 }] }, previous, 'only the last 30 days please');
     expect(spec.conditions.find(c => c.field === 'changedAt').value).toBe(30);
   });
 
   it('adds nothing when everything is still there', () => {
-    const same = { entity: 'change', match: 'all', conditions: [william, groups, window, added] };
+    const same = { entity: 'change', match: 'all', conditions: [bram, groups, window, added] };
     expect(refineFromPrevious(same, previous, 'alleen de toevoegingen').spec).toBe(same);
   });
 });
@@ -445,7 +445,7 @@ describe('"not via an access package"', () => {
   const some = { type: 'relation', relation: 'businessRoles', quantifier: 'some', match: 'all', conditions: [] };
 
   it('turns an unconditioned "in a business role" into "in none", in both languages', () => {
-    for (const q of ['Which groups does william have that were not handed out through an access package?', 'Welke groepen heeft william die niet via een access package zijn uitgedeeld?']) {
+    for (const q of ['Which groups does bram have that were not handed out through an access package?', 'Welke groepen heeft bram die niet via een access package zijn uitgedeeld?']) {
       const { spec, notes } = negatedBusinessRole({ entity: 'group', match: 'all', conditions: [some] }, q);
       expect(spec.conditions[0].quantifier).toBe('none');
       expect(notes).toHaveLength(1);
@@ -473,7 +473,7 @@ describe('the column the question asks to see — "access package" is not "acces
 
 describe('the caller\'s id written out literally', () => {
   it('becomes the placeholder wherever it sits, and nothing else changes', () => {
-    const uuid = 'dda42659-89b1-43df-a057-b0fa36c86aaa';
+    const uuid = '3f7c1d2e-9a4b-4c6d-8e1f-2b3c4d5e6f70';
     const { spec } = canonicaliseSelf({ entity: 'change', match: 'all', conditions: [
       { type: 'relation', relation: 'account', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: uuid }] },
       { type: 'field', field: 'id', op: 'in', value: [uuid] },
@@ -487,22 +487,22 @@ describe('the caller\'s id written out literally', () => {
 });
 
 describe('the roles of a person are a report of roles', () => {
-  const taeke = { type: 'field', field: 'displayName', op: 'eq', value: 'Taeke Kooiker', checked: true };
+  const anna = { type: 'field', field: 'displayName', op: 'eq', value: 'Anna Visser', checked: true };
 
-  it('flips "user Taeke with an access column" into directory roles whose members include Taeke', () => {
-    const { spec, notes } = rolesOfPersonAsResources({ entity: 'user', match: 'all', conditions: [taeke], columns: ['access.names'] }, 'Welke directory rollen heeft Taeke?');
+  it('flips "user Anna with an access column" into directory roles whose members include Anna', () => {
+    const { spec, notes } = rolesOfPersonAsResources({ entity: 'user', match: 'all', conditions: [anna], columns: ['access.names'] }, 'Welke directory rollen heeft Anna?');
     expect(spec).toEqual({ entity: 'resource', match: 'all', columns: [], conditions: [
       { type: 'field', field: 'resourceType', op: 'eq', value: 'EntraDirectoryRole' },
-      { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [taeke] },
+      { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [anna] },
     ] });
     expect(notes).toHaveLength(1);
   });
 
   it('leaves alone: a report that already says roles, one about groups, one with a relation, and a resource report', () => {
-    const withRoles = { entity: 'user', match: 'all', conditions: [taeke, { type: 'relation', relation: 'access', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'EntraDirectoryRole' }] }] };
-    expect(rolesOfPersonAsResources(withRoles, 'which roles does Taeke have').spec).toBe(withRoles);
-    const groups = { entity: 'user', match: 'all', conditions: [taeke], columns: ['memberOf.names'] };
-    expect(rolesOfPersonAsResources(groups, 'welke groepen heeft Taeke').spec).toBe(groups);
+    const withRoles = { entity: 'user', match: 'all', conditions: [anna, { type: 'relation', relation: 'access', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'EntraDirectoryRole' }] }] };
+    expect(rolesOfPersonAsResources(withRoles, 'which roles does Anna have').spec).toBe(withRoles);
+    const groups = { entity: 'user', match: 'all', conditions: [anna], columns: ['memberOf.names'] };
+    expect(rolesOfPersonAsResources(groups, 'welke groepen heeft Anna').spec).toBe(groups);
     const resources = { entity: 'resource', match: 'all', conditions: [] };
     expect(rolesOfPersonAsResources(resources, 'which roles exist').spec).toBe(resources);
   });

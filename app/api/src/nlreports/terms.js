@@ -43,7 +43,7 @@ const MIN_TERM_LENGTH = 3;
 
 // Tokens of a person's display name that are not the person: the particles of
 // a Dutch or German surname, titles, and the words a question is made of.
-// "Wim van den Heijkant" put "van" and "den" among the names the directory
+// "Kees van den Berg" put "van" and "den" among the names the directory
 // knows, and "Welke VAN deze groepen" then asked the caller which Van they
 // meant. The list is a floor, not a dictionary: a lower-case word is admitted
 // as a name only when the directory knows it AND it is not one of these.
@@ -85,9 +85,9 @@ const isCapitalised = (w) => /^\p{Lu}/u.test(w);
 
 // ── Names the directory knows ──────────────────────────────────────────
 //
-// "welke groepen heb ik die william niet heeft?" — nothing above finds
-// "william": not quoted, not capitalised, not a phrase. So no hint reached the
-// model, and it guessed William was a group. The directory knew better.
+// "welke groepen heb ik die bram niet heeft?" — nothing above finds
+// "bram": not quoted, not capitalised, not a phrase. So no hint reached the
+// model, and it guessed Bram was a group. The directory knew better.
 //
 // The tokens of every user's display name, lower-cased, cached for a few
 // minutes. SERVER-SIDE ONLY. A lower-case word in a question is admitted as a
@@ -158,7 +158,7 @@ export function findTerms(question, values, knownNames = null) {
 
 /**
  * Runs of name-like words, each kept as written between its first and last word
- * ("Fortigi - Algemeen - Maten", "Folkertsma, Sipke").
+ * ("ACME - Algemeen - Partners", "Smit, Lotte").
  */
 function* namePhrases(text) {
   let phrase = null;   // { start, end, last }
@@ -174,7 +174,7 @@ function* namePhrases(text) {
   if (phrase) yield text.slice(phrase.start, phrase.end);
 }
 
-/** A comma joins "Folkertsma, Sipke", but separates a list of codes ("ACME, NWH"). */
+/** A comma joins "Smit, Lotte", but separates a list of codes ("ACME, NWH"). */
 const commaSeparates = (text, phrase, m) =>
   text.slice(phrase.end, m.index).includes(',') && (isAllCaps(m[0]) || isAllCaps(phrase.last));
 

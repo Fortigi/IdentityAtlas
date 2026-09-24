@@ -1,7 +1,7 @@
 // Natural-language reports (PROTOTYPE) — looking up the objects a report names.
 //
 // A question often names a specific object: "business role Fortigi - Algemeen -
-// Maten", "the Sales group", "Folkertsma, Sipke". Before a definition runs, every
+// Maten", "the Sales group", "Smit, Lotte". Before a definition runs, every
 // named object is looked up:
 //
 //   • compare references            → must resolve to exactly one record id
@@ -11,8 +11,8 @@
 //                                     X in the name?"); none asks for the name
 //
 // The third is there because the model writes a first name as "contains"
-// ("william"), which is right on a small directory and quietly wrong on a
-// large one: every William is counted. A group name stays a substring filter —
+// ("bram"), which is right on a small directory and quietly wrong on a
+// large one: every Bram is counted. A group name stays a substring filter —
 // "groups with License in the name" is a report, not a lookup.
 //
 // Matching, strictest first:

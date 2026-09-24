@@ -272,7 +272,7 @@ write operation (no approvals, revocations or certifications), channel and group
 
 **It declines what it should not answer.** A question that is not about the directory
 (*"Is Trump de president van Amerika?"*, the weather, a poem) or that asks to change access
-(*"verwijder william uit alle groepen"*) gets one sentence back and no report — the model
+(*"verwijder bram uit alle groepen"*) gets one sentence back and no report — the model
 replies with a `decline` instead of a definition, and the card says what the bot can do
 instead. These are recorded as `declined`, not as questions it failed to understand, so
 "how often does it refuse, and was it right to" can be counted.

@@ -74,20 +74,20 @@ describe('callerFromToken', () => {
   });
 
   it('takes the greeting name from the token, first word only', async () => {
-    // The bot opens with "Hi Wim" — from the signed token, never from a
+    // The bot opens with "Hi Kees" — from the signed token, never from a
     // database lookup, so the name can never disagree with the account the
-    // answer is actually about. Only the first word: "Hi Wim van den Heijkant"
+    // answer is actually about. Only the first word: "Hi Kees van den Berg"
     // reads like a mail merge.
-    const verify = verifies({ decoded: { oid: OID, name: 'Wim van den Heijkant' } });
-    await expect(callerFromToken(TOKEN, { verify })).resolves.toMatchObject({ firstName: 'Wim' });
+    const verify = verifies({ decoded: { oid: OID, name: 'Kees van den Berg' } });
+    await expect(callerFromToken(TOKEN, { verify })).resolves.toMatchObject({ firstName: 'Kees' });
   });
 
   it('prefers the given name over splitting the display name', async () => {
-    // A display name is not reliably "first last" — "Heijkant, Wim van den" is
+    // A display name is not reliably "first last" — "Berg, Kees van den" is
     // the shape a tenant with a surname-first naming policy produces, and
-    // splitting it greets somebody as "Heijkant,".
-    const verify = verifies({ decoded: { oid: OID, given_name: 'Wim', name: 'Heijkant, Wim van den' } });
-    await expect(callerFromToken(TOKEN, { verify })).resolves.toMatchObject({ firstName: 'Wim' });
+    // splitting it greets somebody as "Berg,".
+    const verify = verifies({ decoded: { oid: OID, given_name: 'Kees', name: 'Berg, Kees van den' } });
+    await expect(callerFromToken(TOKEN, { verify })).resolves.toMatchObject({ firstName: 'Kees' });
   });
 
   it('has no name rather than a blank one when the token carries neither', async () => {

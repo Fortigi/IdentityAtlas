@@ -32,7 +32,7 @@ const asPipeline = (spec) => vi.fn(async ({ substitutions } = {}) => ({
 }));
 
 const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-const CALLER = { principalId: OID, displayName: 'Wim van den Heijkant', email: 'wim@example.com' };
+const CALLER = { principalId: OID, displayName: 'Kees van den Berg', email: 'kees@example.com' };
 
 const text = (card) => JSON.stringify(card.content.body);
 
@@ -45,7 +45,7 @@ const reportSpec = {
 
 const runResult = (over = {}) => ({
   ok: true,
-  explanation: 'Users whose manager is Wim van den Heijkant',
+  explanation: 'Users whose manager is Kees van den Berg',
   columns: [{ key: 'displayName', label: 'Name' }],
   rows: [{ displayName: 'Jan', _entity: { kind: 'user', id: 'u1' } }],
   truncated: false,
@@ -424,10 +424,10 @@ describe('toAppliedChoice', () => {
   });
 
   it('carries "keep" for the everyone-with-this-name choice, and nothing extra otherwise', () => {
-    const confirm = { kind: 'person', path: [1, 0], name: 'william', choices: [] };
-    expect(toAppliedChoice(confirm, { name: 'every account with “william” in the name', keep: true }))
-      .toEqual({ kind: 'person', path: [1, 0], name: 'every account with “william” in the name', id: undefined, keep: true });
-    expect(toAppliedChoice(confirm, { id: 'u1', name: 'William Overweg' })).not.toHaveProperty('keep');
+    const confirm = { kind: 'person', path: [1, 0], name: 'bram', choices: [] };
+    expect(toAppliedChoice(confirm, { name: 'every account with “bram” in the name', keep: true }))
+      .toEqual({ kind: 'person', path: [1, 0], name: 'every account with “bram” in the name', id: undefined, keep: true });
+    expect(toAppliedChoice(confirm, { id: 'u1', name: 'Bram de Groot' })).not.toHaveProperty('keep');
   });
 
   it('is null when nothing was picked', () => {
@@ -631,7 +631,7 @@ describe('what the pipeline is told the caller asked', () => {
   // While the context was glued in front of the question, the pipeline's
   // name-matching read the caller's own name out of it and treated it as a
   // name the caller had typed. "Van welke groepen ben ik owner?" came back as
-  // Name contains "Wim" OR Name contains "Heijkant" — a directory-wide report
+  // Name contains "Kees" OR Name contains "Berg" — a directory-wide report
   // about everyone with a similar name, offered as the answer to a question
   // about the caller's own groups.
 
@@ -641,7 +641,7 @@ describe('what the pipeline is told the caller asked', () => {
 
     const call = d.interpret.mock.calls[0][0];
     expect(call.question).toBe('van welke groepen ben ik owner?');
-    expect(call.context).toContain('Wim van den Heijkant');
+    expect(call.context).toContain('Kees van den Berg');
   });
 
   it('keeps every part of the caller identity out of the question', async () => {
@@ -651,7 +651,7 @@ describe('what the pipeline is told the caller asked', () => {
     await answerMessage(msg({ text: 'van welke groepen ben ik owner?' }), d);
 
     const { question } = d.interpret.mock.calls[0][0];
-    for (const part of ['Wim', 'Heijkant', CALLER.email, OID]) {
+    for (const part of ['Kees', 'Berg', CALLER.email, OID]) {
       expect(question, `"${part}" leaked into the question`).not.toContain(part);
     }
   });
@@ -679,7 +679,7 @@ describe('what the pipeline is told the caller asked', () => {
     const answering = deps();
     await answerMessage(msg({ text: 'the second one' }), answering);
     const { history } = answering.interpret.mock.calls[0][0];
-    expect(JSON.stringify(history)).toContain('Wim van den Heijkant');
+    expect(JSON.stringify(history)).toContain('Kees van den Berg');
   });
 });
 
@@ -746,13 +746,13 @@ describe('what the bot leaves in the conversation store', () => {
     const d = deps({
       interpret: vi.fn(async () => ({
         kind: 'report', spec: structuredClone(reportSpec), timing: { totalMs: 1 },
-        context: 'The person asking this question is Wim', raw: '{"kind":"report"}', repaired: true, model: 'qwen3:4b',
+        context: 'The person asking this question is Kees', raw: '{"kind":"report"}', repaired: true, model: 'qwen3:4b',
       })),
     });
     await answerMessage(msg(), d);
     const row = d.log.mock.calls[0][0];
     expect(row.surface).toBe('teams');
-    expect(row.context).toContain('Wim');
+    expect(row.context).toContain('Kees');
     expect(row.rawReply).toBe('{"kind":"report"}');
     expect(row.repaired).toBe(true);
     expect(row.model).toBe('qwen3:4b');

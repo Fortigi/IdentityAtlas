@@ -127,8 +127,8 @@ export async function callerFromToken(token, deps = {}) {
  *
  * From the VERIFIED token rather than a database lookup: the name is already in
  * hand at this point, it costs nothing, and it cannot disagree with the account
- * the answer is actually about. Only the first word — "Hi Wim" reads like a
- * colleague, "Hi Wim van den Heijkant" reads like a mail merge.
+ * the answer is actually about. Only the first word — "Hi Kees" reads like a
+ * colleague, "Hi Kees van den Berg" reads like a mail merge.
  *
  * Null when the token carries no usable name, and the greeting then simply
  * leaves the name out rather than addressing someone as "undefined".

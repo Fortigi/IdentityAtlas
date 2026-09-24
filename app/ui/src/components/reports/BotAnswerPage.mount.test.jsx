@@ -22,7 +22,7 @@ const ANSWER = {
   explanation: {
     title: 'Users where',
     lines: [
-      { depth: 0, text: 'manager is Wim van den Heijkant' },
+      { depth: 0, text: 'manager is Kees van den Berg' },
       { depth: 1, text: 'has access to Finance' },
     ],
   },
@@ -61,7 +61,7 @@ describe('BotAnswerPage', () => {
     expect(screen.getByText(
       (t, el) => el?.tagName === 'P' && /Understood as:\s*Users where/.test(el.textContent),
     )).toBeInTheDocument();
-    expect(screen.getByText(/manager is Wim van den Heijkant/)).toBeInTheDocument();
+    expect(screen.getByText(/manager is Kees van den Berg/)).toBeInTheDocument();
     expect(screen.getByText(/has access to Finance/)).toBeInTheDocument();
   });
 

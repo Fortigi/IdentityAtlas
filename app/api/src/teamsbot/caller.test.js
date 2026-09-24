@@ -4,7 +4,7 @@ import { resolveCaller, isUuid, callerContextBlock, callerScopeFilter, ME } from
 const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 
 const row = (over = {}) => ({
-  id: OID, displayName: 'Wim van den Heijkant', email: 'wim@example.com',
+  id: OID, displayName: 'Kees van den Berg', email: 'kees@example.com',
   jobTitle: 'Partner', department: 'Advies', ...over,
 });
 
@@ -13,8 +13,8 @@ describe('resolveCaller', () => {
     const q = vi.fn(async () => row());
     await expect(resolveCaller(OID, q)).resolves.toEqual({
       principalId: OID,
-      displayName: 'Wim van den Heijkant',
-      email: 'wim@example.com',
+      displayName: 'Kees van den Berg',
+      email: 'kees@example.com',
       jobTitle: 'Partner',
       department: 'Advies',
     });
@@ -82,11 +82,11 @@ describe('isUuid', () => {
 });
 
 describe('callerContextBlock', () => {
-  const caller = { principalId: OID, displayName: 'Wim van den Heijkant' };
+  const caller = { principalId: OID, displayName: 'Kees van den Berg' };
 
   it('names the caller and their account id, and explains the sentinel', () => {
     const block = callerContextBlock(caller);
-    expect(block).toContain('Wim van den Heijkant');
+    expect(block).toContain('Kees van den Berg');
     expect(block).toContain(OID);
     expect(block).toContain(ME);
   });

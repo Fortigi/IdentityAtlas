@@ -32,7 +32,7 @@ vi.mock('../nlreports/references.js', async (importOriginal) => ({
   normalizeName: (await importOriginal()).normalizeName,
   applyChoice: vi.fn(() => true),
   resolveNamedObjects: vi.fn(async () => ({ confirm: null })),
-  searchNames: vi.fn(async () => [{ id: 'r1', name: 'Fortigi - Algemeen - Maten', type: 'BusinessRole' }]),
+  searchNames: vi.fn(async () => [{ id: 'r1', name: 'ACME - Algemeen - Partners', type: 'BusinessRole' }]),
 }));
 vi.mock('../nlreports/caller.js', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -481,12 +481,12 @@ describe('who is asking, on the web', () => {
   // about nobody. The route now resolves the signed-in user the same way the
   // bot does and hands the pipeline both the context and the @me substitution.
   const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-  const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'wim@example.com' }));
+  const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'kees@example.com' }));
 
   it('resolves "@me" to the caller before RUNNING too, and to nothing for an unknown caller', async () => {
     // A saved "my groups" report is about whoever opens it.
     runSpec.mockResolvedValue({ ok: true, spec: SPEC, rows: [], columns: [], truncated: false });
-    resolveCaller.mockResolvedValueOnce({ principalId: OID, displayName: 'Wim' });
+    resolveCaller.mockResolvedValueOnce({ principalId: OID, displayName: 'Kees' });
     await request(signedIn).post('/api/nl-reports/run').send({ spec: SPEC });
     expect(runSpec.mock.calls.at(-1)[1].get('@me')).toBe(OID);
 
@@ -496,13 +496,13 @@ describe('who is asking, on the web', () => {
   });
 
   it('tells the pipeline who is asking, and what @me stands for', async () => {
-    resolveCaller.mockResolvedValueOnce({ principalId: OID, displayName: 'Wim van den Heijkant' });
+    resolveCaller.mockResolvedValueOnce({ principalId: OID, displayName: 'Kees van den Berg' });
     interpret.mockResolvedValue({ kind: 'report', spec: SPEC, raw: 'r' });
 
     await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'van welke groepen ben ik owner?' });
 
     const call = interpret.mock.calls[0][0];
-    expect(call.context).toContain('Wim van den Heijkant');
+    expect(call.context).toContain('Kees van den Berg');
     expect(call.context).toContain(OID);
     expect(call.substitutions.get('@me')).toBe(OID);
     // The caller's own name is context, never part of the question the
@@ -511,7 +511,7 @@ describe('who is asking, on the web', () => {
   });
 
   it('records the resolved account on the conversation row', async () => {
-    resolveCaller.mockResolvedValueOnce({ principalId: OID, displayName: 'Wim' });
+    resolveCaller.mockResolvedValueOnce({ principalId: OID, displayName: 'Kees' });
     interpret.mockResolvedValue({ kind: 'report', spec: SPEC, raw: 'r' });
     await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'x' });
     const params = query.mock.calls.find(c => /INSERT INTO "BotConversations"/.test(c[0]))[1];
@@ -595,7 +595,7 @@ describe('follow-up questions on the web', () => {
   // chat history and hoped. Now /run remembers what it showed, per chat and
   // per caller, and /interpret narrows the next question to it.
   const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-  const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'wim@example.com' }));
+  const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'kees@example.com' }));
   const otherUser = mountRouterAs(router, () => ({ oid: 'ffffffff-0000-0000-0000-000000000000', email: 'x@example.com' }));
   const GROUPS = { entity: 'group', match: 'all', conditions: [], columns: ['displayName'], limit: 1000 };
   const shown = {
@@ -662,7 +662,7 @@ describe('a declined question, on the web', () => {
 describe('a refinement on the web gets the previous definition', () => {
   it('hands /interpret the definition the previous run in this chat produced', async () => {
     const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-    const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'wim@example.com' }));
+    const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'kees@example.com' }));
     const spec = { entity: 'group', match: 'all', conditions: [], columns: ['displayName'], limit: 1000 };
     runSpec.mockResolvedValue({ ok: true, spec, truncated: false, columns: [{ key: 'displayName' }],
       rows: [{ displayName: 'A', _entity: { kind: 'resource', id: 'g1' } }, { displayName: 'B', _entity: { kind: 'resource', id: 'g2' } }] });
@@ -676,7 +676,7 @@ describe('a refinement on the web gets the previous definition', () => {
 describe('a chat keeps "these groups" across an answer that carries nothing', () => {
   it('still narrows the third question to the groups after a changes answer in between', async () => {
     const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-    const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'wim@example.com' }));
+    const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'kees@example.com' }));
     const groups = { entity: 'group', match: 'all', conditions: [], columns: ['displayName'], limit: 1000 };
     const changes = { entity: 'change', match: 'all', conditions: [], columns: ['changedAt'], limit: 1000 };
     runSpec.mockResolvedValueOnce({ ok: true, spec: groups, truncated: false, columns: [{ key: 'displayName' }],

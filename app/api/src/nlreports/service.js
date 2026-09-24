@@ -100,7 +100,7 @@ export function hasAnyMatch(spec) {
 }
 
 // Dutch "of" is BOTH "or" and "whether", and the two turn up in one sentence
-// often enough that telling them apart matters: "Kan je me vertellen OF William
+// often enough that telling them apart matters: "Kan je me vertellen OF Bram
 // aan groepen toegevoegd is OF eruit gehaald is" opens with the whether sense
 // and joins alternatives with the second. Treating either as a disjunction is
 // not free — a false positive sends the definition back for a repair round that
@@ -439,11 +439,11 @@ export async function interpret({ question, context = '', history = [], model = 
   const schema = schemaFor(history, extraFieldNames);
   // Terms are looked for in the CALLER'S OWN WORDS, never in the context block
   // around them. The Teams bot prepends who is asking — "The person asking this
-  // question is Wim van den Heijkant" — and while that was part of `question`,
+  // question is Kees van den Berg" — and while that was part of `question`,
   // every caller's own name was found as a term in the data. The repair round
-  // then told the model it had not used "Wim", and a definition anchored to the
-  // caller's account id came back as `Name contains "Wim" OR Name contains
-  // "Heijkant"`: a directory-wide report about everyone with a similar name,
+  // then told the model it had not used "Kees", and a definition anchored to the
+  // caller's account id came back as `Name contains "Kees" OR Name contains
+  // "Berg"`: a directory-wide report about everyone with a similar name,
   // presented as the answer to "which groups do I own".
   // Names the directory knows, so a first name typed in lower case is still
   // looked up. Server-side only; the model never sees this list.

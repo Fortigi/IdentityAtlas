@@ -60,12 +60,12 @@ const SELF_RE = /\b(ik|mijn|mijne|my|mine|myself)\b|\bI\b/;
 export const selfWord = (question) => String(question ?? '').match(SELF_RE)?.[0] ?? null;
 
 /**
- * "Groups I have that william does not" written with william on BOTH sides:
- * members some William AND members none William. The model has the shape
+ * "Groups I have that bram does not" written with bram on BOTH sides:
+ * members some Bram AND members none Bram. The model has the shape
  * right and the person on one side wrong, and which side follows the order
  * of the question — the side mentioned first has, the second has not, in
- * both languages ("ik wel … william niet", "I have … william does not",
- * "william has … I don't"). The person asking replaces the duplicate on the
+ * both languages ("ik wel … bram niet", "I have … bram does not",
+ * "bram has … I don't"). The person asking replaces the duplicate on the
  * side the question mentions them on. Anything less clear-cut (a name that is
  * not in the question, no first-person word) is left to validation, which
  * refuses the contradiction and sends it back with the same explanation.
@@ -116,11 +116,11 @@ export function listEqualsToIn(spec) {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * "id is william". An id is a uuid or a placeholder (@me, @previous); a word
+ * "id is bram". An id is a uuid or a placeholder (@me, @previous); a word
  * there is a name, and a name is a displayName condition — which the person
- * lookup then pins to one record. Asked for "rights I have that william does
+ * lookup then pins to one record. Asked for "rights I have that bram does
  * not", the model wrote the caller's id correctly and then reached for the
- * same field for william.
+ * same field for bram.
  * @returns {{ spec: object, notes: string[] }}
  */
 export function nameWrittenAsId(spec) {
@@ -269,7 +269,7 @@ const ROLE_WORDS = /\b(directory ?rol(len)?|directory ?roles?|beheerrol(len)?|ad
 const mentionsRole = (c) => JSON.stringify(c).includes('"EntraDirectoryRole"');
 
 /**
- * "Welke directory rollen heeft Taeke?" answered as Taeke with every
+ * "Welke directory rollen heeft Anna?" answered as Anna with every
  * resource he holds — 194 of them, roles among them, and a column cannot
  * be filtered. A question about the roles of a person is a report OF ROLES:
  * the resource entity, resourceType EntraDirectoryRole, members some for
@@ -533,9 +533,9 @@ const hasAll = (spec, leafSet) => [...leafSet].every(l => leaves(spec).has(l));
 
 /**
  * A refinement of the previous definition keeps what the previous definition
- * had. "Alleen de toevoegingen graag" after a question about William's
+ * had. "Alleen de toevoegingen graag" after a question about Bram's
  * group changes in 90 days came back with the action filter it asked for —
- * and William replaced by the person asking, and the window gone. Neither
+ * and Bram replaced by the person asking, and the window gone. Neither
  * change was asked for, so neither stands: a previous condition the question
  * does not mention replaces a swapped counterpart (same relation or field,
  * itself unasked for) or is re-added when it has none. The new conditions the
@@ -580,7 +580,7 @@ export function leaves(spec) {
  * Does the question ask for what this leaf says? A leaf is "field op value";
  * the field's words (accountCount → account, count) and the value are looked
  * for in the question. "accountCount gt 0" inside members, for a question
- * about groups and william, matches nothing: the model made it up, and a
+ * about groups and bram, matches nothing: the model made it up, and a
  * definition without it is the one asked for. "mfaEnabled eq false" for a
  * question about MFA matches, and losing it would answer a different question.
  */

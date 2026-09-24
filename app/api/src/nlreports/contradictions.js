@@ -127,8 +127,8 @@ function countConflicts(conditions, match, entity) {
  */
 /**
  * The same relation required to have AND not have the same records, at one
- * AND level: "members some William" beside "members none William". Asked for
- * "the groups I am in that william is not", the model wrote william on both
+ * AND level: "members some Bram" beside "members none Bram". Asked for
+ * "the groups I am in that bram is not", the model wrote bram on both
  * sides. The message says what the one sensible fix is, because the repair
  * round is fed exactly this text.
  */
