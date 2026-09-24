@@ -65,3 +65,4 @@
 - Custom reports: eligible (PIM) assignments are now askable — "who can request / activate the Global Administrator role" (eligible members of a resource) and "what can X activate" (what an account is eligible for).
 - Ask / Teams: the reading the pipeline applied ("Read the request as …") is listed before the model's own assumptions, because it describes what actually ran.
 - Ask / Teams: a follow-up that only says "he" or "she" ("and can he request that role?") keeps the person of the earlier question, also when the answer is now asked from the other side (the role instead of the person).
+- Ask / Teams: "in which access packages am I" on a report of resources gets the business-role type written in when the model left it out, instead of listing every resource held.

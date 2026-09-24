@@ -12,7 +12,7 @@ import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
 import { keepThePerson } from './autofix.followup.js';
-import { guestsWhenAsked, isYesNoAboutPerson, listsEverythingOfPerson, notSignedInFor } from './autofix.activity.js';
+import { businessRoleTypeWhenAsked, guestsWhenAsked, isYesNoAboutPerson, listsEverythingOfPerson, notSignedInFor } from './autofix.activity.js';
 import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, autofixSpec, canonicaliseSelf, isRelationLeaf, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, rolesOfPersonAsResources, selfWord } from './autofix.js';
 import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
@@ -505,7 +505,8 @@ export async function interpret({ question, context = '', history = [], model = 
     const grouping = dropUnaskedGrouping(nameWrittenAsId(listEqualsToIn(dedupeConditions(spec).spec).spec).spec, ctx.question);
     const roles = rolesOfPersonAsResources(grouping.spec, ctx.question);
     const negated = negatedBusinessRole(accessPackageAsRelation(roles.spec).spec, ctx.question);
-    const guests = guestsWhenAsked(negated.spec, ctx.question);
+    const typed = businessRoleTypeWhenAsked(negated.spec, ctx.question);
+    const guests = guestsWhenAsked(typed.spec, ctx.question);
     const signIn = notSignedInFor(guests.spec, ctx.question);
     const generic = genericCompareToRelation(signIn.spec);
     // The caller's id copied out literally is the placeholder for every rule below.
@@ -517,7 +518,7 @@ export async function interpret({ question, context = '', history = [], model = 
     // Compared after substitution, so the caller's id in both reads the same.
     const refined = refineFromPrevious(substituteValues(addAskedColumns(added.spec, ctx.question).spec, ctx.substitutions), ctx.previousSpec, ctx.question);
     const person = keepThePerson(refined.spec, ctx.previousSpec, ctx.question);
-    const before = [...grouping.notes, ...roles.notes, ...negated.notes, ...guests.notes, ...signIn.notes, ...generic.notes, ...sides.notes, ...unasked.notes, ...placed.notes, ...added.notes, ...refined.notes, ...person.notes];
+    const before = [...grouping.notes, ...roles.notes, ...negated.notes, ...typed.notes, ...guests.notes, ...signIn.notes, ...generic.notes, ...sides.notes, ...unasked.notes, ...placed.notes, ...added.notes, ...refined.notes, ...person.notes];
     const substituted = person.spec;
     const first = validateSpec(substituted, ctx.values, ctx.extFields);
     if (first.ok || !first.spec) return before.length ? { ...first, fixes: before } : first;

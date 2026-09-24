@@ -2,7 +2,7 @@
 // 2026 ("guest accounts that have not signed in for 90 days"), and the
 // readings that must NOT be touched.
 import { describe, it, expect } from 'vitest';
-import { daysIn, guestsWhenAsked, isYesNoAboutPerson, listsEverythingOfPerson, notSignedInFor } from './autofix.activity.js';
+import { businessRoleTypeWhenAsked, daysIn, guestsWhenAsked, isYesNoAboutPerson, listsEverythingOfPerson, notSignedInFor } from './autofix.activity.js';
 import { validateSpec } from './spec.js';
 
 const user = (conditions, extra = {}) => ({ entity: 'user', match: 'all', columns: [], conditions, ...extra });
@@ -135,5 +135,34 @@ describe('a yes/no question about one person', () => {
     expect(listsEverythingOfPerson({ entity: 'resource', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'EntraDirectoryRole' },
       { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [] }] })).toBe(false);
     expect(listsEverythingOfPerson({ entity: 'resource', match: 'all', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'Global Administrator' }] })).toBe(false);
+  });
+});
+
+describe('"access packages" on a report of resources', () => {
+  const me = { type: 'field', field: 'id', op: 'eq', value: '@me' };
+  const members = { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [me] };
+  const type = { type: 'field', field: 'resourceType', op: 'eq', value: 'BusinessRole' };
+
+  it('adds the business-role type when the definition names no type: "in welke access packages zit ik"', () => {
+    const { spec, notes } = businessRoleTypeWhenAsked({ entity: 'resource', match: 'all', conditions: [members] }, 'In welke access packages zit ik?');
+    expect(spec.conditions).toEqual([members, type]);
+    expect(notes).toHaveLength(1);
+  });
+
+  it('keeps an "any" definition together under the type, and reads the English words too', () => {
+    const a = { type: 'field', field: 'displayName', op: 'contains', value: 'HR' };
+    const b = { type: 'field', field: 'displayName', op: 'contains', value: 'IT' };
+    const { spec } = businessRoleTypeWhenAsked({ entity: 'resource', match: 'any', conditions: [a, b] }, 'business roles for HR or IT');
+    expect(spec.match).toBe('all');
+    expect(spec.conditions).toEqual([{ type: 'group', match: 'any', conditions: [a, b] }, type]);
+  });
+
+  it('leaves alone a definition that names a type, other entities, and questions without the words', () => {
+    const typed = { entity: 'resource', match: 'all', conditions: [{ type: 'field', field: 'resourceType', op: 'eq', value: 'EntraDirectoryRole' }] };
+    expect(businessRoleTypeWhenAsked(typed, 'access packages that are directory roles').spec).toBe(typed);
+    const user = { entity: 'user', match: 'all', conditions: [me] };
+    expect(businessRoleTypeWhenAsked(user, 'in which access packages am I').spec).toBe(user);
+    const plain = { entity: 'resource', match: 'all', conditions: [members] };
+    expect(businessRoleTypeWhenAsked(plain, 'what do I have access to').spec).toBe(plain);
   });
 });

@@ -126,3 +126,28 @@ export function listsEverythingOfPerson(spec) {
     && (relations[0].conditions ?? []).length > 0 && relations[0].conditions.every(person)
     && rest.every(c => c.type === 'field' && c.field === 'resourceType');
 }
+
+// "In welke access packages zit ik" answered as every resource the caller
+// holds (184 rows, five of them access packages): the model wrote the report
+// of resources and left the kind out. The words are in the question and the
+// glossary maps them; the type is written in.
+const PACKAGE_WORDS_RE = /\b(access ?packages?|business ?roles?|bedrijfsrol(len)?|toegangspakket(ten)?|role ?packages?)\b/i;
+
+/**
+ * A report of resources whose question says "access package" / "business
+ * role" and whose definition says nothing about the resource type gets
+ * resourceType BusinessRole. A definition that already names a type (any
+ * type) is left alone, and so is any other entity: on a user or group report
+ * the same words mean the businessRoles relation (accessPackageAsRelation).
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function businessRoleTypeWhenAsked(spec, question) {
+  if (spec?.entity !== 'resource' || !PACKAGE_WORDS_RE.test(String(question ?? ''))) return { spec, notes: [] };
+  const saysType = (conditions) => (conditions ?? []).some(c => (c.type === 'field' && c.field === 'resourceType')
+    || (c.type === 'group' && saysType(c.conditions)));
+  if (saysType(spec.conditions)) return { spec, notes: [] };
+  const type = { type: 'field', field: 'resourceType', op: 'eq', value: 'BusinessRole' };
+  const rest = spec.conditions ?? [];
+  const conditions = spec.match === 'any' && rest.length > 1 ? [{ type: 'group', match: 'any', conditions: rest }, type] : [...rest, type];
+  return { spec: { ...spec, match: 'all', conditions }, notes: ['Read "access package" / "business role" as: resources of type BusinessRole.'] };
+}
