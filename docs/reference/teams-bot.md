@@ -22,6 +22,8 @@ manager in Teams ─► Bot Framework ─► /api/messages ─► who is asking?
 
 ## What it can answer
 
+The long version — what the model is told, what it answers and refuses, the corrections the pipeline makes, and how it is tested — is on [The Ask assistant](ask-assistant.md); it applies to the bot and the Ask tab alike.
+
 The question shapes the report generator handles best — list questions per person, per group
 and per resource. These are the three examples the bot offers on install:
 

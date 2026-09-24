@@ -180,6 +180,8 @@ with it). Every correction made this way is stated in the report's assumptions.
   where validation would have cut it anyway. Before that limit existed, one question listed the same ten
   columns until the token cap: 570 seconds and a reply that was no longer JSON. It now answers in 46.
 
+For the chat on top of this — the flow of one question, the prompt verbatim, what is answered and what is refused, the corrections made on the model's behalf and the conversation-set results — see [The Ask assistant](ask-assistant.md).
+
 ## Who can ask, and where
 
 The same model answers questions in three places, and they are gated by **two** different
