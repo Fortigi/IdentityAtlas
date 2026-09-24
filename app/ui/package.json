@@ -26,7 +26,7 @@
     "test:mutation:contextassistant": "stryker run stryker.contextassistant.config.json"
   },
   "dependencies": {
-    "@azure/msal-browser": "^5.21.0",
+    "@azure/msal-browser": "^5.22.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
