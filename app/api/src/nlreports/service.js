@@ -373,9 +373,14 @@ async function answerReport(ctx, turn) {
   if (!result.ok || !result.spec) {
     return { kind: 'error', message: 'The model produced a report definition that could not be used.', errors, ...replyMeta(ctx, turn) };
   }
+  // The pipeline's own readings first: they describe what actually runs. The
+  // model's assumptions follow — they describe what it MEANT to write, which a
+  // correction above may have changed. (Live test, 24 Sep: a reader saw the
+  // model's "read William as a name fragment" above the pipeline's "read the
+  // request as the roles this person holds" and trusted the wrong one.)
   const assumptions = [
-    ...(Array.isArray(turn.reply.assumptions) ? turn.reply.assumptions.map(String) : []),
     ...(result.fixes ?? []),
+    ...(Array.isArray(turn.reply.assumptions) ? turn.reply.assumptions.map(String) : []),
   ];
   const termConfirm = termCheck(ctx, result.spec, assumptions);
   if (termConfirm) {
