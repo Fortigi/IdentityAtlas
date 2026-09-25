@@ -5,12 +5,19 @@
 // contract columns are aliased to their contract names, everything else
 // lands in extendedAttributes under its own name.
 //
-// Presets are a starting point, not a schema guarantee: an IGA product's
-// extended attributes live in customer-specific columns, so the comments in
-// the SQL say where to add them.
+// DELIBERATELY CONSERVATIVE. An IdentityIQ schema is half product, half
+// customer: identity attributes in particular are configured per deployment,
+// so a column that exists in one instance is an "Invalid column name" error in
+// the next. Every column below was taken from a query that ran against a real
+// IdentityIQ database. Columns that only *usually* exist (firstname, lastname,
+// jobtitle, and the identity extended attributes) are named in comments for you
+// to add, not selected — a preset that fails to run teaches nothing, and the
+// failure arrives as a SQL error after the crawler has already connected.
+//
+// A preset is a starting point. To run a query you already have, paste it and
+// set the slot's columnMap instead of rewriting it with aliases.
 
-// SailPoint IdentityIQ (spt_* tables). Business roles, entitlements
-// (managed attributes), and the identity <-> entitlement / role tables.
+// SailPoint IdentityIQ (spt_* tables).
 export const IDENTITYIQ_PRESET = [
   {
     name: 'Identities',
@@ -18,20 +25,20 @@ export const IDENTITYIQ_PRESET = [
     principalType: 'User',
     sql: `SELECT
     i.id,
-    i.display_name AS displayName,
-    i.name         AS userId,
-    i.firstname    AS givenName,
-    i.lastname     AS surname,
+    i.display_name,
+    i.name     AS userId,
     i.email,
-    i.manager      AS managerId,
+    i.manager  AS managerId,
     i.inactive,
     i.created,
     i.modified
-    -- Extended identity attributes are customer-specific columns on spt_identity.
-    -- Add them here; they are stored under their own name, e.g.
-    --   , i.jobtitle AS jobTitle, i.departmentnumber AS department, i.companyname AS companyName
+    -- Add what your instance actually carries, e.g.
+    --   , i.firstname AS givenName, i.lastname AS surname
+    --   , i.jobtitle AS jobTitle, i.companyname AS companyName
+    -- Anything not in the column contract is kept in extendedAttributes.
 FROM spt_identity i
-WHERE i.is_workgroup = 0`,
+-- Workgroups are not people. Uncomment if your instance has the column:
+-- WHERE i.is_workgroup = 0`,
   },
   {
     name: 'Entitlements',
@@ -43,9 +50,9 @@ WHERE i.is_workgroup = 0`,
     ma.value             AS entitlementValue,
     ma.attribute         AS attributeName,
     ma.type              AS entitlementType,
-    app.id               AS applicationId,
+    ma.application       AS applicationId,
     app.name             AS applicationName,
-    owner.id             AS ownerId,
+    ma.owner             AS ownerId,
     owner.display_name   AS ownerName,
     ma.requestable,
     ma.aggregated,
@@ -80,7 +87,7 @@ LEFT JOIN spt_identity i ON i.id = b.owner`,
     resourceType: 'Entitlement',
     assignmentType: 'Direct',
     governed: false,
-    sql: `-- This is usually the largest table (tens of millions of rows). The rows stream
+    sql: `-- Usually the largest table by far (tens of millions of rows). Rows stream
 -- straight through, so no paging is needed; add
 --   ORDER BY ie.identity_id, ma.id OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
 -- only if your server cuts long-running statements off.
@@ -110,23 +117,19 @@ FROM spt_identity_assigned_roles`,
     name: 'Role composition',
     target: 'relationships',
     relationshipType: 'Contains',
-    sql: `SELECT
+    sql: `-- CAVEAT: source_profile_id is a PROFILE id, not a managed-attribute id, so
+-- these edges point at rows the Entitlements query above does not produce. The
+-- crawler holds back a relationship whose ends it has not seen and reports them
+-- as "dangling" — expect that count to equal this query's row count until you
+-- resolve profiles to entitlements (join spt_profile and its constraints, or
+-- ingest profiles as their own resourceType).
+SELECT
     bpr.bundle_id         AS parentId,
     bpr.source_profile_id AS childId,
     bpr.attribute         AS entitlementAttribute,
     bpr.value             AS entitlementValue,
     bpr.display_value     AS entitlementName
 FROM spt_bundle_profile_relation bpr`,
-  },
-  {
-    name: 'Role hierarchy',
-    target: 'relationships',
-    relationshipType: 'Contains',
-    sql: `SELECT
-    bc.bundle AS parentId,
-    bc.child  AS childId,
-    bc.idx
-FROM spt_bundle_children bc`,
   },
 ];
 

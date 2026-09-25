@@ -88,6 +88,43 @@ Describe 'Get-SqlSlotsInOrder' {
     It 'returns nothing when every slot is disabled' {
         @(Get-SqlSlotsInOrder -Slots @((New-Slot 'a' 'resources' @{ enabled = $false }))).Count | Should -Be 0
     }
+
+    # The count that actually shipped broken: exactly ONE enabled slot. The suite
+    # covered 0 and 2 and skipped the case in between, so nothing noticed that the
+    # entry point read `.Count` off a bare hashtable (its KEY count) and indexed
+    # [0] to $null — "Cannot bind argument to parameter 'Slot' because it is null",
+    # after the run had already registered its system.
+    #
+    # These drive the loop EXACTLY as Start-SqlCrawler.ps1 does, because the defect
+    # lived in the call shape rather than in the sort: asserting on the helper's
+    # own output in isolation is what missed it the first time.
+    It 'a run with a single enabled slot iterates that one slot' -ForEach @(
+        @{ Case = 'the only slot configured'; Slots = @('only:identities') }
+        @{ Case = 'the only ENABLED slot';    Slots = @('off1:resources:off', 'live:assignments', 'off2:relationships:off') }
+    ) {
+        $built = foreach ($spec in $Slots) {
+            $p = $spec -split ':'
+            New-Slot $p[0] $p[1] $(if ($p.Count -gt 2) { @{ enabled = $false } } else { @{} })
+        }
+        $slots = @(Get-SqlSlotsInOrder -Slots @($built))
+        $slots.Count | Should -Be 1 -Because "one slot is enabled in the case: $Case"
+        $seen = @()
+        for ($i = 0; $i -lt $slots.Count; $i++) {
+            $slots[$i] | Should -Not -BeNullOrEmpty -Because 'the entry point binds this to -Slot'
+            $seen += $slots[$i].name
+        }
+        @($seen).Count | Should -Be 1
+    }
+
+    It 'a run with no enabled slots iterates nothing (and invents no phantom slot)' {
+        # The counterpart trap: "fixing" the single-slot case with a leading comma
+        # makes the empty case return $null, and @($null) is one phantom element.
+        $slots = @(Get-SqlSlotsInOrder -Slots @((New-Slot 'a' 'resources' @{ enabled = $false })))
+        $slots.Count | Should -Be 0
+        $ran = 0
+        for ($i = 0; $i -lt $slots.Count; $i++) { $ran++ }
+        $ran | Should -Be 0
+    }
 }
 
 Describe 'New-SqlRunState' {
