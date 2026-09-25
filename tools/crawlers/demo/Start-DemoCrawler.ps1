@@ -13,13 +13,24 @@
 
 .PARAMETER ConfigPath
     Path to a temporary JSON file containing the crawler configuration. The demo
-    crawler reads one optional key from it:
+    crawler reads two optional keys from it:
 
       includeVolumeData  — when true, generate the dataset with its opt-in volume
                            slice (~520 extra groups with distinct descriptions),
                            so the environment holds more than 500 distinct
                            resource descriptions. See test/demo-dataset/parts/
                            DemoVolume.ps1.
+
+      includeRealismData — when true, add the realism slice: ~600 staff in ten
+                           departments with careers, guests, leavers, accounts in
+                           several systems linked into one identity, ~180 groups
+                           in naming families, nesting, business roles that grant
+                           groups and application roles, and an attestation
+                           campaign. For measuring reports and the chat assistant
+                           against questions that have more than one possible
+                           answer. See test/demo-dataset/parts/DemoRealism*.ps1,
+                           and run test/demo-dataset/Simulate-AccessChanges.sql
+                           afterwards to give the access history a past.
 #>
 [CmdletBinding()]
 param(
@@ -34,11 +45,15 @@ $ErrorActionPreference = 'Stop'
 # The demo job is normally queued with no config at all, so a missing or
 # unreadable file simply means "all defaults" rather than an error.
 $includeVolumeData = $false
+$includeRealismData = $false
 if (Test-Path $ConfigPath) {
     try {
         $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
         if ($config.PSObject.Properties.Name -contains 'includeVolumeData') {
             $includeVolumeData = [bool]$config.includeVolumeData
+        }
+        if ($config.PSObject.Properties.Name -contains 'includeRealismData') {
+            $includeRealismData = [bool]$config.includeRealismData
         }
     } catch {
         Write-Host "  Warning: could not read crawler config — using defaults ($($_.Exception.Message))" -ForegroundColor Yellow
@@ -73,12 +88,18 @@ Update-DemoProgress -Step 'Loading demo dataset' -Pct 10
 $genScript = "$appRoot/test/demo-dataset/Generate-DemoDataset.ps1"
 if (Test-Path $genScript) {
     Update-DemoProgress -Step 'Generating demo dataset' -Pct 5
+    # Both slices are opt-in and independent, so the switches are passed through
+    # rather than branched over every combination.
+    $genArgs = @{ OutputPath = $datasetPath }
     if ($includeVolumeData) {
         Write-Host "  Including the high-cardinality volume slice" -ForegroundColor Cyan
-        & $genScript -OutputPath $datasetPath -IncludeVolume
-    } else {
-        & $genScript -OutputPath $datasetPath
+        $genArgs['IncludeVolume'] = $true
     }
+    if ($includeRealismData) {
+        Write-Host "  Including the realism slice (~600 staff, several systems, business roles)" -ForegroundColor Cyan
+        $genArgs['IncludeRealism'] = $true
+    }
+    & $genScript @genArgs
 } elseif (-not (Test-Path $datasetPath)) {
     throw "Demo dataset not found at $datasetPath and generator not available"
 }

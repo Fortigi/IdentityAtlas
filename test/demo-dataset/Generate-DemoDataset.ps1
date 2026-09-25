@@ -23,12 +23,25 @@
       DemoAzure.ps1          — the AzureRM system (flag 10)
       DemoActivity.ps1       — sign-in activity + the audit-report cast
       DemoVolume.ps1         — opt-in high-cardinality slice (-IncludeVolume)
+      DemoRealism*.ps1       — opt-in realism slice (-IncludeRealism): ~600 staff
+                               in ten departments, careers, guests, leavers,
+                               nested groups, business roles, several systems
 
 .PARAMETER IncludeVolume
     Appends the volume slice: ~520 extra synthetic groups, each with its own
     description, so the dataset holds more than 500 distinct resource
     descriptions. Off by default — the standard dataset stays the small,
     hand-reasoned company every other test and the public demo assume.
+.PARAMETER IncludeRealism
+    Appends the realism slice: ~600 staff across ten departments and ~55 teams,
+    with careers (people who moved department and kept the old access), guests
+    from three partner companies, leavers who were never cleaned up, one identity
+    holding accounts in several systems, ~180 groups in naming families, nesting,
+    business roles that grant groups and application roles, and an attestation
+    campaign. Built to measure the custom-report and chat pipelines against
+    questions that have more than one possible answer — see
+    docs/reference/report-generator.md. Off by default, for the same reason as
+    -IncludeVolume: it changes every row count the standard checks pin.
 
 .EXAMPLE
     .\Generate-DemoDataset.ps1
@@ -44,7 +57,8 @@
 [CmdletBinding()]
 Param(
     [string]$OutputPath = '',
-    [switch]$IncludeVolume
+    [switch]$IncludeVolume,
+    [switch]$IncludeRealism
 )
 
 Set-StrictMode -Version Latest
@@ -57,7 +71,9 @@ foreach ($part in @(
     'DemoState.ps1', 'DemoOrg.ps1', 'DemoEntraBase.ps1', 'DemoGovernance.ps1',
     'DemoSalesScenario.ps1', 'DemoRoleDrift.ps1', 'DemoSharedGrants.ps1',
     'DemoConsent.ps1', 'DemoSap.ps1', 'DemoAzure.ps1', 'DemoActivity.ps1',
-    'DemoVolume.ps1'
+    'DemoVolume.ps1',
+    'DemoRealismPeople.ps1', 'DemoRealismPopulations.ps1', 'DemoRealismGroups.ps1', 'DemoRealismAccess.ps1',
+    'DemoRealismSystems.ps1', 'DemoRealismGovernance.ps1'
 )) {
     . (Join-Path $partsDir $part)
 }
@@ -87,6 +103,22 @@ Add-DemoActivity      $state
 # volume slice is appended last so it can never shift the ids or ordering of
 # anything before it.
 if ($IncludeVolume) { Add-DemoVolume $state }
+
+# Also opt-in, and appended after the volume slice for the same reason: the
+# realism slice is a second company grown on top of the first, so every id and
+# every ordering above it stays exactly where it was. Its parts run in this
+# order because each reads what the one before it created: people, then the
+# groups they are put in, then who holds what.
+if ($IncludeRealism) {
+    Add-DemoRealismPeople     $state
+    Add-DemoRealismGroups     $state
+    Add-DemoRealismAccess     $state
+    # Systems reads the group memberships (an application role is held by the
+    # people in the matching group); governance reads both the groups and the
+    # application roles, because a business role grants them.
+    Add-DemoRealismSystems    $state
+    Add-DemoRealismGovernance $state
+}
 
 # ─── Derive the system of each assignment / relationship from its resource ────
 # ResourceAssignments and ResourceRelationships both carry a systemId. Rather
