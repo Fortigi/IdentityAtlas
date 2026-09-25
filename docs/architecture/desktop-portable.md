@@ -66,6 +66,22 @@ No Docker. No WSL. No administrator rights.
    ```
 4. The script starts the server and opens `http://localhost:3001` in your browser once it's ready (~5–10 seconds on first run)
 
+!!! warning "Unblock the files if you downloaded the zip"
+    Windows marks everything extracted from a downloaded zip as coming from the
+    internet. PowerShell then refuses to run those scripts under the common
+    `RemoteSigned` policy, and the failure is easy to misread: the app itself
+    starts fine (its launch line passes `-ExecutionPolicy Bypass`), but a crawler
+    run fails with **`AuthorizationManager check failed`** and a job whose only
+    detail is `pwsh.exe exited with code 1`. Clear the mark once, after
+    extracting:
+
+    ```powershell
+    Get-ChildItem -Path .\IdentityAtlas -Recurse | Unblock-File
+    ```
+
+    Extracting with `Expand-Archive` propagates the mark to every file; unblocking
+    the zip *before* extracting works too.
+
 On first run, load the bundled demo dataset to explore with synthetic data:
 
 ```powershell
