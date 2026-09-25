@@ -18,12 +18,22 @@ artefact; the source it was built from is on `feature/sql-crawler`.
 
 ## Run it
 
+> **Unblock the files first.** Windows marks everything extracted from a downloaded
+> zip as coming from the internet, and PowerShell refuses to run those scripts in the
+> background. The app would start but every crawler run would fail with
+> `AuthorizationManager check failed` / `pwsh.exe exited with code 1`. Setting the
+> execution policy to Unrestricted does **not** fix it — that setting only prompts, and a
+> background crawler cannot answer a prompt. Run `Unblock-File` once after extracting
+> (shown below). Builds from 2026-09-25 onward also pass `-ExecutionPolicy Bypass` when
+> starting a crawler, so this is belt and braces.
+
 Requires **Windows x64** and **PowerShell 7** (`pwsh.exe`). No Docker, no WSL,
 no administrator rights.
 
 ```powershell
 Expand-Archive .\IdentityAtlas-portable.zip -DestinationPath .\IdentityAtlas
 cd .\IdentityAtlas
+Get-ChildItem -Recurse . | Unblock-File      # clears the internet mark
 pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1
 ```
 
