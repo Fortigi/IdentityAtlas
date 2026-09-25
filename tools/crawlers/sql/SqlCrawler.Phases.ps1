@@ -28,6 +28,17 @@ $script:SqlTargetOrder = @('identities', 'principals', 'resources', 'identity-me
 function Get-SqlSlotsInOrder {
     [CmdletBinding()]
     param([hashtable[]]$Slots = @())
+    # CALLERS MUST WRAP THIS IN @(). PowerShell unrolls a returned collection, so
+    # a ONE-slot result arrives as the bare hashtable: `.Count` then reports the
+    # number of KEYS in the slot and `[0]` is $null. Start-SqlCrawler.ps1 indexes
+    # the result, and without the wrapper a crawler with a single enabled query
+    # died on its first slot with "Cannot bind argument to parameter 'Slot'
+    # because it is null".
+    #
+    # A leading comma here would fix that case and break the empty one: an empty
+    # array written to the pipeline emits nothing, the caller's variable becomes
+    # $null, and `@($null)` is one element — a phantom slot. @() at the call site
+    # is the one form that is correct at 0, 1 and many.
     $enabled = @($Slots | Where-Object { $_.enabled })
     return @($enabled | Sort-Object -Stable { [array]::IndexOf($script:SqlTargetOrder, $_.target) })
 }

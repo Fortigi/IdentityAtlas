@@ -67,7 +67,9 @@ $State = New-SqlRunState -SystemId $reg.systemId -ServerTime $reg.serverTime -Sl
 Update-CrawlerProgress -Step 'Connecting to SQL Server' -Pct 5
 $Connection = Connect-SqlSource -Cfg $Cfg
 try {
-    $slots = Get-SqlSlotsInOrder -Slots $Cfg.queries
+    # @() as well as the helper's own guard: a single enabled query must still be
+    # a one-element ARRAY here, or .Count counts the slot's keys and [0] is $null.
+    $slots = @(Get-SqlSlotsInOrder -Slots $Cfg.queries)
     for ($i = 0; $i -lt $slots.Count; $i++) {
         Invoke-SqlSlot -Slot $slots[$i] -Connection $Connection -State $State -Pct (10 + [int](75 * $i / $slots.Count)) | Out-Null
     }
