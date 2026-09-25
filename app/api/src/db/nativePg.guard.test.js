@@ -221,10 +221,30 @@ describe('no SQL Server client in PowerShell (Tier 3)', () => {
   // (OmadaCrawler.Transform.ps1 maps them into extendedAttributes), and those are
   // unrelated to the v4 temporal column this repo dropped. The dead giveaway of a
   // temporal *predicate* is the sentinel value, so that is what we match.
+  // The ban is about reaching THE IDENTITY ATLAS DATABASE with a SQL Server
+  // client — v4 leftovers that kept working against the old MSSQL instance after
+  // the postgres port. It is NOT about SQL Server as a *source system*: the `sql`
+  // crawler is a connector whose whole job is to read a customer's SQL Server
+  // (SailPoint IdentityIQ and the like) and push the rows through the Ingest API.
+  // It never touches this product's own database, and cannot: it has no
+  // credentials for it and every write it makes is an HTTP call to the API.
+  //
+  // So the driver tokens are allowed in that one folder and stay banned in every
+  // other PowerShell file, including the rest of tools/crawlers. The T-SQL
+  // dialect patterns below are NOT relaxed even there — `dbo.` and the v4
+  // temporal sentinel would still signal v4 code, and the connector has no need
+  // of either. `isConnector` is asserted in both directions below.
+  //
+  // The connector's own Pester suites are included: they assert on the very
+  // connection string the crawler builds ("TrustServerCertificate=False" is the
+  // secure default worth pinning), so excluding them would force that assertion
+  // to be deleted — trading a real test for a green guard.
+  const isConnector = (rel) =>
+    rel.startsWith('tools/crawlers/sql/') || /^test\/unit\/SqlCrawler\w*\.Tests\.ps1$/.test(rel);
   const BANNED_PS = [
-    { name: 'System.Data.SqlClient (MSSQL driver)', re: /\b(?:System|Microsoft)\.Data\.SqlClient\b/ },
-    { name: 'SqlConnection / SqlCommand / SqlDataAdapter', re: /\bSql(?:Connection|Command|DataAdapter)\b/ },
-    { name: 'TrustServerCertificate (MSSQL conn string)', re: /\bTrustServerCertificate\b/ },
+    { name: 'System.Data.SqlClient (MSSQL driver)', re: /\b(?:System|Microsoft)\.Data\.SqlClient\b/, allowConnector: true },
+    { name: 'SqlConnection / SqlCommand / SqlDataAdapter', re: /\bSql(?:Connection|Command|DataAdapter)\b/, allowConnector: true },
+    { name: 'TrustServerCertificate (MSSQL conn string)', re: /\bTrustServerCertificate\b/, allowConnector: true },
     { name: 'dbo. schema prefix (T-SQL)', re: /\bdbo\./ },
     { name: 'v4 temporal sentinel (ValidTo = 9999-12-31…)', re: /9999-12-31[ T]23:59:59/ },
   ];
@@ -267,10 +287,59 @@ describe('no SQL Server client in PowerShell (Tier 3)', () => {
     });
   });
 
-  for (const { name, re } of BANNED_PS) {
+  for (const { name, re, allowConnector } of BANNED_PS) {
     it(`no .ps1/.psm1 uses: ${name}`, () => {
-      const offenders = scan(re, { files: PS_FILES, relTo: REPO_ROOT, strip: stripPs });
+      // scan() returns "path:line  text", so take the path before testing it.
+      const offenders = scan(re, { files: PS_FILES, relTo: REPO_ROOT, strip: stripPs })
+        .filter((o) => !(allowConnector && isConnector(o.split(':')[0])));
       expect(offenders, `SQL Server / T-SQL surface in PowerShell:\n${offenders.join('\n')}`).toEqual([]);
     });
   }
+
+  // The carve-out is only as good as its boundary. If `isConnector` ever widened
+  // to, say, every crawler, the ban above would quietly stop covering the files
+  // it exists for — and the suite would still be green. Pin the boundary itself.
+  describe('the connector carve-out is scoped to the sql crawler alone', () => {
+    it.each([
+      'tools/crawlers/sql/SqlCrawler.Functions.ps1',
+      'tools/crawlers/sql/Start-SqlCrawler.ps1',
+      'test/unit/SqlCrawlerFunctions.Tests.ps1',
+      'test/unit/SqlCrawlerPhases.Tests.ps1',
+    ])('allows the driver in %s', (p) => {
+      expect(isConnector(p)).toBe(true);
+    });
+
+    it.each([
+      'tools/crawlers/entra-id/EntraIDCrawler.Phases.ps1',
+      'tools/crawlers/shared/Invoke-CrawlerIngest.ps1',
+      'tools/crawlers/shared/Invoke-CrawlerIngestStream.ps1',
+      'tools/crawlers/sqlserver-other/Thing.ps1',
+      'test/unit/CrawlerIngest.Tests.ps1',
+      'test/unit/SqlCrawlerFunctions.Tests.ps1.bak',
+      'setup/docker/scheduler.ps1',
+    ])('still bans the driver in %s', (p) => {
+      expect(isConnector(p)).toBe(false);
+    });
+
+    it('the sql connector really is the only PowerShell using the driver', () => {
+      // A vacuous carve-out (nothing uses it) would mean the allowance is dead
+      // code; a spreading one would mean the ban is eroding. Both are worth knowing.
+      const users = scan(/\b(?:System|Microsoft)\.Data\.SqlClient\b/, { files: PS_FILES, relTo: REPO_ROOT, strip: stripPs })
+        .map((o) => o.split(':')[0]);
+      expect([...new Set(users)].every(isConnector)).toBe(true);
+      expect(users.length).toBeGreaterThan(0);
+    });
+
+    it('the connector never reaches the product database — no psql, no Postgres DSN', () => {
+      // The reason the carve-out is safe: this crawler's only write path is the
+      // Ingest API over HTTP. If it ever grew a direct connection to the product's
+      // own database, the whole argument above would be void.
+      const connectorFiles = PS_FILES.filter((f) => isConnector(relative(REPO_ROOT, f).replace(/\\/g, '/')));
+      expect(connectorFiles.length).toBeGreaterThan(0);
+      const offenders = scan(/\bpsql\b|postgres(?:ql)?:\/\/|\bNpgsql\b|PgQuery\.psm1/, {
+        files: connectorFiles, relTo: REPO_ROOT, strip: stripPs,
+      });
+      expect(offenders, `the sql connector must not touch the product database:\n${offenders.join('\n')}`).toEqual([]);
+    });
+  });
 });

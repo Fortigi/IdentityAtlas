@@ -17,6 +17,7 @@ import {
 import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, ENTITY_SCOPE_MAP } from '../../ingest/validation.js';
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/crawlerAuth.js';
 import { normalizePresenceQuery, lookupCrawlerPresence } from '../../ingest/crawlerPresence.js';
+import { parseReconcileRequest, reconcileStale, ReconcileRequestError } from '../../ingest/reconcileStale.js';
 import { refreshMatrixViewsSerialized } from './matrixViews.js';
 import { buildSyncLogRow, classifyScope } from './dataPlane.js';
 import {
@@ -184,6 +185,40 @@ router.post('/ingest/principals-presence', async (req, res) => {
   } catch (err) {
     console.error('principals-presence lookup failed:', err.message);
     res.status(500).json({ error: 'Lookup failed' });
+  }
+});
+
+// POST /api/ingest/reconcile — the full-sync delete for a STREAMED sync.
+//
+// A crawler that cannot hold its source in memory (the SQL crawler's tens of
+// millions of entitlement assignments) upserts independent delta chunks and then
+// calls this once per (entity, scope): every row of that system + scope that no
+// ingest has touched since `before` is reconciled away — soft-deleted on the
+// soft-delete tables, removed elsewhere. `before` should be the `serverTime` the
+// crawler read from GET /crawlers/whoami when its run started, so the comparison
+// is against this container's clock, never the worker's. See ingest/reconcileStale.js.
+router.post('/ingest/reconcile', async (req, res) => {
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  if (!crawlerHasPermission(req, 'ingest')) return res.status(403).json({ error: 'Insufficient permissions' });
+  let parsed;
+  try { parsed = parseReconcileRequest(req.body); }
+  catch (err) { return res.status(400).json({ error: err.message }); }
+  if (!crawlerHasSystemAccess(req, parsed.systemId)) {
+    return res.status(403).json({ error: `Crawler does not have access to system ${parsed.systemId}` });
+  }
+  const { entity, tableName, systemId, before } = parsed;
+  const scope = buildScope(req.body.scope, ENTITY_SCOPE_MAP[entity] || []);
+  const startTime = new Date();
+  try {
+    const deleted = await reconcileStale(tableName, {
+      systemId, scope, before, scopeDeleteFilter: conflictFilterFor(entity), restrictSystemIds: restrictedSystemIds(req.crawler),
+    });
+    await writeSyncLog(null, `API-${entity}-reconcile`, tableName, startTime, 0, 0, 0, deleted, null);
+    return res.json({ table: tableName, deleted, before });
+  } catch (err) {
+    if (err instanceof ReconcileRequestError) return res.status(400).json({ error: err.message });
+    console.error(`Reconcile error (${entity}):`, err.message);
+    return res.status(500).json({ error: 'Reconcile failed' });
   }
 });
 

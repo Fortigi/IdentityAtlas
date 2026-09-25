@@ -19,10 +19,14 @@ const selfServiceCrawlersRouter = Router();
 
 // ─── Crawler self-service endpoints (API key auth) ───────────────
 
-// GET /api/crawlers/whoami — Return own metadata
+// GET /api/crawlers/whoami — Return own metadata.
+//
+// `serverTime` is this container's clock. A crawler that reconciles a streamed
+// full sync by timestamp (POST /ingest/reconcile) reads it at job start and
+// hands it back as `before`, so the comparison never involves the worker's clock.
 selfServiceCrawlersRouter.get('/crawlers/whoami', (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
-  res.json(req.crawler);
+  res.json({ ...req.crawler, serverTime: new Date().toISOString() });
 });
 
 // POST /api/crawlers/rotate — Rotate own key
