@@ -242,6 +242,44 @@ function New-SqlCommand {
     return $cmd
 }
 
+# A result set that ends because the CONNECTION went away is indistinguishable
+# from one that ends because the rows ran out: Read() returns $false in both
+# cases, with no error. So a proxy, gateway or firewall that closes a TLS session
+# mid-stream truncates the crawl SILENTLY — the job ingests part of the source and
+# reports success, which is worse than failing.
+#
+# Observed in the field: a 176,703-row table returned 22,087 rows in 59 seconds
+# and the run was reported as complete. The crawler holds one result set open for
+# the whole statement while stopping every batch to POST into the API, so that
+# connection sits idle mid-stream for seconds at a time — exactly what an idle-
+# session timeout kills.
+#
+# After the rows stop, ask the connection to do one more trivial thing. A dead
+# connection cannot, and that turns silent data loss into a failed job naming the
+# fix. It is a best-effort check rather than a proof: SqlClient's own connection
+# resiliency can transparently re-establish an idle connection, in which case the
+# probe succeeds even though rows were lost. Paging is the actual cure, because
+# each page is then a short-lived query with nothing held open across an ingest.
+function Assert-SqlReadCompleted {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Connection, [int]$RowsRead, [bool]$Paged = $false)
+    try {
+        $probe = $Connection.CreateCommand()
+        try {
+            $probe.CommandText = 'SELECT 1'
+            $probe.CommandTimeout = 30
+            [void]$probe.ExecuteScalar()
+        }
+        finally { $probe.Dispose() }
+    }
+    catch {
+        $hint = if ($Paged) { 'The statement is already paged, so re-running resumes from the start of the failed page.' }
+                else { 'Add an ORDER BY and OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY to the statement: the crawler then reads it one short-lived page at a time instead of holding a single result set open for the whole table.' }
+        throw ("The SQL connection did not survive the read: $($RowsRead.ToString('N0')) row(s) arrived before it dropped, so the result set was cut short rather than finished. " +
+               "Treating that as a complete read would silently ingest part of the source. $hint Underlying error: $($_.Exception.GetBaseException().Message)")
+    }
+}
+
 # Run one page (or the whole statement) and hand every row to -OnRow. Returns the
 # number of rows read.
 function Invoke-SqlReaderPage {
@@ -269,6 +307,9 @@ function Invoke-SqlReaderPage {
             $n++
         }
     } finally { $reader.Dispose() }
+    # The reader is closed before probing, so the probe reuses the connection
+    # rather than competing with an open result set for it.
+    Assert-SqlReadCompleted -Connection $Command.Connection -RowsRead $n -Paged $Paged
     return $n
 }
 

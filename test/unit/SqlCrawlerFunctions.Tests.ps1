@@ -68,6 +68,7 @@ BeforeAll {
     class FakeCommand {
         [string]$CommandText; [int]$CommandTimeout; [FakeParams]$Parameters = [FakeParams]::new(); [bool]$Disposed = $false
         [object]$Conn
+        [object]$Connection      # what Assert-SqlReadCompleted probes through
         [object]$Behavior
         [object]ExecuteReader([object]$behavior) {
             $this.Behavior = $behavior
@@ -75,15 +76,24 @@ BeforeAll {
             $r.Sequential = ("$behavior" -eq 'SequentialAccess')
             return $r
         }
+        # The post-read health probe ("SELECT 1"). A connection that died mid-stream
+        # cannot answer it — that is the whole point of the check.
+        [object]ExecuteScalar() {
+            if (-not $this.Conn.Healthy) { throw 'A transport-level error has occurred when sending the request to the server.' }
+            return 1
+        }
         [void]Dispose() { $this.Disposed = $true }
     }
     class FakeConnection {
         [string[]]$Columns; [object[]]$AllRows
+        [bool]$Healthy = $true   # set false to simulate a connection cut mid-stream
         [System.Collections.Generic.List[object]]$Commands = [System.Collections.Generic.List[object]]::new()
         [System.Collections.Generic.List[object]]$Readers  = [System.Collections.Generic.List[object]]::new()
+        [System.Collections.Generic.List[object]]$ReadCommands = [System.Collections.Generic.List[object]]::new()
         FakeConnection([string[]]$c, [object[]]$rows) { $this.Columns = $c; $this.AllRows = $rows }
-        [object]CreateCommand() { $cmd = [FakeCommand]::new(); $cmd.Conn = $this; $this.Commands.Add($cmd); return $cmd }
+        [object]CreateCommand() { $cmd = [FakeCommand]::new(); $cmd.Conn = $this; $cmd.Connection = $this; $this.Commands.Add($cmd); return $cmd }
         [object]OpenReader([object]$cmd) {
+            $this.ReadCommands.Add($cmd)   # commands that ran a page, excluding health probes
             $rows = $this.AllRows
             $off = $cmd.Parameters.Get('@Offset'); $size = $cmd.Parameters.Get('@PageSize')
             if ($off) { $rows = @($rows | Select-Object -Skip ([int]$off.Value) -First ([int]$size.Value)) }
@@ -289,10 +299,10 @@ Describe 'Invoke-SqlQueryStream' {
         $n = Invoke-SqlQueryStream -Connection $conn -Sql 'SELECT id, n FROM t' -OnRow { param($Row) $seen.Add($Row.id) } -CommandTimeout 12
         $n | Should -Be 7
         $seen | Should -Be @('r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7')
-        $conn.Commands.Count | Should -Be 1
-        $conn.Commands[0].CommandTimeout | Should -Be 12
-        $conn.Commands[0].Parameters.Items.Count | Should -Be 0
-        $conn.Commands[0].Disposed | Should -BeTrue
+        $conn.ReadCommands.Count | Should -Be 1
+        $conn.ReadCommands[0].CommandTimeout | Should -Be 12
+        $conn.ReadCommands[0].Parameters.Items.Count | Should -Be 0
+        $conn.ReadCommands[0].Disposed | Should -BeTrue
         $conn.Readers[0].Disposed | Should -BeTrue
     }
 
@@ -303,17 +313,17 @@ Describe 'Invoke-SqlQueryStream' {
         $n | Should -Be 7
         $seen | Should -Be @('r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7')
         # 3 + 3 + 1: the short third page ends the loop
-        $conn.Commands.Count | Should -Be 3
-        @($conn.Commands | ForEach-Object { [int]$_.Parameters.Get('@Offset').Value }) | Should -Be @(0, 3, 6)
-        @($conn.Commands | ForEach-Object { [int]$_.Parameters.Get('@PageSize').Value }) | Should -Be @(3, 3, 3)
-        @($conn.Commands | Where-Object { -not $_.Disposed }).Count | Should -Be 0
+        $conn.ReadCommands.Count | Should -Be 3
+        @($conn.ReadCommands | ForEach-Object { [int]$_.Parameters.Get('@Offset').Value }) | Should -Be @(0, 3, 6)
+        @($conn.ReadCommands | ForEach-Object { [int]$_.Parameters.Get('@PageSize').Value }) | Should -Be @(3, 3, 3)
+        @($conn.ReadCommands | Where-Object { -not $_.Disposed }).Count | Should -Be 0
     }
 
     It 'a paged statement whose row count is a multiple of the page size runs one extra, empty page' {
         $conn = [FakeConnection]::new(@('id', 'n'), @($script:Rows | Select-Object -First 6))
         $n = Invoke-SqlQueryStream -Connection $conn -Sql 'x' -OnRow { } -Paged $true -PageSize 3
         $n | Should -Be 6
-        $conn.Commands.Count | Should -Be 3
+        $conn.ReadCommands.Count | Should -Be 3
     }
 
     # The failure that reached a live Azure SQL instance: a 26-column identities
@@ -347,6 +357,32 @@ Describe 'Invoke-SqlQueryStream' {
         $n = Invoke-SqlQueryStream -Connection $conn -Sql 'x' -OnRow { param($Row) $first.Add([string]$Row['col0']) }
         $n | Should -Be 3
         $first | Should -Be @('r1-c0', 'r2-c0', 'r3-c0')
+    }
+
+    # A result set cut short by a dropped connection ends exactly like a complete
+    # one — Read() returns false, no error — so the crawler used to ingest part of
+    # the source and report success. A 176,703-row table yielded 22,087 rows and a
+    # green job. Failing loudly is the only safe reading of a dead connection.
+    It 'fails the read when the connection did not survive it, naming the row count' {
+        $conn = [FakeConnection]::new(@('id', 'n'), $script:Rows)
+        $conn.Healthy = $false
+        $seen = 0
+        { Invoke-SqlQueryStream -Connection $conn -Sql 'x' -OnRow { $seen++ } } |
+            Should -Throw '*did not survive the read*7 row(s) arrived*'
+    }
+
+    It 'the failure tells a non-paged statement how to avoid it' {
+        $conn = [FakeConnection]::new(@('id', 'n'), $script:Rows)
+        $conn.Healthy = $false
+        { Invoke-SqlQueryStream -Connection $conn -Sql 'x' -OnRow { } } | Should -Throw '*OFFSET @Offset*'
+    }
+
+    It 'a healthy connection is probed exactly once per statement, not per row' {
+        # The probe is a round trip; per row it would dwarf the read itself.
+        $conn = [FakeConnection]::new(@('id', 'n'), $script:Rows)
+        Invoke-SqlQueryStream -Connection $conn -Sql 'x' -OnRow { } | Should -Be 7
+        # One command for the read, one for the probe.
+        $conn.Commands.Count | Should -Be 2
     }
 
     It 'an empty result set yields 0 rows and no callbacks' {

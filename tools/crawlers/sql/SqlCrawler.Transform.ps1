@@ -27,7 +27,11 @@
 # copied to extendedAttributes; `aux` columns are consumed (fallbacks, flags,
 # links) but ALSO kept in extendedAttributes since they carry source detail.
 $script:SqlContract = @{
-    identities         = @{ core = @('id', 'displayName', 'email', 'givenName', 'surname', 'department', 'jobTitle', 'companyName', 'employeeId'); aux = @('name', 'userId', 'principalType', 'enabled', 'active', 'inactive', 'disabled') }
+    # The person fields the Identities table actually has (001_core_schema.sql).
+    # city / country / officeLocation are columns on that table, so a statement
+    # that aliases to them must land there rather than in extendedAttributes —
+    # which is where they went while this list was shorter than the table.
+    identities         = @{ core = @('id', 'displayName', 'email', 'givenName', 'surname', 'department', 'jobTitle', 'companyName', 'employeeId', 'city', 'country', 'officeLocation'); aux = @('name', 'userId', 'principalType', 'enabled', 'active', 'inactive', 'disabled') }
     principals         = @{ core = @('id', 'displayName', 'email', 'givenName', 'surname', 'department', 'jobTitle', 'companyName', 'employeeId'); aux = @('name', 'userId', 'principalType', 'enabled', 'active', 'inactive', 'disabled', 'identityId') }
     'identity-members' = @{ core = @('identityId', 'principalId', 'isPrimary', 'accountType'); aux = @() }
     resources          = @{ core = @('id', 'displayName', 'description'); aux = @('name', 'enabled', 'active', 'inactive', 'disabled') }
@@ -192,7 +196,10 @@ function Get-SqlPrincipalType {
 function Add-SqlPersonFields {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $Row, [Parameter(Mandatory)] [hashtable]$Map, [Parameter(Mandatory)] $Record)
-    foreach ($f in @('email', 'givenName', 'surname', 'department', 'jobTitle', 'companyName', 'employeeId')) {
+    # city / country / officeLocation are real columns on Identities only. Sending
+    # them on a Principal is harmless — the ingest keeps a field the target table
+    # does not have in extendedAttributes, which is where they sat regardless.
+    foreach ($f in @('email', 'givenName', 'surname', 'department', 'jobTitle', 'companyName', 'employeeId', 'city', 'country', 'officeLocation')) {
         $v = Get-SqlMapped -Row $Row -Map $Map -Name $f
         if ($null -ne $v -and [string]$v -ne '') { $Record[$f] = [string]$v }
     }
