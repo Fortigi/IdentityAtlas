@@ -16,14 +16,15 @@
     "lint": "eslint src/",
     "build:node-launcher": "node ../desktop/scripts/build-node-launcher.mjs",
     "build:node-launcher:skip-ui": "node ../desktop/scripts/build-node-launcher.mjs --skip-ui-build",
-    "test:mutation": "npm run test:mutation:auth && npm run test:mutation:effectiveaccess && npm run test:mutation:accountlinking && npm run test:mutation:matrix && npm run test:mutation:features && npm run test:mutation:reports && npm run test:mutation:contextassistant",
+    "test:mutation": "npm run test:mutation:auth && npm run test:mutation:effectiveaccess && npm run test:mutation:accountlinking && npm run test:mutation:matrix && npm run test:mutation:features && npm run test:mutation:reports && npm run test:mutation:contextassistant && npm run test:mutation:teamsbot",
     "test:mutation:auth": "stryker run stryker.auth.config.json",
     "test:mutation:effectiveaccess": "stryker run stryker.effectiveaccess.config.json",
     "test:mutation:accountlinking": "stryker run stryker.accountlinking.config.json",
     "test:mutation:matrix": "stryker run stryker.matrix.config.json",
     "test:mutation:features": "stryker run stryker.features.config.json",
     "test:mutation:reports": "stryker run stryker.reports.config.json",
-    "test:mutation:contextassistant": "stryker run stryker.contextassistant.config.json"
+    "test:mutation:contextassistant": "stryker run stryker.contextassistant.config.json",
+    "test:mutation:teamsbot": "stryker run stryker.teamsbot.config.json"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -40,6 +41,8 @@
   },
   "dependencies": {
     "ajv": "^8.20.0",
+    "botbuilder": "^4.23.3",
+    "botbuilder-dialogs": "^4.23.3",
     "cors": "^2.8.5",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",

@@ -7,7 +7,7 @@ const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 import { useMatrix } from './hooks/useMatrix';
 import { useHashPage } from './hooks/useHashPage';
 import { useAuth } from './auth/AuthGate';
-import { useCanSeeAdminTab } from './auth/usePermissions';
+import { useCanSeeAdminTab, useCanAsk } from './auth/usePermissions';
 import { useTheme } from './hooks/useTheme';
 import { useAttributeLabels } from './hooks/useAttributeLabels';
 import { ThemeContext } from './contexts/ThemeContext';
@@ -103,10 +103,14 @@ export default function App() {
   // than to let them find a locked one. The Auth → Roles & Permissions
   // page inside Admin further self-gates by admin.auth.
   const canSeeAdmin = useCanSeeAdminTab();
+  const canAsk = useCanAsk();
 
   const navTabs = useMemo(
-    () => computeNavTabs({ features, visibleTabs, canSeeAdmin }),
-    [features, visibleTabs, canSeeAdmin]
+    () => computeNavTabs({
+      features, visibleTabs, canSeeAdmin,
+      hasPermission: (p) => (p === 'data.read.reports' ? canAsk : true),
+    }),
+    [features, visibleTabs, canSeeAdmin, canAsk]
   );
 
   // Available optional tabs (respecting feature flags)

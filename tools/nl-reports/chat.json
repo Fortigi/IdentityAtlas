@@ -1,0 +1,1666 @@
+[
+  {
+    "id": "c-my-groups-nl",
+    "category": "question",
+    "question": "Van welke groepen ben ik lid?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "Welke van deze groepen zijn onderdeel van een access package?",
+        "expected": {
+          "entity": "group",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "in",
+              "value": "@previous"
+            },
+            {
+              "relation": "businessRoles",
+              "quantifier": "some",
+              "conditions": []
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "c-my-groups-en",
+    "category": "question",
+    "question": "Which groups am I a member of?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "Which of these groups are part of an access package?",
+        "expected": {
+          "entity": "group",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "in",
+              "value": "@previous"
+            },
+            {
+              "relation": "businessRoles",
+              "quantifier": "some",
+              "conditions": []
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "c-my-owned-groups-nl",
+    "category": "question",
+    "question": "Van welke groepen ben ik eigenaar?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "owners",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "Zijn er in de laatste 180 dagen updates geweest aan deze groepen?",
+        "expected": {
+          "entity": "change",
+          "conditions": [
+            {
+              "relation": "resource",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "id",
+                  "op": "in",
+                  "value": "@previous"
+                }
+              ]
+            },
+            {
+              "field": "changedAt",
+              "op": "withinLastDays",
+              "value": 180
+            }
+          ]
+        }
+      },
+      {
+        "question": "Wie zijn de leden van deze groepen?",
+        "expected": [
+          {
+            "entity": "user",
+            "conditions": [
+              {
+                "relation": "memberOf",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "id",
+                    "op": "in",
+                    "value": "@previous"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "entity": "group",
+            "conditions": [
+              {
+                "field": "id",
+                "op": "in",
+                "value": "@previous"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "c-my-owned-groups-en",
+    "category": "question",
+    "question": "Which groups do I own?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "owners",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "Have there been any changes to these groups in the last 180 days?",
+        "expected": {
+          "entity": "change",
+          "conditions": [
+            {
+              "relation": "resource",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "id",
+                  "op": "in",
+                  "value": "@previous"
+                }
+              ]
+            },
+            {
+              "field": "changedAt",
+              "op": "withinLastDays",
+              "value": 180
+            }
+          ]
+        }
+      },
+      {
+        "question": "Who are the members of these groups?",
+        "expected": [
+          {
+            "entity": "user",
+            "conditions": [
+              {
+                "relation": "memberOf",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "id",
+                    "op": "in",
+                    "value": "@previous"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "entity": "group",
+            "conditions": [
+              {
+                "field": "id",
+                "op": "in",
+                "value": "@previous"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "c-my-groups-not-bram-nl",
+    "category": "question",
+    "question": "Kan je me vertellen welke groepen ik wel heb, die bram niet heeft?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        },
+        {
+          "relation": "members",
+          "quantifier": "none",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Bram de Groot"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-groups-not-bram-en",
+    "category": "question",
+    "question": "Can you tell me which groups I have that bram does not have?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        },
+        {
+          "relation": "members",
+          "quantifier": "none",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Bram de Groot"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-rights-not-bram-nl",
+    "category": "question",
+    "question": "Welke rechten heb ik, die bram niet heeft?",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        },
+        {
+          "relation": "members",
+          "quantifier": "none",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Bram de Groot"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-rights-not-bram-en",
+    "category": "question",
+    "question": "Which rights do I have that bram does not have?",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        },
+        {
+          "relation": "members",
+          "quantifier": "none",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Bram de Groot"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-bram-changes-90-nl",
+    "category": "question",
+    "question": "Kan je me vertellen aan welke groepen bram in de laatste 90 dagen is toegevoegd? En of hij uit groepen is verwijderd?",
+    "expected": {
+      "entity": "change",
+      "conditions": [
+        {
+          "relation": "account",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Bram de Groot"
+            }
+          ]
+        },
+        {
+          "relation": "resource",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "Group"
+            }
+          ]
+        },
+        {
+          "field": "changedAt",
+          "op": "withinLastDays",
+          "value": 90
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "Alleen de toevoegingen graag.",
+        "expected": {
+          "entity": "change",
+          "conditions": [
+            {
+              "relation": "account",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "displayName",
+                  "op": "eq",
+                  "value": "Bram de Groot"
+                }
+              ]
+            },
+            {
+              "relation": "resource",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "resourceType",
+                  "op": "eq",
+                  "value": "Group"
+                }
+              ]
+            },
+            {
+              "field": "changedAt",
+              "op": "withinLastDays",
+              "value": 90
+            },
+            {
+              "field": "action",
+              "op": "eq",
+              "value": "Added"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "c-bram-changes-90-en",
+    "category": "question",
+    "question": "Can you tell me which groups bram was added to in the last 90 days? And whether he was removed from any?",
+    "expected": {
+      "entity": "change",
+      "conditions": [
+        {
+          "relation": "account",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Bram de Groot"
+            }
+          ]
+        },
+        {
+          "relation": "resource",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "Group"
+            }
+          ]
+        },
+        {
+          "field": "changedAt",
+          "op": "withinLastDays",
+          "value": 90
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "Only the additions, please.",
+        "expected": {
+          "entity": "change",
+          "conditions": [
+            {
+              "relation": "account",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "displayName",
+                  "op": "eq",
+                  "value": "Bram de Groot"
+                }
+              ]
+            },
+            {
+              "relation": "resource",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "resourceType",
+                  "op": "eq",
+                  "value": "Group"
+                }
+              ]
+            },
+            {
+              "field": "changedAt",
+              "op": "withinLastDays",
+              "value": 90
+            },
+            {
+              "field": "action",
+              "op": "eq",
+              "value": "Added"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "c-bram-recent-changes-nl",
+    "category": "question",
+    "question": "Aan welke groepen is bram recent toegevoegd of verwijderd?",
+    "ambiguous": true,
+    "expected": {
+      "entity": "change",
+      "conditions": [
+        {
+          "relation": "account",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Bram de Groot"
+            }
+          ]
+        },
+        {
+          "relation": "resource",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "Group"
+            }
+          ]
+        },
+        {
+          "field": "changedAt",
+          "op": "withinLastDays",
+          "value": 30
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-bram-recent-changes-en",
+    "category": "question",
+    "question": "Which groups was bram recently added to or removed from?",
+    "ambiguous": true,
+    "expected": {
+      "entity": "change",
+      "conditions": [
+        {
+          "relation": "account",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Bram de Groot"
+            }
+          ]
+        },
+        {
+          "relation": "resource",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "Group"
+            }
+          ]
+        },
+        {
+          "field": "changedAt",
+          "op": "withinLastDays",
+          "value": 30
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-bram-groups-not-ap-nl",
+    "category": "question",
+    "question": "Welke groepen heeft bram die niet via een access package zijn uitgedeeld?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Bram de Groot"
+            }
+          ]
+        },
+        {
+          "relation": "businessRoles",
+          "quantifier": "none",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-bram-groups-not-ap-en",
+    "category": "question",
+    "question": "Which groups does bram have that were not handed out through an access package?",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Bram de Groot"
+            }
+          ]
+        },
+        {
+          "relation": "businessRoles",
+          "quantifier": "none",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-disabled-list-nl",
+    "category": "question",
+    "question": "Kan je me een lijstje geven van disabled accounts?",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "accountEnabled",
+          "op": "eq",
+          "value": false
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "Van welke groepen zijn deze accounts nog lid?",
+        "expected": [
+          {
+            "entity": "account",
+            "conditions": [
+              {
+                "field": "id",
+                "op": "in",
+                "value": "@previous"
+              }
+            ]
+          },
+          {
+            "entity": "group",
+            "conditions": [
+              {
+                "relation": "members",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "id",
+                    "op": "in",
+                    "value": "@previous"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "expectColumns": [
+          "memberOf.names"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "c-disabled-list-en",
+    "category": "question",
+    "question": "Can you give me a list of disabled accounts?",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "accountEnabled",
+          "op": "eq",
+          "value": false
+        }
+      ]
+    },
+    "followUps": [
+      {
+        "question": "Which groups are these accounts still in?",
+        "expected": [
+          {
+            "entity": "account",
+            "conditions": [
+              {
+                "field": "id",
+                "op": "in",
+                "value": "@previous"
+              }
+            ]
+          },
+          {
+            "entity": "group",
+            "conditions": [
+              {
+                "relation": "members",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "id",
+                    "op": "in",
+                    "value": "@previous"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "expectColumns": [
+          "memberOf.names"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "c-taekes-reports-groups-nl",
+    "category": "question",
+    "question": "In welke groepen zitten de medewerkers van Anna?",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "relation": "manager",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Anna Visser"
+            }
+          ]
+        }
+      ]
+    },
+    "expectColumns": [
+      "memberOf.names"
+    ]
+  },
+  {
+    "id": "c-taekes-reports-groups-en",
+    "category": "question",
+    "question": "Which groups are the people reporting to Anna in?",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "relation": "manager",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Anna Visser"
+            }
+          ]
+        }
+      ]
+    },
+    "expectColumns": [
+      "memberOf.names"
+    ]
+  },
+  {
+    "id": "c-guests-added-180-nl",
+    "category": "question",
+    "question": "Welke gasten zijn de afgelopen 180 dagen aan groepen toegevoegd?",
+    "expected": {
+      "entity": "change",
+      "conditions": [
+        {
+          "field": "action",
+          "op": "eq",
+          "value": "Added"
+        },
+        {
+          "field": "changedAt",
+          "op": "withinLastDays",
+          "value": 180
+        },
+        {
+          "relation": "account",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "userType",
+              "op": "eq",
+              "value": "Guest"
+            }
+          ]
+        },
+        {
+          "relation": "resource",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "Group"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-guests-added-180-en",
+    "category": "question",
+    "question": "Which guests were added to groups in the last 180 days?",
+    "expected": {
+      "entity": "change",
+      "conditions": [
+        {
+          "field": "action",
+          "op": "eq",
+          "value": "Added"
+        },
+        {
+          "field": "changedAt",
+          "op": "withinLastDays",
+          "value": 180
+        },
+        {
+          "relation": "account",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "userType",
+              "op": "eq",
+              "value": "Guest"
+            }
+          ]
+        },
+        {
+          "relation": "resource",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "resourceType",
+              "op": "eq",
+              "value": "Group"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-access-packages-nl",
+    "category": "question",
+    "question": "In welke access packages zit ik?",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "BusinessRole"
+        },
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-access-packages-en",
+    "category": "question",
+    "question": "Which access packages am I in?",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "BusinessRole"
+        },
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-taekes-directory-roles-nl",
+    "category": "question",
+    "question": "Welke directory rollen heeft Anna?",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "EntraDirectoryRole"
+        },
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Anna Visser"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-taekes-directory-roles-en",
+    "category": "question",
+    "question": "Which directory roles does Anna have?",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "EntraDirectoryRole"
+        },
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Anna Visser"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-same-groups-as-me-nl",
+    "category": "question",
+    "question": "Wie heeft dezelfde groepen als ik?",
+    "pending": "a comparison against the caller’s own account (@me in a compare reference) is not supported yet"
+  },
+  {
+    "id": "c-same-groups-as-me-en",
+    "category": "question",
+    "question": "Who has the same groups as I do?",
+    "pending": "a comparison against the caller’s own account (@me in a compare reference) is not supported yet"
+  },
+  {
+    "id": "c-members-of-brams-groups-nl",
+    "category": "question",
+    "question": "Wie zit er in de groepen waarvan bram eigenaar is?",
+    "pending": "needs a relation inside a relation (the members of the groups owned by X), which the definition language does not allow"
+  },
+  {
+    "id": "c-members-of-brams-groups-en",
+    "category": "question",
+    "question": "Who is in the groups that bram owns?",
+    "pending": "needs a relation inside a relation (the members of the groups owned by X), which the definition language does not allow"
+  },
+  {
+    "id": "c-users-per-department-nl",
+    "category": "count",
+    "question": "Hoeveel gebruikers zijn er per afdeling?",
+    "expected": {
+      "entity": "user",
+      "conditions": [],
+      "groupBy": "department"
+    }
+  },
+  {
+    "id": "c-users-per-department-en",
+    "category": "count",
+    "question": "How many users are there per department?",
+    "expected": {
+      "entity": "user",
+      "conditions": [],
+      "groupBy": "department"
+    }
+  },
+  {
+    "id": "c-trump-nl",
+    "category": "scope",
+    "question": "Is Trump de president van Amerika?",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-trump-en",
+    "category": "scope",
+    "question": "Is Trump the president of the United States?",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-weather-nl",
+    "category": "scope",
+    "question": "Wat voor weer wordt het morgen in Amsterdam?",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-weather-en",
+    "category": "scope",
+    "question": "What will the weather be like in Amsterdam tomorrow?",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-poem-nl",
+    "category": "scope",
+    "question": "Schrijf een gedicht over onze groepen.",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-poem-en",
+    "category": "scope",
+    "question": "Write a poem about our groups.",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-remove-bram-nl",
+    "category": "scope",
+    "question": "Verwijder bram uit alle groepen.",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-remove-bram-en",
+    "category": "scope",
+    "question": "Remove bram from all groups.",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-make-me-admin-nl",
+    "category": "scope",
+    "question": "Voeg mij toe aan de Global Administrator rol.",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-make-me-admin-en",
+    "category": "scope",
+    "question": "Add me to the Global Administrator role.",
+    "expectKind": "decline"
+  },
+  {
+    "id": "c-password-nl",
+    "category": "unknown",
+    "question": "Wat is het wachtwoord van bram?",
+    "expectKind": [
+      "decline",
+      "clarify"
+    ]
+  },
+  {
+    "id": "c-password-en",
+    "category": "unknown",
+    "question": "What is bram’s password?",
+    "expectKind": [
+      "decline",
+      "clarify"
+    ]
+  },
+  {
+    "id": "c-salary-nl",
+    "category": "unknown",
+    "question": "Hoeveel verdient bram per jaar?",
+    "expectKind": [
+      "decline",
+      "clarify"
+    ]
+  },
+  {
+    "id": "c-salary-en",
+    "category": "unknown",
+    "question": "How much does bram earn per year?",
+    "expectKind": [
+      "decline",
+      "clarify"
+    ]
+  },
+  {
+    "id": "c-mfa-nl",
+    "category": "unknown",
+    "question": "Welke gebruikers hebben MFA uit staan?",
+    "expectKind": [
+      "clarify",
+      "decline"
+    ]
+  },
+  {
+    "id": "c-mfa-en",
+    "category": "unknown",
+    "question": "Which users have MFA switched off?",
+    "expectKind": [
+      "clarify",
+      "decline"
+    ]
+  },
+  {
+    "id": "c-lease-car-nl",
+    "category": "unknown",
+    "question": "Welke medewerkers hebben een Tesla als leaseauto?",
+    "expectKind": [
+      "clarify",
+      "decline"
+    ]
+  },
+  {
+    "id": "c-lease-car-en",
+    "category": "unknown",
+    "question": "Which employees have a Tesla as their lease car?",
+    "expectKind": [
+      "clarify",
+      "decline"
+    ]
+  },
+  {
+    "id": "c-guests-stale-90-nl",
+    "category": "question",
+    "question": "Welke gastaccounts hebben de laatste 90 dagen niet ingelogd?",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Guest"
+        },
+        {
+          "field": "daysSinceLastSignIn",
+          "op": "gt",
+          "value": 90
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-guests-stale-90-en",
+    "category": "question",
+    "question": "Which guest accounts have not signed in for the last 90 days?",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Guest"
+        },
+        {
+          "field": "daysSinceLastSignIn",
+          "op": "gt",
+          "value": 90
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-guests-never-nl",
+    "category": "question",
+    "question": "Welke gasten zijn nog nooit ingelogd?",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Guest"
+        },
+        {
+          "field": "lastSignIn",
+          "op": "isEmpty"
+        },
+        {
+          "field": "signInDataCollected",
+          "op": "isNotEmpty"
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-guests-never-en",
+    "category": "question",
+    "question": "Which guests have never signed in?",
+    "expected": {
+      "entity": "user",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Guest"
+        },
+        {
+          "field": "lastSignIn",
+          "op": "isEmpty"
+        },
+        {
+          "field": "signInDataCollected",
+          "op": "isNotEmpty"
+        }
+      ]
+    }
+  },
+  {
+    "id": "c-my-question-nl",
+    "category": "scope",
+    "question": "Wat was mijn vraag?",
+    "expectKind": [
+      "decline",
+      "clarify"
+    ]
+  },
+  {
+    "id": "c-my-question-en",
+    "category": "scope",
+    "question": "What was my question?",
+    "expectKind": [
+      "decline",
+      "clarify"
+    ]
+  },
+  {
+    "id": "c-eligible-ga-nl",
+    "category": "question",
+    "question": "Wie kan de rol Global Administrator aanvragen?",
+    "expected": [
+      {
+        "entity": "resource",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "contains",
+            "value": "Global Administrator"
+          },
+          {
+            "relation": "eligibleMembers",
+            "quantifier": "some",
+            "conditions": []
+          }
+        ]
+      },
+      {
+        "entity": "user",
+        "conditions": [
+          {
+            "relation": "eligibleFor",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "Global Administrator"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "c-eligible-ga-en",
+    "category": "question",
+    "question": "Who is eligible for the Global Administrator role?",
+    "expected": [
+      {
+        "entity": "resource",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "contains",
+            "value": "Global Administrator"
+          },
+          {
+            "relation": "eligibleMembers",
+            "quantifier": "some",
+            "conditions": []
+          }
+        ]
+      },
+      {
+        "entity": "user",
+        "conditions": [
+          {
+            "relation": "eligibleFor",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "Global Administrator"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "c-bram-has-ga-nl",
+    "category": "question",
+    "question": "Heeft bram de rol Global Administrator?",
+    "expected": [
+      {
+        "entity": "resource",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "contains",
+            "value": "Global Administrator"
+          },
+          {
+            "relation": "members",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "eq",
+                "value": "Bram de Groot"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "entity": "user",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "eq",
+            "value": "Bram de Groot"
+          },
+          {
+            "relation": "access",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "Global Administrator"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "followUps": [
+      {
+        "question": "En kan hij die rol aanvragen?",
+        "expected": [
+          {
+            "entity": "resource",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "Global Administrator"
+              },
+              {
+                "relation": "eligibleMembers",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "displayName",
+                    "op": "eq",
+                    "value": "Bram de Groot"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "entity": "user",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "eq",
+                "value": "Bram de Groot"
+              },
+              {
+                "relation": "eligibleFor",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "displayName",
+                    "op": "contains",
+                    "value": "Global Administrator"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "c-bram-has-ga-en",
+    "category": "question",
+    "question": "Does bram have the Global Administrator role?",
+    "expected": [
+      {
+        "entity": "resource",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "contains",
+            "value": "Global Administrator"
+          },
+          {
+            "relation": "members",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "eq",
+                "value": "Bram de Groot"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "entity": "user",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "eq",
+            "value": "Bram de Groot"
+          },
+          {
+            "relation": "access",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "Global Administrator"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "followUps": [
+      {
+        "question": "And can he request that role?",
+        "expected": [
+          {
+            "entity": "resource",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "Global Administrator"
+              },
+              {
+                "relation": "eligibleMembers",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "displayName",
+                    "op": "eq",
+                    "value": "Bram de Groot"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "entity": "user",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "eq",
+                "value": "Bram de Groot"
+              },
+              {
+                "relation": "eligibleFor",
+                "quantifier": "some",
+                "conditions": [
+                  {
+                    "field": "displayName",
+                    "op": "contains",
+                    "value": "Global Administrator"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "c-bram-in-partners-nl",
+    "category": "question",
+    "question": "Zit bram in de groep ACME - Algemeen - Partners?",
+    "expected": [
+      {
+        "entity": "group",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "contains",
+            "value": "ACME - Algemeen - Partners"
+          },
+          {
+            "relation": "members",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "eq",
+                "value": "Bram de Groot"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "entity": "user",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "eq",
+            "value": "Bram de Groot"
+          },
+          {
+            "relation": "memberOf",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "ACME - Algemeen - Partners"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "c-bram-in-partners-en",
+    "category": "question",
+    "question": "Is bram a member of the group ACME - Algemeen - Partners?",
+    "expected": [
+      {
+        "entity": "group",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "contains",
+            "value": "ACME - Algemeen - Partners"
+          },
+          {
+            "relation": "members",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "eq",
+                "value": "Bram de Groot"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "entity": "user",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "eq",
+            "value": "Bram de Groot"
+          },
+          {
+            "relation": "memberOf",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "contains",
+                "value": "ACME - Algemeen - Partners"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "c-nobody-nl",
+    "category": "nobody",
+    "question": "In welke groepen zit Voldemort?",
+    "expectKind": "confirm"
+  },
+  {
+    "id": "c-nobody-en",
+    "category": "nobody",
+    "question": "Which groups is Voldemort in?",
+    "expectKind": "confirm"
+  },
+  {
+    "id": "c-which-group-nl",
+    "category": "ambiguous",
+    "question": "Wie zit er in de groep?",
+    "expectKind": "clarify"
+  },
+  {
+    "id": "c-which-group-en",
+    "category": "ambiguous",
+    "question": "Who is in the group?",
+    "expectKind": "clarify"
+  }
+]

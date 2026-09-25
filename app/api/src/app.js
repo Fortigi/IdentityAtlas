@@ -59,6 +59,7 @@ import contextPluginsRouter from './routes/contextPlugins.js';
 import reportsRouter from './routes/reports.js';
 import nlReportsRouter from './routes/nlReports.js';
 import contextAssistantRouter from './routes/contextAssistant.js';
+import { messagesRouter as teamsBotMessagesRouter, botAnswersRouter as teamsBotAnswersRouter } from './routes/teamsBot.js';
 import adminRouter from './routes/admin.js';
 import authRolesRouter from './routes/authRoles.js';
 import llmRouter from './routes/llm.js';
@@ -364,6 +365,23 @@ export function createApp() {
   // ingest body parser, so a large crawler batch is rejected without being read.
   app.use('/api', schemaMigratingGate);
 
+  // Teams bot (POC) — MUST be mounted before the first authMiddleware mount.
+  //
+  // `app.use('/api', authMiddleware, someRouter)` runs authMiddleware for EVERY
+  // /api request that reaches that line — Express does not look ahead into the
+  // router to see whether it has a matching route. So a mount placed after the
+  // authenticated ones never gets the request: an inbound Teams activity is
+  // rejected by authMiddleware first, which tries to validate the Bot Framework's
+  // channel token against Entra's JWKS and fails with "unable to find a signing
+  // key" — the token is signed by login.botframework.com, not by the tenant.
+  //
+  // The activity carries no user bearer token and must not be expected to. It is
+  // authenticated instead by the adapter (the channel) and by the caller's own
+  // Teams SSO token (the person) inside the router. It stays behind the schema
+  // gate above, so a question asked mid-migration gets the same 503 as anything
+  // else rather than a half-migrated answer.
+  app.use('/api', teamsBotMessagesRouter);
+
   // Performance metrics routes (auth-protected). This is the first
   // authenticated mount every remaining /api request passes through, so the
   // per-caller limiter runs here exactly once per request.
@@ -396,6 +414,11 @@ export function createApp() {
   // Context assistant — builds context trees from search terms, optionally proposed by
   // the same local model. Feature and permission gates per route, as above.
   app.use('/api', authMiddleware, contextAssistantRouter);
+  // The Teams bot's own endpoint is mounted far above, before the first
+  // authMiddleware — see the comment there for why it cannot live here. The deep
+  // link a bot answer points at IS an ordinary signed-in surface, so that half
+  // stays with its neighbours.
+  app.use('/api', authMiddleware, teamsBotAnswersRouter);
   // Context plugins (Admin → Contexts) — admin-only across the board.
   // Permission gates are applied PER ROUTE inside each router (not on the /api
   // mount) — a mount-level requirePermission on the shared '/api' prefix runs

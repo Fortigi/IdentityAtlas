@@ -23,6 +23,7 @@ const TIMEOUT_MS = Number(process.env.NL_REPORTS_LLM_TIMEOUT_MS) || 900_000;
 // control (Azure: no VNet, so the Container App has public ingress).
 const API_KEY = process.env.NL_REPORTS_LLM_API_KEY || '';
 const SLOT = 0;
+export const MAX_REPLY_TOKENS = 450;
 
 const call = (method, path, body) => httpJson({
   url: `${BASE_URL}${path}`,
@@ -109,7 +110,10 @@ function completionBody(messages, { schema, maxTokens }) {
  * @returns {Promise<{ content: string, timing: object }>}
  */
 export async function chat({ messages, schema }) {
-  const j = await ok('POST', '/v1/chat/completions', completionBody(messages, { schema, maxTokens: 1200 }));
+  // 450, not 1200: the largest sensible reply is ~250 tokens, and at about a
+  // token a second on the CPU box every token past that is a minute nobody
+  // waits for. A reply cut here was a loop, and is reported as one.
+  const j = await ok('POST', '/v1/chat/completions', completionBody(messages, { schema, maxTokens: MAX_REPLY_TOKENS }));
   const t = j.timings || {};
   return {
     content: j.choices?.[0]?.message?.content ?? '',
@@ -126,21 +130,50 @@ export async function chat({ messages, schema }) {
 }
 
 /**
- * Make the next question fast: restore the processed system prompt, or read it once and save it.
- * @returns {Promise<{ model: string, ms: number, restored: boolean }>}
+ * Make the next question fast: restore the processed prompt, or read it once and save it.
+ *
+ * Two cache files, one derived from the other:
+ *
+ *   - the SYSTEM PROMPT alone — release-stable, so it can be prepared when the
+ *     image is built and restored on every install;
+ *   - the system prompt plus `userPrefix`, the start of every user message on
+ *     this deployment (its value lists). Prepared here by restoring the first
+ *     file and reading the prefix on top of it — a few hundred tokens, seconds,
+ *     not the minutes the whole prompt costs.
+ *
+ * Every question then starts from the second file, and the server reads only
+ * what follows the prefix: the caller block, the name hints, the question. On
+ * a CPU box that reads about thirteen tokens a second, the prefix alone was
+ * twenty seconds of every answer. A prefix that no longer matches (a new
+ * department appeared) is not a failure: the server reuses what does match,
+ * which is the system prompt, and the next warm-up writes a fresh file.
+ *
+ * @returns {Promise<{ model: string, ms: number, restored: boolean, prepared?: 'system'|'prefix' }>}
  */
-export async function warm(_model, systemPrompt) {
+export async function warm(_model, systemPrompt, userPrefix = '') {
   const started = Date.now();
   const model = await servedModel();
-  const filename = cacheFileName(await serverFingerprint(), systemPrompt);
-
-  const restore = await call('POST', `/slots/${SLOT}?action=restore`, { filename });
-  if (restore.status === 200) return { model, ms: Date.now() - started, restored: true };
-
-  await ok('POST', '/v1/chat/completions', completionBody(
-    [{ role: 'system', content: systemPrompt }, { role: 'user', content: 'ready?' }],
+  const fingerprint = await serverFingerprint();
+  const systemFile = cacheFileName(fingerprint, systemPrompt);
+  const prefixFile = userPrefix ? cacheFileName(fingerprint, `${systemPrompt}\n\n${userPrefix}`) : null;
+  const restore = (filename) => call('POST', `/slots/${SLOT}?action=restore`, { filename });
+  const save = (filename) => ok('POST', `/slots/${SLOT}?action=save`, { filename });
+  const read = (userContent) => ok('POST', '/v1/chat/completions', completionBody(
+    [{ role: 'system', content: systemPrompt }, { role: 'user', content: userContent }],
     { maxTokens: 1 },
   ));
-  await ok('POST', `/slots/${SLOT}?action=save`, { filename });
-  return { model, ms: Date.now() - started, restored: false };
+  const done = (restored, prepared) => ({ model, ms: Date.now() - started, restored, ...(prepared ? { prepared } : {}) });
+
+  if (prefixFile && (await restore(prefixFile)).status === 200) return done(true);
+  const hadSystem = (await restore(systemFile)).status === 200;
+  if (!hadSystem) {
+    await read('ready?');
+    await save(systemFile);
+  }
+  if (!prefixFile) return done(hadSystem, hadSystem ? undefined : 'system');
+  // "Request:" is what follows the prefix in a real question, so the boundary
+  // tokenises the same way and the whole prefix is reused.
+  await read(`${userPrefix}\n\nRequest: ready?`);
+  await save(prefixFile);
+  return done(false, hadSystem ? 'prefix' : 'system');
 }

@@ -25,7 +25,7 @@ describe('warm-up at API start', () => {
   it('prepares this prompt when the feature is on and a model server is configured', async () => {
     process.env.NL_REPORTS_LLM_URL = 'http://report-generator:8080';
     expect(await warmAtStartup({ delayMs: 0 })).toBe('ready');
-    expect(warm).toHaveBeenCalledWith('test-model', buildContextPrompt());
+    expect(warm).toHaveBeenCalledWith('test-model', buildContextPrompt(), ''); // no deployment prefix for this assistant
   });
 
   it('does nothing while the context assistant is switched off', async () => {
@@ -125,7 +125,7 @@ describe('interpret', () => {
   it('restores this prompt before asking, and returns shaped terms', async () => {
     chat.mockResolvedValueOnce(reply({ kind: 'terms', name: ' Inkoop ', terms: [{ text: 'inkoop', why: 'name' }], notes: ['n1'] }));
     const r = await interpret({ question: 'inkoopgroepen' });
-    expect(warm).toHaveBeenCalledWith('test-model', buildContextPrompt());
+    expect(warm).toHaveBeenCalledWith('test-model', buildContextPrompt(), ''); // no deployment prefix for this assistant
     expect(warm.mock.invocationCallOrder[0]).toBeLessThan(chat.mock.invocationCallOrder[0]);
     const { messages, schema } = chat.mock.calls[0][0];
     expect(messages[0]).toEqual({ role: 'system', content: buildContextPrompt() });

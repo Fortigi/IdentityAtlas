@@ -16,12 +16,17 @@ export function useReportPreview(authFetch) {
 
   // Stable, so the saved-report preview fires once per definition rather than on
   // every render.
-  const run = useCallback(async (s) => {
+  // `logId` is the conversation-store row /interpret wrote for this definition;
+  // /run fills in what it returned. `conversationId` is the chat it belongs to,
+  // so the next question there can say "these groups". The builder runs edited
+  // definitions with no row and no chat behind them and passes nothing.
+  const run = useCallback(async (s, logId, conversationId) => {
     setRunning(true);
     setRunError(null);
     setConfirm(null);
     try {
-      const r = await postJson(authFetch, '/api/nl-reports/run', { spec: s });
+      const body = { spec: s, ...(logId ? { logId } : {}), ...(conversationId ? { conversationId } : {}) };
+      const r = await postJson(authFetch, '/api/nl-reports/run', body);
       setResult(r);
       setSpec(r.spec);
       setDirty(false);
@@ -51,5 +56,10 @@ export function useReportPreview(authFetch) {
   // A hand edit: the preview no longer shows this definition.
   const editSpec = (s) => { setSpec(s); setDirty(true); };
 
-  return { spec, setSpec, editSpec, dirty, result, running, runError, confirm, run, confirmChoice };
+  // Back to nothing: no definition, no result, no pending choice. What the Ask
+  // tab does when a conversation starts over or another one is opened — a
+  // result left on screen from the previous chat would read as this one's.
+  const reset = () => { setSpec(null); setDirty(false); setResult(null); setRunError(null); setConfirm(null); };
+
+  return { spec, setSpec, editSpec, dirty, result, running, runError, confirm, run, confirmChoice, reset };
 }

@@ -27,6 +27,15 @@ describe('isDetailPage', () => {
     expect(isDetailPage('reports')).toBe(false);
     expect(isDetailPage('report:orphaned-accounts')).toBe(true);
   });
+
+  it('routes a Teams bot answer to its own tab, distinct from a report tab', () => {
+    // The deep link on a bot's card is #bot-answer:<conversation-log-id>. It is
+    // NOT a report route: a report tab is addressed by report NAME and can be
+    // reopened by anyone, while a bot answer belongs to the person who asked.
+    expect(isDetailPage('bot-answer:c0ffee')).toBe(true);
+    expect(parseDetailRoute('bot-answer:c0ffee')).toEqual({ type: 'bot-answer', id: 'c0ffee' });
+    expect(parseDetailRoute('report:bot-answer')).toEqual({ type: 'report', id: 'bot-answer' });
+  });
 });
 
 describe('parseDetailRoute', () => {
@@ -99,6 +108,8 @@ describe('closeFallbackPage', () => {
     expect(closeFallbackPage('department')).toBe('contexts');
     expect(closeFallbackPage('context')).toBe('contexts');
     expect(closeFallbackPage('identity')).toBe('identities');
+    // A closed bot-answer tab lands on Reports, like the report tabs it sits with.
+    expect(closeFallbackPage('bot-answer')).toBe('reports');
     expect(closeFallbackPage('resource')).toBe('resources');
     // Closing a report lands back on the list it was opened from.
     expect(closeFallbackPage('report')).toBe('reports');

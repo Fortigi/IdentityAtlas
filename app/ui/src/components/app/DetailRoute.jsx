@@ -11,6 +11,7 @@ const RunDetailPage = lazy(() => import('@ui/components/RunDetailPage'));
 const IdentityDetailPage = lazy(() => import('@ui/components/IdentityDetailPage'));
 const ReportViewPage = lazy(() => import('@ui/components/reports/ReportViewPage'));
 const ReportBuilderPage = lazy(() => import('@ui/components/reports/ask/ReportBuilderPage'));
+const BotAnswerPage = lazy(() => import('@ui/components/reports/BotAnswerPage'));
 const ContextBuilderPage = lazy(() => import('@ui/components/contexts/assistant/ContextBuilderPage'));
 
 // hash type → { detail page component, its id prop, whether it takes the cache }.
@@ -28,6 +29,10 @@ const DETAIL_ROUTES = {
   // onCacheData: a tab opened straight from a URL is labelled with the slug
   // until the report reports its display name.
   report:            { Comp: ReportViewPage,           idProp: 'reportName' },
+  // One answer the Teams bot gave, opened from the deep link on its card. Its
+  // id is the conversation-log row, and the API serves it only to the caller who
+  // asked — so this tab is empty for anyone the link was forwarded to.
+  'bot-answer':      { Comp: BotAnswerPage,            idProp: 'answerId', noCache: true },
   // Create (id new-<n>) or edit (id = saved report id) a custom report.
   'report-builder':  { Comp: ReportBuilderPage,        idProp: 'builderId' },
   // Create (id new-<n>) or edit (id = root context id) a context built with the context assistant.

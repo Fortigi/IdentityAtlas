@@ -7,6 +7,10 @@
 //               surfaces automatically when it's on — it is NOT also `optional`
 //               (audit H-13: Risk Scores / Identities used to stay hidden behind
 //               a second per-user toggle even after the feature was turned on).
+//   permission — only shown when the caller holds that permission. Unlike
+//               `optional` this is not a preference: the pages behind it answer
+//               403, so showing the tab would only offer a door that does not
+//               open.
 //   optional  — hidden by default; the user opts in via Settings → tabs, which
 //               adds the tab key to their `visibleTabs` preference. Reserved for
 //               always-available views that just declutter the nav (never combine
@@ -18,6 +22,7 @@
 
 export const ALL_NAV_TABS = [
   { key: 'dashboard',        label: 'Dashboard' },
+  { key: 'ask',              label: 'Ask',          feature: 'customReports', permission: 'data.read.reports' },
   { key: 'matrix',           label: 'Matrix' },
   { key: 'principals',       label: 'Principals (Users)' },
   { key: 'resources',        label: 'Resources' },
@@ -41,9 +46,12 @@ export const ALL_NAV_TABS = [
 // Shared matrices is deliberately NOT here: managing and revoking other
 // people's share links is administration, so it lives as an Admin sub-tab
 // (see components/admin/adminTabs.js) rather than as a twelfth top-level tab.
-export function computeNavTabs({ features = {}, visibleTabs = null, canSeeAdmin = true } = {}) {
+export function computeNavTabs({
+  features = {}, visibleTabs = null, canSeeAdmin = true, hasPermission = () => true,
+} = {}) {
   return ALL_NAV_TABS.filter(tab => {
     if (tab.feature && !features[tab.feature]) return false;
+    if (tab.permission && !hasPermission(tab.permission)) return false;
     if (tab.optional && visibleTabs && !visibleTabs.includes(tab.key)) return false;
     if (tab.key === 'admin' && !canSeeAdmin) return false;
     return true;

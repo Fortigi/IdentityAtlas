@@ -1,13 +1,16 @@
 // Admin → Experimental.
 //
 // One tab for everything that is built and tested but has not yet had much
-// exposure to real-world data. Three flags today:
+// exposure to real-world data. Five flags today:
 //   • Experimental crawlers — whether crawler types marked `experimental: true`
 //     in their CrawlerMeta.js / crawler.json are offered in Add Crawler.
 //   • Matrix sharing (#1166) — whether analysts can share a matrix with named
 //     colleagues, and whether links already sent still open.
 //   • Custom reports — whether analysts can build, save and run their own reports,
 //     and describe them in plain language to the local model (a separate container).
+//   • Context assistant — whether contexts can be built from model-proposed terms.
+//   • Teams bot — whether /api/messages exists at all, and therefore whether a
+//     Teams app can reach this deployment.
 //
 // Turning the flag OFF never disables a crawler that is already configured:
 // it keeps its schedule, keeps running, and keeps its Experimental badge. The
@@ -19,6 +22,7 @@ import { experimentalCrawlerTypes } from '@ui/utils/crawlerMetaRegistry';
 import { FeatureToggleCard } from './adminUi';
 
 const EXPERIMENTAL_DOCS_PATH = '/reference/experimental-features/';
+const TEAMS_BOT_DOCS_PATH = '/reference/teams-bot/';
 
 function CrawlerList({ types }) {
   if (!types.length) {
@@ -134,6 +138,45 @@ function ContextAssistantCard({ features }) {
   );
 }
 
+// The Teams bot answers questions in a Teams chat, through the same pipeline custom
+// reports use. Off means POST /api/messages answers 404, so a disabled bot looks like an
+// install that never had one. It needs more than this toggle — an Entra app registration,
+// an Azure Bot resource and a Teams app — which is why the card points at the setup page
+// rather than pretending the switch is all there is.
+function TeamsBotCard({ features, version }) {
+  const { toggle, toggling, error } = useFeatureToggle('teamsBot');
+  const enabled = features?.teamsBot === true;
+  return (
+    <FeatureToggleCard
+      title="Teams bot"
+      enabled={enabled}
+      busy={toggling}
+      disabled={features == null}
+      onToggle={() => { if (features) toggle(!enabled); }}
+      toggleTitle={enabled ? 'Disable the Teams bot' : 'Enable the Teams bot'}
+    >
+      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+        Lets managers and resource owners ask about access in a Microsoft Teams chat, answered by
+        the same local model and the same read-only reports as <span className="font-medium">Custom reports</span>.
+        The caller is always identified, but this version does <span className="font-medium">not</span> restrict
+        what they may ask about — limit who can install the app, and see the setup guide before
+        giving it to a pilot group.
+      </p>
+      <a
+        href={docsUrl(version, TEAMS_BOT_DOCS_PATH)}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-2 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline"
+      >
+        Setting up the Teams bot →
+      </a>
+      {error && (
+        <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">{error}</div>
+      )}
+    </FeatureToggleCard>
+  );
+}
+
 export default function ExperimentalFeaturesSection({ features, version }) {
   const { toggle, toggling, error } = useFeatureToggle('experimentalCrawlers');
 
@@ -187,6 +230,7 @@ export default function ExperimentalFeaturesSection({ features, version }) {
       <MatrixSharingCard features={features} />
       <CustomReportsCard features={features} />
       <ContextAssistantCard features={features} />
+      <TeamsBotCard features={features} version={version} />
     </div>
   );
 }

@@ -56,11 +56,16 @@ export const OPERATORS = {
   lt: { label: 'is less than', needsValue: true },
   withinLastDays: { label: 'is within the last N days', needsValue: true },
   olderThanDays: { label: 'is more than N days ago', needsValue: true },
+  // Takes a LIST. Its reason for existing is a follow-up question: "of these
+  // groups, which are in an access package" has to name the groups the previous
+  // answer produced, and naming them one OR-condition at a time is a definition
+  // no small model writes correctly and no reader can check.
+  in: { label: 'is one of', needsValue: true },
 };
 
 export const OPERATORS_BY_TYPE = {
-  text: ['eq', 'neq', 'contains', 'notContains', 'startsWith', 'endsWith', 'isEmpty', 'isNotEmpty'],
-  enum: ['eq', 'neq', 'isEmpty', 'isNotEmpty'],
+  text: ['eq', 'neq', 'in', 'contains', 'notContains', 'startsWith', 'endsWith', 'isEmpty', 'isNotEmpty'],
+  enum: ['eq', 'neq', 'in', 'isEmpty', 'isNotEmpty'],
   boolean: ['eq', 'isEmpty', 'isNotEmpty'],
   number: ['eq', 'neq', 'gt', 'lt', 'isEmpty', 'isNotEmpty'],
   date: ['withinLastDays', 'olderThanDays', 'isEmpty', 'isNotEmpty'],
@@ -71,6 +76,8 @@ const BASE = {
     label: 'Account',
     table: 'Principals',
     detailKind: 'user',
+    // How a follow-up about 'these groups' reaches them from here (followUp.js).
+    narrowVia: { resource: 'memberOf' },
     description:
       'An account in a connected system: a person\'s user account (member or guest), a service principal, ' +
       'a managed identity or an AI agent. Use this entity only when non-human accounts matter or the request says "accounts" in general.',
@@ -108,7 +115,7 @@ const BASE = {
       system: { label: 'System', type: 'enum', sql: systemName, description: 'source system name', valuesFrom: 'systemName' },
       riskTier: { label: 'Risk tier', type: 'enum', sql: col('riskTier'), valuesFrom: 'principalRiskTier' },
       groupCount: {
-        label: 'Group count', type: 'number',
+        label: 'Group count', type: 'number', counts: 'memberOf',
         description: 'number of groups the account is a member of',
         sql: (t) => `(SELECT count(*) FROM "ResourceAssignments" ra JOIN "Resources" r ON r."id" = ra."resourceId"
           WHERE ra."principalId" = ${t}."id" AND ra."deletedAt" IS NULL AND r."deletedAt" IS NULL
@@ -193,6 +200,20 @@ const BASE = {
           };
         },
       },
+      eligibleFor: {
+        label: 'Eligible for', target: 'resource', cardinality: 'many',
+        compareNoun: 'eligible assignments',
+        some: 'is eligible for a resource', none: 'is not eligible for any resource',
+        description: 'roles and other resources the account is ELIGIBLE for (PIM): it can activate or request them, but does not hold them until it does. Use for "eligible", "can activate", "can request", "kan aanvragen", "kan activeren"',
+        from: (outer, inner, u) => {
+          const ra = u();
+          return {
+            from: `"ResourceAssignments" ${ra} JOIN "Resources" ${inner} ON ${inner}."id" = ${ra}."resourceId"`,
+            where: `${ra}."principalId" = ${outer}."id" AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}
+              AND ${ra}."assignmentType" = 'Eligible'`,
+          };
+        },
+      },
       owns: {
         label: 'Owner of', target: 'resource', cardinality: 'many',
         compareNoun: 'ownerships',
@@ -248,7 +269,7 @@ const BASE = {
       analystVerified: { label: 'Verified by analyst', type: 'boolean', sql: col('analystVerified') },
       linkConfidence: { label: 'Link confidence', type: 'number', sql: col('linkConfidence'), description: 'how sure the account linking is, 0–100' },
       accountCount: {
-        label: 'Account count', type: 'number', description: 'number of accounts linked to this person',
+        label: 'Account count', type: 'number', counts: 'accounts', description: 'number of accounts linked to this person',
         sql: (t) => `(SELECT count(*) FROM "IdentityMembers" im JOIN "Principals" p ON p."id" = im."principalId"
           WHERE im."identityId" = ${t}."id" AND p."deletedAt" IS NULL)`,
       },
@@ -283,6 +304,8 @@ const BASE = {
     label: 'Resource',
     table: 'Resources',
     detailKind: 'resource',
+    // How a follow-up about 'these accounts' reaches them from here (followUp.js).
+    narrowVia: { user: 'members' },
     description:
       'Anything that grants access: a group, a directory role, an application, an app role, a permission, ' +
       'a business role (access package) or an Azure resource. For groups use the group entity.',
@@ -310,13 +333,13 @@ const BASE = {
       system: { label: 'System', type: 'enum', sql: systemName, valuesFrom: 'systemName' },
       riskTier: { label: 'Risk tier', type: 'enum', sql: col('riskTier'), valuesFrom: 'resourceRiskTier' },
       memberCount: {
-        label: 'Member count', type: 'number',
+        label: 'Member count', type: 'number', counts: 'members',
         description: 'number of accounts that hold this resource (members / assignees)',
         sql: (t) => `(SELECT count(*) FROM "ResourceAssignments" ra
           WHERE ra."resourceId" = ${t}."id" AND ra."deletedAt" IS NULL AND ra."assignmentType" IN ${HELD})`,
       },
       ownerCount: {
-        label: 'Owner count', type: 'number', description: 'number of owners',
+        label: 'Owner count', type: 'number', counts: 'owners', description: 'number of owners',
         sql: (t) => `(SELECT count(*) FROM "ResourceRelationships" rr JOIN "ResourceAssignments" ra ON ra."resourceId" = rr."childResourceId"
           WHERE rr."parentResourceId" = ${t}."id" AND rr."relationshipType" IN ('HasOwnership','HasAppOwnership') AND ra."deletedAt" IS NULL)`,
       },
@@ -333,6 +356,20 @@ const BASE = {
             from: `"ResourceAssignments" ${ra} JOIN "Principals" ${inner} ON ${inner}."id" = ${ra}."principalId"`,
             where: `${ra}."resourceId" = ${outer}."id" AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}
               AND ${ra}."assignmentType" IN ${HELD}`,
+          };
+        },
+      },
+      eligibleMembers: {
+        label: 'Eligible members', target: 'account', cardinality: 'many',
+        compareNoun: 'eligible members',
+        some: 'has an eligible member', none: 'has no eligible members',
+        description: 'accounts that are ELIGIBLE for this resource (PIM): they can activate or request it but do not hold it now. NOT the same as members. Use for "who can request / activate X", "wie kan X aanvragen", "eligible for X"',
+        from: (outer, inner, u) => {
+          const ra = u();
+          return {
+            from: `"ResourceAssignments" ${ra} JOIN "Principals" ${inner} ON ${inner}."id" = ${ra}."principalId"`,
+            where: `${ra}."resourceId" = ${outer}."id" AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}
+              AND ${ra}."assignmentType" = 'Eligible'`,
           };
         },
       },
@@ -369,6 +406,98 @@ const BASE = {
   },
 };
 
+// ── What changed, and when ───────────────────────────────────────────────
+//
+// Every other entity here answers "what is true now". This one answers "what
+// became true, and when" — the question a manager actually asks, and the one
+// the catalog could not express at all: "zijn er recent leden aan deze groepen
+// toegevoegd of verwijderd?"
+//
+// It reads the `AssignmentChanges` view (migration 070), which projects the
+// audit trail into rows with a date and an action. The awkward part lives in
+// the view rather than here: a REMOVED membership is recorded as an UPDATE that
+// stamps `deletedAt`, not as a delete, because ResourceAssignments is a
+// soft-delete table. Anything reading `_history` directly and looking for
+// deletions finds only the hard ones, which stopped the day soft delete
+// shipped.
+//
+// `managerId` is a column rather than a second hop for a reason a report
+// author would not guess: a condition may nest a relation ONE level deep
+// (spec.js), so "changes to the access of the people who report to me" cannot
+// be walked as change → account → manager. It has to be reachable in one step.
+const CHANGE = {
+  label: 'Change',
+  table: 'AssignmentChanges',
+  // No detail page exists for a change — it is an event, not a record. Null
+  // keeps the bot from offering a link to one, and from carrying changes
+  // forward as the subject of a follow-up question.
+  detailKind: null,
+  // Alphabetical order on a list of events is useless; the newest change is
+  // the point. Nothing else in the catalog needs a default, so this is the
+  // only entity that sets one.
+  defaultSort: { field: 'changedAt', direction: 'desc' },
+  description:
+    'A membership or access grant that was ADDED or REMOVED, and when. Use this entity — and ONLY this entity — '
+    + 'for questions about what CHANGED, what is NEW, what was REMOVED, or what happened "recently" / "lately" / '
+    + '"in the last N days". Every other entity describes what is true now and cannot answer those. '
+    + 'Covers group membership, access packages, app roles and directory roles alike.',
+  defaultColumns: ['changedAt', 'action', 'account.displayName', 'resource.displayName'],
+  // Which relation a follow-up question means by "these groups" / "these
+  // accounts". Declared rather than inferred: both `account` and `manager`
+  // point at accounts, so a rule that picked the first relation with a
+  // matching target would depend on the order they happen to be written in.
+  narrowVia: { resource: 'resource', user: 'account' },
+  where: () => 'TRUE',
+  fields: {
+    id: { label: 'ID', type: 'text', sql: idText, description: 'unique change id' },
+    displayName: {
+      label: 'Change', type: 'text', sql: col('displayName'),
+      description: 'who and what, as one line ("Jan de Vries — Finance")',
+    },
+    changedAt: {
+      label: 'Changed', type: 'date', sql: col('changedAt'),
+      description: 'when the change happened. "recently" / "recent" / "de laatste tijd" is this field, within the last 30 days unless the request says otherwise',
+    },
+    action: {
+      label: 'Action', type: 'enum', sql: col('action'), valuesFrom: 'changeAction',
+      description: '"Added" (granted, or granted back) or "Removed" (revoked)',
+    },
+    assignmentType: {
+      label: 'Assignment type', type: 'enum', sql: col('assignmentType'), valuesFrom: 'assignmentType',
+      description: 'Direct, Indirect (through a group) or Eligible (can activate it)',
+    },
+  },
+  relations: {
+    account: {
+      label: 'Account', target: 'account', cardinality: 'one',
+      some: 'has an account', none: 'has no account',
+      description: 'the account this change was about — who gained or lost the access',
+      from: (outer, inner) => ({
+        from: `"Principals" ${inner}`,
+        where: `${inner}."id" = ${outer}."principalId"`,
+      }),
+    },
+    resource: {
+      label: 'Resource', target: 'resource', cardinality: 'one',
+      some: 'is about a resource', none: 'is about no resource',
+      description: 'the group, application or role the access was on',
+      from: (outer, inner) => ({
+        from: `"Resources" ${inner}`,
+        where: `${inner}."id" = ${outer}."resourceId"`,
+      }),
+    },
+    manager: {
+      label: 'Manager', target: 'account', cardinality: 'one',
+      some: 'the account has a manager', none: 'the account has no manager',
+      description: 'the manager of the account this change was about. "changes for my people / my team / mijn medewerkers" is this relation',
+      from: (outer, inner) => ({
+        from: `"Principals" ${inner}`,
+        where: `${inner}."id" = ${outer}."managerId"`,
+      }),
+    },
+  },
+};
+
 // Analysts think in "users" and "groups", and small models reliably forget the
 // "principalType = User" / "resourceType = Group" filter when those are only a
 // field. So they are entities of their own: the base entity with the type
@@ -398,6 +527,7 @@ export const ENTITIES = {
   identity: BASE.identity,
   account: BASE.account,
   resource: BASE.resource,
+  change: CHANGE,
 };
 
 // ─── Fields, including the discovered extendedAttributes ones ────────
@@ -437,11 +567,21 @@ export const GLOSSARY = [
   { terms: ['guest', 'external user', 'B2B user', 'gast', 'externe gebruiker'], means: 'userType Guest' },
   { terms: ['disabled', 'inactive', 'blocked', 'uitgeschakeld'], means: 'accountEnabled false' },
   { terms: ['owner', 'eigenaar'], means: 'the owners / owns relation — never membership' },
+  { terms: ['eligible', 'PIM', 'can activate', 'can request', 'may request', 'in aanmerking', 'kan aanvragen', 'kan activeren', 'aanvraagbaar'], means: 'an assignment of type Eligible: the eligibleMembers relation of a resource ("who can request X") or the eligibleFor relation of a user ("what can X activate"); members and access are what is held NOW' },
+  { terms: ['rights', 'rechten', 'permissions', 'entitlements', 'toegang', 'toegangsrechten', 'bevoegdheden'], means: 'every kind of resource an account holds. "Which rights does X have" = the resource entity with NO resourceType condition and members some for X; "who has right X" = the user entity with the access relation' },
+  { terms: ['change', 'changed', 'changes', 'added', 'removed', 'new', 'recent', 'recently', 'lately', 'wijziging', 'wijzigingen', 'veranderd', 'toegevoegd', 'verwijderd', 'nieuw'], means: 'the change entity — what was added or removed over time. Every other entity only describes the present. "added" / "toegevoegd" = action Added; "removed" / "verwijderd" = action Removed; "added or removed", "changes", "updates" = no condition on action. The account changed is the account relation, the group is the resource relation (resourceType Group).' },
+  { terms: ['my people', 'my team', 'my staff', 'my employees', 'mijn medewerkers', 'mijn team', 'mijn mensen'], means: 'the accounts whose manager is the person asking' },
 ];
 
 // Distinct-value lookups for enum fields — metadata only (a handful of type
 // names), used to ground the prompt and to normalise model output.
 export const VALUE_QUERIES = {
+  // Not read from the view: the two values are defined by the view's own CASE,
+  // so asking the data would return whichever of them happen to have occurred
+  // — and a deployment with no removals yet would leave "Removed" unknown, so
+  // a question about removals would be rejected as an unknown value.
+  changeAction: `SELECT unnest(ARRAY['Added', 'Removed']) v`,
+  assignmentType: `SELECT unnest(ARRAY['Direct', 'Indirect', 'Eligible']) v`,
   principalType: `SELECT DISTINCT "principalType" v FROM "Principals" WHERE "deletedAt" IS NULL AND "principalType" IS NOT NULL`,
   userType: `SELECT DISTINCT "extendedAttributes"->>'userType' v FROM "Principals" WHERE "extendedAttributes"->>'userType' IS NOT NULL`,
   externalUserState: `SELECT DISTINCT "extendedAttributes"->>'externalUserState' v FROM "Principals" WHERE "extendedAttributes"->>'externalUserState' IS NOT NULL`,

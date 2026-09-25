@@ -11,6 +11,25 @@
     still built by hand — see [Custom Reports](../ui/custom-reports.md). The feature as a whole is off
     until an operator enables it under **Admin → Experimental**.
 
+!!! note "The table predates the `change` entity, grouping and the chat; both sets were re-run on 23 September 2026"
+    The table below was measured against a system prompt without the `change` entity and
+    without counting per value. On 23 September 2026, on a 2-CPU host with real directory data
+    and the corrections described under [What the mistakes look like](#what-the-mistakes-look-like):
+
+    - **held-out set: 15/17** (13/15 with a non-empty answer), median 74 s, p90 109 s, one
+      question over the 5-minute limit (a subset comparison that failed after two rounds);
+    - **conversation set (`chat.json`, 58 graded answers): 58/58** — the questions people typed
+      into the Teams bot and the Ask tab in Dutch and English, 10 follow-ups in the same chat,
+      10 out-of-scope requests declined, 8 questions about data we do not have asked back or
+      declined, 2 about a person who does not exist asked back, 2 genuinely ambiguous ones asked
+      back, 2 counts kept; median 75 s, p90 168 s, slowest 293 s, none over 5 minutes. The
+      number is the sum of one full run (51/58) and a re-run of the seven rows whose fixes
+      landed during it, on the same build.
+
+    The chat's first run that day scored 28/58 with a median of 77 s and two answers over the
+    limit; everything between those two numbers is in the list below, none of it a change of
+    model. The latency figures further down are from the tuning host.
+
 ## Why this exists
 
 Every customer asks the same kind of question about their own environment: *guest accounts without a
@@ -81,6 +100,65 @@ definition can also produce; counting only questions with a non-empty answer, th
 33/41 and 12/15. Re-run any time with `tools/nl-reports/eval.mjs` —
 see [Measuring it yourself](#measuring-it-yourself).
 
+The held-out run of 23 September 2026 (final build) missed two: a subset comparison ("business roles
+whose members are all in group X"), which remains the weakest kind of question, and one over-specified
+name filter (name **and** description must contain "License", one group differs). The conversation set
+missed nothing on that build; the categories it grades — scope, unknown data, a person who does not
+exist, an ambiguous question, follow-ups — are the ones a chat gets wrong in ways a report page never
+shows, and each has its own row in `tools/nl-reports/chat.json`.
+
+### Larger models on more CPU (24 September 2026)
+
+The question behind this run: is the 4B model the ceiling, or does a bigger model on a bigger
+CPU budget answer more questions right? Measured on a fresh install in Azure (one
+`Standard_E8bds_v5` VM — 8 vCPU, 64 GB, Docker, the same compose files a customer gets), with a
+copy of the same tenant, the same prompt and the same two sets: the held-out set (17 questions) and
+the conversation set (72 graded turns: 64 questions in Dutch and English, 12 follow-ups, and the
+scope / unknown-data / unknown-person / ambiguous rows). Every model runs through the same
+pipeline, so the corrections it makes on the model's behalf count for all of them. The VM's cores are
+about 1.3× faster than the reference host's (median 58 s against 74 s for the same run), so read the
+times relative to each other.
+
+| Model | RAM for the model server | Threads | Held-out | Conversation set | NL / EN | Follow-ups | Median | p90 | Slowest | Over 5 min |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Qwen3-4B-Instruct-2507 (shipped) | 4 GB | 2 | 14/17 | 67/72 | 35/36 · 32/36 | 11/12 | 68 s | 143 s | 352 s | 1 |
+| Qwen3-8B (thinking off) | 10 GB | 4 | 13/17 | 63/72 | 32/36 · 31/36 | 10/12 | 45 s | 102 s | 250 s | 0 |
+| Qwen3-14B (thinking off) | 22 GB | 8 | 14/17 | 64/72 | 31/36 · 33/36 | 11/12 | 53 s | 102 s | 160 s | 0 |
+| **Qwen3-30B-A3B-Instruct-2507** | 24 GB | 8 | **16/17** | **69/72** | 34/36 · 35/36 | **12/12** | **34 s** | **80 s** | 191 s | 0 |
+| Gemma 3 12B | 20 GB | 8 | abandoned | — | — | — | ~355 s | — | — | every question |
+| Qwen3-4B-Instruct-2507, more threads | 4 GB | 8 | 14/17 | 68/72 | 35/36 · 33/36 | 11/12 | 32 s | 72 s | 113 s | 0 |
+
+What the table says:
+
+- **The 30B-A3B model is the one that helps.** It is a mixture-of-experts model: 30B parameters on
+  disk, 3B active per token, so it *reads* like a big model and *writes* at the speed of a small
+  one — the fastest tier here and the most accurate, with every follow-up right and both languages
+  level. Its three misses on the conversation set are two readings of "the groups of Anna's direct
+  reports" (a relation inside a relation, which the definition language cannot express) and one
+  "access packages" question answered as every resource — corrected by a pipeline rule since. What it
+  needs: about 24 GB of memory for the model server (the 18.6 GB model file plus the context; measured 14 GB resident with the rest in the page cache) and 8 CPU threads; at 2 threads it would be
+  about four times slower.
+- **8B and 14B do not help.** They are the older hybrid generation (April 2025) run with thinking
+  off, because thinking tokens at CPU speed would blow the time limit; in that mode they are no more
+  accurate than the 4B Instruct-2507 and make different mistakes (dropping the person from a change
+  question, leaving out a principal type). More threads make them faster, not better.
+- **Gemma 3 does not work with this design at all**: llama.cpp cannot reuse the saved prompt cache
+  for its sliding-window attention, so every question re-reads the whole prompt — about six minutes
+  each, the same finding as with Gemma 3 4B earlier.
+- **The 4B is not far behind.** Its misses are model wobble: the same question passes on one run and
+  fails on the next (13 to 15 of 17 across runs today; the conversation set gave 66, 67 and 68 of 72 on three runs), an invented condition, a name filter also
+  applied to the description. That is what the correction rules in the pipeline exist for, and it is
+  why the 30B's cleaner first attempts show up more in the follow-ups and in the repair count (five
+  repair rounds in 72 turns against eight) than in the raw score.
+
+The "License" question every model misses (name **and** description must contain the word — one group
+differs) and the subset comparison remain the two standing misses of the held-out set.
+
+To run the same matrix: build the images with the other models' URL and checksum
+(`setup/docker/Dockerfile.report-generator` takes them as build arguments), set
+`REPORT_GENERATOR_CPUS` / `REPORT_GENERATOR_MEMORY`, and run `tools/nl-reports/eval.mjs` for
+`holdout.json` and `chat.json` — see [Measuring it yourself](#measuring-it-yourself).
+
 ### What the mistakes look like
 
 About one question in seven comes back wrong, so the point is not perfection but **visible**
@@ -92,12 +170,56 @@ mistakes. Typical failures, all of which show up in the plain-language reading:
   on **neither** of the two deliberately ambiguous questions.
 
 **Comparisons are the weakest kind of question: 3 of 6 correct** across both sets. The one this feature
-was demonstrated with ("groups with the same members as business role *Fortigi - Algemeen - Maten*,
+was demonstrated with ("groups with the same members as business role *ACME - Algemeen - Partners*,
 not part of it") is among the three that pass. For a comparison that matters, build it with
 **+ compare with…** in the editor — once built, a comparison is exact; only the translation from
 words is uncertain.
 
-Three failure modes are handled in code rather than left to the model:
+Several failure modes are handled in code rather than left to the model. Two of them were once
+handed back to the model to fix and are now corrected on the spot — at about a token a second on
+the CPU box a correction round costs one to three minutes, and the model's correction was not
+reliably better (asked to fix "added AND removed" it dropped "removed" and the 90-day window
+with it). Every correction made this way is stated in the report's assumptions.
+
+- **A mistake with one sensible reading is corrected without asking** — "action is Added AND
+  action is Removed" becomes *either*; "owner count above zero" beside "has no owner" loses
+  the count; "within the last 90 days" beside "more than 180 days ago" keeps the recent bound;
+  and a count-per-value grouping the question never asked for is removed ("which groups was he
+  added to" once came back as the number 5). A mistake with two readings ("empty and not
+  empty") is still put to the model.
+- **The person asking is put where they belong** — "van welke groepen ben ik eigenaar" whose
+  definition names nobody gets the caller added (into an empty owners/members relation, or on
+  the account itself); "which groups am I in" with the caller's id written inside the group
+  condition is moved to the account; "groups I have that bram does not" with bram on both
+  sides puts the caller on the side the question mentions first. Only when the definition names
+  somebody else is the model asked once to add the caller.
+- **Follow-up bookkeeping is corrected, not trusted** — the ids of "these groups" written on the
+  members relation, on a user report's own id, or on a change's account are moved to where that
+  kind of record is reached; "id is [a list]" is read as "one of"; a name written as an id is a
+  name.
+- **A kind of thing is not a name** — "in an access package" written as a comparison with a
+  reference named "access package", or as a resource type on a group or its members, is the
+  business-role relation; the column a question asks to see (members, owners, groups, access
+  packages, manager) is added when the definition left it out.
+- **An invented condition goes, an asked-for one does not** — a condition validation rejects is
+  checked against the question: one nothing in the question asks for ("accountCount > 0" inside
+  members) is dropped with a note; one the question did ask for ("MFA") goes to the correction
+  round, and a definition without it is never run.
+- **A loop stops early** — the reply grammar allows eight conditions per list (the largest
+  measured answer needs four) and 450 tokens; a model repeating one condition ran 13 minutes to
+  the old cap. Repeated conditions collapse to one.
+- **A correction may only fix what it was told** — every correction round (invalid definition,
+  "or", a name not used, the caller missing) compares the corrected definition with the original
+  leaf by leaf; one that lost a condition it was not told about is refused and the original
+  stands. The "or" correction once added "added or removed" and dropped the 90-day window,
+  turning 2 rows into 149.
+- **A first name is one person** — "bram" written as a name-contains filter is looked up
+  before the report runs: one match is pinned to that person (the reading says who), several
+  are offered as a choice, none asks for the exact name. On a small directory the substring
+  happened to be right; on a large one it counts every Bram.
+- **Out of scope is declined, not guessed** — a request that is not about the data (general
+  knowledge, small talk, writing) or that asks to change access is answered with one sentence
+  and no report, in every front end, and filed as `declined` rather than as a failure.
 
 - **"or" read as "and"** — if the question contains *or* but the definition has no any-group, the
   generator asks the model once to correct it, and keeps the original if the correction is no better.
@@ -109,6 +231,36 @@ Three failure modes are handled in code rather than left to the model:
   and every piece of free text in the reply has a hard length in the output grammar, so a loop ends
   where validation would have cut it anyway. Before that limit existed, one question listed the same ten
   columns until the token cap: 570 seconds and a reply that was no longer JSON. It now answers in 46.
+
+For the chat on top of this — the flow of one question, the prompt verbatim, what is answered and what is refused, the corrections made on the model's behalf and the conversation-set results — see [The Ask assistant](ask-assistant.md).
+
+## Who can ask, and where
+
+The same model answers questions in three places, and they are gated by **two** different
+permissions on purpose.
+
+| Surface | Permission | What it is for |
+|---|---|---|
+| **Ask** tab | `data.read.reports` | Type a question, read an answer. No definition editor, no saving. It knows who is asking, so "my groups" and "mijn medewerkers" mean you. |
+| Teams bot | `data.read.reports` | The same thing, in a chat. |
+| **Custom reports** builder | `data.write.reports` | Build, edit, save and delete report definitions everyone sees. |
+
+Asking and building are separate rights and neither implies the other. A pilot manager who
+should be able to find out who has access to what does not thereby get to delete the saved
+reports an analyst depends on; an analyst holds both, so nothing they could do before
+changes. Warming the model stays with `data.write.reports` — one model server, one slot,
+shared by everyone, so spending its CPU is not a read action.
+
+Every question on the Ask tab is kept in the conversation store for the store's retention period
+(90 days by default, `TEAMS_BOT_LOG_RETENTION_DAYS`), per person. The tab lists your earlier
+conversations beside the chat; opening one brings its turns back and re-runs its last answer — a
+query, never a model call — and the next question continues the thread the model actually had.
+Nobody sees anyone else's conversations, and a deployment without sign-in has nobody to list them
+for, so it shows none.
+
+The Ask tab appears only when **custom reports** is switched on *and* the caller holds
+the permission. It is hidden rather than shown-and-refused, because the routes behind it
+answer 403 and a door that does not open is worse than no door.
 
 ## Privacy
 
@@ -200,6 +352,11 @@ tokens) — minutes on a small CPU. Three things fix that:
 2. **The processed instructions are saved to disk** (llama.cpp slot cache) and restored in ~0.1 s on
    every later start. That is measured on local disk; on Azure the 561 MB file lives on an Azure Files
    share, whose restore time has not been measured.
+   A second file holds the instructions **plus this deployment's value lists** — the first thing in
+   every user message — derived from the first file in seconds (restore it, read a few hundred
+   tokens, save). Questions start from that one, so the server reads only what follows the lists:
+   the caller, the name hints, the question. When the lists change, the next warm-up writes a fresh
+   file; until then the server reuses what still matches, which is the instructions.
 3. **Preparation runs in the background** at API startup, and the builder says "preparing" instead of
    blocking. `node tools/nl-reports/prepare-prompt-cache.mjs` does it on demand and verifies a restore
    actually works.
@@ -349,8 +506,13 @@ node tools/nl-reports/eval.mjs --check
 # accuracy + latency, per model
 node tools/nl-reports/eval.mjs --models qwen3:4b-instruct-2507-q4_K_M
 node tools/nl-reports/eval.mjs --models qwen3:4b-instruct-2507-q4_K_M --file tools/nl-reports/holdout.json
+
+# against a stack with sign-in on: a bearer for a signed-in analyst, or a command that mints one
+node tools/nl-reports/eval.mjs --check --base https://<host> --token-cmd "az account get-access-token --resource api://<web app id> --query accessToken -o tsv"
 ```
 
-Questions live in `tools/nl-reports/questions.json` (used while tuning) and `holdout.json` (kept
-untouched, so the number means something). Each question carries a hand-written reference definition;
-a model's answer counts only if it returns the same rows.
+Questions live in `tools/nl-reports/questions.json` (used while tuning), `holdout.json` (kept
+untouched, so the number means something) and `chat.json` (the questions people typed into the
+Teams bot and the Ask tab, in Dutch and English, with follow-ups asked in the same chat; "my" means
+whoever runs it, so it needs a signed-in stack). Each question carries a hand-written reference
+definition; a model's answer counts only if it returns the same rows.

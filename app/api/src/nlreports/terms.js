@@ -41,6 +41,32 @@ const SEARCHABLE = [
 const STOPWORDS = new Set(['i', 'id', 'ids', 'or', 'and', 'not', 'ok', 'upn']);
 const MIN_TERM_LENGTH = 3;
 
+// Tokens of a person's display name that are not the person: the particles of
+// a Dutch or German surname, titles, and the words a question is made of.
+// "Kees van den Berg" put "van" and "den" among the names the directory
+// knows, and "Welke VAN deze groepen" then asked the caller which Van they
+// meant. The list is a floor, not a dictionary: a lower-case word is admitted
+// as a name only when the directory knows it AND it is not one of these.
+const NOT_A_NAME = new Set([
+  // surname particles and titles
+  'van', 'den', 'der', 'de', 'het', 'von', 'vom', 'zu', 'zur', 'la', 'le', 'du', 'des', 'di', 'da', 'dos', 'del', 'della',
+  'ten', 'ter', 'op', 'aan', 'bij', 'in', 'en', 'of', 'the', 'and', 'mr', 'mrs', 'ms', 'dr', 'ir', 'ing', 'drs', 'jr', 'sr', 'bsc', 'msc',
+  // words a question is made of (Dutch)
+  'welke', 'wie', 'wat', 'waar', 'hoe', 'hoeveel', 'deze', 'die', 'dat', 'dit', 'een', 'ben', 'bent', 'zijn', 'was', 'waren',
+  'heb', 'hebt', 'heeft', 'hebben', 'had', 'kan', 'kun', 'kunnen', 'mag', 'moet', 'wil', 'zou', 'wordt', 'worden', 'werd',
+  'niet', 'geen', 'wel', 'ook', 'nog', 'dan', 'dus', 'maar', 'als', 'met', 'voor', 'door', 'naar', 'over', 'onder', 'uit',
+  'tot', 'per', 'via', 'alle', 'alles', 'elke', 'iedere', 'ieder', 'mijn', 'mij', 'ons', 'onze', 'jouw', 'jou', 'zijn', 'haar',
+  'hun', 'lid', 'leden', 'groep', 'groepen', 'laat', 'toon', 'geef', 'zien', 'graag', 'even', 'meer', 'minder', 'veel', 'weinig',
+  'laatste', 'recent', 'sinds', 'binnen', 'nieuw', 'oud', 'welk', 'zonder', 'behalve',
+  // words a question is made of (English)
+  'who', 'what', 'where', 'when', 'how', 'many', 'much', 'which', 'this', 'that', 'these', 'those', 'are', 'were', 'has', 'have',
+  'had', 'can', 'could', 'may', 'might', 'must', 'will', 'would', 'should', 'does', 'did', 'not', 'all', 'any', 'some', 'each',
+  'every', 'with', 'from', 'into', 'out', 'for', 'per', 'via', 'our', 'your', 'their', 'his', 'her', 'its', 'own', 'list',
+  'show', 'give', 'tell', 'find', 'get', 'see', 'more', 'less', 'last', 'recent', 'since', 'within', 'new', 'old', 'only',
+  'also', 'still', 'than', 'then', 'but', 'yes', 'please',
+]);
+const couldBeAName = (normalised) => normalised.length >= MIN_TERM_LENGTH && !NOT_A_NAME.has(normalised);
+
 const vocabulary = (() => {
   const words = new Set(STOPWORDS);
   const add = (text) => String(text).split(/[^\p{L}\p{N}]+/u).filter(Boolean).forEach(w => words.add(normalizeName(w)));
@@ -57,8 +83,48 @@ const vocabulary = (() => {
 const isAllCaps = (w) => (w.match(/\p{Lu}/gu) || []).length >= 2 && !/\p{Ll}/u.test(w);
 const isCapitalised = (w) => /^\p{Lu}/u.test(w);
 
+// ── Names the directory knows ──────────────────────────────────────────
+//
+// "welke groepen heb ik die bram niet heeft?" — nothing above finds
+// "bram": not quoted, not capitalised, not a phrase. So no hint reached the
+// model, and it guessed Bram was a group. The directory knew better.
+//
+// The tokens of every user's display name, lower-cased, cached for a few
+// minutes. SERVER-SIDE ONLY. A lower-case word in a question is admitted as a
+// name candidate only when it is in this set; from there it goes through the
+// same whole-word lookup as any other name, and the model is told the same
+// thing it has always been told — the FIELD a name occurs in, never a value.
+// The list itself never leaves this process.
+const KNOWN_NAMES_TTL_MS = 5 * 60 * 1000;
+let knownNamesCache = { at: 0, names: null };
+
+/** @returns {Promise<Set<string>>} normalised name tokens of the directory's users */
+export async function loadKnownNames(query) {
+  if (knownNamesCache.names && Date.now() - knownNamesCache.at < KNOWN_NAMES_TTL_MS) return knownNamesCache.names;
+  let rows = [];
+  try {
+    ({ rows = [] } = (await query(
+      `SELECT DISTINCT lower(w) AS v
+         FROM "Principals", LATERAL unnest(string_to_array("displayName", ' ')) AS w
+        WHERE "deletedAt" IS NULL AND "principalType" = 'User' AND length(w) >= ` + MIN_TERM_LENGTH + ``,
+    )) ?? {});
+  } catch {
+    // Best-effort: without the list a lower-case name is simply not found, which
+    // is where things stood before. It must never cost the question.
+    rows = [];
+  }
+  const names = new Set(rows.map(r => normalizeName(r.v)).filter(couldBeAName));
+  knownNamesCache = { at: Date.now(), names };
+  return names;
+}
+
+/** Test seam. */
+export function clearKnownNamesCache() {
+  knownNamesCache = { at: 0, names: null };
+}
+
 /** Enum values of this deployment (Guest, ServicePrincipal …) are vocabulary too; system names are not. */
-function isVocabulary(term, values) {
+export function isVocabulary(term, values) {
   const n = normalizeName(term);
   if (vocabulary.has(n)) return true;
   return Object.entries(values || {}).some(([key, list]) => key !== 'systemName' && list.some(v => normalizeName(v) === n));
@@ -70,11 +136,18 @@ function isVocabulary(term, values) {
  * @param {object} [values]  the deployment's enum values (loadValues)
  * @returns {string[]}
  */
-export function findTerms(question, values) {
+export function findTerms(question, values, knownNames = null) {
   const text = String(question || '');
   const found = [];
   const unquoted = text.replace(/["“”][^"“”]{2,60}["“”]/gu, ' . ');
   const candidates = [...[...text.matchAll(/["“”]([^"“”]{2,60})["“”]/gu)].map(m => m[1]), ...namePhrases(unquoted)];
+  // A lower-case word is a name only when the directory says so (loadKnownNames).
+  if (knownNames?.size) {
+    for (const m of unquoted.matchAll(/\p{L}[\p{L}\p{N}'-]{2,}/gu)) {
+      const w = m[0];
+      if (!isCapitalised(w) && !isAllCaps(w) && couldBeAName(normalizeName(w)) && knownNames.has(normalizeName(w))) candidates.push(w);
+    }
+  }
   for (const candidate of candidates) {
     const term = candidate.trim();
     if (normalizeName(term).length < MIN_TERM_LENGTH || term.length > MAX_TERM_LENGTH || isVocabulary(term, values)) continue;
@@ -85,7 +158,7 @@ export function findTerms(question, values) {
 
 /**
  * Runs of name-like words, each kept as written between its first and last word
- * ("Fortigi - Algemeen - Maten", "Folkertsma, Sipke").
+ * ("ACME - Algemeen - Partners", "Smit, Lotte").
  */
 function* namePhrases(text) {
   let phrase = null;   // { start, end, last }
@@ -101,7 +174,7 @@ function* namePhrases(text) {
   if (phrase) yield text.slice(phrase.start, phrase.end);
 }
 
-/** A comma joins "Folkertsma, Sipke", but separates a list of codes ("ACME, NWH"). */
+/** A comma joins "Smit, Lotte", but separates a list of codes ("ACME, NWH"). */
 const commaSeparates = (text, phrase, m) =>
   text.slice(phrase.end, m.index).includes(',') && (isAllCaps(m[0]) || isAllCaps(phrase.last));
 

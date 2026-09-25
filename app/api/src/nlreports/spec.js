@@ -24,7 +24,7 @@
 //             | 'compare.<similarity|shared|onlyHere|onlyReference|onlyHereNames|onlyReferenceNames>'
 
 import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE, fieldsOf } from './catalog.js';
-
+import { contradictions } from './contradictions.js';
 import {
   COMPARE_COLUMNS, DEFAULT_COMPARE_COLUMNS, MAX_COMPARES, compareConditions, validateCompare,
 } from './compare.js';
@@ -49,6 +49,8 @@ const ENTITY_ALIASES = {
   account: 'account', accounts: 'account', principal: 'account', principals: 'account',
   resource: 'resource', resources: 'resource',
   businessrole: 'resource', 'business role': 'resource', 'access package': 'resource',
+  change: 'change', changes: 'change', event: 'change', events: 'change',
+  wijziging: 'change', wijzigingen: 'change',
 };
 
 // Object.hasOwn, like every other lookup here: an entity called "constructor" or
@@ -111,8 +113,34 @@ function coerceEnum(fieldName, field, value, values, err) {
   return match ?? s;
 }
 
+// The Teams bot lets the model write "@me" where the caller's own account
+// belongs, and substitutes the caller's id before validation
+// (nlreports/sentinels.js, inside interpret()). By the time a definition gets here the sentinel is
+// therefore always already gone — so one that survives means the substitution
+// did not run, and the condition would silently match an account literally
+// named "@me" (i.e. nothing) instead of the person asking. Failing loudly is
+// the difference between "no results" and "no results, and nobody can tell you
+// why". It also stops the web report builder, which has no caller at all, from
+// saving a definition that would mean something different for each reader.
+export const CALLER_SENTINEL = '@me';
+
+/**
+ * The records the previous answer in this chat produced.
+ *
+ * The same bargain as `@me`, for the other thing a chat knows and a report
+ * builder does not: what "these groups" refers to. The bot replaces it with the
+ * actual ids before validation (the bot hands them to interpret()), so — exactly as above —
+ * one that survives to here means the substitution did not run, and the
+ * condition would match a record literally named "@previous" instead of the
+ * 27 groups the caller is looking at.
+ */
+export const PREVIOUS_SENTINEL = '@previous';
+
+const SENTINELS = new Set([CALLER_SENTINEL, PREVIOUS_SENTINEL]);
+
 function coerceText(fieldName, field, value, values, err) {
   const s = String(value);
+  if (SENTINELS.has(s)) err(`"${fieldName}" cannot be ${s} here — this report has no chat to resolve it against`);
   if (s.length > 200) err(`value for "${fieldName}" is too long`);
   return s;
 }
@@ -132,12 +160,40 @@ const COERCERS_BY_TYPE = {
   enum: coerceEnum,
 };
 
+/**
+ * How many values one "is one of" may carry.
+ *
+ * The list that matters is the one a follow-up question inherits — "of these
+ * groups, which are in an access package" — so the cap is really a cap on how
+ * large an answer can still be followed up on. 500 is far past anything a
+ * person reads in a chat and far short of a list that makes the query
+ * pathological; past it the caller is told, rather than served a report that
+ * silently covers some of what they asked about.
+ */
+export const MAX_IN_VALUES = 500;
+
+/** The values of an "is one of", each coerced as if it stood alone. */
+function coerceList(fieldName, field, value, values, err) {
+  const list = Array.isArray(value) ? value : [value];
+  if (list.length === 0) {
+    err(`condition on "${fieldName}" with operator "in" needs at least one value`);
+    return [];
+  }
+  if (list.length > MAX_IN_VALUES) {
+    err(`condition on "${fieldName}" lists ${list.length} values; at most ${MAX_IN_VALUES} are allowed`);
+    return [];
+  }
+  const coerce = has(COERCERS_BY_TYPE, field.type) ? COERCERS_BY_TYPE[field.type] : coerceText;
+  return list.map(v => coerce(fieldName, field, v, values, err));
+}
+
 function coerceValue(fieldName, field, op, value, values, err) {
   if (!OPERATORS[op].needsValue) return undefined;
   if (value === undefined || value === null || value === '') {
     err(`condition on "${fieldName}" with operator "${op}" needs a value`);
     return undefined;
   }
+  if (op === 'in') return coerceList(fieldName, field, value, values, err);
   if (DAY_OPERATORS.has(op)) return coerceDays(fieldName, op, value, err);
   const coerce = has(COERCERS_BY_TYPE, field.type) ? COERCERS_BY_TYPE[field.type] : coerceText;
   return coerce(fieldName, field, value, values, err);
@@ -405,6 +461,13 @@ export function validateSpec(raw, values = {}, extFields = {}) {
   const spec = { entity: entityName, match: normalizeMatch(raw.match), conditions, columns, limit };
   if (groupBy) spec.groupBy = groupBy;
   if (sort) spec.sort = sort;
+
+  // Last, and only once the fields are known good: a definition that cannot
+  // match anything. It runs fine and returns nothing, which reads exactly like
+  // a truthful answer — see contradictions.js. Reported as a validation error
+  // so the existing repair round shows the model what it built.
+  for (const message of contradictions(spec)) err(message);
+
   return { ok: errors.length === 0, spec, errors };
 }
 

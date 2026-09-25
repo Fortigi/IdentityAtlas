@@ -8,7 +8,7 @@
 //   • the history sent to the model is capped to the last MAX_HISTORY messages
 import { describe, it, expect, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { MAX_HISTORY, specContext, useAskConversation } from './useAskConversation';
+import { MAX_HISTORY, specContext, useAskConversation, replyFromStored } from './useAskConversation';
 
 const json = (body, ok = true, status = 200) => Promise.resolve({ ok, status, json: () => Promise.resolve(body) });
 
@@ -39,7 +39,7 @@ describe('useAskConversation', () => {
 
     await act(() => result.current.confirmChoice(again, { name: 'Sales EMEA' }));
     expect(onReport).toHaveBeenCalledTimes(1);
-    expect(onReport).toHaveBeenCalledWith(expect.objectContaining({ kind: 'report', spec: { v: 2 }, explanation: 'done' }), 'members of sales');
+    expect(onReport).toHaveBeenCalledWith(expect.objectContaining({ kind: 'report', spec: { v: 2 }, explanation: 'done' }), 'members of sales', expect.any(String));
     expect(result.current.turns.filter(t => t.reply?.kind === 'chosen').map(t => t.reply.name)).toEqual(['Sales role', 'Sales EMEA']);
   });
 
@@ -84,5 +84,109 @@ describe('useAskConversation', () => {
 
   it('sends no definition context when the builder is empty', () => {
     expect(specContext(null)).toEqual([]);
+  });
+});
+
+describe('the conversation thread', () => {
+  it('sends the same conversation id with every question of one chat', async () => {
+    const bodies = [];
+    const { result } = setup((url, body) => {
+      bodies.push(body);
+      return json({ kind: 'clarify', question: 'Which?', raw: 'r' });
+    });
+    await act(() => result.current.ask('first'));
+    await act(() => result.current.ask('second'));
+
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0].conversationId).toMatch(/^[A-Za-z0-9:_-]{1,100}$/);
+    expect(bodies[1].conversationId).toBe(bodies[0].conversationId);
+    expect(result.current.conversationId).toBe(bodies[0].conversationId);
+  });
+
+  it('starts a new conversation with a fresh id and nothing on screen', async () => {
+    const bodies = [];
+    const { result } = setup((url, body) => { bodies.push(body); return json({ kind: 'clarify', question: 'Which?', raw: 'r' }); });
+    await act(() => result.current.ask('first'));
+    const before = result.current.conversationId;
+
+    act(() => result.current.newConversation());
+    expect(result.current.turns).toEqual([]);
+    expect(result.current.conversationId).not.toBe(before);
+
+    await act(() => result.current.ask('again'));
+    expect(bodies[1].conversationId).toBe(result.current.conversationId);
+    // The model is not sent the old chat's history either.
+    expect(bodies[1].history).toEqual([]);
+  });
+});
+
+describe('picking a stored conversation back up', () => {
+  const STORED = [
+    { question: 'van welke groepen ben ik owner?', definition: { entity: 'user', conditions: [] }, outcome: 'answered',
+      rawReply: JSON.stringify({ kind: 'report', assumptions: ['owner means owns'], spec: { entity: 'user', conditions: [] } }) },
+    { question: 'en welke van deze groepen zitten in access packages?', definition: null, outcome: 'clarified',
+      rawReply: JSON.stringify({ kind: 'clarify', question: 'Which packages?', options: ['All', 'Only mine'] }) },
+  ];
+
+  it('rebuilds what was said on screen, and reports the last answer so its rows can be shown', async () => {
+    const { result, onReport } = setup(() => json({}));
+    act(() => result.current.load('c-1', STORED));
+
+    expect(result.current.conversationId).toBe('c-1');
+    expect(result.current.turns.map(t => t.role)).toEqual(['user', 'assistant', 'user', 'assistant']);
+    expect(result.current.turns[1].reply).toMatchObject({ kind: 'report', assumptions: ['owner means owns'], timing: null });
+    expect(result.current.turns[3].reply).toMatchObject({ kind: 'clarify', question: 'Which packages?', options: ['All', 'Only mine'] });
+    expect(onReport).toHaveBeenCalledWith(expect.objectContaining({ kind: 'report' }), 'van welke groepen ben ik owner?', expect.any(String));
+  });
+
+  it('sends the model the replies it actually gave, as the history of the next question', async () => {
+    const bodies = [];
+    const { result } = setup((url, body) => { bodies.push(body); return json({ kind: 'clarify', question: '?', raw: 'r' }); });
+    act(() => result.current.load('c-1', STORED));
+    await act(() => result.current.ask('Only mine'));
+
+    expect(bodies[0].conversationId).toBe('c-1');
+    expect(bodies[0].history).toEqual([
+      { role: 'user', content: STORED[0].question }, { role: 'assistant', content: STORED[0].rawReply },
+      { role: 'user', content: STORED[1].question }, { role: 'assistant', content: STORED[1].rawReply },
+    ]);
+  });
+
+  it('caps the history it sends, keeping the most recent turns', () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ question: 'q' + i, definition: null, outcome: 'clarified', rawReply: '{"kind":"clarify","question":"?"}' }));
+    const { result } = setup(() => json({}));
+    act(() => result.current.load('c-1', many));
+    // 12 stored turns = 24 messages; MAX_HISTORY keeps the last 10.
+    expect(result.current.turns).toHaveLength(24);
+  });
+
+  it('shows what a turn was even when the raw reply is missing or unreadable', () => {
+    const { result } = setup(() => json({}));
+    act(() => result.current.load('c-1', [
+      { question: 'x', definition: { entity: 'user', conditions: [] }, outcome: 'answered', rawReply: null },
+      { question: 'y', definition: null, outcome: 'timeout', rawReply: 'not json' },
+      { question: 'z', definition: null, outcome: 'confirm', rawReply: null, clarification: 'Did you mean Finance?' },
+    ]));
+    const kinds = result.current.turns.filter(t => t.role === 'assistant').map(t => t.reply.kind);
+    expect(kinds).toEqual(['report', 'error', 'confirm']);
+    expect(result.current.turns[3].reply.message).toMatch(/too long/);
+    expect(result.current.turns[5].reply.confirm.message).toBe('Did you mean Finance?');
+  });
+
+  it('starting over after a resume leaves the old conversation behind', () => {
+    const { result } = setup(() => json({}));
+    act(() => result.current.load('c-1', STORED));
+    act(() => result.current.newConversation());
+    expect(result.current.turns).toEqual([]);
+    expect(result.current.conversationId).not.toBe('c-1');
+  });
+});
+
+describe('replyFromStored — a declined question', () => {
+  it('comes back as a decline with its reason, from the raw reply or the stored clarification', () => {
+    expect(replyFromStored({ rawReply: '{"kind":"decline","reason":"Not about the data."}', outcome: 'declined' }))
+      .toMatchObject({ kind: 'decline', reason: 'Not about the data.' });
+    expect(replyFromStored({ rawReply: null, outcome: 'declined', clarification: 'Stored reason.' }))
+      .toMatchObject({ kind: 'decline', reason: 'Stored reason.' });
   });
 });

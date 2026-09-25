@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compileSpec } from './compile.js';
+import { compileSpec, linkKind, LINKS_SUFFIX } from './compile.js';
 import { validateSpec } from './spec.js';
 import { explainSpec } from './explain.js';
 
@@ -127,6 +127,101 @@ describe('compileSpec — sign-in activity', () => {
 });
 
 describe('explainSpec', () => {
+  // ── "is one of" ───────────────────────────────────────────────
+  //
+  // Exists for follow-up questions: "of THESE groups, which are in an access
+  // package" has to name the records a previous answer produced.
+
+  it('compiles a list to one parameter, not one placeholder per value', () => {
+    // A list built per question would otherwise change the SQL TEXT on every
+    // call, which defeats statement caching and makes the compiled query
+    // impossible to compare between two runs.
+    const { text, params } = compile({
+      entity: 'resource', conditions: [{ field: 'id', op: 'in', value: ['g1', 'g2', 'g3'] }],
+    });
+    expect(text).toContain('= ANY($1)');
+    expect(params[0]).toEqual(['g1', 'g2', 'g3']);
+    expect(text).not.toContain('$2,');
+  });
+
+  it('matches case-insensitively, exactly as "is" does on one value', () => {
+    // A list must select the same rows the same values would one at a time.
+    const one = compile({ entity: 'resource', conditions: [{ field: 'displayName', op: 'eq', value: 'Finance' }] });
+    const many = compile({ entity: 'resource', conditions: [{ field: 'displayName', op: 'in', value: ['Finance'] }] });
+    expect(one.text).toContain('lower(');
+    expect(many.text).toContain('lower(');
+    expect(many.params[0]).toEqual(['finance']);
+  });
+
+  it('keeps a list value out of the SQL text, like every other value', () => {
+    const { text, params } = compile({
+      entity: 'resource',
+      conditions: [{ field: 'displayName', op: 'in', value: [`x'); DROP TABLE "Principals"; --`] }],
+    });
+    expect(text).not.toContain('DROP');
+    expect(params[0]).toEqual([`x'); drop table "principals"; --`]);
+  });
+
+  // ── the ids behind a name list ────────────────────────────────
+  //
+  // A name-list column ("Owner of" = "ASML, AlisQI, Bestuur, …") used to throw
+  // every id away, which made the names unlinkable and left a follow-up
+  // question about "these groups" with nothing to point at.
+
+  it('selects the id behind every name in a name-list column', () => {
+    const { text, columns } = compile({
+      entity: 'account', conditions: [], columns: ['displayName', 'owns.names'],
+    });
+
+    expect(text).toContain(`AS "owns.names${LINKS_SUFFIX}"`);
+    expect(text).toContain('jsonb_build_object');
+    // Both halves of the pair, or the names come back unusable.
+    expect(text).toMatch(/'id',\s*\w+\."id"/);
+    expect(text).toMatch(/'name',\s*\w+\."name"/);
+    // The companion carries the kind of page each id opens.
+    expect(columns.find(col => col.key === 'owns.names').linkKind).toBe('resource');
+  });
+
+  it('leaves the visible name-list value exactly as it was', () => {
+    // The whole design rests on this: the pairs ride ALONGSIDE the string, so
+    // exports, the report table and every other reader are untouched. If this
+    // fails, the change stopped being additive.
+    const { text } = compile({ entity: 'account', conditions: [], columns: ['owns.names'] });
+    expect(text).toContain(`string_agg(DISTINCT `);
+    expect(text).toMatch(/string_agg\(DISTINCT \w+\."displayName", ', ' ORDER BY \w+\."displayName"\)/);
+  });
+
+  it('orders the pairs by name, like the string beside them', () => {
+    // Two lists that disagree on order are worse than no list: the third link
+    // would open the fourth group's page.
+    const { text } = compile({ entity: 'account', conditions: [], columns: ['owns.names'] });
+    expect(text).toMatch(/jsonb_agg\(.*ORDER BY \w+\."name"\)/);
+  });
+
+  it('de-duplicates by id AND name, so two groups sharing a name both survive', () => {
+    // DISTINCT sits in an inner SELECT over the pair, not over the name — a
+    // tenant with two groups called "General" must get two links.
+    const { text } = compile({ entity: 'account', conditions: [], columns: ['owns.names'] });
+    expect(text).toMatch(/SELECT DISTINCT \w+\."id" AS "id", \w+\."displayName" AS "name"/);
+  });
+
+  it('adds no companion column to anything that is not a name list', () => {
+    const { text, columns } = compile({
+      entity: 'account', conditions: [], columns: ['displayName', 'owns.count', 'manager.displayName'],
+    });
+    expect(text).not.toContain(LINKS_SUFFIX);
+    expect(columns.every(col => !('linkKind' in col) && !('linksAlias' in col))).toBe(true);
+  });
+
+  it('knows which detail page each name list opens', () => {
+    // resource.members lists accounts, account.owns lists resources — the kind
+    // comes from the relation's TARGET, not from the report's own entity.
+    expect(linkKind('resource', { kind: 'manyNames', relation: 'members' })).toBe('user');
+    expect(linkKind('account', { kind: 'manyNames', relation: 'owns' })).toBe('resource');
+    expect(linkKind('account', { kind: 'manyCount', relation: 'owns' })).toBe(null);
+    expect(linkKind('account', { kind: 'field', field: 'displayName' })).toBe(null);
+  });
+
   it('reads the interpretation back in analyst language', () => {
     const { spec } = compile({
       entity: 'account',
@@ -150,6 +245,73 @@ describe('explainSpec', () => {
       ],
     });
     expect(explainSpec({ entity: 'resource', conditions: [] }).title).toBe('All resources');
+  });
+});
+
+describe('the change entity', () => {
+  // Every other entity answers "what is true now". This one answers "what
+  // became true, and when" — the question the catalog could not express at all.
+  const values = { changeAction: ['Added', 'Removed'], assignmentType: ['Direct', 'Indirect', 'Eligible'] };
+  const compileChange = (raw) => {
+    const { ok, spec, errors } = validateSpec(raw, values);
+    if (!ok) throw new Error(errors.join('; '));
+    return { spec, ...compileSpec(spec) };
+  };
+
+  it('reads the view, not the audit table', () => {
+    // The "a removal is an UPDATE that stamps deletedAt" rule lives in the
+    // view (migration 070) so there is one place it can be got wrong.
+    const { text } = compileChange({ entity: 'change', conditions: [] });
+    expect(text).toContain('FROM "AssignmentChanges"');
+    expect(text).not.toContain('_history');
+  });
+
+  it('puts the newest change first, without being asked', () => {
+    // Alphabetical order on a list of events is useless — the newest one is
+    // the entire point of asking what changed.
+    const { text } = compileChange({ entity: 'change', conditions: [] });
+    expect(text).toMatch(/ORDER BY \w+\."changedAt" DESC/);
+  });
+
+  it('still lets the request choose its own order', () => {
+    const { text } = compileChange({
+      entity: 'change', conditions: [], sort: { field: 'changedAt', direction: 'asc' },
+    });
+    expect(text).toMatch(/ORDER BY \w+\."changedAt" ASC/);
+  });
+
+  it('leaves every other entity ordered by name', () => {
+    // defaultSort is opt-in per entity; nothing else declares one.
+    const { text } = compile({ entity: 'group', conditions: [] });
+    expect(text).toMatch(/ORDER BY \w+\."displayName" ASC/);
+  });
+
+  it('compiles "changes in the last 30 days for my people"', () => {
+    // The manager is reached in ONE hop on purpose: a relation condition
+    // cannot nest another relation, so change → account → manager is not
+    // expressible and the view carries managerId as a column.
+    const { text, params } = compileChange({
+      entity: 'change',
+      conditions: [
+        { type: 'field', field: 'changedAt', op: 'withinLastDays', value: 30 },
+        { type: 'relation', relation: 'manager', quantifier: 'some',
+          conditions: [{ field: 'id', op: 'eq', value: 'me-id' }] },
+      ],
+      columns: ['changedAt', 'action', 'account.displayName', 'resource.displayName'],
+    });
+    expect(text).toContain('make_interval');
+    expect(text).toMatch(/EXISTS \(SELECT 1 FROM "Principals" \w+ WHERE \w+\."id" = \w+\."managerId"/);
+    expect(params).toContain('me-id');
+  });
+
+  it('knows Added and Removed without asking the data for them', () => {
+    // Read from the view's own CASE, not from a DISTINCT over the rows: a
+    // deployment that has had no removals yet would otherwise leave "Removed"
+    // an unknown value, and a question about removals would be rejected.
+    const { spec } = compileChange({
+      entity: 'change', conditions: [{ field: 'action', op: 'eq', value: 'removed' }],
+    });
+    expect(spec.conditions[0].value).toBe('Removed');
   });
 });
 
@@ -312,7 +474,10 @@ describe('compileSpec — the business roles an account has', () => {
   });
 
   it('is narrower than access, which still holds every kind of resource', () => {
-    const { text } = compile({ entity: 'user', columns: ['displayName', 'access.names', 'businessRoles.names'] });
+    // .count rather than .names: a name-list column is selected twice (the
+    // readable string and the companion carrying its ids), which would double a
+    // count that is about the relation's WHERE, not about how often it is read.
+    const { text } = compile({ entity: 'user', columns: ['displayName', 'access.count', 'businessRoles.count'] });
     expect(text.match(/"resourceType" = 'BusinessRole'/g)).toHaveLength(1);
     expect(text).toContain(`"resourceType" NOT IN ('GroupOwnership','ApplicationOwnership','ServicePrincipalOwnership')`);
   });

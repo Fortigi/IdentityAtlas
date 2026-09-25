@@ -32,6 +32,7 @@ const ContextsPage = lazy(() => import('./components/ContextsPage'));
 const IdentitiesPage = lazy(() => import('./components/IdentitiesPage'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
 const ReportsPage = lazy(() => import('./components/ReportsPage'));
+const AskPage = lazy(() => import('./components/AskPage'));
 
 // Each entry is a small component that takes the shared render context as PROPS
 // and renders its page; multi-key routes (resources/groups; performance/crawlers/
@@ -56,6 +57,7 @@ const AdminRoute = ({ navigate, forceRefresh, onRiskScoresRefresh, features, ver
 // onRiskScoresRefresh, features, version }.
 export const PAGE_ROUTES = new Map([
   ['dashboard',       ({ navigate }) => <DashboardPage onNavigate={navigate} />],
+  ['ask',             ({ openDetailTab }) => <AskPage onOpenDetail={openDetailTab} />],
   ['sync-log',        ({ navigate, openDetailTab }) => <SyncLogPage navigate={navigate} onOpenDetail={openDetailTab} />],
   ['principals',      ({ openDetailTab }) => <UsersPage onOpenDetail={openDetailTab} />],
   ['resources',       GroupsRoute],

@@ -160,6 +160,8 @@ nav:
       - Configuration: reference/config.md
       - Experimental Features: reference/experimental-features.md
       - Report Generator (local LLM): reference/report-generator.md
+      - Teams Bot (POC): reference/teams-bot.md
+      - Ask Assistant — how it thinks and is tested: reference/ask-assistant.md
       - Permissions & Roles: reference/permissions.md
       - Database Views: reference/sql-views.md
       - CSV Schema Reference: architecture/csv-import-schema.md

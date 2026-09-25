@@ -43,6 +43,69 @@ function makeKeyResolver() {
 
 const keyResolver = makeKeyResolver();
 
+/**
+ * The rule for "is this one of our access tokens", in one place.
+ *
+ * Accept ONLY access tokens issued for our exposed API scope
+ * (aud = api://<clientId>). The bare <clientId> audience is deliberately NOT
+ * accepted: an id_token's aud is the bare client ID, and id_tokens are minted on
+ * every interactive sign-in, cached in browsers/logs, and are not meant for API
+ * authorization (security finding H-01). The SPA already requests the
+ * `api://<clientId>/access` scope, so its access tokens carry
+ * aud = api://<clientId>. (Requires the Entra App ID URI to be the default
+ * `api://<clientId>` — see the setup walkthrough's "Expose an API" step.)
+ *
+ * Shared with the Teams bot, which validates the token it exchanges for the
+ * caller through the same rule rather than trusting the Bot Framework's word for
+ * who is on the other end. One definition, so a change to the audience rule
+ * cannot apply to the browser and miss the bot.
+ */
+export function accessTokenVerifyOptions(tenantId = getTenantId(), clientId = getClientId()) {
+  return {
+    audience: `api://${clientId}`,
+    issuer: [
+      `https://login.microsoftonline.com/${tenantId}/v2.0`,
+      `https://sts.windows.net/${tenantId}/`,
+    ],
+    algorithms: ['RS256'],
+  };
+}
+
+/**
+ * Verify an access token and resolve what its holder may do.
+ *
+ * The promise-shaped half of authMiddleware, for callers that are not an Express
+ * request — today that is the Teams bot, which gets its token from the Bot
+ * Framework token service instead of an Authorization header.
+ *
+ * Fails closed exactly as the middleware does: an unverifiable token rejects, a
+ * token from another tenant rejects, and a token whose roles map to nothing
+ * resolves to an EMPTY permission set rather than to an implicit admin.
+ *
+ * @param {string} token
+ * @returns {Promise<{decoded: object, roles: string[], permissions: Set<string>}>}
+ */
+export function verifyAccessToken(token) {
+  return new Promise((resolve, reject) => {
+    const tenantId = getTenantId();
+    jwt.verify(token, keyResolver, accessTokenVerifyOptions(tenantId), (err, decoded) => {
+      if (err) return reject(new Error(`Invalid or expired token: ${err.message}`));
+      if (decoded.tid && decoded.tid !== tenantId) {
+        return reject(new Error('Token issued by unexpected tenant'));
+      }
+      const roles = Array.isArray(decoded.roles) ? decoded.roles : [];
+      // The same coarse app-role gate the middleware applies (AUTH_REQUIRED_ROLES).
+      // Leaving it out here would make the bot a way around a gate an operator
+      // deliberately switched on for every other way into the same data.
+      const required = getRequiredRoles();
+      if (required?.length && !required.some(r => roles.includes(r))) {
+        return reject(new Error('Token missing required role'));
+      }
+      resolve({ decoded, roles, permissions: resolvePermissions(roles, getRolePermissions()) });
+    });
+  });
+}
+
 export function authMiddleware(req, res, next) {
   if (!isAuthEnabled()) return next();
 
@@ -99,24 +162,8 @@ export function authMiddleware(req, res, next) {
   }
 
   const tenantId = getTenantId();
-  const clientId = getClientId();
 
-  jwt.verify(token, keyResolver, {
-    // Accept ONLY access tokens issued for our exposed API scope
-    // (aud = api://<clientId>). The bare <clientId> audience is deliberately
-    // NOT accepted: an id_token's aud is the bare client ID, and id_tokens are
-    // minted on every interactive sign-in, cached in browsers/logs, and are not
-    // meant for API authorization (security finding H-01). The SPA already
-    // requests the `api://<clientId>/access` scope, so its access tokens carry
-    // aud = api://<clientId>. (Requires the Entra App ID URI to be the default
-    // `api://<clientId>` — see the setup walkthrough's "Expose an API" step.)
-    audience: `api://${clientId}`,
-    issuer: [
-      `https://login.microsoftonline.com/${tenantId}/v2.0`,
-      `https://sts.windows.net/${tenantId}/`,
-    ],
-    algorithms: ['RS256'],
-  }, (err, decoded) => {
+  jwt.verify(token, keyResolver, accessTokenVerifyOptions(), (err, decoded) => {
     if (err) {
       console.error('Token validation failed:', err.message);
       return res.status(401).json({ error: 'Invalid or expired token' });
