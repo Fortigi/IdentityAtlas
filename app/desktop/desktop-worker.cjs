@@ -59,6 +59,17 @@ function buildDispatch(apiKey, job, baseEnv = process.env) {
     args: [
       '-NoProfile',
       '-NonInteractive',
+      // Same policy the documented launcher command uses to start the app
+      // (`pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1`). Without
+      // it, crawlers are the ONLY part of the portable build that runs under the
+      // machine's policy — and every file extracted from a downloaded zip carries
+      // the internet Mark of the Web, so under the common RemoteSigned default
+      // PowerShell refuses the script with "AuthorizationManager check failed"
+      // and exits 1 before the transcript starts. The symptom is a job that fails
+      // with a bare exit code and no trace to explain it. Bypass adds no
+      // privilege the launcher does not already have: the scripts it runs are the
+      // ones shipped inside the same zip.
+      '-ExecutionPolicy', 'Bypass',
       '-File',    join(appRoot, 'setup', 'docker', 'Invoke-CrawlerJob.ps1'),
       '-JobId',   String(job.id),
       '-JobType', String(job.jobType),
