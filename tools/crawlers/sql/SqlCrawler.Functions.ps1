@@ -248,7 +248,19 @@ function Invoke-SqlReaderPage {
     [CmdletBinding()]
     [OutputType([int])]
     param([Parameter(Mandatory)] $Command, [Parameter(Mandatory)] [scriptblock]$OnRow)
-    $reader = $Command.ExecuteReader([System.Data.CommandBehavior]::SequentialAccess)
+    # Default, NOT SequentialAccess. SequentialAccess looks like the right choice
+    # for a streaming reader, but it forbids revisiting a column once the row has
+    # moved past it — and that includes going back to ordinal 0 for the NEXT row's
+    # first column, which fails as soon as a statement returns more columns than
+    # the crawler happens to read in step:
+    #   "Invalid attempt to read from column ordinal '0'. With
+    #    CommandBehavior.SequentialAccess, you may only read from column ordinal
+    #    '26' or greater."
+    # It buys nothing here either: its purpose is to stream large BLOBs without
+    # buffering, and this crawler skips binary columns outright. Default buffers
+    # one row at a time, which is what the shapers need and costs nothing at any
+    # row count.
+    $reader = $Command.ExecuteReader([System.Data.CommandBehavior]::Default)
     $n = 0
     try {
         $columns = Get-SqlReaderColumns -Reader $reader

@@ -32,12 +32,31 @@ BeforeAll {
 
     # ── Fake SqlClient surface ───────────────────────────────────────────────
     # A "table" is @{ columns = @(...); pages = <scriptblock offset,pageSize -> rows[][]> }
+    # The double enforces SequentialAccess the way SqlDataReader does. The old one
+    # accepted the flag and ignored it, which is how the crawler shipped asking for
+    # a mode that broke against a live Azure SQL database — a 26-column statement
+    # died on "Invalid attempt to read from column ordinal '0'. With
+    # CommandBehavior.SequentialAccess, you may only read from column ordinal '26'
+    # or greater."
+    #
+    # Read honestly: the shapers read ordinals in ascending order, which the rule
+    # allows, so this double does NOT reproduce that failure and neither did any
+    # test. The guard that does is the assertion that the crawler never asks for
+    # the mode at all — the flag bought nothing here (its purpose is streaming
+    # large BLOBs, and binary columns are skipped) and cost a live run.
     class FakeReader {
         [string[]]$Columns; [object[]]$Rows; [int]$Pos = -1; [bool]$Disposed = $false; [int]$FieldCount
+        [bool]$Sequential = $false; [int]$MinOrdinal = 0
         FakeReader([string[]]$c, [object[]]$r) { $this.Columns = $c; $this.Rows = $r; $this.FieldCount = $c.Length }
         [string]GetName([int]$i) { return $this.Columns[$i] }
-        [bool]Read() { $this.Pos++; return $this.Pos -lt $this.Rows.Count }
-        [object]GetValue([int]$i) { return $this.Rows[$this.Pos][$i] }
+        [bool]Read() { $this.Pos++; $this.MinOrdinal = 0; return $this.Pos -lt $this.Rows.Count }
+        [object]GetValue([int]$i) {
+            if ($this.Sequential -and $i -lt $this.MinOrdinal) {
+                throw "Invalid attempt to read from column ordinal '$i'.  With CommandBehavior.SequentialAccess, you may only read from column ordinal '$($this.MinOrdinal)' or greater."
+            }
+            if ($this.Sequential) { $this.MinOrdinal = $i + 1 }
+            return $this.Rows[$this.Pos][$i]
+        }
         [void]Dispose() { $this.Disposed = $true }
     }
     class FakeParam { [string]$Name; [object]$Value; FakeParam([string]$n) { $this.Name = $n } }
@@ -49,7 +68,13 @@ BeforeAll {
     class FakeCommand {
         [string]$CommandText; [int]$CommandTimeout; [FakeParams]$Parameters = [FakeParams]::new(); [bool]$Disposed = $false
         [object]$Conn
-        [object]ExecuteReader([object]$behavior) { return $this.Conn.OpenReader($this) }
+        [object]$Behavior
+        [object]ExecuteReader([object]$behavior) {
+            $this.Behavior = $behavior
+            $r = $this.Conn.OpenReader($this)
+            $r.Sequential = ("$behavior" -eq 'SequentialAccess')
+            return $r
+        }
         [void]Dispose() { $this.Disposed = $true }
     }
     class FakeConnection {
@@ -289,6 +314,39 @@ Describe 'Invoke-SqlQueryStream' {
         $n = Invoke-SqlQueryStream -Connection $conn -Sql 'x' -OnRow { } -Paged $true -PageSize 3
         $n | Should -Be 6
         $conn.Commands.Count | Should -Be 3
+    }
+
+    # The failure that reached a live Azure SQL instance: a 26-column identities
+    # query died on its first row. The double now enforces the same rule the real
+    # SqlDataReader does, so asking for SequentialAccess here would fail this.
+    It 'reads a wide statement that returns MORE columns than a narrow one' {
+        $wide = 0..25 | ForEach-Object { "col$_" }
+        $conn = [FakeConnection]::new([string[]]$wide, @(, @(0..25 | ForEach-Object { "v$_" })))
+        # A List, not `$x = $Row`: an assignment inside the scriptblock writes to
+        # the scriptblock's own scope and never reaches the assertion.
+        $captured = [System.Collections.Generic.List[object]]::new()
+        $n = Invoke-SqlQueryStream -Connection $conn -Sql 'SELECT 26 columns' -OnRow { param($Row) $captured.Add($Row) }
+        $n | Should -Be 1
+        $seen = $captured[0]
+        @($seen.Keys).Count | Should -Be 26
+        $seen['col0'] | Should -Be 'v0'    # ordinal 0 must still be readable
+        $seen['col25'] | Should -Be 'v25'
+    }
+
+    It 'does not ask for SequentialAccess, which forbids re-reading an earlier ordinal' {
+        $conn = [FakeConnection]::new(@('id', 'n'), $script:Rows)
+        Invoke-SqlQueryStream -Connection $conn -Sql 'x' -OnRow { } | Out-Null
+        "$($conn.Commands[0].Behavior)" | Should -Not -Be 'SequentialAccess'
+    }
+
+    It 'reads every row of a MULTI-row wide statement, resetting to ordinal 0 each time' {
+        $wide = 0..25 | ForEach-Object { "col$_" }
+        $rows = 1..3 | ForEach-Object { $r = $_; , @(0..25 | ForEach-Object { "r$r-c$_" }) }
+        $conn = [FakeConnection]::new([string[]]$wide, $rows)
+        $first = [System.Collections.Generic.List[string]]::new()
+        $n = Invoke-SqlQueryStream -Connection $conn -Sql 'x' -OnRow { param($Row) $first.Add([string]$Row['col0']) }
+        $n | Should -Be 3
+        $first | Should -Be @('r1-c0', 'r2-c0', 'r3-c0')
     }
 
     It 'an empty result set yields 0 rows and no callbacks' {
