@@ -655,7 +655,20 @@ async function handleRollupResources(res, ctx, resolved, groupTotals) {
 
 // ─── Flat per-subject grid (default) ───
 // Every in-scope (subject, resource) assignment as its own row. The heaviest
-// payload; guarded by MAX_FLAT_ROWS below.
+// payload, so it is capped at MAX_FLAT_ROWS.
+//
+// The cap is enforced IN the query (LIMIT cap + 1), not after it: a result is only
+// ever held in memory up to one row past the cap. Checking afterwards meant a
+// 4 M-row matrix was loaded in full first, and the API process died of heap
+// exhaustion before the check could refuse it (docs/architecture/scale-rehearsal.md).
+export const MAX_FLAT_ROWS = 400_000;
+
+function flatGridTooLarge(res) {
+  return res.status(413).json({
+    error: `This matrix has more than ${MAX_FLAT_ROWS.toLocaleString('en-US')} assignments — too many to load as a per-subject grid. Sort by Manager Hierarchy or roll up by an attribute (both aggregate on the server), or add filters to narrow it.`,
+  });
+}
+
 async function handleFlatGrid(res, ctx) {
   const {
     built, rowType, subjectCols, subjectAlias, dynamicSubjectCols,
@@ -702,24 +715,19 @@ async function handleFlatGrid(res, ctx) {
       LEFT JOIN "Resources" r ON p."resourceId" = r.id
       LEFT JOIN "Systems" sys ON r."systemId" = sys.id
       WHERE ${where.join(' AND ')}
+      LIMIT ${MAX_FLAT_ROWS + 1}
     `;
   const result = await timedQuery(p, `matrix-data[${rowType}]`, res, dataSql, params);
+  if (result.rows.length > MAX_FLAT_ROWS) return flatGridTooLarge(res);
 
   // Additive inherited (effective) access fold — empty for non-scope scopes.
   if (includeInherited) {
     await foldInheritedFlatAccess(p, built, rowType, subjectCols, result.rows);
   }
 
-  // Backstop: a flat per-subject grid serializes every assignment row into one
-  // JSON string. Past ~half a million rows that string can exceed V8's max
-  // length (RangeError: Invalid string length) and crash the response. Fail
-  // cleanly with guidance toward the aggregated views instead.
-  const MAX_FLAT_ROWS = 400_000;
-  if (result.rows.length > MAX_FLAT_ROWS) {
-    return res.status(413).json({
-      error: `This matrix has ${result.rows.length.toLocaleString()} assignments — too many to load as a per-subject grid. Sort by Manager Hierarchy or roll up by an attribute (both aggregate on the server), or add filters to narrow it.`,
-    });
-  }
+  // The inherited fold can add rows past the cap; the serialized grid must stay
+  // under V8's max string length either way.
+  if (result.rows.length > MAX_FLAT_ROWS) return flatGridTooLarge(res);
 
   const { subjectCount, subjectTotal, resourceCount, resourceTotal, assignmentCount } = await scopeCounts(p, res, rowType, built);
 
