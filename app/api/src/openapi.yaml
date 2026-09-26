@@ -288,6 +288,83 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /ingest/stages:
+    post:
+      tags: [Ingest]
+      summary: Open a staged full load
+      operationId: openIngestStage
+      description: >-
+        Opens a stage for one (entity, system, scope): rows are appended to an unindexed
+        staging table and applied in one step at finalize. Nothing is written to the
+        target table before then. Entities - resource-assignments, principals, resources,
+        resource-relationships. Requires ingest permission and access to the system.
+      responses:
+        '201':
+          description: Stage opened; the body carries stageId
+        '400':
+          description: Unknown entity or invalid systemId
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /ingest/stages/{id}/rows:
+    post:
+      tags: [Ingest]
+      summary: Append records to a stage
+      operationId: appendIngestStageRows
+      description: >-
+        Records get the same defaults, validation, id normalization and per-system
+        boundary checks as a batch on /ingest/{entity}. Every batch of a stage must carry
+        the same columns. A stage may carry only key columns (a key sweep).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Rows staged so far
+        '400':
+          description: Invalid records, or a batch that adds columns
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Unknown or expired stage
+  /ingest/stages/{id}/finalize:
+    post:
+      tags: [Ingest]
+      summary: Apply one stage
+      operationId: finalizeIngestStage
+      description: >-
+        Applies the stage. Into an empty table - drop the non-constraint indexes, insert
+        bare, rebuild (under an exclusive lock, falling back when it cannot be had);
+        otherwise insert new rows, update only changed rows, and with deleteMissing remove
+        rows of the system and scope that are not in the stage. The body reports which path ran.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: path, inserted, updated, deleted, rows
+        '404':
+          description: Unknown or expired stage
+  /ingest/stages/finalize:
+    post:
+      tags: [Ingest]
+      summary: Apply several stages of one table together
+      operationId: finalizeIngestStages
+      description: >-
+        Finalizes a crawler run's stages together so the whole run gets one chance at the
+        empty-table path; otherwise each stage merges in its own transaction.
+      responses:
+        '200':
+          description: One result per stage, in the order given
+        '400':
+          description: Bad stageIds, or stages of different tables
+  /ingest/stages/{id}:
+    delete:
+      tags: [Ingest]
+      summary: Abandon a stage
+      operationId: abortIngestStage
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '204':
+          description: Stage dropped; nothing was written
   /ingest/refresh-views:
     post:
       tags: [Ingest]

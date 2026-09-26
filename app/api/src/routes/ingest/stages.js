@@ -3,6 +3,7 @@
 //   POST   /ingest/stages                  { entity, systemId, scope?, idGeneration?, idPrefix? } → 201 { stageId }
 //   POST   /ingest/stages/:id/rows         { records }                                           → 200 { rows }
 //   POST   /ingest/stages/:id/finalize     { deleteMissing? }                                    → 200 { path, inserted, updated, deleted, rows }
+//   POST   /ingest/stages/finalize         { stageIds, deleteMissing? }                          → 200 { results: [...] }
 //   DELETE /ingest/stages/:id                                                                    → 204
 //
 // Records go through exactly the checks a batch on /ingest/<entity> gets —
@@ -12,8 +13,10 @@
 //
 // How a crawler uses it: open one stage per (entity, system, scope) it syncs in
 // full; send the scope's rows (or only its key columns, for a key sweep) in batches
-// of any size; finalize once, with deleteMissing:true to remove what the source no
-// longer has. Nothing is written to the target table until finalize, and an
+// of any size; finalize them TOGETHER (POST /ingest/stages/finalize with every
+// stageId of the run), with deleteMissing:true to remove what the source no longer
+// has. Finalizing together is what lets a first load into an empty table take the
+// fast path for the whole run rather than for its first system only. Nothing is written to the target table until finalize, and an
 // abandoned stage changes nothing.
 
 import { Router } from 'express';
@@ -22,7 +25,7 @@ import { normalizeRecords, extendedAttributesBoundsError } from '../../ingest/no
 import { restrictedSystemIds, writableCoreColumns, systemBoundaryDenial, preservedOwnerColumns } from '../../ingest/systemBoundary.js';
 import { validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, ENTITY_SCOPE_MAP } from '../../ingest/validation.js';
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/crawlerAuth.js';
-import { openStage, getStage, appendToStage, finalizeStage, abortStage, StageError } from '../../ingest/stages.js';
+import { openStage, getStage, appendToStage, finalizeStage, finalizeStages, abortStage, StageError } from '../../ingest/stages.js';
 import { applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns } from './helpers.js';
 
 const router = Router();
@@ -99,6 +102,28 @@ router.post('/ingest/stages/:id/rows', async (req, res) => {
     return res.json(await appendToStage(stage, normalized));
   } catch (err) {
     return fail(res, err, 'append');
+  }
+});
+
+// Finalize several stages of one table together — a crawler run's systems — so the
+// run gets one chance at the empty-table path instead of only its first system.
+router.post('/ingest/stages/finalize', async (req, res) => {
+  if (!guard(req, res)) return;
+  const startTime = new Date();
+  const ids = req.body?.stageIds;
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > 1000) {
+    return res.status(400).json({ error: 'stageIds must be a non-empty array (at most 1000)' });
+  }
+  try {
+    const list = ids.map(id => getStage(String(id), ownerOf(req)));
+    const results = await finalizeStages(list, { deleteMissing: req.body?.deleteMissing === true });
+    for (const [i, st] of list.entries()) {
+      await writeSyncLog(null, `API-stage-${st.entity}-${results[i].path}`, st.tableName, startTime,
+        results[i].rows, results[i].inserted, results[i].updated, results[i].deleted, null);
+    }
+    return res.json({ results: list.map((st, i) => ({ stageId: st.id, ...results[i] })), durationMs: Date.now() - startTime.getTime() });
+  } catch (err) {
+    return fail(res, err, 'finalize');
   }
 });
 

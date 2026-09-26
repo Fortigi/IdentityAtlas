@@ -16,10 +16,9 @@ const { sqls, handlers, clientQuery } = vi.hoisted(() => {
   return { sqls, handlers, clientQuery };
 });
 
-vi.mock('../db/connection.js', () => ({
-  query: (sql, p) => clientQuery(sql, p),
-  tx: async (fn) => fn({ query: (sql, p) => clientQuery(sql, p) }),
-}));
+// The shared manual mock (src/db/__mocks__/connection.js); its tx() forwards to query.
+vi.mock('../db/connection.js');
+import { query as dbQuery } from '../db/connection.js';
 
 const cols = (...names) => names.map(name => ({ name, sqlTypeName: name.endsWith('Id') ? 'uuid' : 'text' }));
 const engine = vi.hoisted(() => ({
@@ -39,6 +38,8 @@ const open = (over = {}) => S.openStage({
 const rec = { resourceId: 'r', principalId: 'p', assignmentType: 'Direct', governed: false, systemId: 7 };
 
 beforeEach(() => {
+  dbQuery.mockReset();
+  dbQuery.mockImplementation((sql, p) => clientQuery(sql, p));
   sqls.length = 0;
   handlers.length = 0;
   S._stagesForTest().clear();
@@ -143,6 +144,58 @@ describe('finalize — the empty-table path', () => {
     expect(r.path).toBe('merge');
     expect(sqls.some(s => /SELECT NOT EXISTS/.test(s))).toBe(false);
     expect(sqls.some(s => /DROP INDEX/.test(s))).toBe(false);
+  });
+});
+
+describe('finalize — stages of one crawler run together', () => {
+  it('share ONE empty-table path: one lock, one index drop and rebuild, every stage inserted bare', async () => {
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: true }] })]);
+    handlers.push([/FROM pg_indexes/, () => ({ rows: [{ indexname: 'ix_a', indexdef: 'CREATE INDEX ix_a ON public."ResourceAssignments" USING btree ("resourceId")' }] })]);
+    handlers.push([/^\s*INSERT INTO "ResourceAssignments"/, () => ({ rowCount: 4 })]);
+    const a = open({ systemId: 7 });
+    const b = open({ systemId: 8 });
+    await S.appendToStage(a, [rec]);
+    await S.appendToStage(b, [rec]);
+    const [ra, rb] = await S.finalizeStages([a, b], { deleteMissing: true });
+    expect(ra).toMatchObject({ path: 'empty-table', inserted: 4 });
+    expect(rb).toMatchObject({ path: 'empty-table', inserted: 4 });
+    const count = (re) => sqls.filter(s => re.test(s)).length;
+    expect(count(/LOCK TABLE/)).toBe(1);
+    expect(count(/DROP INDEX "ix_a"/)).toBe(1);
+    expect(count(/CREATE INDEX ix_a/)).toBe(1);
+    expect(count(/^\s*INSERT INTO "ResourceAssignments"/)).toBe(2);
+    const lastInsert = sqls.map((s, i) => [s, i]).filter(([s]) => /^\s*INSERT INTO "ResourceAssignments"/.test(s)).at(-1)[1];
+    expect(sqls.findIndex(s => /CREATE INDEX ix_a/.test(s))).toBeGreaterThan(lastInsert);
+    // stage tables are dropped, whatever happened
+    expect(sqls).toContain(`DROP TABLE IF EXISTS "${a.stageTable}"`);
+    expect(sqls).toContain(`DROP TABLE IF EXISTS "${b.stageTable}"`);
+  });
+
+  it('refuses stages of different tables', async () => {
+    const a = open();
+    const b = open({ tableName: 'Resources', keyColumns: ['id'] });
+    await expect(S.finalizeStages([a, b])).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('a keys-only stage in the group rules out the bulk path — each stage merges', async () => {
+    const a = open();
+    await S.appendToStage(a, [rec]);
+    engine.resolveActiveColumns.mockResolvedValue(cols(...RA_KEYS));
+    const b = open();
+    await S.appendToStage(b, [{ resourceId: 'r', principalId: 'p', assignmentType: 'Direct', governed: false }]);
+    const [ra, rb] = await S.finalizeStages([a, b], { deleteMissing: true });
+    expect([ra.path, rb.path]).toEqual(['merge', 'merge']);
+    expect(sqls.some(s => /LOCK TABLE/.test(s))).toBe(false);
+  });
+
+  it('empty stages come back as empty-stage, in order, alongside loaded ones', async () => {
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: false }] })]);
+    const empty = open();
+    const loaded = open();
+    await S.appendToStage(loaded, [rec]);
+    const [re, rl] = await S.finalizeStages([empty, loaded]);
+    expect(re.path).toBe('empty-stage');
+    expect(rl.path).toBe('merge');
   });
 });
 

@@ -110,7 +110,7 @@ function sweepExpired(now) {
 // At startup no stage survives (the registry is in memory): drop their tables.
 export async function dropAbandonedStages() {
   const { rows } = await db.query(
-    `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE $1`, [`${STAGE_PREFIX}%`]);
+    `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND starts_with(tablename, $1)`, [STAGE_PREFIX]);
   for (const r of rows) await db.query(`DROP TABLE IF EXISTS "${r.tablename}"`);
   return rows.length;
 }
@@ -129,24 +129,53 @@ function runnerFor(tableName) {
   return finalizeRunners.get(tableName);
 }
 
-export async function finalizeStage(stage, { deleteMissing = false } = {}) {
-  stages.delete(stage.id);
+export async function finalizeStage(stage, options = {}) {
+  return (await finalizeStages([stage], options))[0];
+}
+
+const EMPTY_STAGE = { path: 'empty-stage', inserted: 0, updated: 0, deleted: 0, rows: 0 };
+const nonKeyColumns = (st) => st.columns.filter(c => !st.keyColumns.includes(c.name));
+
+// Finalize stages of ONE table together — the natural unit is a crawler run, which
+// syncs many systems. Together they get one chance at the empty-table path (one
+// lock, one index drop and rebuild, every stage inserted bare); a stage finalized
+// alone after the first would find the table populated. When that path does not
+// apply, each stage merges in its own transaction, so a large re-import is never
+// one giant transaction. Results come back in the order the stages were given.
+export async function finalizeStages(list, { deleteMissing = false } = {}) {
+  for (const st of list) stages.delete(st.id);
+  const tables = new Set(list.map(st => st.tableName));
   try {
-    if (!stage.columns) return { path: 'empty-stage', inserted: 0, updated: 0, deleted: 0, rows: 0 };
-    return await runnerFor(stage.tableName)(() => db.tx(client => applyStage(client, stage, deleteMissing)));
+    if (tables.size > 1) throw new StageError(400, 'Stages finalized together must target the same table');
+    const loaded = list.filter(st => st.columns);
+    if (loaded.length === 0) return list.map(() => ({ ...EMPTY_STAGE }));
+    const results = await runnerFor(loaded[0].tableName)(() => applyStages(loaded, deleteMissing));
+    return list.map(st => (st.columns ? results.get(st.id) : { ...EMPTY_STAGE }));
   } finally {
-    await db.query(`DROP TABLE IF EXISTS "${stage.stageTable}"`).catch(() => {});
+    for (const st of list) await db.query(`DROP TABLE IF EXISTS "${st.stageTable}"`).catch(() => {});
   }
 }
 
-async function applyStage(client, stage, deleteMissing) {
-  const nonKey = stage.columns.filter(c => !stage.keyColumns.includes(c.name));
+async function applyStages(loaded, deleteMissing) {
+  const results = new Map();
+  const canBulk = loaded.every(st => nonKeyColumns(st).length > 0);
+  const bulked = canBulk && await db.tx(async (client) => {
+    for (const st of loaded) await client.query(`ANALYZE "${st.stageTable}"`);
+    if (!(await lockEmptyTable(client, loaded[0].tableName))) return false;
+    await loadIntoEmptyTable(client, loaded, results);
+    return true;
+  });
+  if (bulked) return results;
+  for (const st of loaded) {
+    results.set(st.id, await db.tx(client => mergeStage(client, st, deleteMissing)));
+  }
+  return results;
+}
+
+async function mergeStage(client, stage, deleteMissing) {
+  const nonKey = nonKeyColumns(stage);
   const keysOnly = nonKey.length === 0;
   await client.query(`ANALYZE "${stage.stageTable}"`);
-  if (!keysOnly && await lockEmptyTable(client, stage.tableName)) {
-    const inserted = await loadIntoEmptyTable(client, stage);
-    return { path: 'empty-table', inserted, updated: 0, deleted: 0, rows: stage.rows };
-  }
   const inserted = keysOnly ? 0 : await insertNew(client, stage);
   const updated = keysOnly ? 0 : await updateChanged(client, stage, nonKey);
   const deleted = deleteMissing ? await deleteMissingRows(client, stage) : 0;
@@ -185,18 +214,21 @@ function withSystem(stage, cols, selectCols) {
   return { cols: `${cols}, "systemId"`, selectCols: `${selectCols}, ${Number(stage.systemId)}` };
 }
 
-async function loadIntoEmptyTable(client, stage) {
+async function loadIntoEmptyTable(client, loaded, results) {
+  const tableName = loaded[0].tableName;
   const { rows: idx } = await client.query(
     `SELECT i.indexname, i.indexdef FROM pg_indexes i
       WHERE i.schemaname = 'public' AND i.tablename = $1
-        AND NOT EXISTS (SELECT 1 FROM pg_constraint c WHERE c.conname = i.indexname)`, [stage.tableName]);
+        AND NOT EXISTS (SELECT 1 FROM pg_constraint c WHERE c.conname = i.indexname)`, [tableName]);
   for (const { indexname } of idx) await client.query(`DROP INDEX "${indexname}"`);
-  const d = distinctStageSql(stage);
-  const { cols, selectCols } = withSystem(stage, d.cols, d.cols);
-  const res = await client.query(
-    `INSERT INTO "${stage.tableName}" (${cols}) SELECT ${selectCols} FROM (${d.sql}) s`);
+  for (const stage of loaded) {
+    const d = distinctStageSql(stage);
+    const { cols, selectCols } = withSystem(stage, d.cols, d.cols);
+    const res = await client.query(
+      `INSERT INTO "${tableName}" (${cols}) SELECT ${selectCols} FROM (${d.sql}) s`);
+    results.set(stage.id, { path: 'empty-table', inserted: res.rowCount || 0, updated: 0, deleted: 0, rows: stage.rows });
+  }
   for (const { indexdef } of idx) await client.query(indexdef);
-  return res.rowCount || 0;
 }
 
 function keyMatch(stage, t = 't', s = 's') {
