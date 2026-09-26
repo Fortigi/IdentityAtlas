@@ -197,6 +197,58 @@ sequenceDiagram
     A-->>C: { syncId: "abc-123", inserted: 142, updated: 38, deleted: 7 }
 ```
 
+A session holds one connection and one transaction for its whole life (at most 30
+minutes), so it does not stretch to tens of millions of rows. Those scopes are sent
+as independent `delta` batches followed by `POST /ingest/reconcile`, which removes
+rows not touched since the run began — or, for a full re-read, as a staged load.
+
+### Staged full load
+
+For a scope whose complete row set is sent every run — tens of millions of
+assignments, typically — the stage endpoints apply that set in one step instead of
+batch by batch:
+
+| Call | Does |
+|---|---|
+| `POST /ingest/stages` `{ entity, systemId, scope?, idGeneration?, idPrefix? }` | opens a stage → `{ stageId }` |
+| `POST /ingest/stages/{id}/rows` `{ records }` | appends a batch; records get the same defaults, validation, id normalization and per-system boundary as `/ingest/{entity}` |
+| `POST /ingest/stages/finalize` `{ stageIds, deleteMissing? }` | applies a run's stages together |
+| `POST /ingest/stages/{id}/finalize` `{ deleteMissing? }` | applies one stage |
+| `DELETE /ingest/stages/{id}` | abandons a stage — nothing was written |
+
+Entities: `resource-assignments`, `principals`, `resources`,
+`resource-relationships`. Nothing reaches the target table before finalize, which
+takes one of two paths and reports it (`path` in the result, and the sync log):
+
+- **`empty-table`** — the target table holds no rows at all (a first load on a new
+  installation). Its non-constraint indexes are dropped, every stage is inserted
+  bare, and the indexes are rebuilt once. Emptiness is checked under an exclusive
+  lock taken in the same transaction; if the lock is not granted within 5 s, or the
+  table is not empty, finalize merges instead.
+- **`merge`** — each stage, in its own transaction: insert keys the table lacks,
+  update only rows whose values changed, and with `deleteMissing: true` remove the
+  system+scope's rows that are not in the stage (tombstoned on soft-delete tables).
+  A tombstoned row that is back is revived.
+
+A stage may carry only its key columns — a key sweep: finalize then only removes
+what is missing.
+
+**Staged load or timestamp reconcile?** It is a size trade-off, not a verdict on
+either. The timestamp reconcile needs every row the source still has to be touched
+(its `updatedAt` rewritten) so the untouched ones can be found — cheap for a small
+scope, and it needs no stage. At tens of millions of rows the touch is the cost:
+`updatedAt` is indexed, so every touch rewrites the row and all of its index entries.
+Measured on 4.1M unchanged assignments: 349 s with batches and reconcile, 99 s staged,
+with nothing written ([Scale Rehearsal](scale-rehearsal.md)).
+
+**How a crawler uses it:** open one stage per (entity, system, scope) it reads in
+full; stream the rows in batches of any size; finalize all of the run's stages in one
+`POST /ingest/stages/finalize`, with `deleteMissing: true`. Finalizing together is
+what lets a first load take the `empty-table` path for the whole run rather than
+for its first system only. Stages live in memory: an API restart abandons them (their
+tables are dropped at startup) and the crawler starts the run over. A stage expires
+six hours after it was opened.
+
 ---
 
 ## Crawler Authentication
