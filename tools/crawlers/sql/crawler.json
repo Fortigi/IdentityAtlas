@@ -107,7 +107,9 @@
                 "identity-members",
                 "resources",
                 "assignments",
-                "relationships"
+                "relationships",
+                "contexts",
+                "context-members"
               ],
               "description": "Which Identity Atlas object type the rows become."
             },
@@ -165,6 +167,31 @@
               "additionalProperties": {
                 "type": "string"
               }
+            },
+            "contextType": {
+              "type": "string",
+              "maxLength": 50,
+              "description": "contexts: the contextType every row gets (e.g. Application). Required on a contexts query."
+            },
+            "targetType": {
+              "enum": [
+                "Resource",
+                "Identity",
+                "Principal",
+                "System"
+              ],
+              "default": "Resource",
+              "description": "contexts: what the contexts group."
+            },
+            "memberType": {
+              "enum": [
+                "Resource",
+                "Identity",
+                "Principal",
+                "System"
+              ],
+              "default": "Resource",
+              "description": "context-members: what the members are."
             }
           }
         }

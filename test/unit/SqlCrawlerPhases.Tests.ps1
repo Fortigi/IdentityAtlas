@@ -26,6 +26,7 @@ BeforeAll {
     . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Get-CrawlerSystemName.ps1')
     . (Join-Path $sqlDir 'SqlCrawler.Functions.ps1')
     . (Join-Path $sqlDir 'SqlCrawler.Transform.ps1')
+    . (Join-Path $sqlDir 'SqlCrawler.Contexts.ps1')
     . (Join-Path $sqlDir 'SqlCrawler.Phases.ps1')
 
     function Reset-SqlTestState {

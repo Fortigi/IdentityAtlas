@@ -1,0 +1,3 @@
+- The SQL connector can now load a catalogue of groupings as Contexts, for example IdentityIQ logical applications kept in XML, and place each entitlement in its application. Names are matched ignoring case and surrounding spaces, and the job log reports every spelling it had to match that way and every application name the catalogue does not have, instead of silently folding or dropping them
+- The SailPoint IdentityIQ preset now loads each identity as a principal and splits entitlement grants into direct ones and ones that came from a role (shown as Indirect)
+- Added a second IdentityIQ preset that also reads typical identity extension columns (organisation levels, company, cost centre, employee status) and the logical-application catalogue

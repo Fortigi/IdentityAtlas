@@ -29,6 +29,8 @@ turns into:
 | `resources` | One **Resource**; `resourceType` comes from the statement (e.g. `Entitlement`, `BusinessRole`); `governanceResource` is set when it is `BusinessRole` |
 | `assignments` | One **ResourceAssignment**; `assignmentType`, `governed` and `resourceType` come from the statement |
 | `relationships` | One **ResourceRelationship** (parent → child); `relationshipType` comes from the statement |
+| `contexts` | One **Context** (a grouping such as a logical application); `contextType` and `targetType` come from the statement. See [Contexts from a catalogue](#contexts-from-a-catalogue) |
+| `context-members` | One **ContextMember**, placing a resource (or identity, principal, system) in a context named by id or by name |
 
 Ids are the source's own keys. Every record carries them as `externalId`, and the Identity
 Atlas primary key is derived from them deterministically inside a namespace private to this
@@ -51,6 +53,8 @@ the rest of the columns come along for free.
 | `resources` | `id`, `displayName` (falls back to `name`) | `description`, `enabled` |
 | `assignments` | `resourceId`, `principalId` (alias `identityId`, because an `identities` row's account shares its id) | — |
 | `relationships` | `parentId`, `childId` | — |
+| `contexts` | `displayName` (falls back to `name`) | `id` (a stable key; without it the normalised name is the key), `description`, `ownerUserId` |
+| `context-members` | `memberId`, and `contextId` or `contextName` | — |
 
 How columns are matched and converted:
 
@@ -70,6 +74,34 @@ A row that is missing a required column is skipped and counted; the job log tell
 many rows a statement dropped and why (see [Troubleshooting](#troubleshooting)). If *every*
 row of a statement is skipped, the log warns and names the required columns for that
 statement's target.
+
+### Contexts from a catalogue
+
+A source often keeps groupings in a catalogue of its own. IdentityIQ deployments, for
+example, keep "logical applications" in an XML record and name each entitlement's
+application inside the entitlement's own XML. The `contexts` and `context-members` targets
+load such a catalogue as Contexts and place each member in its context.
+
+- **At most one enabled statement of each.** Contexts and their memberships have no system
+  column, so each is sent as one full sync; a second statement would remove the first
+  one's rows. A `context-members` statement needs a `contexts` statement to resolve
+  against.
+- **The key.** A context's key is its `id` column when the statement returns one (prefer
+  a configuration-management reference: it survives a rename), otherwise its name,
+  trimmed and case-folded. The display name is always the catalogue's own spelling.
+- **Matching members by name** ignores case and surrounding spaces, and is done by the
+  crawler, not in SQL. A case-insensitive SQL Server collation calls "Finance" and
+  "finance " equal while PostgreSQL calls them different, and the two would disagree.
+- **Nothing is folded silently.** The job log reports how many source spellings differ
+  from the catalogue's own and were matched anyway (with examples), how many memberships
+  name a context the catalogue does not have (with the most frequent names), any name two
+  catalogue entries share, and any repeated key. A member whose context is unknown keeps
+  its resource and loses only the membership: the crawler never creates a context the
+  catalogue lacks.
+
+The **SailPoint IdentityIQ with organisation extensions** preset shows the pattern end to
+end, including the `CROSS APPLY … nodes()` that turns one catalogue record into one row
+per application.
 
 ### Using a query you already have
 
@@ -257,7 +289,7 @@ file has the shape shown under [Configuration](#configuration); on the command l
 | Field | Required | Default | Description |
 |---|---|---|---|
 | `name` | Yes | — | Label shown in the job log |
-| `target` | Yes | — | Which Identity Atlas object type the rows become: `identities`, `principals`, `identity-members`, `resources`, `assignments` or `relationships` |
+| `target` | Yes | — | Which Identity Atlas object type the rows become: `identities`, `principals`, `identity-members`, `resources`, `assignments`, `relationships`, `contexts` or `context-members` |
 | `sql` | Yes | — | A `SELECT` statement. Reference `@Offset` and `@PageSize` to have the crawler page through it |
 | `columnMap` | No | — | Object of `{ "<source column>": "<contract column>" }` mapping the names this statement's `SELECT` actually returns onto the contract names, so an existing query can run unedited — see [Using a query you already have](#using-a-query-you-already-have) |
 | `enabled` | No | `true` | Set to `false` to keep a slot in the config without running it |
@@ -265,6 +297,9 @@ file has the shape shown under [Configuration](#configuration); on the command l
 | `assignmentType` | `assignments` | `Direct` | How the principal holds the resource: `Direct`, `Indirect` or `Eligible` |
 | `governed` | `assignments` | `false` | The assignment is governed (a business-role membership rather than a raw entitlement) |
 | `relationshipType` | `relationships` | `Contains` | Parent → child link type: `Contains` or `GrantsAccessTo` |
+| `contextType` | `contexts` | — | The `contextType` every context gets, e.g. `LogicalApplication`. Required on a `contexts` statement |
+| `targetType` | `contexts` | `Resource` | What the contexts group: `Resource`, `Identity`, `Principal` or `System` |
+| `memberType` | `context-members` | the `targetType` | What the members are, same values |
 | `principalType` | `identities`, `principals` | `User` | Default `principalType` when the row has no `principalType` column. One of `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox` |
 
 #### Why the type fields are per statement, not per row
