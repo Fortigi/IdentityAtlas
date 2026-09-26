@@ -360,6 +360,7 @@ paths:
       tags: [Ingest]
       summary: Abandon a stage
       operationId: abortIngestStage
+      description: Drops the stage and its rows. Nothing was written to the target table.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:

@@ -1,7 +1,8 @@
-// Contract test — the staged full load's merge path against real PG16
-// (ingest/stages.js). The shared contract DB always holds other tests' rows, so
-// the empty-table path is not reachable here; its decisions are pinned in
-// src/ingest/stages.test.js and its effect was measured on the scale rig.
+// Contract test — the staged full load against real PG16 (ingest/stages.js).
+// The merge tests keep one sentinel row in a third system, so the table is never
+// empty and they always take the merge path. The empty-table path is exercised
+// once, and only when the table really is empty — the shared contract DB may hold
+// other files' rows, and this file must not delete them.
 //
 // The contract:
 //   - new keys are inserted, with the stage's system stamped;
@@ -23,6 +24,7 @@ const { openStage, appendToStage, finalizeStage } = await import('../src/ingest/
 let pool;
 let sysA;
 let sysB;
+let sysSentinel;
 const KEYS = ['resourceId', 'principalId', 'assignmentType', 'governed'];
 const FILTER = '"principalId" IS NOT NULL';
 const R = (n) => `57a90000-0000-0000-0000-0000000000${String(n).padStart(2, '0')}`;
@@ -45,6 +47,7 @@ beforeAll(async () => {
   pool = new pg.Pool({ connectionString: process.env.CONTRACT_DB_URL });
   sysA = (await pool.query(`INSERT INTO "Systems" ("systemType","displayName") VALUES ('test','contract-stage-A') RETURNING id`)).rows[0].id;
   sysB = (await pool.query(`INSERT INTO "Systems" ("systemType","displayName") VALUES ('test','contract-stage-B') RETURNING id`)).rows[0].id;
+  sysSentinel = (await pool.query(`INSERT INTO "Systems" ("systemType","displayName") VALUES ('test','contract-stage-sentinel') RETURNING id`)).rows[0].id;
   for (const sid of [sysA, sysB]) {
     for (let n = 1; n <= 4; n++) {
       await pool.query(`INSERT INTO "Resources" (id, "systemId", "displayName", "resourceType") VALUES ($1, $2, $3, 'Group')
@@ -53,14 +56,20 @@ beforeAll(async () => {
   }
 });
 
+const sentinel = () => pool.query(
+  `INSERT INTO "ResourceAssignments" ("resourceId","principalId","assignmentType","governed","systemId")
+   VALUES ($1, $2, 'Direct', false, $3) ON CONFLICT DO NOTHING`, [R(99), P(99), sysSentinel]);
+
 beforeEach(async () => {
-  await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = ANY($1::int[])`, [[sysA, sysB]]);
+  await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = ANY($1::int[])`, [[sysA, sysB, sysSentinel]]);
+  await sentinel();
 });
 
 afterAll(async () => {
-  await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = ANY($1::int[])`, [[sysA, sysB]]);
-  await pool.query(`DELETE FROM "Resources" WHERE "systemId" = ANY($1::int[])`, [[sysA, sysB]]);
-  await pool.query(`DELETE FROM "Systems" WHERE id = ANY($1::int[])`, [[sysA, sysB]]);
+  const all = [sysA, sysB, sysSentinel];
+  await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = ANY($1::int[])`, [all]);
+  await pool.query(`DELETE FROM "Resources" WHERE "systemId" = ANY($1::int[])`, [all]);
+  await pool.query(`DELETE FROM "Systems" WHERE id = ANY($1::int[])`, [all]);
   await pool?.end();
 });
 
@@ -112,6 +121,23 @@ describe('staged load — merge path', () => {
     expect(r).toMatchObject({ inserted: 0, updated: 0, deleted: 1 });
     const a = await live(sysA);
     expect(a.find(x => x.resourceId === R(1))).toMatchObject({ resourceType: 'Group', deletedAt: null });
+  });
+
+  it('into a truly empty table: bulk path, indexes rebuilt intact (only when nothing else is in the table)', async () => {
+    await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [sysSentinel]);
+    const others = Number((await pool.query('SELECT count(*) FROM "ResourceAssignments"')).rows[0].count);
+    if (others > 0) return;   // another file's rows are present; the merge tests above still ran
+    const indexesBefore = (await pool.query(
+      `SELECT indexname FROM pg_indexes WHERE tablename = 'ResourceAssignments' ORDER BY 1`)).rows.map(r => r.indexname);
+    const r = await stageLoad(sysA, [row(1, 1), row(2, 1)]);
+    expect(r).toMatchObject({ path: 'empty-table', inserted: 2 });
+    const indexesAfter = (await pool.query(
+      `SELECT indexname FROM pg_indexes WHERE tablename = 'ResourceAssignments' ORDER BY 1`)).rows.map(r => r.indexname);
+    expect(indexesAfter).toEqual(indexesBefore);
+    // the rebuilt unique index still refuses a duplicate
+    await expect(pool.query(
+      `INSERT INTO "ResourceAssignments" ("resourceId","principalId","assignmentType","governed","systemId") VALUES ($1,$2,'Direct',false,$3)`,
+      [R(1), P(1), sysA])).rejects.toThrow(/uq_RA_principal/);
   });
 
   it('revives a tombstoned row that is back in the source', async () => {
