@@ -1,0 +1,1 @@
+- Fixed opening a very large permissions matrix taking the whole server down: a matrix with more than 400,000 assignments is now refused straight away with the "too many to load" message, instead of being loaded into memory first and crashing the API for every user.
