@@ -17,10 +17,12 @@
 import { Router } from 'express';
 import handlersRouter from './ingest/handlers.js';
 import matrixViewsRouter from './ingest/matrixViews.js';
+import stagesRouter from './ingest/stages.js';
 
 const router = Router();
 router.use(handlersRouter);
 router.use(matrixViewsRouter);
+router.use(stagesRouter);
 
 export {
   applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
