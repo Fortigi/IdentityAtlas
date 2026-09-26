@@ -27,6 +27,10 @@ import {
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 
+function sanitizeForLog(value) {
+  return String(value ?? '').replace(/[\r\n]/g, '');
+}
+
 // Checks on the normalized batch before anything is written: the extendedAttributes
 // bounds (every caller, L-16) and, for a key restricted to specific systems, the
 // per-system boundary (H-04). Returns { status, error } or null.
@@ -36,7 +40,9 @@ async function batchBoundaryError(req, body, allowed, ctx) {
   if (!allowed) return null;
   const denial = await systemBoundaryDenial({ ...ctx, records: ctx.normalized, syncMode: body.syncMode, allowed });
   if (!denial) return null;
-  console.warn(`Ingest denied for crawler ${req.crawler?.id}: ${denial}`);
+  const crawlerId = sanitizeForLog(req.crawler?.id);
+  const denialSafe = sanitizeForLog(denial);
+  console.warn(`Ingest denied for crawler ${crawlerId}: ${denialSafe}`);
   return { status: 403, error: denial };
 }
 
