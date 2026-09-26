@@ -21,8 +21,11 @@
      STOCK      standard IdentityIQ column, type from the product DDL
      EXTENSION  deployment-specific column; type is a placeholder (nvarchar(450))
                 until the real type is known
-   Indexes marked PROVISIONAL mirror the product's usual ones and are to be
-   replaced by the real index list.
+   Tables are created as HEAPS, with no keys or indexes: 02-keys.sql adds those
+   after the bulk load. IdentityIQ's ids are effectively random, so loading 40M
+   rows into a clustered key on id costs a page split per insert; building the
+   keys once afterwards is how anyone would load this volume. For an empty
+   database, run 01 then 02 back to back.
 ============================================================================= */
 SET NOCOUNT ON;
 
@@ -45,14 +48,14 @@ DROP TABLE IF EXISTS spt_database_version;
 GO
 
 CREATE TABLE spt_database_version (
-    name            nvarchar(255) NOT NULL PRIMARY KEY,
+    name            nvarchar(255) NOT NULL,
     system_version  nvarchar(128) NULL,
     schema_version  nvarchar(128) NULL
 );
 
 /* ---- spt_application: technical applications (connectors) -------------- */
 CREATE TABLE spt_application (
-    id              varchar(32)   NOT NULL PRIMARY KEY,      -- STOCK
+    id              varchar(32)   NOT NULL,      -- STOCK
     created         numeric(19,0) NULL,
     modified        numeric(19,0) NULL,
     owner           varchar(32)   NULL,
@@ -60,13 +63,12 @@ CREATE TABLE spt_application (
     type            nvarchar(255) NULL,
     connector       nvarchar(255) NULL,
     authoritative   tinyint       NULL,
-    attributes      nvarchar(max) NULL,
-    CONSTRAINT uq_spt_application_name UNIQUE (name)
+    attributes      nvarchar(max) NULL
 );
 
 /* ---- spt_identity: the person AND the account --------------------------- */
 CREATE TABLE spt_identity (
-    id                  varchar(32)    NOT NULL PRIMARY KEY, -- STOCK
+    id                  varchar(32)    NOT NULL, -- STOCK
     created             numeric(19,0)  NULL,
     modified            numeric(19,0)  NULL,
     owner               varchar(32)    NULL,
@@ -102,13 +104,12 @@ CREATE TABLE spt_identity (
     subdivcode          nvarchar(450)  NULL,
     subdivtext          nvarchar(450)  NULL,
     hiredate            nvarchar(450)  NULL,
-    termination_date    nvarchar(450)  NULL,
-    CONSTRAINT uq_spt_identity_name UNIQUE (name)
+    termination_date    nvarchar(450)  NULL
 );
 
 /* ---- spt_managed_attribute: entitlements (and other managed objects) ---- */
 CREATE TABLE spt_managed_attribute (
-    id                  varchar(32)    NOT NULL PRIMARY KEY, -- STOCK
+    id                  varchar(32)    NOT NULL, -- STOCK
     created             numeric(19,0)  NULL,
     modified            numeric(19,0)  NULL,
     owner               varchar(32)    NULL,
@@ -131,13 +132,12 @@ CREATE TABLE spt_managed_attribute (
     trainingcheck       nvarchar(450)  NULL,
     ncdetection         nvarchar(450)  NULL,
     usexportcontrol     nvarchar(450)  NULL,
-    iiq_elevated_access nvarchar(450)  NULL,
-    CONSTRAINT uq_spt_managed_attr_hash UNIQUE (hash)
+    iiq_elevated_access nvarchar(450)  NULL
 );
 
 /* ---- spt_identity_entitlement: who holds what (the 40M-row table) ------- */
 CREATE TABLE spt_identity_entitlement (
-    id                  varchar(32)    NOT NULL PRIMARY KEY, -- STOCK
+    id                  varchar(32)    NOT NULL, -- STOCK
     created             numeric(19,0)  NULL,
     modified            numeric(19,0)  NULL,
     owner               varchar(32)    NULL,
@@ -164,7 +164,7 @@ CREATE TABLE spt_identity_entitlement (
 
 /* ---- spt_bundle: roles -------------------------------------------------- */
 CREATE TABLE spt_bundle (
-    id                  varchar(32)    NOT NULL PRIMARY KEY, -- STOCK
+    id                  varchar(32)    NOT NULL, -- STOCK
     created             numeric(19,0)  NULL,
     modified            numeric(19,0)  NULL,
     owner               varchar(32)    NULL,
@@ -173,16 +173,14 @@ CREATE TABLE spt_bundle (
     displayable_name    nvarchar(128)  NULL,
     type                nvarchar(128)  NULL,                 -- 'business', 'it', …
     disabled            tinyint        NULL,
-    attributes          nvarchar(max)  NULL,
-    CONSTRAINT uq_spt_bundle_name UNIQUE (name)
+    attributes          nvarchar(max)  NULL
 );
 
 /* ---- spt_identity_assigned_roles: role assignments ---------------------- */
 CREATE TABLE spt_identity_assigned_roles (
     identity_id         varchar(32)    NOT NULL,             -- STOCK
     bundle              varchar(32)    NOT NULL,
-    idx                 int            NOT NULL,
-    CONSTRAINT pk_spt_identity_assigned_roles PRIMARY KEY (identity_id, idx)
+    idx                 int            NOT NULL
 );
 
 /* ---- spt_bundle_profile_relation: role → entitlement index -------------- */
@@ -190,7 +188,7 @@ CREATE TABLE spt_identity_assigned_roles (
 -- display_value: application_id is what makes an id-based join to
 -- spt_managed_attribute possible, and is to be confirmed.
 CREATE TABLE spt_bundle_profile_relation (
-    id                  varchar(32)    NOT NULL PRIMARY KEY,
+    id                  varchar(32)    NOT NULL,
     created             numeric(19,0)  NULL,
     modified            numeric(19,0)  NULL,
     bundle_id           varchar(32)    NOT NULL,
@@ -208,7 +206,7 @@ CREATE TABLE spt_bundle_profile_relation (
 -- One record holds the logical-application catalogue as an XML map keyed by
 -- application name. Its name is a generator parameter.
 CREATE TABLE spt_custom (
-    id                  varchar(32)    NOT NULL PRIMARY KEY, -- STOCK
+    id                  varchar(32)    NOT NULL, -- STOCK
     created             numeric(19,0)  NULL,
     modified            numeric(19,0)  NULL,
     owner               varchar(32)    NULL,
