@@ -1,0 +1,2 @@
+- Added an IdentityIQ-shaped SQL Server test fixture (a container definition and a re-runnable schema script) so the SQL connector can be developed and verified without access to a production IdentityIQ database
+- Added a seeded generator that fills the fixture with synthetic data at up to full scale (180,000 identities, 800,000 entitlements, 40 million grants), producing the same dataset as the CSV scale fixture so loads through either connector can be compared, plus a load script that fails when any table's row count differs from what was generated
