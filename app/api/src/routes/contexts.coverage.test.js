@@ -205,6 +205,35 @@ describe('GET /contexts/:id/members', () => {
     const res = await request(app).get(`/api/contexts/${ID}/members`);
     expect(res.status).toBe(500);
   });
+
+  // uuid = uuid, so the ContextMembers / entity indexes stay usable. A text cast
+  // on both sides forced a nested loop over every entity × every member.
+  it.each([
+    ['Resource', 'Resources'],
+    ['Principal', 'Principals'],
+    ['Identity', 'Identities'],
+  ])('joins %s members on the typed id in both the page and the count query', async (targetType, table) => {
+    queryOne.mockResolvedValueOnce({ targetType });
+    query.mockResolvedValueOnce({ rows: [] });
+    queryOne.mockResolvedValueOnce({ total: 0 });
+    const res = await request(app).get(`/api/contexts/${ID}/members?limit=50&offset=50000`);
+    expect(res.status).toBe(200);
+    const dataSql = query.mock.calls[0][0];
+    const countSql = queryOne.mock.calls[1][0];
+    for (const sql of [dataSql, countSql]) {
+      expect(sql).toContain(`JOIN "${table}" m ON m.id = cm."memberId"`);
+      expect(sql).not.toMatch(/::text/);
+    }
+    expect(dataSql).toContain('LIMIT 50 OFFSET 50000');
+  });
+
+  it('keeps the text comparison for System members (integer ids)', async () => {
+    queryOne.mockResolvedValueOnce({ targetType: 'System' });
+    query.mockResolvedValueOnce({ rows: [] });
+    queryOne.mockResolvedValueOnce({ total: 0 });
+    await request(app).get(`/api/contexts/${ID}/members`);
+    expect(query.mock.calls[0][0]).toContain('JOIN "Systems" m ON m.id::text = cm."memberId"::text');
+  });
 });
 
 // ─── POST /contexts (create — happy path beyond contexts.test.js) ────
