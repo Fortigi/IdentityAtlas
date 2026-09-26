@@ -2278,6 +2278,56 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="CSV Format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#quoting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quoting
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#large-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Large files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Systems
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#extra-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extra columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -5170,6 +5220,56 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="CSV Format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#quoting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quoting
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#large-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Large files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Systems
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#extra-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extra columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -5336,7 +5436,7 @@
 </table>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p>Columns not explicitly mapped are automatically collected into the <code>extendedAttributes</code> JSON column. You do not need to pre-process or strip your exports — just pass the file as-is.</p>
+<p>Columns outside the schema are kept in the entity's <code>extendedAttributes</code> for every file except <code>Assignments.csv</code>, <code>IdentityMembers.csv</code> and <code>ContextMembers.csv</code> — see <a href="#extra-columns">Extra columns</a>. You do not need to strip your exports first.</p>
 </div>
 <hr />
 <h2 id="csv-schema">CSV Schema<a class="headerlink" href="#csv-schema" title="Permanent link">&para;</a></h2>
@@ -5353,37 +5453,42 @@
 </thead>
 <tbody>
 <tr>
-<td><code>systems.csv</code></td>
+<td><code>Systems.csv</code></td>
 <td>Systems</td>
 <td>Systems</td>
 </tr>
 <tr>
-<td><code>principals.csv</code></td>
+<td><code>Users.csv</code></td>
 <td>User/service accounts</td>
 <td>Principals</td>
 </tr>
 <tr>
-<td><code>resources.csv</code></td>
-<td>Roles, groups, permissions</td>
+<td><code>Resources.csv</code></td>
+<td>Roles, groups, permissions — and business roles (<code>ResourceType=BusinessRole</code>)</td>
 <td>Resources</td>
 </tr>
 <tr>
-<td><code>assignments.csv</code></td>
+<td><code>Assignments.csv</code></td>
 <td>Who has access to what</td>
 <td>ResourceAssignments</td>
 </tr>
 <tr>
-<td><code>business-roles.csv</code></td>
-<td>Business roles</td>
-<td>Resources (<code>resourceType='BusinessRole'</code>)</td>
+<td><code>ResourceRelationships.csv</code></td>
+<td>Resource nesting</td>
+<td>ResourceRelationships</td>
 </tr>
 <tr>
-<td><code>identities.csv</code></td>
-<td>Real persons</td>
+<td><code>Contexts.csv</code> / <code>ContextMembers.csv</code></td>
+<td>Org units, logical applications, other groupings</td>
+<td>Contexts + ContextMembers</td>
+</tr>
+<tr>
+<td><code>Identities.csv</code> / <code>IdentityMembers.csv</code></td>
+<td>Real persons and their accounts</td>
 <td>Identities + IdentityMembers</td>
 </tr>
 <tr>
-<td><code>certifications.csv</code></td>
+<td><code>Certifications.csv</code></td>
 <td>Review decisions</td>
 <td>CertificationDecisions</td>
 </tr>
@@ -5417,7 +5522,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Principals:</strong></p>
+<p><strong>Users (principals):</strong></p>
 <table>
 <thead>
 <tr>
@@ -5502,14 +5607,14 @@
 <td>Matches resource ExternalId</td>
 </tr>
 <tr>
-<td><code>PrincipalExternalId</code></td>
+<td><code>UserExternalId</code></td>
 <td>Yes</td>
-<td>Matches principal ExternalId</td>
+<td>Matches the user's ExternalId</td>
 </tr>
 <tr>
 <td><code>AssignmentType</code></td>
 <td>No</td>
-<td><code>Direct</code>, <code>Governed</code>, <code>Eligible</code>, etc. Defaults to <code>Direct</code></td>
+<td><code>Direct</code> (default), <code>Indirect</code> or <code>Eligible</code> — the only values ingest accepts</td>
 </tr>
 </tbody>
 </table>
@@ -5579,19 +5684,33 @@
 </table>
 <hr />
 <h2 id="csv-format">CSV Format<a class="headerlink" href="#csv-format" title="Permanent link">&para;</a></h2>
-<p>All CSV files use <strong>semicolon delimiters</strong> by default (configurable via <code>-Delimiter</code>) and expect ISO 8601 format for all date/time values.</p>
+<p>All CSV files use <strong>semicolon delimiters</strong> by default (configurable via <code>-Delimiter</code>: <code>;</code>, <code>,</code>, tab or <code>|</code>) and expect ISO 8601 format for all date/time values.</p>
+<h3 id="quoting">Quoting<a class="headerlink" href="#quoting" title="Permanent link">&para;</a></h3>
+<p>Every file is parsed as standard CSV (RFC 4180), so a comma-delimited export whose values are LDAP distinguished names loads correctly as long as those values are quoted:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>ResourceExternalId,UserExternalId
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>"CN=Finance,OU=Groups,DC=corp,DC=com",u1001
+</code></pre></div>
+<p>A quoted value may contain the delimiter, a doubled quote (<code>""</code> for <code>"</code>) or a line break. A row the parser cannot resolve — a quote that is never closed, or text after a closing quote — <strong>fails the import</strong> with the file name and line number rather than loading misaligned columns. A failed run never removes existing data.</p>
+<h3 id="large-files">Large files<a class="headerlink" href="#large-files" title="Permanent link">&para;</a></h3>
+<p><code>Assignments.csv</code> and <code>Resources.csv</code> are read and sent in batches, so memory use stays flat whatever their size — tens of millions of assignment rows are fine. The upload limit per file is set by the server (<code>UPLOAD_MAX_FILE_BYTES</code>, default 8 GiB) and shown in the wizard. A file can also be copied straight into the crawler's folder on the server; the wizard shows that folder when you edit the crawler, and a copied file is read exactly like an uploaded one.</p>
+<h3 id="systems">Systems<a class="headerlink" href="#systems" title="Permanent link">&para;</a></h3>
+<p>A row's <code>SystemName</code> must match a system declared in <code>Systems.csv</code> (or the crawler's own system name). A row that names an undeclared system is still loaded, into the crawler's own system — and the job log warns with the number of such rows and the names that were not found. A blank <code>SystemName</code> is the normal single-system case and is not reported.</p>
+<p>In <code>ContextMembers.csv</code> the <code>SystemName</code> column is ignored: a membership belongs to its context's system.</p>
+<h3 id="extra-columns">Extra columns<a class="headerlink" href="#extra-columns" title="Permanent link">&para;</a></h3>
+<p>A column outside a file's schema is stored in the entity's <code>extendedAttributes</code>, and shown on its detail page, for <code>Systems</code>, <code>Contexts</code>, <code>Resources</code>, <code>ResourceRelationships</code>, <code>Users</code>, <code>Identities</code> and <code>Certifications</code>. Blank values are not stored.</p>
+<p>Extra columns in <code>Assignments.csv</code> are <strong>not</strong> kept: at tens of millions of rows an attribute per assignment costs more than it is worth. <code>IdentityMembers.csv</code> and <code>ContextMembers.csv</code> have no attribute storage. The job log names any column it ignores.</p>
 <hr />
 <h2 id="source-specific-transforms">Source-Specific Transforms<a class="headerlink" href="#source-specific-transforms" title="Permanent link">&para;</a></h2>
 <p>For IGA platforms like Omada or SailPoint, you first transform their native export format into the Identity Atlas canonical schema, then run the CSV crawler. Example transform scripts are in <code>tools/csv-templates/transforms/</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c"># Step 1: Transform Omada export to Identity Atlas format</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">csv-templates</span><span class="p">\</span><span class="n">transforms</span><span class="p">\</span><span class="n">omada-to-identityatlas</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-InputFolder</span> <span class="s2">".\OmadaExport"</span> <span class="n">-OutputFolder</span> <span class="s2">".\TransformedData"</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c"># Step 2: Import transformed data</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">crawlers</span><span class="p">\</span><span class="n">csv</span><span class="p">\</span><span class="nb">Start-CSVCrawler</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-ApiBaseUrl</span> <span class="s2">"http://localhost:3001/api"</span> <span class="n">-ApiKey</span> <span class="s2">"fgc_abc..."</span> <span class="n">-CsvFolder</span> <span class="s2">".\TransformedData"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c"># Step 1: Transform Omada export to Identity Atlas format</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">csv-templates</span><span class="p">\</span><span class="n">transforms</span><span class="p">\</span><span class="n">omada-to-identityatlas</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-InputFolder</span> <span class="s2">".\OmadaExport"</span> <span class="n">-OutputFolder</span> <span class="s2">".\TransformedData"</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c"># Step 2: Import transformed data</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">crawlers</span><span class="p">\</span><span class="n">csv</span><span class="p">\</span><span class="nb">Start-CSVCrawler</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-ApiBaseUrl</span> <span class="s2">"http://localhost:3001/api"</span> <span class="n">-ApiKey</span> <span class="s2">"fgc_abc..."</span> <span class="n">-CsvFolder</span> <span class="s2">".\TransformedData"</span>
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p>Include any additional columns your source system provides. They will be collected into the <code>extendedAttributes</code> JSON column automatically, preserving all context without requiring schema changes.</p>
+<p>Include any additional columns your source system provides. For every file except <code>Assignments.csv</code>, <code>IdentityMembers.csv</code> and <code>ContextMembers.csv</code> they are kept in <code>extendedAttributes</code> without schema changes — see <a href="#extra-columns">Extra columns</a>.</p>
 </div>
 
 

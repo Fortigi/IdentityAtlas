@@ -5668,7 +5668,7 @@
 <td><code>AssignmentType</code></td>
 <td>string</td>
 <td>no</td>
-<td><code>Direct</code> (default), <code>Governed</code>, <code>Eligible</code>, <code>Owner</code>. Assignments to <code>BusinessRole</code> resources are automatically treated as <code>Governed</code> if this column is omitted or set to <code>Direct</code></td>
+<td><code>Direct</code> (default), <code>Indirect</code> or <code>Eligible</code> — ingest rejects any other value. Assignments to <code>BusinessRole</code> resources are flagged <code>governed</code> automatically after the import</td>
 </tr>
 <tr>
 <td><code>SystemName</code></td>
@@ -5678,7 +5678,7 @@
 </tr>
 </tbody>
 </table>
-<p>Extra columns → <code>extendedAttributes</code>.</p>
+<p>Extra columns are <strong>not</strong> kept for this file (named in the job log instead): at tens of millions of rows an attribute per assignment costs more than it is worth.</p>
 <h4 id="5-resourcerelationshipscsv-optional">5. <code>ResourceRelationships.csv</code> (optional)<a class="headerlink" href="#5-resourcerelationshipscsv-optional" title="Permanent link">&para;</a></h4>
 <p>Parent–child links between resources (role nesting, group membership, business-role contains permission).</p>
 <table>
@@ -5910,13 +5910,18 @@
 <p><strong>3. SystemName is optional everywhere</strong></p>
 <p>For single-system imports (the common case), omit <code>SystemName</code> from all files. Everything goes to the system defined in Step 1 of the wizard. For multi-system imports, add a <code>SystemName</code> column to any file where entities belong to different systems. Unrecognised or blank values fall back to the wizard system.</p>
 <p><strong>4. BusinessRole assignment auto-classification</strong></p>
-<p>When <code>AssignmentType</code> is <code>Direct</code> or omitted, but the target resource has <code>ResourceType = 'BusinessRole'</code>, the system automatically reclassifies the assignment as <code>Governed</code>. This means Omada-style exports (where all assignments are "Direct") work correctly on the Business Roles page without the user having to manually tag governed assignments.</p>
+<p>When the target resource has <code>ResourceType = 'BusinessRole'</code>, the assignment is automatically flagged <code>governed</code> after the import (its <code>AssignmentType</code> stays <code>Direct</code>). This means Omada-style exports (where all assignments are "Direct") work correctly on the Business Roles page without the user having to manually tag governed assignments.</p>
 <p><strong>5. Extra columns become extendedAttributes</strong></p>
-<p>Any column not in the schema above is silently stored as JSON in the entity's <code>extendedAttributes</code> field. This means:
-- Source-specific fields (Omada's <code>ODWBusiKey</code>, SAP's <code>AGR_NAME</code>) are preserved
+<p>A column not in a file's schema is stored as JSON in the entity's <code>extendedAttributes</code> field for <code>Systems</code>, <code>Contexts</code>, <code>Resources</code>, <code>ResourceRelationships</code>, <code>Users</code>, <code>Identities</code> and <code>Certifications</code>. This means:
+- Source-specific fields (Omada's <code>ODWBusiKey</code>, SAP's <code>AGR_NAME</code>, a logical application's configuration-management reference) are preserved
 - The UI can show them on detail pages under "Extended Attributes"
-- No data is lost during import
 - No schema changes needed to support new source fields</p>
+<p>Column names match case-insensitively, so <code>department</code> is the <code>Department</code> column, not an extra one. Blank values are not stored, and a column named like an ingest bookkeeping field (<code>id</code>, <code>systemId</code>, <code>extendedAttributes</code>, <code>createdAt</code>, <code>updatedAt</code>, <code>deletedAt</code>) is never forwarded.</p>
+<p>Three files do <strong>not</strong> keep extra columns, and the job log names the ones it ignores: <code>Assignments.csv</code> (tens of millions of rows — an attribute per assignment costs more than it is worth), and <code>IdentityMembers.csv</code> / <code>ContextMembers.csv</code> (their tables have no attribute storage).</p>
+<p><strong>6. Standard CSV quoting, failing loudly</strong></p>
+<p>Files are parsed as RFC 4180: a quoted value may contain the delimiter, a doubled quote or a line break, so distinguished names (<code>"CN=x,OU=y,DC=z"</code>) load intact from a comma-delimited file. A row that cannot be parsed fails the import with its file and line; nothing is loaded as shifted columns, and a failed run never reconciles away existing rows.</p>
+<p><strong>7. An undeclared SystemName is reported</strong></p>
+<p>A <code>SystemName</code> that <code>Systems.csv</code> does not declare still loads — into the crawler's own system — but the job log warns with the row count and the unknown names, per file. <code>ContextMembers.csv</code> ignores <code>SystemName</code>: a membership belongs to its context's system, and the file is synced as one set.</p>
 <h3 id="minimum-viable-imports">Minimum viable imports<a class="headerlink" href="#minimum-viable-imports" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -6060,7 +6065,7 @@
 </tr>
 <tr>
 <td><strong>Auto-classify</strong> (<code>POST /api/ingest/classify-business-role-assignments</code>)</td>
-<td>Post-import: reclassifies Direct assignments to BusinessRole resources as Governed.</td>
+<td>Post-import: flags Direct assignments to BusinessRole resources as <code>governed</code>.</td>
 </tr>
 <tr>
 <td><strong>Backpressure fix</strong> (<code>app/api/src/ingest/engine.js</code>, <code>sessions.js</code>)</td>
@@ -6073,7 +6078,7 @@
 <li>No column-name guessing or auto-detection in the crawler</li>
 <li>No source-specific logic in the crawler</li>
 <li>One schema, clearly documented — user transforms their data to match</li>
-<li>Extra columns preserved automatically in <code>extendedAttributes</code> (no data loss)</li>
+<li>Extra columns preserved in <code>extendedAttributes</code> for every file except Assignments / IdentityMembers / ContextMembers</li>
 <li>Subset imports supported (only provide what your source has)</li>
 <li>Multi-system supported via optional <code>SystemName</code> column</li>
 </ul>
