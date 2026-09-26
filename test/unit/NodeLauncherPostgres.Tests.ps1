@@ -626,11 +626,17 @@ Describe 'Enter-LauncherLock -WaitMs' -Skip:(-not $IsWindows) {
         $d = Join-Path $TestDrive 'lockwait'
         $held = Enter-LauncherLock -DataDir $d
         try {
-            Mock Start-Sleep {}
+            # Count the sleeps ourselves rather than asserting `-Times 1`, which is
+            # an AT-LEAST assertion and so cannot tell one sleep from thirty. The
+            # exact count is timing-dependent (the mock makes each sleep free, so the
+            # loop spins until the deadline), but "more than one" is the claim that
+            # matters: it retried rather than waiting once and giving up.
+            $script:sleeps = 0
+            Mock Start-Sleep { $script:sleeps++ }
             $script:t = [DateTime]::UtcNow
             Enter-LauncherLock -DataDir $d -WaitMs 300 -PollMs 10 | Should -BeNullOrEmpty
             ([DateTime]::UtcNow - $script:t).TotalMilliseconds | Should -BeGreaterOrEqual 300
-            Should -Invoke Start-Sleep -Times 1 -Scope It
+            $script:sleeps | Should -BeGreaterThan 1
         } finally { $held.Dispose() }
     }
 }
@@ -670,12 +676,16 @@ Describe 'Invoke-LauncherCleanup' {
 
 Describe 'Start-LauncherWatchdog' {
     BeforeEach { Mock Start-Process { 'started' } }
+    # Paths here are deliberately NOT drive-qualified. Join-Path resolves the drive
+    # through the provider, so a literal 'C:\...' throws DriveNotFoundException when
+    # the suite runs on the Linux CI runner. The spaces are the part that matters:
+    # they are what the argument quoting has to survive.
     It 'starts the watchdog hidden, with the policy, launcher pid, data dir and PostgreSQL root' {
-        Start-LauncherWatchdog -ScriptDir 'C:\app dir' -DataDir 'C:\data dir' -PgRoot 'C:\pg' -LauncherPid 4321 | Should -Be 'started'
+        Start-LauncherWatchdog -ScriptDir 'app dir' -DataDir 'data dir' -PgRoot 'pg' -LauncherPid 4321 | Should -Be 'started'
         Should -Invoke Start-Process -Times 1 -Exactly -ParameterFilter {
             $WindowStyle -eq 'Hidden' -and $FilePath -eq (Get-Process -Id $PID).Path -and
-            $ArgumentList -eq ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + (Join-Path 'C:\app dir' 'Watch-IdentityAtlas.ps1') +
-                               '" -LauncherPid 4321 -DataDir "C:\data dir" -PgRoot C:\pg')
+            $ArgumentList -eq ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + (Join-Path 'app dir' 'Watch-IdentityAtlas.ps1') +
+                               '" -LauncherPid 4321 -DataDir "data dir" -PgRoot pg')
         }
     }
     It 'omits -PgRoot in PGlite mode and defaults to this process' {
