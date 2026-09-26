@@ -149,6 +149,36 @@ How a mapping behaves:
 
 ---
 
+## Verification: source against database
+
+Every run ends by checking what the source returned against what Identity Atlas now
+holds, one reconcile scope at a time (principals of a type, resources of a type,
+assignments of a type, relationships of a type). The counts come from the database,
+not from the ingest's own inserted/updated totals: rows that share a key collapse into
+one row but would still be counted as sent.
+
+| Scope | Expected |
+|---|---|
+| Principals, resources, relationships | The number of **distinct** keys the statement returned. If it returned more rows than distinct keys, the run fails: rows sharing an id overwrite each other, so all but one of them are lost. Make the id column unique |
+| Assignments | The source's own `COUNT(DISTINCT resource, principal)` over the statement, run after the slot. Rows held back as dangling make this a range rather than an exact number. A statement that pages with `@Offset` cannot be wrapped for this count and is reported as not verified |
+
+The job log ends with a table like this, and **any `FAIL` fails the job**:
+
+```
+Verifying: source against database...
+  ok   resources (resourceType=Entitlement)        expected       80,000  database       80,000
+  FAIL principals (principalType=User)             expected       22,087  database       22,087
+       the source returned 176,696 rows for only 22,087 distinct ids; rows sharing an id
+       overwrite each other, so 154,609 were lost. Make the id column unique
+```
+
+The data that did load stays loaded; the failure tells you the load is incomplete. A
+delta run is verified the same way, against the rows it touched. Identities and Contexts
+have no system column and are not counted per system; the context report (see
+[Contexts from a catalogue](#contexts-from-a-catalogue)) covers the catalogue.
+
+---
+
 ## Very large tables
 
 An entitlement-assignment table can hold **tens of millions of rows** — 40 M is a real

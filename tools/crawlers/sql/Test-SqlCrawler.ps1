@@ -39,6 +39,7 @@ $script:failures = 0
 . (Join-Path $PSScriptRoot 'SqlCrawler.Transform.ps1')
 . (Join-Path $PSScriptRoot 'SqlCrawler.Contexts.ps1')
 . (Join-Path $PSScriptRoot 'SqlCrawler.Phases.ps1')
+. (Join-Path $PSScriptRoot 'SqlCrawler.Verify.ps1')
 
 function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
@@ -65,6 +66,22 @@ function Invoke-SqlQueryStream {
     $rows = @($script:RowsBySlot[$Sql])
     foreach ($r in $rows) { & $OnRow $r }
     return [long]$rows.Count
+}
+
+# The source-side distinct count, answered from the same replayed rows.
+function Measure-SqlSourceDistinct {
+    [CmdletBinding()]
+    param($Connection, [hashtable]$Slot, [hashtable]$Map, [int]$CommandTimeout = 600)
+    $pairs = @($script:RowsBySlot[$Slot.sql] | ForEach-Object { "$($_[$Map.resourceId])|$($_[$Map.principalId])" } | Sort-Object -Unique)
+    return @{ count = [long]$pairs.Count; reason = $null }
+}
+
+# End-of-run verification against the REAL /ingest/count. Returns $true when it
+# passed, $false when it threw (which is what fails a real job).
+function Test-Verified {
+    param([hashtable]$State)
+    try { Test-SqlRunCounts -State $State | Out-Null; return $true }
+    catch { Write-Host "    ($($_.Exception.Message))" -ForegroundColor DarkGray; return $false }
 }
 
 Write-Host "`n=== SQL crawler integration test ===" -ForegroundColor Cyan
@@ -115,6 +132,7 @@ Write-Result 'Dangling assignment held back' ($totals['Grants'].dangling -eq 1) 
 Write-Result 'columnMap made an unaliased statement usable' ($totals['Composition'].sent -eq 1 -and $totals['Composition'].skipped -eq 0) `
     "sent=$($totals['Composition'].sent), skipped=$($totals['Composition'].skipped)"
 Invoke-SqlReconcile -State $state | Out-Null
+Write-Result 'Counts verified against the database' (Test-Verified -State $state) (($state.Verification | ForEach-Object { "$($_.scope)=$($_.atlas)" }) -join ', ')
 
 # The ingest accepted everything and the cross-statement references resolved.
 $assignments = Invoke-Api -Path "/matrix/assignments?systemId=$systemId&limit=500" -Method Get -ErrorAction SilentlyContinue
@@ -134,6 +152,17 @@ $state2 = New-SqlRunState -SystemId $systemId -ServerTime $reg2.serverTime -Slot
 foreach ($slot in (Get-SqlSlotsInOrder -Slots $slots)) { Invoke-SqlSlot -Slot $slot -Connection $null -State $state2 | Out-Null }
 $deleted = Invoke-SqlReconcile -State $state2
 Write-Result 'Second run reconciled the vanished rows' ($deleted -ge 1) "deleted=$deleted"
+Write-Result 'Second run verified against the database' (Test-Verified -State $state2) (($state2.Verification | ForEach-Object { "$($_.scope)=$($_.atlas)" }) -join ', ')
+
+# ── Run 3: the id column repeats — eight rows per person, as in the field ─────
+# Every row reaches the ingest and the database holds exactly the distinct ids,
+# so nothing but the verification can tell that seven of every eight were lost.
+Start-Sleep -Seconds 1
+$reg3 = Register-SqlSystem -Cfg $cfg
+$script:RowsBySlot[$sqlIdent] = @(foreach ($n in 1..8) { New-TestRow @{ id = "u1-$runId"; display_name = "Person $n" } })
+$state3 = New-SqlRunState -SystemId $systemId -ServerTime $reg3.serverTime -Slots @($slots[0]) -BatchSize 2 -SyncMode 'delta'
+Invoke-SqlSlot -Slot $slots[0] -Connection $null -State $state3 | Out-Null
+Write-Result 'Repeated ids fail verification' (-not (Test-Verified -State $state3)) (($state3.Verification | ForEach-Object { "$($_.scope): expected $($_.expected), database $($_.atlas)" }) -join ', ')
 
 # ── Reconcile safety: the endpoint refuses what it must ──────────────────────
 foreach ($case in @(

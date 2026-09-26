@@ -51,6 +51,7 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 . (Join-Path $PSScriptRoot 'SqlCrawler.Transform.ps1')
 . (Join-Path $PSScriptRoot 'SqlCrawler.Contexts.ps1')
 . (Join-Path $PSScriptRoot 'SqlCrawler.Phases.ps1')
+. (Join-Path $PSScriptRoot 'SqlCrawler.Verify.ps1')
 
 $Cfg = Resolve-SqlConfig -ConfigPath $ConfigPath
 #endregion Configuration
@@ -81,5 +82,7 @@ try {
 }
 
 Invoke-SqlReconcile -State $State | Out-Null
+# Source against database, per scope. Throws — failing the job — on any mismatch.
+Test-SqlRunCounts -State $State | Out-Null
 Complete-SqlRun -State $State -SyncStart $syncStart
 #endregion Main

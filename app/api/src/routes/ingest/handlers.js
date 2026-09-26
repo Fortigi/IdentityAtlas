@@ -17,7 +17,7 @@ import {
 import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, ENTITY_SCOPE_MAP } from '../../ingest/validation.js';
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/crawlerAuth.js';
 import { normalizePresenceQuery, lookupCrawlerPresence } from '../../ingest/crawlerPresence.js';
-import { parseReconcileRequest, reconcileStale, ReconcileRequestError } from '../../ingest/reconcileStale.js';
+import { parseReconcileRequest, reconcileStale, countTouched, ReconcileRequestError } from '../../ingest/reconcileStale.js';
 import { refreshMatrixViewsSerialized } from './matrixViews.js';
 import { buildSyncLogRow, classifyScope } from './dataPlane.js';
 import {
@@ -188,6 +188,45 @@ router.post('/ingest/principals-presence', async (req, res) => {
   }
 });
 
+// The checks /ingest/reconcile and /ingest/count share: SQL on, the ingest
+// permission, a well-formed { entity, systemId, before }, access to that system.
+// Answers the request itself and returns null when one fails; otherwise returns
+// the parsed request with its scope reduced to the entity's scope keys.
+function scopedTimestampRequest(req, res) {
+  if (!useSql) { res.status(503).json({ error: 'SQL not configured' }); return null; }
+  if (!crawlerHasPermission(req, 'ingest')) { res.status(403).json({ error: 'Insufficient permissions' }); return null; }
+  let parsed;
+  try { parsed = parseReconcileRequest(req.body); }
+  catch (err) { res.status(400).json({ error: err.message }); return null; }
+  if (!crawlerHasSystemAccess(req, parsed.systemId)) {
+    res.status(403).json({ error: `Crawler does not have access to system ${parsed.systemId}` });
+    return null;
+  }
+  return { ...parsed, scope: buildScope(req.body.scope, ENTITY_SCOPE_MAP[parsed.entity] || []) };
+}
+
+// POST /api/ingest/count — verification for a STREAMED sync. The live rows of one
+// system + scope that an ingest touched at or after `before` (the run's start),
+// counted in the database. Read-only; same request shape and bounds as
+// /ingest/reconcile. A crawler compares it with what its source returned, so a
+// run that lost or collapsed rows fails instead of reporting success. See
+// countTouched in ingest/reconcileStale.js.
+router.post('/ingest/count', async (req, res) => {
+  const parsed = scopedTimestampRequest(req, res);
+  if (!parsed) return undefined;
+  const { entity, tableName, systemId, before, scope } = parsed;
+  try {
+    const count = await countTouched(tableName, {
+      systemId, scope, since: before, scopeDeleteFilter: conflictFilterFor(entity), restrictSystemIds: restrictedSystemIds(req.crawler),
+    });
+    return res.json({ table: tableName, count, since: before });
+  } catch (err) {
+    if (err instanceof ReconcileRequestError) return res.status(400).json({ error: err.message });
+    console.error('Count error: %s', err.message);
+    return res.status(500).json({ error: 'Count failed' });
+  }
+});
+
 // POST /api/ingest/reconcile — the full-sync delete for a STREAMED sync.
 //
 // A crawler that cannot hold its source in memory (the SQL crawler's tens of
@@ -198,16 +237,9 @@ router.post('/ingest/principals-presence', async (req, res) => {
 // crawler read from GET /crawlers/whoami when its run started, so the comparison
 // is against this container's clock, never the worker's. See ingest/reconcileStale.js.
 router.post('/ingest/reconcile', async (req, res) => {
-  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
-  if (!crawlerHasPermission(req, 'ingest')) return res.status(403).json({ error: 'Insufficient permissions' });
-  let parsed;
-  try { parsed = parseReconcileRequest(req.body); }
-  catch (err) { return res.status(400).json({ error: err.message }); }
-  if (!crawlerHasSystemAccess(req, parsed.systemId)) {
-    return res.status(403).json({ error: `Crawler does not have access to system ${parsed.systemId}` });
-  }
-  const { entity, tableName, systemId, before } = parsed;
-  const scope = buildScope(req.body.scope, ENTITY_SCOPE_MAP[entity] || []);
+  const parsed = scopedTimestampRequest(req, res);
+  if (!parsed) return undefined;
+  const { entity, tableName, systemId, before, scope } = parsed;
   const startTime = new Date();
   try {
     const deleted = await reconcileStale(tableName, {
