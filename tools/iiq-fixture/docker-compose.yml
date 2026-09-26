@@ -1,0 +1,38 @@
+# SQL Server for the IdentityIQ-shaped scale fixture.
+#
+# Stand-alone on purpose: it runs next to (not inside) an Identity Atlas stack,
+# on its own port, so a Docker host can carry both. Settings come from a .env
+# file beside this one — copy .env.example and set a password.
+#
+#   docker compose -p iiq-fixture up -d
+#
+# The collation is a parameter because case sensitivity changes how the
+# fixture's name-based joins behave; match it to the source you are rehearsing.
+name: iiq-fixture
+
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:${MSSQL_IMAGE_TAG:-2022-latest}
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env}
+      MSSQL_COLLATION: ${MSSQL_COLLATION:-SQL_Latin1_General_CP1_CI_AS}
+      # Leave room for whatever else the host runs.
+      MSSQL_MEMORY_LIMIT_MB: ${MSSQL_MEMORY_LIMIT_MB:-3072}
+    ports:
+      - "${MSSQL_BIND:-0.0.0.0}:${MSSQL_PORT:-14330}:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+      # Generated TSV files for bcp, mounted read-only.
+      - ${FIXTURE_DATA_DIR:-./data}:/fixture-data:ro
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  mssql-data:
