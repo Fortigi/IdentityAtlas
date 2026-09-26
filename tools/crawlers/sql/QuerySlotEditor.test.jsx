@@ -46,6 +46,20 @@ describe('QuerySlotEditor render', () => {
     expect(html).not.toContain('Governed');
   });
 
+  it('a contexts slot shows the context type and what it groups; a context-members slot only the member type', () => {
+    const html = render({ ...newQuerySlot('contexts'), contextType: 'Application', targetType: 'Identity' });
+    expect(html).toContain('Context type');
+    expect(html).toContain('value="Application"');
+    expect(html).toContain('<option value="Identity" selected="">Identity</option>');
+    expect(html).not.toContain('Member type');
+    expect(html).not.toContain('Resource type');
+    const members = render({ ...newQuerySlot('context-members'), memberType: 'Principal' });
+    expect(members).toContain('Member type');
+    expect(members).toContain('<option value="Principal" selected="">Principal</option>');
+    expect(members).not.toContain('Context type');
+    expect(members).toContain('Columns for <code>context-members</code>: memberId and contextId or contextName');
+  });
+
   it('a resources slot shows only the resource type', () => {
     const html = render(newQuerySlot('resources'));
     expect(html).toContain('Resource type');

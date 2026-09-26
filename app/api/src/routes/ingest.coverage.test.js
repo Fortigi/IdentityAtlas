@@ -57,11 +57,11 @@ vi.mock('../middleware/crawlerAuth.js', () => ({
 
 vi.mock('../lib/syncVersion.js', () => ({ bumpSyncVersion: vi.fn().mockResolvedValue(undefined) }));
 
-const { mockReconcileStale } = vi.hoisted(() => ({ mockReconcileStale: vi.fn().mockResolvedValue(0) }));
+const { mockReconcileStale, mockCountTouched } = vi.hoisted(() => ({ mockReconcileStale: vi.fn().mockResolvedValue(0), mockCountTouched: vi.fn().mockResolvedValue(0) }));
 vi.mock('../ingest/reconcileStale.js', async (importOriginal) => {
   // Keep the pure request parser real (it is the 400 surface); stub the executor.
   const real = await importOriginal();
-  return { ...real, reconcileStale: mockReconcileStale };
+  return { ...real, reconcileStale: mockReconcileStale, countTouched: mockCountTouched };
 });
 
 vi.mock('../ingest/crawlerPresence.js', () => ({
@@ -424,6 +424,47 @@ describe('POST /ingest/reconcile', () => {
     const res = await request(app).post('/ingest/reconcile').send(body);
     expect(res.status).toBe(500);
     expect(res.body.error).toBe('Reconcile failed');
+  });
+});
+
+// ── POST /ingest/count ───────────────────────────────────────────────────────
+
+describe('POST /ingest/count', () => {
+  const body = { entity: 'principals', systemId: 7, before: '2020-01-01T00:00:00.000Z', scope: { principalType: 'User', bogus: 'x' } };
+
+  it('shares the reconcile gate: 403 without permission, 400 on a bad request, 403 without system access', async () => {
+    crawlerAuth.crawlerHasPermission.mockReturnValueOnce(false);
+    expect((await request(app).post('/ingest/count').send(body)).status).toBe(403);
+    const bad = await request(app).post('/ingest/count').send({ ...body, entity: 'contexts' });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error).toMatch(/no system scope/);
+    crawlerAuth.crawlerHasSystemAccess.mockReturnValueOnce(false);
+    expect((await request(app).post('/ingest/count').send(body)).status).toBe(403);
+    expect(mockCountTouched).not.toHaveBeenCalled();
+    expect(mockReconcileStale).not.toHaveBeenCalled();
+  });
+
+  it('200 with the database count since the run start, over the projected scope — and deletes nothing', async () => {
+    mockCountTouched.mockResolvedValue(22087);
+    const res = await request(app).post('/ingest/count').send(body);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ table: 'Principals', count: 22087, since: '2020-01-01T00:00:00.000Z' });
+    const [table, opts] = mockCountTouched.mock.calls[0];
+    expect(table).toBe('Principals');
+    expect(opts).toMatchObject({ systemId: 7, scope: { principalType: 'User' }, since: '2020-01-01T00:00:00.000Z' });
+    expect(mockReconcileStale).not.toHaveBeenCalled();
+  });
+
+  it('applies the principal-arm filter to assignments, 400 when the table cannot be counted, 500 otherwise', async () => {
+    await request(app).post('/ingest/count').send({ ...body, entity: 'resource-assignments' });
+    expect(mockCountTouched.mock.calls[0][1].scopeDeleteFilter).toBe('"principalId" IS NOT NULL');
+    const { ReconcileRequestError } = await import('../ingest/reconcileStale.js');
+    mockCountTouched.mockRejectedValueOnce(new ReconcileRequestError('nope'));
+    expect((await request(app).post('/ingest/count').send(body)).status).toBe(400);
+    mockCountTouched.mockRejectedValueOnce(new Error('db down'));
+    const res = await request(app).post('/ingest/count').send(body);
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Count failed');
   });
 });
 

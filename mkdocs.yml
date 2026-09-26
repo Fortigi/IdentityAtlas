@@ -168,6 +168,7 @@ nav:
       - Test Coverage: reference/coverage.md
       - Under the hood:
           - Crawler Architecture: architecture/crawler-architecture.md
+          - SQL Connector Delta Loading (design): architecture/sql-connector-delta.md
           - Reports: architecture/reports.md
           - Custom Reports Internals: architecture/custom-reports.md
           - Context Assistant Internals: architecture/context-assistant.md

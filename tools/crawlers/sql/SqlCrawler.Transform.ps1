@@ -37,6 +37,11 @@ $script:SqlContract = @{
     resources          = @{ core = @('id', 'displayName', 'description'); aux = @('name', 'enabled', 'active', 'inactive', 'disabled') }
     assignments        = @{ core = @('resourceId', 'principalId', 'identityId'); aux = @() }
     relationships      = @{ core = @('parentId', 'childId'); aux = @() }
+    # A context's id is its key (optional: the normalised name is the fallback),
+    # ownerUserId the owner's identifier as the source spells it. A member names
+    # its context by id or by name; SqlCrawler.Contexts.ps1 resolves either.
+    contexts           = @{ core = @('id', 'displayName', 'description', 'ownerUserId'); aux = @('name') }
+    'context-members'  = @{ core = @('contextId', 'contextName', 'memberId'); aux = @() }
 }
 
 function ConvertTo-SqlColumnKey {

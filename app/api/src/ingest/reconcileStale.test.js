@@ -18,7 +18,9 @@ vi.mock('./engine.js', async (importOriginal) => {
 
 const {
   parseReconcileRequest, buildReconcileStaleSql, reconcileStale, ReconcileRequestError,
+  buildScopeCountSql, countTouched,
 } = await import('./reconcileStale.js');
+import { queryOne as mockQueryOne } from '../db/connection.js';
 
 const NOW = new Date('2026-09-25T12:00:00.000Z');
 const BEFORE = '2026-09-25T10:00:00.000Z';
@@ -144,5 +146,45 @@ describe('reconcileStale', () => {
     mockDiscoverColumns.mockResolvedValue(cols('systemId', 'updatedAt'));
     mockQuery.mockResolvedValue({});
     expect(await reconcileStale('ResourceRelationships', { systemId: 2, before: BEFORE })).toBe(0);
+  });
+});
+
+describe('buildScopeCountSql', () => {
+  it('counts live rows touched at or after the run start, on a soft-delete table', () => {
+    const { sql, params } = buildScopeCountSql('Principals', ['t."systemId" = $1', 't."principalType" = $2'], [7, 'User'], BEFORE);
+    expect(sql).toBe('SELECT COUNT(*)::bigint AS n FROM "Principals" t WHERE 1=1 AND t."systemId" = $1 AND t."principalType" = $2 AND t."updatedAt" >= $3 AND t."deletedAt" IS NULL');
+    expect(params).toEqual([7, 'User', BEFORE]);
+  });
+
+  it('uses >= where the reconcile uses <, so the two partition the scope exactly', () => {
+    const count = buildScopeCountSql('ResourceRelationships', ['t."systemId" = $1'], [3], BEFORE).sql;
+    const stale = buildReconcileStaleSql('ResourceRelationships', ['t."systemId" = $1'], [3], BEFORE).sql;
+    expect(count).toContain('t."updatedAt" >= $2');
+    expect(stale).toContain('t."updatedAt" < $2');
+    expect(count).not.toContain('deletedAt');
+  });
+
+  it('appends the scope-delete filter', () => {
+    expect(buildScopeCountSql('ResourceAssignments', [], [], BEFORE, '"principalId" IS NOT NULL').sql).toContain('AND ("principalId" IS NOT NULL)');
+  });
+});
+
+describe('countTouched', () => {
+  it('returns the database count as a number, bounded like the reconcile', async () => {
+    mockDiscoverColumns.mockResolvedValue(cols('id', 'systemId', 'resourceType', 'updatedAt', 'deletedAt'));
+    mockQueryOne.mockResolvedValue({ n: '80000' });
+    expect(await countTouched('Resources', { systemId: 7, scope: { resourceType: 'Entitlement', bogus: 1 }, since: BEFORE })).toBe(80000);
+    const [sql, params] = mockQueryOne.mock.calls[0];
+    expect(sql).toContain('t."resourceType" = $2');
+    expect(sql).not.toContain('bogus');
+    expect(params).toEqual([7, 'Entitlement', BEFORE]);
+  });
+
+  it('refuses a table it cannot bound by timestamp, and reads 0 from an empty result', async () => {
+    mockDiscoverColumns.mockResolvedValueOnce(cols('id', 'systemId'));
+    await expect(countTouched('Resources', { systemId: 7, since: BEFORE })).rejects.toThrow(ReconcileRequestError);
+    mockDiscoverColumns.mockResolvedValue(cols('systemId', 'updatedAt'));
+    mockQueryOne.mockResolvedValue(undefined);
+    expect(await countTouched('ResourceRelationships', { systemId: 2, since: BEFORE })).toBe(0);
   });
 });
