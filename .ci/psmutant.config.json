@@ -17,6 +17,9 @@
     "tools/crawlers/shared/Get-CapabilityId.ps1",
     "tools/crawlers/shared/Invoke-CrawlerIngest.ps1",
     "tools/crawlers/shared/Invoke-CrawlerIngestStream.ps1",
+    "tools/crawlers/sql/SqlCrawler.Functions.ps1",
+    "tools/crawlers/sql/SqlCrawler.Transform.ps1",
+    "tools/crawlers/sql/SqlCrawler.Phases.ps1",
     "tools/crawlers/shared/Assert-FGPublicUrl.ps1",
     "tools/crawlers/shared/Get-CrawlerSystemName.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AppRoles.ps1",
@@ -135,6 +138,15 @@
   "tests": {
     "tools/crawlers/shared/Invoke-CrawlerIngestStream.ps1": [
       "test/unit/CrawlerIngestStream.Tests.ps1"
+    ],
+    "tools/crawlers/sql/SqlCrawler.Functions.ps1": [
+      "test/unit/SqlCrawlerFunctions.Tests.ps1"
+    ],
+    "tools/crawlers/sql/SqlCrawler.Transform.ps1": [
+      "test/unit/SqlCrawlerTransform.Tests.ps1"
+    ],
+    "tools/crawlers/sql/SqlCrawler.Phases.ps1": [
+      "test/unit/SqlCrawlerPhases.Tests.ps1"
     ],
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": [
       "test/unit/EntraIDCrawlerTransform.Tests.ps1"
