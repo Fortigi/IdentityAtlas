@@ -1,0 +1,1 @@
+- A system's first import no longer writes an audit-history entry for every row it creates. On large imports that history was most of the database (25.7 of 34.9 GB at 41 million assignments) and slowed the import more than all of its indexes. Changes after the first import — and every update or deletion, including during it — are still recorded.
