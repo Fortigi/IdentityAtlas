@@ -217,7 +217,12 @@ router.post('/ingest/reconcile', async (req, res) => {
     return res.json({ table: tableName, deleted, before });
   } catch (err) {
     if (err instanceof ReconcileRequestError) return res.status(400).json({ error: err.message });
-    console.error(`Reconcile error (${entity}):`, err.message);
+    // `entity` reaches here only after parseReconcileRequest matched it against a
+    // fixed table map, so it is one of a known set — but it still arrives in the
+    // request body. Keep it out of the format string and strip line breaks, so no
+    // caller can garble or forge a log line (CWE-134 / CWE-117).
+    const safeEntity = String(entity).replace(/[\r\n]+/g, ' ');
+    console.error('Reconcile error (%s): %s', safeEntity, err.message);
     return res.status(500).json({ error: 'Reconcile failed' });
   }
 });
