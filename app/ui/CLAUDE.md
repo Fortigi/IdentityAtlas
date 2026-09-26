@@ -93,7 +93,7 @@ import { formatDate } from '../../../app/ui/src/utils/formatters';
 Before writing any utility function, helper, constant, or component — **search first**. If equivalent logic already exists, use or extend it. Only create something new when nothing suitable exists.
 
 **Known shared utilities in `src/utils/` and `src/hooks/`:**
-- `utils/formatters.js` — `formatDate`, `formatDateOnly`, `formatDurationSeconds`, `formatDurationMs`, `formatRelativeTime`, `formatCompactNumber`, `formatValue`, `computeHistoryDiffs`, `friendlyLabel`
+- `utils/formatters.js` — `formatDate`, `formatDateOnly`, `formatDurationSeconds`, `formatDurationMs`, `formatRelativeTime`, `formatCompactNumber`, `formatBytes` (B…TB — the one byte-size formatter), `formatValue`, `computeHistoryDiffs`, `friendlyLabel`
 - `utils/colors.js` — `TAG_COLORS`, AP color palettes, `getAccessPackageColor`, `TYPE_COLORS`, `tagPillStyle(hex, isDark)` (contrast-safe inline styles for a tag/category pill built from arbitrary hex — use this instead of `color + '20'`), `contrastRatio(a, b)` (WCAG ratio between two `{r,g,b}` colors)
 - `utils/accessPackageStyles.js` — `ASSIGNMENT_TYPE_STYLES` badge classes
 - `utils/attributeEntries.js` — `buildAttributeEntries` (merges core + extendedAttributes)

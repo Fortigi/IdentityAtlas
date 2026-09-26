@@ -133,22 +133,66 @@ Describe 'Read-CsvFast' {
     # The quote-stripping guard is `Length -ge 2 -and first -eq quote -and last -eq quote`.
     # Each conjunct matters: relax any one of them and half-quoted or one-character
     # cells get mangled (or throw on a negative Substring length).
-    It 'leaves a cell quoted on one side only untouched' {
+    # These two used to pin the fast path's documented LIMITATION — a quoted field
+    # holding the delimiter was cut in two ('"lead' / 'trail"'). The reader now
+    # follows RFC 4180, so the same inputs assert the correct parse instead.
+    It 'keeps a delimiter that sits inside a quoted cell (RFC 4180)' {
         $path = Join-Path $TestDrive 'HalfQuoted.csv'
-        [System.IO.File]::WriteAllText($path, "A;B`n`"lead;trail`"`n", [System.Text.Encoding]::UTF8)
+        [System.IO.File]::WriteAllText($path, "A;B`n`"lead;trail`";x`n", [System.Text.Encoding]::UTF8)
         $result = Read-CsvFast 'HalfQuoted.csv'
-        $result.rows[0][0] | Should -Be '"lead'
-        $result.rows[0][1] | Should -Be 'trail"'
+        $result.rows[0].Count | Should -Be 2
+        $result.rows[0][0] | Should -Be 'lead;trail'
+        $result.rows[0][1] | Should -Be 'x'
     }
 
-    It 'leaves a lone quote character untouched rather than throwing' {
-        # Length 1: stripping would ask for Substring(1, -1).
+    It 'fails, naming file and line, when a quote is left open at end of file' {
+        # Length 1: stripping would ask for Substring(1, -1). An open quote cannot
+        # be resolved into columns, so the row is refused rather than guessed at.
         $path = Join-Path $TestDrive 'LoneQuote.csv'
         [System.IO.File]::WriteAllText($path, "A;B`n`";x`n", [System.Text.Encoding]::UTF8)
-        { Read-CsvFast 'LoneQuote.csv' } | Should -Not -Throw
-        (Read-CsvFast 'LoneQuote.csv').rows[0][0] | Should -Be '"'
+        { Read-CsvFast 'LoneQuote.csv' } | Should -Throw '*LoneQuote.csv line 2 is not valid CSV*'
     }
 
+    It 'fails when text follows a closing quote' {
+        [System.IO.File]::WriteAllText((Join-Path $TestDrive 'AfterQuote.csv'), "A;B`nok;row`n`"ab`"cd;e`n", [System.Text.Encoding]::UTF8)
+        { Read-CsvFast 'AfterQuote.csv' } | Should -Throw '*AfterQuote.csv line 3*text after a closing quote*"ab"cd;e*'
+    }
+    It 'treats a quote inside an unquoted cell as an ordinary character' {
+        # Only a quote at the START of a field opens one. Were ab"c to open a quote
+        # here, the row would swallow the next line as well.
+        $path = Join-Path $TestDrive 'MidQuote.csv'
+        [System.IO.File]::WriteAllText($path, "A;B`nab`"c;d`nnext;row`n", [System.Text.Encoding]::UTF8)
+        $result = Read-CsvFast 'MidQuote.csv'
+        $result.rows.Count | Should -Be 2
+        $result.rows[0] | Should -Be @('ab"c', 'd')
+        $result.rows[1] | Should -Be @('next', 'row')
+    }
+
+    It 'unescapes a doubled quote inside a quoted cell' {
+        # Each field is wholly wrapped, so the cheap strip runs first — and must
+        # hand the line to the full parser because a quote survives the strip.
+        $path = Join-Path $TestDrive 'Escaped.csv'
+        [System.IO.File]::WriteAllText($path, "A;B`n`"say `"`"hi`"`"`";`"b`"`n", [System.Text.Encoding]::UTF8)
+        (Read-CsvFast 'Escaped.csv').rows[0] | Should -Be @('say "hi"', 'b')
+    }
+
+    It 'joins a quoted cell that spans lines into one value, and keeps reading after it' {
+        $path = Join-Path $TestDrive 'MultiLine.csv'
+        [System.IO.File]::WriteAllText($path, "A;B`nr1;`"first`r`nsecond`"`nr2;plain`n", [System.Text.Encoding]::UTF8)
+        $result = Read-CsvFast 'MultiLine.csv'
+        $result.rows.Count | Should -Be 2
+        $result.rows[0] | Should -Be @('r1', "first`r`nsecond")   # the line break is data, kept as written
+        $result.rows[1] | Should -Be @('r2', 'plain')
+    }
+
+    It 'fails, rather than swallowing the file, when a quote never closes' {
+        # One stray opening quote in a 40M-row file must not turn the rest of it
+        # into a single cell: that loses every later row silently, and a full sync
+        # would then reconcile them all away.
+        $lines = @('A;B', '"never closed;x') + @(1..1005 | ForEach-Object { "r$_;v" })
+        [System.IO.File]::WriteAllLines((Join-Path $TestDrive 'Runaway.csv'), $lines)
+        { Read-CsvFast 'Runaway.csv' } | Should -Throw '*Runaway.csv line 2 is not valid CSV*never closed*'
+    }
     It 'reduces an empty quoted cell to an empty string' {
         # Length exactly 2 — the boundary of the -ge 2 check.
         $path = Join-Path $TestDrive 'EmptyQuoted.csv'
@@ -157,14 +201,14 @@ Describe 'Read-CsvFast' {
         $result.rows[0][0] | Should -Be ''
     }
 
-    It 'applies the same one-sided and empty-quote rules to headers' {
+    It 'parses headers by the same quoting rules, and trims the names' {
         $path = Join-Path $TestDrive 'HeaderQuotes.csv'
-        [System.IO.File]::WriteAllText($path, "`"lead;trail`";`"`";`"`nr1;r2;r3;r4`n", [System.Text.Encoding]::UTF8)
+        [System.IO.File]::WriteAllText($path, "`"lead;trail`"; ExternalId ;`"`"`nr1;r2;r3`n", [System.Text.Encoding]::UTF8)
         $result = Read-CsvFast 'HeaderQuotes.csv'
-        $result.colIdx.ContainsKey('"lead')  | Should -BeTrue   # leading quote kept
-        $result.colIdx.ContainsKey('trail"') | Should -BeTrue   # trailing quote kept
-        $result.colIdx.ContainsKey('')       | Should -BeTrue   # "" collapsed to empty
-        $result.colIdx.ContainsKey('"')      | Should -BeTrue   # lone quote kept as-is
+        $result.columns | Should -Be @('lead;trail', 'ExternalId', '')
+        $result.colIdx['lead;trail'] | Should -Be 0
+        $result.colIdx['ExternalId'] | Should -Be 1
+        $result.rows[0] | Should -Be @('r1', 'r2', 'r3')
     }
 
     It 'skips blank lines in the body' {

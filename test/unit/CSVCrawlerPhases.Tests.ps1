@@ -20,6 +20,7 @@ BeforeAll {
     $script:csvDir   = Join-Path $script:repoRoot 'tools\crawlers\csv'
 
     . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngest.ps1')
+    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngestStream.ps1')
     . (Join-Path $script:csvDir 'CSVCrawler.Functions.ps1')
     . (Join-Path $script:csvDir 'CSVCrawler.Transform.ps1')
     . (Join-Path $script:csvDir 'CSVCrawler.Phases.ps1')
@@ -37,6 +38,26 @@ BeforeAll {
     # everything except the batch size.
     $script:SendMock = {
         $script:sent.Add([pscustomobject]@{ Endpoint = $Endpoint; Scope = $Scope; SyncMode = $SyncMode; Records = @($Records); BatchSize = $BatchSize })
+    }
+    # Resources and Assignments STREAM through Invoke-IngestAPI rather than going
+    # through Send-GroupedBySystem. This records each streamed post in the same
+    # shape as SendMock, with the envelope's systemId stamped back onto every
+    # record as _systemId, so routing assertions read the same either way.
+    $script:StreamMock = {
+        $sid = $Body.systemId
+        $recs = @(@($Body.records) | ForEach-Object { $c = $_.Clone(); $c['_systemId'] = $sid; $c })
+        $script:sent.Add([pscustomobject]@{ Endpoint = $Endpoint; Scope = $Body.scope; SyncMode = $Body.syncMode; Records = $recs; BatchSize = $null })
+        @{ inserted = $recs.Count; updated = 0 }
+    }
+    function Use-StreamMocks {
+        Mock Invoke-IngestAPI $script:StreamMock
+        Mock Get-CrawlerServerTime { '2026-09-25T10:00:00.000Z' }
+        Mock Invoke-CrawlerReconcile { 0 }
+    }
+    # Every record posted to $Endpoint, across posts (one per system, or per chunk).
+    function Get-SentRecords {
+        param([string]$Endpoint)
+        , @(Get-Sent $Endpoint | ForEach-Object { $_.Records })   # comma: a single record must stay indexable
     }
     function Get-Sent {
         param([string]$Endpoint)
@@ -149,6 +170,7 @@ Describe 'Sync-CsvResources' {
         Reset-CsvTestState
         Mock Update-CrawlerProgress { }
         Mock Send-GroupedBySystem $script:SendMock
+        Use-StreamMocks
     }
 
     It 'warns and returns when Resources.csv is absent' {
@@ -171,12 +193,11 @@ Describe 'Sync-CsvResources' {
             ';Skip;EntraGroup;'
         )
         Sync-CsvResources
-        $sent = Get-Sent 'ingest/resources'
-        $sent.Count | Should -Be 1
-        $sent[0].Records.Count | Should -Be 2
-        ($sent[0].Records | Where-Object { $_.externalId -eq 'r1' }).resourceType | Should -Be 'BusinessRole'
-        ($sent[0].Records | Where-Object { $_.externalId -eq 'r1' })._systemId | Should -Be 9
-        ($sent[0].Records | Where-Object { $_.externalId -eq 'r2' })._systemId | Should -Be 2
+        $recs = Get-SentRecords 'ingest/resources'
+        $recs.Count | Should -Be 2
+        ($recs | Where-Object { $_.externalId -eq 'r1' }).resourceType | Should -Be 'BusinessRole'
+        ($recs | Where-Object { $_.externalId -eq 'r1' })._systemId | Should -Be 9
+        ($recs | Where-Object { $_.externalId -eq 'r2' })._systemId | Should -Be 2
     }
 }
 
@@ -239,24 +260,33 @@ Describe 'Sync-CsvUsers' {
 }
 
 Describe 'Sync-CsvAssignments' {
+    # Assignments are STREAMED now — the file is never held in memory, so these
+    # assert on what actually reached the ingest API rather than on a
+    # Send-GroupedBySystem call that no longer happens for this phase.
     BeforeEach {
         Reset-CsvTestState
         Mock Update-CrawlerProgress { }
-        Mock Send-GroupedBySystem $script:SendMock
+        Mock Get-CrawlerServerTime { '2026-09-25T10:00:00.000Z' }
+        Mock Invoke-CrawlerReconcile { $script:reconciled.Add(@{ Endpoint = $Endpoint; SystemId = $SystemId; Scope = $Scope; Before = $Before }); 0 }
+        Mock Invoke-IngestAPI { $script:posted.Add(@{ Endpoint = $Endpoint; Body = $Body }); @{ inserted = @($Body.records).Count; updated = 0 } }
+        $script:posted = [System.Collections.Generic.List[object]]::new()
+        $script:reconciled = [System.Collections.Generic.List[object]]::new()
     }
 
     It 'warns and returns when Assignments.csv is absent' {
         Remove-Csv 'Assignments.csv'
         Sync-CsvAssignments
-        @($script:sent).Count | Should -Be 0
+        $script:posted.Count | Should -Be 0
+        $script:reconciled.Count | Should -Be 0
     }
 
-    It 'throws when required columns are missing' {
+    It 'throws when required columns are missing, before spending an API call' {
         Set-Csv 'Assignments.csv' @('ResourceExternalId;Foo', 'r1;x')
         { Sync-CsvAssignments } | Should -Throw '*missing required columns*'
+        Should -Invoke Get-CrawlerServerTime -Exactly 0
     }
 
-    It 'sends Direct-scoped assignments, honouring an explicit AssignmentType' {
+    It 'streams Direct-scoped assignments, honouring an explicit AssignmentType' {
         Set-Csv 'Assignments.csv' @(
             'ResourceExternalId;UserExternalId;AssignmentType'
             'r1;u1;Eligible'
@@ -264,12 +294,120 @@ Describe 'Sync-CsvAssignments' {
             ';u3;Direct'
         )
         Sync-CsvAssignments
-        $sent = Get-Sent 'ingest/resource-assignments'
-        $sent.Count | Should -Be 1
-        $sent[0].Scope.assignmentType | Should -Be 'Direct'
-        $sent[0].Records.Count | Should -Be 2
-        ($sent[0].Records | Where-Object { $_.resourceExternalId -eq 'r1' }).assignmentType | Should -Be 'Eligible'
-        ($sent[0].Records | Where-Object { $_.resourceExternalId -eq 'r2' }).assignmentType | Should -Be 'Direct'
+        $script:posted.Count | Should -Be 1
+        $body = $script:posted[0].Body
+        $script:posted[0].Endpoint | Should -Be 'ingest/resource-assignments'
+        $body.scope.assignmentType | Should -Be 'Direct'
+        $body.syncMode | Should -Be 'delta'          # chunks upsert; the reconcile does the deleting
+        $recs = @($body.records)
+        $recs.Count | Should -Be 2                   # the row with no resource id is skipped
+        ($recs | Where-Object { $_.resourceExternalId -eq 'r1' }).assignmentType | Should -Be 'Eligible'
+        ($recs | Where-Object { $_.resourceExternalId -eq 'r2' }).assignmentType | Should -Be 'Direct'
+    }
+
+    It 'reconciles each system it fed, against the clock read before the first row' {
+        Set-Csv 'Assignments.csv' @('ResourceExternalId;UserExternalId', 'r1;u1')
+        Sync-CsvAssignments
+        $script:reconciled.Count | Should -Be 1
+        $script:reconciled[0].Endpoint | Should -Be 'ingest/resource-assignments'
+        $script:reconciled[0].Before | Should -Be '2026-09-25T10:00:00.000Z'
+        $script:reconciled[0].Scope.assignmentType | Should -Be 'Direct'
+    }
+
+    It 'never reconciles when the file yielded no rows — an empty file must not wipe a system' {
+        Set-Csv 'Assignments.csv' @('ResourceExternalId;UserExternalId')
+        Sync-CsvAssignments
+        $script:posted.Count | Should -Be 0
+        $script:reconciled.Count | Should -Be 0
+    }
+
+    It 'holds only one batch in memory: a file larger than the batch posts as it goes' {
+        # 25,000 rows with a 10,000 batch size -> 2 flushes DURING the read, one at
+        # the end. If the phase were still materialising, there would be exactly one.
+        $lines = [System.Collections.Generic.List[string]]::new()
+        $lines.Add('ResourceExternalId;UserExternalId')
+        for ($i = 0; $i -lt 25000; $i++) { $lines.Add("r$i;u$i") }
+        Set-Csv 'Assignments.csv' $lines
+        Sync-CsvAssignments
+        $script:posted.Count | Should -Be 3
+        @($script:posted | ForEach-Object { @($_.Body.records).Count }) | Should -Be @(10000, 10000, 5000)
+    }
+
+    It 'delivers every row exactly once across read-batch and send-chunk boundaries, for two interleaved systems' {
+        # 23,001 rows alternating between two systems: each system's stream fills
+        # partway through a 10,000-row read batch, so chunks are cut mid-batch and
+        # the remainder carried into the next one. A slice error there drops or
+        # repeats rows without failing anything.
+        $script:systemLookup = @{ 'HR' = 7; 'AD' = 8 }
+        $lines = [System.Collections.Generic.List[string]]::new()
+        $lines.Add('ResourceExternalId;UserExternalId;SystemName')
+        for ($i = 0; $i -lt 23001; $i++) { $lines.Add("r$i;u$i;$(if ($i % 2) { 'AD' } else { 'HR' })") }
+        Set-Csv 'Assignments.csv' $lines
+        Sync-CsvAssignments
+        foreach ($p in $script:posted) { @($p.Body.records).Count | Should -BeLessOrEqual 10000 }
+        $hr = @($script:posted | Where-Object { $_.Body.systemId -eq 7 } | ForEach-Object { @($_.Body.records) } | ForEach-Object resourceExternalId)
+        $ad = @($script:posted | Where-Object { $_.Body.systemId -eq 8 } | ForEach-Object { @($_.Body.records) } | ForEach-Object resourceExternalId)
+        $hr.Count | Should -Be 11501
+        $ad.Count | Should -Be 11500
+        @($hr | Select-Object -Unique).Count | Should -Be 11501
+        $hr[0] | Should -Be 'r0'; $hr[-1] | Should -Be 'r23000'
+        $ad[0] | Should -Be 'r1'; $ad[-1] | Should -Be 'r22999'
+        # Each system reconciles once, against its own id.
+        @($script:reconciled | ForEach-Object SystemId | Sort-Object) | Should -Be @(7, 8)
+    }
+
+    It 'reads a header with a byte order mark, quoted cells and CRLF line endings' {
+        $bytes = [System.Text.Encoding]::UTF8.GetPreamble() + [System.Text.Encoding]::UTF8.GetBytes(
+            "`"ResourceExternalId`";`"UserExternalId`";`"AssignmentType`"`r`n`"CN=Fin;OU=Groups`";`"u1`";`"Eligible`"`r`nr2;u2;`r`n")
+        [System.IO.File]::WriteAllBytes((Join-Path $TestDrive 'Assignments.csv'), $bytes)
+        Sync-CsvAssignments
+        $recs = @($script:posted[0].Body.records)
+        $recs.Count | Should -Be 2
+        # The delimiter inside the quoted DN stays in the id; no quote survives.
+        $recs[0].resourceExternalId | Should -Be 'CN=Fin;OU=Groups'
+        $recs[0].assignmentType | Should -Be 'Eligible'
+        $recs[1].principalExternalId | Should -Be 'u2'       # no stray `r on the last cell
+        $recs[1].assignmentType | Should -Be 'Direct'
+    }
+
+    It 'skips and counts a row missing a required id, without failing the run' {
+        Mock Write-Host { }
+        Set-Csv 'Assignments.csv' @('ResourceExternalId;UserExternalId', 'r1;u1', ';u2', 'r3;', 'r4;u4')
+        { Sync-CsvAssignments } | Should -Not -Throw
+        @($script:posted[0].Body.records | ForEach-Object resourceExternalId) | Should -Be @('r1', 'r4')
+        Should -Invoke Write-Host -ParameterFilter { "$Object" -like '*4 rows read, 2 sent, 2 skipped*' } -Exactly 1
+        $script:reconciled.Count | Should -Be 1               # a partly-bad file is still a full sync
+    }
+
+    It 'sends a pair held both Direct and Eligible as two assignments' {
+        Set-Csv 'Assignments.csv' @('ResourceExternalId;UserExternalId;AssignmentType', 'r1;u1;Direct', 'r1;u1;Eligible')
+        Sync-CsvAssignments
+        @($script:posted[0].Body.records | ForEach-Object assignmentType | Sort-Object) | Should -Be @('Direct', 'Eligible')
+    }
+
+    It 'does not reconcile when every row was skipped — nothing was touched, so nothing may be removed' {
+        Set-Csv 'Assignments.csv' @('ResourceExternalId;UserExternalId', ';u1', 'r2;')
+        Sync-CsvAssignments
+        $script:posted.Count | Should -Be 0
+        $script:reconciled.Count | Should -Be 0
+    }
+
+    It 'does not reconcile when a read fails partway — the run never completed' {
+        # An unterminated quote aborts the read after the first chunk has gone out.
+        # Reconciling then would delete every assignment past the failure point.
+        $lines = @('ResourceExternalId;UserExternalId') + @(1..10000 | ForEach-Object { "r$_;u$_" }) + @('"broken;u') + @(1..1001 | ForEach-Object { "x$_;y" })
+        [System.IO.File]::WriteAllLines((Join-Path $TestDrive 'Assignments.csv'), $lines)
+        { Sync-CsvAssignments } | Should -Throw '*Assignments.csv line 10002 is not valid CSV*'
+        $script:posted.Count | Should -Be 1
+        $script:reconciled.Count | Should -Be 0
+    }
+
+    It 'names extra columns in the log as ignored — Assignments does not keep them' {
+        Mock Write-Host { }
+        Set-Csv 'Assignments.csv' @('ResourceExternalId;UserExternalId;grantedBy', 'r1;u1;alice')
+        Sync-CsvAssignments
+        $script:posted[0].Body.records[0].ContainsKey('grantedBy') | Should -BeFalse
+        Should -Invoke Write-Host -ParameterFilter { "$Object" -like '*ignored*Assignments.csv*grantedBy*' } -Exactly 1
     }
 }
 
@@ -466,6 +604,7 @@ Describe 'CSV phases — a SystemName the lookup does not know' {
         Reset-CsvTestState
         Mock Update-CrawlerProgress { }
         Mock Send-GroupedBySystem $script:SendMock
+        Use-StreamMocks
         $script:systemLookup = @{ 'Omada' = 9 }
     }
 
@@ -513,23 +652,27 @@ Describe 'CSV phases — a SystemName the lookup does not know' {
     It 'Sync-CsvResources falls back for an unknown system' {
         Set-Csv 'Resources.csv' @('ExternalId;DisplayName;SystemName', 'r1;A;Omada', 'r2;B;NoSuchSystem', 'r3;C;')
         Sync-CsvResources
-        $recs = (Get-Sent 'ingest/resources')[0].Records
+        $recs = Get-SentRecords 'ingest/resources'
         ($recs | Where-Object { $_.externalId -eq 'r1' })._systemId | Should -Be 9
         ($recs | Where-Object { $_.externalId -eq 'r2' })._systemId | Should -Be 2
         ($recs | Where-Object { $_.externalId -eq 'r3' })._systemId | Should -Be 2
     }
 
     It 'Sync-CsvAssignments resolves a known system and falls back for an unknown one' {
-        # The existing assignment fixture has no SystemName column at all, so the
-        # `$idxSys -ge 0` guard is only ever evaluated on the absent case (-1).
-        # Inverted to `-lt 0` that reads the LAST column of every row as if it
-        # were the system name; with the column genuinely present it silently
-        # drops the mapping instead.
+        # Streamed now, so the system is not a field on the record — it selects
+        # WHICH stream the row joins, and each stream posts under its own
+        # systemId. Inverting the  guard sends every row to the
+        # fallback system, which this still catches.
+        Mock Get-CrawlerServerTime { '2026-09-25T10:00:00.000Z' }
+        Mock Invoke-CrawlerReconcile { 0 }
+        $posted = [System.Collections.Generic.List[object]]::new()
+        Mock Invoke-IngestAPI { $posted.Add($Body); @{ inserted = @($Body.records).Count } }
         Set-Csv 'Assignments.csv' @('ResourceExternalId;UserExternalId;SystemName', 'r1;u1;Omada', 'r2;u2;NoSuchSystem')
         Sync-CsvAssignments
-        $recs = (Get-Sent 'ingest/resource-assignments')[0].Records
-        ($recs | Where-Object { $_.resourceExternalId -eq 'r1' })._systemId | Should -Be 9
-        ($recs | Where-Object { $_.resourceExternalId -eq 'r2' })._systemId | Should -Be 2
+        $bySystem = @{}
+        foreach ($b in $posted) { foreach ($r in @($b.records)) { $bySystem[$r.resourceExternalId] = $b.systemId } }
+        $bySystem['r1'] | Should -Be 9    # matched the lookup
+        $bySystem['r2'] | Should -Be 2    # unknown name -> fallback
     }
 
     It 'Sync-CsvCertifications resolves a known system and falls back for an unknown one' {
@@ -589,6 +732,7 @@ Describe 'CSV fast-path phases — SystemName as the first column' {
         Reset-CsvTestState
         Mock Update-CrawlerProgress { }
         Mock Send-GroupedBySystem $script:SendMock
+        Use-StreamMocks
         $script:systemLookup = @{ 'Omada' = 9 }
     }
 
@@ -599,9 +743,14 @@ Describe 'CSV fast-path phases — SystemName as the first column' {
     }
 
     It 'Sync-CsvAssignments honours SystemName in column zero' {
+        Mock Get-CrawlerServerTime { '2026-09-25T10:00:00.000Z' }
+        Mock Invoke-CrawlerReconcile { 0 }
+        $posted = [System.Collections.Generic.List[object]]::new()
+        Mock Invoke-IngestAPI { $posted.Add($Body); @{ inserted = @($Body.records).Count } }
         Set-Csv 'Assignments.csv' @('SystemName;ResourceExternalId;UserExternalId', 'Omada;r1;u1')
         Sync-CsvAssignments
-        (Get-Sent 'ingest/resource-assignments')[0].Records[0]._systemId | Should -Be 9
+        $posted.Count | Should -Be 1
+        $posted[0].systemId | Should -Be 9
     }
 
     It 'Sync-CsvCertifications honours SystemName in column zero' {
@@ -694,5 +843,242 @@ Describe 'CSV phases — a row with fewer fields than the header' {
         { Sync-CsvIdentityMembers } | Should -Not -Throw
         $recs = (Get-Sent 'ingest/identity-members')[0].Records
         ($recs | Where-Object { $_.identityExternalId -eq 'i2' })._systemId | Should -Be 2
+    }
+}
+
+Describe 'CSV phases — extra columns reach the ingest records' {
+    # End to end through the real readers (Import-Csv for the slow path,
+    # Read-CsvFast for the fast one): the docs promise that a column outside the
+    # schema is kept as extendedAttributes, and each file that keeps them is
+    # exercised here with a column the schema does not know.
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+        Use-StreamMocks
+    }
+
+    It 'Sync-CsvResources keeps an extra column (fast path), including one in position 0' {
+        Set-Csv 'Resources.csv' @('Region;ExternalId;DisplayName;Owner', 'EU;r1;Payroll;jan', 'US;r2;Ledger;')
+        Sync-CsvResources
+        $recs = Get-SentRecords 'ingest/resources'
+        ($recs | Where-Object { $_.externalId -eq 'r1' }).Region | Should -Be 'EU'
+        ($recs | Where-Object { $_.externalId -eq 'r1' }).Owner | Should -Be 'jan'
+        ($recs | Where-Object { $_.externalId -eq 'r2' }).ContainsKey('Owner') | Should -BeFalse
+    }
+
+    It 'Sync-CsvResources sends a pure-schema file with no extra keys at all' {
+        Set-Csv 'Resources.csv' @('ExternalId;DisplayName;SystemName', 'r1;A;')
+        Sync-CsvResources
+        @((Get-Sent 'ingest/resources')[0].Records[0].Keys | Sort-Object) |
+            Should -Be @('_systemId', 'description', 'displayName', 'enabled', 'externalId', 'resourceType')
+    }
+
+    It 'Sync-CsvCertifications keeps an extra column (fast path)' {
+        Set-Csv 'Certifications.csv' @('ExternalId;Decision;Campaign', 'c1;Approve;Q3')
+        Sync-CsvCertifications
+        (Get-Sent 'ingest/governance/certifications')[0].Records[0].Campaign | Should -Be 'Q3'
+    }
+
+    It 'Sync-CsvUsers keeps an extra column and reads a lower-case schema column as that column' {
+        # "department" IS the Department column. Before the column set was made
+        # case-insensitive, the shaper read it as absent AND the extras skipped it
+        # as reserved: the value was lost both ways.
+        Set-Csv 'Users.csv' @('ExternalId;DisplayName;department;CostCenter', 'u1;Ann;Finance;NL01')
+        Sync-CsvUsers
+        $rec = (Get-Sent 'ingest/principals')[0].Records[0]
+        $rec.department | Should -Be 'Finance'
+        $rec.CostCenter | Should -Be 'NL01'
+    }
+
+    It 'Sync-CsvIdentities keeps an extra column' {
+        Set-Csv 'Identities.csv' @('ExternalId;DisplayName;EmployeeStatus', 'i1;Ann;Active')
+        Sync-CsvIdentities
+        (Get-Sent 'ingest/identities')[0].Records[0].EmployeeStatus | Should -Be 'Active'
+    }
+
+    It 'Sync-CsvContexts keeps an extra column' {
+        Set-Csv 'Contexts.csv' @('ExternalId;DisplayName;CostCenter', 'c1;Sales;CC9')
+        Sync-CsvContexts
+        (Get-Sent 'ingest/contexts')[0].Records[0].CostCenter | Should -Be 'CC9'
+    }
+
+    It 'Sync-CsvRelationships keeps an extra column' {
+        Set-Csv 'ResourceRelationships.csv' @('ParentExternalId;ChildExternalId;GrantedOn', 'p1;c1;2024-01-01')
+        Sync-CsvRelationships
+        (Get-Sent 'ingest/resource-relationships')[0].Records[0].GrantedOn | Should -Be '2024-01-01'
+    }
+
+    It 'Sync-CsvSystems keeps an extra column' {
+        Set-Csv 'Systems.csv' @('ExternalId;DisplayName;Owner', 's1;SAP;Ops')
+        Mock Invoke-IngestAPI { $script:sysBody = $Body; @{ systemIds = @(10) } }
+        Sync-CsvSystems
+        $script:sysBody.records[0].Owner | Should -Be 'Ops'
+    }
+
+    It 'Sync-CsvIdentityMembers does not keep extras, and says so' {
+        Mock Write-Host { }
+        Set-Csv 'IdentityMembers.csv' @('IdentityExternalId;UserExternalId;Reason', 'i1;u1;merge')
+        Sync-CsvIdentityMembers
+        (Get-Sent 'ingest/identity-members')[0].Records[0].ContainsKey('Reason') | Should -BeFalse
+        Should -Invoke Write-Host -ParameterFilter { "$Object" -like '*ignored*IdentityMembers.csv*Reason*' } -Exactly 1
+    }
+}
+
+Describe 'CSV phases — a comma-delimited export full of LDAP distinguished names' {
+    # The motivating export's entitlement values are DNs: commas everywhere. The
+    # fast reader used to split each line on the delimiter and strip quotes per
+    # cell, so a quoted DN was torn apart and every later column shifted by one —
+    # accepted without an error. These files are comma-delimited on purpose.
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+        Use-StreamMocks
+        $script:Delimiter = ','
+    }
+    AfterEach { $script:Delimiter = ';' }
+
+    It 'Sync-CsvResources keeps DN ids, doubled quotes, a multi-line and an empty quoted value in their columns' {
+        $text = @(
+            'ExternalId,DisplayName,Description,Owner'
+            '"CN=Fin,OU=Groups,DC=corp,DC=com","Finance, all","say ""hi""",ann'
+            '"CN=Ops,OU=Groups,DC=corp,DC=com",Ops,"line one'
+            'line two",""'
+            'plain,Plain,,bob'
+        ) -join "`r`n"
+        [System.IO.File]::WriteAllText((Join-Path $TestDrive 'Resources.csv'), $text + "`r`n", [System.Text.UTF8Encoding]::new($true))
+        Sync-CsvResources
+        $recs = Get-SentRecords 'ingest/resources'
+        $recs.Count | Should -Be 3
+        $fin = $recs | Where-Object { $_.externalId -eq 'CN=Fin,OU=Groups,DC=corp,DC=com' }
+        $fin.displayName | Should -Be 'Finance, all'
+        $fin.description | Should -Be 'say "hi"'
+        $fin.Owner | Should -Be 'ann'                      # the column after the DN did not shift
+        $ops = $recs | Where-Object { $_.externalId -eq 'CN=Ops,OU=Groups,DC=corp,DC=com' }
+        $ops.description | Should -Be "line one`r`nline two"
+        $ops.ContainsKey('Owner') | Should -BeFalse         # "" is empty, not a value
+        ($recs | Where-Object { $_.externalId -eq 'plain' }).Owner | Should -Be 'bob'
+    }
+
+    It 'Sync-CsvAssignments keeps a DN resource id whole' {
+        Set-Csv 'Assignments.csv' @(
+            'ResourceExternalId,UserExternalId,AssignmentType'
+            '"CN=Fin,OU=Groups,DC=corp,DC=com",u1,Eligible'
+        )
+        Sync-CsvAssignments
+        $rec = (Get-SentRecords 'ingest/resource-assignments')[0]
+        $rec.resourceExternalId | Should -Be 'CN=Fin,OU=Groups,DC=corp,DC=com'
+        $rec.principalExternalId | Should -Be 'u1'
+        $rec.assignmentType | Should -Be 'Eligible'
+    }
+
+    It 'Sync-CsvContextMembers keeps a DN member id whole' {
+        Set-Csv 'ContextMembers.csv' @(
+            'ContextExternalId,MemberExternalId,MemberType'
+            'app-payroll,"CN=Fin,OU=Groups,DC=corp,DC=com",Resource'
+        )
+        Sync-CsvContextMembers
+        $rec = @((Get-Sent 'ingest/context-members')[0].Records)[0]
+        $rec.memberExternalId | Should -Be 'CN=Fin,OU=Groups,DC=corp,DC=com'
+        $rec.memberType | Should -Be 'Resource'
+    }
+
+    It 'fails the file, rather than loading shifted rows, on a quote that never closes' {
+        Set-Csv 'Resources.csv' @('ExternalId,DisplayName', 'r1,A', '"CN=Broken,OU=x,B', 'r3,C')
+        { Sync-CsvResources } | Should -Throw '*Resources.csv line 3 is not valid CSV*'
+        Should -Invoke Invoke-CrawlerReconcile -Exactly 0
+    }
+}
+
+Describe 'Sync-CsvContextMembers — the fast reader, one full sync' {
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+    }
+
+    It 'sends every membership in ONE full sync, whatever SystemName says' {
+        # ContextMembers has no systemId: a full sync of it removes the members of
+        # every context the crawler owns. One sync per system would have each one
+        # delete the others' — so SystemName is ignored and all rows go together.
+        $script:systemLookup = @{ 'HR' = 7 }
+        Set-Csv 'ContextMembers.csv' @('ContextExternalId;MemberExternalId;MemberType;SystemName', 'c1;m1;Resource;HR', 'c2;m2;Resource;AD', 'c3;m3;Resource;')
+        Sync-CsvContextMembers
+        $sent = Get-Sent 'ingest/context-members'
+        $sent.Count | Should -Be 1
+        @($sent[0].Records | ForEach-Object { $_._systemId } | Select-Object -Unique) | Should -Be @(2)
+        @($sent[0].Records).Count | Should -Be 3
+    }
+
+    It 'reads past a batch boundary without losing or repeating a row' {
+        $lines = @('ContextExternalId;MemberExternalId;MemberType') + @(1..10005 | ForEach-Object { "c1;m$_;Resource" })
+        Set-Csv 'ContextMembers.csv' $lines
+        Sync-CsvContextMembers
+        $members = @((Get-Sent 'ingest/context-members')[0].Records | ForEach-Object { $_.memberExternalId })
+        $members.Count | Should -Be 10005
+        @($members | Select-Object -Unique).Count | Should -Be 10005
+    }
+
+    It 'throws on a missing required column before sending anything' {
+        Set-Csv 'ContextMembers.csv' @('ContextExternalId;MemberExternalId', 'c1;m1')
+        { Sync-CsvContextMembers } | Should -Throw '*ContextMembers.csv schema mismatch: missing MemberType*'
+        @(Get-Sent 'ingest/context-members').Count | Should -Be 0
+    }
+
+    It 'sends nothing — not an empty full sync — when no row is usable' {
+        # An empty full sync would remove every membership the crawler owns.
+        Set-Csv 'ContextMembers.csv' @('ContextExternalId;MemberExternalId;MemberType', ';m1;Resource')
+        Sync-CsvContextMembers
+        @(Get-Sent 'ingest/context-members').Count | Should -Be 0
+    }
+}
+
+Describe 'CSV phases — a SystemName that Systems.csv did not declare is reported' {
+    # Rows naming an undeclared system still load (into the fallback system), but
+    # never silently: an import once reported success while most of its data went
+    # somewhere else. One warning per file, with the row count and the names.
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+        Use-StreamMocks
+        Mock Write-Host { }
+        $script:systemLookup = @{ 'HR' = 7 }
+        $script:SystemName = 'CSV Import'
+    }
+
+    It 'Sync-CsvUsers (slow path) counts the fallen-back rows per name, and not the blank ones' {
+        Set-Csv 'Users.csv' @('ExternalId;DisplayName;SystemName', 'u1;A;HR', 'u2;B;Ghost', 'u3;C;Ghost', 'u4;D;Other', 'u5;E;')
+        Sync-CsvUsers
+        Should -Invoke Write-Host -Exactly 1 -ParameterFilter {
+            "$Object" -like "*WARNING: 3 row(s) in Users.csv*fallback system 'CSV Import'*Ghost (2), Other (1)"
+        }
+    }
+
+    It 'Sync-CsvAssignments (streamed) totals the unknown names across batches' {
+        $lines = @('ResourceExternalId;UserExternalId;SystemName') + @(1..10002 | ForEach-Object { if ($_ -le 2) { "r$_;u$_;HR" } else { "r$_;u$_;Ghost" } })
+        Set-Csv 'Assignments.csv' $lines
+        Sync-CsvAssignments
+        Should -Invoke Write-Host -Exactly 1 -ParameterFilter { "$Object" -like '*WARNING: 10000 row(s) in Assignments.csv*Ghost (10000)' }
+    }
+
+    It 'Sync-CsvCertifications (fast path) reports them too' {
+        Set-Csv 'Certifications.csv' @('ExternalId;SystemName', 'c1;Ghost')
+        Sync-CsvCertifications
+        Should -Invoke Write-Host -Exactly 1 -ParameterFilter { "$Object" -like '*WARNING: 1 row(s) in Certifications.csv*Ghost (1)' }
+    }
+
+    It 'says nothing when every named system is known' {
+        Set-Csv 'Users.csv' @('ExternalId;DisplayName;SystemName', 'u1;A;HR', 'u2;B;')
+        Sync-CsvUsers
+        Should -Invoke Write-Host -Exactly 0 -ParameterFilter { "$Object" -like '*WARNING*' }
+    }
+
+    It 'lists at most ten names, most rows first, and says how many more there are' {
+        $rows = @('ExternalId;DisplayName;SystemName') + @(1..12 | ForEach-Object { 'u{0};N;S{0:D2}' -f $_ }) + @('u99;N;S12')
+        Set-Csv 'Users.csv' $rows
+        Sync-CsvUsers
+        Should -Invoke Write-Host -Exactly 1 -ParameterFilter { "$Object" -like '*13 row(s)*: S12 (2), S01 (1), S02 (1)*S09 (1), and 2 more' }
     }
 }

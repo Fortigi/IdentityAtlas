@@ -86,6 +86,14 @@ describe('self-service crawlers — auth + validation', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: 1 });
   });
+  it('GET /crawlers/whoami carries the server clock a streamed reconcile keys on', async () => {
+    const before = Date.now();
+    const res = await crawlerApp(WORKER).get('/api/crawlers/whoami');
+    const t = Date.parse(res.body.serverTime);
+    expect(Number.isNaN(t)).toBe(false);
+    expect(t).toBeGreaterThanOrEqual(before);
+    expect(t).toBeLessThanOrEqual(Date.now());
+  });
   it('POST /crawlers/jobs/:id/phases 400 when phases is not an array', async () => {
     expect((await crawlerApp(WORKER).post('/api/crawlers/jobs/1/phases').send({ phases: 'nope' })).status).toBe(400);
   });

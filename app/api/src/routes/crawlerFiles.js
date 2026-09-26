@@ -17,12 +17,17 @@ import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join, basename } from 'path';
 import * as db from '../db/connection.js';
 import { CRAWLER_MANIFESTS_DIR, _crawlerManifests, VALID_JOB_TYPES } from '../crawlerManifests.js';
-import { checkUploadCapacity, resolveUploadLimits } from '../lib/uploadCapacity.js';
+import { checkUploadCapacity, resolveUploadLimits, describeBytes } from '../lib/uploadCapacity.js';
 
 const router = Router();
 const gate = requirePermission('admin.csv-import');
 
 const UPLOAD_ROOT = process.env.UPLOAD_ROOT || '/data/uploads';
+
+// The per-file cap (UPLOAD_MAX_FILE_BYTES, default 8 GiB). Resolved once: multer
+// enforces it and GET /admin/crawler-uploads/limits reports it, so the two can
+// never disagree.
+const MAX_FILE_BYTES = resolveUploadLimits().maxFileBytes;
 
 function configFolder(crawlerType, configId) {
   return join(UPLOAD_ROOT, `${crawlerType}-${configId}`);
@@ -38,26 +43,52 @@ function parseConfigId(req, res) {
   return id;
 }
 
+// Reject an upload WITHOUT the browser reporting it as a network failure.
+//
+// Every guard on the upload route runs before the request body is read.
+// Answering a request whose body is still arriving makes Node destroy the
+// socket, and the browser then reports "TypeError: Failed to fetch" — the JSON
+// explanation never reaches the user. That is how an upload refused for a
+// perfectly clear reason ("Crawler config not found", "not enough free space")
+// surfaces in the wizard as an unexplained network error.
+//
+// Draining the body first costs the upload's bandwidth, but only on the
+// rejection path, and buys an error the user can act on. The reason is logged
+// too: the launcher console is where an operator looks when the UI says nothing.
+function rejectUpload(req, res, status, error) {
+  console.warn(`Upload rejected (${status}): ${error}`);
+  const send = () => { if (!res.headersSent) res.status(status).json({ error }); };
+  if (req.readableEnded) { send(); return null; }
+  req.resume();            // discard the body so the client can finish sending
+  req.on('end', send);
+  req.on('error', send);   // client gave up mid-body — nothing left to answer to
+  return null;
+}
+
 // Ensure the config exists and its crawler type declares file-upload support
 // before letting anyone touch its files. Returns the crawler type on success
 // (callers need it to resolve the config's folder), or null after sending an
-// error response.
-async function assertUploadableConfig(configId, res) {
+// error response. `req` is passed on the upload path so a refusal can drain the
+// body first; the GET/DELETE callers have no body and omit it.
+async function assertUploadableConfig(configId, res, req = null) {
   try {
     const pool = await db.getPool();
     const r = await pool.query(`SELECT "crawlerType" FROM "CrawlerConfigs" WHERE id = $1`, [configId]);
     if (r.rows.length === 0) {
+      if (req) return rejectUpload(req, res, 404, 'Crawler config not found');
       res.status(404).json({ error: 'Crawler config not found' });
       return null;
     }
     const crawlerType = r.rows[0].crawlerType;
     if (!_crawlerManifests[crawlerType]?.supportsFileUploads) {
+      if (req) return rejectUpload(req, res, 400, 'This crawler type does not support file uploads');
       res.status(400).json({ error: 'This crawler type does not support file uploads' });
       return null;
     }
     return crawlerType;
   } catch (err) {
     console.error('assertUploadableConfig failed:', err.message);
+    if (req) return rejectUpload(req, res, 500, 'Database error');
     res.status(500).json({ error: 'Database error' });
     return null;
   }
@@ -96,7 +127,11 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 1024 * 1024 * 1024, // 1 GB per file
+    // Per-file bound, configurable via UPLOAD_MAX_FILE_BYTES (default 8 GiB). A
+    // fixed 1 GB here rejected a 1.8 GB / 40-million-row entitlement extract, and
+    // the real protection against filling the volume is the free-space reserve in
+    // refuseWithoutCapacity(), which runs before the body is accepted.
+    fileSize: MAX_FILE_BYTES,
     files: 50,
   },
   fileFilter: (req, file, cb) => {
@@ -109,6 +144,15 @@ const upload = multer({
   },
 });
 
+// ─── The upload limit, for the wizards ──────────────────────────────────────
+// The server owns the per-file cap; a wizard asks for it rather than carrying its
+// own copy. A copy drifted once already: the CSV wizard kept a 1 GB constant
+// after the server's default rose to 8 GiB, so a 1.8 GB export was refused in the
+// browser and never sent.
+router.get('/admin/crawler-uploads/limits', gate, (req, res) => {
+  res.json({ maxFileBytes: MAX_FILE_BYTES });
+});
+
 // ─── List uploaded files for a config ───────────────────────────────────────
 router.get('/admin/crawler-configs/:configId/files', gate, async (req, res) => {
   const configId = parseConfigId(req, res);
@@ -116,8 +160,13 @@ router.get('/admin/crawler-configs/:configId/files', gate, async (req, res) => {
   const crawlerType = await assertUploadableConfig(configId, res);
   if (!crawlerType) return;
 
+  // `folder` is where a job reads this config's files from. A file copied straight
+  // into it is picked up exactly like an uploaded one — for a multi-GB export on
+  // the machine that runs Identity Atlas, a local copy beats a browser upload. It
+  // is always the config's own folder under UPLOAD_ROOT: no path is taken from
+  // the caller, so reporting it widens nothing.
   const dir = configFolder(crawlerType, configId);
-  if (!existsSync(dir)) return res.json({ files: [] });
+  if (!existsSync(dir)) return res.json({ files: [], folder: dir });
 
   try {
     const entries = await readdir(dir);
@@ -125,7 +174,7 @@ router.get('/admin/crawler-configs/:configId/files', gate, async (req, res) => {
       const s = await stat(join(dir, name));
       return { name, sizeBytes: s.size, modifiedAt: s.mtime.toISOString() };
     }));
-    res.json({ files: files.sort((a, b) => a.name.localeCompare(b.name)) });
+    res.json({ files: files.sort((a, b) => a.name.localeCompare(b.name)), folder: dir });
   } catch (err) {
     console.error('File list failed:', err.message);
     res.status(500).json({ error: 'Failed to list files' });
@@ -143,10 +192,12 @@ async function refuseWithoutCapacity(req, res, crawlerType, configId) {
       limits: resolveUploadLimits(),
     });
     if (!refusal) return false;
-    res.status(refusal.status).json({ error: refusal.error });
+    // Drain before answering: this runs while the body is still arriving, and a
+    // bare response there reaches the browser as "Failed to fetch".
+    rejectUpload(req, res, refusal.status, refusal.error);
   } catch (err) {
     console.error('Upload capacity check failed:', err.message);
-    res.status(500).json({ error: 'Failed to check upload capacity' });
+    rejectUpload(req, res, 500, 'Failed to check upload capacity');
   }
   return true;
 }
@@ -160,7 +211,7 @@ router.post(
   async (req, res, next) => {
     const configId = parseConfigId(req, res);
     if (configId === null) return;
-    const crawlerType = await assertUploadableConfig(configId, res);
+    const crawlerType = await assertUploadableConfig(configId, res, req);
     if (!crawlerType) return;
     if (await refuseWithoutCapacity(req, res, crawlerType, configId)) return;
     req._crawlerType = crawlerType;
@@ -168,6 +219,13 @@ router.post(
   },
   (req, res) => {
     upload.array('files', 50)(req, res, (err) => {
+      if (err?.code === 'LIMIT_FILE_SIZE') {
+        // multer's own text is "File too large" — name the limit, and where it is set.
+        return res.status(413).json({
+          error: `A file is larger than the ${describeBytes(MAX_FILE_BYTES)} per-file upload limit. An administrator can raise it with UPLOAD_MAX_FILE_BYTES.`,
+          maxFileBytes: MAX_FILE_BYTES,
+        });
+      }
       if (err) {
         return res.status(400).json({ error: err.message });
       }

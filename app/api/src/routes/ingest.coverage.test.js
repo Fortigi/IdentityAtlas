@@ -57,6 +57,13 @@ vi.mock('../middleware/crawlerAuth.js', () => ({
 
 vi.mock('../lib/syncVersion.js', () => ({ bumpSyncVersion: vi.fn().mockResolvedValue(undefined) }));
 
+const { mockReconcileStale } = vi.hoisted(() => ({ mockReconcileStale: vi.fn().mockResolvedValue(0) }));
+vi.mock('../ingest/reconcileStale.js', async (importOriginal) => {
+  // Keep the pure request parser real (it is the 400 surface); stub the executor.
+  const real = await importOriginal();
+  return { ...real, reconcileStale: mockReconcileStale };
+});
+
 vi.mock('../ingest/crawlerPresence.js', () => ({
   normalizePresenceQuery: (body) => ({ tenantId: body?.tenantId, ids: body?.ids || [] }),
   lookupCrawlerPresence: vi.fn().mockResolvedValue({ crawlerDataAvailable: true, present: [] }),
@@ -368,6 +375,55 @@ describe('POST /ingest/principals-presence', () => {
     const res = await request(app).post('/ingest/principals-presence').send({ tenantId: 't1', ids: [UUID] });
     expect(res.status).toBe(200);
     expect(res.body.crawlerDataAvailable).toBe(true);
+  });
+});
+
+// ── POST /ingest/reconcile ───────────────────────────────────────────────────
+
+describe('POST /ingest/reconcile', () => {
+  const body = { entity: 'resource-assignments', systemId: 7, before: '2020-01-01T00:00:00.000Z', scope: { assignmentType: 'Direct', resourceType: 'Entitlement', bogus: 'x' } };
+
+  it('403 without ingest permission', async () => {
+    crawlerAuth.crawlerHasPermission.mockReturnValue(false);
+    expect((await request(app).post('/ingest/reconcile').send(body)).status).toBe(403);
+    expect(mockReconcileStale).not.toHaveBeenCalled();
+  });
+
+  it('400 on a bad request (unsystemed entity), naming the problem', async () => {
+    const res = await request(app).post('/ingest/reconcile').send({ ...body, entity: 'identities' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/no system scope/);
+    expect(mockReconcileStale).not.toHaveBeenCalled();
+  });
+
+  it('403 when the key has no access to the system', async () => {
+    crawlerAuth.crawlerHasSystemAccess.mockReturnValue(false);
+    const res = await request(app).post('/ingest/reconcile').send(body);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/system 7/);
+  });
+
+  it('200 with the deleted count; scope is projected onto the entity\'s scope columns and the arm filter is applied', async () => {
+    mockReconcileStale.mockResolvedValue(5);
+    const res = await request(app).post('/ingest/reconcile').send(body);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ table: 'ResourceAssignments', deleted: 5, before: '2020-01-01T00:00:00.000Z' });
+    const [table, opts] = mockReconcileStale.mock.calls[0];
+    expect(table).toBe('ResourceAssignments');
+    expect(opts.systemId).toBe(7);
+    expect(opts.scope).toEqual({ assignmentType: 'Direct', resourceType: 'Entitlement' });
+    expect(opts.scopeDeleteFilter).toBe('"principalId" IS NOT NULL');
+    expect(opts.before).toBe('2020-01-01T00:00:00.000Z');
+  });
+
+  it('400 when the executor refuses the table, 500 on any other failure', async () => {
+    const { ReconcileRequestError } = await import('../ingest/reconcileStale.js');
+    mockReconcileStale.mockRejectedValueOnce(new ReconcileRequestError('nope'));
+    expect((await request(app).post('/ingest/reconcile').send(body)).status).toBe(400);
+    mockReconcileStale.mockRejectedValueOnce(new Error('db down'));
+    const res = await request(app).post('/ingest/reconcile').send(body);
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Reconcile failed');
   });
 });
 
