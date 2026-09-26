@@ -256,6 +256,38 @@ paths:
         '201':
           $ref: '#/components/responses/IngestSuccess'
 
+  /ingest/reconcile:
+    post:
+      tags: [Ingest]
+      summary: Reconcile a streamed full sync by timestamp
+      operationId: reconcileStale
+      description: >-
+        The full-sync delete for a crawler that streams its source in independent
+        delta chunks instead of one sync session (sources of tens of millions of
+        rows). Every row of the given system and scope that no ingest has touched
+        since `before` is reconciled away: soft-deleted (deletedAt stamped) on
+        Principals, Resources and ResourceAssignments, removed on other tables.
+        Entities without a system scope (identities, identity-members, contexts,
+        context-members) are refused. Use the `serverTime` from GET /crawlers/whoami,
+        read at the start of the run, as `before`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconcileRequest'
+      responses:
+        '200':
+          description: Reconcile result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconcileResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /ingest/refresh-views:
     post:
       tags: [Ingest]
@@ -2318,6 +2350,36 @@ components:
         durationMs:
           type: integer
 
+    ReconcileRequest:
+      type: object
+      required: [entity, systemId, before]
+      properties:
+        entity:
+          type: string
+          description: Ingest entity type (e.g. resource-assignments); must carry a system scope
+        systemId:
+          type: integer
+        scope:
+          type: object
+          description: 'Narrow the reconcile to a scope (e.g. { assignmentType: "Direct", resourceType: "Entitlement" })'
+          additionalProperties:
+            type: string
+        before:
+          type: string
+          format: date-time
+          description: Rows not ingested since this moment are reconciled away
+
+    ReconcileResult:
+      type: object
+      properties:
+        table:
+          type: string
+        deleted:
+          type: integer
+        before:
+          type: string
+          format: date-time
+
     CrawlerInfo:
       type: object
       properties:
@@ -2325,6 +2387,10 @@ components:
           type: integer
         displayName:
           type: string
+        serverTime:
+          type: string
+          format: date-time
+          description: The API container's clock at the time of the call
         systemIds:
           type: array
           items:
