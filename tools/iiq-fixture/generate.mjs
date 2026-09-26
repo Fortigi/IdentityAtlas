@@ -5,6 +5,7 @@
 //   node tools/iiq-fixture/generate.mjs --out ./iiq --scale 0.1 --iiq catalogName=My_Catalog
 
 import { pathToFileURL } from 'node:url';
+import { parseArgs as parseNodeArgs } from 'node:util';
 import { generateFixture } from './lib/generate.mjs';
 import { DEFAULTS } from '../scale-dataset/lib/params.mjs';
 import { IIQ_DEFAULTS } from './lib/params.mjs';
@@ -26,23 +27,27 @@ function keyValue(v, known, flag) {
   return [v.slice(0, eq), parseValue(v.slice(eq + 1))];
 }
 
-const FLAGS = {
-  '--out': (o, v) => { o.out = v; },
-  '--scale': (o, v) => { o.overrides.shape.scale = Number(v); },
-  '--seed': (o, v) => { o.overrides.shape.seed = Number(v); },
-  '--set': (o, v) => { const [k, val] = keyValue(v, DEFAULTS, '--set'); o.overrides.shape[k] = val; },
-  '--iiq': (o, v) => { const [k, val] = keyValue(v, IIQ_DEFAULTS, '--iiq'); o.overrides.iiq[k] = val; },
+const OPTIONS = {
+  out: { type: 'string' },
+  scale: { type: 'string' },
+  seed: { type: 'string' },
+  set: { type: 'string', multiple: true },
+  iiq: { type: 'string', multiple: true },
+  help: { type: 'boolean', short: 'h' },
 };
 
 export function parseArgs(argv) {
-  const o = { overrides: { shape: {}, iiq: {} }, out: null };
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === '--help' || a === '-h') { o.help = true; continue; }
-    if (!FLAGS[a]) throw new Error(`Unknown argument ${a}\n${USAGE}`);
-    if (i + 1 >= argv.length) throw new Error(`${a} needs a value`);
-    FLAGS[a](o, argv[++i]);
+  let values;
+  try {
+    ({ values } = parseNodeArgs({ args: argv, options: OPTIONS, strict: true, allowPositionals: false }));
+  } catch (err) {
+    throw new Error(`${err.message}\n${USAGE}`);
   }
+  const o = { overrides: { shape: {}, iiq: {} }, out: values.out ?? null, help: values.help === true };
+  if (values.scale !== undefined) o.overrides.shape.scale = Number(values.scale);
+  if (values.seed !== undefined) o.overrides.shape.seed = Number(values.seed);
+  for (const v of values.set ?? []) { const [k, val] = keyValue(v, DEFAULTS, '--set'); o.overrides.shape[k] = val; }
+  for (const v of values.iiq ?? []) { const [k, val] = keyValue(v, IIQ_DEFAULTS, '--iiq'); o.overrides.iiq[k] = val; }
   if (!o.help && !o.out) throw new Error(`--out is required\n${USAGE}`);
   return o;
 }

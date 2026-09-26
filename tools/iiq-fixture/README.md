@@ -80,6 +80,17 @@ and records by `0x1e`. XML values contain newlines and quotes, which rules out
 tab-separated text. `manifest.json` records the column order, row counts and
 the shared shape statistics.
 
+## A trap: the collation hides the drift
+
+Logical applications are matched by **name**, and `appNameDriftShare` makes some
+entitlements name their application with a different case or a trailing space.
+Under a case-insensitive collation (the default, and the usual production
+setting) SQL Server calls those names equal: `COUNT(DISTINCT …)` folds them
+away and a join matches them. PostgreSQL compares exactly. Any matching done in
+the source will therefore disagree with matching done in Identity Atlas. The
+SQL connector resolves application names in one place, in the crawler, and
+reports every spelling it had to fold. Do not "fix" the drift in a query.
+
 ## Known simplifications
 
 - Grants that came from a role are not derived from that role's composition.

@@ -260,8 +260,8 @@ describe('determinism, records, parameters, CLI', () => {
     expect(o).toMatchObject({ out: 'x', overrides: { shape: { scale: 0.1, seed: 7, enabledShare: 0.5 }, iiq: { catalogName: 'Cat', workgroups: 3 } } });
     expect(() => parseArgs(['--out', 'x', '--iiq', 'nope=1'])).toThrow(/known parameter/);
     expect(() => parseArgs(['--scale', '1'])).toThrow(/--out is required/);
-    expect(() => parseArgs(['--bogus'])).toThrow(/Unknown argument/);
-    expect(() => parseArgs(['--out'])).toThrow(/needs a value/);
+    expect(() => parseArgs(['--bogus'])).toThrow(/Unknown option '--bogus'/);
+    expect(() => parseArgs(['--out'])).toThrow(/argument missing/);
     expect(parseArgs(['--help']).help).toBe(true);
   });
 });
