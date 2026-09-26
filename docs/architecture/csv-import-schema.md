@@ -66,10 +66,10 @@ Who has access to what.
 |--------|------|----------|-------------|
 | `ResourceExternalId` | string | yes | Must match an `ExternalId` from `Resources.csv` |
 | `UserExternalId` | string | yes | Must match an `ExternalId` from `Users.csv` |
-| `AssignmentType` | string | no | `Direct` (default), `Governed`, `Eligible`, `Owner`. Assignments to `BusinessRole` resources are automatically treated as `Governed` if this column is omitted or set to `Direct` |
+| `AssignmentType` | string | no | `Direct` (default), `Indirect` or `Eligible` — ingest rejects any other value. Assignments to `BusinessRole` resources are flagged `governed` automatically after the import |
 | `SystemName` | string | no | Scopes the assignment. Omit for single-system |
 
-Extra columns → `extendedAttributes`.
+Extra columns are **not** kept for this file (named in the job log instead): at tens of millions of rows an attribute per assignment costs more than it is worth.
 
 #### 5. `ResourceRelationships.csv` (optional)
 
@@ -150,15 +150,26 @@ For single-system imports (the common case), omit `SystemName` from all files. E
 
 **4. BusinessRole assignment auto-classification**
 
-When `AssignmentType` is `Direct` or omitted, but the target resource has `ResourceType = 'BusinessRole'`, the system automatically reclassifies the assignment as `Governed`. This means Omada-style exports (where all assignments are "Direct") work correctly on the Business Roles page without the user having to manually tag governed assignments.
+When the target resource has `ResourceType = 'BusinessRole'`, the assignment is automatically flagged `governed` after the import (its `AssignmentType` stays `Direct`). This means Omada-style exports (where all assignments are "Direct") work correctly on the Business Roles page without the user having to manually tag governed assignments.
 
 **5. Extra columns become extendedAttributes**
 
-Any column not in the schema above is silently stored as JSON in the entity's `extendedAttributes` field. This means:
-- Source-specific fields (Omada's `ODWBusiKey`, SAP's `AGR_NAME`) are preserved
+A column not in a file's schema is stored as JSON in the entity's `extendedAttributes` field for `Systems`, `Contexts`, `Resources`, `ResourceRelationships`, `Users`, `Identities` and `Certifications`. This means:
+- Source-specific fields (Omada's `ODWBusiKey`, SAP's `AGR_NAME`, a logical application's configuration-management reference) are preserved
 - The UI can show them on detail pages under "Extended Attributes"
-- No data is lost during import
 - No schema changes needed to support new source fields
+
+Column names match case-insensitively, so `department` is the `Department` column, not an extra one. Blank values are not stored, and a column named like an ingest bookkeeping field (`id`, `systemId`, `extendedAttributes`, `createdAt`, `updatedAt`, `deletedAt`) is never forwarded.
+
+Three files do **not** keep extra columns, and the job log names the ones it ignores: `Assignments.csv` (tens of millions of rows — an attribute per assignment costs more than it is worth), and `IdentityMembers.csv` / `ContextMembers.csv` (their tables have no attribute storage).
+
+**6. Standard CSV quoting, failing loudly**
+
+Files are parsed as RFC 4180: a quoted value may contain the delimiter, a doubled quote or a line break, so distinguished names (`"CN=x,OU=y,DC=z"`) load intact from a comma-delimited file. A row that cannot be parsed fails the import with its file and line; nothing is loaded as shifted columns, and a failed run never reconciles away existing rows.
+
+**7. An undeclared SystemName is reported**
+
+A `SystemName` that `Systems.csv` does not declare still loads — into the crawler's own system — but the job log warns with the row count and the unknown names, per file. `ContextMembers.csv` ignores `SystemName`: a membership belongs to its context's system, and the file is synced as one set.
 
 ### Minimum viable imports
 
@@ -253,7 +264,7 @@ This is ~30 lines per source system, easily auditable, and keeps Identity Atlas 
 | **UI wizard** (`tools/crawlers/csv/ConfigWizard.jsx`) | Self-contained crawler plugin (see `docs/architecture/crawler-architecture.md`). "Download schema templates" link in the upload step. |
 | **Schema templates** (`tools/crawlers/csv/schema/*.csv`) | Header-only CSV files — the canonical spec. Lives under the crawler's own folder so it's covered by the same Docker/node-launcher mirroring as the rest of `tools/crawlers/`. |
 | **Omada transform** (`tools/csv-templates/transforms/omada-to-identityatlas.ps1`) | Example transform: ~160 lines mapping Omada columns to Identity Atlas schema. |
-| **Auto-classify** (`POST /api/ingest/classify-business-role-assignments`) | Post-import: reclassifies Direct assignments to BusinessRole resources as Governed. |
+| **Auto-classify** (`POST /api/ingest/classify-business-role-assignments`) | Post-import: flags Direct assignments to BusinessRole resources as `governed`. |
 | **Backpressure fix** (`app/api/src/ingest/engine.js`, `sessions.js`) | `pg-copy-streams` COPY FROM STDIN now respects write backpressure. |
 
 ### Design rules
@@ -261,7 +272,7 @@ This is ~30 lines per source system, easily auditable, and keeps Identity Atlas 
 - No column-name guessing or auto-detection in the crawler
 - No source-specific logic in the crawler
 - One schema, clearly documented — user transforms their data to match
-- Extra columns preserved automatically in `extendedAttributes` (no data loss)
+- Extra columns preserved in `extendedAttributes` for every file except Assignments / IdentityMembers / ContextMembers
 - Subset imports supported (only provide what your source has)
 - Multi-system supported via optional `SystemName` column
 

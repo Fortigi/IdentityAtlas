@@ -87,6 +87,17 @@ export function formatCompactNumber(n) {
   return String(n);
 }
 
+// A byte count for display: '512 B', '1.0 KB', '1.8 GB', '1.5 TB'. Binary
+// multiples, one decimal past bytes. Shared by every place the UI shows a size —
+// the CSV wizard once kept its own copy that stopped at GB.
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'];
+export function formatBytes(n) {
+  let v = Number(n) || 0;
+  let i = 0;
+  while (v >= 1024 && i < BYTE_UNITS.length - 1) { v /= 1024; i++; }
+  return i === 0 ? `${v} B` : `${v.toFixed(1)} ${BYTE_UNITS[i]}`;
+}
+
 export function friendlyLabel(key) {
   if (key === 'id') return 'GUID';
   return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();

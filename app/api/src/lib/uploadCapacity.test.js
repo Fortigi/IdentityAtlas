@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { resolveUploadLimits, folderSizeBytes, checkUploadCapacity, DEFAULT_MIN_FREE_BYTES } from './uploadCapacity.js';
+import { resolveUploadLimits, folderSizeBytes, checkUploadCapacity, describeBytes, DEFAULT_MIN_FREE_BYTES, DEFAULT_MAX_FILE_BYTES } from './uploadCapacity.js';
 
 const GiB = 1024 * 1024 * 1024;
 // A fake volume with `free` bytes available.
@@ -17,16 +17,40 @@ beforeAll(() => {
 });
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
+describe('describeBytes', () => {
+  it('names a size the way an operator reads a limit, in binary units', () => {
+    expect(describeBytes(0)).toBe('0 B');
+    expect(describeBytes(1023)).toBe('1023 B');
+    expect(describeBytes(1024)).toBe('1.0 KiB');
+    expect(describeBytes(1.8 * GiB)).toBe('1.8 GiB');
+    expect(describeBytes(8 * GiB)).toBe('8.0 GiB');
+  });
+  it('goes past GiB: a limit above 1024 GiB is TiB, not "1024.0 GiB"', () => {
+    expect(describeBytes(1024 * GiB)).toBe('1.0 TiB');
+    expect(describeBytes(2048 * 1024 * GiB)).toBe('2048.0 TiB');   // the largest unit caps the loop
+  });
+});
+
 describe('resolveUploadLimits', () => {
   it('reserves 1 GiB and has no per-config quota by default', () => {
-    expect(resolveUploadLimits({})).toEqual({ minFreeBytes: DEFAULT_MIN_FREE_BYTES, configQuotaBytes: 0 });
+    expect(resolveUploadLimits({})).toEqual({ minFreeBytes: DEFAULT_MIN_FREE_BYTES, configQuotaBytes: 0, maxFileBytes: DEFAULT_MAX_FILE_BYTES });
     expect(DEFAULT_MIN_FREE_BYTES).toBe(GiB);
   });
   it('accepts explicit byte values, including 0, and ignores invalid ones', () => {
     expect(resolveUploadLimits({ UPLOAD_MIN_FREE_BYTES: '0', UPLOAD_CONFIG_QUOTA_BYTES: '5000' }))
-      .toEqual({ minFreeBytes: 0, configQuotaBytes: 5000 });
+      .toEqual({ minFreeBytes: 0, configQuotaBytes: 5000, maxFileBytes: DEFAULT_MAX_FILE_BYTES });
     expect(resolveUploadLimits({ UPLOAD_MIN_FREE_BYTES: '-1', UPLOAD_CONFIG_QUOTA_BYTES: '1.5' }))
-      .toEqual({ minFreeBytes: DEFAULT_MIN_FREE_BYTES, configQuotaBytes: 0 });
+      .toEqual({ minFreeBytes: DEFAULT_MIN_FREE_BYTES, configQuotaBytes: 0, maxFileBytes: DEFAULT_MAX_FILE_BYTES });
+  });
+
+  // The per-file cap was a hard-coded 1 GB, which rejected a real 1.8 GB / 40M-row
+  // IdentityIQ entitlement export outright. It is a sanity bound, not the safety
+  // mechanism — the free-space reserve is what stops an upload filling the volume.
+  it('defaults the per-file cap high enough for a full-table export, and is tunable', () => {
+    expect(DEFAULT_MAX_FILE_BYTES).toBe(8 * GiB);
+    expect(DEFAULT_MAX_FILE_BYTES).toBeGreaterThan(2 * GiB);   // the 1.8 GB case must fit
+    expect(resolveUploadLimits({ UPLOAD_MAX_FILE_BYTES: String(20 * GiB) }).maxFileBytes).toBe(20 * GiB);
+    expect(resolveUploadLimits({ UPLOAD_MAX_FILE_BYTES: 'nonsense' }).maxFileBytes).toBe(DEFAULT_MAX_FILE_BYTES);
   });
 });
 

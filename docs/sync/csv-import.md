@@ -28,7 +28,7 @@ In v5, CSV import is **API-driven**. The CSV crawler script (`tools/crawlers/csv
 | `-RefreshViews` | On | Refresh SQL views after sync |
 
 !!! tip
-    Columns not explicitly mapped are automatically collected into the `extendedAttributes` JSON column. You do not need to pre-process or strip your exports — just pass the file as-is.
+    Columns outside the schema are kept in the entity's `extendedAttributes` for every file except `Assignments.csv`, `IdentityMembers.csv` and `ContextMembers.csv` — see [Extra columns](#extra-columns). You do not need to strip your exports first.
 
 ---
 
@@ -42,13 +42,14 @@ The crawler looks for these files in the CSV folder (filename must match the ent
 
 | File | Entity | Target Table |
 |------|--------|-------------|
-| `systems.csv` | Systems | Systems |
-| `principals.csv` | User/service accounts | Principals |
-| `resources.csv` | Roles, groups, permissions | Resources |
-| `assignments.csv` | Who has access to what | ResourceAssignments |
-| `business-roles.csv` | Business roles | Resources (`resourceType='BusinessRole'`) |
-| `identities.csv` | Real persons | Identities + IdentityMembers |
-| `certifications.csv` | Review decisions | CertificationDecisions |
+| `Systems.csv` | Systems | Systems |
+| `Users.csv` | User/service accounts | Principals |
+| `Resources.csv` | Roles, groups, permissions — and business roles (`ResourceType=BusinessRole`) | Resources |
+| `Assignments.csv` | Who has access to what | ResourceAssignments |
+| `ResourceRelationships.csv` | Resource nesting | ResourceRelationships |
+| `Contexts.csv` / `ContextMembers.csv` | Org units, logical applications, other groupings | Contexts + ContextMembers |
+| `Identities.csv` / `IdentityMembers.csv` | Real persons and their accounts | Identities + IdentityMembers |
+| `Certifications.csv` | Review decisions | CertificationDecisions |
 
 ### Key columns per entity
 
@@ -60,7 +61,7 @@ The crawler looks for these files in the CSV folder (filename must match the ent
 | `DisplayName` | Yes | Human-readable system name |
 | `SystemType` | Yes | Type identifier (e.g. `HR`, `PAM`, `IGA`, `SIEM`) |
 
-**Principals:**
+**Users (principals):**
 
 | Column | Required | Description |
 |--------|----------|-------------|
@@ -84,8 +85,8 @@ The crawler looks for these files in the CSV folder (filename must match the ent
 | Column | Required | Description |
 |--------|----------|-------------|
 | `ResourceExternalId` | Yes | Matches resource ExternalId |
-| `PrincipalExternalId` | Yes | Matches principal ExternalId |
-| `AssignmentType` | No | `Direct`, `Governed`, `Eligible`, etc. Defaults to `Direct` |
+| `UserExternalId` | Yes | Matches the user's ExternalId |
+| `AssignmentType` | No | `Direct` (default), `Indirect` or `Eligible` — the only values ingest accepts |
 
 **Business Roles:**
 
@@ -109,7 +110,34 @@ The crawler looks for these files in the CSV folder (filename must match the ent
 
 ## CSV Format
 
-All CSV files use **semicolon delimiters** by default (configurable via `-Delimiter`) and expect ISO 8601 format for all date/time values.
+All CSV files use **semicolon delimiters** by default (configurable via `-Delimiter`: `;`, `,`, tab or `|`) and expect ISO 8601 format for all date/time values.
+
+### Quoting
+
+Every file is parsed as standard CSV (RFC 4180), so a comma-delimited export whose values are LDAP distinguished names loads correctly as long as those values are quoted:
+
+```csv
+ResourceExternalId,UserExternalId
+"CN=Finance,OU=Groups,DC=corp,DC=com",u1001
+```
+
+A quoted value may contain the delimiter, a doubled quote (`""` for `"`) or a line break. A row the parser cannot resolve — a quote that is never closed, or text after a closing quote — **fails the import** with the file name and line number rather than loading misaligned columns. A failed run never removes existing data.
+
+### Large files
+
+`Assignments.csv` and `Resources.csv` are read and sent in batches, so memory use stays flat whatever their size — tens of millions of assignment rows are fine. The upload limit per file is set by the server (`UPLOAD_MAX_FILE_BYTES`, default 8 GiB) and shown in the wizard. A file can also be copied straight into the crawler's folder on the server; the wizard shows that folder when you edit the crawler, and a copied file is read exactly like an uploaded one.
+
+### Systems
+
+A row's `SystemName` must match a system declared in `Systems.csv` (or the crawler's own system name). A row that names an undeclared system is still loaded, into the crawler's own system — and the job log warns with the number of such rows and the names that were not found. A blank `SystemName` is the normal single-system case and is not reported.
+
+In `ContextMembers.csv` the `SystemName` column is ignored: a membership belongs to its context's system.
+
+### Extra columns
+
+A column outside a file's schema is stored in the entity's `extendedAttributes`, and shown on its detail page, for `Systems`, `Contexts`, `Resources`, `ResourceRelationships`, `Users`, `Identities` and `Certifications`. Blank values are not stored.
+
+Extra columns in `Assignments.csv` are **not** kept: at tens of millions of rows an attribute per assignment costs more than it is worth. `IdentityMembers.csv` and `ContextMembers.csv` have no attribute storage. The job log names any column it ignores.
 
 ---
 
@@ -126,4 +154,4 @@ For IGA platforms like Omada or SailPoint, you first transform their native expo
 ```
 
 !!! tip
-    Include any additional columns your source system provides. They will be collected into the `extendedAttributes` JSON column automatically, preserving all context without requiring schema changes.
+    Include any additional columns your source system provides. For every file except `Assignments.csv`, `IdentityMembers.csv` and `ContextMembers.csv` they are kept in `extendedAttributes` without schema changes — see [Extra columns](#extra-columns).

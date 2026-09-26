@@ -1,9 +1,13 @@
 // Disk-capacity guard for crawler file uploads (SEC-2026-09 L-13).
 //
 // Uploads land on the shared job_data volume, which also holds the vault master
-// key, the built-in worker key and job logs. The 1 GB per-file cap is deliberate
-// (large CSV exports are a real requirement) and is NOT changed here; instead,
-// before accepting a request we check that:
+// key, the built-in worker key and job logs. The per-file cap lives here too
+// (UPLOAD_MAX_FILE_BYTES) because a real export can be far larger than any round
+// number guessed up front: an IdentityIQ entitlement-assignment extract of 40
+// million rows is ~1.8 GB, and a 1 GB cap rejected it outright. The cap is a
+// sanity bound, not the safety mechanism — the free-space reserve below is what
+// actually stops an upload filling the disk. Before accepting a request we check
+// that:
 //   1. the volume keeps at least UPLOAD_MIN_FREE_BYTES free after this upload
 //      (default 1 GiB) — so uploads can never fill the disk; and
 //   2. optionally, a config's folder stays under UPLOAD_CONFIG_QUOTA_BYTES
@@ -15,6 +19,19 @@ import { statfs as fsStatfs, readdir, stat } from 'fs/promises';
 import { join } from 'path';
 
 export const DEFAULT_MIN_FREE_BYTES = 1024 * 1024 * 1024;
+// 8 GiB. High enough that a genuine full-table export lands, low enough to stay a
+// bound. Raise with UPLOAD_MAX_FILE_BYTES; the free-space reserve still applies.
+export const DEFAULT_MAX_FILE_BYTES = 8 * 1024 * 1024 * 1024;
+
+// A byte count as an operator reads it in a refusal: "8.0 GiB". Binary units,
+// matching how the limits are configured.
+const BYTE_UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+export function describeBytes(n) {
+  let v = Number(n) || 0;
+  let i = 0;
+  while (v >= 1024 && i < BYTE_UNITS.length - 1) { v /= 1024; i++; }
+  return i === 0 ? `${v} B` : `${v.toFixed(1)} ${BYTE_UNITS[i]}`;
+}
 
 function nonNegativeInt(raw, fallback) {
   if (raw === undefined || String(raw).trim() === '') return fallback;
@@ -26,6 +43,7 @@ export function resolveUploadLimits(env = process.env) {
   return {
     minFreeBytes: nonNegativeInt(env.UPLOAD_MIN_FREE_BYTES, DEFAULT_MIN_FREE_BYTES),
     configQuotaBytes: nonNegativeInt(env.UPLOAD_CONFIG_QUOTA_BYTES, 0),
+    maxFileBytes: nonNegativeInt(env.UPLOAD_MAX_FILE_BYTES, DEFAULT_MAX_FILE_BYTES),
   };
 }
 
