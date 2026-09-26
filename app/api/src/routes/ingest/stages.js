@@ -23,7 +23,7 @@ import { restrictedSystemIds, writableCoreColumns, systemBoundaryDenial, preserv
 import { validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, ENTITY_SCOPE_MAP } from '../../ingest/validation.js';
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/crawlerAuth.js';
 import { openStage, getStage, appendToStage, finalizeStage, abortStage, StageError } from '../../ingest/stages.js';
-import { recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns } from './helpers.js';
+import { applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns } from './helpers.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -74,8 +74,12 @@ router.post('/ingest/stages/:id/rows', async (req, res) => {
   if (!guard(req, res)) return;
   try {
     const stage = getStage(req.params.id, ownerOf(req));
-    const records = req.body?.records;
-    if (!Array.isArray(records)) return res.status(400).json({ error: 'records must be an array' });
+    if (!Array.isArray(req.body?.records)) return res.status(400).json({ error: 'records must be an array' });
+    // The same defaults a batch on /ingest/<entity> gets (e.g. governed=false on
+    // an assignment), so a staged row is exactly the row the batch path would write.
+    const body = { records: req.body.records };
+    applyIngestDefaults(stage.entity, body);
+    const { records } = body;
     const check = validateRecords(records, stage.entity, stage.idGeneration, 'full');
     if (!check.valid) return res.status(400).json({ error: 'Record validation failed', details: check.errors });
     const coreColumns = writableCoreColumns(await discoverCoreColumns(stage.tableName));
