@@ -70,9 +70,19 @@ function New-SqlRunState {
         HasPrincipals   = ($targets -contains 'identities' -or $targets -contains 'principals')
         Scopes          = [System.Collections.Generic.List[hashtable]]::new()
         Contexts        = New-SqlContextCatalog
+        # (endpoint, scope) -> what the source said, for Test-SqlRunCounts.
+        Expect          = @{}
+        Verification    = $null
         ContextReport   = $null
         Totals          = [ordered]@{}
     }
+}
+
+function Get-SqlScopeKey {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)] [string]$Endpoint, [hashtable]$Scope = @{})
+    return $Endpoint + '|' + (($Scope.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ';')
 }
 
 # Remember an (endpoint, scope) for the end-of-run reconcile — once, however
@@ -80,7 +90,7 @@ function New-SqlRunState {
 function Add-SqlReconcileScope {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] [string]$Endpoint, [hashtable]$Scope = @{})
-    $key = $Endpoint + '|' + (($Scope.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ';')
+    $key = Get-SqlScopeKey -Endpoint $Endpoint -Scope $Scope
     if ($State.Scopes | Where-Object { $_.Key -eq $key }) { return }
     $State.Scopes.Add(@{ Key = $key; Endpoint = $Endpoint; Scope = $Scope })
 }
@@ -92,8 +102,15 @@ function Add-SqlReconcileScope {
 function New-SqlStream {
     [CmdletBinding()]
     param([hashtable]$State, [string]$Endpoint, [hashtable]$Scope = @{}, [string[]]$KeyFields = @('externalId'), [switch]$Reconcile)
-    if ($Reconcile) { Add-SqlReconcileScope -State $State -Endpoint $Endpoint -Scope $Scope }
-    return New-CrawlerIngestStream -Endpoint $Endpoint -SystemId $State.SystemId -IdPrefix $State.IdPrefix -Scope $Scope -BatchSize $State.BatchSize -KeyFields $KeyFields
+    $stream = New-CrawlerIngestStream -Endpoint $Endpoint -SystemId $State.SystemId -IdPrefix $State.IdPrefix -Scope $Scope -BatchSize $State.BatchSize -KeyFields $KeyFields
+    if ($Reconcile) {
+        # Every reconciled scope is also verified at the end of the run.
+        Add-SqlReconcileScope -State $State -Endpoint $Endpoint -Scope $Scope
+        $expect = Get-SqlExpectation -State $State -Key (Get-SqlScopeKey -Endpoint $Endpoint -Scope $Scope) -Endpoint $Endpoint -Scope $Scope
+        $expect.Slots++
+        $stream | Add-Member -NotePropertyName Expect -NotePropertyValue $expect
+    }
+    return $stream
 }
 
 # The ingest streams a slot feeds, by role. Identities and identity-members are
@@ -148,6 +165,7 @@ function Add-SqlIdentityRow {
     $principal = ConvertTo-SqlPrincipalRecord -Row $Row -Map $Ctx.Map -Slot $Ctx.Slot
     Add-CrawlerIngestStreamRecord -Stream $Ctx.Streams.identity  -Record $identity
     Add-CrawlerIngestStreamRecord -Stream $Ctx.Streams.principal -Record $principal
+    Add-SqlExpectedKey -Expectation $Ctx.Streams.principal.Expect -Key $identity.externalId
     Add-CrawlerIngestStreamRecord -Stream $Ctx.Streams.member    -Record (New-SqlIdentityMemberRecord -IdentityId $identity.externalId -PrincipalId $identity.externalId)
     [void]$Ctx.State.KnownPrincipals.Add($identity.externalId)
 }
@@ -158,6 +176,7 @@ function Add-SqlPrincipalRow {
     $principal = ConvertTo-SqlPrincipalRecord -Row $Row -Map $Ctx.Map -Slot $Ctx.Slot
     if (-not $principal) { $Ctx.Skipped++; return }
     Add-CrawlerIngestStreamRecord -Stream $Ctx.Streams.principal -Record $principal
+    Add-SqlExpectedKey -Expectation $Ctx.Streams.principal.Expect -Key $principal.externalId
     [void]$Ctx.State.KnownPrincipals.Add($principal.externalId)
     $identityId = ([string](Get-SqlMapped -Row $Row -Map $Ctx.Map -Name 'identityId')).Trim()
     if ($identityId) {
@@ -179,6 +198,7 @@ function Add-SqlResourceRow {
     $rec = ConvertTo-SqlResourceRecord -Row $Row -Map $Ctx.Map -Slot $Ctx.Slot
     if (-not $rec) { $Ctx.Skipped++; return }
     Add-CrawlerIngestStreamRecord -Stream $Ctx.Streams.resource -Record $rec
+    Add-SqlExpectedKey -Expectation $Ctx.Streams.resource.Expect -Key $rec.externalId
     [void]$Ctx.State.KnownResources.Add($rec.externalId)
 }
 
@@ -205,6 +225,7 @@ function Add-SqlRelationshipRow {
         $Ctx.Dangling++; return
     }
     Add-CrawlerIngestStreamRecord -Stream $Ctx.Streams.relationship -Record $rec
+    Add-SqlExpectedKey -Expectation $Ctx.Streams.relationship.Expect -Key "$($rec.parentExternalId)|$($rec.childExternalId)"
 }
 
 function Get-SqlRowHandler {
@@ -289,6 +310,7 @@ function Invoke-SqlSlot {
     $sent = 0
     foreach ($s in $ctx.Streams.Values) { $sent += (Complete-CrawlerIngestStream -Stream $s).sent }
     if ($Slot.target -in $script:SqlBufferedTargets) { $sent += Send-SqlContextBuffer -Slot $Slot -State $State }
+    if ($Slot.target -eq 'assignments') { Add-SqlAssignmentExpectation -Ctx $ctx -Connection $Connection -Rows $rows }
     $sw.Stop()
     $note = @()
     if ($ctx.Skipped)  { $note += "$($ctx.Skipped.ToString('N0')) skipped (no id / required columns)" }
@@ -301,6 +323,20 @@ function Invoke-SqlSlot {
     }
     $State.Totals[$Slot.name] = @{ target = $Slot.target; rows = $rows; sent = $sent; skipped = $ctx.Skipped; dangling = $ctx.Dangling; unresolved = $ctx.Unresolved }
     return $State.Totals[$Slot.name]
+}
+
+# An assignment scope is too large to remember keys for; its expectation is the
+# source's own distinct (principal, resource) count, less what was held back.
+function Add-SqlAssignmentExpectation {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable]$Ctx, [AllowNull()] $Connection, [long]$Rows = 0)
+    $expect = $Ctx.Streams.assignment.Expect
+    $expect.Dangling += $Ctx.Dangling
+    if ($Rows -eq 0) { $expect.SourceDistinct = [long]$expect.SourceDistinct; return }
+    $m = Measure-SqlSourceDistinct -Connection $Connection -Slot $Ctx.Slot -Map $Ctx.Map -CommandTimeout $Ctx.State.CommandTimeout
+    if ($null -eq $m.count) { $expect.Unverifiable = $m.reason; return }
+    $expect.SourceDistinct = [long]$expect.SourceDistinct + $m.count
+    Write-Host "  source holds $($m.count.ToString('N0')) distinct (principal, resource) pairs" -ForegroundColor DarkGray
 }
 
 # Full sync only: remove every row of each fed scope that this run did not touch.

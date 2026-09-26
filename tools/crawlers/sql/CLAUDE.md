@@ -15,6 +15,7 @@ is baked in — SailPoint IdentityIQ ships as a worked example, not as special-c
 | `Start-SqlCrawler.ps1` | Entry point (thin orchestration): resolve config → register system → run the query slots in dependency order → reconcile → refresh views |
 | `SqlCrawler.Functions.ps1` | Config resolution, connection-string builder, the streaming query runner (`Invoke-SqlQueryStream`) with `@Offset`/`@PageSize` paging, value conversion |
 | `SqlCrawler.Transform.ps1` | **Pure** row → ingest-record shapers, one per target, plus the column-contract resolver (`Resolve-SqlColumnMap`) |
+| `SqlCrawler.Verify.ps1` | End-of-run verification: per reconcile scope, the source's distinct keys (principals, resources, relationships) or its `COUNT(DISTINCT pair)` (assignments) against `POST /ingest/count`. Throws on any mismatch, and on more rows than distinct keys |
 | `SqlCrawler.Contexts.ps1` | The `contexts` / `context-members` targets: the catalogue, the ONE normalisation of a context reference (`ConvertTo-SqlContextName`, invariant culture), name → key resolution, and the fold / unresolved report |
 | `SqlCrawler.Phases.ps1` | Per-slot sync phases: open the ingest streams, run the query, shape + stream every row, then the per-scope reconcile |
 | `../shared/Invoke-CrawlerIngestStream.ps1` | Shared streaming ingest: chunked delta upserts + end-of-run `POST /ingest/reconcile`. Written for this crawler; any large-set crawler can use it |

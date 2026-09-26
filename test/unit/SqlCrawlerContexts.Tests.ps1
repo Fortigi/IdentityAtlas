@@ -20,7 +20,7 @@ BeforeAll {
     $script:ApiBaseUrl = 'http://localhost:3001/api'; $script:ApiKey = 'fgc_test'; $script:JobId = 0
     foreach ($f in @(
         @('shared', 'Invoke-CrawlerIngest.ps1'), @('shared', 'Invoke-CrawlerIngestStream.ps1'), @('shared', 'Get-CrawlerSystemName.ps1'),
-        @('sql', 'SqlCrawler.Functions.ps1'), @('sql', 'SqlCrawler.Transform.ps1'), @('sql', 'SqlCrawler.Contexts.ps1'), @('sql', 'SqlCrawler.Phases.ps1'))) {
+        @('sql', 'SqlCrawler.Functions.ps1'), @('sql', 'SqlCrawler.Transform.ps1'), @('sql', 'SqlCrawler.Contexts.ps1'), @('sql', 'SqlCrawler.Phases.ps1'), @('sql', 'SqlCrawler.Verify.ps1'))) {
         . (Join-Path $root 'tools' 'crawlers' $f[0] $f[1])
     }
 
