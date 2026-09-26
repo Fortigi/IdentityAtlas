@@ -360,6 +360,16 @@ export async function bootstrapWorker() {
       }
     } catch { /* CrawlerJobs table may not exist on first boot */ }
 
+    // Staged loads live in memory; any stage table left by a previous run is
+    // unreachable now (see ingest/stages.js).
+    try {
+      const { dropAbandonedStages } = await import('./ingest/stages.js');
+      const dropped = await dropAbandonedStages();
+      if (dropped) console.log(`Dropped ${dropped} abandoned ingest stage table(s)`);
+    } catch (err) {
+      console.warn('Stage cleanup skipped:', err.message);
+    }
+
     // Migration 013 creates the matrix materialized views WITH NO DATA, so on
     // first boot they are empty until something builds them. Build them here in
     // that case only. A populated view is NOT refreshed on start: at scale that is
