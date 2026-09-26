@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Added a scale test fixture generator (`tools/scale-dataset/`) that writes a synthetic identity-governance export in the CSV import schema, from 1% up to 180,000 principals, 810,000 resources and 41 million assignments, reproducibly from a seed. It builds in the properties that matter at scale: skewed assignment counts, a disabled majority, uneven systems, logical applications that span systems, LDAP distinguished names with commas, and near-duplicate names.
+- Added a small comma-delimited fixture with quoted distinguished names, a regression case for importing values that contain commas.
+- Added "Scale Rehearsal: 41 M Assignments" to the architecture docs: what happens when a 41-million-assignment dataset is loaded, where it stops coping, and why.
+
+## Changes in this PR
+
 - The portable Windows build can now run a real PostgreSQL server instead of the built-in PGlite database, for tenants too large for PGlite's fixed memory and 4 GB limits. A package built with the new `--with-postgres` option carries the server; the launcher starts it as the current user on `127.0.0.1:5433`, with no installation or administrator rights and a random, owner-only database password, and tunes it to the machine's memory. Existing PGlite installs keep using PGlite unless asked to switch (`-Database Postgres`); their data is not moved, so re-import after switching.
 - The portable launcher now falls back to PGlite, with a message naming the cause, when the bundled PostgreSQL cannot run on the machine — for example when application control blocks its unsigned executables, or the Visual C++ runtime is missing.
 - The portable launcher no longer kills a slow start after 90 seconds. It warns after a configurable time (`-StartupTimeoutSec`) and keeps waiting, reports at once when the app exits during startup (with its exit code), and opens the browser only once the database schema is ready.
