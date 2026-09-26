@@ -322,7 +322,7 @@ jobs:
           driver-opts: image=moby/buildkit:buildx-stable-1
 
       - name: Build web image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: ./app/api/Dockerfile
@@ -333,7 +333,7 @@ jobs:
           cache-to: type=gha,mode=min,scope=web,ignore-error=true
 
       - name: Build worker image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: ./setup/docker/Dockerfile.powershell
@@ -834,7 +834,7 @@ jobs:
           driver-opts: image=moby/buildkit:buildx-stable-1
 
       - name: Build web image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: ./app/api/Dockerfile
@@ -845,7 +845,7 @@ jobs:
           cache-to: type=gha,mode=min,scope=web,ignore-error=true
 
       - name: Build worker image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: ./setup/docker/Dockerfile.powershell
@@ -946,7 +946,7 @@ jobs:
           driver-opts: image=moby/buildkit:buildx-stable-1
 
       - name: Build web image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: ./app/api/Dockerfile
@@ -957,7 +957,7 @@ jobs:
           cache-to: type=gha,mode=min,scope=web,ignore-error=true
 
       - name: Build worker image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: ./setup/docker/Dockerfile.powershell
