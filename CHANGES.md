@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- The portable Windows build can now run a real PostgreSQL server instead of the built-in PGlite database, for tenants too large for PGlite's fixed memory and 4 GB limits. A package built with the new `--with-postgres` option carries the server; the launcher starts it as the current user on `127.0.0.1:5433`, with no installation or administrator rights and a random, owner-only database password, and tunes it to the machine's memory. Existing PGlite installs keep using PGlite unless asked to switch (`-Database Postgres`); their data is not moved, so re-import after switching.
+- The portable launcher now falls back to PGlite, with a message naming the cause, when the bundled PostgreSQL cannot run on the machine — for example when application control blocks its unsigned executables, or the Visual C++ runtime is missing.
+- The portable launcher no longer kills a slow start after 90 seconds. It warns after a configurable time (`-StartupTimeoutSec`) and keeps waiting, reports at once when the app exits during startup (with its exit code), and opens the browser only once the database schema is ready.
+- Stopping the portable app now shuts everything down cleanly however it is stopped — Ctrl+C, closing its window, or ending the launcher process — without leaving `node.exe` or PostgreSQL running. A leftover from an earlier crash is recognised and stopped on the next start, and starting a second copy on the same data no longer interferes with the first.
+- When the portable app stops on an unexpected error it now writes the details to `startup-error.log` in its data folder, so a failed start leaves something to send.
+
+## Changes in this PR
+
 - Fixed the CSV wizard refusing files over 1 GB before uploading them: it now shows and applies the server's own per-file limit (default 8 GiB, set with `UPLOAD_MAX_FILE_BYTES`), and an over-limit upload is refused with a message naming the limit.
 - Fixed a refused upload showing as "Failed to fetch": the wizard now shows the real reason.
 - The CSV wizard now shows the crawler's folder on the server when editing; a large export can be copied straight into it instead of uploaded.
