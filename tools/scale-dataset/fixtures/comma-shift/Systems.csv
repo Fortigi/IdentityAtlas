@@ -1,0 +1,5 @@
+﻿ExternalId,DisplayName,SystemType,Description
+S-e9041bc1,Identity Store,IGA,"Identity source, business roles and logical applications"
+S-9bc2574e,Directory Vault 01,LDAP,"Technical connector, LDAP, directory-style values"
+S-5ff0085e,Directory Hub 02,LDAP,"Technical connector, LDAP, directory-style values"
+S-2a6d254b,Directory Catalog 03,LDAP,"Technical connector, LDAP, directory-style values"

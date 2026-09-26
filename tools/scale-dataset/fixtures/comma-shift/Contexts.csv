@@ -1,0 +1,4 @@
+﻿ExternalId,DisplayName,ContextType,TargetType,Description,ParentExternalId,SystemName,OwnerUserId,CmdbReference
+A-e78fc59d,Warehouse Engineering 0001,LogicalApplication,Resource,"Logical application Warehouse Engineering 0001, spans 1 connector(s)",,Identity Store,P-9edf233c,CI6888571
+A-1c715f1b,Registry Finance 0002,LogicalApplication,Resource,"Logical application Registry Finance 0002, spans 2 connector(s)",,Identity Store,P-6b35c826,CI1397913
+A-ef3ee4bb,Gateway Data Office 0003,LogicalApplication,Resource,"Logical application Gateway Data Office 0003, spans 3 connector(s)",,Identity Store,P-6b35c826,CI7574648

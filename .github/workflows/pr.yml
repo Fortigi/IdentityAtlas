@@ -181,6 +181,8 @@ jobs:
               # The desktop job worker's tests run in the API Vitest suite.
               - 'app/desktop/*.cjs'
               - 'app/desktop/*.test.js'
+              # So do the scale test fixture generator's.
+              - 'tools/scale-dataset/**'
             ui:
               - 'app/ui/src/**'
               - 'app/ui/package.json'

@@ -26,6 +26,8 @@ export default defineConfig({
       '../../tools/crawlers/**/configValidation.test.js',
       // The desktop launcher's job worker (plain Node, no JSX) — see app/desktop/.
       '../desktop/*.test.js',
+      // The scale test fixture generator (plain Node developer tool) — see tools/scale-dataset/.
+      '../../tools/scale-dataset/*.test.js',
     ],
     coverage: {
       provider: 'v8',
