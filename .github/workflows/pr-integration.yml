@@ -593,7 +593,8 @@ jobs:
           # materialized views, so the live scope-stats (which read the views)
           # would lag the raw tables the timeline reconstructs from. Refresh so
           # the "latest timeline point == live stats" check compares like with like.
-          curl -sf -X POST http://localhost:3001/api/ingest/refresh-views \
+          # ?wait=1: the endpoint otherwise only schedules the refresh (202).
+          curl -sf -X POST "http://localhost:3001/api/ingest/refresh-views?wait=1" \
             -H "Authorization: Bearer ${{ steps.apikey.outputs.key }}" \
             -H "Content-Type: application/json" -d '{}' || true
           pwsh -Command "& test/nightly/Test-MatrixScopeStats.ps1 -ApiBaseUrl http://localhost:3001/api -ApiKey '${{ steps.apikey.outputs.key }}' -ExpectHistoryDepth; if (\$LASTEXITCODE -ne 0) { exit 1 }"

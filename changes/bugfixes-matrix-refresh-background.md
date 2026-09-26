@@ -1,0 +1,3 @@
+- Fixed the matrix refresh after a large import: it now runs once, in the background, instead of timing out inside the crawler's request and being retried into a queue of repeated full refreshes.
+- A crawler job now reports whether the matrix refresh succeeded, and fails with a clear message if it did not, instead of calling the failure "non-critical" and reporting success.
+- Restarting Identity Atlas no longer rebuilds the matrix from scratch when it is already populated, which on large datasets took minutes and several gigabytes of disk.

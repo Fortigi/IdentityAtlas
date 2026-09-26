@@ -26,5 +26,5 @@ export {
   applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
   handleSessionPath, applyDeleteByIds, lookupSystemIds, linkSystemDirectories, writeAuditLog,
 } from './ingest/helpers.js';
-export { refreshKeyword, refreshMatrixViews } from './ingest/matrixViews.js';
+export { refreshKeyword, refreshMatrixViews, ensureMatrixViewsPopulated, viewRefresh } from './ingest/matrixViews.js';
 export default router;
