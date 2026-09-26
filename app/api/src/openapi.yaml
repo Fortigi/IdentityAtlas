@@ -291,12 +291,29 @@ paths:
   /ingest/refresh-views:
     post:
       tags: [Ingest]
-      summary: Refresh materialized views
+      summary: Schedule a refresh of the materialized views
       operationId: refreshMaterializedViews
-      description: Triggers a refresh of cached SQL views. Requires refreshViews permission.
+      description: >-
+        Asks for a refresh of the matrix materialized views and the bookkeeping that
+        follows ingest. Returns at once; the refresh runs in the background, debounced
+        and one at a time. Poll GET /ingest/refresh-views for the outcome. Requires
+        refreshViews permission.
+      responses:
+        '202':
+          description: Refresh scheduled; the body carries the current refresh status
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [Ingest]
+      summary: Status of the background view refresh
+      operationId: getMaterializedViewRefreshStatus
+      description: >-
+        State of the background refresh (idle, scheduled, running), how many were asked
+        for and run, and the outcome of the last run (ok, error, duration). Requires
+        refreshViews permission.
       responses:
         '200':
-          description: Views refreshed
+          description: Refresh status
         '403':
           $ref: '#/components/responses/Forbidden'
 

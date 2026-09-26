@@ -12,102 +12,123 @@ import * as db from '../../db/connection.js';
 import { crawlerHasPermission } from '../../middleware/crawlerAuth.js';
 import { bumpSyncVersion } from '../../lib/syncVersion.js';
 import { breakCycles } from '../../contexts/cycleGuard.js';
-import { createSerializedRunner } from '../../lib/serializedRunner.js';
+import { createViewRefreshCoordinator, matrixRefreshDebounceMs } from '../../ingest/viewRefresh.js';
 
 const router = Router();
+
+const MATRIX_VIEWS = [
+  '"vw_ResourceUserPermissionAssignments"',
+  '"vw_UserPermissionAssignmentViaBusinessRole"',
+];
 const useSql = process.env.USE_SQL === 'true';
 
-router.post('/ingest/refresh-views', async (req, res) => {
-  if (!crawlerHasPermission(req, 'refreshViews') && !crawlerHasPermission(req, 'admin')) {
+function canRefresh(req) {
+  return crawlerHasPermission(req, 'refreshViews') || crawlerHasPermission(req, 'admin');
+}
+
+// Ask for the post-ingest refresh. Returns at once (202); the refresh runs in the
+// background — see ingest/viewRefresh.js for why it no longer runs in the request.
+router.post('/ingest/refresh-views', (req, res) => {
+  if (!canRefresh(req)) {
     return res.status(403).json({ error: 'Insufficient permissions (requires refreshViews)' });
   }
   if (!useSql) {
     return res.json({ message: 'SQL disabled — nothing to refresh' });
   }
-  try {
-    await refreshMatrixViewsSerialized();
-
-    // Mark every system that has synced data with the current timestamp so the
-    // Systems page shows "Last sync: <date>" instead of "Never".
-    try {
-      await db.query(`
-        UPDATE "Systems" s
-           SET "lastSyncDateTime" = now() AT TIME ZONE 'utc'
-         WHERE s.id IN (
-           SELECT DISTINCT "systemId" FROM "Resources"  WHERE "systemId" IS NOT NULL
-           UNION
-           SELECT DISTINCT "systemId" FROM "Principals" WHERE "systemId" IS NOT NULL
-         )
-      `);
-    } catch (tsErr) {
-      console.warn('lastSyncDateTime update failed (non-fatal):', tsErr.message);
-    }
-
-    // Defensive: migration 059's trigger prevents new cycles, but breakCycles
-    // here still cleans any cycle that predates the trigger (or arrived via a
-    // trigger-disabled path) so the CYCLE-guarded roll-up below computes a
-    // complete totalMemberCount for every subtree. A no-op on a trigger-protected
-    // tree (#627).
-    try {
-      const broken = await breakCycles(db);
-      if (broken) console.warn(`Context cycle guard: broke ${broken} cyclic parentContextId link(s) after ingest`);
-    } catch (cycErr) {
-      console.warn('Context cycle repair failed (non-fatal):', cycErr.message);
-    }
-
-    // Recalculate directMemberCount and totalMemberCount on all Contexts
-    // that have ContextMembers. The ingest engine doesn't trigger the
-    // per-context recalc helper (that's for manual analyst writes), so we
-    // do a bulk UPDATE here instead.
-    try {
-      const pool = await db.getPool();
-      await pool.query(`
-        UPDATE "Contexts" c
-           SET "directMemberCount" = (
-                 SELECT COUNT(*)::int FROM "ContextMembers" WHERE "contextId" = c.id
-               ),
-               "lastCalculatedAt"  = now() AT TIME ZONE 'utc';
-
-        WITH RECURSIVE subtree AS (
-          SELECT id AS root_id, id AS node_id FROM "Contexts"
-          UNION ALL
-          SELECT s.root_id, c.id
-            FROM "Contexts" c JOIN subtree s ON c."parentContextId" = s.node_id
-        )
-        -- CYCLE guard: this seeds from every context and runs on each sync,
-        -- so a single corrupt parent chain would otherwise hang ingest.
-        CYCLE node_id SET "isCycle" USING "cyclePath",
-        totals AS (
-          SELECT s.root_id, COUNT(DISTINCT cm."memberId")::int AS cnt
-            FROM subtree s
-            LEFT JOIN "ContextMembers" cm ON cm."contextId" = s.node_id
-           GROUP BY s.root_id
-        )
-        UPDATE "Contexts" c
-           SET "totalMemberCount" = t.cnt
-          FROM totals t
-         WHERE c.id = t.root_id;
-      `);
-    } catch (countErr) {
-      console.warn('Context member count refresh failed (non-fatal):', countErr.message);
-    }
-
-    // Advance the effective-access cache version. The crawler calls this endpoint only
-    // after all ingest writes are durable, so bumping here invalidates engine cache entries
-    // exactly once per completed sync — never mid-sync. Non-fatal: a failed bump just means
-    // the cache serves slightly stale data until the next sync. See spec §13.2.
-    try {
-      await bumpSyncVersion();
-    } catch (svErr) {
-      console.warn('syncVersion bump failed (non-fatal):', svErr.message);
-    }
-
-    res.json({ message: 'Materialized views refreshed' });
-  } catch (err) {
-    console.error('refresh-views failed:', err.message);
-    res.status(500).json({ error: 'refresh-views failed: ' + err.message });
-  }
+  const refresh = viewRefresh.schedule(req.crawler?.displayName || 'refresh-views');
+  res.status(202).json({ message: 'Matrix view refresh scheduled', refresh });
 });
+
+// The state of the background refresh and the outcome of the last one. The worker
+// polls this at the end of a job so the job reports what really happened.
+router.get('/ingest/refresh-views', (req, res) => {
+  if (!canRefresh(req)) {
+    return res.status(403).json({ error: 'Insufficient permissions (requires refreshViews)' });
+  }
+  res.json(viewRefresh.status());
+});
+
+// Everything that follows an ingest: rebuild the matrix views, then the cheap
+// bookkeeping that depends on them. A failure of the view refresh fails the run;
+// the bookkeeping steps stay best-effort, as before.
+export async function refreshAfterIngest() {
+  await refreshMatrixViews();
+
+  // Mark every system that has synced data with the current timestamp so the
+  // Systems page shows "Last sync: <date>" instead of "Never".
+  try {
+    await db.query(`
+      UPDATE "Systems" s
+         SET "lastSyncDateTime" = now() AT TIME ZONE 'utc'
+       WHERE s.id IN (
+         SELECT DISTINCT "systemId" FROM "Resources"  WHERE "systemId" IS NOT NULL
+         UNION
+         SELECT DISTINCT "systemId" FROM "Principals" WHERE "systemId" IS NOT NULL
+       )
+    `);
+  } catch (tsErr) {
+    console.warn('lastSyncDateTime update failed (non-fatal):', tsErr.message);
+  }
+
+  // Defensive: migration 059's trigger prevents new cycles, but breakCycles
+  // here still cleans any cycle that predates the trigger (or arrived via a
+  // trigger-disabled path) so the CYCLE-guarded roll-up below computes a
+  // complete totalMemberCount for every subtree. A no-op on a trigger-protected
+  // tree (#627).
+  try {
+    const broken = await breakCycles(db);
+    if (broken) console.warn(`Context cycle guard: broke ${broken} cyclic parentContextId link(s) after ingest`);
+  } catch (cycErr) {
+    console.warn('Context cycle repair failed (non-fatal):', cycErr.message);
+  }
+
+  // Recalculate directMemberCount and totalMemberCount on all Contexts
+  // that have ContextMembers. The ingest engine doesn't trigger the
+  // per-context recalc helper (that's for manual analyst writes), so we
+  // do a bulk UPDATE here instead.
+  try {
+    const pool = await db.getPool();
+    await pool.query(`
+      UPDATE "Contexts" c
+         SET "directMemberCount" = (
+               SELECT COUNT(*)::int FROM "ContextMembers" WHERE "contextId" = c.id
+             ),
+             "lastCalculatedAt"  = now() AT TIME ZONE 'utc';
+
+      WITH RECURSIVE subtree AS (
+        SELECT id AS root_id, id AS node_id FROM "Contexts"
+        UNION ALL
+        SELECT s.root_id, c.id
+          FROM "Contexts" c JOIN subtree s ON c."parentContextId" = s.node_id
+      )
+      -- CYCLE guard: this seeds from every context and runs on each sync,
+      -- so a single corrupt parent chain would otherwise hang ingest.
+      CYCLE node_id SET "isCycle" USING "cyclePath",
+      totals AS (
+        SELECT s.root_id, COUNT(DISTINCT cm."memberId")::int AS cnt
+          FROM subtree s
+          LEFT JOIN "ContextMembers" cm ON cm."contextId" = s.node_id
+         GROUP BY s.root_id
+      )
+      UPDATE "Contexts" c
+         SET "totalMemberCount" = t.cnt
+        FROM totals t
+       WHERE c.id = t.root_id;
+    `);
+  } catch (countErr) {
+    console.warn('Context member count refresh failed (non-fatal):', countErr.message);
+  }
+
+  // Advance the effective-access cache version. The crawler calls this endpoint only
+  // after all ingest writes are durable, so bumping here invalidates engine cache entries
+  // exactly once per completed sync — never mid-sync. Non-fatal: a failed bump just means
+  // the cache serves slightly stale data until the next sync. See spec §13.2.
+  try {
+    await bumpSyncVersion();
+  } catch (svErr) {
+    console.warn('syncVersion bump failed (non-fatal):', svErr.message);
+  }
+}
 
 // Shared helper used by /ingest/refresh-views, the classify endpoint, and
 // bootstrap's initial refresh. CONCURRENTLY falls back to a plain REFRESH
@@ -122,22 +143,41 @@ export function refreshKeyword(viewName, populatedSet, isDesktop) {
   return !isDesktop && populatedSet.has(viewName) ? 'CONCURRENTLY' : '';
 }
 
-// Crawler-triggered refreshes go through this: one refresh at a time, callers
-// that arrive mid-refresh share one follow-up, and back-to-back refreshes are
-// spaced out (SEC-2026-09 M-05). bootstrap.js calls refreshMatrixViews directly.
+// Crawler-triggered refreshes all go through this one coordinator: debounced,
+// one at a time, callers that arrive mid-refresh share one follow-up, and
+// back-to-back refreshes are spaced out (SEC-2026-09 M-05).
 // MATRIX_REFRESH_MIN_INTERVAL_MS overrides the spacing (tests set it to 0).
 export function matrixRefreshMinIntervalMs(env = process.env) {
   const n = Number.parseInt(env.MATRIX_REFRESH_MIN_INTERVAL_MS ?? '', 10);
   return Number.isInteger(n) && n >= 0 ? n : 5000;
 }
-export const refreshMatrixViewsSerialized = createSerializedRunner(
-  () => refreshMatrixViews(), { minIntervalMs: matrixRefreshMinIntervalMs() });
+export const viewRefresh = createViewRefreshCoordinator(() => refreshAfterIngest(), {
+  debounceMs: matrixRefreshDebounceMs(),
+  minIntervalMs: matrixRefreshMinIntervalMs(),
+});
+
+// Startup: build a matrix view only if it has never been populated (first boot
+// after the migrations create them WITH NO DATA). A populated view is left alone:
+// refreshing it is not "cheap" — at 41M assignments it is minutes of work and
+// ~11 GB of scratch disk, and it used to run on every restart, including the
+// restart after a crash. Desktop mode keeps refreshing at startup as before.
+export async function ensureMatrixViewsPopulated() {
+  if (process.env.DESKTOP_MODE === 'true') {
+    await refreshMatrixViews();
+    return 'refreshed';
+  }
+  const { rows } = await db.query(
+    `SELECT matviewname FROM pg_matviews WHERE NOT ispopulated AND matviewname = ANY($1)`,
+    [MATRIX_VIEWS.map(v => v.replace(/"/g, ''))],
+  );
+  if (rows.length === 0) return 'already-populated';
+  await refreshMatrixViews();
+  return 'populated';
+}
+
 
 export async function refreshMatrixViews() {
-  const views = [
-    '"vw_ResourceUserPermissionAssignments"',
-    '"vw_UserPermissionAssignmentViaBusinessRole"',
-  ];
+  const views = MATRIX_VIEWS;
   // PGlite (DESKTOP_MODE) runs in a single WASM process with no background
   // worker, so CONCURRENTLY is not supported. Always use plain REFRESH there.
   const isDesktop = process.env.DESKTOP_MODE === 'true';

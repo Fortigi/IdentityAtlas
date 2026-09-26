@@ -18,6 +18,8 @@ const UUID = '11111111-1111-1111-1111-111111111111';
 
 const { mockQuery, mockQueryOne, mockIngest, mockStart, mockContinue, mockEnd, mockHasSession } = vi.hoisted(() => {
   process.env.USE_SQL = 'true';
+  process.env.MATRIX_REFRESH_DEBOUNCE_MS = '0';
+  process.env.MATRIX_REFRESH_MIN_INTERVAL_MS = '0';
   return {
     mockQuery: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
     mockQueryOne: vi.fn().mockResolvedValue(null),
@@ -69,7 +71,7 @@ vi.mock('../ingest/crawlerPresence.js', () => ({
   lookupCrawlerPresence: vi.fn().mockResolvedValue({ crawlerDataAvailable: true, present: [] }),
 }));
 
-const { default: router } = await import('./ingest.js');
+const { default: router, viewRefresh, ensureMatrixViewsPopulated } = await import('./ingest.js');
 const crawlerAuth = await import('../middleware/crawlerAuth.js');
 const app = express().use(express.json()).use(router);
 
@@ -436,11 +438,71 @@ describe('POST /ingest/refresh-views', () => {
     expect(res.status).toBe(403);
   });
 
-  it('200 after refreshing the matrix views', async () => {
-    mockQuery.mockResolvedValue({ rows: [], rowCount: 0 });
+  it('202 at once — the refresh runs in the background and does the work', async () => {
+    const sqls = [];
+    mockQuery.mockImplementation(async (sql) => { sqls.push(String(sql)); return { rows: [], rowCount: 0 }; });
     const res = await request(app).post('/ingest/refresh-views').send({});
+    expect(res.status).toBe(202);
+    expect(res.body.message).toMatch(/scheduled/i);
+    expect(res.body.refresh.pending).toBe(true);
+    const done = await viewRefresh.whenIdle();
+    expect(done.last.ok).toBe(true);
+    expect(sqls.filter(q => /REFRESH MATERIALIZED VIEW/.test(q))).toHaveLength(2);
+    // the bookkeeping that follows the views still runs
+    expect(sqls.some(q => /UPDATE "Systems" s\s+SET "lastSyncDateTime"/.test(q))).toBe(true);
+    expect(sqls.some(q => /"totalMemberCount"/.test(q))).toBe(true);
+  });
+
+  it('GET reports the last run, including a failure', async () => {
+    mockQuery.mockImplementation(async (sql) => {
+      if (/REFRESH MATERIALIZED VIEW/.test(String(sql))) throw new Error('No space left on device');
+      return { rows: [], rowCount: 0 };
+    });
+    await request(app).post('/ingest/refresh-views').send({});
+    await viewRefresh.whenIdle();
+    const res = await request(app).get('/ingest/refresh-views');
     expect(res.status).toBe(200);
-    expect(res.body.message).toMatch(/refreshed/i);
+    expect(res.body).toMatchObject({ state: 'idle', pending: false, last: { ok: false, error: 'No space left on device' } });
+  });
+
+  it('GET is refused without refreshViews/admin permission', async () => {
+    crawlerAuth.crawlerHasPermission.mockReturnValue(false);
+    const res = await request(app).get('/ingest/refresh-views');
+    expect(res.status).toBe(403);
+  });
+});
+
+// ── Startup: build unpopulated matrix views only ────────────────────────────
+describe('ensureMatrixViewsPopulated', () => {
+  it('leaves populated views alone — no REFRESH at startup', async () => {
+    const sqls = [];
+    mockQuery.mockImplementation(async (sql) => { sqls.push(String(sql)); return { rows: [], rowCount: 0 }; });
+    await expect(ensureMatrixViewsPopulated()).resolves.toBe('already-populated');
+    expect(sqls.some(q => /REFRESH MATERIALIZED VIEW/.test(q))).toBe(false);
+  });
+
+  it('builds the views when one was never populated', async () => {
+    const sqls = [];
+    mockQuery.mockImplementation(async (sql) => {
+      sqls.push(String(sql));
+      return /NOT ispopulated/.test(String(sql))
+        ? { rows: [{ matviewname: 'vw_ResourceUserPermissionAssignments' }] }
+        : { rows: [], rowCount: 0 };
+    });
+    await expect(ensureMatrixViewsPopulated()).resolves.toBe('populated');
+    expect(sqls.filter(q => /REFRESH MATERIALIZED VIEW/.test(q))).toHaveLength(2);
+  });
+
+  it('desktop mode keeps refreshing at startup', async () => {
+    process.env.DESKTOP_MODE = 'true';
+    try {
+      const sqls = [];
+      mockQuery.mockImplementation(async (sql) => { sqls.push(String(sql)); return { rows: [], rowCount: 0 }; });
+      await expect(ensureMatrixViewsPopulated()).resolves.toBe('refreshed');
+      expect(sqls.filter(q => /REFRESH MATERIALIZED VIEW/.test(q))).toHaveLength(2);
+    } finally {
+      delete process.env.DESKTOP_MODE;
+    }
   });
 });
 
