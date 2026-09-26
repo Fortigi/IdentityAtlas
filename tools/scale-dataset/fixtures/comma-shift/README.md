@@ -10,10 +10,10 @@ E-ed294510,"CN=GRP-CRM-APPROVE-1TSXQMO,OU=Application Groups,OU=East,DC=corp,DC=
 ```
 
 A reader that splits each line on `,` without honouring quotes (the CSV crawler's
-fast path, `Read-CsvFast`) gets 19 cells for that first row instead of 7, and
-`SystemName` reads `DC=corp` instead of `Directory Catalog 03` — the row is then
-silently routed to the fallback system. A correct reader gets exactly seven fields
-per row.
+fast path before #1263) gets 19 cells for that first row instead of 7, and
+`SystemName` reads `DC=corp` instead of `Directory Catalog 03`, so the row is
+routed to the fallback system. A correct reader gets exactly seven fields per row.
+Keep it as a regression case for the quote-aware parser.
 
 Regenerate with `generateCommaFixture()` from `../../lib/generate.mjs` (the
 generator also writes it to `<out>/comma-shift-fixture/` on every run); a test in

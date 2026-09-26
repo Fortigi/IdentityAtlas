@@ -1,2 +1,3 @@
 - Added a scale test fixture generator (`tools/scale-dataset/`) that writes a synthetic identity-governance export in the CSV import schema, from 1% up to 180,000 principals, 810,000 resources and 41 million assignments, reproducibly from a seed. It builds in the properties that matter at scale: skewed assignment counts, a disabled majority, uneven systems, logical applications that span systems, LDAP distinguished names with commas, and near-duplicate names.
-- Added a small comma-delimited fixture that reproduces the CSV import's column shift on values containing commas.
+- Added a small comma-delimited fixture with quoted distinguished names, a regression case for importing values that contain commas.
+- Added "Scale Rehearsal: 41 M Assignments" to the architecture docs: what happens when a 41-million-assignment dataset is loaded, where it stops coping, and why.

@@ -69,20 +69,22 @@ named random stream, so changing one file's logic does not reshuffle the others.
 ## Loading it
 
 Use the CSV crawler with the delimiter set to a tab (`"delimiter": "\t"` in the
-crawler config). The crawler loads the files in its own fixed order.
+crawler config). The crawler loads the files in its own fixed order. What happened
+when the full set was loaded is in
+[Scale Rehearsal: 41 M Assignments](../../docs/architecture/scale-rehearsal.md).
 
 ## Delimiter
 
-Output defaults to tab-separated because the crawler's fast CSV path splits on the
-delimiter with no quote handling, and the distinguished names above would silently
-shift columns. `--delimiter comma|semicolon|pipe|<char>` changes it; values that
-contain the delimiter are then quoted per RFC 4180.
+Output defaults to tab-separated: no generated value contains a tab, so nothing is
+ever quoted and any reader gets the columns right. `--delimiter comma|semicolon|pipe|<char>`
+changes it; values that contain the delimiter are then quoted per RFC 4180.
 
 Every run also writes `comma-shift-fixture/`: a dozen rows, comma-delimited and
 correctly quoted, whose values are all distinguished names. A reader that splits on
-commas moves the `SystemName` column into the middle of a DN. The same files are
-committed in [`fixtures/comma-shift/`](fixtures/comma-shift/) as a failing case for
-the parser; a test keeps them identical to what the generator emits.
+commas without honouring quotes moves the `SystemName` column into the middle of a
+DN, which the crawler's fast path did until #1263. The same files are committed in
+[`fixtures/comma-shift/`](fixtures/comma-shift/) as a regression case; a test keeps
+them identical to what the generator emits.
 
 ## Files
 

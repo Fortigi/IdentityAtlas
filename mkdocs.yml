@@ -129,6 +129,7 @@ nav:
           - Azure Deployment Reference: architecture/azure-deployment.md
           - Portable Windows Launcher: architecture/desktop-portable.md
           - Scaling & Load Testing: architecture/scaling.md
+          - "Scale Rehearsal: 41 M Assignments": architecture/scale-rehearsal.md
       - Connect your systems:
           - Entra ID: sync/entra-id.md
           - Azure Resource Manager: sync/azure-rm.md
