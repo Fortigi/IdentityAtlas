@@ -1,5 +1,20 @@
 ## Changes in this PR
 
+- Fixed the CSV wizard refusing files over 1 GB before uploading them: it now shows and applies the server's own per-file limit (default 8 GiB, set with `UPLOAD_MAX_FILE_BYTES`), and an over-limit upload is refused with a message naming the limit.
+- Fixed a refused upload showing as "Failed to fetch": the wizard now shows the real reason.
+- The CSV wizard now shows the crawler's folder on the server when editing; a large export can be copied straight into it instead of uploaded.
+- CSV import now handles very large exports: `Assignments.csv` (tens of millions of rows) and `Resources.csv` are read and sent in batches with flat memory use, and a full sync still removes the rows the file no longer contains.
+- Fixed quoted CSV values containing the delimiter (for example LDAP distinguished names in a comma-delimited file) being split and shifting every later column in `Resources.csv`, `Assignments.csv` and `Certifications.csv`. Quoted values may now also contain doubled quotes and line breaks, and a row that cannot be parsed fails the import with its file and line number instead of loading misaligned data.
+- Columns outside the CSV schema are now kept in `extendedAttributes` for Systems, Contexts, Resources, Resource Relationships, Users, Identities and Certifications, as documented. Assignments, Identity Members and Context Members do not keep them, and the job log names the columns it ignored.
+- Fixed a schema column written in a different case (for example `department`) being dropped from the imported record.
+- Fixed an assignment held both Direct and Eligible in the same file losing one of the two.
+- The CSV job log now warns, per file, when rows name a `SystemName` that `Systems.csv` does not declare, with the row count and the unknown names; those rows still load into the crawler's own system.
+- `ContextMembers.csv` now reads faster and with far less memory for large membership files.
+- Added `POST /api/ingest/reconcile` and a `serverTime` on `GET /api/crawlers/whoami`, so a crawler that streams a very large source can still remove rows that disappeared from it.
+- Corrected the CSV documentation: the accepted `AssignmentType` values, the real file names, and which files keep extra columns.
+
+## Changes in this PR
+
 - Added optional profile photo syncing for Microsoft Entra ID. When enabled, each user's profile picture is collected during the crawl and shown next to their name on the user detail page.
 - The signed-in user's own profile photo now appears in the header, in place of their initial.
 - Profile photos are off by default and are enabled per crawler under "Profile Photos" in the Entra ID setup wizard, which warns that photos are personal data and that the first crawl fetches one photo per user. Turning them on is a deliberate choice rather than something a crawl picks up automatically.
