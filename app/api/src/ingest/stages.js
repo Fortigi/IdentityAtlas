@@ -38,6 +38,7 @@ import * as db from '../db/connection.js';
 import { resolveActiveColumns, discoverColumns, scopedDelete, SOFT_DELETE_TABLES } from './engine.js';
 import { bulkInsertIntoTemp } from './tempTableHelpers.js';
 import { createSerializedRunner } from '../lib/serializedRunner.js';
+import { markInitialLoad } from './initialLoad.js';
 
 export const STAGE_PREFIX = '_stage_';
 const STAGE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -162,6 +163,10 @@ async function applyStages(loaded, deleteMissing) {
   const bulked = canBulk && await db.tx(async (client) => {
     for (const st of loaded) await client.query(`ANALYZE "${st.stageTable}"`);
     if (!(await lockEmptyTable(client, loaded[0].tableName))) return false;
+    // INTEGRATION (#1270 x #1271): an initial load writes no per-row insert history.
+    // Every stage of an empty-table load is its system's initial load; set the flag
+    // once for the transaction if any of them is.
+    for (const st of loaded) if (await markInitialLoad(client, st.systemId)) break;
     await loadIntoEmptyTable(client, loaded, results);
     return true;
   });
@@ -175,6 +180,7 @@ async function applyStages(loaded, deleteMissing) {
 async function mergeStage(client, stage, deleteMissing) {
   const nonKey = nonKeyColumns(stage);
   const keysOnly = nonKey.length === 0;
+  await markInitialLoad(client, stage.systemId);   // INTEGRATION (#1270 x #1271)
   await client.query(`ANALYZE "${stage.stageTable}"`);
   const inserted = keysOnly ? 0 : await insertNew(client, stage);
   const updated = keysOnly ? 0 : await updateChanged(client, stage, nonKey);
