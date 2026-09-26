@@ -1999,6 +1999,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#real-postgresql-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real PostgreSQL mode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Real PostgreSQL mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#using-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-launcher-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the launcher does
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#measured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measured
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#building-the-portable-zip" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2038,6 +2088,17 @@
     <span class="md-ellipsis">
       
         Skipping the UI build
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#embedding-postgresql" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Embedding PostgreSQL
       
     </span>
   </a>
@@ -5306,6 +5367,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#real-postgresql-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real PostgreSQL mode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Real PostgreSQL mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#using-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-launcher-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the launcher does
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#measured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measured
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#building-the-portable-zip" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5345,6 +5456,17 @@
     <span class="md-ellipsis">
       
         Skipping the UI build
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#embedding-postgresql" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Embedding PostgreSQL
       
     </span>
   </a>
@@ -5508,7 +5630,8 @@
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>  └── Start-IdentityAtlas.ps1
 </code></pre></div>
 <p><code>bootstrap.mjs</code> initializes PGlite (WebAssembly PostgreSQL) in-process, sets <code>DESKTOP_MODE=true</code>, then imports the API bundle. <code>connection.js</code> detects this flag and routes all database calls through the in-process PGlite instance instead of a TCP connection pool. No child process is spawned, no executable is written to disk at runtime.</p>
-<p>Database files are stored in <code>%APPDATA%\IdentityAtlas\pgdata\</code> and persist across restarts.</p>
+<p>Database files are stored in <code>pgdata\</code> under the data directory (see <a href="#data-location">Data Location</a>) and persist across restarts.</p>
+<p>A package built with <code>--with-postgres</code> also carries a real PostgreSQL server and runs that instead — see <a href="#real-postgresql-mode">Real PostgreSQL mode</a>.</p>
 <hr />
 <h2 id="running-the-portable-launcher">Running the Portable Launcher<a class="headerlink" href="#running-the-portable-launcher" title="Permanent link">&para;</a></h2>
 <h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
@@ -5546,7 +5669,7 @@
 </code></pre></div>
 <p>Or go to <strong>Admin → Crawlers</strong> to connect your own data sources.</p>
 <h3 id="data-location">Data Location<a class="headerlink" href="#data-location" title="Permanent link">&para;</a></h3>
-<p>All persistent data lives under <code>%APPDATA%\IdentityAtlas\</code>:</p>
+<p>All persistent data lives in one data directory, chosen in this order: <code>IA_DATA_DIR</code> when set; <code>%APPDATA%\IdentityAtlas\</code> when an older install already keeps its <code>pgdata\</code> there; otherwise <code>%LOCALAPPDATA%\IdentityAtlas\</code>. The launcher prints the one it uses.</p>
 <table>
 <thead>
 <tr>
@@ -5558,6 +5681,10 @@
 <tr>
 <td><code>pgdata\</code></td>
 <td>PGlite database files</td>
+</tr>
+<tr>
+<td><code>postgres\</code></td>
+<td>Real PostgreSQL mode only: <code>data\</code> (the cluster), <code>password</code> (owner-only), <code>startup.log</code></td>
 </tr>
 <tr>
 <td><code>uploads\</code></td>
@@ -5575,9 +5702,17 @@
 <td><code>.builtin-worker-key</code></td>
 <td>Internal API key for the crawler worker</td>
 </tr>
+<tr>
+<td><code>startup-error.log</code></td>
+<td>Written when the app stops on an unexpected error — send this file along with a bug report</td>
+</tr>
+<tr>
+<td><code>launcher.lock</code>, <code>launcher.state.json</code></td>
+<td>Keep two launchers off one data directory; let the next start recognise a leftover process</td>
+</tr>
 </tbody>
 </table>
-<p>To back up all data, copy this folder. To reset to a clean state, delete it (the app re-initializes on next start).</p>
+<p>To back up all data, stop the app and copy this folder. To reset to a clean state, delete it (the app re-initializes on next start).</p>
 <h3 id="crawlers">Crawlers<a class="headerlink" href="#crawlers" title="Permanent link">&para;</a></h3>
 <p>Crawlers run via PowerShell (<code>pwsh.exe</code>). The Entra ID and CSV crawlers are bundled inside the zip and dispatched automatically when you schedule or trigger a run from the Admin → Crawlers page.</p>
 <p>If <code>pwsh.exe</code> is not on <code>PATH</code>, the UI will still load and display existing data, but attempting to run a crawler will fail with a clear error message.</p>
@@ -5628,6 +5763,148 @@
 </tr>
 </tbody>
 </table>
+<p>The PGlite rows do not apply in <a href="#real-postgresql-mode">real PostgreSQL mode</a>, which behaves like Docker for all of them except multi-user access.</p>
+<hr />
+<h2 id="real-postgresql-mode">Real PostgreSQL mode<a class="headerlink" href="#real-postgresql-mode" title="Permanent link">&para;</a></h2>
+<p>PGlite has a hard ceiling that no setting moves. It is PostgreSQL compiled to 32-bit WebAssembly inside <code>node.exe</code>, so it can never address more than 4 GB. Its buffer pool is fixed at 128 MB and <code>work_mem</code> at 4 MB, and <code>ALTER SYSTEM</code> is accepted but ignored after a restart. It is also single-threaded. A tenant of 200k users, 800k entitlements and tens of millions of assignments (15–25 GB of tables and indexes) cannot fit.</p>
+<p>A package built with <code>--with-postgres</code> therefore carries a real PostgreSQL 16 server in <code>postgres\</code>, unpacked from the official Windows binaries zip. <code>Start-IdentityAtlas.ps1</code> then runs <strong>two processes</strong>, both as the current user, with no installation and no administrator rights:</p>
+<ol>
+<li><strong>PostgreSQL</strong>, started with <code>pg_ctl</code> from <code>postgres\bin</code>, listening on <code>127.0.0.1:5433</code>.</li>
+<li><strong><code>node.exe bootstrap.mjs</code></strong>, given <code>POSTGRES_HOST</code>/<code>POSTGRES_PORT</code>/… instead of starting PGlite. <code>DESKTOP_MODE</code> is left off, so migrations install <code>pg_trgm</code> for real and matview refreshes use <code>CONCURRENTLY</code>. The API is still pinned to <code>127.0.0.1</code>.</li>
+</ol>
+<p>The launcher waits until the API reports its schema migrated, opens the browser, and on Ctrl+C stops <code>node.exe</code> first and then PostgreSQL with <code>pg_ctl stop -m fast</code> (a clean shutdown: no recovery needed on the next start).</p>
+<div class="admonition danger">
+<p class="admonition-title">Check application control before relying on this mode</p>
+<p><code>node.exe</code> passes WDAC because the OpenJS Foundation signs it. <strong>The PostgreSQL server binaries carry no Authenticode signature at all.</strong> This was checked on 2026-09-26 with <code>Get-AuthenticodeSignature</code> against EDB's Windows binaries zip for 16.15, 17.8 and 18.4. <code>postgres.exe</code>, <code>initdb.exe</code>, <code>pg_ctl.exe</code>, <code>psql.exe</code>, <code>pg_isready.exe</code>, <code>libpq.dll</code> and all other server files report <code>NotSigned</code>. The only EnterpriseDB-signed file in the archive is <code>stackbuilder.exe</code>, which is not shipped.</p>
+<p>A policy that trusts publishers will therefore block these files. They can only run on such a machine if IT adds <strong>hash rules</strong> for the shipped <code>postgres\</code> files (for example with <code>New-CIPolicy -Level Hash -ScanPath &lt;folder&gt;\postgres</code>) or a path rule. The launcher detects a refusal before it creates anything. On a fresh data directory it falls back to PGlite with a warning that says why.</p>
+<p>The server also needs <strong><code>VCRUNTIME140.dll</code></strong> (the Microsoft Visual C++ 2015–2022 x64 redistributable), which the zip does not contain. Most machines have it. When it is missing, the same preflight reports it by name and falls back.</p>
+</div>
+<h3 id="using-it">Using it<a class="headerlink" href="#using-it" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">pwsh</span> <span class="n">-ExecutionPolicy</span> <span class="n">Bypass</span> <span class="o">-File</span> <span class="p">.\</span><span class="nb">Start-IdentityAtlas</span><span class="p">.</span><span class="n">ps1</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-Database</code></td>
+<td><code>Auto</code></td>
+<td><code>Auto</code> uses PostgreSQL when <code>postgres\</code> is present, <strong>except</strong> on a data directory that already holds PGlite data. <code>Postgres</code> or <code>PGlite</code> forces one.</td>
+</tr>
+<tr>
+<td><code>-PostgresRoot</code></td>
+<td><code>postgres\</code> next to the script</td>
+<td>A folder containing <code>bin\pg_ctl.exe</code>, to use binaries kept elsewhere</td>
+</tr>
+<tr>
+<td><code>-PostgresPort</code></td>
+<td><code>5433</code></td>
+<td>Loopback port for PostgreSQL. It differs from 5432 so it cannot collide with an installed server</td>
+</tr>
+<tr>
+<td><code>-Port</code></td>
+<td><code>3001</code></td>
+<td>Loopback port for the app</td>
+</tr>
+<tr>
+<td><code>-StartupTimeoutSec</code></td>
+<td><code>300</code></td>
+<td>When to warn that startup is slow. The launcher keeps waiting and <strong>never kills a process that is still starting</strong>, because on a large database that kill is what makes the next start slower</td>
+</tr>
+<tr>
+<td><code>-NoBrowser</code></td>
+<td>off</td>
+<td>Do not open the browser</td>
+</tr>
+</tbody>
+</table>
+<p>Setting <code>DATABASE_URL</code> or <code>POSTGRES_HOST</code> before starting the launcher points the app at an existing server instead, and the launcher starts none.</p>
+<p><strong>Switching an existing install from PGlite to PostgreSQL does not move its data.</strong> Run once with <code>-Database Postgres</code> and re-import (run the crawlers again). The PGlite data stays in <code>pgdata\</code> untouched, and <code>-Database PGlite</code> returns to it.</p>
+<h3 id="what-the-launcher-does">What the launcher does<a class="headerlink" href="#what-the-launcher-does" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>First run.</strong> It writes a random password to <code>postgres\password</code>, restricted to the current user, and runs <code>initdb</code> with <code>scram-sha-256</code> authentication, UTF-8 encoding and the C locale. It then appends a tuning block to <code>postgresql.conf</code>, starts the server and creates the <code>identityatlas</code> database. initdb writes into <code>data.initializing</code>, and the folder is renamed to <code>data</code> only once it is complete, so an interrupted first run is discarded and redone rather than half-used.</li>
+<li>
+<p><strong>Tuning.</strong> The block is sized from the machine's memory and written once. It stays visible and editable in <code>postgresql.conf</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Rule</th>
+<th>16 GB laptop</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shared_buffers</code></td>
+<td>¼ of RAM, 128 MB – 8 GB</td>
+<td>4 GB</td>
+</tr>
+<tr>
+<td><code>effective_cache_size</code></td>
+<td>½ of RAM, 256 MB – 32 GB</td>
+<td>8 GB</td>
+</tr>
+<tr>
+<td><code>work_mem</code></td>
+<td>RAM ÷ 256, 4 – 128 MB</td>
+<td>64 MB</td>
+</tr>
+<tr>
+<td><code>maintenance_work_mem</code></td>
+<td>RAM ÷ 16, 64 MB – 2 GB</td>
+<td>1 GB</td>
+</tr>
+<tr>
+<td><code>max_wal_size</code></td>
+<td>8 GB from 8 GB of RAM, else 2 GB</td>
+<td>8 GB</td>
+</tr>
+</tbody>
+</table>
+<p>It also sets <code>listen_addresses = '127.0.0.1'</code> and turns on the logging collector, which writes a weekly ring of logs in <code>postgres\data\log\</code>.
+- <strong>Every start.</strong> <code>-V</code> preflight of the binaries, <code>pg_ctl start</code>, then a wait for <code>pg_isready</code>. While the server is recovering the launcher keeps waiting; if the server exits instead, it fails at once with the tail of <code>postgres\startup.log</code>.
+- <strong>One launcher per data directory.</strong> A second launcher on the same data directory leaves the first alone. It opens the browser if the app is ready and otherwise says it is still starting.
+- <strong>Leftovers.</strong> PostgreSQL runs in its own hidden console, so closing the launcher window cannot kill it mid-write. A hidden watchdog (<code>Watch-IdentityAtlas.ps1</code>) waits for the launcher to end, however it ends (Ctrl+C, closed window, killed process), and then stops what is left: the recorded <code>node.exe</code>, then PostgreSQL with a fast shutdown. If even that is missed, the next start recognises and stops a leftover <code>node.exe</code> (by process id <em>and</em> start time) and restarts a leftover server cleanly.</p>
+</li>
+</ul>
+<h3 id="measured">Measured<a class="headerlink" href="#measured" title="Permanent link">&para;</a></h3>
+<p>Measured on 2026-09-26 on an 8 GB Windows 11 machine, as a non-administrator, from a freshly extracted zip:</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>First start (initdb, 74 migrations, bootstrap) to "running"</td>
+<td>14–15 s</td>
+</tr>
+<tr>
+<td>Restart with data</td>
+<td>4–5 s</td>
+</tr>
+<tr>
+<td>Start after an unclean stop (crash recovery)</td>
+<td>9 s</td>
+</tr>
+<tr>
+<td>Ctrl+C to nothing left running</td>
+<td>2–3 s, clean shutdown checkpoint</td>
+</tr>
+<tr>
+<td>Closed window / killed launcher to nothing left running</td>
+<td>0.3–2.4 s, clean shutdown checkpoint</td>
+</tr>
+</tbody>
+</table>
+<p>The zip grows from ~56 MB to ~80 MB with <code>postgres\</code> included: 1,112 files, 63 MB unpacked. The subset omits pgAdmin, StackBuilder, headers, docs and translations.</p>
 <hr />
 <h2 id="building-the-portable-zip">Building the Portable ZIP<a class="headerlink" href="#building-the-portable-zip" title="Permanent link">&para;</a></h2>
 <h3 id="prerequisites_1">Prerequisites<a class="headerlink" href="#prerequisites_1" title="Permanent link">&para;</a></h3>
@@ -5668,18 +5945,18 @@
 </tbody>
 </table>
 <h3 id="steps">Steps<a class="headerlink" href="#steps" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c"># 1. Clone the repository</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">git</span> <span class="n">clone</span> <span class="n">https</span><span class="p">://</span><span class="n">github</span><span class="p">.</span><span class="n">com</span><span class="p">/</span><span class="n">Fortigi</span><span class="p">/</span><span class="n">IdentityAtlas</span><span class="p">.</span><span class="n">git</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nb">cd </span><span class="n">IdentityAtlas</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c"># 2. Install desktop dependencies (includes PGlite)</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="nb">cd </span><span class="n">app</span><span class="p">/</span><span class="n">desktop</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">npm</span> <span class="n">install</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c"># 3. Run the build (from app/api/)</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="nb">cd </span><span class="p">../</span><span class="n">api</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="n">npm</span> <span class="n">install</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="n">npm</span> <span class="n">run</span> <span class="n">build</span><span class="p">:</span><span class="n">node-launcher</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c"># 1. Clone the repository</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">git</span> <span class="n">clone</span> <span class="n">https</span><span class="p">://</span><span class="n">github</span><span class="p">.</span><span class="n">com</span><span class="p">/</span><span class="n">Fortigi</span><span class="p">/</span><span class="n">IdentityAtlas</span><span class="p">.</span><span class="n">git</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nb">cd </span><span class="n">IdentityAtlas</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c"># 2. Install desktop dependencies (includes PGlite)</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="nb">cd </span><span class="n">app</span><span class="p">/</span><span class="n">desktop</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">npm</span> <span class="n">install</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="c"># 3. Run the build (from app/api/)</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="nb">cd </span><span class="p">../</span><span class="n">api</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="n">npm</span> <span class="n">install</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="n">npm</span> <span class="n">run</span> <span class="n">build</span><span class="p">:</span><span class="n">node-launcher</span>
 </code></pre></div>
 <p>The build script (<code>app/desktop/scripts/build-node-launcher.mjs</code>) does eight steps:</p>
 <ol>
@@ -5694,12 +5971,18 @@
 </ol>
 <h4 id="skipping-the-ui-build">Skipping the UI build<a class="headerlink" href="#skipping-the-ui-build" title="Permanent link">&para;</a></h4>
 <p>If you've already built the UI and are iterating on the backend only:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">npm</span> <span class="n">run</span> <span class="n">build</span><span class="p">:</span><span class="n">node-launcher</span><span class="p">:</span><span class="nb">skip-ui</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">npm</span> <span class="n">run</span> <span class="n">build</span><span class="p">:</span><span class="n">node-launcher</span><span class="p">:</span><span class="nb">skip-ui</span>
 </code></pre></div>
+<h4 id="embedding-postgresql">Embedding PostgreSQL<a class="headerlink" href="#embedding-postgresql" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">npm</span> <span class="n">run</span> <span class="n">build</span><span class="p">:</span><span class="n">node-launcher</span><span class="p">:</span><span class="n">postgres</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c"># or add the flag to any variant:</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">node</span> <span class="p">../</span><span class="n">desktop</span><span class="p">/</span><span class="n">scripts</span><span class="p">/</span><span class="n">build-node-launcher</span><span class="p">.</span><span class="n">mjs</span> <span class="p">-</span><span class="n">-skip-ui-build</span> <span class="p">-</span><span class="n">-with-postgres</span>
+</code></pre></div>
+<p>This downloads EDB's PostgreSQL Windows binaries zip. The version and SHA-256 are pinned in <code>app/desktop/scripts/postgres-bundle.mjs</code>, and every build checks the hash. The zip is cached in <code>dist-node-launcher/</code> and only the subset the server needs is copied into <code>postgres\</code>. Binaries are never downloaded at run time, so the package works offline. Release builds do not use the flag.</p>
 <h4 id="build-output">Build Output<a class="headerlink" href="#build-output" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>app/api/dist-node-launcher/
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>  IdentityAtlas-portable.zip   ← portable ZIP (~50 MB)
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  stage/                       ← unpacked contents (can run directly for dev)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>app/api/dist-node-launcher/
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>  IdentityAtlas-portable.zip   ← portable ZIP (~50 MB)
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>  stage/                       ← unpacked contents (can run directly for dev)
 </code></pre></div>
 <hr />
 <h2 id="security-notes">Security Notes<a class="headerlink" href="#security-notes" title="Permanent link">&para;</a></h2>
@@ -5707,7 +5990,8 @@
 <p>The previous implementation used the <code>embedded-postgres</code> npm package, which extracts a <code>postgres.exe</code> binary to <code>%APPDATA%</code> at runtime and spawns it as a child process. Endpoint security tools (CrowdStrike, Defender for Endpoint, and others) flag this pattern — an exe extracting and executing another exe from a user-writable location.</p>
 <p>PGlite runs PostgreSQL compiled to WebAssembly inside the Node.js process. Nothing is extracted to disk at runtime. The WASM module is part of the zip, loaded like any other Node.js module.</p>
 <p><strong>Network exposure</strong></p>
-<p>The app binds to <code>0.0.0.0:3001</code> (all interfaces). It is reachable from other machines on the same network. In a home or corporate LAN this is typically acceptable for a single-user local install, but be aware that authentication is disabled by default in desktop mode — do not use on untrusted networks without enabling <code>AUTH_ENABLED=true</code>.</p>
+<p>The app binds to <code>127.0.0.1:3001</code> only, and in real PostgreSQL mode the database binds to <code>127.0.0.1:5433</code> only, so neither is reachable from other machines. Authentication is disabled by default, which means any process on this machine can call the API. Enable authentication (Admin → Authentication) on a shared machine.</p>
+<p>In real PostgreSQL mode the database requires a password (<code>scram-sha-256</code>, no <code>trust</code> entries). The password is random per install and stored in <code>postgres\password</code>, readable only by the current user.</p>
 <p><strong>Secret storage</strong></p>
 <p>The master encryption key is stored in <code>%APPDATA%\IdentityAtlas\.master-key</code> (plain text, user-only access). Crawler credentials are stored encrypted using AES-256-GCM in the database.</p>
 
