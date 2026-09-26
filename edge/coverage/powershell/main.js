@@ -300,10 +300,10 @@ var assemblies = [
   {
     "name": "tools/crawlers/csv",
     "classes": [
-      { "name": "tools/crawlers/csv/CSVCrawler.Functions", "rp": "csv_Functions.html", "cl": 93, "ucl": 0, "cal": 93, "tl": 225, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/csv/CSVCrawler.Phases", "rp": "csv_Phases.html", "cl": 201, "ucl": 0, "cal": 201, "tl": 341, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/csv/CSVCrawler.Transform", "rp": "csv_Transform.html", "cl": 95, "ucl": 0, "cal": 95, "tl": 192, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/csv/Start-CSVCrawler", "rp": "csv_tools_crawlers_csv_Start_CSVCrawler.html", "cl": 0, "ucl": 29, "cal": 29, "tl": 98, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/csv/CSVCrawler.Functions", "rp": "csv_Functions.html", "cl": 99, "ucl": 0, "cal": 99, "tl": 260, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/csv/CSVCrawler.Phases", "rp": "csv_Phases.html", "cl": 281, "ucl": 2, "cal": 283, "tl": 551, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/csv/CSVCrawler.Transform", "rp": "csv_Transform.html", "cl": 171, "ucl": 0, "cal": 171, "tl": 414, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/csv/Start-CSVCrawler", "rp": "csv_tools_crawlers_csv_Start_CSVCrawler.html", "cl": 0, "ucl": 30, "cal": 30, "tl": 99, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {
     "name": "tools/crawlers/custom-connector",
@@ -373,6 +373,7 @@ var assemblies = [
       { "name": "tools/crawlers/shared/Get-CrawlerSystemName", "rp": "shared_tools_crawlers_shared_Get_CrawlerSystemName.html", "cl": 6, "ucl": 0, "cal": 6, "tl": 60, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/shared/Get-NestedGroupUserSet", "rp": "shared_tools_crawlers_shared_Get_NestedGroupUserSet.html", "cl": 12, "ucl": 0, "cal": 12, "tl": 52, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/shared/Invoke-CrawlerIngest", "rp": "shared_tools_crawlers_shared_Invoke_CrawlerIngest.html", "cl": 110, "ucl": 1, "cal": 111, "tl": 304, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/shared/Invoke-CrawlerIngestStream", "rp": "shared_tools_crawlers_shared_Invoke_CrawlerIngestStream.html", "cl": 72, "ucl": 0, "cal": 72, "tl": 191, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {
     "name": "tools/powershell-sdk/graph",
