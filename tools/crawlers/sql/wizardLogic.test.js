@@ -12,7 +12,7 @@ import {
   CONTRACT_COLUMNS, contractColumnsFor, contractColumnOptions,
   newColumnMapRow, columnMapToRows, rowsToColumnMap, validateColumnMap,
 } from './wizardLogic.js';
-import { IDENTITYIQ_PRESET } from './sqlPresets.js';
+import { IDENTITYIQ_PRESET, IDENTITYIQ_ORG_PRESET, PRESETS, CATALOG_RECORD, APPLICATION_KEY } from './sqlPresets.js';
 
 const slot = (over = {}) => ({ ...newQuerySlot(), name: 'Q', sql: 'SELECT 1', ...over });
 
@@ -21,6 +21,7 @@ describe('newQuerySlot', () => {
     expect(newQuerySlot()).toEqual({
       name: '', target: 'identities', sql: '', enabled: true, columnMap: [],
       resourceType: '', assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User',
+      contextType: '', targetType: 'Resource', memberType: 'Resource',
     });
   });
 
@@ -37,6 +38,8 @@ describe('slotFieldsFor', () => {
     expect(slotFieldsFor('resources')).toEqual(['resourceType']);
     expect(slotFieldsFor('assignments')).toEqual(['resourceType', 'assignmentType', 'governed']);
     expect(slotFieldsFor('relationships')).toEqual(['relationshipType']);
+    expect(slotFieldsFor('contexts')).toEqual(['contextType', 'targetType']);
+    expect(slotFieldsFor('context-members')).toEqual(['memberType']);
   });
 
   it('covers every target and returns nothing for an unknown one', () => {
@@ -73,8 +76,8 @@ describe('appendPresetSlots', () => {
   it('loads the preset into an empty list', () => {
     const out = appendPresetSlots([], 'identityiq');
     expect(out).toHaveLength(IDENTITYIQ_PRESET.length);
-    expect(out[0]).toMatchObject({ name: 'Identities', target: 'identities', enabled: true, resourceType: '' });
-    expect(out[4]).toMatchObject({ name: 'Role assignments', target: 'assignments', resourceType: 'BusinessRole', governed: true });
+    expect(out[0]).toMatchObject({ name: 'Identities', target: 'principals', enabled: true, resourceType: '' });
+    expect(out[5]).toMatchObject({ name: 'Role assignments', target: 'assignments', resourceType: 'BusinessRole', governed: true });
   });
 
   it('appends after existing slots without touching them', () => {
@@ -91,7 +94,30 @@ describe('appendPresetSlots', () => {
   });
 
   it('every preset slot passes validation as loaded', () => {
-    expect(validateQueries(appendPresetSlots([], 'identityiq'))).toEqual([]);
+    for (const p of PRESETS) expect(validateQueries(appendPresetSlots([], p.id)), p.id).toEqual([]);
+  });
+
+  it('splits entitlement grants into Direct and Indirect by granted_by_role, in both presets', () => {
+    for (const preset of [IDENTITYIQ_PRESET, IDENTITYIQ_ORG_PRESET]) {
+      const grants = preset.filter(q => q.target === 'assignments' && q.resourceType === 'Entitlement');
+      expect(grants.map(q => q.assignmentType)).toEqual(['Direct', 'Indirect']);
+      expect(grants[0].sql).toContain('ie.granted_by_role = 0 OR ie.granted_by_role IS NULL');
+      expect(grants[1].sql).toMatch(/AND ie\.granted_by_role = 1$/);
+      for (const g of grants) expect(g.sql).toContain('AND ma.attribute   = ie.name');
+    }
+  });
+
+  it('loads identities as principals, never through the identities target', () => {
+    for (const p of PRESETS) expect(p.queries.map(q => q.target)).not.toContain('identities');
+  });
+
+  it('the organisation preset reads logical applications from the catalogue record and the entitlement XML', () => {
+    const byTarget = t => IDENTITYIQ_ORG_PRESET.find(q => q.target === t);
+    expect(byTarget('contexts').sql).toContain(`WHERE c.name = '${CATALOG_RECORD}'`);
+    expect(byTarget('contexts')).toMatchObject({ contextType: 'LogicalApplication', targetType: 'Resource' });
+    expect(byTarget('context-members').sql).toContain(`@key="${APPLICATION_KEY}"`);
+    expect(byTarget('context-members').sql).toMatch(/AS memberId[\s\S]*AS contextName/);
+    for (const q of IDENTITYIQ_ORG_PRESET) expect(q.sql).not.toContain('${');
   });
 });
 
@@ -530,5 +556,40 @@ describe('buildQuerySlot / buildSqlConfigPayload — column mapping', () => {
     });
     expect(out.queries[0].columnMap).toEqual({ IdentityID: 'id' });
     expect(out.queries[1]).not.toHaveProperty('columnMap');
+  });
+});
+
+describe('contexts and context-members slots', () => {
+  const catalogue = (over = {}) => slot({ name: 'Apps', target: 'contexts', contextType: 'Application', ...over });
+  const members = (over = {}) => slot({ name: 'Members', target: 'context-members', ...over });
+
+  it('requires a context type on a contexts slot, and only there', () => {
+    expect(validateQueries([catalogue({ contextType: '  ' })])).toEqual(['Apps: context type is required for contexts']);
+    expect(validateQueries([catalogue()])).toEqual([]);
+    expect(validateQueries([slot({ target: 'identities', contextType: '' })])).toEqual([]);
+  });
+
+  it('allows one enabled catalogue and one enabled membership query, and memberships only with a catalogue', () => {
+    expect(validateQueries([catalogue(), members()])).toEqual([]);
+    expect(validateQueries([catalogue(), catalogue({ name: 'Apps 2' })])).toEqual(['Only one enabled contexts query is supported']);
+    expect(validateQueries([catalogue(), members(), members({ name: 'M2' })])).toEqual(['Only one enabled context-members query is supported']);
+    expect(validateQueries([members()])).toEqual(['A context-members query needs an enabled contexts query']);
+    // A disabled duplicate is saved but never runs, so it is no conflict.
+    expect(validateQueries([catalogue(), catalogue({ name: 'Old', enabled: false }), members()])).toEqual([]);
+    expect(validateQueries([catalogue({ enabled: false }), members()])).toEqual(['A context-members query needs an enabled contexts query']);
+  });
+
+  it('saves only the slot constants each target uses, trimmed and defaulted', () => {
+    expect(buildQuerySlot(catalogue({ contextType: ' Application ', targetType: '', memberType: 'Identity' })))
+      .toEqual({ name: 'Apps', target: 'contexts', sql: 'SELECT 1', enabled: true, contextType: 'Application', targetType: 'Resource' });
+    expect(buildQuerySlot(members({ memberType: '', contextType: 'X' })))
+      .toEqual({ name: 'Members', target: 'context-members', sql: 'SELECT 1', enabled: true, memberType: 'Resource' });
+  });
+
+  it('offers the contract columns as mapping targets, and rejects a column from another target', () => {
+    expect(contractColumnOptions('contexts')).toEqual(['displayName', 'id', 'name', 'description', 'ownerUserId']);
+    expect(contractColumnOptions('context-members')).toEqual(['memberId', 'contextId', 'contextName']);
+    expect(validateColumnMap([{ from: 'LogicalApplication', to: 'contextName' }], 'context-members')).toEqual([]);
+    expect(validateColumnMap([{ from: 'X', to: 'resourceId' }], 'context-members')).toHaveLength(1);
   });
 });

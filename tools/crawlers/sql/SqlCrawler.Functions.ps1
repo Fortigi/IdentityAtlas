@@ -17,7 +17,8 @@
 
 #region Configuration
 
-$script:SqlTargets       = @('identities', 'principals', 'identity-members', 'resources', 'assignments', 'relationships')
+$script:SqlTargets       = @('identities', 'principals', 'identity-members', 'resources', 'assignments', 'relationships', 'contexts', 'context-members')
+$script:SqlContextTargetTypes = @('Resource', 'Identity', 'Principal', 'System')
 $script:SqlAssignTypes   = @('Direct', 'Indirect', 'Eligible')
 $script:SqlRelTypes      = @('Contains', 'GrantsAccessTo')
 $script:SqlPrincipalTypes = @('User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox')
@@ -84,6 +85,10 @@ function Resolve-SqlQuerySlot {
     $assignmentType   = Get-SqlSlotEnum -Value $Slot.assignmentType   -Default 'Direct'   -Allowed $script:SqlAssignTypes    -Field 'assignmentType'   -QueryName $name
     $relationshipType = Get-SqlSlotEnum -Value $Slot.relationshipType -Default 'Contains' -Allowed $script:SqlRelTypes       -Field 'relationshipType' -QueryName $name
     $principalType    = Get-SqlSlotEnum -Value $Slot.principalType    -Default 'User'     -Allowed $script:SqlPrincipalTypes -Field 'principalType'    -QueryName $name
+    $targetType       = Get-SqlSlotEnum -Value $Slot.targetType       -Default 'Resource' -Allowed $script:SqlContextTargetTypes -Field 'targetType' -QueryName $name
+    $memberType       = Get-SqlSlotEnum -Value $Slot.memberType       -Default $targetType -Allowed $script:SqlContextTargetTypes -Field 'memberType' -QueryName $name
+    $contextType      = ([string]$Slot.contextType).Trim()
+    if ($target -eq 'contexts' -and -not $contextType) { throw "Query '$name': a contexts query needs a contextType (e.g. Application)" }
     return @{
         name             = $name
         target           = $target
@@ -95,8 +100,28 @@ function Resolve-SqlQuerySlot {
         governed         = [bool]$Slot.governed
         relationshipType = $relationshipType
         principalType    = $principalType
+        contextType      = $contextType
+        targetType       = $targetType
+        memberType       = $memberType
         paged            = Test-SqlPagedQuery -Sql $sql
     }
+}
+
+# Contexts and their members are sent as ONE full sync each (they have no
+# systemId, so there is no per-scope reconcile to keep two statements apart): a
+# second enabled statement of either target would have its full sync delete the
+# first one's rows. Memberships resolve against the catalogue, so they need one.
+function Assert-SqlContextSlots {
+    [CmdletBinding()]
+    param([hashtable[]]$Slots = @())
+    $enabled = @($Slots | Where-Object { $_.enabled })
+    foreach ($t in @('contexts', 'context-members')) {
+        $n = @($enabled | Where-Object { $_.target -eq $t }).Count
+        if ($n -gt 1) { throw "Only one enabled '$t' query is supported; found $n" }
+    }
+    $hasMembers = @($enabled | Where-Object { $_.target -eq 'context-members' }).Count -gt 0
+    $hasCatalog = @($enabled | Where-Object { $_.target -eq 'contexts' }).Count -gt 0
+    if ($hasMembers -and -not $hasCatalog) { throw "A 'context-members' query needs an enabled 'contexts' query to resolve against" }
 }
 
 # A positive integer from the config, or the default when absent/invalid.
@@ -120,6 +145,7 @@ function Resolve-SqlConfig {
     $i = 0
     foreach ($q in @($raw['queries'])) { if ($q) { $slots.Add((Resolve-SqlQuerySlot -Slot $q -Index $i)) }; $i++ }
     if ($slots.Count -eq 0) { throw 'SQL crawler config has no queries' }
+    Assert-SqlContextSlots -Slots @($slots)
     return @{
         server                 = ([string]$raw['server']).Trim()
         port                   = Get-SqlConfigInt -Value $raw['port'] -Default 0

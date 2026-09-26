@@ -7,7 +7,7 @@ import { presetQueries } from './sqlPresets.js';
 
 // ─── Targets and slot constants (mirror crawler.json `queries[].*`) ──────────
 
-// The six targets a statement's rows can become, with the one-line column
+// The targets a statement's rows can become, with the one-line column
 // contract the Queries step shows under the SQL. Full table: CLAUDE.md here.
 export const TARGETS = [
   { id: 'identities',       label: 'Identities',       contract: 'id, displayName (+ email, givenName, surname, department, jobTitle, companyName, employeeId, principalType, enabled …)' },
@@ -16,10 +16,13 @@ export const TARGETS = [
   { id: 'resources',        label: 'Resources',        contract: 'id, displayName (+ description, enabled); resourceType is the slot value' },
   { id: 'assignments',      label: 'Assignments',      contract: 'resourceId, principalId; resourceType, assignmentType and governed are the slot values' },
   { id: 'relationships',    label: 'Relationships',    contract: 'parentId, childId; relationshipType is the slot value' },
+  { id: 'contexts',         label: 'Contexts',         contract: 'displayName (+ id as a stable key, description, ownerUserId); contextType and targetType are the slot values' },
+  { id: 'context-members',  label: 'Context members',  contract: 'memberId and contextId or contextName (matched to the Contexts query by name, ignoring case and surrounding spaces)' },
 ];
 export const TARGET_IDS = TARGETS.map(t => t.id);
 export const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible'];
 export const RELATIONSHIP_TYPES = ['Contains', 'GrantsAccessTo'];
+export const CONTEXT_TARGET_TYPES = ['Resource', 'Identity', 'Principal', 'System'];
 export const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
 
 // Which slot-level constants each target uses. A field a target does not use is
@@ -32,6 +35,8 @@ const SLOT_FIELDS_BY_TARGET = {
   resources: ['resourceType'],
   assignments: ['resourceType', 'assignmentType', 'governed'],
   relationships: ['relationshipType'],
+  contexts: ['contextType', 'targetType'],
+  'context-members': ['memberType'],
 };
 
 export function slotFieldsFor(target) {
@@ -60,6 +65,9 @@ export const CONTRACT_COLUMNS = {
   // An identities row's account shares its id, so identityId is accepted where principalId is.
   assignments:        { required: ['resourceId', 'principalId'],     optional: ['identityId'] },
   relationships:      { required: ['parentId', 'childId'],           optional: [] },
+  contexts:           { required: ['displayName'],                   optional: ['id', 'name', 'description', 'ownerUserId'] },
+  // One of contextId / contextName is needed; the crawler skips a row with neither.
+  'context-members':  { required: ['memberId'],                      optional: ['contextId', 'contextName'] },
 };
 
 const EMPTY_CONTRACT = { required: [], optional: [] };
@@ -79,7 +87,10 @@ export function contractColumnOptions(target) {
 
 // ─── Slot state ──────────────────────────────────────────────────────────────
 
-const SLOT_DEFAULTS = { resourceType: '', assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User' };
+const SLOT_DEFAULTS = {
+  resourceType: '', assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User',
+  contextType: '', targetType: 'Resource', memberType: 'Resource',
+};
 
 // A blank editor slot. Every field is bound (the editor switches which ones it
 // shows when the target changes), so all of them get a default here.
@@ -207,6 +218,7 @@ function validateSlot(slot, index) {
   if (!TARGET_IDS.includes(slot.target)) errors.push(`${label}: unknown target "${slot.target ?? ''}"`);
   if (blank(slot.sql)) errors.push(`${label}: SQL is required`);
   if (NEEDS_RESOURCE_TYPE.has(slot.target) && blank(slot.resourceType)) errors.push(`${label}: resource type is required for ${slot.target}`);
+  if (slot.target === 'contexts' && blank(slot.contextType)) errors.push(`${label}: context type is required for contexts`);
   for (const error of validateColumnMap(slot.columnMap, slot.target)) errors.push(`${label}: ${error}`);
   return errors;
 }
@@ -218,6 +230,20 @@ export function validateQueries(queries) {
   const list = Array.isArray(queries) ? queries : [];
   const errors = list.flatMap(validateSlot);
   if (!list.some(q => q.enabled !== false)) errors.unshift('At least one enabled query is required');
+  return [...errors, ...validateContextSlots(list)];
+}
+
+// Mirrors Assert-SqlContextSlots: contexts and their members are each sent as ONE
+// full sync, so a second enabled query of either would delete the first one's
+// rows; memberships resolve against the catalogue, so they need one.
+function validateContextSlots(list) {
+  const enabled = list.filter(q => q.enabled !== false);
+  const count = target => enabled.filter(q => q.target === target).length;
+  const errors = [];
+  for (const target of ['contexts', 'context-members']) {
+    if (count(target) > 1) errors.push(`Only one enabled ${target} query is supported`);
+  }
+  if (count('context-members') > 0 && count('contexts') === 0) errors.push('A context-members query needs an enabled contexts query');
   return errors;
 }
 
@@ -249,6 +275,9 @@ const SLOT_FIELD_VALUES = {
   governed:         s => s.governed === true,
   relationshipType: s => s.relationshipType || 'Contains',
   principalType:    s => s.principalType || 'User',
+  contextType:      s => (s.contextType || '').trim(),
+  targetType:       s => s.targetType || 'Resource',
+  memberType:       s => s.memberType || 'Resource',
 };
 
 // One editor slot → one crawler.json `queries[]` entry: trimmed, typed, and

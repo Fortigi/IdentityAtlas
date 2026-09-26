@@ -12,6 +12,8 @@
       resources         → Resources (resourceType per statement)
       assignments       → ResourceAssignments (assignmentType / governed / resourceType per statement)
       relationships     → ResourceRelationships (relationshipType per statement)
+      contexts          → Contexts (contextType / targetType per statement), e.g. logical applications
+      context-members   → ContextMembers, resolved against the contexts statement's catalogue
 
     Rows stream straight from a SqlDataReader into chunked delta upserts, so a
     40-million-row table costs one batch of memory. A full sync ends with a
@@ -47,6 +49,7 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 . (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
 . (Join-Path $PSScriptRoot 'SqlCrawler.Functions.ps1')
 . (Join-Path $PSScriptRoot 'SqlCrawler.Transform.ps1')
+. (Join-Path $PSScriptRoot 'SqlCrawler.Contexts.ps1')
 . (Join-Path $PSScriptRoot 'SqlCrawler.Phases.ps1')
 
 $Cfg = Resolve-SqlConfig -ConfigPath $ConfigPath

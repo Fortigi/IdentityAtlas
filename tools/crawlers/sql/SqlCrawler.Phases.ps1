@@ -22,7 +22,8 @@
 
 #region Run state
 
-$script:SqlTargetOrder = @('identities', 'principals', 'resources', 'identity-members', 'assignments', 'relationships')
+$script:SqlTargetOrder = @('identities', 'principals', 'resources', 'contexts', 'identity-members', 'context-members', 'assignments', 'relationships')
+$script:SqlBufferedTargets = @('contexts', 'context-members')
 
 # The enabled slots in dependency order (stable within a target).
 function Get-SqlSlotsInOrder {
@@ -68,6 +69,8 @@ function New-SqlRunState {
         HasResources    = ($targets -contains 'resources')
         HasPrincipals   = ($targets -contains 'identities' -or $targets -contains 'principals')
         Scopes          = [System.Collections.Generic.List[hashtable]]::new()
+        Contexts        = New-SqlContextCatalog
+        ContextReport   = $null
         Totals          = [ordered]@{}
     }
 }
@@ -120,6 +123,8 @@ function New-SqlSlotStreams {
             $scope = @{ assignmentType = $Slot.assignmentType; resourceType = $Slot.resourceType; governed = [bool]$Slot.governed }
             return @{ assignment = New-SqlStream -State $State -Endpoint 'ingest/resource-assignments' -Scope $scope -KeyFields @('resourceExternalId', 'principalExternalId') -Reconcile }
         }
+        # Buffered, not streamed: sent whole by Send-SqlContextBuffer when the slot ends.
+        { $_ -in $script:SqlBufferedTargets } { return @{} }
         'relationships' {
             return @{ relationship = New-SqlStream -State $State -Endpoint 'ingest/resource-relationships' -Scope @{ relationshipType = $Slot.relationshipType } -KeyFields @('parentExternalId', 'childExternalId') -Reconcile }
         }
@@ -213,6 +218,8 @@ function Get-SqlRowHandler {
         'resources'        { return 'Add-SqlResourceRow' }
         'assignments'      { return 'Add-SqlAssignmentRow' }
         'relationships'    { return 'Add-SqlRelationshipRow' }
+        'contexts'         { return 'Add-SqlContextRow' }
+        'context-members'  { return 'Add-SqlContextMemberRow' }
     }
     throw "No row handler for target '$Target'"
 }
@@ -275,22 +282,24 @@ function Invoke-SqlSlot {
     param([Parameter(Mandatory)] [hashtable]$Slot, [Parameter(Mandatory)] $Connection, [Parameter(Mandatory)] [hashtable]$State, [int]$Pct = 10)
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] $($Slot.name) → $($Slot.target)$(if ($Slot.paged) { ' (paged)' })" -ForegroundColor Cyan
     Update-CrawlerProgress -Step "Query: $($Slot.name)" -Pct $Pct
-    $ctx = @{ Slot = $Slot; Map = $null; Streams = (New-SqlSlotStreams -Slot $Slot -State $State); State = $State; Rows = 0; Skipped = 0; Dangling = 0 }
+    $ctx = @{ Slot = $Slot; Map = $null; Streams = (New-SqlSlotStreams -Slot $Slot -State $State); State = $State; Rows = 0; Skipped = 0; Dangling = 0; Unresolved = 0 }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $rows = Invoke-SqlQueryStream -Connection $Connection -Sql $Slot.sql -OnRow (New-SqlRowCallback -Ctx $ctx -Handler (Get-SqlRowHandler -Target $Slot.target)) `
         -CommandTimeout $State.CommandTimeout -Paged $Slot.paged -PageSize $State.PageSize
     $sent = 0
     foreach ($s in $ctx.Streams.Values) { $sent += (Complete-CrawlerIngestStream -Stream $s).sent }
+    if ($Slot.target -in $script:SqlBufferedTargets) { $sent += Send-SqlContextBuffer -Slot $Slot -State $State }
     $sw.Stop()
     $note = @()
     if ($ctx.Skipped)  { $note += "$($ctx.Skipped.ToString('N0')) skipped (no id / required columns)" }
     if ($ctx.Dangling) { $note += "$($ctx.Dangling.ToString('N0')) dangling (unknown resource or principal id)" }
+    if ($ctx.Unresolved) { $note += "$($ctx.Unresolved.ToString('N0')) without a known context" }
     $colour = if ($ctx.Dangling -or $ctx.Skipped) { 'Yellow' } else { 'Gray' }
     Write-Host "  $($rows.ToString('N0')) rows read in $([Math]::Round($sw.Elapsed.TotalSeconds))s$(if ($note) { ' — ' + ($note -join ', ') })" -ForegroundColor $colour
     if ($rows -gt 0 -and $ctx.Skipped -eq $rows) {
         Write-Host "  WARNING: every row was skipped — check that the statement returns the required columns for '$($Slot.target)'" -ForegroundColor Red
     }
-    $State.Totals[$Slot.name] = @{ target = $Slot.target; rows = $rows; sent = $sent; skipped = $ctx.Skipped; dangling = $ctx.Dangling }
+    $State.Totals[$Slot.name] = @{ target = $Slot.target; rows = $rows; sent = $sent; skipped = $ctx.Skipped; dangling = $ctx.Dangling; unresolved = $ctx.Unresolved }
     return $State.Totals[$Slot.name]
 }
 

@@ -15,6 +15,7 @@ is baked in — SailPoint IdentityIQ ships as a worked example, not as special-c
 | `Start-SqlCrawler.ps1` | Entry point (thin orchestration): resolve config → register system → run the query slots in dependency order → reconcile → refresh views |
 | `SqlCrawler.Functions.ps1` | Config resolution, connection-string builder, the streaming query runner (`Invoke-SqlQueryStream`) with `@Offset`/`@PageSize` paging, value conversion |
 | `SqlCrawler.Transform.ps1` | **Pure** row → ingest-record shapers, one per target, plus the column-contract resolver (`Resolve-SqlColumnMap`) |
+| `SqlCrawler.Contexts.ps1` | The `contexts` / `context-members` targets: the catalogue, the ONE normalisation of a context reference (`ConvertTo-SqlContextName`, invariant culture), name → key resolution, and the fold / unresolved report |
 | `SqlCrawler.Phases.ps1` | Per-slot sync phases: open the ingest streams, run the query, shape + stream every row, then the per-scope reconcile |
 | `../shared/Invoke-CrawlerIngestStream.ps1` | Shared streaming ingest: chunked delta upserts + end-of-run `POST /ingest/reconcile`. Written for this crawler; any large-set crawler can use it |
 | `CrawlerMeta.js`, `ConfigWizard.jsx`, `Summary.jsx`, `sqlPresets.js`, `wizardLogic.js` | UI: type-picker entry, 4-step wizard (Connection → Credentials → Queries → Schedule), config card, the IdentityIQ example query set, pure wizard logic |
@@ -71,6 +72,8 @@ binary columns are skipped.
 | `resources` | `id`, `displayName` (falls back to `name`) | `description`, `enabled` | one **Resource**; `resourceType` comes from the slot; `governanceResource` is set when it is `BusinessRole` |
 | `assignments` | `resourceId`, `principalId` (alias `identityId`, because an `identities` row's account shares its id) | — | one **ResourceAssignment**; `assignmentType`, `governed`, `resourceType` come from the slot |
 | `relationships` | `parentId`, `childId` | — | one **ResourceRelationship**; `relationshipType` from the slot |
+| `contexts` | `displayName` (falls back to `name`) | `id` (the key; else the normalised name), `description`, `ownerUserId` | one **Context**, buffered and sent as one full sync; `contextType` / `targetType` from the slot |
+| `context-members` | `memberId`, `contextId` or `contextName` | — | one **ContextMember**, resolved against the catalogue in `SqlCrawler.Contexts.ps1`; an unknown context drops the membership only, and is reported |
 
 ### Using an existing SELECT unchanged — `columnMap`
 
@@ -108,7 +111,7 @@ and scope are fine — the reconcile runs once per scope after both have streame
 ## Slot ordering
 
 Slots run grouped by target in dependency order regardless of the order they are configured in:
-`identities` → `principals` → `resources` → `identity-members` → `assignments` → `relationships`.
+`identities` → `principals` → `resources` → `contexts` → `identity-members` → `context-members` → `assignments` → `relationships`.
 The crawler remembers every resource and principal id it emitted; an assignment or relationship
 that names an id it has not seen is skipped and counted (logged as `dangling`), never sent.
 

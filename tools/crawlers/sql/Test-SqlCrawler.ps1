@@ -37,6 +37,7 @@ $script:failures = 0
 . (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
 . (Join-Path $PSScriptRoot 'SqlCrawler.Functions.ps1')
 . (Join-Path $PSScriptRoot 'SqlCrawler.Transform.ps1')
+. (Join-Path $PSScriptRoot 'SqlCrawler.Contexts.ps1')
 . (Join-Path $PSScriptRoot 'SqlCrawler.Phases.ps1')
 
 function Write-Result {
