@@ -1,0 +1,174 @@
+{
+  "type": "sql",
+  "displayName": "SQL Database",
+  "entryPoint": "Start-SqlCrawler.ps1",
+  "dependsOn": [],
+  "postSyncHooks": [
+    "buildContexts"
+  ],
+  "configSchema": {
+    "type": "object",
+    "required": [
+      "server",
+      "database",
+      "username",
+      "password",
+      "queries"
+    ],
+    "properties": {
+      "server": {
+        "type": "string",
+        "minLength": 1,
+        "description": "SQL Server host name or address. A named instance is written host\\instance."
+      },
+      "port": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 65535,
+        "description": "TCP port. Leave empty for the default (1433) or a named instance."
+      },
+      "database": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Database to run the queries in."
+      },
+      "username": {
+        "type": "string",
+        "minLength": 1,
+        "description": "SQL Server login (SQL authentication)."
+      },
+      "password": {
+        "type": "string",
+        "description": "Password for the SQL Server login. Vaulted; never stored in the config."
+      },
+      "encrypt": {
+        "type": "boolean",
+        "default": true,
+        "description": "Encrypt the connection (TLS)."
+      },
+      "trustServerCertificate": {
+        "type": "boolean",
+        "default": false,
+        "description": "Accept a server certificate that is not signed by a trusted CA (self-signed on-premises servers)."
+      },
+      "connectTimeoutSeconds": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 3600,
+        "default": 30,
+        "description": "Seconds to wait for the connection to open."
+      },
+      "commandTimeoutSeconds": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 86400,
+        "default": 600,
+        "description": "Seconds to wait for each query (0 = no limit). Applies per network read, so a streaming query is not cut off as a whole."
+      },
+      "systemName": {
+        "type": "string",
+        "description": "Override for the Identity Atlas system name. Defaults to the crawler's own name."
+      },
+      "batchSize": {
+        "type": "integer",
+        "minimum": 100,
+        "maximum": 50000,
+        "default": 5000,
+        "description": "Records per ingest call. Rows stream from SQL Server and are flushed every batch, so memory stays flat however large the result set."
+      },
+      "pageSize": {
+        "type": "integer",
+        "minimum": 100,
+        "maximum": 1000000,
+        "default": 10000,
+        "description": "Value bound to @PageSize for a query that pages with @Offset / @PageSize."
+      },
+      "queries": {
+        "type": "array",
+        "minItems": 1,
+        "description": "The SQL statements to run, one per object type. Each statement's columns follow the column contract for its target (see docs/sync/sql.md).",
+        "items": {
+          "type": "object",
+          "required": [
+            "name",
+            "target",
+            "sql"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Label shown in the job log."
+            },
+            "target": {
+              "enum": [
+                "identities",
+                "principals",
+                "identity-members",
+                "resources",
+                "assignments",
+                "relationships"
+              ],
+              "description": "Which Identity Atlas object type the rows become."
+            },
+            "sql": {
+              "type": "string",
+              "minLength": 1,
+              "description": "A SELECT statement. Reference @Offset and @PageSize to have the crawler page through it."
+            },
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "resourceType": {
+              "type": "string",
+              "description": "resources / assignments: the resourceType every row gets (e.g. Entitlement, BusinessRole)."
+            },
+            "assignmentType": {
+              "enum": [
+                "Direct",
+                "Indirect",
+                "Eligible"
+              ],
+              "default": "Direct",
+              "description": "assignments: how the principal holds the resource."
+            },
+            "governed": {
+              "type": "boolean",
+              "default": false,
+              "description": "assignments: the assignment is governed (a business-role membership)."
+            },
+            "relationshipType": {
+              "enum": [
+                "Contains",
+                "GrantsAccessTo"
+              ],
+              "default": "Contains",
+              "description": "relationships: parent -> child link type."
+            },
+            "principalType": {
+              "enum": [
+                "User",
+                "ServicePrincipal",
+                "ManagedIdentity",
+                "WorkloadIdentity",
+                "AIAgent",
+                "ExternalUser",
+                "SharedMailbox"
+              ],
+              "default": "User",
+              "description": "identities / principals: default principalType when the row has no principalType column."
+            },
+            "columnMap": {
+              "type": "object",
+              "description": "Map a source column name to a contract column name (e.g. EntitlementID -> id) when your SELECT does not already alias it.",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

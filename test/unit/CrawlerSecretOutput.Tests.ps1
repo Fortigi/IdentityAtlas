@@ -201,6 +201,51 @@ Describe 'Azure RM: Resolve-AzureRMConfig / Connect-AzureRMSession' {
     }
 }
 
+Describe 'SQL: Resolve-SqlConfig / Connect-SqlSource' {
+    BeforeAll {
+        . (Join-Path $script:crawlers 'sql' 'SqlCrawler.Functions.ps1')
+
+        function New-SqlSecretConfigFile {
+            $cfg = @{
+                server = 'sql.example.test'; database = 'iiq'; username = 'svc-user'; password = $script:S
+                queries = @(@{ name = 'Ids'; target = 'identities'; sql = 'SELECT id FROM spt_identity' })
+            }
+            $path = Join-Path ([System.IO.Path]::GetTempPath()) "sql-secret-$([guid]::NewGuid().ToString('N')).json"
+            $cfg | ConvertTo-Json -Depth 5 | Set-Content -Path $path -Encoding UTF8
+            return $path
+        }
+    }
+
+    It 'resolving the config prints nothing secret' {
+        $path = New-SqlSecretConfigFile
+        try { Assert-NoSecret (Get-EmittedText { Resolve-SqlConfig -ConfigPath $path | Out-Null }) }
+        finally { Remove-Item $path -Force }
+    }
+
+    It 'the connection summary names the server and user but never the password' {
+        $cfg = @{ server = 'sql.example.test'; port = 1433; database = 'iiq'; username = 'svc-user'; password = $script:S; encrypt = $true; trustServerCertificate = $false; connectTimeout = 30 }
+        $text = Get-EmittedText { Write-Host (Get-SqlConnectionSummary -Cfg $cfg) }
+        $text | Should -Match 'sql.example.test'
+        $text | Should -Match 'svc-user'
+        Assert-NoSecret $text
+    }
+
+    It 'a failed connection does not echo the password in its error' {
+        # The password IS in the connection string, so a driver error that quoted
+        # the connection string would leak it into the job transcript.
+        $path = New-SqlSecretConfigFile
+        try {
+            $cfg = Resolve-SqlConfig -ConfigPath $path
+            $cfg.server = 'no-such-host.invalid'
+            $cfg.connectTimeout = 1
+            $text = Get-EmittedText { Connect-SqlSource -Cfg $cfg }
+            $text | Should -Match 'no-such-host.invalid'
+            Assert-NoSecret $text
+        }
+        finally { Remove-Item $path -Force }
+    }
+}
+
 Describe 'Entra ID: Resolve-EntraSyncConfig / Get-FGAccessToken' {
     BeforeAll {
         . (Join-Path $script:crawlers 'entra-id' 'EntraIDCrawler.Phases.ps1')
