@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/reference/sql-views/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/scale-rehearsal/">
       
       
-        <link rel="prev" href="../permissions/">
+        <link rel="prev" href="../scaling/">
       
       
-        <link rel="next" href="../../architecture/csv-import-schema/">
+        <link rel="next" href="../../sync/entra-id/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Database Views - Identity Atlas</title>
+        <title>Scale Rehearsal: 41 M Assignments - Identity Atlas</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#sql-views" class="md-skip">
+        <a href="#scale-rehearsal-41-million-assignments" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Database Views
+              Scale Rehearsal: 41 M Assignments
             
           </span>
         </div>
@@ -307,6 +307,8 @@
   
   
   
+    
+  
   
     
     
@@ -314,11 +316,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../architecture/docker-setup/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../docker-setup/" class="md-tabs__link">
           
   
   
@@ -337,8 +341,6 @@
   
   
   
-    
-  
   
     
     
@@ -346,12 +348,10 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
+      <li class="md-tabs__item">
         <a href="../../api/" class="md-tabs__link">
           
   
@@ -900,7 +900,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/account-linking/" class="md-nav__link">
+      <a href="../account-linking/" class="md-nav__link">
         
   
   
@@ -1275,7 +1275,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/matrix/" class="md-nav__link">
+      <a href="../matrix/" class="md-nav__link">
         
   
   
@@ -1303,7 +1303,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/matrix-scope-statistics/" class="md-nav__link">
+      <a href="../matrix-scope-statistics/" class="md-nav__link">
         
   
   
@@ -1479,7 +1479,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/entity-detail-pages/" class="md-nav__link">
+      <a href="../entity-detail-pages/" class="md-nav__link">
         
   
   
@@ -1627,26 +1627,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
             
   
   
@@ -1664,7 +1669,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1679,26 +1684,31 @@
                 
   
   
+    
   
   
+  
     
     
     
     
       
       
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" >
         
           
-          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="">
             
   
   
@@ -1716,7 +1726,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5_1">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1734,7 +1744,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/docker-setup/" class="md-nav__link">
+      <a href="../docker-setup/" class="md-nav__link">
         
   
   
@@ -1762,7 +1772,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/azure-deployment-walkthrough/" class="md-nav__link">
+      <a href="../azure-deployment-walkthrough/" class="md-nav__link">
         
   
   
@@ -1790,7 +1800,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/azure-deployment/" class="md-nav__link">
+      <a href="../azure-deployment/" class="md-nav__link">
         
   
   
@@ -1818,7 +1828,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/desktop-portable/" class="md-nav__link">
+      <a href="../desktop-portable/" class="md-nav__link">
         
   
   
@@ -1846,7 +1856,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/scaling/" class="md-nav__link">
+      <a href="../scaling/" class="md-nav__link">
         
   
   
@@ -1871,10 +1881,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../architecture/scale-rehearsal/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scale Rehearsal: 41 M Assignments
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1890,6 +1927,231 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The dataset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Method
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ingest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingest
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Ingest">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#per-phase" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per phase
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-wall-storage-then-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The wall: storage, then time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-the-insert-time-goes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the insert time goes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-same-load-without-the-history-trigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same load without the history trigger
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cross-check-against-main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-check against main
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#after-the-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        After the load
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="After the load">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#post-sync-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Post-sync work
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#screens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Screens
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#weak-points-found-along-the-way" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Weak points found along the way
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-means-for-the-next-piece-of-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this means for the next piece of work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reproducing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducing
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1916,17 +2178,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
         
           
-          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
             
   
   
@@ -2046,7 +2311,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/omada-crawler-datamodel/" class="md-nav__link">
+      <a href="../omada-crawler-datamodel/" class="md-nav__link">
         
   
   
@@ -2228,17 +2493,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
         
           
-          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
             
   
   
@@ -2394,7 +2662,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../troubleshooting/" class="md-nav__link">
+      <a href="../../reference/troubleshooting/" class="md-nav__link">
         
   
   
@@ -2426,31 +2694,26 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
         
           
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
             
   
   
@@ -2468,7 +2731,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2492,20 +2755,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
         
           
-          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
             
   
   
@@ -2681,7 +2941,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/ingest-api/" class="md-nav__link">
+      <a href="../ingest-api/" class="md-nav__link">
         
   
   
@@ -2717,7 +2977,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../config/" class="md-nav__link">
+      <a href="../../reference/config/" class="md-nav__link">
         
   
   
@@ -2745,7 +3005,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../experimental-features/" class="md-nav__link">
+      <a href="../../reference/experimental-features/" class="md-nav__link">
         
   
   
@@ -2773,7 +3033,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../report-generator/" class="md-nav__link">
+      <a href="../../reference/report-generator/" class="md-nav__link">
         
   
   
@@ -2801,7 +3061,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../permissions/" class="md-nav__link">
+      <a href="../../reference/permissions/" class="md-nav__link">
         
   
   
@@ -2826,37 +3086,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Database Views
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../reference/sql-views/" class="md-nav__link">
         
   
   
@@ -2872,70 +3105,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#resource-permission-views" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Resource Permission Views
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#governance-view" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Governance View
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#materialized-views" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Materialized Views
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#historical-queries" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Historical Queries
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -2948,7 +3117,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/csv-import-schema/" class="md-nav__link">
+      <a href="../csv-import-schema/" class="md-nav__link">
         
   
   
@@ -2976,7 +3145,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../sbom/" class="md-nav__link">
+      <a href="../../reference/sbom/" class="md-nav__link">
         
   
   
@@ -3004,7 +3173,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../coverage/" class="md-nav__link">
+      <a href="../../reference/coverage/" class="md-nav__link">
         
   
   
@@ -3038,20 +3207,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_10" >
         
           
-          <label class="md-nav__link" for="__nav_6_10" id="__nav_6_10_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6_10" id="__nav_6_10_label" tabindex="0">
             
   
   
@@ -3087,7 +3253,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/crawler-architecture/" class="md-nav__link">
+      <a href="../crawler-architecture/" class="md-nav__link">
         
   
   
@@ -3115,7 +3281,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/reports/" class="md-nav__link">
+      <a href="../reports/" class="md-nav__link">
         
   
   
@@ -3143,7 +3309,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/custom-reports/" class="md-nav__link">
+      <a href="../custom-reports/" class="md-nav__link">
         
   
   
@@ -3171,7 +3337,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/context-assistant/" class="md-nav__link">
+      <a href="../context-assistant/" class="md-nav__link">
         
   
   
@@ -3199,7 +3365,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/audit-history/" class="md-nav__link">
+      <a href="../audit-history/" class="md-nav__link">
         
   
   
@@ -3227,7 +3393,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/soft-delete/" class="md-nav__link">
+      <a href="../soft-delete/" class="md-nav__link">
         
   
   
@@ -3255,7 +3421,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/effective-access-engine/" class="md-nav__link">
+      <a href="../effective-access-engine/" class="md-nav__link">
         
   
   
@@ -3283,7 +3449,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/resource-cluster-algorithm/" class="md-nav__link">
+      <a href="../resource-cluster-algorithm/" class="md-nav__link">
         
   
   
@@ -3367,7 +3533,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/llm-and-risk-scoring/" class="md-nav__link">
+      <a href="../llm-and-risk-scoring/" class="md-nav__link">
         
   
   
@@ -3395,7 +3561,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/resource-assignments-identity-support/" class="md-nav__link">
+      <a href="../resource-assignments-identity-support/" class="md-nav__link">
         
   
   
@@ -3423,7 +3589,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/dashboard-trends/" class="md-nav__link">
+      <a href="../dashboard-trends/" class="md-nav__link">
         
   
   
@@ -3451,7 +3617,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/demo-dataset/" class="md-nav__link">
+      <a href="../demo-dataset/" class="md-nav__link">
         
   
   
@@ -3794,7 +3960,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/ci-scope-testing/" class="md-nav__link">
+      <a href="../ci-scope-testing/" class="md-nav__link">
         
   
   
@@ -3822,7 +3988,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/branching-strategy/" class="md-nav__link">
+      <a href="../branching-strategy/" class="md-nav__link">
         
   
   
@@ -4134,7 +4300,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/design-archive/" class="md-nav__link">
+      <a href="../design-archive/" class="md-nav__link">
         
   
   
@@ -4162,7 +4328,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/context-redesign/" class="md-nav__link">
+      <a href="../context-redesign/" class="md-nav__link">
         
   
   
@@ -4190,7 +4356,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/context-redesign-plan/" class="md-nav__link">
+      <a href="../context-redesign-plan/" class="md-nav__link">
         
   
   
@@ -4218,7 +4384,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/context-redesign-ui/" class="md-nav__link">
+      <a href="../context-redesign-ui/" class="md-nav__link">
         
   
   
@@ -4246,7 +4412,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/assignment-model-redesign/" class="md-nav__link">
+      <a href="../assignment-model-redesign/" class="md-nav__link">
         
   
   
@@ -4274,7 +4440,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/identitytype-design/" class="md-nav__link">
+      <a href="../identitytype-design/" class="md-nav__link">
         
   
   
@@ -4302,7 +4468,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/risk-scoring-plugins/" class="md-nav__link">
+      <a href="../risk-scoring-plugins/" class="md-nav__link">
         
   
   
@@ -4330,7 +4496,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/rule-mining-discussion/" class="md-nav__link">
+      <a href="../rule-mining-discussion/" class="md-nav__link">
         
   
   
@@ -4614,7 +4780,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/architecture-guidance-review-2026-09/" class="md-nav__link">
+      <a href="../architecture-guidance-review-2026-09/" class="md-nav__link">
         
   
   
@@ -4642,7 +4808,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/decision-principles/" class="md-nav__link">
+      <a href="../decision-principles/" class="md-nav__link">
         
   
   
@@ -5073,10 +5239,182 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#resource-permission-views" class="md-nav__link">
+  <a href="#setup" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Resource Permission Views
+        Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The dataset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Method
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ingest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingest
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Ingest">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#per-phase" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per phase
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-wall-storage-then-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The wall: storage, then time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-the-insert-time-goes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the insert time goes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-same-load-without-the-history-trigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same load without the history trigger
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cross-check-against-main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-check against main
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#after-the-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        After the load
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="After the load">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#post-sync-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Post-sync work
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#screens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Screens
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#weak-points-found-along-the-way" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Weak points found along the way
       
     </span>
   </a>
@@ -5084,10 +5422,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#governance-view" class="md-nav__link">
+  <a href="#what-this-means-for-the-next-piece-of-work" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Governance View
+        What this means for the next piece of work
       
     </span>
   </a>
@@ -5095,21 +5433,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#materialized-views" class="md-nav__link">
+  <a href="#reproducing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Materialized Views
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#historical-queries" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Historical Queries
+        Reproducing
       
     </span>
   </a>
@@ -5164,10 +5491,10 @@
     
     
       <li class="md-path__item">
-        <a href="../../api/" class="md-path__link">
+        <a href="../docker-setup/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Reference
+    Set up & run
   </span>
 
         </a>
@@ -5175,6 +5502,24 @@
     
   
 
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../docker-setup/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Deploy
+  </span>
+
+        </a>
+      </li>
     
   
 
@@ -5192,164 +5537,789 @@
   
 
 
-<h1 id="sql-views">SQL Views<a class="headerlink" href="#sql-views" title="Permanent link">&para;</a></h1>
-<p>Identity Atlas creates SQL views automatically via the migration system. These views handle the heavy lifting — recursive membership resolution and permission assignment aggregation — so your queries stay simple.</p>
-<p>Views are created by migration files in <code>app/api/src/db/migrations/</code> and applied automatically when the web container starts.</p>
-<hr />
-<h2 id="resource-permission-views">Resource Permission Views<a class="headerlink" href="#resource-permission-views" title="Permanent link">&para;</a></h2>
-<p>Created by migration <code>005_views.sql</code>; the two matrix views were promoted to
-<strong>materialized</strong> views in <code>013_matrix_matviews_and_indexes.sql</code> and last
-rebuilt by <code>049_governed_intent_rows.sql</code>.</p>
+<h1 id="scale-rehearsal-41-million-assignments">Scale Rehearsal: 41 Million Assignments<a class="headerlink" href="#scale-rehearsal-41-million-assignments" title="Permanent link">&para;</a></h1>
+<p>This page records what happened when Identity Atlas was loaded with a synthetic
+identity-governance export far larger than anything it had run on before —
+180,000 principals, 810,000 resources and 41 million assignments — and where it
+stops coping. It is a measurement, not a tuning exercise: where something was slow
+it is characterised here, not fixed.</p>
+<p>The dataset comes from the <a href="https://github.com/Fortigi/IdentityAtlas/tree/main/tools/scale-dataset">scale test fixture generator</a>.
+The smaller, uniform load test on <a href="../scaling/">Scaling &amp; Load Testing</a> is unchanged.</p>
+<div class="admonition warning">
+<p class="admonition-title">Where the wall is</p>
+<ul>
+<li><strong>The full load does not fit on 40 GB of free disk.</strong> It stopped at 62% of
+  the assignments. The audit history trigger writes ~1 KB per new assignment,
+  three times the row itself; a first load of 41 M rows needs <strong>~70 GB free</strong>,
+  42 GB of it history.</li>
+<li><strong>Throughput decays as the indexes grow</strong>: 7,400 → 2,750 rows/s by 24 M rows.
+  Index maintenance is 80–90% of the database-side insert cost, and the history
+  trigger costs more than all 13 indexes together. With the history trigger off,
+  all 41 M rows loaded in <strong>93 minutes</strong>.</li>
+<li><strong>The post-load refresh outruns the crawler.</strong> Classifying business-role
+  assignments triggers a full matrix-view refresh (19.5 min on first
+  population); the crawler times out after 300 s, retries four times and queues
+  a refresh each time. Every refresh needs ~11 GB of scratch disk.</li>
+<li><strong>The principal matrix cannot open.</strong> Unfiltered — and even filtered to
+  enabled accounts — it crashes the API process (JavaScript heap out of memory),
+  because the 400,000-row limit is checked only after every row is loaded. The
+  same happens at 10%. Because of the skew, even "enabled, Finance, smallest
+  connector" is 519,000 assignments.</li>
+<li><strong>The logical-application pages take 4 minutes</strong> (243 s for the detail and
+  for each page of members of the largest application), and a deep page never
+  finishes — the query keeps running after the browser has given up.</li>
+<li>What holds up: the dashboard (2 s), a resource with 171,000 holders (0.6 s),
+  a small logical application in the matrix (1 s), the application list
+  (0.2 s), and a principal-based report end to end (75 s for 29 MB).</li>
+</ul>
+</div>
+<h2 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h2>
+<h3 id="the-dataset">The dataset<a class="headerlink" href="#the-dataset" title="Permanent link">&para;</a></h3>
+<p>Generated with <code>node tools/scale-dataset/generate.mjs --scale &lt;s&gt;</code> at seed
+<code>20260926</code>, tab-delimited. The same shape at three sizes:</p>
 <table>
 <thead>
 <tr>
-<th>View</th>
-<th>Kind</th>
-<th>Output columns</th>
-<th>Purpose</th>
+<th>File</th>
+<th style="text-align: right;">1%</th>
+<th style="text-align: right;">10%</th>
+<th style="text-align: right;">100%</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>vw_ResourceMembersRecursive</code></td>
-<td>Standard view</td>
-<td><code>resourceId</code>, <code>principalId</code>, <code>principalType</code>, <code>membershipType</code>, <code>depth</code>, <code>path</code></td>
-<td>All memberships (direct + indirect via nested groups) using a recursive CTE. Cycle-safe, max 10 levels deep. <code>membershipType</code> is <code>Direct</code> at depth 1 and <code>Indirect</code> deeper; <code>path</code> is the resolved chain of ids.</td>
+<td>Systems</td>
+<td style="text-align: right;">41</td>
+<td style="text-align: right;">41</td>
+<td style="text-align: right;">41</td>
 </tr>
 <tr>
-<td><code>vw_ResourceUserPermissionAssignments</code></td>
-<td><strong>Materialized view</strong></td>
-<td><code>resourceId</code>, <code>principalId</code>, <code>principalType</code>, <code>membershipType</code>, <code>managedByAccessPackage</code></td>
-<td>The matrix surface — one row per effective (subject, resource, <code>membershipType</code>) cell. <code>managedByAccessPackage</code> flags cells covered by a governance resource, for IST vs SOLL analysis.</td>
+<td>Contexts (logical applications)</td>
+<td style="text-align: right;">15</td>
+<td style="text-align: right;">150</td>
+<td style="text-align: right;">1,500</td>
 </tr>
 <tr>
-<td><code>vw_UserPermissionAssignments</code></td>
-<td>Standard view (compat alias)</td>
-<td><code>groupId</code>, <code>memberId</code>, <code>principalType</code>, <code>membershipType</code>, <code>managedByAccessPackage</code></td>
-<td>Backward-compatible alias over <code>vw_ResourceUserPermissionAssignments</code> with the older <code>groupId</code>/<code>memberId</code> column names.</td>
+<td>Resources (entitlements + roles)</td>
+<td style="text-align: right;">8,100</td>
+<td style="text-align: right;">81,000</td>
+<td style="text-align: right;">810,000</td>
+</tr>
+<tr>
+<td>Context members</td>
+<td style="text-align: right;">8,000</td>
+<td style="text-align: right;">80,000</td>
+<td style="text-align: right;">800,000</td>
+</tr>
+<tr>
+<td>Users (principals)</td>
+<td style="text-align: right;">1,800</td>
+<td style="text-align: right;">18,000</td>
+<td style="text-align: right;">180,000</td>
+</tr>
+<tr>
+<td>Assignments</td>
+<td style="text-align: right;">410,000</td>
+<td style="text-align: right;">4,100,000</td>
+<td style="text-align: right;">41,000,000</td>
+</tr>
+<tr>
+<td>Size on disk</td>
+<td style="text-align: right;">22 MB</td>
+<td style="text-align: right;">214 MB</td>
+<td style="text-align: right;">2.1 GB</td>
 </tr>
 </tbody>
 </table>
-<div class="admonition warning">
-<p class="admonition-title"><code>vw_ResourceUserPermissionAssignments</code> is materialized — refresh it</p>
-<p>This view holds a stored snapshot. After ingesting or changing assignment
-data you must run <code>REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments";</code>
-(or the concurrent variant, see <a href="#materialized-views">Materialized Views</a>)
-before it reflects the new data. <code>vw_UserPermissionAssignments</code> reads from
-it, so it follows the same refresh.</p>
-</div>
-<p><code>membershipType</code> is one of <code>Direct</code>, <code>Indirect</code>, <code>Eligible</code> — the three
-universal "how does the subject have this" values. (<code>Owner</code> was retired in
-<code>046_owner_as_resource.sql</code>: ownership is now a <code>Direct</code> assignment on a
-separate <code>GroupOwnership</code> resource.)</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1">-- Who has access to a specific resource, including indirect memberships?</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">rmr</span><span class="p">.</span><span class="ss">"principalId"</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="ss">"displayName"</span><span class="p">,</span><span class="w"> </span><span class="n">rmr</span><span class="p">.</span><span class="ss">"membershipType"</span><span class="p">,</span><span class="w"> </span><span class="n">rmr</span><span class="p">.</span><span class="ss">"depth"</span><span class="p">,</span><span class="w"> </span><span class="n">rmr</span><span class="p">.</span><span class="ss">"path"</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">"vw_ResourceMembersRecursive"</span><span class="w"> </span><span class="n">rmr</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">JOIN</span><span class="w"> </span><span class="ss">"Principals"</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="ss">"id"</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rmr</span><span class="p">.</span><span class="ss">"principalId"</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">rmr</span><span class="p">.</span><span class="ss">"resourceId"</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'your-resource-guid'</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rmr</span><span class="p">.</span><span class="ss">"depth"</span><span class="p">;</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1">-- A user's complete permission picture across all resources</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">"resourceId"</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="ss">"displayName"</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">"membershipType"</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">"managedByAccessPackage"</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">"vw_ResourceUserPermissionAssignments"</span><span class="w"> </span><span class="n">v</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="k">JOIN</span><span class="w"> </span><span class="ss">"Resources"</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="ss">"id"</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">"resourceId"</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">"principalId"</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'user-guid-here'</span><span class="p">;</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="c1">-- How many permissions does each user hold?</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">"principalId"</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="ss">"displayName"</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="ss">"permissionCount"</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">"vw_ResourceUserPermissionAssignments"</span><span class="w"> </span><span class="n">v</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="k">JOIN</span><span class="w"> </span><span class="ss">"Principals"</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="ss">"id"</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">"principalId"</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">"principalId"</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="ss">"displayName"</span>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="ss">"permissionCount"</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
-</code></pre></div>
-<hr />
-<h2 id="governance-view">Governance View<a class="headerlink" href="#governance-view" title="Permanent link">&para;</a></h2>
-<p>Created by migration <code>005_views.sql</code>; promoted to a <strong>materialized</strong> view in
-<code>013_matrix_matviews_and_indexes.sql</code> and last rebuilt by
-<code>049_governed_intent_rows.sql</code>.</p>
+<p>At 100% a quarter of the principals are enabled, 34 entitlements have six-figure
+membership and the median entitlement has 8 holders; the largest connector holds
+35% of the entitlements; most logical applications span several connectors; and
+directory entitlement values are LDAP distinguished names. See the generator's
+README for every shape parameter. Generating the full set takes ~15 s with a flat
+~250 MB of memory.</p>
+<h3 id="the-machine">The machine<a class="headerlink" href="#the-machine" title="Permanent link">&para;</a></h3>
+<p>Deliberately modest — closer to an analyst's laptop than a server:</p>
 <table>
 <thead>
 <tr>
-<th>View</th>
-<th>Kind</th>
-<th>Output columns</th>
-<th>Purpose</th>
+<th></th>
+<th></th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>vw_UserPermissionAssignmentViaBusinessRole</code></td>
-<td><strong>Materialized view</strong></td>
-<td><code>userId</code>, <code>groupId</code>, <code>resourceId</code>, <code>businessRoleId</code></td>
-<td>Maps users through governance resources (business roles / access packages) to the resources those roles <code>Contains</code>. <code>groupId</code> and <code>resourceId</code> are the same contained-resource id, exposed under both names.</td>
+<td>CPU</td>
+<td>2 vCPU (Intel Core Ultra 5 125H), Proxmox VM</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td>7.9 GB at the start, <strong>ballooned down to 4.3–5.8 GB during the runs</strong> by the hypervisor</td>
+</tr>
+<tr>
+<td>Disk</td>
+<td>61 GB, ~39 GB free for the test</td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td>16, stock settings: <code>shared_buffers</code> 128 MB, <code>max_wal_size</code> 1 GB, <code>work_mem</code> 4 MB</td>
+</tr>
+<tr>
+<td>Stack</td>
+<td>the standard <code>docker-compose.yml</code> (web, worker, postgres), no tuning</td>
 </tr>
 </tbody>
 </table>
-<div class="admonition warning">
-<p class="admonition-title">Materialized — refresh required</p>
-<p>Like the matrix view, this is a materialized view. Run
-<code>REFRESH MATERIALIZED VIEW "vw_UserPermissionAssignmentViaBusinessRole";</code>
-after changing governance data before querying it.</p>
-</div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">-- Which resources does a user reach via business role governance?</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">"userId"</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">"resourceId"</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="ss">"displayName"</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="ss">"resourceName"</span><span class="p">,</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">       </span><span class="n">v</span><span class="p">.</span><span class="ss">"businessRoleId"</span><span class="p">,</span><span class="w"> </span><span class="n">br</span><span class="p">.</span><span class="ss">"displayName"</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="ss">"businessRoleName"</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">"vw_UserPermissionAssignmentViaBusinessRole"</span><span class="w"> </span><span class="n">v</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">JOIN</span><span class="w"> </span><span class="ss">"Resources"</span><span class="w"> </span><span class="n">r</span><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="ss">"id"</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">"resourceId"</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="k">JOIN</span><span class="w"> </span><span class="ss">"Resources"</span><span class="w"> </span><span class="n">br</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">br</span><span class="p">.</span><span class="ss">"id"</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">"businessRoleId"</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">"userId"</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'user-guid-here'</span><span class="p">;</span>
+<p>Absolute times on this box are pessimistic. The <em>shape</em> of each curve, the
+storage per row and the failure modes are what carry over.</p>
+<h3 id="the-code">The code<a class="headerlink" href="#the-code" title="Permanent link">&para;</a></h3>
+<p>Commit <code>91a2bf3e9</code> on <code>feature/sql-crawler</code>, not <code>main</code>. When the runs started,
+<code>main</code>'s CSV crawler read the whole assignments file into memory before sending anything,
+which died before its first request at this size; that branch carried the
+streaming rewrite of the assignments phase (read, shape, buffer, flush, then a
+timestamp reconcile) that the measurements need. That rewrite has since landed on
+<code>main</code> with the other CSV import fixes (#1263); the 10% load was repeated there as
+a cross-check (below).</p>
+<h3 id="method">Method<a class="headerlink" href="#method" title="Permanent link">&para;</a></h3>
+<ul>
+<li>A CSV crawler config per run, <code>"delimiter": "\t"</code>; the generated files are placed
+  directly in the config's upload folder (the upload path has its own limits,
+  measured separately), and a <strong>full</strong> sync is started through
+  <code>POST /api/admin/crawler-jobs</code> — exactly what the Run button does.</li>
+<li>Every 5 s: peak RSS of the crawler's <code>pwsh</code> process, container memory of web,
+  worker and postgres, <code>pg_database_size</code>, disk used, and the non-idle backends in
+  <code>pg_stat_activity</code> (query and wait event).</li>
+<li>The job log is tailed live and every line stamped on arrival, so phases that
+  print no timestamp of their own still get one (±5 s).</li>
+<li>The database is wiped (<code>docker compose down -v</code>) between runs.</li>
+<li>After a load, every screen below is driven with the exact request the UI sends,
+  timed with <code>curl</code>, capped at 30 minutes.</li>
+</ul>
+<h2 id="ingest">Ingest<a class="headerlink" href="#ingest" title="Permanent link">&para;</a></h2>
+<h3 id="per-phase">Per phase<a class="headerlink" href="#per-phase" title="Permanent link">&para;</a></h3>
+<p>Wall clock per crawler phase. Rows/s is file rows over phase wall time.</p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th style="text-align: right;">1%</th>
+<th style="text-align: right;">10%</th>
+<th style="text-align: right;">100%</th>
+<th style="text-align: right;">100% rows/s</th>
+<th style="text-align: right;">peak pwsh</th>
+<th style="text-align: right;">db after phase</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Systems</td>
+<td style="text-align: right;">&lt;1 s</td>
+<td style="text-align: right;">&lt;1 s</td>
+<td style="text-align: right;">&lt;1 s</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;">0.1 GB</td>
+<td style="text-align: right;">0.01 GB</td>
+</tr>
+<tr>
+<td>Contexts</td>
+<td style="text-align: right;">2 s</td>
+<td style="text-align: right;">5 s</td>
+<td style="text-align: right;">4 s</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;">1.2 GB</td>
+<td style="text-align: right;">0.01 GB</td>
+</tr>
+<tr>
+<td>Context members</td>
+<td style="text-align: right;">(with contexts)</td>
+<td style="text-align: right;">3 s</td>
+<td style="text-align: right;">67 s</td>
+<td style="text-align: right;">11,900</td>
+<td style="text-align: right;"><strong>3.0 GB</strong></td>
+<td style="text-align: right;">0.25 GB</td>
+</tr>
+<tr>
+<td>Resources</td>
+<td style="text-align: right;">2 s</td>
+<td style="text-align: right;">11 s</td>
+<td style="text-align: right;">104 s</td>
+<td style="text-align: right;">7,800</td>
+<td style="text-align: right;"><strong>3.6 GB</strong></td>
+<td style="text-align: right;">1.2 GB</td>
+</tr>
+<tr>
+<td>Users</td>
+<td style="text-align: right;">&lt;1 s</td>
+<td style="text-align: right;">3 s</td>
+<td style="text-align: right;">31 s</td>
+<td style="text-align: right;">5,800</td>
+<td style="text-align: right;">2.2 GB</td>
+<td style="text-align: right;">1.5 GB</td>
+</tr>
+<tr>
+<td>Assignments</td>
+<td style="text-align: right;">55 s</td>
+<td style="text-align: right;">576 s</td>
+<td style="text-align: right;"><strong>stopped at 25.25 M after 6,153 s</strong></td>
+<td style="text-align: right;">4,100 (avg)</td>
+<td style="text-align: right;">2.5 GB</td>
+<td style="text-align: right;">34.9 GB</td>
+</tr>
+<tr>
+<td>Classify + refresh views</td>
+<td style="text-align: right;">7 s</td>
+<td style="text-align: right;">69 s</td>
+<td style="text-align: right;">not reached</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td style="text-align: right;">67 s</td>
+<td style="text-align: right;">667 s</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<p>The 100% column is the unmodified product. It did not finish: see below.</p>
+<h3 id="the-wall-storage-then-time">The wall: storage, then time<a class="headerlink" href="#the-wall-storage-then-time" title="Permanent link">&para;</a></h3>
+<p>The 100% load was stopped by a disk guard (free space &lt; 4 GB) at <strong>25.25 M of 41 M
+assignments, 62%</strong>, 1 h 42 min into the assignments phase. At that point:</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th style="text-align: right;">Rows</th>
+<th style="text-align: right;">Size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>_history</code></td>
+<td style="text-align: right;">26.2 M</td>
+<td style="text-align: right;"><strong>25.7 GB</strong></td>
+</tr>
+<tr>
+<td><code>ResourceAssignments</code></td>
+<td style="text-align: right;">25.1 M</td>
+<td style="text-align: right;">8.6 GB (5.0 GB heap + 3.5 GB indexes)</td>
+</tr>
+<tr>
+<td><code>Resources</code></td>
+<td style="text-align: right;">0.8 M</td>
+<td style="text-align: right;">0.35 GB</td>
+</tr>
+<tr>
+<td>everything else</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;">&lt; 0.3 GB</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The audit history trigger is three quarters of the database.</strong> Every inserted
+assignment writes a ~1 KB JSON snapshot to <code>_history</code> (migration 009/022), three
+times the size of the assignment row itself (~340 B including its 13 indexes).
+Projected to the full load, before the matrix materialised view is even built:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th style="text-align: right;">per assignment</th>
+<th style="text-align: right;">at 41 M</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ResourceAssignments</code></td>
+<td style="text-align: right;">~340 B</td>
+<td style="text-align: right;">~14 GB</td>
+</tr>
+<tr>
+<td><code>_history</code></td>
+<td style="text-align: right;">~1,020 B</td>
+<td style="text-align: right;">~42 GB</td>
+</tr>
+<tr>
+<td>matrix view <code>vw_ResourceUserPermissionAssignments</code> (from the 10% run)</td>
+<td style="text-align: right;">~280 B</td>
+<td style="text-align: right;">~11.5 GB</td>
+</tr>
+<tr>
+<td><strong>total</strong></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"><strong>~68 GB</strong></td>
+</tr>
+</tbody>
+</table>
+<p>A first load of this size needs roughly <strong>70 GB free</strong>, of which 42 GB is the
+history of rows that were never changed — every one of them an <code>INSERT</code> of a new
+row. There is no setting to turn it off.</p>
+<p>Throughput also decays as the table grows. Assignment rows per second, per 2 M:</p>
+<table>
+<thead>
+<tr>
+<th>Rows loaded</th>
+<th style="text-align: right;">rows/s</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.25 → 2.25 M</td>
+<td style="text-align: right;">7,400</td>
+</tr>
+<tr>
+<td>4.25 → 6.25 M</td>
+<td style="text-align: right;">5,700</td>
+</tr>
+<tr>
+<td>8.25 → 10.25 M</td>
+<td style="text-align: right;">4,750</td>
+</tr>
+<tr>
+<td>12.25 → 14.25 M</td>
+<td style="text-align: right;">4,700</td>
+</tr>
+<tr>
+<td>16.25 → 18.25 M</td>
+<td style="text-align: right;">3,800</td>
+</tr>
+<tr>
+<td>20.25 → 22.25 M</td>
+<td style="text-align: right;">3,000</td>
+</tr>
+<tr>
+<td>22.25 → 24.25 M</td>
+<td style="text-align: right;">2,750</td>
+</tr>
+</tbody>
+</table>
+<p>Extrapolating that decay, the remaining 16 M rows would have taken about two more
+hours: <strong>~3.7 h for the assignments phase alone</strong>, had the disk been big enough.</p>
+<h3 id="where-the-insert-time-goes">Where the insert time goes<a class="headerlink" href="#where-the-insert-time-goes" title="Permanent link">&para;</a></h3>
+<p>Sampled <code>pg_stat_activity</code> over the 100% assignments phase (non-idle backends,
+every 5 s, 862 samples of the ingest <code>INSERT … ON CONFLICT</code>): on CPU in 46%,
+waiting on <strong><code>DataFileRead</code></strong> in 22% (index pages that no longer fit in 128 MB of
+shared buffers), on the <strong><code>WALWrite</code></strong> lock in 22%, and on data-file writes and
+<code>WALSync</code> in 4% each. Autovacuum of <code>_history</code> (mostly) and <code>ResourceAssignments</code>
+made up 194 of the 1,230 sampled busy backends.</p>
+<p>To separate index maintenance from the history trigger, the same 4.1 M assignment
+rows were loaded into a copy of <code>ResourceAssignments</code> (same name, so the history
+trigger keys it exactly as in production) in 10,000-row committed batches, on an
+idle database:</p>
+<table>
+<thead>
+<tr>
+<th>Variant</th>
+<th style="text-align: right;">Time</th>
+<th style="text-align: right;">rows/s</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No indexes, no trigger, plain <code>INSERT</code></td>
+<td style="text-align: right;">8–23 s</td>
+<td style="text-align: right;">180,000–540,000</td>
+</tr>
+<tr>
+<td>All 13 production indexes, <code>INSERT … ON CONFLICT DO UPDATE</code> (the ingest's shape)</td>
+<td style="text-align: right;">111 s</td>
+<td style="text-align: right;">37,000</td>
+</tr>
+<tr>
+<td>… plus the history trigger</td>
+<td style="text-align: right;">299 s</td>
+<td style="text-align: right;">13,700</td>
+</tr>
+<tr>
+<td>No indexes, then build the 13 indexes afterwards</td>
+<td style="text-align: right;">8 s + 17 s</td>
+<td style="text-align: right;">~170,000 overall</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Index maintenance is ~80–90% of the database-side cost</strong> of an assignment
+  insert without history, and it gets worse as the indexes outgrow memory — that
+  is the decay in the table above.</li>
+<li><strong>The history trigger costs more than all 13 indexes together</strong> (+188 s on top of
+  111 s) and writes 3.6 GB for these 4.1 M rows.</li>
+<li><strong>Dropping and rebuilding the indexes around a bulk load is ~4.5× faster</strong> than
+  maintaining them (25 s vs 111 s), and ~12× faster than today's path with history.
+  Building the indexes afterwards also produces them ~10% smaller.</li>
+<li>End to end, the crawler moved 7,100 rows/s at 10% while the database-side cost
+  alone allowed ~13,700 rows/s: at that size roughly half the time is the database
+  and half is PowerShell, HTTP, JSON and the per-batch temp table. As the table
+  grows, the database share grows with it.</li>
+</ul>
+<h3 id="the-same-load-without-the-history-trigger">The same load without the history trigger<a class="headerlink" href="#the-same-load-without-the-history-trigger" title="Permanent link">&para;</a></h3>
+<p>To get a complete 41 M-row database for the measurements that follow — and to
+see what the load costs without history — the 100% load was repeated with
+<code>ALTER TABLE "ResourceAssignments" DISABLE TRIGGER</code> on both history triggers.
+Nothing else changed; history on every other table stayed on.</p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th style="text-align: right;">wall</th>
+<th style="text-align: right;">rows/s</th>
+<th style="text-align: right;">peak pwsh</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Context members</td>
+<td style="text-align: right;">72 s</td>
+<td style="text-align: right;">11,100</td>
+<td style="text-align: right;">3.4 GB</td>
+</tr>
+<tr>
+<td>Resources</td>
+<td style="text-align: right;">119 s</td>
+<td style="text-align: right;">6,800</td>
+<td style="text-align: right;">3.4 GB</td>
+</tr>
+<tr>
+<td>Users</td>
+<td style="text-align: right;">36 s</td>
+<td style="text-align: right;">5,000</td>
+<td style="text-align: right;">2.2 GB</td>
+</tr>
+<tr>
+<td><strong>Assignments</strong></td>
+<td style="text-align: right;"><strong>5,586 s (93 min)</strong></td>
+<td style="text-align: right;"><strong>7,340</strong></td>
+<td style="text-align: right;">2.3 GB</td>
+</tr>
+</tbody>
+</table>
+<p>Assignment throughput per 2 M rows went 10,500 → 9,000 (at 10 M) → 7,400 (at
+24 M, where the standard run was at 2,750) → 5,300 rows/s (at 40 M). The database
+after the assignments phase was 15.4 GB, and 26 GB once the matrix view was built:
+<code>ResourceAssignments</code> 13 GB and <code>vw_ResourceUserPermissionAssignments</code> 11 GB. The
+<code>INSERT</code> wait profile shifted from reading index pages towards the <code>WALWrite</code> lock
+(25%) — with less written per row, WAL flushing becomes the next limit on stock
+settings.</p>
+<h3 id="cross-check-against-main">Cross-check against <code>main</code><a class="headerlink" href="#cross-check-against-main" title="Permanent link">&para;</a></h3>
+<p>After the runs above, <code>main</code> gained the CSV import fixes (#1263: quote-aware
+parser, streamed resources and assignments, extra columns). The 10% load was
+repeated on <code>main</code> (<code>b3bab23b6</code>):</p>
+<table>
+<thead>
+<tr>
+<th>10%</th>
+<th style="text-align: right;">measured commit</th>
+<th style="text-align: right;"><code>main</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Assignments</td>
+<td style="text-align: right;">576 s (7,100 rows/s)</td>
+<td style="text-align: right;">399 s (10,300 rows/s)</td>
+</tr>
+<tr>
+<td>Classify + refresh views</td>
+<td style="text-align: right;">69 s</td>
+<td style="text-align: right;">120 s</td>
+</tr>
+<tr>
+<td>Peak pwsh</td>
+<td style="text-align: right;">494 MB</td>
+<td style="text-align: right;">479 MB</td>
+</tr>
+<tr>
+<td>Database after load</td>
+<td style="text-align: right;">7.3 GB</td>
+<td style="text-align: right;">7.5 GB</td>
+</tr>
+<tr>
+<td>Unfiltered principal matrix</td>
+<td style="text-align: right;">API crash</td>
+<td style="text-align: right;">API crash</td>
+</tr>
+<tr>
+<td><code>buildContexts</code> hook</td>
+<td style="text-align: right;">404</td>
+<td style="text-align: right;">404</td>
+</tr>
+</tbody>
+</table>
+<p><code>main</code> ingests ~45% faster at this size. Storage, the history trigger, the refresh
+and every query finding are database- or API-side and are unchanged.</p>
+<h2 id="after-the-load">After the load<a class="headerlink" href="#after-the-load" title="Permanent link">&para;</a></h2>
+<p>All of this is on the complete 41 M-row database from the run without the
+assignment history trigger, and at 10% for comparison.</p>
+<h3 id="post-sync-work">Post-sync work<a class="headerlink" href="#post-sync-work" title="Permanent link">&para;</a></h3>
+<p>The CSV crawler finishes with <code>classify-business-role-assignments</code>, then
+<code>refresh-views</code>, then the post-sync hooks <code>buildContexts</code> and
+<code>accountCorrelation</code>. Timed from the database side at 100%:</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th style="text-align: right;">10%</th>
+<th style="text-align: right;">100%</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Classify endpoint, whole call (UPDATE + both refreshes), view already populated</td>
+<td style="text-align: right;">14–15 s</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>Classify: <code>UPDATE … SET governed = true</code> (1 M role assignments)</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;">171 s</td>
+</tr>
+<tr>
+<td>Classify: refresh of <code>vw_ResourceUserPermissionAssignments</code> — first population</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"><strong>1,166 s (19.5 min)</strong></td>
+</tr>
+<tr>
+<td>Refresh of <code>vw_UserPermissionAssignmentViaBusinessRole</code></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;">23 s</td>
+</tr>
+<tr>
+<td><code>refresh-views</code>, standalone, view already populated</td>
+<td style="text-align: right;">13–14 s</td>
+<td style="text-align: right;">161 s</td>
+</tr>
+<tr>
+<td>Transient disk during a refresh of the matrix view</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"><strong>~11–12 GB</strong></td>
+</tr>
+<tr>
+<td><code>buildContexts</code> hook</td>
+<td style="text-align: right;">404</td>
+<td style="text-align: right;">404</td>
+</tr>
+<tr>
+<td><code>accountCorrelation</code> hook</td>
+<td style="text-align: right;">no-op</td>
+<td style="text-align: right;">no-op</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What goes wrong at 100%:</strong></p>
+<ul>
+<li>The classify endpoint refreshes both matrix views itself (by design — see
+  <code>ingest.classify.test.js</code>). Its first call takes ~22 minutes. The crawler's HTTP
+  client gives up after <strong>300 s</strong>, logs a transient failure and retries — four
+  times. Every retry reruns the <code>UPDATE</code> (~50 s) and queues <strong>another</strong> full
+  refresh behind the first. The crawler then gives up with "(non-critical)", calls
+  <code>refresh-views</code> (another refresh; also times out) and reports success while the
+  database keeps refreshing for up to an hour.</li>
+<li>A <code>REFRESH MATERIALIZED VIEW CONCURRENTLY</code> of the 11 GB view builds the new
+  contents on disk before diffing them: free space fell from 18 GB to 5.9 GB during
+  the first one. On this box a second refresh could not start while anything else
+  was using temp space; two were cancelled by the test's disk guard.</li>
+<li><strong>The API refreshes the matrix view on every start</strong> (<code>bootstrap.js</code>, "if the
+  data is already populated, CONCURRENTLY makes this cheap"). At this size it is
+  not cheap: 2–20 minutes and ~11 GB of scratch disk. Combined with the matrix
+  crash below, one click on an unfiltered matrix restarts the API, which starts a
+  refresh, which competes for disk with whatever the next user does.</li>
+<li><code>buildContexts</code> posts to <code>/api/ingest/refresh-contexts</code>, which no longer exists;
+  it 404s in 0.06 s at any size. Context member counts are recomputed inside
+  <code>refresh-views</code> instead.</li>
+</ul>
+<h3 id="screens">Screens<a class="headerlink" href="#screens" title="Permanent link">&para;</a></h3>
+<p>Each is the exact request the UI sends. "Crash" means the API process died
+(<code>FATAL ERROR: Reached heap limit … JavaScript heap out of memory</code>), Docker
+restarted it, and every other user's request failed until it was back.</p>
+<table>
+<thead>
+<tr>
+<th>Screen / request</th>
+<th>10% (4.1 M)</th>
+<th>100% (41 M)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Matrix, principal rows, unfiltered — <code>POST /matrix/data</code></td>
+<td><strong>crash</strong> after 19 s</td>
+<td><strong>crash</strong> after 31 s</td>
+</tr>
+<tr>
+<td>Matrix scope statistics — <code>POST /matrix/scope-stats</code></td>
+<td>4.3 s</td>
+<td>48.8 s</td>
+</tr>
+<tr>
+<td>Matrix, enabled accounts only</td>
+<td>413 after 12.6 s</td>
+<td><strong>crash</strong> after 123 s</td>
+</tr>
+<tr>
+<td>Matrix, enabled + department Finance + a mid-size connector</td>
+<td>200 in 1.2 s, 65 MB</td>
+<td>413 after 24 s</td>
+</tr>
+<tr>
+<td>Matrix, enabled + Finance + the smallest connector</td>
+<td>—</td>
+<td>413 after 4.4 s (519,189 assignments)</td>
+</tr>
+<tr>
+<td>Matrix, resources in the largest logical application</td>
+<td>200 in 5.2 s, <strong>268 MB</strong></td>
+<td>413 after 82 s</td>
+</tr>
+<tr>
+<td>Matrix, resources in an 80-entitlement application</td>
+<td>—</td>
+<td>200 in 1.0 s, 2,775 rows</td>
+</tr>
+<tr>
+<td>… same, plus enabled accounts only</td>
+<td>—</td>
+<td><strong>45.2 s</strong> for 697 rows</td>
+</tr>
+<tr>
+<td>Logical applications list — <code>GET /contexts?targetType=Resource&amp;contextType=…</code></td>
+<td>0.01 s</td>
+<td>0.18 s</td>
+</tr>
+<tr>
+<td>Largest application's detail page — <code>GET /contexts/:id</code> (106 k members)</td>
+<td>3.7 s</td>
+<td><strong>243.5 s</strong></td>
+</tr>
+<tr>
+<td>… first page of its members — <code>GET /contexts/:id/members?limit=50</code></td>
+<td>3.7 s</td>
+<td><strong>243.2 s</strong></td>
+</tr>
+<tr>
+<td>… members page at offset 50,000</td>
+<td>249 s (empty page)</td>
+<td><strong>did not finish in 30 min</strong></td>
+</tr>
+<tr>
+<td>Resource detail, the top entitlement (17,100 / 171,000 holders)</td>
+<td>0.10 s</td>
+<td>0.58 s</td>
+</tr>
+<tr>
+<td>… its assignments (fetched when the graph expands; not paged)</td>
+<td>0.09 s, 3.8 MB</td>
+<td>1.3 s, <strong>38 MB</strong></td>
+</tr>
+<tr>
+<td>… its members from the matrix view (not paged)</td>
+<td>1.0 s, 4.4 MB</td>
+<td>19.3 s, 44 MB</td>
+</tr>
+<tr>
+<td>Report <em>Disabled accounts with access</em> — rows</td>
+<td>12.3 s, 2.9 MB</td>
+<td>75.4 s, 29.5 MB</td>
+</tr>
+<tr>
+<td>… CSV export</td>
+<td>9.1 s, 1.1 MB</td>
+<td>76.4 s, 10.9 MB</td>
+</tr>
+<tr>
+<td>Dashboard statistics</td>
+<td>0.54 s</td>
+<td>1.98 s</td>
+</tr>
+</tbody>
+</table>
+<p>Notes on the ones that matter:</p>
+<ul>
+<li><strong>The matrix row limit is checked too late.</strong> <code>routes/matrix/data.js</code> loads the
+  full result into the Node process and only then compares it to <code>MAX_FLAT_ROWS</code>
+  (400,000) to return a 413. Past a few million rows the heap is exhausted first.
+  There is no paging on this endpoint, so the only working views at this size are
+  narrow ones — and because of the skew, a narrow subject filter does not make a
+  narrow result: a handful of near-universal entitlements sit in every slice.</li>
+<li><strong>A subject filter can make a small matrix 45× slower.</strong> The 80-entitlement
+  application renders in 1 s; adding "enabled accounts only" takes 45 s for fewer
+  rows. This is the filter the disabled majority makes most common.</li>
+<li><strong>Logical-application members are joined on text.</strong> <code>loadMembers</code> in
+  <code>routes/contexts/read.js</code> joins <code>ContextMembers</code> to <code>Resources</code> on
+  <code>m.id::text = cm."memberId"::text</code>. The cast hides both indexes: the plan is a
+  nested loop that compares every resource, in display-name order, against all
+  106,000 materialised members (estimated 428 M rows) and stops when it has
+  <code>OFFSET + LIMIT</code> matches. Page 1 costs 4 minutes; page 1,000 never ends.</li>
+<li><strong>An abandoned request keeps running.</strong> When the client gave up on the deep page
+  after 30 minutes, the query was still running in PostgreSQL 35 minutes in —
+  there is no statement timeout and nothing cancels a query whose HTTP client has
+  gone away.</li>
+<li><strong>"Pivot by logical application" does not exist as such.</strong> The matrix can roll
+  up the subject axis by an Identity/Principal context, but it cannot group
+  resources by a Resource-targeted context. What the UI offers is the application
+  list (fast), each application's page (slow, above) and a matrix filtered to one
+  application (fine when small, 413 when large).</li>
+<li>The <em>Access outside roles</em> report returned no rows because this dataset links
+  no roles to entitlements (no <code>ResourceRelationships.csv</code>); it is not a result.</li>
+</ul>
+<h2 id="weak-points-found-along-the-way">Weak points found along the way<a class="headerlink" href="#weak-points-found-along-the-way" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><code>Sync-CsvContextMembers</code> survived 800 k rows, but at 3 GB</strong> — at the measured
+  commit, where it read through <code>Import-Csv</code> and built every record before sending.
+  At 100% it completed in 67 s with the crawler's <code>pwsh</code> at ~3.0 GB RSS, and the
+  next phase peaked at 3.6 GB, on a box with ~4.3 GB visible at the time. <code>main</code>
+  now streams this file too (#1263); on the 10% cross-check the whole run peaked
+  at 479 MB. Not re-measured at 100% on <code>main</code>.</li>
+<li><strong>An unknown <code>SystemName</code> was silently absorbed</strong> at the measured commit: every
+  phase fell back to the fallback system with no warning (8 call sites in
+  <code>CSVCrawler.Phases.ps1</code>). <code>main</code> now warns with a count and the names (#1263).</li>
+<li><strong>Commas in values shifted columns under a comma delimiter</strong> — at the measured
+  commit. Its fast CSV path split on the delimiter with no quote handling, so a DN
+  such as <code>"CN=GRP-…,OU=Application Groups,OU=East,DC=corp,DC=example,DC=com"</code>
+  turned a 7-column row into 19 cells and <code>SystemName</code> into <code>DC=corp</code>, which then
+  fell into the silent fallback above. That is why these runs used tabs. <code>main</code>
+  now parses quoted values (#1263); the correctly quoted, comma-delimited case is
+  kept as a regression fixture in
+  <a href="https://github.com/Fortigi/IdentityAtlas/tree/main/tools/scale-dataset/fixtures/comma-shift"><code>tools/scale-dataset/fixtures/comma-shift/</code></a>.</li>
+<li><strong>The <code>buildContexts</code> post-sync hook does nothing.</strong> <code>Build-FGContexts.ps1</code> posts
+  to <code>/api/ingest/refresh-contexts</code>, which no longer exists: every CSV run logs a
+  404 and still reports success. The member counts it used to maintain are
+  recomputed by <code>refresh-views</code> instead. <code>accountCorrelation</code> is a no-op ("not yet
+  implemented in v5").</li>
+</ul>
+<h2 id="what-this-means-for-the-next-piece-of-work">What this means for the next piece of work<a class="headerlink" href="#what-this-means-for-the-next-piece-of-work" title="Permanent link">&para;</a></h2>
+<p>In the order a 41 M-row load hits them:</p>
+<ol>
+<li><strong>Disk, because of <code>_history</code>.</strong> 42 of ~68 GB. Whether a first load — or any
+   bulk insert of brand-new rows — should be written to the audit history at all
+   is a product decision; until it is made, a load this size needs ~70 GB free.</li>
+<li><strong>Index maintenance during bulk load.</strong> Measured at 80–90% of the database-side
+   insert cost and the cause of the throughput decay. Dropping and rebuilding the
+   13 <code>ResourceAssignments</code> indexes around a full load measured ~4.5× faster.</li>
+<li><strong>Post-load refreshes.</strong> The classify call refreshes the matrix views inside a
+   request the crawler abandons after 300 s and then retries, stacking full
+   refreshes; the API refreshes again on every start. Each refresh needs ~11 GB of
+   scratch space at this size.</li>
+<li><strong>The matrix endpoint.</strong> Enforce the row limit before loading rows (a count, or
+   a <code>LIMIT 400001</code>), so a large matrix returns 413 instead of taking the API down
+   for everyone; then decide what the principal view should show at 41 M.</li>
+<li><strong>Logical-application membership queries.</strong> The text-cast join makes every
+   application page proportional to (resources × members), and nothing stops a
+   query its client has abandoned.</li>
+</ol>
+<h2 id="reproducing">Reproducing<a class="headerlink" href="#reproducing" title="Permanent link">&para;</a></h2>
+<p>Everything above can be rerun: the generator is deterministic from its seed, and a
+full set takes 15 s to write. On a Docker host with at least 80 GB free:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>node<span class="w"> </span>tools/scale-dataset/generate.mjs<span class="w"> </span>--out<span class="w"> </span>./scale-10pct<span class="w"> </span>--scale<span class="w"> </span><span class="m">0</span>.1
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># create a CSV crawler config with "delimiter": "\t", put the six files in</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># /data/uploads/csv-&lt;configId&gt;/ inside the web container, and start a full sync:</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:3001/api/admin/crawler-jobs<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">'{"jobType":"csv","configId":&lt;id&gt;,"syncMode":"full"}'</span>
 </code></pre></div>
-<hr />
-<h2 id="materialized-views">Materialized Views<a class="headerlink" href="#materialized-views" title="Permanent link">&para;</a></h2>
-<p>Two of the views above are PostgreSQL <strong>materialized</strong> views —
-<code>vw_ResourceUserPermissionAssignments</code> and
-<code>vw_UserPermissionAssignmentViaBusinessRole</code>. They were promoted from standard
-views in <code>013_matrix_matviews_and_indexes.sql</code> because recomputing the matrix
-from scratch on every <code>/api/permissions</code> request was taking 100+ seconds on
-large (2M+ row) datasets.</p>
-<p>Because they store a snapshot, they must be <strong>refreshed</strong> after the underlying
-<code>ResourceAssignments</code> / <code>ResourceRelationships</code> data changes:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">-- Standard refresh (locks the matview for the duration)</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">REFRESH</span><span class="w"> </span><span class="n">MATERIALIZED</span><span class="w"> </span><span class="k">VIEW</span><span class="w"> </span><span class="ss">"vw_ResourceUserPermissionAssignments"</span><span class="p">;</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">REFRESH</span><span class="w"> </span><span class="n">MATERIALIZED</span><span class="w"> </span><span class="k">VIEW</span><span class="w"> </span><span class="ss">"vw_UserPermissionAssignmentViaBusinessRole"</span><span class="p">;</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1">-- Concurrent refresh (no read lock; requires the unique index the migrations create)</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">REFRESH</span><span class="w"> </span><span class="n">MATERIALIZED</span><span class="w"> </span><span class="k">VIEW</span><span class="w"> </span><span class="n">CONCURRENTLY</span><span class="w"> </span><span class="ss">"vw_ResourceUserPermissionAssignments"</span><span class="p">;</span>
-</code></pre></div>
-<p>You normally don't run these by hand: the migrations create the matviews empty
-(<code>WITH NO DATA</code>) and the web container refreshes them at the end of bootstrap,
-and the ingest endpoint <code>/api/ingest/refresh-views</code> runs
-<code>REFRESH MATERIALIZED VIEW CONCURRENTLY</code> so the crawlers refresh automatically
-at end-of-sync. Reach for a manual refresh only when querying the matviews
-directly (e.g. from <code>psql</code> or a contract test) after loading data.</p>
-<hr />
-<h2 id="historical-queries">Historical Queries<a class="headerlink" href="#historical-queries" title="Permanent link">&para;</a></h2>
-<p>All core tables (<code>Principals</code>, <code>Resources</code>, <code>ResourceAssignments</code>, etc.) are tracked by the <code>_history</code> audit table via PostgreSQL triggers. Every insert, update, and delete is recorded as a JSONB snapshot, enabling full change history queries.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">-- Current data (standard query, no change needed)</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="ss">"Principals"</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">department</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Finance'</span><span class="p">;</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1">-- Full change history for a specific principal</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">SELECT</span><span class="w"> </span><span class="ss">"changedAt"</span><span class="p">,</span><span class="w"> </span><span class="k">operation</span><span class="p">,</span><span class="w"> </span><span class="ss">"rowData"</span><span class="p">,</span><span class="w"> </span><span class="ss">"prevData"</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">"_history"</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="k">WHERE</span><span class="w"> </span><span class="ss">"tableName"</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Principals'</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="ss">"rowId"</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'principal-guid-here'</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="ss">"changedAt"</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="c1">-- All assignment changes in the last 30 days</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="k">SELECT</span><span class="w"> </span><span class="ss">"rowId"</span><span class="p">,</span><span class="w"> </span><span class="k">operation</span><span class="p">,</span><span class="w"> </span><span class="ss">"changedAt"</span><span class="p">,</span><span class="w"> </span><span class="ss">"rowData"</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">"_history"</span>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="k">WHERE</span><span class="w"> </span><span class="ss">"tableName"</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'ResourceAssignments'</span>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="ss">"changedAt"</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">now</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">interval</span><span class="w"> </span><span class="s1">'30 days'</span>
-<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="ss">"changedAt"</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
-<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>
-<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="c1">-- Deleted resources (no longer in the current table)</span>
-<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="k">SELECT</span><span class="w"> </span><span class="ss">"rowId"</span><span class="p">,</span><span class="w"> </span><span class="ss">"changedAt"</span><span class="p">,</span><span class="w"> </span><span class="ss">"rowData"</span><span class="o">-&gt;&gt;</span><span class="s1">'displayName'</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">name</span>
-<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">"_history"</span>
-<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="k">WHERE</span><span class="w"> </span><span class="ss">"tableName"</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Resources'</span>
-<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="k">operation</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'D'</span>
-<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="ss">"changedAt"</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
-</code></pre></div>
-<p>For more on audit history usage and query patterns, see <a href="../../architecture/audit-history/">Audit History</a>.</p>
+<p>Start at 10%: in about ten minutes it reproduces the ingest profile and the matrix
+crash. The disk wall, the refresh stacking and the four-minute application pages
+only appear at full scale.</p>
 
 
 
