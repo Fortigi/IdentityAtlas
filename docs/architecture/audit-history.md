@@ -138,9 +138,16 @@ The Admin page provides a **History Retention** setting (the History Retention s
 To track a new table, create triggers that call the existing `fg_record_history` function:
 
 ```sql
--- INSERT and DELETE: always record
-CREATE TRIGGER trg_history_ins_del
-AFTER INSERT OR DELETE ON "MyNewTable"
+-- INSERT: record, except during a system's initial load (see below)
+CREATE TRIGGER trg_history_ins
+AFTER INSERT ON "MyNewTable"
+FOR EACH ROW
+WHEN (current_setting('identity_atlas.initial_load', true) IS DISTINCT FROM 'on')
+EXECUTE FUNCTION fg_record_history();
+
+-- DELETE: always record
+CREATE TRIGGER trg_history_del
+AFTER DELETE ON "MyNewTable"
 FOR EACH ROW EXECUTE FUNCTION fg_record_history();
 
 -- UPDATE: only when something actually changed
@@ -152,3 +159,17 @@ EXECUTE FUNCTION fg_record_history();
 ```
 
 The trigger function is generic — it works with any table that has an `id` column.
+
+### A system's initial load
+
+The rows a system brings in on its **first** sync are not recorded as individual
+"created" events (migration 073). Until one of a system's syncs has completed —
+when refresh-views stamps `Systems."lastSyncDateTime"` — the ingest engine sets
+`identity_atlas.initial_load = 'on'` with `SET LOCAL` in each batch's transaction,
+and the INSERT trigger skips those rows. Updates and deletes are still recorded,
+every later sync records its inserts, and nothing outside the ingest engine sets
+the flag.
+
+The reason is volume: at 41 million assignments the initial load's history was
+25.7 of 34.9 GB and cost more insert time than all of `ResourceAssignments`'
+indexes together ([Scale Rehearsal](scale-rehearsal.md)).

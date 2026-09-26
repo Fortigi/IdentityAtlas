@@ -16,6 +16,7 @@
 //     names exactly. This minimises the route changes needed for v5.
 
 import crypto from 'crypto';
+import { markInitialLoad } from './initialLoad.js';
 import * as db from '../db/connection.js';
 import { createTempTable, bulkInsertIntoTemp } from './tempTableHelpers.js';
 import { NO_SYSTEM_COLUMN_TABLES, ownedRowPredicate } from './systemBoundary.js';
@@ -230,6 +231,8 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
       `;
     }
 
+    // A system's initial load writes no per-row "created" history (migration 073).
+    await markInitialLoad(client, systemId);
     const upsertRes = await client.query(upsertSql);
     let inserted = 0;
     let updated = 0;

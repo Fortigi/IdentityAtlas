@@ -81,8 +81,15 @@ describe('migration 072 — last-ingested stamp', () => {
     }
   });
 
-  it('is the highest-numbered migration, so it applies after the tables it alters', () => {
-    const numbers = readdirSync(__dirname).filter(f => f.endsWith('.sql')).map(f => f.slice(0, 3));
-    expect(Math.max(...numbers.map(Number))).toBe(72);
+  it('applies after the migrations that create the tables it alters', () => {
+    // Was "is the highest-numbered migration" — true only until the next one landed.
+    // What matters is the order relative to the CREATE TABLE of each altered table.
+    const files = readdirSync(__dirname).filter(f => f.endsWith('.sql'));
+    for (const t of RECONCILED) {
+      const creators = files.filter(f => readFileSync(join(__dirname, f), 'utf8').includes(`CREATE TABLE IF NOT EXISTS "${t}"`)
+        || readFileSync(join(__dirname, f), 'utf8').includes(`CREATE TABLE "${t}"`));
+      expect(creators.length, `no migration creates ${t}`).toBeGreaterThan(0);
+      expect(Math.min(...creators.map(f => Number(f.slice(0, 3)))), t).toBeLessThan(72);
+    }
   });
 });

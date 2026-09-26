@@ -11,6 +11,7 @@
 // timeout is a hard upper bound; idle sessions are reaped to free connections.
 
 import crypto from 'crypto';
+import { markInitialLoad } from './initialLoad.js';
 import { resolveActiveColumns, discoverColumns, writeSyncLog, scopedDelete, buildUpdateSet } from './engine.js';
 import * as db from '../db/connection.js';
 import { createTempTable, bulkInsertIntoTemp } from './tempTableHelpers.js';
@@ -198,6 +199,8 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
       session.recordCount += records.length;
     }
 
+    // A system's initial load writes no per-row "created" history (migration 073).
+    await markInitialLoad(session.client, session.systemId);
     const upsertRes = await session.client.query(buildUpsertSql(session));
     const { inserted, updated } = countUpsertResult(upsertRes.rows);
 
