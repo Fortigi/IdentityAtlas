@@ -1,0 +1,13 @@
+﻿ExternalId,DisplayName,Email,PrincipalType,JobTitle,Department,ManagerExternalId,SystemName,Enabled,EmployeeType
+P-2d4a1ff6,Rafael M. Weber,rafael.weber.1@example.com,User,Developer,Communications,,Identity Store,true,Employee
+P-af4016bd,Maria K. Gomez,maria.gomez.2@example.com,User,Administrator,Operations,P-2d4a1ff6,Identity Store,false,Employee
+P-14f3a789,Ingrid C. Popescu,ingrid.popescu.3@example.com,User,Senior Analyst,Communications,P-2d4a1ff6,Identity Store,false,Temporary
+P-e63eb3e1,Luca G. Lee,luca.lee.4@example.com,User,Developer,Marketing,P-2d4a1ff6,Identity Store,false,Service
+P-6b35c826,Jorge J. Ramos,jorge.ramos.5@example.com,User,Senior Analyst,Customer Service,P-2d4a1ff6,Identity Store,true,Employee
+P-731dde5b,Jasper F. Vos,jasper.vos.6@example.com,User,Clerk,Logistics,P-2d4a1ff6,Identity Store,false,Employee
+P-f9fda4fd,Fatima Z. Hoekstra,fatima.hoekstra.7@example.com,User,Manager,Procurement,P-2d4a1ff6,Identity Store,false,Contractor
+P-ad5f4af3,David F. Dias,david.dias.8@example.com,User,Planner,Legal,P-2d4a1ff6,Identity Store,false,Employee
+P-9edf233c,Ivan O. Hoekstra,ivan.hoekstra.9@example.com,User,Advisor,Risk,P-2d4a1ff6,Identity Store,true,Employee
+P-50665170,Thomas T. Martin,thomas.martin.10@example.com,User,Manager,Audit,P-2d4a1ff6,Identity Store,false,Employee
+P-2beb2893,Isaac T. Claes,isaac.claes.11@example.com,User,Coordinator,Sales,P-2d4a1ff6,Identity Store,false,Employee
+P-c32faa3e,Ruben V. Novak,ruben.novak.12@example.com,User,Developer,IT Infrastructure,P-2d4a1ff6,Identity Store,false,Service
