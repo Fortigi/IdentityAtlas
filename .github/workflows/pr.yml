@@ -155,6 +155,7 @@ jobs:
               - 'setup/docker/Invoke-CrawlerJob.ps1'
               - 'setup/docker/Invoke-CrawlerJobProcess.ps1'
               - 'setup/docker/Build-FGContexts.ps1'
+              - 'app/desktop/node-launcher/**'
               - 'setup/IdentityAtlas.psm1'
               - 'test/unit/**'
               - 'azure/**'

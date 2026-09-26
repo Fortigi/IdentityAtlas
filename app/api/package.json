@@ -16,6 +16,7 @@
     "lint": "eslint src/",
     "build:node-launcher": "node ../desktop/scripts/build-node-launcher.mjs",
     "build:node-launcher:skip-ui": "node ../desktop/scripts/build-node-launcher.mjs --skip-ui-build",
+    "build:node-launcher:postgres": "node ../desktop/scripts/build-node-launcher.mjs --with-postgres",
     "test:mutation": "npm run test:mutation:auth && npm run test:mutation:effectiveaccess && npm run test:mutation:accountlinking && npm run test:mutation:matrix && npm run test:mutation:features && npm run test:mutation:reports && npm run test:mutation:contextassistant",
     "test:mutation:auth": "stryker run stryker.auth.config.json",
     "test:mutation:effectiveaccess": "stryker run stryker.effectiveaccess.config.json",

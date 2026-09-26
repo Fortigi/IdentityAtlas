@@ -1,35 +1,30 @@
 // Node.js entry point for the portable launcher (no Electron).
-// Initialises PGlite, then loads the Express app bundle.
+// Initialises the database (PGlite, or a real PostgreSQL the launcher started),
+// then loads the Express app bundle.
 // Run via:  node.exe bootstrap.mjs
 
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { mkdirSync, readFileSync } from 'fs';
-import { homedir } from 'os';
 import { createRequire } from 'module';
+import { resolveDataDir, selectDatabase, apiEnv, installCrashLog } from './launcherConfig.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = dirname(__filename);
 const require    = createRequire(import.meta.url);
 
-const DATA_DIR = join(homedir(), 'AppData', 'Roaming', 'IdentityAtlas');
+// See launcherConfig.mjs for how each of these is chosen.
+const DATA_DIR = resolveDataDir();
 const PORT     = process.env.PORT || '3001';
+const DATABASE = selectDatabase();
 
 mkdirSync(DATA_DIR,                  { recursive: true });
 mkdirSync(join(DATA_DIR, 'uploads'), { recursive: true });
 mkdirSync(join(DATA_DIR, 'jobs'),    { recursive: true });
 
-process.env.USE_SQL         = 'true';
-process.env.PORT            = PORT;
-process.env.NODE_ENV        = process.env.NODE_ENV || 'production';
-process.env.DESKTOP_MODE    = 'true';
-process.env.WORKER_KEY_FILE = join(DATA_DIR, '.builtin-worker-key');
-process.env.MASTER_KEY_FILE = join(DATA_DIR, '.master-key');
-process.env.UPLOAD_ROOT     = join(DATA_DIR, 'uploads');
-process.env.TRACE_DIR       = join(DATA_DIR, 'jobs');
-process.env.FRONTEND_DIST   = join(__dirname, 'dist-frontend');
-process.env.IA_APP_ROOT          = join(__dirname, 'bundled-scripts');
-process.env.CRAWLER_MANIFESTS_DIR = join(__dirname, 'bundled-scripts', 'tools', 'crawlers');
+installCrashLog(process, DATA_DIR, { database: DATABASE.label });
+
+Object.assign(process.env, apiEnv({ dataDir: DATA_DIR, appDir: __dirname, port: PORT, external: DATABASE.external }));
 
 // Resolve module version from the bundled .psd1 manifest so the UI footer shows the correct version.
 if (!process.env.MODULE_VERSION) {
@@ -40,23 +35,30 @@ if (!process.env.MODULE_VERSION) {
   } catch { /* psd1 not present — version will show as blank */ }
 }
 
-const pgDataDir = join(DATA_DIR, 'pgdata');
-mkdirSync(pgDataDir, { recursive: true });
+console.log('Data directory: ' + DATA_DIR);
 
-const { PGlite }  = await import('@electric-sql/pglite');
-const { pg_trgm } = await import('@electric-sql/pglite/contrib/pg_trgm');
-const pgInstance  = new PGlite(pgDataDir, { extensions: { pg_trgm } });
-await pgInstance.waitReady;
+if (DATABASE.external) {
+  console.log('Database: ' + DATABASE.label);
+} else {
+  const pgDataDir = join(DATA_DIR, 'pgdata');
+  mkdirSync(pgDataDir, { recursive: true });
+  console.log('Database: built-in PGlite at ' + pgDataDir);
 
-// Register pg_trgm in the SQL catalog so migrations can create gin_trgm_ops indexes.
-// PGlite loads the extension WASM code at constructor time but does not run
-// CREATE EXTENSION automatically — we do it here once, before migrations run.
-// The migration file also has CREATE EXTENSION IF NOT EXISTS pg_trgm, but we
-// strip that statement in DESKTOP_MODE (migrate.js) to avoid a double-registration
-// WASM abort.
-await pgInstance.exec('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
+  const { PGlite }  = await import('@electric-sql/pglite');
+  const { pg_trgm } = await import('@electric-sql/pglite/contrib/pg_trgm');
+  const pgInstance  = new PGlite(pgDataDir, { extensions: { pg_trgm } });
+  await pgInstance.waitReady;
 
-globalThis.__pgliteInstance = pgInstance;
+  // Register pg_trgm in the SQL catalog so migrations can create gin_trgm_ops
+  // indexes. PGlite loads the extension WASM code at constructor time but does
+  // not run CREATE EXTENSION automatically — we do it here once, before
+  // migrations run. The migration file also has CREATE EXTENSION IF NOT EXISTS
+  // pg_trgm, but we strip that statement in DESKTOP_MODE (migrate.js) to avoid a
+  // double-registration WASM abort.
+  await pgInstance.exec('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
+
+  globalThis.__pgliteInstance = pgInstance;
+}
 
 await import(pathToFileURL(join(__dirname, 'app-bundle.mjs')).href);
 

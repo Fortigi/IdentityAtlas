@@ -8,10 +8,15 @@
 //   @electric-sql/pglite/ — PGlite WebAssembly package
 //   desktop-worker.cjs    — crawler job dispatcher
 //   dist-frontend/        — built React UI
-//   Start-IdentityAtlas.ps1
+//   Start-IdentityAtlas.ps1, Launcher.Functions.ps1, Watch-IdentityAtlas.ps1, launcherConfig.mjs
+//   postgres/             — only with --with-postgres: PostgreSQL server binaries
 //
 // Usage (from repo root or app/api/):
-//   node app/desktop/scripts/build-node-launcher.mjs [--skip-ui-build] [--ui-only]
+//   node app/desktop/scripts/build-node-launcher.mjs [--skip-ui-build] [--ui-only] [--with-postgres]
+//
+//   --with-postgres embeds a real PostgreSQL (see postgres-bundle.mjs), which the
+//   launcher then runs instead of PGlite. The ~330 MB source zip is cached in
+//   dist-node-launcher/ and checked against a pinned SHA-256 on every build.
 //
 //   --ui-only builds just the React UI (incl. the crawler-wizard bundle check
 //   below) and exits — no esbuild/pglite/re2/node.exe/zip steps, so it has no
@@ -27,6 +32,7 @@ import { createBrotliDecompress }                                  from 'zlib';
 import { pipeline }                                                from 'stream/promises';
 import { join, resolve, dirname, sep }                              from 'path';
 import { fileURLToPath, pathToFileURL }                            from 'url';
+import { PG_VERSION, PG_URL, PG_SHA256, stagePostgres }            from './postgres-bundle.mjs';
 
 const __dirname   = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT   = resolve(__dirname, '..', '..', '..');
@@ -46,6 +52,7 @@ const NODE_URL       = `https://nodejs.org/dist/v${NODE_VERSION}/win-x64/node.ex
 const NODE_SHA256    = 'b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3';
 
 const SKIP_UI   = process.argv.includes('--skip-ui-build');
+const WITH_PG   = process.argv.includes('--with-postgres');
 const UI_ONLY   = process.argv.includes('--ui-only');
 const ESBUILD   = process.platform === 'win32'
   ? 'node_modules\\.bin\\esbuild.cmd'
@@ -203,6 +210,9 @@ console.log('\n[7/8] Copying launcher files...');
 const LAUNCHER_SRC = join(DESKTOP_DIR, 'node-launcher');
 copyFileSync(join(LAUNCHER_SRC, 'bootstrap.mjs'),             join(STAGE_DIR, 'bootstrap.mjs'));
 copyFileSync(join(LAUNCHER_SRC, 'Start-IdentityAtlas.ps1'),   join(STAGE_DIR, 'Start-IdentityAtlas.ps1'));
+copyFileSync(join(LAUNCHER_SRC, 'Launcher.Functions.ps1'),    join(STAGE_DIR, 'Launcher.Functions.ps1'));
+copyFileSync(join(LAUNCHER_SRC, 'Watch-IdentityAtlas.ps1'),   join(STAGE_DIR, 'Watch-IdentityAtlas.ps1'));
+copyFileSync(join(LAUNCHER_SRC, 'launcherConfig.mjs'),        join(STAGE_DIR, 'launcherConfig.mjs'));
 copyFileSync(join(DESKTOP_DIR,  'desktop-worker.cjs'),        join(STAGE_DIR, 'desktop-worker.cjs'));
 
 // Copy bundled PowerShell scripts (crawlers, demo dataset, scheduler)
@@ -244,6 +254,30 @@ pwsh(`
   if ($actual -ne $expected) { throw "node.exe SHA-256 mismatch: expected $expected got $actual" }
   Write-Host "  SHA-256 verified: $actual" -ForegroundColor Green
 `);
+
+// ── Optional — embed PostgreSQL (--with-postgres) ───────────────────────────
+if (WITH_PG) {
+  console.log(`
+[+] Embedding PostgreSQL ${PG_VERSION}...`);
+  const pgZip = join(DIST_DIR, `postgresql-${PG_VERSION}-windows-x64-binaries.zip`);
+  const pgTmp = join(DIST_DIR, 'postgres-extract');
+  const q = p => p.replace(/'/g, "''");
+  if (!existsSync(pgZip)) {
+    pwsh(`Invoke-WebRequest -Uri '${PG_URL}' -OutFile '${q(pgZip)}' -UseBasicParsing`);
+  } else {
+    console.log('  Using cached', pgZip);
+  }
+  pwsh(`
+    $actual = (Get-FileHash '${q(pgZip)}' -Algorithm SHA256).Hash.ToLower()
+    if ($actual -ne '${PG_SHA256}') { throw "PostgreSQL zip SHA-256 mismatch: expected ${PG_SHA256} got $actual" }
+    Write-Host "  SHA-256 verified: $actual" -ForegroundColor Green
+  `);
+  rmSync(pgTmp, { recursive: true, force: true });
+  pwsh(`Expand-Archive -LiteralPath '${q(pgZip)}' -DestinationPath '${q(pgTmp)}'`);
+  const { files, bytes } = stagePostgres(join(pgTmp, 'pgsql'), join(STAGE_DIR, 'postgres'));
+  rmSync(pgTmp, { recursive: true, force: true });
+  console.log(`  Staged ${files} files (${(bytes / 1048576).toFixed(0)} MB) into postgres/`);
+}
 
 // ── Step 8/8 — zip ───────────────────────────────────────────────────────────
 console.log('\n[8/8] Creating zip...');
