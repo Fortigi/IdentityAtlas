@@ -39,6 +39,10 @@ import base from './vitest.config.js';
 // src/db/matrixHelpers.test.js is deliberately NOT here: matrixHelpers.js imports none of
 // the eight, so its tests can kill nothing and would only add runtime.
 //
+// The background view-refresh coordinator (src/ingest/viewRefresh.js) is reached
+// through src/routes/ingest/matrixViews.js and the classify handler, so both ingest
+// route tests that drive the refresh are included with its own test.
+//
 // If you add a module to this scope's `mutate` list, trace its importers and widen this
 // include to match, rather than assuming the co-located test is the only killer.
 
@@ -57,6 +61,9 @@ export default defineConfig({
       'src/lib/attributeLabels.test.js',
       'src/routes/attributeLabels.test.js',
       'src/routes/attributeLabelChannel.test.js',
+      'src/ingest/viewRefresh.test.js',
+      'src/routes/ingest.coverage.test.js',
+      'src/routes/ingest.classify.test.js',
     ],
     exclude: ['**/node_modules/**'],
     coverage: { ...base.test.coverage, thresholds: undefined },

@@ -18,7 +18,7 @@ import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, EN
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/crawlerAuth.js';
 import { normalizePresenceQuery, lookupCrawlerPresence } from '../../ingest/crawlerPresence.js';
 import { parseReconcileRequest, reconcileStale, ReconcileRequestError } from '../../ingest/reconcileStale.js';
-import { refreshMatrixViewsSerialized } from './matrixViews.js';
+import { viewRefresh } from './matrixViews.js';
 import { buildSyncLogRow, classifyScope } from './dataPlane.js';
 import {
   applyIngestDefaults, coerceSystemsSyncMode, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
@@ -272,9 +272,11 @@ router.post('/ingest/sync-log', async (req, res) => {
 // gap is DERIVED in the matrix matview from these governed memberships + the
 // Contains relationships — nothing is materialised here.
 //
-// It ends in a matview refresh, so it needs the refreshViews permission; the
-// UPDATE is limited to the systems the caller may access, and the refresh is
-// serialised with every other crawler-triggered refresh (SEC-2026-09 M-05).
+// It ends by asking for a matview refresh, so it needs the refreshViews
+// permission; the UPDATE is limited to the systems the caller may access. The
+// refresh runs in the background through the shared coordinator (debounced,
+// serialised with every other crawler-triggered refresh — SEC-2026-09 M-05), so
+// this request returns as soon as the UPDATE has committed.
 router.post('/ingest/classify-business-role-assignments', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   if (!crawlerHasPermission(req, 'refreshViews')) {
@@ -291,20 +293,14 @@ router.post('/ingest/classify-business-role-assignments', async (req, res) => {
          AND r."governanceResource"
          AND ra."governed" = false${scope.clause}
     `, scope.params);
-    // The matrix materialized views are now stale — refresh them before
-    // returning so the UI sees the new data.
-    let viewRefresh;
-    try {
-      await refreshMatrixViewsSerialized();
-      viewRefresh = 'ok';
-    } catch (err) {
-      console.error('classify: view refresh failed (non-critical):', err.message);
-      viewRefresh = 'failed';
-    }
+    // The matrix materialized views are now stale. Schedule the refresh; its
+    // outcome is readable at GET /ingest/refresh-views.
+    const refresh = viewRefresh.schedule('classify-business-role-assignments');
     return res.json({
       ok: true,
       governedMarked: r.rowCount || 0,
-      viewRefresh,
+      viewRefresh: 'scheduled',
+      refresh,
     });
   } catch (err) {
     console.error('classify-business-role-assignments failed:', err.message);
