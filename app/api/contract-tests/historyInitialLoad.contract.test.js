@@ -62,7 +62,7 @@ describe('history during a system\'s initial load', () => {
     await ingest(null, 'Principals', ['id'], [{ id: PRIN, systemId, displayName: 'Ada', principalType: 'User' }],
       { syncMode: 'delta', systemId });
     await ingest(null, 'ResourceAssignments', ['resourceId', 'principalId', 'assignmentType', 'governed'],
-      [{ resourceId: RES_A, principalId: PRIN, assignmentType: 'Direct', systemId }],
+      [{ resourceId: RES_A, principalId: PRIN, assignmentType: 'Direct', governed: false, systemId }],
       { syncMode: 'delta', systemId, conflictFilter: '"principalId" IS NOT NULL' });
 
     const rows = await pool.query(`SELECT count(*) FROM "Resources" WHERE "systemId" = $1`, [systemId]);
