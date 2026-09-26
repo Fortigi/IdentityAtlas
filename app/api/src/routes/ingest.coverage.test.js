@@ -453,6 +453,27 @@ describe('POST /ingest/refresh-views', () => {
     expect(sqls.some(q => /"totalMemberCount"/.test(q))).toBe(true);
   });
 
+  it('?wait=1 answers only after the refresh has run — for scripts that need fresh views', async () => {
+    const sqls = [];
+    mockQuery.mockImplementation(async (sql) => { sqls.push(String(sql)); return { rows: [], rowCount: 0 }; });
+    const res = await request(app).post('/ingest/refresh-views?wait=1').send({});
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/refreshed/i);
+    expect(res.body.refresh).toMatchObject({ pending: false, last: { ok: true } });
+    // the work is already done when the response arrives
+    expect(sqls.filter(q => /REFRESH MATERIALIZED VIEW/.test(q))).toHaveLength(2);
+  });
+
+  it('?wait=1 answers 500 with the error when the refresh failed', async () => {
+    mockQuery.mockImplementation(async (sql) => {
+      if (/REFRESH MATERIALIZED VIEW/.test(String(sql))) throw new Error('canceling statement due to user request');
+      return { rows: [], rowCount: 0 };
+    });
+    const res = await request(app).post('/ingest/refresh-views?wait=true').send({});
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('refresh-views failed: canceling statement due to user request');
+  });
+
   it('GET reports the last run, including a failure', async () => {
     mockQuery.mockImplementation(async (sql) => {
       if (/REFRESH MATERIALIZED VIEW/.test(String(sql))) throw new Error('No space left on device');

@@ -28,7 +28,13 @@ function canRefresh(req) {
 
 // Ask for the post-ingest refresh. Returns at once (202); the refresh runs in the
 // background — see ingest/viewRefresh.js for why it no longer runs in the request.
-router.post('/ingest/refresh-views', (req, res) => {
+//
+// ?wait=1 is for scripts that need fresh views before their next step (CI checks,
+// the demo loader, the load benchmark): the request still goes through the same
+// coordinator — coalesced, one at a time — and then waits for it to finish,
+// answering 200, or 500 with the error when the refresh failed. Crawlers do not
+// pass it; the worker waits for them at the end of the job instead.
+router.post('/ingest/refresh-views', async (req, res) => {
   if (!canRefresh(req)) {
     return res.status(403).json({ error: 'Insufficient permissions (requires refreshViews)' });
   }
@@ -36,7 +42,14 @@ router.post('/ingest/refresh-views', (req, res) => {
     return res.json({ message: 'SQL disabled — nothing to refresh' });
   }
   const refresh = viewRefresh.schedule(req.crawler?.displayName || 'refresh-views');
-  res.status(202).json({ message: 'Matrix view refresh scheduled', refresh });
+  if (!['1', 'true'].includes(String(req.query.wait))) {
+    return res.status(202).json({ message: 'Matrix view refresh scheduled', refresh });
+  }
+  const done = await viewRefresh.whenIdle();
+  if (done.last && !done.last.ok) {
+    return res.status(500).json({ error: `refresh-views failed: ${done.last.error}`, refresh: done });
+  }
+  return res.json({ message: 'Materialized views refreshed', refresh: done });
 });
 
 // The state of the background refresh and the outcome of the last one. The worker
