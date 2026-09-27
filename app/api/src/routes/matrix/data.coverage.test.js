@@ -221,12 +221,40 @@ describe('matrix/data — flat per-subject grid', () => {
     expect(res.body.data).toHaveLength(1);
   });
 
-  it('413 when the flat grid exceeds MAX_FLAT_ROWS', async () => {
-    const huge = Array.from({ length: 400_001 }, (_, i) => ({ resourceId: 'r', memberId: 'm' + i }));
-    labelHandlers = { 'matrix-data[': huge };
-    const res = await post({ filter: {} });
+  // The cap lives IN the query: the database stops after cap+1 rows, so an
+  // unfiltered matrix over tens of millions of assignments never lands in the
+  // Node heap (it used to be loaded in full and crash the API before the check).
+  it('caps the flat-grid query itself at MAX_FLAT_ROWS + 1 rows', async () => {
+    labelHandlers = { 'matrix-data[': [{ resourceId: 'r1', memberId: 'm1' }] };
+    await post({ filter: {} });
+    expect(lastSql['matrix-data[principal]']).toMatch(/\bLIMIT 400001\s*$/);
+  });
+
+  it('413 once the query returns one row past the cap — before any inherited fold runs', async () => {
+    const over = Array.from({ length: 400_001 }, (_, i) => ({ resourceId: 'r', memberId: 'm' + i }));
+    labelHandlers = { 'matrix-data[': over };
+    let folded = false;
+    inhFlat = async () => { folded = true; return []; };
+    const res = await post({ filter: { includeInheritedAccess: true } });
     expect(res.status).toBe(413);
-    expect(res.body.error).toMatch(/too many to load/);
+    expect(res.body.error).toMatch(/more than 400,000 assignments — too many to load/);
+    expect(folded).toBe(false);
+  });
+
+  it('exactly MAX_FLAT_ROWS rows is still served', async () => {
+    const atCap = Array.from({ length: 400_000 }, (_, i) => ({ resourceId: 'r', memberId: 'm' + i }));
+    labelHandlers = { 'matrix-data[': atCap };
+    const res = await post({ filter: {} });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(400_000);
+  });
+
+  it('413 when inherited rows push an under-cap grid past the cap', async () => {
+    const atCap = Array.from({ length: 400_000 }, (_, i) => ({ resourceId: 'r', memberId: 'm' + i }));
+    labelHandlers = { 'matrix-data[': atCap };
+    inhFlat = async () => [{ resourceId: 'r-inherited', memberId: 'm-new' }];
+    const res = await post({ filter: { includeInheritedAccess: true } });
+    expect(res.status).toBe(413);
   });
 
   it('returns the per-resource Contexts sidecar for the visible resources', async () => {
