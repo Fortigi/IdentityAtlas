@@ -219,7 +219,12 @@ function Send-SqlContextBuffer {
     $records = $catalog.Records
     if ($isMembers) { $records = $catalog.Members }
     $endpoint = if ($isMembers) { 'ingest/context-members' } else { 'ingest/contexts' }
-    $scope = if ($isMembers) { @{} } else { @{ variant = 'synced' } }
+    # Contexts and memberships are shared by every crawler. Stamping this system as
+    # the owner is what lets the ingest bound a full sync to them: without it, one
+    # run's reconcile removed other systems' contexts and every membership outside
+    # its batch. The type goes in the scope too, so one catalogue replaces only its own.
+    if (-not $isMembers) { foreach ($r in $records) { $r['scopeSystemId'] = $State.SystemId } }
+    $scope = if ($isMembers) { @{} } else { @{ variant = 'synced'; contextType = $Slot.contextType; scopeSystemId = $State.SystemId } }
     Invoke-CrawlerIngestBatch -Endpoint $endpoint -SystemId $State.SystemId -SyncMode $State.SyncMode -Scope $scope `
         -Records @($records) -BatchSize $State.BatchSize -IdGeneration 'deterministic' -IdPrefix $State.IdPrefix -SkipWhenEmpty | Out-Null
     if ($isMembers) {

@@ -307,15 +307,36 @@ export async function deleteEntireScope(
     client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, columnNames, scopeDeleteFilter, restrictSystemIds);
 }
 
+// Shared tables whose rows belong to a system through ownership rather than a
+// systemId column (see ownedRowPredicate), and which a full sync must therefore
+// bound by that ownership instead of reconciling whole.
+const SENDER_OWNED_TABLES = new Set(['Contexts', 'ContextMembers']);
+
 // The predicates that bound a reconcile delete to one partition: the system, the
 // caller-declared scope, and — for a key restricted to specific systems — the
 // ownership predicate from systemBoundary.js. Pure. Exported for unit tests.
 export function reconcileBounds(tableName, systemId, scope, systemIdColumn, tableColumnNames, restrictSystemIds = null) {
   const params = [];
   const clauses = [];
-  if (systemId !== null && systemId !== undefined && tableColumnNames.has(systemIdColumn)) {
+  const hasSystem = systemId !== null && systemId !== undefined;
+  if (hasSystem && tableColumnNames.has(systemIdColumn)) {
     params.push(systemId);
     clauses.push(`t."${systemIdColumn}" = $${params.length}`);
+  } else if (hasSystem && SENDER_OWNED_TABLES.has(tableName)) {
+    // Contexts and ContextMembers have no systemId column, and every crawler shares
+    // them. Bounded only by the caller's scope, a full sync reconciled the WHOLE
+    // table: one crawler's run deleted every other system's synced contexts and
+    // every membership outside its own batch, analysts' tags included. The
+    // envelope systemId bounds it to what the sender owns: its own synced
+    // contexts (scopeSystemId) and their memberships.
+    params.push([systemId]);
+    clauses.push(ownedRowPredicate(tableName, 't', `$${params.length}`));
+  }
+  // A membership an analyst added by hand is theirs, not the source's: no sync
+  // reconcile removes it, even on a context the syncing crawler owns. (The
+  // context itself going away still takes its memberships with it.)
+  if (tableName === 'ContextMembers' && tableColumnNames.has('addedBy')) {
+    clauses.push(`t."addedBy" IS DISTINCT FROM 'analyst'`);
   }
   for (const [key, value] of Object.entries(scope || {})) {
     if (value === undefined || value === null) continue;
@@ -334,9 +355,11 @@ export function reconcileBounds(tableName, systemId, scope, systemIdColumn, tabl
 // ownership predicate would reconcile the ENTIRE table against one batch — for
 // "Systems" that removes every other system and cascades through the whole
 // dataset (SEC-2026-09 C-01). The single exception is a table that has no systemId
-// column at all (Identities, IdentityMembers, Contexts, ContextMembers,
-// PrincipalActivity) reconciled by an unrestricted key: the built-in worker's
-// crawlers reconcile those tables whole, and that behaviour is kept. Pure.
+// column at all (Identities, IdentityMembers, PrincipalActivity) reconciled by an
+// unrestricted key without a system: the built-in worker's. (Contexts and
+// ContextMembers never get here with a system: reconcileBounds bounds them by
+// ownership. See SENDER_OWNED_TABLES.)
+// Pure.
 export function reconcileAllowed(tableName, clauses, restrictSystemIds) {
   if (clauses.length > 0) return true;
   return restrictSystemIds === null && NO_SYSTEM_COLUMN_TABLES.has(tableName);

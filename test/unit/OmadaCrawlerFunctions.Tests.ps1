@@ -343,3 +343,28 @@ Describe 'Register-OmadaEndpointSystem — system naming' {
         $script:sysRecs[0].displayName | Should -Be 'Omada (https://omada.example.com)'
     }
 }
+
+# Contexts are shared by every crawler, and a full sync only reconciles the ones
+# its sender owns (scopeSystemId). Unstamped, Omada's contexts would never be
+# cleaned up when they leave Omada.
+Describe 'Build-OmadaContextRecords — ownership' {
+    BeforeAll {
+        . (Join-Path $script:omadaRoot 'OmadaCrawler.Transform.ps1')
+        $script:items = @(
+            [pscustomobject]@{ UId = 'u1'; NAME = 'Finance' },
+            [pscustomobject]@{ UId = 'u2'; NAME = 'Sales' },
+            [pscustomobject]@{ UId = ''; NAME = 'no id, dropped' })
+    }
+
+    It 'stamps every record with the system that owns it' {
+        $r = @(Build-OmadaContextRecords -Items $script:items -EntitySet 'Costcenter' -ContextType 'CostCenter' -SystemId 12)
+        $r.Count | Should -Be 2
+        @($r | ForEach-Object { $_.scopeSystemId }) | Should -Be @(12, 12)
+    }
+
+    It 'leaves records unstamped without a system id' {
+        $r = @(Build-OmadaContextRecords -Items $script:items -EntitySet 'Costcenter' -ContextType 'CostCenter')
+        $r.Count | Should -Be 2
+        @($r | Where-Object { $_.PSObject.Properties.Name -contains 'scopeSystemId' }).Count | Should -Be 0
+    }
+}

@@ -210,6 +210,9 @@ function Send-FGSingleIngestBatch {
     if ($HaveDeletes) { $body['deletedIds'] = ConvertTo-JsonArray $DeletedIds }
     $result = Invoke-IngestAPI -Endpoint $Endpoint -Body $body
     Write-Host "  Result: $($result.inserted) inserted, $($result.updated) updated, $($result.deleted) deleted" -ForegroundColor Green
+    # The ingest reports what it accepted but will not act on, e.g. synced contexts
+    # that name no owning system and so are never reconciled. Say it in the job log.
+    foreach ($w in @($result.warnings | Where-Object { $_ })) { Write-Host "  WARNING: $w" -ForegroundColor Yellow }
     return $result
 }
 

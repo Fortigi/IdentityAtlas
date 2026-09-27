@@ -207,7 +207,7 @@ function Sync-OmadaContexts {
                 -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxRetries
             Write-Host "  $($Items.Count) $EntitySet records from Omada" -ForegroundColor Gray
 
-            $Records = @(Build-OmadaContextRecords -Items $Items -EntitySet $EntitySet -ContextType $ContextType)
+            $Records = @(Build-OmadaContextRecords -Items $Items -EntitySet $EntitySet -ContextType $ContextType -SystemId $SystemId)
 
             Write-Step "Ingesting $($Records.Count) $ContextType contexts..."
             $R = Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId $SystemId -SyncMode 'full' `

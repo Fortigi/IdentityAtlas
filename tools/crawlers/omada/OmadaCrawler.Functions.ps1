@@ -123,18 +123,24 @@ function Send-IngestBatch {
 # records, dropping any without an externalId/displayName. Orgunit carries a parent
 # hierarchy, so its records are topologically sorted (parent before child).
 # Extracted from Sync-OmadaContexts to keep that phase under the complexity ceiling.
+# -SystemId stamps each record as owned by that system (scopeSystemId). A full sync
+# of the shared Contexts table only reconciles contexts its sender owns, so an
+# unstamped context is never cleaned up when it leaves Omada.
 function Build-OmadaContextRecords {
     [CmdletBinding()]
-    param($Items, [string]$EntitySet, [string]$ContextType)
+    param($Items, [string]$EntitySet, [string]$ContextType, [int]$SystemId = 0)
     if ($EntitySet -eq 'Orgunit') {
         $RawRecords = @($Items | ForEach-Object {
             ConvertTo-OmadaOrgUnitContextRecord -OrgUnit $_ -DefaultContextType $ContextType
         } | Where-Object { $_.externalId -and $_.displayName })
-        return @(Get-OmadaContextsInTopologicalOrder -Records $RawRecords)
+        $Records = @(Get-OmadaContextsInTopologicalOrder -Records $RawRecords)
+    } else {
+        $Records = @($Items | ForEach-Object {
+            ConvertTo-OmadaFlatContextRecord -Item $_ -ContextType $ContextType
+        } | Where-Object { $_.externalId -and $_.displayName })
     }
-    return @($Items | ForEach-Object {
-        ConvertTo-OmadaFlatContextRecord -Item $_ -ContextType $ContextType
-    } | Where-Object { $_.externalId -and $_.displayName })
+    if ($SystemId -gt 0) { foreach ($r in $Records) { $r | Add-Member -NotePropertyName scopeSystemId -NotePropertyValue $SystemId -Force } }
+    return $Records
 }
 
 # Combine the role and CRA assignments for one Omada system, dedup by
