@@ -343,7 +343,7 @@ var assemblies = [
   {
     "name": "tools/crawlers/mssql",
     "classes": [
-      { "name": "tools/crawlers/mssql/SqlCrawler.Contexts", "rp": "mssql_Contexts.html", "cl": 101, "ucl": 4, "cal": 105, "tl": 231, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/mssql/SqlCrawler.Contexts", "rp": "mssql_Contexts.html", "cl": 102, "ucl": 4, "cal": 106, "tl": 236, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/mssql/SqlCrawler.Functions", "rp": "mssql_Functions.html", "cl": 155, "ucl": 2, "cal": 157, "tl": 374, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/mssql/SqlCrawler.Phases", "rp": "mssql_Phases.html", "cl": 153, "ucl": 7, "cal": 160, "tl": 362, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/mssql/SqlCrawler.Transform", "rp": "mssql_Transform.html", "cl": 136, "ucl": 0, "cal": 136, "tl": 333, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
@@ -362,7 +362,7 @@ var assemblies = [
     "name": "tools/crawlers/omada",
     "classes": [
       { "name": "tools/crawlers/omada/Get-OmadaHelpers", "rp": "omada_tools_crawlers_omada_Get_OmadaHelpers.html", "cl": 18, "ucl": 0, "cal": 18, "tl": 70, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/omada/OmadaCrawler.Functions", "rp": "omada_Functions.html", "cl": 58, "ucl": 3, "cal": 61, "tl": 190, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/omada/OmadaCrawler.Functions", "rp": "omada_Functions.html", "cl": 63, "ucl": 0, "cal": 63, "tl": 196, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/omada/OmadaCrawler.Phases", "rp": "omada_Phases.html", "cl": 500, "ucl": 4, "cal": 504, "tl": 1077, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/omada/OmadaCrawler.Transform", "rp": "omada_Transform.html", "cl": 188, "ucl": 0, "cal": 188, "tl": 372, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/omada/Start-OmadaCrawler", "rp": "omada_tools_crawlers_omada_Start_OmadaCrawler.html", "cl": 0, "ucl": 93, "cal": 93, "tl": 283, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
@@ -382,7 +382,7 @@ var assemblies = [
       { "name": "tools/crawlers/shared/Get-CapabilityId", "rp": "shared_tools_crawlers_shared_Get_CapabilityId.html", "cl": 7, "ucl": 0, "cal": 7, "tl": 47, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/shared/Get-CrawlerSystemName", "rp": "shared_tools_crawlers_shared_Get_CrawlerSystemName.html", "cl": 6, "ucl": 0, "cal": 6, "tl": 60, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/shared/Get-NestedGroupUserSet", "rp": "shared_tools_crawlers_shared_Get_NestedGroupUserSet.html", "cl": 12, "ucl": 0, "cal": 12, "tl": 52, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/shared/Invoke-CrawlerIngest", "rp": "shared_tools_crawlers_shared_Invoke_CrawlerIngest.html", "cl": 110, "ucl": 1, "cal": 111, "tl": 304, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/shared/Invoke-CrawlerIngest", "rp": "shared_tools_crawlers_shared_Invoke_CrawlerIngest.html", "cl": 111, "ucl": 1, "cal": 112, "tl": 307, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/shared/Invoke-CrawlerIngestStream", "rp": "shared_tools_crawlers_shared_Invoke_CrawlerIngestStream.html", "cl": 72, "ucl": 0, "cal": 72, "tl": 191, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {

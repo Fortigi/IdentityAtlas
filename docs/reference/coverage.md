@@ -6,9 +6,9 @@ Test quality across the project's automated suites — line/branch/method covera
 
 | Suite | Line | Branch | Method | Cyclomatic | Cognitive | Mutation | Lines covered |
 |-------|------|--------|--------|------------|-----------|----------|---------------|
-| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 92.4% | 84.0% | 90.5% | 3.5 / 20 | 2.0 / 15 | 86.0% | 11,656 / 12,613 |
+| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 92.4% | 84.1% | 90.5% | 3.5 / 20 | 2.0 / 15 | 86.0% | 11,669 / 12,626 |
 | [UI (React / Vitest)](../coverage/ui/index.html) | 86.1% | 76.6% | 76.2% | 2.8 / 28 | 1.1 / 15 | 69.5% | 8,024 / 9,315 |
-| [PowerShell (Pester)](../coverage/powershell/index.html) | 91.9% | — | 97.2% | 3.8 / 15 | 3.9 / 15 | 100.0% | 7,116 / 7,743 |
+| [PowerShell (Pester)](../coverage/powershell/index.html) | 91.9% | — | 97.2% | 3.8 / 15 | 3.9 / 15 | 100.0% | 7,123 / 7,747 |
 
 **Cyclomatic** / **Cognitive** are _average / max_ per unit (each function, and for PowerShell each script/module body too): PowerShell via [PSComplexity](https://github.com/Fortigi/PSComplexity), JS/TS via ESLint's `complexity` rule + [eslint-plugin-sonarjs](https://github.com/SonarSource/eslint-plugin-sonarjs). **Mutation** is the share of injected faults the tests catch via [PSMutant](https://github.com/Fortigi/PSMutant), PowerShell-only today. A suite without a given signal shows —.
 
@@ -41,4 +41,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-09-27 14:21 UTC from commit `b878f648`._
+_Generated 2026-09-27 14:36 UTC from commit `c81f83b6`._
