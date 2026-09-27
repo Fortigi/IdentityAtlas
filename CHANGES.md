@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed opening a very large permissions matrix taking the whole server down: a matrix with more than 400,000 assignments is now refused straight away with the "too many to load" message, instead of being loaded into memory first and crashing the API for every user.
+
+## Changes in this PR
+
 - Added a scale test fixture generator (`tools/scale-dataset/`) that writes a synthetic identity-governance export in the CSV import schema, from 1% up to 180,000 principals, 810,000 resources and 41 million assignments, reproducibly from a seed. It builds in the properties that matter at scale: skewed assignment counts, a disabled majority, uneven systems, logical applications that span systems, LDAP distinguished names with commas, and near-duplicate names.
 - Added a small comma-delimited fixture with quoted distinguished names, a regression case for importing values that contain commas.
 - Added "Scale Rehearsal: 41 M Assignments" to the architecture docs: what happens when a 41-million-assignment dataset is loaded, where it stops coping, and why.
