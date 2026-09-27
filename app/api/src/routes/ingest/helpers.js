@@ -259,3 +259,15 @@ export function ingestErrorResponse(err) {
   }
   return { status: 500, body: { error: 'Ingest failed', message: err.message } };
 }
+
+// Synced context records that do not name the sending system as their owner
+// (scopeSystemId). A full sync only reconciles contexts the sender owns, so these
+// are never cleaned up when they vanish from the source: not a deletion risk, but
+// silent staleness, so the response says so. Pure. Exported for unit tests.
+export function unownedContextWarning(entityType, records, systemId) {
+  if (entityType !== 'contexts' || !Array.isArray(records)) return null;
+  const n = records.filter(r => r?.variant === 'synced' && Number(r.scopeSystemId) !== Number(systemId)).length;
+  if (!n) return null;
+  return `${n} synced context record(s) carry no scopeSystemId for system ${Number(systemId)}; ` +
+    'a full sync never removes them when they disappear from the source. Set scopeSystemId to the system id.';
+}

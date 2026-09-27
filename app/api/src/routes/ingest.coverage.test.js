@@ -362,6 +362,20 @@ describe('POST /ingest/contexts — DB-enforced acyclicity', () => {
     expect(res.status).toBe(201);
     expect(mockQuery.mock.calls.some(([sql]) => CYCLE_REPAIR_RE.test(sql))).toBe(false);
   });
+
+  it('warns in the response when a synced context names no owning system, and not when it does', async () => {
+    mockIngest.mockResolvedValueOnce({ inserted: 1, updated: 0, deleted: 0 });
+    const unowned = await request(app).post('/ingest/contexts').send(goodContext);
+    expect(unowned.status).toBe(201);
+    expect(unowned.body.warnings).toEqual([expect.stringMatching(/^1 synced context record\(s\) carry no scopeSystemId for system 1;/)]);
+
+    mockIngest.mockResolvedValueOnce({ inserted: 1, updated: 0, deleted: 0 });
+    const owned = await request(app).post('/ingest/contexts').send({
+      ...goodContext, records: [{ ...goodContext.records[0], scopeSystemId: 1 }],
+    });
+    expect(owned.status).toBe(201);
+    expect(owned.body.warnings).toBeUndefined();
+  });
 });
 
 // ── POST /ingest/principals-presence ─────────────────────────────────────────

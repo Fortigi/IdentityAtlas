@@ -141,10 +141,56 @@ describe('reconcileBounds / reconcileAllowed', () => {
   it('adds the ownership predicate for a restricted key, bound as an integer array', () => {
     const cols = new Set(['id', 'variant', 'scopeSystemId']);
     const { params, clauses } = reconcileBounds('Contexts', 7, { variant: 'synced' }, 'systemId', cols, [7, 8]);
-    // Contexts has no systemId column, so the envelope systemId adds nothing.
-    expect(params).toEqual(['synced', [7, 8]]);
-    expect(clauses[1]).toContain('t."scopeSystemId" = ANY($2::int[])');
-    expect(clauses[1]).toMatch(/^COALESCE\(\(/);
+    // Contexts has no systemId column: the envelope systemId becomes an OWNERSHIP
+    // bound instead, then the scope, then the key's own restriction.
+    expect(params).toEqual([[7], 'synced', [7, 8]]);
+    expect(clauses[0]).toBe(`(t."variant" = 'synced' AND t."scopeSystemId" = ANY($1::int[]))`);
+    expect(clauses[2]).toContain('t."scopeSystemId" = ANY($3::int[])');
+    expect(clauses[2]).toMatch(/^COALESCE\(\(/);
+  });
+
+  // The built-in worker's key is unrestricted. Before, its full sync of the shared
+  // Contexts / ContextMembers tables was bounded by the caller's scope alone: one
+  // crawler's run deleted other systems' contexts and every membership outside its
+  // batch, analysts' tags included.
+  describe('a shared context table is bounded to what the sending system owns', () => {
+    const CTX_COLS = new Set(['id', 'variant', 'contextType', 'scopeSystemId']);
+    const CM_COLS = new Set(['contextId', 'memberId', 'addedBy']);
+
+    it('Contexts: the sender\'s own synced contexts, whatever scope the caller sent', () => {
+      const { params, clauses } = reconcileBounds('Contexts', 7, { variant: 'synced' }, 'systemId', CTX_COLS);
+      expect(params).toEqual([[7], 'synced']);
+      expect(clauses).toEqual([
+        `(t."variant" = 'synced' AND t."scopeSystemId" = ANY($1::int[]))`,
+        't."variant" = $2',
+      ]);
+    });
+
+    it('ContextMembers: only memberships of contexts the sender owns, never an analyst\'s, even with no scope', () => {
+      const { params, clauses } = reconcileBounds('ContextMembers', 7, {}, 'systemId', CM_COLS);
+      expect(params).toEqual([[7]]);
+      expect(clauses).toHaveLength(2);
+      expect(clauses[0]).toMatch(/^EXISTS \(SELECT 1 FROM "Contexts" oc WHERE oc\."id" = t\."contextId" AND/);
+      expect(clauses[0]).toContain(`oc."scopeSystemId" = ANY($1::int[])`);
+      expect(clauses[1]).toBe(`t."addedBy" IS DISTINCT FROM 'analyst'`);
+    });
+
+    it('keeps analysts\' memberships for a restricted key as well', () => {
+      const { clauses } = reconcileBounds('ContextMembers', 7, {}, 'systemId', CM_COLS, [7]);
+      expect(clauses).toContain(`t."addedBy" IS DISTINCT FROM 'analyst'`);
+    });
+
+    it('leaves other tables without a systemId column as they were', () => {
+      const { params, clauses } = reconcileBounds('Identities', 7, {}, 'systemId', new Set(['id']));
+      expect(params).toEqual([]);
+      expect(clauses).toEqual([]);
+    });
+
+    it('adds no ownership bound without a system', () => {
+      const { params, clauses } = reconcileBounds('Contexts', null, { variant: 'synced' }, 'systemId', CTX_COLS);
+      expect(params).toEqual(['synced']);
+      expect(clauses).toEqual(['t."variant" = $1']);
+    });
   });
 
   it('refuses an unbounded reconcile of Systems for every caller', () => {

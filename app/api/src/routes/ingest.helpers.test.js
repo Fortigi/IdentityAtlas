@@ -16,6 +16,7 @@ import {
   applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor,
   discoverCoreColumns, handleSessionPath, applyDeleteByIds, lookupSystemIds, linkSystemDirectories, writeAuditLog,
 } from './ingest.js';
+import { unownedContextWarning } from './ingest/helpers.js';
 
 const UUID = '11111111-1111-1111-1111-111111111111';
 
@@ -267,5 +268,27 @@ describe('linkSystemDirectories', () => {
     db.query.mockReset();
     db.query.mockRejectedValue(new Error('deadlock detected'));
     await expect(linkSystemDirectories('systems')).resolves.toBe(0);
+  });
+});
+
+// ─── unownedContextWarning ──────────────────────────────────────────────────
+// A full sync only reconciles contexts the sender owns (scopeSystemId), so a
+// synced context that names no owner is never cleaned up. The ingest says so.
+describe('unownedContextWarning', () => {
+  it('counts synced contexts whose scopeSystemId is missing or another system\'s', () => {
+    const w = unownedContextWarning('contexts', [
+      { variant: 'synced', scopeSystemId: 7 },
+      { variant: 'synced', scopeSystemId: '7' },
+      { variant: 'synced' },
+      { variant: 'synced', scopeSystemId: 8 },
+      { variant: 'manual' },
+    ], 7);
+    expect(w).toMatch(/^2 synced context record\(s\) carry no scopeSystemId for system 7;/);
+  });
+
+  it('is silent when every synced context is stamped, for other entities, and without records', () => {
+    expect(unownedContextWarning('contexts', [{ variant: 'synced', scopeSystemId: 7 }], 7)).toBeNull();
+    expect(unownedContextWarning('context-members', [{ variant: 'synced' }], 7)).toBeNull();
+    expect(unownedContextWarning('contexts', undefined, 7)).toBeNull();
   });
 });

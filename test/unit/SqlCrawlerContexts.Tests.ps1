@@ -245,6 +245,18 @@ Describe 'Send-SqlContextBuffer' {
         $state.ContextReport.members | Should -Be 1
     }
 
+    # Contexts are shared by every crawler. Unstamped and scoped by variant alone,
+    # a full sync removed other systems' catalogues and every membership outside
+    # its own batch; the stamp is what lets the ingest bound it to this system.
+    It 'stamps every context as owned by this system and scopes the sync to it and the context type' {
+        $state = New-Catalogued
+        Send-SqlContextBuffer -Slot (Get-Slot 'contexts') -State $state | Out-Null
+        @($calls[0].Body.records).Count | Should -Be 4
+        @($calls[0].Body.records | Where-Object { $_.scopeSystemId -ne 9 }).Count | Should -Be 0
+        $calls[0].Body.scope.scopeSystemId | Should -Be 9
+        $calls[0].Body.scope.contextType | Should -Be (Get-Slot 'contexts').contextType
+    }
+
     It 'a delta run upserts without removing, and an empty buffer sends nothing at all' {
         $state = New-Catalogued -Mode 'delta'
         Send-SqlContextBuffer -Slot (Get-Slot 'contexts') -State $state | Out-Null

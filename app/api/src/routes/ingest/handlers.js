@@ -23,6 +23,7 @@ import { buildSyncLogRow, classifyScope, classifyStatements } from './dataPlane.
 import {
   applyIngestDefaults, coerceSystemsSyncMode, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
   handleSessionPath, applyDeleteByIds, lookupSystemIds, linkSystemDirectories, writeAuditLog, ingestErrorResponse, ingestBatch,
+  unownedContextWarning,
 } from './helpers.js';
 
 const router = Router();
@@ -125,6 +126,8 @@ function createIngestHandler(entityType) {
       const durationMs = Date.now() - startTime.getTime();
       await linkSystemDirectories(entityType);
       const systemIds = await lookupSystemIds(entityType, body.records);
+      const ownerWarning = unownedContextWarning(entityType, body.records, body.systemId);
+      if (ownerWarning) console.warn('Ingest contexts: %s', ownerWarning);
 
       return res.status(201).json({
         table: tableName,
@@ -134,6 +137,7 @@ function createIngestHandler(entityType) {
         records: body.records.length,
         durationMs,
         ...(systemIds ? { systemIds } : {}),
+        ...(ownerWarning ? { warnings: [ownerWarning] } : {}),
       });
     } catch (err) {
       console.error(`Ingest error (${entityType}):`, err.message);

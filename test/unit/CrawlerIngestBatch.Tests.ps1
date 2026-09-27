@@ -28,6 +28,21 @@ Describe 'Invoke-CrawlerIngestBatch' {
     }
 
     Context 'single batch' {
+        # The ingest can accept a batch it will not fully act on (synced contexts
+        # that name no owning system are never reconciled); the job log must say so.
+        It 'prints each warning the ingest returns, and nothing extra when there are none' {
+            $script:lines = [System.Collections.Generic.List[string]]::new()
+            Mock Write-Host { $script:lines.Add([string]$Object) } -ModuleName $null
+            Mock Invoke-IngestAPI { @{ inserted = 1; updated = 0; deleted = 0; warnings = @('first thing', 'second thing') } } -ModuleName $null
+            Invoke-CrawlerIngestBatch -Endpoint 'ingest/contexts' -SystemId 7 -Records (New-Recs 1) | Out-Null
+            @($script:lines | Where-Object { $_ -like '*WARNING:*' }) | Should -Be @('  WARNING: first thing', '  WARNING: second thing')
+
+            $script:lines.Clear()
+            Mock Invoke-IngestAPI { @{ inserted = 1; updated = 0; deleted = 0 } } -ModuleName $null
+            Invoke-CrawlerIngestBatch -Endpoint 'ingest/contexts' -SystemId 7 -Records (New-Recs 1) | Out-Null
+            @($script:lines | Where-Object { $_ -like '*WARNING:*' }).Count | Should -Be 0
+        }
+
         It 'sends one full-sync batch with the records as a JSON array' {
             $r = Invoke-CrawlerIngestBatch -Endpoint 'ingest/resources' -SystemId 7 -Records (New-Recs 3)
             $script:sent.Count | Should -Be 1
