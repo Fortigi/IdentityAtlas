@@ -573,12 +573,31 @@ Describe 'Complete-CsvRun' {
         $script:calls | Should -Contain 'ingest/sync-log'
     }
 
-    It 'does not throw when classification fails (non-critical)' {
+    # Each endpoint failing on its own: a run that swallowed any one of them
+    # would report success with that step undone.
+    It 'fails the run when <Endpoint> fails' -TestCases @(
+        @{ Endpoint = 'ingest/classify-business-role-assignments' }
+        @{ Endpoint = 'ingest/refresh-views' }
+        @{ Endpoint = 'ingest/sync-log' }
+    ) {
+        param($Endpoint)
+        $script:failing = $Endpoint
         Mock Invoke-IngestAPI {
+            $script:calls.Add($Endpoint)
+            if ($Endpoint -eq $script:failing) { throw "boom: $Endpoint" }
+            @{}
+        }
+        { Complete-CsvRun -SyncStart (Get-Date) -RefreshViews $true } | Should -Throw "boom: $Endpoint"
+    }
+
+    It 'does not log the sync as a success after classification failed' {
+        Mock Invoke-IngestAPI {
+            $script:calls.Add($Endpoint)
             if ($Endpoint -eq 'ingest/classify-business-role-assignments') { throw 'boom' }
             @{}
         }
-        { Complete-CsvRun -SyncStart (Get-Date) -RefreshViews $false } | Should -Not -Throw
+        { Complete-CsvRun -SyncStart (Get-Date) -RefreshViews $true } | Should -Throw
+        $script:calls | Should -Not -Contain 'ingest/sync-log'
     }
 }
 

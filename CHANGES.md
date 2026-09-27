@@ -1,5 +1,17 @@
 ## Changes in this PR
 
+- Fixed re-running a CSV crawler (or any connector that registers systems without a tenant) creating a second copy of every one of its systems and moving all of their accounts, resources and assignments onto the copies. A crawler configuration now maps to the same systems on every run. Duplicates left behind by earlier re-runs are merged into one system when you upgrade.
+- Fixed a re-import duplicating business-role assignments (one governed, one not) and business-role classification then failing on every later run. Existing duplicates are cleaned up by the next classification.
+- A CSV crawler run now fails when business-role classification, the view refresh request or the sync-log entry fails, instead of reporting success.
+- Reduced the storage used by assignments imported by external id: the two ids are no longer stored a second time in the assignment's extended attributes (about 40% of each assignment row). Rows already stored keep them until they are next rewritten.
+- The Docker Compose files now give PostgreSQL 1 GB of shared memory instead of Docker's 64 MB default, which made parallel vacuum and parallel queries fail on large databases.
+
+## Changes in this PR
+
+- Added a staged full-load interface to the ingest API for very large scopes: a connector streams a system's complete set of rows into a staging area and applies it in one step. Re-importing unchanged data no longer rewrites every row (about 3× faster on 4.1 million assignments), and a first load into an empty installation builds its indexes once at the end (about 1.6× faster). Connectors adopt it separately.
+
+## Changes in this PR
+
 - Added an IdentityIQ-shaped SQL Server test fixture (a container definition and a re-runnable schema script) so the SQL connector can be developed and verified without access to a production IdentityIQ database
 - Added a seeded generator that fills the fixture with synthetic data at up to full scale (180,000 identities, 800,000 entitlements, 40 million grants), producing the same dataset as the CSV scale fixture so loads through either connector can be compared, plus a load script that fails when any table's row count differs from what was generated
 

@@ -11,7 +11,7 @@
 // timeout is a hard upper bound; idle sessions are reaped to free connections.
 
 import crypto from 'crypto';
-import { resolveActiveColumns, discoverColumns, writeSyncLog, scopedDelete, buildUpdateSet } from './engine.js';
+import { resolveActiveColumns, discoverColumns, writeSyncLog, scopedDelete, buildUpdateSet, markGovernanceMemberships } from './engine.js';
 import * as db from '../db/connection.js';
 import { createTempTable, bulkInsertIntoTemp } from './tempTableHelpers.js';
 
@@ -198,6 +198,7 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
       session.recordCount += records.length;
     }
 
+    await markGovernanceMemberships(session.client, session.tableName, session.tempTable, session.keyColumns, session.activeColumns);
     const upsertRes = await session.client.query(buildUpsertSql(session));
     const { inserted, updated } = countUpsertResult(upsertRes.rows);
 

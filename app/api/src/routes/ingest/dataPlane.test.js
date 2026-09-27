@@ -1,7 +1,7 @@
 // Unit tests for the crawler data-plane decisions (SEC-2026-09 M-05).
 
 import { describe, it, expect } from 'vitest';
-import { buildSyncLogRow, classifyScope } from './dataPlane.js';
+import { buildSyncLogRow, classifyScope, classifyStatements } from './dataPlane.js';
 
 const WORKER = { id: 1, systemIds: null };
 const RESTRICTED = { id: 21, systemIds: [7, 8] };
