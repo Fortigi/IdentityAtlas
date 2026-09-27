@@ -179,3 +179,34 @@ describe('staged load — initial-load history', () => {
     expect(await anchor(sysB)).toBe(0);
   });
 });
+
+// #1272: a membership of a governance resource is governed by definition. The
+// stage must flag it before its merge, or its key (governed is part of it) misses
+// the governed row and a staged re-import inserts an ungoverned copy beside it.
+describe('staged load — business-role memberships', () => {
+  const BR = R(50);
+  const memberships = async () => (await pool.query(
+    `SELECT "principalId", "governed" FROM "ResourceAssignments" WHERE "resourceId" = $1 ORDER BY 1, 2`, [BR])).rows;
+
+  beforeAll(async () => {
+    await pool.query(`INSERT INTO "Resources" (id, "systemId", "displayName", "resourceType", "governanceResource")
+                      VALUES ($1, $2, 'Role', 'BusinessRole', true) ON CONFLICT (id) DO NOTHING`, [BR, sysA]);
+  });
+
+  it('a staged load stores them governed, and re-importing them adds no ungoverned copy', async () => {
+    const first = await stageLoad(sysA, [row(50, 1), row(50, 2)]);
+    expect(first).toMatchObject({ path: 'merge', inserted: 2 });
+    expect(await memberships()).toEqual([{ principalId: P(1), governed: true }, { principalId: P(2), governed: true }]);
+
+    const again = await stageLoad(sysA, [row(50, 1), row(50, 2)]);
+    expect(again).toMatchObject({ inserted: 0, updated: 0, deleted: 0 });
+    expect(await memberships()).toEqual([{ principalId: P(1), governed: true }, { principalId: P(2), governed: true }]);
+  });
+
+  it('leaves the actual/intent pair on an ordinary resource alone', async () => {
+    await stageLoad(sysA, [row(1, 1), row(1, 1, { governed: true })]);
+    const { rows } = await pool.query(
+      `SELECT "governed" FROM "ResourceAssignments" WHERE "resourceId" = $1 AND "principalId" = $2 ORDER BY 1`, [R(1), P(1)]);
+    expect(rows).toEqual([{ governed: false }, { governed: true }]);
+  });
+});
