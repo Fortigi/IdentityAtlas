@@ -209,7 +209,7 @@ foreach ($g in @($dataset.principalActivity | Group-Object -Property { $systemOf
 # Refresh views
 Write-Host "`nRefreshing views..." -ForegroundColor Cyan
 try {
-    Invoke-RestMethod -Uri "$ApiBaseUrl/ingest/refresh-views" -Method Post -Headers $headers -Body '{}' -ContentType 'application/json' -TimeoutSec 60 | Out-Null
+    Invoke-RestMethod -Uri "$ApiBaseUrl/ingest/refresh-views?wait=1" -Method Post -Headers $headers -Body '{}' -ContentType 'application/json' -TimeoutSec 60 | Out-Null
     Write-Host "  Views refreshed" -ForegroundColor Green
 }
 catch {

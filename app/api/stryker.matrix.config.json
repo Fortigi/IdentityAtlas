@@ -15,6 +15,7 @@
   },
   "mutate": [
     "src/lib/resourceVisibility.js",
+    "src/ingest/viewRefresh.js",
     "src/matrix/attrExpr.js",
     "src/matrix/attributeCut.js",
     "src/matrix/contextRollup.js",

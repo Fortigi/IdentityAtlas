@@ -24,6 +24,19 @@ const MEMBER_TABLE = {
   System:    'Systems',
 };
 
+// How a member row joins its entity. ContextMembers."memberId" is a uuid, and so
+// is the id of every member table except Systems (integer). Compare like with
+// like: casting both sides to text hides both indexes, and the planner then falls
+// back to a nested loop that checks every entity against every member — 4 minutes
+// for one page of a 106k-member context at 41M assignments, and a deep page that
+// never finished (docs/architecture/scale-rehearsal.md). Systems keep the text
+// comparison; the table is tiny and its ids cannot equal a uuid either way.
+export function memberJoinOn(targetType) {
+  return targetType === 'System'
+    ? 'm.id::text = cm."memberId"::text'
+    : 'm.id = cm."memberId"';
+}
+
 // ─── GET /api/contexts ───────────────────────────────────────────────
 // List all root contexts (parentContextId IS NULL). Optional filters:
 // ?targetType, ?variant, ?contextType, ?scopeSystemId.
@@ -243,7 +256,7 @@ async function loadMembers(contextId, targetType, { limit = 100, offset = 0, sea
     SELECT ${distinct} m.id, m."displayName",
            cm."addedBy", cm."addedAt"
       FROM "ContextMembers" cm
-      JOIN "${table}" m ON m.id::text = cm."memberId"::text
+      JOIN "${table}" m ON ${memberJoinOn(targetType)}
      WHERE ${contextFilter}
        AND cm."memberType" = '${targetType}'
        ${searchClause}
@@ -256,7 +269,7 @@ async function loadMembers(contextId, targetType, { limit = 100, offset = 0, sea
   const countSql = `
     SELECT COUNT(${includeDescendants ? 'DISTINCT m.id' : '*'})::int AS total
       FROM "ContextMembers" cm
-      JOIN "${table}" m ON m.id::text = cm."memberId"::text
+      JOIN "${table}" m ON ${memberJoinOn(targetType)}
      WHERE ${contextFilter}
        AND cm."memberType" = '${targetType}'
        ${searchClause}
