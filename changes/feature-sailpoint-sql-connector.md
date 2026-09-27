@@ -2,3 +2,4 @@
 - The SailPoint IdentityIQ preset now loads each identity as a principal and splits entitlement grants into direct ones and ones that came from a role (shown as Indirect)
 - Added a second IdentityIQ preset that also reads typical identity extension columns (organisation levels, company, cost centre, employee status) and the logical-application catalogue
 - A SQL connector run now checks, per object type, what the source returned against what Identity Atlas holds afterwards, and fails the job on any difference. A statement that returns several rows for the same id (so that all but one are silently overwritten) now fails the job and says how many were lost, instead of reporting success
+- A SQL connector run now also checks, per statement, that it read every row the source returns, and fails the job when it did not. Before this, a read that stopped early passed every check, because everything that did arrive was loaded correctly

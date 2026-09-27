@@ -68,12 +68,17 @@ function Invoke-SqlQueryStream {
     return [long]$rows.Count
 }
 
-# The source-side distinct count, answered from the same replayed rows.
-function Measure-SqlSourceDistinct {
+# The source-side counts, answered from what the SOURCE holds: the replayed rows,
+# unless a scenario says the source holds more than the reader delivers.
+$script:SourceRowsBySlot = @{}
+function Measure-SqlSource {
     [CmdletBinding()]
     param($Connection, [hashtable]$Slot, [hashtable]$Map, [int]$CommandTimeout = 600)
-    $pairs = @($script:RowsBySlot[$Slot.sql] | ForEach-Object { "$($_[$Map.resourceId])|$($_[$Map.principalId])" } | Sort-Object -Unique)
-    return @{ count = [long]$pairs.Count; reason = $null }
+    # @() around the whole if: an if-expression unrolls a one-row array into the row itself.
+    $rows = @(if ($script:SourceRowsBySlot.ContainsKey($Slot.sql)) { $script:SourceRowsBySlot[$Slot.sql] } else { $script:RowsBySlot[$Slot.sql] })
+    $pairs = $null
+    if ($Slot.target -eq 'assignments' -and $Map) { $pairs = [long]@($rows | ForEach-Object { "$($_[$Map.resourceId])|$($_[$Map.principalId])" } | Sort-Object -Unique).Count }
+    return @{ rows = [long]$rows.Count; pairs = $pairs; reason = $null }
 }
 
 # End-of-run verification against the REAL /ingest/count. Returns $true when it
@@ -161,7 +166,22 @@ $reg3 = Register-SqlSystem -Cfg $cfg
 $script:RowsBySlot[$sqlIdent] = @(foreach ($n in 1..8) { New-TestRow @{ id = "u1-$runId"; display_name = "Person $n" } })
 $state3 = New-SqlRunState -SystemId $systemId -ServerTime $reg3.serverTime -Slots @($slots[0]) -BatchSize 2 -SyncMode 'delta'
 Invoke-SqlSlot -Slot $slots[0] -Connection $null -State $state3 | Out-Null
-Write-Result 'Repeated ids fail verification' (-not (Test-Verified -State $state3)) (($state3.Verification | ForEach-Object { "$($_.scope): expected $($_.expected), database $($_.atlas)" }) -join ', ')
+Write-Result 'Repeated ids fail verification' (-not (Test-Verified -State $state3)) (($state3.Verification | ForEach-Object { "$($_.scope): expected $($_.expected), $($_.measured) $($_.atlas)" }) -join ', ')
+
+# ── Run 4: the read stops early — the shape that actually shipped ────────────
+# The source holds eight distinct people; one arrives. It is distinct, it lands,
+# and the database agrees with it, so only the source's own count can fail this.
+Start-Sleep -Seconds 1
+$reg4 = Register-SqlSystem -Cfg $cfg
+$script:RowsBySlot[$sqlIdent] = @((New-TestRow @{ id = "u1-$runId"; display_name = 'Person 1' }))
+$script:SourceRowsBySlot[$sqlIdent] = @(foreach ($n in 1..8) { New-TestRow @{ id = "u$n-$runId"; display_name = "Person $n" } })
+$state4 = New-SqlRunState -SystemId $systemId -ServerTime $reg4.serverTime -Slots @($slots[0]) -BatchSize 2 -SyncMode 'delta'
+Invoke-SqlSlot -Slot $slots[0] -Connection $null -State $state4 | Out-Null
+$verified4 = Test-Verified -State $state4
+$readRow = @($state4.Verification | Where-Object { $_.measured -eq 'read' })[0]
+Write-Result 'A read that stopped early fails verification' (-not $verified4 -and $readRow -and -not $readRow.ok) `
+    (($state4.Verification | ForEach-Object { "$($_.scope): expected $($_.expected), $($_.measured) $($_.atlas)" }) -join ', ')
+$script:SourceRowsBySlot.Remove($sqlIdent)
 
 # ── Reconcile safety: the endpoint refuses what it must ──────────────────────
 foreach ($case in @(

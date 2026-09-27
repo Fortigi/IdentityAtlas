@@ -72,6 +72,8 @@ function New-SqlRunState {
         Contexts        = New-SqlContextCatalog
         # (endpoint, scope) -> what the source said, for Test-SqlRunCounts.
         Expect          = @{}
+        # One entry per statement: rows read against rows the source returns.
+        Reads           = [System.Collections.Generic.List[hashtable]]::new()
         Verification    = $null
         ContextReport   = $null
         Totals          = [ordered]@{}
@@ -310,7 +312,7 @@ function Invoke-SqlSlot {
     $sent = 0
     foreach ($s in $ctx.Streams.Values) { $sent += (Complete-CrawlerIngestStream -Stream $s).sent }
     if ($Slot.target -in $script:SqlBufferedTargets) { $sent += Send-SqlContextBuffer -Slot $Slot -State $State }
-    if ($Slot.target -eq 'assignments') { Add-SqlAssignmentExpectation -Ctx $ctx -Connection $Connection -Rows $rows }
+    Add-SqlReadCheck -Ctx $ctx -Connection $Connection -Rows $rows
     $sw.Stop()
     $note = @()
     if ($ctx.Skipped)  { $note += "$($ctx.Skipped.ToString('N0')) skipped (no id / required columns)" }
@@ -323,20 +325,6 @@ function Invoke-SqlSlot {
     }
     $State.Totals[$Slot.name] = @{ target = $Slot.target; rows = $rows; sent = $sent; skipped = $ctx.Skipped; dangling = $ctx.Dangling; unresolved = $ctx.Unresolved }
     return $State.Totals[$Slot.name]
-}
-
-# An assignment scope is too large to remember keys for; its expectation is the
-# source's own distinct (principal, resource) count, less what was held back.
-function Add-SqlAssignmentExpectation {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)] [hashtable]$Ctx, [AllowNull()] $Connection, [long]$Rows = 0)
-    $expect = $Ctx.Streams.assignment.Expect
-    $expect.Dangling += $Ctx.Dangling
-    if ($Rows -eq 0) { $expect.SourceDistinct = [long]$expect.SourceDistinct; return }
-    $m = Measure-SqlSourceDistinct -Connection $Connection -Slot $Ctx.Slot -Map $Ctx.Map -CommandTimeout $Ctx.State.CommandTimeout
-    if ($null -eq $m.count) { $expect.Unverifiable = $m.reason; return }
-    $expect.SourceDistinct = [long]$expect.SourceDistinct + $m.count
-    Write-Host "  source holds $($m.count.ToString('N0')) distinct (principal, resource) pairs" -ForegroundColor DarkGray
 }
 
 # Full sync only: remove every row of each fed scope that this run did not touch.

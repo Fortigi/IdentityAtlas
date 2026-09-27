@@ -6,11 +6,16 @@
     holds.
 
 .DESCRIPTION
-    The central case is the one that shipped: a principals statement whose id
-    column repeats, eight rows per id. The ingest reported every row as sent and
-    the run reported success while an eighth of the people existed. Here the
-    database count EQUALS what was sent (22,087 of 22,087), and the run must
-    still fail, because the source had eight times as many rows.
+    Two ways a run can load an eighth of its source and still look perfect, and
+    both must fail:
+
+      * The read stops early. This is the one that shipped: the worker's
+        transcript made the crawler skip 7 rows in 8, so 22,087 of 176,703
+        identities arrived, all distinct, and every one landed. The database
+        agrees with what was sent; only the source's own row count disagrees.
+      * The id column repeats, eight rows per id. Every row is sent, but rows
+        sharing an id overwrite each other, so the database again holds exactly
+        the distinct ids and only the crawler's key tally can tell.
 
 .USAGE
     Invoke-Pester -Path test/unit/SqlCrawlerVerify.Tests.ps1 -Output Detailed
@@ -37,22 +42,28 @@ BeforeAll {
         $e.SourceDistinct = $SourceDistinct; $e.Dangling = $Dangling; $e.Slots = $Slots
         return $e
     }
-    # A connection whose command returns $Value from ExecuteScalar (or throws it),
-    # recording the SQL it was given.
-    function New-FakeConnection($Value) {
-        $script:lastSql = $null
+    # A connection whose command answers one row of $Values from ExecuteReader (or
+    # throws $Values when it is an exception), recording the SQL it was given and
+    # whether the reader and command were disposed.
+    function New-FakeConnection($Values) {
+        $script:lastSql = $null; $script:disposed = [System.Collections.Generic.List[string]]::new()
         $conn = [pscustomobject]@{}
         $conn | Add-Member -MemberType ScriptMethod -Name CreateCommand -Value {
             $cmd = [pscustomobject]@{ CommandText = ''; CommandTimeout = 0 }
-            $cmd | Add-Member -MemberType ScriptMethod -Name ExecuteScalar -Value {
+            $cmd | Add-Member -MemberType ScriptMethod -Name ExecuteReader -Value {
                 $script:lastSql = $this.CommandText
-                if ($script:scalar -is [System.Exception]) { throw $script:scalar }
-                $script:scalar
+                $script:lastTimeout = $this.CommandTimeout
+                if ($script:answer -is [System.Exception]) { throw $script:answer }
+                $r = [pscustomobject]@{ Row = $script:answer }
+                $r | Add-Member -MemberType ScriptMethod -Name Read -Value { $true }
+                $r | Add-Member -MemberType ScriptMethod -Name GetValue -Value { param($i) $this.Row[$i] }
+                $r | Add-Member -MemberType ScriptMethod -Name Dispose -Value { $script:disposed.Add('reader') }
+                $r
             }
-            $cmd | Add-Member -MemberType ScriptMethod -Name Dispose -Value { }
+            $cmd | Add-Member -MemberType ScriptMethod -Name Dispose -Value { $script:disposed.Add('command') }
             $cmd
         }
-        $script:scalar = $Value
+        $script:answer = $Values
         return $conn
     }
 }
@@ -107,28 +118,70 @@ Describe 'Get-SqlScopeVerdict — assignment scopes' {
     }
 }
 
-Describe 'Measure-SqlSourceDistinct' {
-    It 'counts distinct (resource, principal) pairs over the statement, quoting the column names' {
-        $conn = New-FakeConnection ([long]321)
-        $slot = @{ paged = $false; sql = 'SELECT a AS [res]], id], b AS p FROM t' }
-        $m = Measure-SqlSourceDistinct -Connection $conn -Slot $slot -Map @{ resourceId = 'res], id'; principalId = 'p' }
-        $m.count | Should -Be 321
-        $script:lastSql | Should -Match '^SELECT COUNT_BIG\(\*\) FROM \(SELECT DISTINCT q\.\[res\]\], id\], q\.\[p\] FROM \('
-        $script:lastSql | Should -Match 'SELECT a AS \[res\]\], id\], b AS p FROM t\s+\) q\) d$'
+Describe 'Get-SqlSourceCountSql' {
+    It 'for an assignment statement, groups by the mapped pair so one pass gives rows and pairs, quoting the column names' {
+        $sql = Get-SqlSourceCountSql -Slot @{ target = 'assignments'; sql = 'SELECT a AS [res]], id], b AS p FROM t' } -Map @{ resourceId = 'res], id'; principalId = 'p' }
+        $sql | Should -Match '^SELECT COALESCE\(SUM\(g\.n\), 0\), COUNT_BIG\(\*\) FROM \(SELECT COUNT_BIG\(\*\) AS n FROM \('
+        $sql | Should -Match 'SELECT a AS \[res\]\], id\], b AS p FROM t\s+\) q GROUP BY q\.\[res\]\], id\], q\.\[p\]\) g$'
     }
 
     It 'falls back to the identityId column for the principal side' {
-        $conn = New-FakeConnection ([long]1)
-        Measure-SqlSourceDistinct -Connection $conn -Slot @{ paged = $false; sql = 'S' } -Map @{ resourceId = 'r'; identityId = 'i' } | Out-Null
-        $script:lastSql | Should -Match 'q\.\[r\], q\.\[i\]'
+        Get-SqlSourceCountSql -Slot @{ target = 'assignments'; sql = 'S' } -Map @{ resourceId = 'r'; identityId = 'i' } | Should -Match 'GROUP BY q\.\[r\], q\.\[i\]\) g$'
     }
 
-    It 'does not attempt a paged statement, a result set with no mapped columns, or survive a failure' {
-        (Measure-SqlSourceDistinct -Connection 'x' -Slot @{ paged = $true; sql = 'S' } -Map @{}).reason | Should -Match '@Offset'
-        (Measure-SqlSourceDistinct -Connection 'x' -Slot @{ paged = $false; sql = 'S' } -Map @{}).reason | Should -Be 'no rows were read'
-        $m = Measure-SqlSourceDistinct -Connection (New-FakeConnection ([System.InvalidOperationException]::new('ORDER BY not allowed'))) -Slot @{ paged = $false; sql = 'S' } -Map @{ resourceId = 'r'; principalId = 'p' }
-        $m.count | Should -BeNullOrEmpty
+    It 'counts rows only for any other target, and for an assignment statement with no map (nothing was read)' {
+        $plain = '^SELECT COUNT_BIG\(\*\), NULL FROM \(\s+S\s+\) q$'
+        Get-SqlSourceCountSql -Slot @{ target = 'principals'; sql = 'S' } -Map @{ resourceId = 'r'; principalId = 'p' } | Should -Match $plain
+        Get-SqlSourceCountSql -Slot @{ target = 'assignments'; sql = 'S' } -Map $null | Should -Match $plain
+        Get-SqlSourceCountSql -Slot @{ target = 'assignments'; sql = 'S' } -Map @{ resourceId = 'r' } | Should -Match $plain
+    }
+}
+
+Describe 'Measure-SqlSource' {
+    It 'returns the source rows and pairs, runs with the command timeout, and disposes reader and command' {
+        $conn = New-FakeConnection @([long]400000, [long]399990)
+        $m = Measure-SqlSource -Connection $conn -Slot @{ target = 'assignments'; paged = $false; sql = 'S' } -Map @{ resourceId = 'r'; principalId = 'p' } -CommandTimeout 77
+        $m.rows | Should -Be 400000
+        $m.pairs | Should -Be 399990
+        $m.reason | Should -BeNullOrEmpty
+        $script:lastTimeout | Should -Be 77
+        @($script:disposed) | Should -Be @('reader', 'command')
+    }
+
+    It 'reports no pairs when the source answers NULL for them' {
+        $m = Measure-SqlSource -Connection (New-FakeConnection @([long]1800, [System.DBNull]::Value)) -Slot @{ target = 'principals'; paged = $false; sql = 'S' } -Map @{}
+        $m.rows | Should -Be 1800
+        $m.pairs | Should -BeNullOrEmpty
+    }
+
+    It 'does not attempt a paged statement or a missing connection, and survives a failure' {
+        (Measure-SqlSource -Connection 'x' -Slot @{ paged = $true; sql = 'S' } -Map @{}).reason | Should -Match '@Offset'
+        (Measure-SqlSource -Connection $null -Slot @{ paged = $false; sql = 'S' } -Map @{}).reason | Should -Match 'no source connection'
+        $m = Measure-SqlSource -Connection (New-FakeConnection ([System.InvalidOperationException]::new('ORDER BY not allowed'))) -Slot @{ paged = $false; sql = 'S' } -Map @{}
+        $m.rows | Should -BeNullOrEmpty
         $m.reason | Should -Match 'ORDER BY not allowed'
+        @($script:disposed) | Should -Be @('command')
+    }
+}
+
+Describe 'Get-SqlReadVerdict' {
+    It 'fails the shipped case: 22,087 rows read of 176,703, although every one of them was distinct and landed' {
+        $v = Get-SqlReadVerdict -Read @{ Slot = 'Identities'; Read = [long]22087; Source = [long]176703 }
+        $v.ok | Should -BeFalse
+        $v.reason | Should -Match 'read 22[.,]087 rows but the source returns 176[.,]703'
+    }
+
+    It 'fails a read of more rows than the source now returns, and passes an exact one' {
+        (Get-SqlReadVerdict -Read @{ Read = [long]11; Source = [long]10 }).ok | Should -BeFalse
+        $ok = Get-SqlReadVerdict -Read @{ Read = [long]10; Source = [long]10 }
+        $ok.ok | Should -BeTrue
+        $ok.reason | Should -BeNullOrEmpty
+    }
+
+    It 'passes an unmeasured read, saying why it was not verified' {
+        $v = Get-SqlReadVerdict -Read @{ Read = [long]5; Source = $null; Reason = 'the statement pages with @Offset' }
+        $v.ok | Should -BeTrue
+        $v.reason | Should -Be 'not verified: the statement pages with @Offset'
     }
 }
 
@@ -138,7 +191,8 @@ Describe 'expectations while streaming' {
         Mock Update-CrawlerProgress { }
     }
 
-    It 'a principals slot whose id repeats records more rows than keys' {
+    It 'a principals slot whose id repeats records more rows than keys, and its read against the source' {
+        Mock Measure-SqlSource { @{ rows = [long]3; pairs = $null; reason = $null } }
         $script:replay = @(
             ([ordered]@{ id = 'a'; display_name = 'A1' }), ([ordered]@{ id = 'a'; display_name = 'A2' }),
             ([ordered]@{ id = 'b'; display_name = 'B' }))
@@ -149,10 +203,14 @@ Describe 'expectations while streaming' {
         $e.Rows | Should -Be 3
         $e.KeySet.Count | Should -Be 2
         $e.Slots | Should -Be 1
+        $state.Reads.Count | Should -Be 1
+        $state.Reads[0].Slot | Should -Be 'P'
+        $state.Reads[0].Read | Should -Be 3
+        $state.Reads[0].Source | Should -Be 3
     }
 
-    It 'an assignment slot takes the source distinct count and its dangling rows; an empty one expects zero' {
-        Mock Measure-SqlSourceDistinct { @{ count = [long]7; reason = $null } }
+    It 'an assignment slot takes the source distinct pairs and its dangling rows from the one measurement' {
+        Mock Measure-SqlSource { @{ rows = [long]9; pairs = [long]7; reason = $null } }
         $script:replay = @(([ordered]@{ principalId = 'p1'; resourceId = 'r1' }), ([ordered]@{ principalId = 'p1'; resourceId = 'r1' }))
         Mock Invoke-SqlQueryStream { foreach ($r in $script:replay) { & $OnRow $r }; [long]2 }
         $state = New-State
@@ -161,13 +219,27 @@ Describe 'expectations while streaming' {
         $e = $state.Expect['ingest/resource-assignments|assignmentType=Direct;governed=False;resourceType=Entitlement']
         $e.SourceDistinct | Should -Be 7
         $e.Dangling | Should -Be 0
-        Should -Invoke Measure-SqlSourceDistinct -Times 1 -Exactly
+        $state.Reads[0].Source | Should -Be 9
+        Should -Invoke Measure-SqlSource -Times 1 -Exactly
+    }
 
+    It 'an empty assignment read still asks the source, so a read that returned nothing cannot pass for an empty table' {
+        Mock Measure-SqlSource { @{ rows = [long]400; pairs = $null; reason = $null } }
         Mock Invoke-SqlQueryStream { [long]0 }
-        $empty = New-State
-        Invoke-SqlSlot -Slot $slot -Connection 'c' -State $empty | Out-Null
-        $empty.Expect.Values[0].SourceDistinct | Should -Be 0
-        Should -Invoke Measure-SqlSourceDistinct -Times 1 -Exactly -Because 'an empty result needs no source count'
+        $state = New-State
+        Invoke-SqlSlot -Slot @{ name = 'G'; target = 'assignments'; resourceType = 'Entitlement'; assignmentType = 'Direct'; governed = $false; sql = 'S'; paged = $false } -Connection 'c' -State $state | Out-Null
+        $state.Expect.Values[0].SourceDistinct | Should -Be 0
+        $state.Reads[0].Read | Should -Be 0
+        $state.Reads[0].Source | Should -Be 400
+        (Get-SqlReadVerdict -Read $state.Reads[0]).ok | Should -BeFalse
+    }
+
+    It 'an assignment read the source could not count leaves the scope unverified with the reason' {
+        Mock Measure-SqlSource { @{ rows = $null; pairs = $null; reason = 'the statement pages with @Offset' } }
+        Mock Invoke-SqlQueryStream { & $OnRow ([ordered]@{ principalId = 'p1'; resourceId = 'r1' }); [long]1 }
+        $state = New-State
+        Invoke-SqlSlot -Slot @{ name = 'G'; target = 'assignments'; resourceType = 'Entitlement'; assignmentType = 'Direct'; governed = $false; sql = 'S'; paged = $true } -Connection 'c' -State $state | Out-Null
+        $state.Expect.Values[0].Unverifiable | Should -Be 'the statement pages with @Offset'
     }
 }
 
@@ -198,8 +270,32 @@ Describe 'Test-SqlRunCounts' {
         $p.Rows = 176696
         $a = Get-SqlExpectation -State $state -Key 'a' -Endpoint 'ingest/resource-assignments' -Scope @{}
         $a.SourceDistinct = 22087; $a.Slots = 1
-        { Test-SqlRunCounts -State $state } | Should -Throw '*Verification failed for 1 of 2 scope(s): principals (principalType=User): expected 22087, database 22087*'
+        { Test-SqlRunCounts -State $state } | Should -Throw '*Verification failed for 1 of 2 check(s): principals (principalType=User): expected 22087, database 22087*'
         @($state.Verification).Count | Should -Be 2
+    }
+
+    It 'fails a read that stopped early even when every scope agrees with the database' {
+        Mock Invoke-IngestAPI { @{ count = 22087 } }
+        Mock Update-CrawlerProgress { }
+        $state = New-State
+        $p = Get-SqlExpectation -State $state -Key 'p' -Endpoint 'ingest/principals' -Scope @{ principalType = 'User' }
+        for ($i = 0; $i -lt 22087; $i++) { [void]$p.KeySet.Add("$i") }
+        $p.Rows = 22087
+        $state.Reads.Add(@{ Slot = 'Identities'; Read = [long]22087; Source = [long]176703; Reason = $null })
+        { Test-SqlRunCounts -State $state } | Should -Throw '*Verification failed for 1 of 2 check(s): read: Identities: expected 176703, read 22087*'
+        $state.Verification[0].scope | Should -Be 'read: Identities'
+        $state.Verification[1].ok | Should -BeTrue -Because 'the database does hold everything that was read'
+    }
+
+    It 'verifies reads alone when no scope was fed' {
+        Mock Invoke-IngestAPI { throw 'must not be called' }
+        Mock Update-CrawlerProgress { }
+        $state = New-State
+        $state.Reads.Add(@{ Slot = 'Apps'; Read = [long]15; Source = [long]15; Reason = $null })
+        $r = @(Test-SqlRunCounts -State $state)
+        $r.Count | Should -Be 1
+        $r[0].ok | Should -BeTrue
+        $r[0].measured | Should -Be 'read'
     }
 
     It 'does nothing when no scope was fed' {

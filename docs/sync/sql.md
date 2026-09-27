@@ -151,25 +151,42 @@ How a mapping behaves:
 
 ## Verification: source against database
 
-Every run ends by checking what the source returned against what Identity Atlas now
-holds, one reconcile scope at a time (principals of a type, resources of a type,
-assignments of a type, relationships of a type). The counts come from the database,
-not from the ingest's own inserted/updated totals: rows that share a key collapse into
-one row but would still be counted as sent.
+Every run ends with two checks, and each one catches a failure the other cannot see.
 
-| Scope | Expected |
+**Did the crawler read everything?** After each statement the crawler asks SQL Server
+how many rows the statement returns, and compares that with the rows it read. A read
+that stops early looks exactly like one that finished: every row that did arrive is
+distinct, lands, and agrees with the database. Only the source's own count shows the
+gap. This check found a defect in which a worker job read 22,087 of 176,703
+identities and reported success. For an assignment statement the same query also
+returns the distinct (resource, principal) pairs, so the largest table is scanned once
+more, not twice.
+
+**Did everything read reach the database?** Then, one reconcile scope at a time
+(principals of a type, resources of a type, assignments of a type, relationships of a
+type), what was read is compared with what Identity Atlas now holds. The counts come
+from the database, not from the ingest's own inserted/updated totals: rows that share a
+key collapse into one row but would still be counted as sent.
+
+| Check | Expected |
 |---|---|
+| Read, per statement | The rows `SELECT COUNT_BIG(*)` over the statement returns, asked right after the read. A source that changes during the run can also make these differ; re-run to tell the two apart |
 | Principals, resources, relationships | The number of **distinct** keys the statement returned. If it returned more rows than distinct keys, the run fails: rows sharing an id overwrite each other, so all but one of them are lost. Make the id column unique |
-| Assignments | The source's own `COUNT(DISTINCT resource, principal)` over the statement, run after the slot. Rows held back as dangling make this a range rather than an exact number. A statement that pages with `@Offset` cannot be wrapped for this count and is reported as not verified |
+| Assignments | The source's distinct (resource, principal) pairs. Rows held back as dangling make this a range rather than an exact number |
+
+A statement that pages with `@Offset` cannot be wrapped in a count, so its read and its
+assignment scope are reported as not verified rather than guessed at.
 
 The job log ends with a table like this, and **any `FAIL` fails the job**:
 
 ```
 Verifying: source against database...
-  ok   resources (resourceType=Entitlement)        expected       80,000  database       80,000
-  FAIL principals (principalType=User)             expected       22,087  database       22,087
-       the source returned 176,696 rows for only 22,087 distinct ids; rows sharing an id
-       overwrite each other, so 154,609 were lost. Make the id column unique
+  FAIL read: Identities                               expected      176,703  read           22,087
+       the crawler read 22,087 rows but the source returns 176,703. Either the read
+       stopped early or the source changed during the run; ...
+  ok   read: Entitlements                             expected       80,000  read           80,000
+  ok   resources (resourceType=Entitlement)           expected       80,000  database       80,000
+  ok   principals (principalType=User)                expected       22,087  database       22,087
 ```
 
 The data that did load stays loaded; the failure tells you the load is incomplete. A

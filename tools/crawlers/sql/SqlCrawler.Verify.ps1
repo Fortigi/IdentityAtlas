@@ -14,9 +14,14 @@
         (principals, resources, relationships) remembers how many rows it saw and
         how many DISTINCT keys. Rows > keys means the source returned several rows
         per id; only one of each can survive, and the run fails naming the count.
+      * After every statement the crawler asks the SOURCE how many rows the
+        statement returns (Measure-SqlSource). Rows read must equal it. This is
+        the check that sees a read which stopped early: every count below only
+        knows what arrived. It was missing when a job read 22,087 of 176,703
+        identities, all distinct, all landed, and verified perfectly.
       * An assignment scope can hold tens of millions of rows, so instead of
-        remembering keys the crawler asks the SOURCE for its distinct
-        (principal, resource) count after the slot.
+        remembering keys the same source query returns its distinct
+        (principal, resource) count, in the same pass.
       * After the run, POST /ingest/count gives each scope's live rows that this
         run touched, counted in the database. Anything other than the expected
         count fails the job, with a table saying which scope and by how much.
@@ -58,26 +63,74 @@ function Add-SqlExpectedKey {
     [void]$Expectation.KeySet.Add($Key)
 }
 
-# The statement's distinct (principal, resource) pairs, counted by SQL Server.
-# A paged statement carries ORDER BY … OFFSET, which cannot be wrapped as a
-# derived table, so it is reported as unverifiable rather than guessed at.
-function Measure-SqlSourceDistinct {
+# What SQL Server says the statement returns, asked after the read: its row
+# count and, for an assignment statement, its distinct (principal, resource)
+# pairs, both from ONE pass (a GROUP BY whose groups are the pairs and whose
+# sizes sum to the rows), so a 40-million-row statement is scanned once more,
+# not twice. The row count is what catches a read that stopped early: the
+# crawler's own tallies only know what arrived. A paged statement carries
+# ORDER BY … OFFSET, which cannot be wrapped as a derived table, so it is
+# reported as unverifiable rather than guessed at.
+function Get-SqlSourceCountSql {
     [CmdletBinding()]
-    param([AllowNull()] $Connection, [Parameter(Mandatory)] [hashtable]$Slot, [Parameter(Mandatory)] [hashtable]$Map, [int]$CommandTimeout = 600)
-    if ($Slot.paged) { return @{ count = $null; reason = 'the statement pages with @Offset' } }
-    if ($null -eq $Connection) { return @{ count = $null; reason = 'there is no source connection' } }
+    [OutputType([string])]
+    param([Parameter(Mandatory)] [hashtable]$Slot, [AllowNull()] [hashtable]$Map)
+    $inner = "(`n$($Slot.sql)`n) q"
     $p = if ($Map.principalId) { $Map.principalId } else { $Map.identityId }
-    if (-not $Map.resourceId -or -not $p) { return @{ count = $null; reason = 'no rows were read' } }
-    # A count that cannot run leaves the scope unverified; it never fails the load.
-    $cmd = $null
+    if ($Slot.target -ne 'assignments' -or -not $Map.resourceId -or -not $p) { return "SELECT COUNT_BIG(*), NULL FROM $inner" }
+    return "SELECT COALESCE(SUM(g.n), 0), COUNT_BIG(*) FROM (SELECT COUNT_BIG(*) AS n FROM $inner GROUP BY q.[$($Map.resourceId -replace '\]', ']]')], q.[$($p -replace '\]', ']]')]) g"
+}
+
+function Measure-SqlSource {
+    [CmdletBinding()]
+    param([AllowNull()] $Connection, [Parameter(Mandatory)] [hashtable]$Slot, [AllowNull()] [hashtable]$Map, [int]$CommandTimeout = 600)
+    if ($Slot.paged) { return @{ rows = $null; pairs = $null; reason = 'the statement pages with @Offset' } }
+    if ($null -eq $Connection) { return @{ rows = $null; pairs = $null; reason = 'there is no source connection' } }
+    # A count that cannot run leaves the slot unverified; it never fails the load.
+    # The reader stays inside this function: see "NEVER PASS THE READER".
+    $cmd = $null; $reader = $null
     try {
         $cmd = $Connection.CreateCommand()
-        $cmd.CommandText = "SELECT COUNT_BIG(*) FROM (SELECT DISTINCT q.[$($Map.resourceId -replace '\]', ']]')], q.[$($p -replace '\]', ']]')] FROM (`n$($Slot.sql)`n) q) d"
+        $cmd.CommandText = Get-SqlSourceCountSql -Slot $Slot -Map $Map
         $cmd.CommandTimeout = $CommandTimeout
-        return @{ count = [long]$cmd.ExecuteScalar(); reason = $null }
+        $reader = $cmd.ExecuteReader()
+        [void]$reader.Read()
+        $pairs = $reader.GetValue(1)
+        return @{ rows = [long]$reader.GetValue(0); pairs = $(if ($pairs -is [System.DBNull] -or $null -eq $pairs) { $null } else { [long]$pairs }); reason = $null }
     } catch {
-        return @{ count = $null; reason = "the source count failed: $($_.Exception.GetBaseException().Message)" }
-    } finally { if ($cmd) { $cmd.Dispose() } }
+        return @{ rows = $null; pairs = $null; reason = "the source count failed: $($_.Exception.GetBaseException().Message)" }
+    } finally {
+        if ($reader) { $reader.Dispose() }
+        if ($cmd) { $cmd.Dispose() }
+    }
+}
+
+# After each statement: measure the source once, record whether the read was
+# complete, and give an assignment scope its expectation from the same answer.
+function Add-SqlReadCheck {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable]$Ctx, [AllowNull()] $Connection, [long]$Rows = 0)
+    $m = Measure-SqlSource -Connection $Connection -Slot $Ctx.Slot -Map $Ctx.Map -CommandTimeout $Ctx.State.CommandTimeout
+    $Ctx.State.Reads.Add(@{ Slot = $Ctx.Slot.name; Read = $Rows; Source = $m.rows; Reason = $m.reason })
+    if ($null -ne $m.rows) {
+        $pairs = if ($null -ne $m.pairs) { ", $($m.pairs.ToString('N0')) distinct (principal, resource) pairs" }
+        Write-Host "  source returns $($m.rows.ToString('N0')) rows$pairs" -ForegroundColor DarkGray
+    }
+    if ($Ctx.Slot.target -eq 'assignments') { Add-SqlAssignmentExpectation -Ctx $Ctx -Measure $m -Rows $Rows }
+}
+
+# An assignment scope is too large to remember keys for; its expectation is the
+# source's own distinct (principal, resource) count, less what was held back.
+function Add-SqlAssignmentExpectation {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable]$Ctx, [Parameter(Mandatory)] [hashtable]$Measure, [long]$Rows = 0)
+    $expect = $Ctx.Streams.assignment.Expect
+    $expect.Dangling += $Ctx.Dangling
+    # Nothing arrived: the scope expects nothing. Whether the source agrees is the
+    # read check's question, not this one's.
+    if ($Rows -eq 0) { $expect.SourceDistinct = [long]$expect.SourceDistinct; return }
+    if ($null -eq $Measure.pairs) { $expect.Unverifiable = $Measure.reason; return }
+    $expect.SourceDistinct = [long]$expect.SourceDistinct + $Measure.pairs
 }
 
 #endregion Expectations
@@ -114,6 +167,18 @@ function Get-SqlScopeVerdict {
     return @{ ok = $true; expected = $expected; atlas = $Atlas; reason = 'within range (dangling rows or overlapping statements make it inexact)' }
 }
 
+# One statement's read against what the source returns. The database counts
+# above cannot see a read that stopped early: 22,087 rows that all arrive, all
+# distinct, all land, verify perfectly against themselves. Pure.
+function Get-SqlReadVerdict {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable]$Read)
+    if ($null -eq $Read.Source) { return @{ ok = $true; reason = "not verified: $($Read.Reason)" } }
+    if ($Read.Read -eq $Read.Source) { return @{ ok = $true; reason = $null } }
+    return @{ ok = $false
+              reason = "the crawler read $($Read.Read.ToString('N0')) rows but the source returns $(([long]$Read.Source).ToString('N0')). Either the read stopped early or the source changed during the run; a partial read cannot be told apart from a finished one by the rows alone" }
+}
+
 function Format-SqlScopeLabel {
     [CmdletBinding()]
     [OutputType([string])]
@@ -122,31 +187,45 @@ function Format-SqlScopeLabel {
     return "$($Expectation.Endpoint -replace '^ingest/', '')$(if ($scope) { " ($scope)" })"
 }
 
-# Count every scope in the database and compare. Throws when any scope fails,
-# after printing the whole table, so a partial load can never report success.
+# One line of the verification table, printed and returned as a result row.
+# $Measured names what $Actual is: 'database' for a scope, 'read' for a statement.
+function Write-SqlVerdictLine {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [string]$Label, [Parameter(Mandatory)] [hashtable]$Verdict, [AllowNull()] $Expected, [long]$Actual, [string]$Measured = 'database')
+    $v = $Verdict
+    $exp = if ($null -ne $Expected) { ([long]$Expected).ToString('N0') } else { '-' }
+    $line = "  {0,-4} {1,-48} expected {2,12}  {3,-8} {4,12}" -f $(if ($v.ok) { 'ok' } else { 'FAIL' }), $Label, $exp, $Measured, $Actual.ToString('N0')
+    Write-Host $line -ForegroundColor $(if ($v.ok) { 'Gray' } else { 'Red' })
+    if ($v.reason) { Write-Host "       $($v.reason)" -ForegroundColor $(if ($v.ok) { 'DarkGray' } else { 'Red' }) }
+    return [pscustomobject]@{ scope = $Label; ok = $v.ok; expected = $Expected; atlas = $Actual; measured = $Measured; reason = $v.reason }
+}
+
+# Check every statement's read against the source, then count every scope in the
+# database and compare. Throws when anything fails, after printing the whole
+# table, so a partial load can never report success.
 function Test-SqlRunCounts {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$State)
-    if ($State.Expect.Count -eq 0) { return @() }
+    if ($State.Expect.Count -eq 0 -and $State.Reads.Count -eq 0) { return @() }
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Verifying: source against database..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Verifying counts' -Pct 93
-    $results = foreach ($e in $State.Expect.Values) {
+    $results = [System.Collections.Generic.List[object]]::new()
+    foreach ($read in $State.Reads) {
+        $results.Add((Write-SqlVerdictLine -Label "read: $($read.Slot)" -Verdict (Get-SqlReadVerdict -Read $read) -Expected $read.Source -Actual $read.Read -Measured 'read'))
+    }
+    foreach ($e in $State.Expect.Values) {
         $entity = $e.Endpoint -replace '^ingest/', ''
         $r = Invoke-IngestAPI -Endpoint 'ingest/count' -Body @{ entity = $entity; systemId = $State.SystemId; scope = $e.Scope; before = $State.ServerTime }
         $v = Get-SqlScopeVerdict -Expectation $e -Atlas ([long]$r.count)
-        $label = Format-SqlScopeLabel -Expectation $e
-        $exp = if ($null -ne $v.expected) { $v.expected.ToString('N0') } else { '-' }
-        $line = "  {0,-4} {1,-48} expected {2,12}  database {3,12}" -f $(if ($v.ok) { 'ok' } else { 'FAIL' }), $label, $exp, $v.atlas.ToString('N0')
-        Write-Host $line -ForegroundColor $(if ($v.ok) { 'Gray' } else { 'Red' })
-        if ($v.reason) { Write-Host "       $($v.reason)" -ForegroundColor $(if ($v.ok) { 'DarkGray' } else { 'Red' }) }
-        [pscustomobject]@{ scope = $label; ok = $v.ok; expected = $v.expected; atlas = $v.atlas; reason = $v.reason }
+        $results.Add((Write-SqlVerdictLine -Label (Format-SqlScopeLabel -Expectation $e) -Verdict $v -Expected $v.expected -Actual $v.atlas))
     }
-    $State.Verification = @($results)
+    $results = $results.ToArray()
+    $State.Verification = $results
     $failed = @($results | Where-Object { -not $_.ok })
     if ($failed.Count) {
-        throw "Verification failed for $($failed.Count) of $(@($results).Count) scope(s): $(($failed | ForEach-Object { "$($_.scope): expected $($_.expected), database $($_.atlas)" }) -join '; ')"
+        throw "Verification failed for $($failed.Count) of $($results.Count) check(s): $(($failed | ForEach-Object { "$($_.scope): expected $($_.expected), $($_.measured) $($_.atlas)" }) -join '; ')"
     }
-    return @($results)
+    return $results
 }
 
 #endregion Verdict
