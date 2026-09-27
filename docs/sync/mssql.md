@@ -624,6 +624,11 @@ What this means in practice:
 - It is further scoped to the statement's **type constants**: an `Entitlement`
   assignment statement can never delete `BusinessRole` assignments, a `Direct` statement
   never deletes `Eligible` rows.
+- **Contexts** (a catalogue such as logical applications) are this system's only: a full
+  sync removes a catalogue entry that left the source, and never another source's contexts,
+  a manual tag or a generated context. **A membership an analyst added by hand is never
+  removed**, even on one of this crawler's own contexts: a sync removes only memberships it
+  added. See [Ingest API: contexts and context members](../architecture/ingest-api.md#contexts-and-context-members-owned-not-system-scoped).
 - **Identities and IdentityMembers are never deleted** by this crawler. They have no owning
   system, so — as for midPoint and CSV — they are upsert-only. Accounts (Principals) *are*
   reconciled.
