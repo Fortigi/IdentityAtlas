@@ -7,10 +7,10 @@
       1. Generate the 1.5M-row synthetic CSV dataset
       2. Create a dedicated CSV crawler config + API key
       3. Run Start-CSVCrawler.ps1 to ingest all data
-      4. Poll dashboard-stats until assignments reach expected count
+      4. Check the stored counts (exact, not the dashboard estimate)
       5. Refresh materialized views and assert success
       6. Run the benchmark suite against the loaded data
-      7. Assert dashboard-stats counts match expected minimums
+      7. Assert the stored assignment count equals the distinct keys generated
 
     Designed to be called from Run-NightlyLocal.ps1 with a WriteResult callback.
     Runs LAST in the integration phases because it takes 15-30 minutes and
@@ -122,16 +122,41 @@ function Invoke-LoadTestIngest {
     }
 }
 
-# ─── 3. Verify dashboard counts ─────────────────────────────────
-function Test-LoadTestDashboardCounts {
-    Write-Host "  Step 3: Verifying dashboard counts..." -ForegroundColor Cyan
+# ─── 3. Verify stored counts ────────────────────────────────────
+# Distinct (resource, user, assignmentType) keys in the generated file: the
+# random generator repeats a few, and the ingest upsert collapses those.
+function Get-ExpectedAssignmentCount {
+    param([string]$DataFolder)
+    $keys = [System.Collections.Generic.HashSet[string]]::new()
+    $first = $true
+    foreach ($line in [System.IO.File]::ReadLines((Join-Path $DataFolder 'Assignments.csv'))) {
+        if ($first) { $first = $false; continue }
+        $p = $line.Split(';')
+        [void]$keys.Add("$($p[0]);$($p[1]);$($p[2])")
+    }
+    return $keys.Count
+}
+
+# Exact counts, not the dashboard's. /admin/dashboard-stats returns
+# pg_class.reltuples for the big tables: an ANALYZE estimate, deliberately so
+# (see dashboard.js). A lower bound asserted against it passes or fails on when
+# ANALYZE last ran, not on what was stored: once the matrix refresh (and its
+# closing ANALYZE) moved to the background, it read 1,370,145 where 1,499,943
+# were expected. GET /systems counts rows per system with COUNT(*).
+function Test-LoadTestStoredCounts {
+    param([string]$DataFolder)
+    Write-Host "  Step 3: Verifying stored counts..." -ForegroundColor Cyan
     try {
-        $stats = Invoke-LocalApi -Path '/admin/dashboard-stats'
-        $ok = $stats.assignments -ge 1400000
-        Write-Result 'LoadTest/AssignmentCount' $ok "assignments=$($stats.assignments) (expected >=1,400,000)"
-        Write-Result 'LoadTest/UserCount' ($stats.principals -ge 75000) "principals=$($stats.principals)"
-        Write-Result 'LoadTest/ResourceCount' ($stats.resources -ge 75000) "resources=$($stats.resources)"
-        Write-Result 'LoadTest/SystemCount' ($stats.systems -ge 20) "systems=$($stats.systems)"
+        $systems = @(Invoke-LocalApi -Path '/systems')
+        $sum = { param($field) ($systems | Measure-Object -Property $field -Sum).Sum }
+        $assignments = [long](& $sum 'assignmentCount')
+        $principals = [long](& $sum 'principalCount')
+        $resources = [long](& $sum 'resourceCount')
+        $expected = Get-ExpectedAssignmentCount -DataFolder $DataFolder
+        Write-Result 'LoadTest/AssignmentCount' ($assignments -eq $expected) "assignments=$assignments (expected exactly $expected)"
+        Write-Result 'LoadTest/UserCount' ($principals -ge 75000) "principals=$principals"
+        Write-Result 'LoadTest/ResourceCount' ($resources -ge 75000) "resources=$resources"
+        Write-Result 'LoadTest/SystemCount' ($systems.Count -ge 20) "systems=$($systems.Count)"
     } catch {
         Write-Result 'LoadTest/AssignmentCount' $false $_.Exception.Message
     }
@@ -175,7 +200,7 @@ function Invoke-LoadTestBenchmark {
     try {
         $benchLogFolder = Join-Path $LogFolder 'benchmark'
         if (-not (Test-Path $benchLogFolder)) { New-Item -ItemType Directory -Path $benchLogFolder -Force | Out-Null }
-        & $BenchmarkScript -ApiBaseUrl $ApiBaseUrl -OutputFolder $benchLogFolder -ErrorAction Stop
+        & $BenchmarkScript -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -OutputFolder $benchLogFolder -ErrorAction Stop
         Write-Result 'LoadTest/BenchmarkCompleted' $true ''
     } catch {
         Write-Result 'LoadTest/BenchmarkCompleted' $false $_.Exception.Message
@@ -212,7 +237,7 @@ function Invoke-LoadAndBenchmark {
     Invoke-LoadTestIngest -DataFolder $dataFolder -CrawlerScript $crawlerScript
     if ($script:loadTestAborted) { $script:loadTestExitCode = 1; return }
 
-    Test-LoadTestDashboardCounts
+    Test-LoadTestStoredCounts -DataFolder $dataFolder
     Test-LoadTestViewRefresh
     Test-LoadTestMatrixPerformance
     Invoke-LoadTestBenchmark -BenchmarkScript $benchmarkScript

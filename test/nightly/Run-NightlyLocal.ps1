@@ -1072,11 +1072,12 @@ function Invoke-Phase4jRiskScoringLLM {
 # stored baseline, and writes test/benchmark/results/BENCHMARK.md.
 # Fails the phase if any endpoint regresses more than 25%.
 function Invoke-Phase4kBenchmark {
+    param($ApiKey)
     Write-Phase "Phase 4k: API Benchmark (regression check)"
     $benchScript = Join-Path $RepoRoot 'test/benchmark/Run-Benchmark.ps1'
     if (Test-Path $benchScript) {
         try {
-            & $benchScript -ApiBaseUrl $apiBaseUrl `
+            & $benchScript -ApiBaseUrl $apiBaseUrl -ApiKey $ApiKey `
                 -OutputFolder (Join-Path $LogFolder 'benchmark') `
                 -BaselineFile (Join-Path $RepoRoot 'test/benchmark/baseline.json') `
                 -Runs 5 -RegressionPct 25 -FailOnRegression 2>&1 |
@@ -1157,7 +1158,7 @@ function Invoke-Phase4Integration {
         Invoke-Phase4hLlmSubstrate
         Invoke-Phase4iRiskScoring
         Invoke-Phase4jRiskScoringLLM
-        Invoke-Phase4kBenchmark
+        Invoke-Phase4kBenchmark $builtinApiKey
     }
 
     Invoke-Phase4lLoadTest $builtinApiKey

@@ -786,7 +786,7 @@ jobs:
         run: |
           $benchScript = 'test/benchmark/Run-Benchmark.ps1'
           if (Test-Path $benchScript) {
-            & $benchScript -ApiBaseUrl http://localhost:3001/api
+            & $benchScript -ApiBaseUrl http://localhost:3001/api -ApiKey '${{ steps.apikey.outputs.key }}'
           } else {
             Write-Host "Benchmark script not found — skipping"
           }
