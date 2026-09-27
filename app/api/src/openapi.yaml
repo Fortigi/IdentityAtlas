@@ -288,6 +288,37 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /ingest/count:
+    post:
+      tags: [Ingest]
+      summary: Count the rows a run touched, for end-of-run verification
+      operationId: countTouched
+      description: >-
+        Counts the live rows of the given system and scope that an ingest has
+        touched since `before`, in the database rather than from the ingest's own
+        inserted/updated totals, which count every record sent even when several
+        share a key. A streaming crawler calls it once per scope after its run and
+        fails the job when the count differs from what the source returned. Same
+        request shape and refusals as POST /ingest/reconcile; pass the run's
+        `serverTime` from GET /crawlers/whoami as `before`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconcileRequest'
+      responses:
+        '200':
+          description: Count result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CountResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /ingest/stages:
     post:
       tags: [Ingest]
@@ -2484,6 +2515,18 @@ components:
         deleted:
           type: integer
         before:
+          type: string
+          format: date-time
+
+    CountResult:
+      type: object
+      properties:
+        table:
+          type: string
+        count:
+          type: integer
+          description: Live rows of the system and scope touched since `since`
+        since:
           type: string
           format: date-time
 
