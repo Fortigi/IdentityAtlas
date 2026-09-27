@@ -28,6 +28,8 @@ export default defineConfig({
       '../desktop/*.test.js',
       // The scale test fixture generator (plain Node developer tool) — see tools/scale-dataset/.
       '../../tools/scale-dataset/*.test.js',
+      // The IdentityIQ-shaped SQL Server fixture generator — see tools/iiq-fixture/.
+      '../../tools/iiq-fixture/*.test.js',
     ],
     coverage: {
       provider: 'v8',

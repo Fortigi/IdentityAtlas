@@ -44,7 +44,8 @@ export class CsvWriter {
     this.delimiter = delimiter;
     this.rows = 0;
     this.bytes = 0;
-    this.buffer = (bom ? '﻿' : '') + formatRow(header, delimiter);
+    // header null: a headerless file (the IdentityIQ fixture's bcp records).
+    this.buffer = (bom ? '﻿' : '') + (header ? formatRow(header, delimiter) : '');
     this.stream = fs.createWriteStream(path, { encoding: 'utf8', highWaterMark: 4 * CHUNK });
     this.failed = null;
     this.stream.on('error', (err) => { this.failed = err; });

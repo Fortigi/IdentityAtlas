@@ -49,7 +49,7 @@ export async function writeSystems(plan, dir, opts) {
 }
 
 // Owner of a logical application: an enabled principal, deterministically chosen.
-function enabledPrincipalNear(plan, start) {
+export function enabledPrincipalNear(plan, start) {
   const n = plan.enabled.length;
   for (let k = 0; k < n; k++) {
     const i = (start + k) % n;
@@ -110,7 +110,7 @@ export function principalDisplayName(plan, i) {
 
 // The first ~8% of principals are the manager pool; everyone reports to an
 // earlier member of it, so the hierarchy has no cycles.
-function managerOf(i, poolSize, key) {
+export function managerOf(i, poolSize, key) {
   if (i === 0) return -1;
   return fmix32((i ^ key) >>> 0) % Math.min(i, poolSize);
 }
