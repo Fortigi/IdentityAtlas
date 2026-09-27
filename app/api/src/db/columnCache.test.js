@@ -587,3 +587,33 @@ describe('discoverExtendedAttrValues — key cap', () => {
     expect(queryMock).not.toHaveBeenCalled();
   });
 });
+
+// discoverExtendedAttrKeys is no longer part of the value preload — the keys
+// now fall out of the same pass as the values — but it is still the report
+// builder's field catalog (nlreports/extFields.js), which mocks it. Nothing
+// else pins its SQL, so this does.
+describe('discoverExtendedAttrKeys — the shared field catalog', () => {
+  it('asks for the most frequent scalar, safe-named keys and binds the cap', async () => {
+    queryMock.mockResolvedValue({ rows: [{ key: 'userType' }, { key: 'costCenter' }] });
+    const mod = await freshModule();
+
+    expect(await mod.discoverExtendedAttrKeys('Identities', 25)).toEqual(['userType', 'costCenter']);
+    const [sql, params] = queryMock.mock.calls[0];
+    expect(sql).toMatch(/FROM "Identities", jsonb_object_keys/);
+    expect(sql).toMatch(/jsonb_typeof.*IN \('string', 'number', 'boolean'\)/);
+    expect(sql).toMatch(/GROUP BY key\s+ORDER BY COUNT\(\*\) DESC, key\s+LIMIT \$1/);
+    expect(params).toEqual([25]);
+  });
+
+  it('drops an unsafe key the SQL guard somehow let through', async () => {
+    queryMock.mockResolvedValue({ rows: [{ key: 'userType' }, { key: "bad'; DROP" }] });
+    const mod = await freshModule();
+    expect(await mod.discoverExtendedAttrKeys('Principals')).toEqual(['userType']);
+  });
+
+  it('refuses an unsafe table name', async () => {
+    const mod = await freshModule();
+    await expect(mod.discoverExtendedAttrKeys('Principals"; DROP')).rejects.toThrow(/Invalid table name/);
+    expect(queryMock).not.toHaveBeenCalled();
+  });
+});
