@@ -18,7 +18,7 @@
     Rows stream straight from a SqlDataReader into chunked delta upserts, so a
     40-million-row table costs one batch of memory. A full sync ends with a
     timestamp reconcile per (endpoint, scope) — POST /ingest/reconcile — instead of
-    a sync session. See tools/crawlers/sql/CLAUDE.md and docs/sync/sql.md.
+    a sync session. See tools/crawlers/mssql/CLAUDE.md and docs/sync/sql.md.
 
 .PARAMETER ApiBaseUrl
     Identity Atlas API base URL (e.g. http://web:3001/api).

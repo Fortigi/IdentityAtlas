@@ -1,7 +1,7 @@
 # SQL Connector: Delta Loading (design)
 
 !!! warning "Design, not yet built"
-    This page is the plan for incremental loads through the [SQL connector](../sync/sql.md).
+    This page is the plan for incremental loads through the [SQL connector](../sync/mssql.md).
     Several of its steps depend on how the source records changes. Those are written down
     as **assumptions** (A1–A9) with the discovery query that settles each one and what
     changes if it turns out false. Nothing here is implemented until the assumptions it
@@ -52,7 +52,7 @@ touches almost nothing.
   **overlap** (A3). It is taken from the rows read, so no extra query is needed and it
   works for any statement.
 - **When it is stored:** only after the whole run succeeded, *including*
-  [verification](../sync/sql.md#verification-source-against-database). A failed or
+  [verification](../sync/mssql.md#verification-source-against-database). A failed or
   unverified run re-reads the same window next time. Upserts are idempotent, so a
   re-read costs time, never correctness.
 - **No token** (first run, edited statement, or "Force full sync next run" via

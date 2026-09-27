@@ -1,5 +1,5 @@
 {
-  "type": "sql",
+  "type": "mssql",
   "displayName": "SQL Database",
   "entryPoint": "Start-SqlCrawler.ps1",
   "dependsOn": [],

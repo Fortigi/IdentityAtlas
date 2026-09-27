@@ -1,7 +1,7 @@
 #Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0.0' }
 <#
 .SYNOPSIS
-    Pester unit tests for tools/crawlers/sql/SqlCrawler.Phases.ps1.
+    Pester unit tests for tools/crawlers/mssql/SqlCrawler.Phases.ps1.
 
 .DESCRIPTION
     The two boundaries are mocked — Invoke-SqlQueryStream (replays canned rows
@@ -17,7 +17,7 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-    $sqlDir = Join-Path $script:repoRoot 'tools' 'crawlers' 'sql'
+    $sqlDir = Join-Path $script:repoRoot 'tools' 'crawlers' 'mssql'
     $script:ApiBaseUrl = 'http://localhost:3001/api'
     $script:ApiKey     = 'fgc_test'
     $script:JobId      = 0

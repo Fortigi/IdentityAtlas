@@ -15,7 +15,7 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CRAWLER_TYPE = 'sql';
+const CRAWLER_TYPE = 'mssql';
 
 // SQL authentication is a login + password — exactly the pair the shared
 // BasicAuth credential set collects and vaults. There is no authMethod field in

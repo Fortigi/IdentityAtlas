@@ -2,7 +2,7 @@
 
 A SQL Server database shaped like a SailPoint IdentityIQ (`spt_*`) schema,
 filled with synthetic data at realistic size and shape, so the
-[SQL connector](../crawlers/sql/) can be developed and verified without access
+[SQL connector](../crawlers/mssql/) can be developed and verified without access
 to a production IdentityIQ database. Everything in it is invented.
 
 It is the [scale test fixture](../scale-dataset/) written down the way

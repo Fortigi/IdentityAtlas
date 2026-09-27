@@ -5,7 +5,7 @@
 .DESCRIPTION
     A row is an ordered hashtable (column name → value) as ConvertTo-SqlRow produced
     it. The shapers map it onto the ingest record for the slot's target by the
-    column contract in tools/crawlers/sql/CLAUDE.md:
+    column contract in tools/crawlers/mssql/CLAUDE.md:
 
       * contract columns are matched case-insensitively with underscores ignored
         (display_name == DisplayName == displayname);

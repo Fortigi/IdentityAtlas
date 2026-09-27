@@ -203,7 +203,7 @@ Describe 'Azure RM: Resolve-AzureRMConfig / Connect-AzureRMSession' {
 
 Describe 'SQL: Resolve-SqlConfig / Connect-SqlSource' {
     BeforeAll {
-        . (Join-Path $script:crawlers 'sql' 'SqlCrawler.Functions.ps1')
+        . (Join-Path $script:crawlers 'mssql' 'SqlCrawler.Functions.ps1')
 
         function New-SqlSecretConfigFile {
             $cfg = @{

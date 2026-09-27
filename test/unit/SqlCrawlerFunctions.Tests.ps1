@@ -1,7 +1,7 @@
 #Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0.0' }
 <#
 .SYNOPSIS
-    Pester unit tests for tools/crawlers/sql/SqlCrawler.Functions.ps1.
+    Pester unit tests for tools/crawlers/mssql/SqlCrawler.Functions.ps1.
 
 .DESCRIPTION
     Config resolution and the connection string are pure. The query runner is
@@ -15,7 +15,7 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'sql' 'SqlCrawler.Functions.ps1')
+    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'mssql' 'SqlCrawler.Functions.ps1')
 
     function New-ConfigFile {
         param([hashtable]$Cfg)

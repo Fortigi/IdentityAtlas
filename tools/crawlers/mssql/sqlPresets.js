@@ -1,7 +1,7 @@
 // Example query sets the wizard can load into the Queries step.
 //
 // A preset is a plain list of query slots in the crawler.json `queries[]`
-// shape. The SQL follows the column contract in tools/crawlers/sql/CLAUDE.md:
+// shape. The SQL follows the column contract in tools/crawlers/mssql/CLAUDE.md:
 // contract columns are aliased to their contract names, everything else
 // lands in extendedAttributes under its own name.
 //

@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { validateCrawlerConfig } from '@api/crawlerManifests.js';
 
-const v = (config) => validateCrawlerConfig('sql', config);
+const v = (config) => validateCrawlerConfig('mssql', config);
 
 const identities = { name: 'Identities', target: 'identities', sql: 'SELECT id, display_name AS displayName FROM spt_identity' };
 const minimal = { server: 'sql01', database: 'identityiq', username: 'u', password: 'p', queries: [identities] };

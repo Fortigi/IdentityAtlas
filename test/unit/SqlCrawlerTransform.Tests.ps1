@@ -1,7 +1,7 @@
 #Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0.0' }
 <#
 .SYNOPSIS
-    Pester unit tests for tools/crawlers/sql/SqlCrawler.Transform.ps1 — the pure
+    Pester unit tests for tools/crawlers/mssql/SqlCrawler.Transform.ps1 — the pure
     row -> ingest-record shapers and the column contract behind them.
 
 .DESCRIPTION
@@ -17,7 +17,7 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-    $sqlDir = Join-Path $script:repoRoot 'tools' 'crawlers' 'sql'
+    $sqlDir = Join-Path $script:repoRoot 'tools' 'crawlers' 'mssql'
     . (Join-Path $sqlDir 'SqlCrawler.Functions.ps1')   # $script:SqlPrincipalTypes
     . (Join-Path $sqlDir 'SqlCrawler.Transform.ps1')
 

@@ -1,7 +1,7 @@
 #Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0.0' }
 <#
 .SYNOPSIS
-    Pester unit tests for tools/crawlers/sql/SqlCrawler.Contexts.ps1 and the
+    Pester unit tests for tools/crawlers/mssql/SqlCrawler.Contexts.ps1 and the
     contexts / context-members targets it adds to the SQL crawler.
 
 .DESCRIPTION
@@ -20,7 +20,7 @@ BeforeAll {
     $script:ApiBaseUrl = 'http://localhost:3001/api'; $script:ApiKey = 'fgc_test'; $script:JobId = 0
     foreach ($f in @(
         @('shared', 'Invoke-CrawlerIngest.ps1'), @('shared', 'Invoke-CrawlerIngestStream.ps1'), @('shared', 'Get-CrawlerSystemName.ps1'),
-        @('sql', 'SqlCrawler.Functions.ps1'), @('sql', 'SqlCrawler.Transform.ps1'), @('sql', 'SqlCrawler.Contexts.ps1'), @('sql', 'SqlCrawler.Phases.ps1'), @('sql', 'SqlCrawler.Verify.ps1'))) {
+        @('mssql', 'SqlCrawler.Functions.ps1'), @('mssql', 'SqlCrawler.Transform.ps1'), @('mssql', 'SqlCrawler.Contexts.ps1'), @('mssql', 'SqlCrawler.Phases.ps1'), @('mssql', 'SqlCrawler.Verify.ps1'))) {
         . (Join-Path $root 'tools' 'crawlers' $f[0] $f[1])
     }
 

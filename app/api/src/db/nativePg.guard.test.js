@@ -240,7 +240,7 @@ describe('no SQL Server client in PowerShell (Tier 3)', () => {
   // secure default worth pinning), so excluding them would force that assertion
   // to be deleted — trading a real test for a green guard.
   const isConnector = (rel) =>
-    rel.startsWith('tools/crawlers/sql/') || /^test\/unit\/SqlCrawler\w*\.Tests\.ps1$/.test(rel);
+    rel.startsWith('tools/crawlers/mssql/') || /^test\/unit\/SqlCrawler\w*\.Tests\.ps1$/.test(rel);
   const BANNED_PS = [
     { name: 'System.Data.SqlClient (MSSQL driver)', re: /\b(?:System|Microsoft)\.Data\.SqlClient\b/, allowConnector: true },
     { name: 'SqlConnection / SqlCommand / SqlDataAdapter', re: /\bSql(?:Connection|Command|DataAdapter)\b/, allowConnector: true },
@@ -301,8 +301,8 @@ describe('no SQL Server client in PowerShell (Tier 3)', () => {
   // it exists for — and the suite would still be green. Pin the boundary itself.
   describe('the connector carve-out is scoped to the sql crawler alone', () => {
     it.each([
-      'tools/crawlers/sql/SqlCrawler.Functions.ps1',
-      'tools/crawlers/sql/Start-SqlCrawler.ps1',
+      'tools/crawlers/mssql/SqlCrawler.Functions.ps1',
+      'tools/crawlers/mssql/Start-SqlCrawler.ps1',
       'test/unit/SqlCrawlerFunctions.Tests.ps1',
       'test/unit/SqlCrawlerPhases.Tests.ps1',
     ])('allows the driver in %s', (p) => {
