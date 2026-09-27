@@ -6,7 +6,7 @@ import MappingRows from '@ui/components/MappingRows';
 import Select from '@ui/components/inputs/Select';
 import { CrawlerField } from '@ui/components/crawler/wizardFields';
 import {
-  ASSIGNMENT_TYPES, PRINCIPAL_TYPES, RELATIONSHIP_TYPES, TARGETS,
+  ASSIGNMENT_TYPES, CONTEXT_TARGET_TYPES, PRINCIPAL_TYPES, RELATIONSHIP_TYPES, TARGETS,
   contractColumnOptions, contractColumnsFor, newColumnMapRow, slotFieldsFor,
 } from './wizardLogic.js';
 
@@ -26,7 +26,8 @@ function EnumSelect({ label, value, options, onChange }) {
 }
 
 // The slot-level constants crawler.json defines per target (resourceType,
-// assignmentType, governed, relationshipType, principalType). Only the ones the
+// assignmentType, governed, relationshipType, principalType, contextType,
+// targetType, memberType). Only the ones the
 // current target uses are shown — the others are dropped on save anyway.
 function SlotFields({ slot, update }) {
   const fields = slotFieldsFor(slot.target);
@@ -54,6 +55,19 @@ function SlotFields({ slot, update }) {
       )}
       {fields.includes('principalType') && (
         <EnumSelect label="Default principal type" value={slot.principalType} options={PRINCIPAL_TYPES} onChange={v => update('principalType', v)} />
+      )}
+      {fields.includes('contextType') && (
+        <div>
+          <label className={LABEL_CLS}>Context type</label>
+          <input value={slot.contextType} onChange={e => update('contextType', e.target.value)}
+            placeholder="Application" className={'w-full ' + SMALL_CLS} />
+        </div>
+      )}
+      {fields.includes('targetType') && (
+        <EnumSelect label="Groups" value={slot.targetType} options={CONTEXT_TARGET_TYPES} onChange={v => update('targetType', v)} />
+      )}
+      {fields.includes('memberType') && (
+        <EnumSelect label="Member type" value={slot.memberType} options={CONTEXT_TARGET_TYPES} onChange={v => update('memberType', v)} />
       )}
     </div>
   );

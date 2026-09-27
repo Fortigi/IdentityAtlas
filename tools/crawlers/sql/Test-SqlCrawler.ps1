@@ -37,7 +37,9 @@ $script:failures = 0
 . (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
 . (Join-Path $PSScriptRoot 'SqlCrawler.Functions.ps1')
 . (Join-Path $PSScriptRoot 'SqlCrawler.Transform.ps1')
+. (Join-Path $PSScriptRoot 'SqlCrawler.Contexts.ps1')
 . (Join-Path $PSScriptRoot 'SqlCrawler.Phases.ps1')
+. (Join-Path $PSScriptRoot 'SqlCrawler.Verify.ps1')
 
 function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
@@ -64,6 +66,27 @@ function Invoke-SqlQueryStream {
     $rows = @($script:RowsBySlot[$Sql])
     foreach ($r in $rows) { & $OnRow $r }
     return [long]$rows.Count
+}
+
+# The source-side counts, answered from what the SOURCE holds: the replayed rows,
+# unless a scenario says the source holds more than the reader delivers.
+$script:SourceRowsBySlot = @{}
+function Measure-SqlSource {
+    [CmdletBinding()]
+    param($Connection, [hashtable]$Slot, [hashtable]$Map, [int]$CommandTimeout = 600)
+    # @() around the whole if: an if-expression unrolls a one-row array into the row itself.
+    $rows = @(if ($script:SourceRowsBySlot.ContainsKey($Slot.sql)) { $script:SourceRowsBySlot[$Slot.sql] } else { $script:RowsBySlot[$Slot.sql] })
+    $pairs = $null
+    if ($Slot.target -eq 'assignments' -and $Map) { $pairs = [long]@($rows | ForEach-Object { "$($_[$Map.resourceId])|$($_[$Map.principalId])" } | Sort-Object -Unique).Count }
+    return @{ rows = [long]$rows.Count; pairs = $pairs; reason = $null }
+}
+
+# End-of-run verification against the REAL /ingest/count. Returns $true when it
+# passed, $false when it threw (which is what fails a real job).
+function Test-Verified {
+    param([hashtable]$State)
+    try { Test-SqlRunCounts -State $State | Out-Null; return $true }
+    catch { Write-Host "    ($($_.Exception.Message))" -ForegroundColor DarkGray; return $false }
 }
 
 Write-Host "`n=== SQL crawler integration test ===" -ForegroundColor Cyan
@@ -114,6 +137,7 @@ Write-Result 'Dangling assignment held back' ($totals['Grants'].dangling -eq 1) 
 Write-Result 'columnMap made an unaliased statement usable' ($totals['Composition'].sent -eq 1 -and $totals['Composition'].skipped -eq 0) `
     "sent=$($totals['Composition'].sent), skipped=$($totals['Composition'].skipped)"
 Invoke-SqlReconcile -State $state | Out-Null
+Write-Result 'Counts verified against the database' (Test-Verified -State $state) (($state.Verification | ForEach-Object { "$($_.scope)=$($_.atlas)" }) -join ', ')
 
 # The ingest accepted everything and the cross-statement references resolved.
 $principals = Invoke-Api -Path "/ingest/principals-presence" -Method Post -Body @{ tenantId = "$($cfg.server)/$($cfg.database)"; systemId = $systemId; ids = @() }
@@ -132,6 +156,32 @@ $state2 = New-SqlRunState -SystemId $systemId -ServerTime $reg2.serverTime -Slot
 foreach ($slot in (Get-SqlSlotsInOrder -Slots $slots)) { Invoke-SqlSlot -Slot $slot -Connection $null -State $state2 | Out-Null }
 $deleted = Invoke-SqlReconcile -State $state2
 Write-Result 'Second run reconciled the vanished rows' ($deleted -ge 1) "deleted=$deleted"
+Write-Result 'Second run verified against the database' (Test-Verified -State $state2) (($state2.Verification | ForEach-Object { "$($_.scope)=$($_.atlas)" }) -join ', ')
+
+# ── Run 3: the id column repeats — eight rows per person, as in the field ─────
+# Every row reaches the ingest and the database holds exactly the distinct ids,
+# so nothing but the verification can tell that seven of every eight were lost.
+Start-Sleep -Seconds 1
+$reg3 = Register-SqlSystem -Cfg $cfg
+$script:RowsBySlot[$sqlIdent] = @(foreach ($n in 1..8) { New-TestRow @{ id = "u1-$runId"; display_name = "Person $n" } })
+$state3 = New-SqlRunState -SystemId $systemId -ServerTime $reg3.serverTime -Slots @($slots[0]) -BatchSize 2 -SyncMode 'delta'
+Invoke-SqlSlot -Slot $slots[0] -Connection $null -State $state3 | Out-Null
+Write-Result 'Repeated ids fail verification' (-not (Test-Verified -State $state3)) (($state3.Verification | ForEach-Object { "$($_.scope): expected $($_.expected), $($_.measured) $($_.atlas)" }) -join ', ')
+
+# ── Run 4: the read stops early — the shape that actually shipped ────────────
+# The source holds eight distinct people; one arrives. It is distinct, it lands,
+# and the database agrees with it, so only the source's own count can fail this.
+Start-Sleep -Seconds 1
+$reg4 = Register-SqlSystem -Cfg $cfg
+$script:RowsBySlot[$sqlIdent] = @((New-TestRow @{ id = "u1-$runId"; display_name = 'Person 1' }))
+$script:SourceRowsBySlot[$sqlIdent] = @(foreach ($n in 1..8) { New-TestRow @{ id = "u$n-$runId"; display_name = "Person $n" } })
+$state4 = New-SqlRunState -SystemId $systemId -ServerTime $reg4.serverTime -Slots @($slots[0]) -BatchSize 2 -SyncMode 'delta'
+Invoke-SqlSlot -Slot $slots[0] -Connection $null -State $state4 | Out-Null
+$verified4 = Test-Verified -State $state4
+$readRow = @($state4.Verification | Where-Object { $_.measured -eq 'read' })[0]
+Write-Result 'A read that stopped early fails verification' (-not $verified4 -and $readRow -and -not $readRow.ok) `
+    (($state4.Verification | ForEach-Object { "$($_.scope): expected $($_.expected), $($_.measured) $($_.atlas)" }) -join ', ')
+$script:SourceRowsBySlot.Remove($sqlIdent)
 
 # ── Reconcile safety: the endpoint refuses what it must ──────────────────────
 foreach ($case in @(
