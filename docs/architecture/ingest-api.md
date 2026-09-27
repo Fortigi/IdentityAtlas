@@ -371,6 +371,29 @@ The engine preserves the same scoping patterns used by the current PowerShell sy
 - **Current-state scoped:** operates on the current table rows (no temporal filtering needed in v5)
 - **Batch-scoped:** `AND NOT EXISTS (SELECT 1 FROM #temp WHERE ...)`
 
+#### Contexts and context members: owned, not system-scoped
+
+`Contexts` and `ContextMembers` have no `systemId` column, and every crawler writes them.
+A full sync of either is bounded by **ownership**, derived from the envelope `systemId`,
+whatever scope the caller sends:
+
+- **Contexts:** only `variant = 'synced'` contexts whose `scopeSystemId` is the sending
+  system. Manual and generated contexts are never removed by a sync, and nor is another
+  system's context. A crawler must therefore stamp `scopeSystemId` on the contexts it
+  sends. A synced context without it is never reconciled, and the response carries a
+  `warnings` entry that the shared crawler ingest prints in the job log.
+- **Context members:** only memberships of contexts the sender owns, and **never one whose
+  `addedBy` is `'analyst'`**. A sync removes only memberships it added. An analyst's
+  deliberate addition survives, even on a context the crawler owns, the same way the context
+  algorithm runner replaces only `algorithm` rows ([Context redesign](context-redesign.md)).
+  If the context itself disappears from the source, its memberships go with it.
+
+`addedBy` is therefore load-bearing, not decorative. Before this bound existed, a full sync
+through an unrestricted key reconciled both tables whole. One SQL Server load removed another
+source's 150 logical applications, and a routine refresh removed an analyst's tag
+membership, while every count check passed. `contextSyncScope.contract.test.js` pins the
+bound against real PostgreSQL.
+
 ### Keys restricted to specific systems
 
 A crawler key with `systemIds` set can only read and write data of those systems. On top of the envelope `systemId` check, every batch from such a key is refused (`403`) when:
