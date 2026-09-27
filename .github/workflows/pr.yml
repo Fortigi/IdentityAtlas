@@ -45,11 +45,27 @@
 
 name: PR Checks
 
+# `feature/**` and `bugfixes/**` are here because CLAUDE.md calls stacked PRs the
+# preferred workflow, and a filter of just [main, release/**] silently gives a
+# stacked PR NO checks at all — not a failure, not a pending gate, simply "no
+# checks" on the page, which reads as nothing to see.
+#
+# That is not hypothetical. PR #1268 was based on a feature branch, showed no
+# checks, was reviewed and merged, and carried three defects that nothing could
+# have caught: two PowerShell files registered for neither mutation testing nor
+# exclusion, a T-SQL guard violation, and an endpoint missing from the OpenAPI
+# spec. All three surfaced the moment its base branch targeted main.
+#
+# The cost is that a stack of N PRs now runs the suite N times. That is the
+# correct trade: a review is worth what its evidence is worth, and a green tick
+# nobody produced is worse than a red one.
 on:
   pull_request:
     branches:
       - main
       - 'release/**'
+      - 'feature/**'
+      - 'bugfixes/**'
 
 # Cancel superseded runs when a PR branch is pushed again, so a stale run can't
 # race the latest commit (or waste runners) (audit finding F4).
