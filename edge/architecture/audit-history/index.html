@@ -3367,6 +3367,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Adding History to a New Table">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-systems-initial-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A system's initial load
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -5372,6 +5389,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Adding History to a New Table">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-systems-initial-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A system's initial load
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -5655,19 +5689,54 @@
 <hr />
 <h2 id="adding-history-to-a-new-table">Adding History to a New Table<a class="headerlink" href="#adding-history-to-a-new-table" title="Permanent link">&para;</a></h2>
 <p>To track a new table, create triggers that call the existing <code>fg_record_history</code> function:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1">-- INSERT and DELETE: always record</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TRIGGER</span><span class="w"> </span><span class="n">trg_history_ins_del</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">AFTER</span><span class="w"> </span><span class="k">INSERT</span><span class="w"> </span><span class="k">OR</span><span class="w"> </span><span class="k">DELETE</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="ss">"MyNewTable"</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="k">FOR</span><span class="w"> </span><span class="k">EACH</span><span class="w"> </span><span class="k">ROW</span><span class="w"> </span><span class="k">EXECUTE</span><span class="w"> </span><span class="k">FUNCTION</span><span class="w"> </span><span class="n">fg_record_history</span><span class="p">();</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="c1">-- UPDATE: only when something actually changed</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TRIGGER</span><span class="w"> </span><span class="n">trg_history_upd</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="k">AFTER</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="ss">"MyNewTable"</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="k">FOR</span><span class="w"> </span><span class="k">EACH</span><span class="w"> </span><span class="k">ROW</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="k">WHEN</span><span class="w"> </span><span class="p">(</span><span class="k">OLD</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">DISTINCT</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">NEW</span><span class="p">)</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="k">EXECUTE</span><span class="w"> </span><span class="k">FUNCTION</span><span class="w"> </span><span class="n">fg_record_history</span><span class="p">();</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1">-- INSERT: record, except during a system's initial load (see below)</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TRIGGER</span><span class="w"> </span><span class="n">trg_history_ins</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">AFTER</span><span class="w"> </span><span class="k">INSERT</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="ss">"MyNewTable"</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="k">FOR</span><span class="w"> </span><span class="k">EACH</span><span class="w"> </span><span class="k">ROW</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="k">WHEN</span><span class="w"> </span><span class="p">(</span><span class="n">current_setting</span><span class="p">(</span><span class="s1">'identity_atlas.initial_load'</span><span class="p">,</span><span class="w"> </span><span class="k">true</span><span class="p">)</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">DISTINCT</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="s1">'on'</span><span class="p">)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="k">EXECUTE</span><span class="w"> </span><span class="k">FUNCTION</span><span class="w"> </span><span class="n">fg_record_history</span><span class="p">();</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="c1">-- DELETE: always record</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TRIGGER</span><span class="w"> </span><span class="n">trg_history_del</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="k">AFTER</span><span class="w"> </span><span class="k">DELETE</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="ss">"MyNewTable"</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="k">FOR</span><span class="w"> </span><span class="k">EACH</span><span class="w"> </span><span class="k">ROW</span><span class="w"> </span><span class="k">EXECUTE</span><span class="w"> </span><span class="k">FUNCTION</span><span class="w"> </span><span class="n">fg_record_history</span><span class="p">();</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="c1">-- UPDATE: only when something actually changed</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TRIGGER</span><span class="w"> </span><span class="n">trg_history_upd</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="k">AFTER</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="ss">"MyNewTable"</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="k">FOR</span><span class="w"> </span><span class="k">EACH</span><span class="w"> </span><span class="k">ROW</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="k">WHEN</span><span class="w"> </span><span class="p">(</span><span class="k">OLD</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">DISTINCT</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">NEW</span><span class="p">)</span>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="k">EXECUTE</span><span class="w"> </span><span class="k">FUNCTION</span><span class="w"> </span><span class="n">fg_record_history</span><span class="p">();</span>
 </code></pre></div>
 <p>The trigger function is generic — it works with any table that has an <code>id</code> column.</p>
+<h3 id="a-systems-initial-load">A system's initial load<a class="headerlink" href="#a-systems-initial-load" title="Permanent link">&para;</a></h3>
+<p>The rows a system brings in on its <strong>first</strong> sync are not recorded as individual
+"created" events (migration 073). Until one of a system's syncs has completed —
+when refresh-views stamps <code>Systems."lastSyncDateTime"</code> — the ingest engine sets
+<code>identity_atlas.initial_load = 'on'</code> with <code>SET LOCAL</code> in each batch's transaction,
+and the INSERT trigger skips those rows. Updates and deletes are still recorded,
+every later sync records its inserts, and nothing outside the ingest engine sets
+the flag.</p>
+<p>The load itself is recorded instead, once per table and system: an anchor event
+with <code>rowId = 'initial-load:&lt;systemId&gt;'</code>, operation <code>I</code>, <code>rowData =
+{"initialLoad": true, "systemId": …}</code> and no <code>prevData</code>. It is written by the
+first batch of the load and never again. No entity has that rowId, so entity
+timelines never show it, and the matrix scope timeline's as-of reconstruction
+ignores it. What it does do is keep <code>historyStart</code> (<code>matrix/scopeHistory.js</code>) at
+the load time: with no per-row inserts, the anchor is the table's first event.</p>
+<p>Why an anchor rather than a row per insert: for imported data a per-row creation
+event was never true. A principal that has existed in the source for nine years
+was not created on the day it was imported. "This system's rows arrived at T" is
+what is true, and one event states exactly that. It follows that rows of a
+system loaded <em>later</em> also have no insert event, so a scope timeline point
+between two systems' loads counts the later system's rows as present — they
+were, in the source.</p>
+<p>The reason to skip the rows at all is volume: at 41 million assignments the
+initial load's history was 25.7 of 34.9 GB and cost more insert time than all of
+<code>ResourceAssignments</code>' indexes together (<a href="../scale-rehearsal/">Scale Rehearsal</a>).</p>
+<p><code>test/demo-dataset/Simulate-History.sql</code>, which back-dates history to give the
+demo a timeline, synthesises the insert events it back-dates for rows that have
+none.</p>
 
 
 
