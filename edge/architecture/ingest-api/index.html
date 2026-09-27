@@ -2842,6 +2842,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#staged-full-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Staged full load
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5401,6 +5412,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#staged-full-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Staged full load
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5942,6 +5964,74 @@
     C-&gt;&gt;A: POST /ingest/resources (syncSession: "end", syncId: "abc-123", records[20001..25000])
     A-&gt;&gt;DB: MERGE batch 3, run scoped delete, drop temp table
     A--&gt;&gt;C: { syncId: "abc-123", inserted: 142, updated: 38, deleted: 7 }</code></pre>
+<p>A session holds one connection and one transaction for its whole life (at most 30
+minutes), so it does not stretch to tens of millions of rows. Those scopes are sent
+as independent <code>delta</code> batches followed by <code>POST /ingest/reconcile</code>, which removes
+rows not touched since the run began — or, for a full re-read, as a staged load.</p>
+<h3 id="staged-full-load">Staged full load<a class="headerlink" href="#staged-full-load" title="Permanent link">&para;</a></h3>
+<p>For a scope whose complete row set is sent every run — tens of millions of
+assignments, typically — the stage endpoints apply that set in one step instead of
+batch by batch:</p>
+<table>
+<thead>
+<tr>
+<th>Call</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST /ingest/stages</code> <code>{ entity, systemId, scope?, idGeneration?, idPrefix? }</code></td>
+<td>opens a stage → <code>{ stageId }</code></td>
+</tr>
+<tr>
+<td><code>POST /ingest/stages/{id}/rows</code> <code>{ records }</code></td>
+<td>appends a batch; records get the same defaults, validation, id normalization and per-system boundary as <code>/ingest/{entity}</code></td>
+</tr>
+<tr>
+<td><code>POST /ingest/stages/finalize</code> <code>{ stageIds, deleteMissing? }</code></td>
+<td>applies a run's stages together</td>
+</tr>
+<tr>
+<td><code>POST /ingest/stages/{id}/finalize</code> <code>{ deleteMissing? }</code></td>
+<td>applies one stage</td>
+</tr>
+<tr>
+<td><code>DELETE /ingest/stages/{id}</code></td>
+<td>abandons a stage — nothing was written</td>
+</tr>
+</tbody>
+</table>
+<p>Entities: <code>resource-assignments</code>, <code>principals</code>, <code>resources</code>,
+<code>resource-relationships</code>. Nothing reaches the target table before finalize, which
+takes one of two paths and reports it (<code>path</code> in the result, and the sync log):</p>
+<ul>
+<li><strong><code>empty-table</code></strong> — the target table holds no rows at all (a first load on a new
+  installation). Its non-constraint indexes are dropped, every stage is inserted
+  bare, and the indexes are rebuilt once. Emptiness is checked under an exclusive
+  lock taken in the same transaction; if the lock is not granted within 5 s, or the
+  table is not empty, finalize merges instead.</li>
+<li><strong><code>merge</code></strong> — each stage, in its own transaction: insert keys the table lacks,
+  update only rows whose values changed, and with <code>deleteMissing: true</code> remove the
+  system+scope's rows that are not in the stage (tombstoned on soft-delete tables).
+  A tombstoned row that is back is revived.</li>
+</ul>
+<p>A stage may carry only its key columns — a key sweep: finalize then only removes
+what is missing.</p>
+<p><strong>Staged load or timestamp reconcile?</strong> It is a size trade-off, not a verdict on
+either. The timestamp reconcile needs every row the source still has to be touched
+(its <code>updatedAt</code> rewritten) so the untouched ones can be found — cheap for a small
+scope, and it needs no stage. At tens of millions of rows the touch is the cost:
+<code>updatedAt</code> is indexed, so every touch rewrites the row and all of its index entries.
+Measured on 4.1M unchanged assignments: 349 s with batches and reconcile, 99 s staged,
+with nothing written (<a href="../scale-rehearsal/">Scale Rehearsal</a>).</p>
+<p><strong>How a crawler uses it:</strong> open one stage per (entity, system, scope) it reads in
+full; stream the rows in batches of any size; finalize all of the run's stages in one
+<code>POST /ingest/stages/finalize</code>, with <code>deleteMissing: true</code>. Finalizing together is
+what lets a first load take the <code>empty-table</code> path for the whole run rather than
+for its first system only. Stages live in memory: an API restart abandons them (their
+tables are dropped at startup) and the crawler starts the run over. A stage expires
+six hours after it was opened.</p>
 <hr />
 <h2 id="crawler-authentication">Crawler Authentication<a class="headerlink" href="#crawler-authentication" title="Permanent link">&para;</a></h2>
 <h3 id="self-contained-api-keys">Self-Contained API Keys<a class="headerlink" href="#self-contained-api-keys" title="Permanent link">&para;</a></h3>
