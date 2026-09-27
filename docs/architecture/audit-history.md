@@ -170,6 +170,26 @@ and the INSERT trigger skips those rows. Updates and deletes are still recorded,
 every later sync records its inserts, and nothing outside the ingest engine sets
 the flag.
 
-The reason is volume: at 41 million assignments the initial load's history was
-25.7 of 34.9 GB and cost more insert time than all of `ResourceAssignments`'
-indexes together ([Scale Rehearsal](scale-rehearsal.md)).
+The load itself is recorded instead, once per table and system: an anchor event
+with `rowId = 'initial-load:<systemId>'`, operation `I`, `rowData =
+{"initialLoad": true, "systemId": …}` and no `prevData`. It is written by the
+first batch of the load and never again. No entity has that rowId, so entity
+timelines never show it, and the matrix scope timeline's as-of reconstruction
+ignores it. What it does do is keep `historyStart` (`matrix/scopeHistory.js`) at
+the load time: with no per-row inserts, the anchor is the table's first event.
+
+Why an anchor rather than a row per insert: for imported data a per-row creation
+event was never true. A principal that has existed in the source for nine years
+was not created on the day it was imported. "This system's rows arrived at T" is
+what is true, and one event states exactly that. It follows that rows of a
+system loaded *later* also have no insert event, so a scope timeline point
+between two systems' loads counts the later system's rows as present — they
+were, in the source.
+
+The reason to skip the rows at all is volume: at 41 million assignments the
+initial load's history was 25.7 of 34.9 GB and cost more insert time than all of
+`ResourceAssignments`' indexes together ([Scale Rehearsal](scale-rehearsal.md)).
+
+`test/demo-dataset/Simulate-History.sql`, which back-dates history to give the
+demo a timeline, synthesises the insert events it back-dates for rows that have
+none.

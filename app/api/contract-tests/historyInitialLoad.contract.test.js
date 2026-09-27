@@ -15,6 +15,8 @@ import pg from 'pg';
 
 process.env.DATABASE_URL = process.env.CONTRACT_DB_URL;
 const { ingest } = await import('../src/ingest/engine.js');
+const { markInitialLoad, initialLoadRowId } = await import('../src/ingest/initialLoad.js');
+const { historyStartSql } = await import('../src/matrix/scopeHistory.js');
 
 let pool;
 let systemId;
@@ -42,7 +44,7 @@ beforeEach(async () => {
   await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "Principals" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "Resources" WHERE "systemId" = $1`, [systemId]);
-  await pool.query(`DELETE FROM "_history" WHERE "rowId" LIKE '%c7300000-%'`);
+  await pool.query(`DELETE FROM "_history" WHERE "rowId" LIKE '%c7300000-%' OR "rowId" = $1`, [initialLoadRowId(systemId)]);
   await pool.query(`UPDATE "Systems" SET "lastSyncDateTime" = NULL WHERE "id" = $1`, [systemId]);
 });
 
@@ -50,7 +52,7 @@ afterAll(async () => {
   await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "Principals" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "Resources" WHERE "systemId" = $1`, [systemId]);
-  await pool.query(`DELETE FROM "_history" WHERE "rowId" LIKE '%c7300000-%'`);
+  await pool.query(`DELETE FROM "_history" WHERE "rowId" LIKE '%c7300000-%' OR "rowId" = $1`, [initialLoadRowId(systemId)]);
   await pool.query(`DELETE FROM "Systems" WHERE "id" = $1`, [systemId]);
   await pool?.end();
 });
@@ -122,5 +124,45 @@ describe('history during a system\'s initial load', () => {
     const h = await pool.query(
       `SELECT "rowId" FROM "_history" WHERE "tableName" = 'Resources' AND "operation" = 'I' AND "rowId" LIKE '%c7300000-%'`);
     expect(h.rows.map(r => r.rowId)).toEqual([RES_B]);
+  });
+});
+
+describe('the initial load is recorded once, as an anchor', () => {
+  const anchors = async () => (await pool.query(
+    `SELECT "tableName", "operation", "rowData", "prevData" FROM "_history" WHERE "rowId" = $1 ORDER BY "tableName"`,
+    [initialLoadRowId(systemId)])).rows;
+
+  it('writes one event per table for the whole load, however many batches it takes', async () => {
+    await ingest(null, 'Resources', ['id'], [resource(RES_A, 'Group A')], { syncMode: 'delta', systemId });
+    await ingest(null, 'Resources', ['id'], [resource(RES_B, 'Group B')], { syncMode: 'delta', systemId });
+    await ingest(null, 'Principals', ['id'], [{ id: PRIN, systemId, displayName: 'Ada', principalType: 'User' }],
+      { syncMode: 'delta', systemId });
+    expect(await anchors()).toEqual([
+      { tableName: 'Principals', operation: 'I', rowData: { initialLoad: true, systemId }, prevData: null },
+      { tableName: 'Resources', operation: 'I', rowData: { initialLoad: true, systemId }, prevData: null },
+    ]);
+  });
+
+  it('writes none once a sync has completed', async () => {
+    await pool.query(`UPDATE "Systems" SET "lastSyncDateTime" = now() WHERE "id" = $1`, [systemId]);
+    await ingest(null, 'Resources', ['id'], [resource(RES_A, 'Group A')], { syncMode: 'delta', systemId });
+    expect(await anchors()).toEqual([]);
+  });
+
+  it('is what historyStart resolves to when the load wrote no per-row history', async () => {
+    // In one rolled-back transaction: with no other history in sight, the only
+    // event of the table is the anchor, so historyStart is the load time.
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`DELETE FROM "_history"`);
+      await markInitialLoad(client, systemId, 'ResourceAssignments');
+      const { rows: [{ start, now }] } = await client.query(
+        `SELECT (${historyStartSql()}) AS start, now() AS now`);
+      expect(start).toEqual(now);
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
   });
 });

@@ -254,7 +254,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     }
 
     // A system's initial load writes no per-row "created" history (migration 073).
-    await markInitialLoad(client, systemId);
+    await markInitialLoad(client, systemId, tableName);
     const upsertRes = await client.query(upsertSql);
     let inserted = 0;
     let updated = 0;

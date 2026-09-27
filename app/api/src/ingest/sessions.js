@@ -201,7 +201,7 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
 
     await markGovernanceMemberships(session.client, session.tableName, session.tempTable, session.keyColumns, session.activeColumns);
     // A system's initial load writes no per-row "created" history (migration 073).
-    await markInitialLoad(session.client, session.systemId);
+    await markInitialLoad(session.client, session.systemId, session.tableName);
     const upsertRes = await session.client.query(buildUpsertSql(session));
     const { inserted, updated } = countUpsertResult(upsertRes.rows);
 
