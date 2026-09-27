@@ -137,6 +137,7 @@ nav:
           - Omada Data Model Reference: architecture/omada-crawler-datamodel.md
           - midPoint: sync/midpoint.md
           - midPoint Configuration Reference: sync/midpoint-crawler-configuration.md
+          - SQL Server: sync/mssql.md
           - SCIM 2.0: sync/scim.md
           - CSV Import: sync/csv-import.md
           - Custom Connector (Push API): sync/custom-connector.md
@@ -168,6 +169,7 @@ nav:
       - Test Coverage: reference/coverage.md
       - Under the hood:
           - Crawler Architecture: architecture/crawler-architecture.md
+          - SQL Connector Delta Loading (design): architecture/sql-connector-delta.md
           - Reports: architecture/reports.md
           - Custom Reports Internals: architecture/custom-reports.md
           - Context Assistant Internals: architecture/context-assistant.md
