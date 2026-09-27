@@ -217,6 +217,10 @@
          <lastmod>2026-09-27</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/sql-connector-delta/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/concepts/data-model/</loc>
          <lastmod>2026-09-27</lastmod>
     </url>
@@ -426,6 +430,10 @@
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/sync/midpoint/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/sync/mssql/</loc>
          <lastmod>2026-09-27</lastmod>
     </url>
     <url>

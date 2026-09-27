@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/risk-scoring/overview/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/sql-connector-delta/">
       
       
-        <link rel="prev" href="../../concepts/risk-scoring-model/">
+        <link rel="prev" href="../crawler-architecture/">
       
       
-        <link rel="next" href="../classifiers/">
+        <link rel="next" href="../reports/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>How Scoring Works - Identity Atlas</title>
+        <title>SQL Connector Delta Loading (design) - Identity Atlas</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#identity-risk-scoring" class="md-skip">
+        <a href="#sql-connector-delta-loading-design" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              How Scoring Works
+              SQL Connector Delta Loading (design)
             
           </span>
         </div>
@@ -257,8 +257,6 @@
   
   
   
-    
-  
   
     
     
@@ -266,12 +264,10 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
+      <li class="md-tabs__item">
         <a href="../../concepts/data-model/" class="md-tabs__link">
           
   
@@ -322,7 +318,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../architecture/docker-setup/" class="md-tabs__link">
+        <a href="../docker-setup/" class="md-tabs__link">
           
   
   
@@ -341,6 +337,8 @@
   
   
   
+    
+  
   
     
     
@@ -348,10 +346,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../../api/" class="md-tabs__link">
           
   
@@ -737,31 +737,26 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
             
   
   
@@ -779,7 +774,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -803,20 +798,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
         
           
-          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
             
   
   
@@ -908,7 +900,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/account-linking/" class="md-nav__link">
+      <a href="../account-linking/" class="md-nav__link">
         
   
   
@@ -941,31 +933,26 @@
                 
   
   
-    
   
   
-  
     
     
     
     
       
       
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
         
           
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
             
   
   
@@ -983,7 +970,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1026,37 +1013,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    How Scoring Works
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/overview/" class="md-nav__link">
         
   
   
@@ -1072,125 +1032,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Overview
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#three-phase-architecture" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Three-Phase Architecture
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#4-layer-scoring-engine" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4-Layer Scoring Engine
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#scoring-by-entity-type" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Scoring by Entity Type
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#risk-tiers" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Risk Tiers
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#analyst-overrides" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Analyst Overrides
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#configuring-the-ai-provider" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Configuring the AI provider
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#data-privacy" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Data Privacy
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#riskscores-table" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RiskScores Table
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1203,7 +1044,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../classifiers/" class="md-nav__link">
+      <a href="../../risk-scoring/classifiers/" class="md-nav__link">
         
   
   
@@ -1231,7 +1072,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ai-agents/" class="md-nav__link">
+      <a href="../../risk-scoring/ai-agents/" class="md-nav__link">
         
   
   
@@ -1434,7 +1275,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/matrix/" class="md-nav__link">
+      <a href="../matrix/" class="md-nav__link">
         
   
   
@@ -1462,7 +1303,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/matrix-scope-statistics/" class="md-nav__link">
+      <a href="../matrix-scope-statistics/" class="md-nav__link">
         
   
   
@@ -1638,7 +1479,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/entity-detail-pages/" class="md-nav__link">
+      <a href="../entity-detail-pages/" class="md-nav__link">
         
   
   
@@ -1893,7 +1734,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/docker-setup/" class="md-nav__link">
+      <a href="../docker-setup/" class="md-nav__link">
         
   
   
@@ -1921,7 +1762,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/azure-deployment-walkthrough/" class="md-nav__link">
+      <a href="../azure-deployment-walkthrough/" class="md-nav__link">
         
   
   
@@ -1949,7 +1790,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/azure-deployment/" class="md-nav__link">
+      <a href="../azure-deployment/" class="md-nav__link">
         
   
   
@@ -1977,7 +1818,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/desktop-portable/" class="md-nav__link">
+      <a href="../desktop-portable/" class="md-nav__link">
         
   
   
@@ -2005,7 +1846,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/scaling/" class="md-nav__link">
+      <a href="../scaling/" class="md-nav__link">
         
   
   
@@ -2033,7 +1874,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/scale-rehearsal/" class="md-nav__link">
+      <a href="../scale-rehearsal/" class="md-nav__link">
         
   
   
@@ -2205,7 +2046,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/omada-crawler-datamodel/" class="md-nav__link">
+      <a href="../omada-crawler-datamodel/" class="md-nav__link">
         
   
   
@@ -2613,26 +2454,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
         
           
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
             
   
   
@@ -2650,7 +2496,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2674,17 +2520,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
         
           
-          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="">
             
   
   
@@ -2860,7 +2709,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/ingest-api/" class="md-nav__link">
+      <a href="../ingest-api/" class="md-nav__link">
         
   
   
@@ -3036,7 +2885,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/csv-import-schema/" class="md-nav__link">
+      <a href="../csv-import-schema/" class="md-nav__link">
         
   
   
@@ -3117,26 +2966,31 @@
                 
   
   
+    
   
   
+  
     
     
     
     
       
       
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_10" >
         
           
-          <label class="md-nav__link" for="__nav_6_10" id="__nav_6_10_label" tabindex="0">
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_10" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6_10" id="__nav_6_10_label" tabindex="">
             
   
   
@@ -3154,7 +3008,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_10_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_10_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_6_10">
             <span class="md-nav__icon md-icon"></span>
             
@@ -3172,7 +3026,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/crawler-architecture/" class="md-nav__link">
+      <a href="../crawler-architecture/" class="md-nav__link">
         
   
   
@@ -3197,10 +3051,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../architecture/sql-connector-delta/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Connector Delta Loading (design)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -3216,6 +3097,159 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-1-the-watermark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 1 — the watermark
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 1 — the watermark">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mechanics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mechanics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reconcile-follows-completeness-not-run-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reconcile follows completeness, not run mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assumptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assumptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-2-the-key-sweep" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 2 — the key sweep
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 2 — the key sweep">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#shape" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shape
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cost" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cost
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timing-and-flapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timing and flapping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-3-order-of-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 3 — order of work
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -3228,7 +3262,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/reports/" class="md-nav__link">
+      <a href="../reports/" class="md-nav__link">
         
   
   
@@ -3256,7 +3290,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/custom-reports/" class="md-nav__link">
+      <a href="../custom-reports/" class="md-nav__link">
         
   
   
@@ -3284,7 +3318,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/context-assistant/" class="md-nav__link">
+      <a href="../context-assistant/" class="md-nav__link">
         
   
   
@@ -3312,7 +3346,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/audit-history/" class="md-nav__link">
+      <a href="../audit-history/" class="md-nav__link">
         
   
   
@@ -3340,7 +3374,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/soft-delete/" class="md-nav__link">
+      <a href="../soft-delete/" class="md-nav__link">
         
   
   
@@ -3368,7 +3402,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/effective-access-engine/" class="md-nav__link">
+      <a href="../effective-access-engine/" class="md-nav__link">
         
   
   
@@ -3396,7 +3430,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/resource-cluster-algorithm/" class="md-nav__link">
+      <a href="../resource-cluster-algorithm/" class="md-nav__link">
         
   
   
@@ -3424,7 +3458,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../design/" class="md-nav__link">
+      <a href="../../risk-scoring/design/" class="md-nav__link">
         
   
   
@@ -3452,7 +3486,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../plugin-architecture/" class="md-nav__link">
+      <a href="../../risk-scoring/plugin-architecture/" class="md-nav__link">
         
   
   
@@ -3480,7 +3514,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/llm-and-risk-scoring/" class="md-nav__link">
+      <a href="../llm-and-risk-scoring/" class="md-nav__link">
         
   
   
@@ -3508,7 +3542,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/resource-assignments-identity-support/" class="md-nav__link">
+      <a href="../resource-assignments-identity-support/" class="md-nav__link">
         
   
   
@@ -3536,7 +3570,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/dashboard-trends/" class="md-nav__link">
+      <a href="../dashboard-trends/" class="md-nav__link">
         
   
   
@@ -3564,7 +3598,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/demo-dataset/" class="md-nav__link">
+      <a href="../demo-dataset/" class="md-nav__link">
         
   
   
@@ -3907,7 +3941,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/ci-scope-testing/" class="md-nav__link">
+      <a href="../ci-scope-testing/" class="md-nav__link">
         
   
   
@@ -3935,7 +3969,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/branching-strategy/" class="md-nav__link">
+      <a href="../branching-strategy/" class="md-nav__link">
         
   
   
@@ -4247,7 +4281,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/design-archive/" class="md-nav__link">
+      <a href="../design-archive/" class="md-nav__link">
         
   
   
@@ -4275,7 +4309,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/context-redesign/" class="md-nav__link">
+      <a href="../context-redesign/" class="md-nav__link">
         
   
   
@@ -4303,7 +4337,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/context-redesign-plan/" class="md-nav__link">
+      <a href="../context-redesign-plan/" class="md-nav__link">
         
   
   
@@ -4331,7 +4365,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/context-redesign-ui/" class="md-nav__link">
+      <a href="../context-redesign-ui/" class="md-nav__link">
         
   
   
@@ -4359,7 +4393,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/assignment-model-redesign/" class="md-nav__link">
+      <a href="../assignment-model-redesign/" class="md-nav__link">
         
   
   
@@ -4387,7 +4421,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/identitytype-design/" class="md-nav__link">
+      <a href="../identitytype-design/" class="md-nav__link">
         
   
   
@@ -4415,7 +4449,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/risk-scoring-plugins/" class="md-nav__link">
+      <a href="../risk-scoring-plugins/" class="md-nav__link">
         
   
   
@@ -4443,7 +4477,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/rule-mining-discussion/" class="md-nav__link">
+      <a href="../rule-mining-discussion/" class="md-nav__link">
         
   
   
@@ -4727,7 +4761,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/architecture-guidance-review-2026-09/" class="md-nav__link">
+      <a href="../architecture-guidance-review-2026-09/" class="md-nav__link">
         
   
   
@@ -4755,7 +4789,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/decision-principles/" class="md-nav__link">
+      <a href="../decision-principles/" class="md-nav__link">
         
   
   
@@ -5186,10 +5220,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#why" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Overview
+        Why
       
     </span>
   </a>
@@ -5197,87 +5231,121 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#three-phase-architecture" class="md-nav__link">
+  <a href="#part-1-the-watermark" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Three-Phase Architecture
+        Part 1 — the watermark
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 1 — the watermark">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mechanics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mechanics
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#4-layer-scoring-engine" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#reconcile-follows-completeness-not-run-mode" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4-Layer Scoring Engine
+        Reconcile follows completeness, not run mode
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#scoring-by-entity-type" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#assumptions" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Scoring by Entity Type
+        Assumptions
       
     </span>
   </a>
   
 </li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
-  <a href="#risk-tiers" class="md-nav__link">
+  <a href="#part-2-the-key-sweep" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Risk Tiers
+        Part 2 — the key sweep
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 2 — the key sweep">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#shape" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shape
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#analyst-overrides" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#cost" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Analyst Overrides
+        Cost
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#configuring-the-ai-provider" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#timing-and-flapping" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Configuring the AI provider
+        Timing and flapping
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#data-privacy" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#verification" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Data Privacy
+        Verification
       
     </span>
   </a>
   
 </li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
-  <a href="#riskscores-table" class="md-nav__link">
+  <a href="#part-3-order-of-work" class="md-nav__link">
     <span class="md-ellipsis">
       
-        RiskScores Table
+        Part 3 — order of work
       
     </span>
   </a>
@@ -5332,10 +5400,10 @@
     
     
       <li class="md-path__item">
-        <a href="../../concepts/data-model/" class="md-path__link">
+        <a href="../../api/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Learn
+    Reference
   </span>
 
         </a>
@@ -5353,10 +5421,10 @@
     
     
       <li class="md-path__item">
-        <a href="../../concepts/risk-scoring-model/" class="md-path__link">
+        <a href="../crawler-architecture/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Risk scoring
+    Under the hood
   </span>
 
         </a>
@@ -5378,278 +5446,223 @@
   
 
 
-<h1 id="identity-risk-scoring">Identity Risk Scoring<a class="headerlink" href="#identity-risk-scoring" title="Permanent link">&para;</a></h1>
-<div class="admonition info">
-<p class="admonition-title">Before this page</p>
-<p>Assumes you have read <strong><a href="../../concepts/risk-scoring-model/">What a Risk Score Means</a></strong>.
-Brand new? Start at <a href="../../start/glossary/">The words you need first</a>.</p>
-</div>
+<h1 id="sql-connector-delta-loading-design">SQL Connector: Delta Loading (design)<a class="headerlink" href="#sql-connector-delta-loading-design" title="Permanent link">&para;</a></h1>
 <div class="admonition warning">
-<p class="admonition-title">v5 status</p>
-<p>In v5, risk scoring is driven from the UI (Admin &gt; Risk Scoring). The PowerShell risk scoring functions (<code>Invoke-FGRiskScoring</code>, <code>New-FGRiskProfile</code>, <code>New-FGRiskClassifiers</code>) in <code>tools/riskscoring/</code> are <strong>stubbed</strong> and return "not yet implemented in v5". The in-browser wizard and the Node.js scoring engine (<code>app/api/src/riskscoring/engine.js</code>) are the active implementation path.</p>
+<p class="admonition-title">Design, not yet built</p>
+<p>This page is the plan for incremental loads through the <a href="../../sync/mssql/">SQL connector</a>.
+Several of its steps depend on how the source records changes. Those are written down
+as <strong>assumptions</strong> (A1–A9) with the discovery query that settles each one and what
+changes if it turns out false. Nothing here is implemented until the assumptions it
+rests on are confirmed.</p>
 </div>
-<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>Identity Atlas includes a universal risk scoring engine that assigns risk scores (0–100) to all entity types — Principals, Resources (including BusinessRoles), Contexts, and Identities. All scoring runs on your own infrastructure — no sensitive identity data is ever sent to external services.</p>
-<h2 id="three-phase-architecture">Three-Phase Architecture<a class="headerlink" href="#three-phase-architecture" title="Permanent link">&para;</a></h2>
-<pre class="mermaid"><code>flowchart LR
-    subgraph Phase1["Phase 1: Context (one-time)"]
-        A["New-FGRiskProfile\nPublic domain info only"] --&gt; B["New-FGRiskClassifiers\nIndustry-specific patterns"]
-    end
-    subgraph Phase2["Phase 2: Scoring (daily)"]
-        B --&gt; C["Invoke-FGRiskScoring\n4-layer batch engine"]
-    end
-    subgraph Phase3["Phase 3: Analysis"]
-        C --&gt; D[Risk Scoring UI Page]
-        C --&gt; E["Org Chart with\nrisk propagation"]
-        C --&gt; F[SQL: RiskScores table]
-    end</code></pre>
-<p><strong>Phase 1</strong> (one-time setup):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">New-FGRiskProfile</span> <span class="n">-Domain</span> <span class="s2">"yourcompany.com"</span> <span class="n">-LLMProvider</span> <span class="n">Anthropic</span> <span class="n">-LLMApiKey</span> <span class="nv">$key</span> <span class="n">-ConfigFile</span> <span class="s1">'.\Config\mycompany.json'</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">New-FGRiskClassifiers</span> <span class="n">-ConfigFile</span> <span class="s1">'.\Config\mycompany.json'</span>
-</code></pre></div>
-<p><strong>Phase 2</strong> (run after each sync):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">Invoke-FGRiskScoring</span> <span class="n">-ConfigFile</span> <span class="s1">'.\Config\mycompany.json'</span>
-</code></pre></div>
-<p><strong>Phase 3</strong> (analysis):</p>
+<h2 id="why">Why<a class="headerlink" href="#why" title="Permanent link">&para;</a></h2>
+<p>A full read of an identity-governance database at production size (180,000 identities,
+800,000 entitlements, 40 million entitlement grants) takes hours to read, send and index,
+and needs tens of gigabytes of scratch space (see
+<a href="https://github.com/Fortigi/IdentityAtlas/blob/main/docs/architecture/scale-rehearsal.md">Scale Rehearsal</a>). A full reload is a migration, not an operation.
+Routine refreshes must read what changed.</p>
+<p>A refresh has two halves, and they need different mechanisms:</p>
+<table>
+<thead>
+<tr>
+<th>Half</th>
+<th>Mechanism</th>
+<th>What it reads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Additions and changes</strong></td>
+<td>A per-statement <strong>watermark</strong> on the source's <code>modified</code> timestamp</td>
+<td>Only rows changed since the last run</td>
+</tr>
+<tr>
+<td><strong>Removals</strong></td>
+<td>A periodic <strong>key sweep</strong>: the complete set of keys, no attributes, anti-joined against what Identity Atlas holds</td>
+<td>Two ids per row, nothing else</td>
+</tr>
+</tbody>
+</table>
+<p>A timestamp cannot find a removal: a row deleted at the source never bumps its own
+timestamp. The existing timestamp reconcile (<code>POST /ingest/reconcile</code>) cannot help either
+in a delta run, because it removes the rows a run did <em>not</em> touch, and a delta run
+touches almost nothing.</p>
+<h2 id="part-1-the-watermark">Part 1 — the watermark<a class="headerlink" href="#part-1-the-watermark" title="Permanent link">&para;</a></h2>
+<h3 id="mechanics">Mechanics<a class="headerlink" href="#mechanics" title="Permanent link">&para;</a></h3>
 <ul>
-<li>UI: Risk Scoring page, Org Chart</li>
-<li>SQL: <code>SELECT entityId, entityType, riskScore, riskTier FROM RiskScores ORDER BY riskScore DESC</code></li>
-<li>Fast filter: <code>riskScore</code> and <code>riskTier</code> columns are denormalized onto Principals and Resources</li>
+<li>A statement opts in by binding <code>@Since</code> and naming a <strong>watermark column</strong> it returns
+  (new slot field <code>watermarkColumn</code>, e.g. <code>modified</code>):</li>
 </ul>
-<h2 id="4-layer-scoring-engine">4-Layer Scoring Engine<a class="headerlink" href="#4-layer-scoring-engine" title="Permanent link">&para;</a></h2>
-<pre class="mermaid"><code>flowchart TD
-    E[Entity] --&gt; L1["Layer 1: Direct Match\nClassifier patterns on name/description\nResource type multiplier"]
-    L1 --&gt; L2["Layer 2: Membership Analysis\nHigh-risk member/group density\nPIM eligibility, no-owner signals"]
-    L2 --&gt; L3["Layer 3: Structural Hygiene\nStale sign-in, never used\nGuest accounts, missing description\nDynamic membership, directory role signals"]
-    L3 --&gt; L4["Layer 4: Propagation\nInherit risk from riskiest\nmember / group / parent"]
-    L4 --&gt; S["Final Score 0–100\nClamped + tiered"]</code></pre>
-<p>Each layer adds points; the final score is clamped to 0–100.</p>
-<h2 id="scoring-by-entity-type">Scoring by Entity Type<a class="headerlink" href="#scoring-by-entity-type" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Entity Type</th>
-<th>Layer 1</th>
-<th>Layer 2</th>
-<th>Layer 3</th>
-<th>Layer 4</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Principal (User)</strong></td>
-<td>Classifier matches on name/title/UPN</td>
-<td>Group count, PIM eligibility, high-risk group density</td>
-<td>Stale sign-in (90/180d), never signed in, guest account, active high-privilege usage</td>
-<td>Riskiest group membership</td>
-</tr>
-<tr>
-<td><strong>Principal (AI Agent/SP)</strong></td>
-<td>Agent classifier matches on name</td>
-<td>Group count, high-risk resource density</td>
-<td>No-human-in-loop penalty, type-specific bonus, active production workload detection</td>
-<td>Riskiest resource membership</td>
-</tr>
-<tr>
-<td><strong>Resource</strong></td>
-<td>Classifier + resourceType multiplier</td>
-<td>High-risk member density, PIM-eligible members, no owner</td>
-<td>No description, dynamic membership, directory role signals, ghost app roles</td>
-<td>Riskiest member</td>
-</tr>
-<tr>
-<td><strong>BusinessRole</strong> (Resource)</td>
-<td>Classifier matches</td>
-<td>High-risk assignee density</td>
-<td>No review configured, missed reviews, no auto-removal</td>
-<td>Aggregate contained resource risk</td>
-</tr>
-<tr>
-<td><strong>OrgUnit</strong></td>
-<td>Name/dept classifiers, hierarchy position</td>
-<td>Aggregate principal risk</td>
-<td>Size extremes (tiny/huge), no manager, high external ratio</td>
-<td>Parent OrgUnit risk</td>
-</tr>
-<tr>
-<td><strong>Identity</strong></td>
-<td>Account count, multi-system</td>
-<td>Highest-risk linked principal</td>
-<td>Orphaned accounts, low confidence, not verified</td>
-<td>Critical/High principal propagation</td>
-</tr>
-</tbody>
-</table>
-<h2 id="risk-tiers">Risk Tiers<a class="headerlink" href="#risk-tiers" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Tier</th>
-<th>Score</th>
-<th>Action</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Critical</td>
-<td>90–100</td>
-<td>Requires immediate attention</td>
-</tr>
-<tr>
-<td>High</td>
-<td>70–89</td>
-<td>Should be reviewed soon</td>
-</tr>
-<tr>
-<td>Medium</td>
-<td>40–69</td>
-<td>Monitor regularly</td>
-</tr>
-<tr>
-<td>Low</td>
-<td>20–39</td>
-<td>Low concern</td>
-</tr>
-<tr>
-<td>Minimal</td>
-<td>1–19</td>
-<td>Negligible</td>
-</tr>
-<tr>
-<td>None</td>
-<td>0</td>
-<td>No signals detected</td>
-</tr>
-</tbody>
-</table>
-<h2 id="analyst-overrides">Analyst Overrides<a class="headerlink" href="#analyst-overrides" title="Permanent link">&para;</a></h2>
-<p>Analysts can adjust any entity's score with a required justification. The adjustment must be a whole number between −50 and +50, and the justification must be 3–500 characters:</p>
-<ul>
-<li>Via UI: Risk Scoring page → click Override button</li>
-<li>Overrides are stored in <code>RiskScores</code> and preserved across re-scoring runs</li>
-<li>Override history is preserved across re-scoring runs</li>
-</ul>
-<h2 id="configuring-the-ai-provider">Configuring the AI provider<a class="headerlink" href="#configuring-the-ai-provider" title="Permanent link">&para;</a></h2>
-<p>The AI provider is configured in <strong>Admin → LLM Settings</strong>. Three providers are supported:</p>
-<table>
-<thead>
-<tr>
-<th>Provider</th>
-<th><code>provider</code> value</th>
-<th>Default model</th>
-<th>Notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Anthropic</td>
-<td><code>anthropic</code></td>
-<td><code>claude-sonnet-4-6</code></td>
-<td>API key required</td>
-</tr>
-<tr>
-<td>OpenAI</td>
-<td><code>openai</code></td>
-<td><code>gpt-4o</code></td>
-<td>API key required</td>
-</tr>
-<tr>
-<td>Azure OpenAI</td>
-<td><code>azure-openai</code></td>
-<td><em>(deployment name required)</em></td>
-<td>Also requires endpoint URL and deployment name</td>
-</tr>
-</tbody>
-</table>
-<p>Once you enter the API key and click <strong>Test</strong>, IdentityAtlas verifies the connection and populates the model dropdown from the provider's API. The key is stored encrypted in the built-in secrets vault — it is never stored as plain text.</p>
-<p>For Azure OpenAI the endpoint must be a valid Azure OpenAI hostname (<code>*.openai.azure.com</code>, <code>.us</code>, or <code>.cn</code>). The deployment name is the name you gave the deployment in Azure, not the underlying model name.</p>
-<h2 id="data-privacy">Data Privacy<a class="headerlink" href="#data-privacy" title="Permanent link">&para;</a></h2>
-<div class="admonition success">
-<p class="admonition-title">No identity data ever leaves your infrastructure</p>
-<ul>
-<li><strong>Phase 1 only</strong> contacts an LLM — the prompt contains only public organisational context: the domain name, optional organisation name, optional free-text hints you type, and any text you paste from internal documents.</li>
-<li><strong>No identity data</strong> — no user names, email addresses, group names, or access assignments — is ever sent to the AI provider.</li>
-<li>All scoring (matching classifiers against your data) runs locally against your database with no network calls.</li>
-</ul>
-</div>
-<p><strong>What is sent to the AI, exactly:</strong></p>
-<table>
-<thead>
-<tr>
-<th>What</th>
-<th>Example</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Domain name</td>
-<td><code>contoso.com</code></td>
-</tr>
-<tr>
-<td>Organisation name (optional)</td>
-<td><code>Contoso Ltd</code></td>
-</tr>
-<tr>
-<td>Free-text hints (optional)</td>
-<td><code>We operate in the Netherlands under NIS2</code></td>
-</tr>
-<tr>
-<td>Text from URLs you add (optional)</td>
-<td>Scraped text from public or internal pages</td>
-</tr>
-</tbody>
-</table>
-<p>Nothing else. The AI generates regex patterns from this context; those patterns are then stored locally and applied against your data entirely on-premises.</p>
-<p><strong>Provider security comparison:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Provider</th>
-<th>Data stays in your region?</th>
-<th>Used for AI training?</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Anthropic API</td>
-<td>No — routed to <code>api.anthropic.com</code></td>
-<td>Depends on your plan. Paid API plans include a no-training clause; verify your agreement.</td>
-</tr>
-<tr>
-<td>OpenAI API</td>
-<td>No — routed to <code>api.openai.com</code></td>
-<td>Consumer tier: opt-out required in account settings. Enterprise agreement: excluded by contract.</td>
-</tr>
-<tr>
-<td>Azure OpenAI</td>
-<td>Yes — stays within your Azure subscription</td>
-<td>No — Microsoft Azure terms contractually exclude customer prompts from model training.</td>
-</tr>
-</tbody>
-</table>
-<p>For regulated environments or when in doubt, use <strong>Azure OpenAI</strong>: the data stays within your Azure tenant and training exclusion is contractual by default.</p>
-<h2 id="riskscores-table">RiskScores Table<a class="headerlink" href="#riskscores-table" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">-- Top risky principals</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">displayName</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">principalType</span><span class="p">,</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">riskScore</span><span class="p">,</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">riskTier</span><span class="p">,</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">       </span><span class="n">rs</span><span class="p">.</span><span class="n">directScore</span><span class="p">,</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">membershipScore</span><span class="p">,</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">structuralScore</span><span class="p">,</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">propagatedScore</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">FROM</span><span class="w"> </span><span class="n">Principals</span><span class="w"> </span><span class="n">p</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">RiskScores</span><span class="w"> </span><span class="n">rs</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">entityId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">entityType</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Principal'</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">riskScore</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1">-- All entity types together</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">entityId</span><span class="p">,</span><span class="w"> </span><span class="n">entityType</span><span class="p">,</span><span class="w"> </span><span class="n">riskScore</span><span class="p">,</span><span class="w"> </span><span class="n">riskTier</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="k">FROM</span><span class="w"> </span><span class="n">RiskScores</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">riskScore</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">identity_id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">resourceId</span><span class="p">,</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">       </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">ie</span><span class="p">.</span><span class="n">modified</span><span class="p">,</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">created</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">modified</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity_entitlement</span><span class="w"> </span><span class="n">ie</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_managed_attribute</span><span class="w"> </span><span class="n">ma</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">application</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">                             </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">attribute</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">value</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="k">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Entitlement'</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">ie</span><span class="p">.</span><span class="n">modified</span><span class="p">,</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">created</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="o">@</span><span class="n">Since</span>
 </code></pre></div>
+<ul>
+<li><strong>Where the watermark is stored:</strong> the existing <code>DeltaTokens</code> table (migration 020, one
+  row per <code>(systemId, endpoint)</code>), with <code>endpoint = 'sql:' + slot name + ':' + hash(SQL text)</code>.
+  Editing a statement changes its hash and therefore starts it from zero, instead of
+  silently skipping rows its new shape would have returned.</li>
+<li><strong>What is stored:</strong> the largest watermark value the statement returned, minus the
+  <strong>overlap</strong> (A3). It is taken from the rows read, so no extra query is needed and it
+  works for any statement.</li>
+<li><strong>When it is stored:</strong> only after the whole run succeeded, <em>including</em>
+  <a href="../../sync/mssql/#verification-source-against-database">verification</a>. A failed or
+  unverified run re-reads the same window next time. Upserts are idempotent, so a
+  re-read costs time, never correctness.</li>
+<li><strong>No token</strong> (first run, edited statement, or "Force full sync next run" via
+  <code>nextRunMode</code>) binds <code>@Since</code> to the beginning of time: the statement reads everything.</li>
+<li>A statement <strong>without</strong> <code>@Since</code> reads in full every run. That is right for small
+  tables (the catalogue, roles, role assignments, see A6/A7), and it makes that slot
+  <strong>complete</strong>, which matters for removals below.</li>
+</ul>
+<h3 id="reconcile-follows-completeness-not-run-mode">Reconcile follows completeness, not run mode<a class="headerlink" href="#reconcile-follows-completeness-not-run-mode" title="Permanent link">&para;</a></h3>
+<p>Today a full run reconciles every scope and a delta run reconciles none. With watermarks
+that becomes per slot: <strong>a slot that read its complete set may reconcile its scope in any
+run; a slot that read a window never does.</strong> Role assignments (1M rows, read in full in
+seconds) are then kept exact on every run without a sweep.</p>
+<h3 id="assumptions">Assumptions<a class="headerlink" href="#assumptions" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Assumption</th>
+<th>If false</th>
+<th>Settled by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A1</strong></td>
+<td><code>created</code> / <code>modified</code> are <code>numeric(19,0)</code> epoch <strong>milliseconds</strong> written by the <strong>application</strong>, not datetimes written by the database.</td>
+<td><code>@Since</code> binds as <code>datetime2</code> and the overlap becomes an interval; the logic is unchanged.</td>
+<td>discovery §2 (column types)</td>
+</tr>
+<tr>
+<td><strong>A2</strong></td>
+<td><code>modified</code> is <code>NULL</code> on a row never updated, and set on <strong>every</strong> update.</td>
+<td>If <code>NULL</code> means something else, drop the <code>COALESCE</code>. If some updates do not bump it, that table cannot use a watermark and reads in full.</td>
+<td>discovery §8 (<code>has_modified</code>, <code>modified_after_created</code>)</td>
+</tr>
+<tr>
+<td><strong>A3</strong></td>
+<td>Several application servers write, and their clocks may drift, and a transaction can commit after rows with later timestamps.</td>
+<td>The overlap must exceed the worst skew plus the longest write transaction. <strong>Default 15 minutes</strong>, configurable. The cost of too large an overlap is re-reading rows; too small loses rows silently.</td>
+<td>not measurable from the database; ask how many application servers write and whether they are time-synchronised</td>
+</tr>
+<tr>
+<td><strong>A4</strong></td>
+<td>Aggregation updates grant rows <strong>in place</strong> and only when they change.</td>
+<td>If aggregation deletes and re-inserts unchanged rows, every aggregated row looks new: the delta reads most of the table, and during the delete→insert gap a row is briefly absent (see A5 on the sweep).</td>
+<td>discovery §8 churn (rows changed in the last 1 / 7 days) against aggregation frequency; compare <code>created</code> distribution on <code>spt_identity_entitlement</code></td>
+</tr>
+<tr>
+<td><strong>A5</strong></td>
+<td>Removals are <strong>physical</strong> <code>DELETE</code>s (grants, identities, entitlements), not flags.</td>
+<td>If a flag marks them (e.g. <code>aggregation_state</code>), a removal is just a change and the watermark finds it; the sweep becomes unnecessary for that table.</td>
+<td>discovery §7 (<code>assigned, granted_by_role, source</code> breakdown), plus the values of <code>aggregation_state</code></td>
+</tr>
+<tr>
+<td><strong>A6</strong></td>
+<td><code>spt_identity_assigned_roles</code> has <strong>no</strong> timestamp columns.</td>
+<td>If it has one, it can use a watermark like any other table.</td>
+<td>discovery §2</td>
+</tr>
+<tr>
+<td><strong>A7</strong></td>
+<td>The logical-application catalogue is one small <code>spt_custom</code> row.</td>
+<td>Nothing: it is read in full every run either way.</td>
+<td>discovery §6</td>
+</tr>
+<tr>
+<td><strong>A8</strong></td>
+<td>Editing an entitlement's logical application (inside its XML) bumps that entitlement's <code>modified</code>.</td>
+<td>If it does not, membership changes only arrive with a full read of the membership statement, which at 800,000 short rows is acceptable every run.</td>
+<td>discovery §8, plus one test edit in a non-production instance</td>
+</tr>
+<tr>
+<td><strong>A9</strong></td>
+<td>Removing a grant bumps the owning identity's <code>modified</code> (the identity is refreshed after aggregation).</td>
+<td>The sweep cannot be narrowed to changed identities (Part 2, option B) and stays a full key sweep.</td>
+<td>a before/after comparison on one identity in a non-production instance</td>
+</tr>
+</tbody>
+</table>
+<h2 id="part-2-the-key-sweep">Part 2 — the key sweep<a class="headerlink" href="#part-2-the-key-sweep" title="Permanent link">&para;</a></h2>
+<h3 id="shape">Shape<a class="headerlink" href="#shape" title="Permanent link">&para;</a></h3>
+<p>For each large scope with physical deletes (entitlement grants, Direct and Indirect):</p>
+<ol>
+<li>Read the <strong>complete key set</strong> from the source: the statement with <code>@Since</code> bound to
+   zero, wrapped as <code>SELECT DISTINCT resourceId, principalId FROM (…)</code>. There are no
+   attribute columns, so each row is two ids.</li>
+<li>Stream the keys into a <strong>stage</strong> on the Identity Atlas side.</li>
+<li><strong>Finalize</strong> the stage in "remove what is absent" mode: soft-delete every row of the
+   system + scope that is not in the stage, an anti-join inside PostgreSQL.</li>
+</ol>
+<p>Steps 2 and 3 use the <strong>shared staging primitive</strong> the bulk-load work is building
+(open a stage for table + system + scope, stream batches into an unindexed per-sync
+staging table, finalize). The sweep is one extra finalize mode, "delete target rows in
+scope that are not in the stage", on that same mechanism. It is not a second staging
+path and not a narrow endpoint of its own. A keys-only stage needs nothing special,
+because the stage's columns follow whatever is sent. The API shape is the bulk-load
+work's to define; this design is written against the concept.</p>
+<p><strong>Not</strong> an option: "touch" every present row so the timestamp reconcile can find the
+rest. That rewrites 40 million rows per sweep, floods the write-ahead log, and the audit
+history trigger turns each rewrite into about a kilobyte of audit
+(<a href="https://github.com/Fortigi/IdentityAtlas/blob/main/docs/architecture/scale-rehearsal.md">Scale Rehearsal</a>).</p>
+<h3 id="cost">Cost<a class="headerlink" href="#cost" title="Permanent link">&para;</a></h3>
+<p>At full size the sweep moves 40 million pairs of 32-character ids, about 2.6 GB of ids
+before encoding. That is a fraction of a full read, which also carries every attribute
+and pays for every index update, but it is not free. Two ways to make it smaller, in
+order of preference:</p>
+<ul>
+<li><strong>Option A: schedule.</strong> Run the sweep nightly or weekly, and deltas hourly. A removal
+  then shows within one sweep interval. This works regardless of A9.</li>
+<li><strong>Option B: narrow to changed identities</strong> (only if A9 holds). Sweep only the grants of
+  identities whose <code>modified</code> moved since the last sweep, and finalize with the stage's
+  principal set as an extra bound ("delete rows in scope <em>for these principals</em> that are
+  absent"). This needs that bound from the staging primitive. Raise it with the bulk-load
+  work before relying on it.</li>
+</ul>
+<h3 id="timing-and-flapping">Timing and flapping<a class="headerlink" href="#timing-and-flapping" title="Permanent link">&para;</a></h3>
+<p>If aggregation deletes and re-inserts rows (A4 false), a sweep that runs <em>during</em>
+aggregation sees rows missing that are about to come back. <code>ResourceAssignments</code> is a
+soft-delete table and a re-ingested row clears its own tombstone
+(<a href="../soft-delete/">Soft-Delete &amp; Tombstones</a>), so a flapped row heals on the next delta.
+It still leaves audit noise and a window in which access looks revoked. So: <strong>schedule
+sweeps outside aggregation windows</strong>, and have the crawler refuse to finalize a sweep
+that would remove more than a configurable share of a scope (default 5%) without an
+explicit override. The refusal is logged with the count. A sweep that suddenly wants to
+remove a third of all grants is far more likely to have read a half-aggregated source
+than to reflect reality.</p>
+<h3 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h3>
+<p>A sweep reads the complete key set, so a sweep run is also when the scope's <strong>total</strong> can
+be verified: after finalize, the database count of the scope must equal the source's
+distinct key count. That is the same check a full run makes today. A delta run verifies
+what it touched (rows touched since the run started equal the delta's distinct keys).</p>
+<h2 id="part-3-order-of-work">Part 3 — order of work<a class="headerlink" href="#part-3-order-of-work" title="Permanent link">&para;</a></h2>
+<p>Staged after a full load is proven end to end, as agreed:</p>
+<ol>
+<li><strong>Watermark for the grant statements</strong> (A1, A2, A3). Token storage, <code>@Since</code>, the
+   overlap, and storing the token only after verification.</li>
+<li><strong>Reconcile by completeness.</strong> Full-read slots reconcile in delta runs (A6, A7).</li>
+<li><strong>Key sweep</strong>, on the shared staging primitive once it exists (A5, and the 5% guard).</li>
+<li><strong>Narrowed sweep</strong>, only if A9 holds and the primitive supports a principal bound.</li>
+</ol>
+<p>Each step lands with its own tests against the
+<a href="https://github.com/Fortigi/IdentityAtlas/tree/main/tools/iiq-fixture">IdentityIQ-shaped fixture</a>. Its
+timestamps already follow A1/A2, and it needs a mutation script (update some grants,
+delete some, re-insert some) to rehearse a delta and a sweep. That script is the next
+piece of fixture work.</p>
 
 
 
 
 
 
-
-  
-  
 
 
 

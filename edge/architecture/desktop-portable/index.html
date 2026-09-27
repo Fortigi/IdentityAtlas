@@ -2440,6 +2440,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../sync/mssql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../sync/scim/" class="md-nav__link">
         
   
@@ -3306,6 +3334,34 @@
     
   
     Crawler Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sql-connector-delta/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Connector Delta Loading (design)
   
 
     
@@ -5691,9 +5747,23 @@
 </code></pre></div></li>
 <li>The script starts the server and opens <code>http://localhost:3001</code> in your browser once it's ready (~5–10 seconds on first run)</li>
 </ol>
+<div class="admonition warning">
+<p class="admonition-title">Unblock the files if you downloaded the zip</p>
+<p>Windows marks everything extracted from a downloaded zip as coming from the
+internet. PowerShell then refuses to run those scripts under the common
+<code>RemoteSigned</code> policy, and the failure is easy to misread: the app itself
+starts fine (its launch line passes <code>-ExecutionPolicy Bypass</code>), but a crawler
+run fails with <strong><code>AuthorizationManager check failed</code></strong> and a job whose only
+detail is <code>pwsh.exe exited with code 1</code>. Clear the mark once, after
+extracting:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">Get-ChildItem</span> <span class="n">-Path</span> <span class="p">.\</span><span class="n">IdentityAtlas</span> <span class="n">-Recurse</span> <span class="p">|</span> <span class="nb">Unblock-File</span>
+</code></pre></div>
+<p>Extracting with <code>Expand-Archive</code> propagates the mark to every file; unblocking
+the zip <em>before</em> extracting works too.</p>
+</div>
 <p>On first run, load the bundled demo dataset to explore with synthetic data:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">.\</span><span class="n">bundled-scripts</span><span class="p">\</span><span class="n">test</span><span class="p">\</span><span class="n">demo-dataset</span><span class="p">\</span><span class="n">Ingest-DemoDataset</span><span class="p">.</span><span class="n">ps1</span> <span class="p">`</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">-ApiKey</span> <span class="p">(</span><span class="nb">Get-Content</span> <span class="s2">"$env:APPDATA\IdentityAtlas\.builtin-worker-key"</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">.\</span><span class="n">bundled-scripts</span><span class="p">\</span><span class="n">test</span><span class="p">\</span><span class="n">demo-dataset</span><span class="p">\</span><span class="n">Ingest-DemoDataset</span><span class="p">.</span><span class="n">ps1</span> <span class="p">`</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">-ApiKey</span> <span class="p">(</span><span class="nb">Get-Content</span> <span class="s2">"$env:APPDATA\IdentityAtlas\.builtin-worker-key"</span><span class="p">)</span>
 </code></pre></div>
 <p>Or go to <strong>Admin → Crawlers</strong> to connect your own data sources.</p>
 <h3 id="data-location">Data Location<a class="headerlink" href="#data-location" title="Permanent link">&para;</a></h3>
@@ -5808,7 +5878,7 @@
 <p>The server also needs <strong><code>VCRUNTIME140.dll</code></strong> (the Microsoft Visual C++ 2015–2022 x64 redistributable), which the zip does not contain. Most machines have it. When it is missing, the same preflight reports it by name and falls back.</p>
 </div>
 <h3 id="using-it">Using it<a class="headerlink" href="#using-it" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">pwsh</span> <span class="n">-ExecutionPolicy</span> <span class="n">Bypass</span> <span class="o">-File</span> <span class="p">.\</span><span class="nb">Start-IdentityAtlas</span><span class="p">.</span><span class="n">ps1</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">pwsh</span> <span class="n">-ExecutionPolicy</span> <span class="n">Bypass</span> <span class="o">-File</span> <span class="p">.\</span><span class="nb">Start-IdentityAtlas</span><span class="p">.</span><span class="n">ps1</span>
 </code></pre></div>
 <table>
 <thead>
@@ -5973,18 +6043,18 @@
 </tbody>
 </table>
 <h3 id="steps">Steps<a class="headerlink" href="#steps" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c"># 1. Clone the repository</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">git</span> <span class="n">clone</span> <span class="n">https</span><span class="p">://</span><span class="n">github</span><span class="p">.</span><span class="n">com</span><span class="p">/</span><span class="n">Fortigi</span><span class="p">/</span><span class="n">IdentityAtlas</span><span class="p">.</span><span class="n">git</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nb">cd </span><span class="n">IdentityAtlas</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c"># 2. Install desktop dependencies (includes PGlite)</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="nb">cd </span><span class="n">app</span><span class="p">/</span><span class="n">desktop</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">npm</span> <span class="n">install</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="c"># 3. Run the build (from app/api/)</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="nb">cd </span><span class="p">../</span><span class="n">api</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="n">npm</span> <span class="n">install</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="n">npm</span> <span class="n">run</span> <span class="n">build</span><span class="p">:</span><span class="n">node-launcher</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c"># 1. Clone the repository</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">git</span> <span class="n">clone</span> <span class="n">https</span><span class="p">://</span><span class="n">github</span><span class="p">.</span><span class="n">com</span><span class="p">/</span><span class="n">Fortigi</span><span class="p">/</span><span class="n">IdentityAtlas</span><span class="p">.</span><span class="n">git</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="nb">cd </span><span class="n">IdentityAtlas</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c"># 2. Install desktop dependencies (includes PGlite)</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="nb">cd </span><span class="n">app</span><span class="p">/</span><span class="n">desktop</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="n">npm</span> <span class="n">install</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="c"># 3. Run the build (from app/api/)</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="nb">cd </span><span class="p">../</span><span class="n">api</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="n">npm</span> <span class="n">install</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="n">npm</span> <span class="n">run</span> <span class="n">build</span><span class="p">:</span><span class="n">node-launcher</span>
 </code></pre></div>
 <p>The build script (<code>app/desktop/scripts/build-node-launcher.mjs</code>) does eight steps:</p>
 <ol>
@@ -5999,18 +6069,18 @@
 </ol>
 <h4 id="skipping-the-ui-build">Skipping the UI build<a class="headerlink" href="#skipping-the-ui-build" title="Permanent link">&para;</a></h4>
 <p>If you've already built the UI and are iterating on the backend only:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">npm</span> <span class="n">run</span> <span class="n">build</span><span class="p">:</span><span class="n">node-launcher</span><span class="p">:</span><span class="nb">skip-ui</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">npm</span> <span class="n">run</span> <span class="n">build</span><span class="p">:</span><span class="n">node-launcher</span><span class="p">:</span><span class="nb">skip-ui</span>
 </code></pre></div>
 <h4 id="embedding-postgresql">Embedding PostgreSQL<a class="headerlink" href="#embedding-postgresql" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">npm</span> <span class="n">run</span> <span class="n">build</span><span class="p">:</span><span class="n">node-launcher</span><span class="p">:</span><span class="n">postgres</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c"># or add the flag to any variant:</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">node</span> <span class="p">../</span><span class="n">desktop</span><span class="p">/</span><span class="n">scripts</span><span class="p">/</span><span class="n">build-node-launcher</span><span class="p">.</span><span class="n">mjs</span> <span class="p">-</span><span class="n">-skip-ui-build</span> <span class="p">-</span><span class="n">-with-postgres</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">npm</span> <span class="n">run</span> <span class="n">build</span><span class="p">:</span><span class="n">node-launcher</span><span class="p">:</span><span class="n">postgres</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c"># or add the flag to any variant:</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">node</span> <span class="p">../</span><span class="n">desktop</span><span class="p">/</span><span class="n">scripts</span><span class="p">/</span><span class="n">build-node-launcher</span><span class="p">.</span><span class="n">mjs</span> <span class="p">-</span><span class="n">-skip-ui-build</span> <span class="p">-</span><span class="n">-with-postgres</span>
 </code></pre></div>
 <p>This downloads EDB's PostgreSQL Windows binaries zip. The version and SHA-256 are pinned in <code>app/desktop/scripts/postgres-bundle.mjs</code>, and every build checks the hash. The zip is cached in <code>dist-node-launcher/</code> and only the subset the server needs is copied into <code>postgres\</code>. Binaries are never downloaded at run time, so the package works offline. Release builds do not use the flag.</p>
 <h4 id="build-output">Build Output<a class="headerlink" href="#build-output" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>app/api/dist-node-launcher/
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>  IdentityAtlas-portable.zip   ← portable ZIP (~50 MB)
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>  stage/                       ← unpacked contents (can run directly for dev)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>app/api/dist-node-launcher/
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>  IdentityAtlas-portable.zip   ← portable ZIP (~50 MB)
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>  stage/                       ← unpacked contents (can run directly for dev)
 </code></pre></div>
 <hr />
 <h2 id="security-notes">Security Notes<a class="headerlink" href="#security-notes" title="Permanent link">&para;</a></h2>
