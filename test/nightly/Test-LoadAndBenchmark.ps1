@@ -142,7 +142,7 @@ function Test-LoadTestViewRefresh {
     Write-Host "  Step 4: Refreshing materialized views..." -ForegroundColor Cyan
     try {
         $refreshStart = Get-Date
-        $r = Invoke-LocalApi -Path '/ingest/refresh-views' -Method 'Post'
+        $r = Invoke-LocalApi -Path '/ingest/refresh-views?wait=1' -Method 'Post'
         $refreshDuration = ((Get-Date) - $refreshStart).TotalSeconds
         Write-Result 'LoadTest/ViewRefresh' $true "time=$([math]::Round($refreshDuration,1))s"
     } catch {
