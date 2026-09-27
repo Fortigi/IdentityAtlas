@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added a staged full-load interface to the ingest API for very large scopes: a connector streams a system's complete set of rows into a staging area and applies it in one step. Re-importing unchanged data no longer rewrites every row (about 3× faster on 4.1 million assignments), and a first load into an empty installation builds its indexes once at the end (about 1.6× faster). Connectors adopt it separately.
+
+## Changes in this PR
+
 - Added an IdentityIQ-shaped SQL Server test fixture (a container definition and a re-runnable schema script) so the SQL connector can be developed and verified without access to a production IdentityIQ database
 - Added a seeded generator that fills the fixture with synthetic data at up to full scale (180,000 identities, 800,000 entitlements, 40 million grants), producing the same dataset as the CSV scale fixture so loads through either connector can be compared, plus a load script that fails when any table's row count differs from what was generated
 
