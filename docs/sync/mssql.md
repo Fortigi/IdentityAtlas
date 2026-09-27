@@ -171,6 +171,7 @@ key collapse into one row but would still be counted as sent.
 | Check | Expected |
 |---|---|
 | Read, per statement | The rows `SELECT COUNT_BIG(*)` over the statement returns, asked right after the read. A source that changes during the run can also make these differ; re-run to tell the two apart |
+| Placed, per statement | At most **5%** of the rows read may be held back: as dangling (they name a resource or principal the run did not load) or skipped (a required column is empty). More means the statements disagree about what exists, for example an entitlement statement that filters out most entitlements while the grant statement does not. A little is normal, e.g. grants held by workgroups that the principals statement leaves out. This bound is also what makes an assignment count with dangling rows an assertion rather than an open range |
 | Principals, resources, relationships | The number of **distinct** keys the statement returned. If it returned more rows than distinct keys, the run fails: rows sharing an id overwrite each other, so all but one of them are lost. Make the id column unique |
 | Assignments | The source's distinct (resource, principal) pairs. Rows held back as dangling make this a range rather than an exact number |
 
@@ -413,7 +414,7 @@ see [System naming on the SCIM page](scim.md#system-naming) for the full explana
       "name": "Entitlements",
       "target": "resources",
       "resourceType": "Entitlement",
-      "sql": "SELECT ma.id, COALESCE(NULLIF(ma.displayable_name, ''), ma.value) AS displayName, ma.attribute AS attributeName FROM spt_managed_attribute ma WHERE ma.type = 'Entitlement'"
+      "sql": "SELECT ma.id, COALESCE(NULLIF(ma.displayable_name, ''), ma.value) AS displayName, ma.attribute AS attributeName FROM spt_managed_attribute ma"
     },
     {
       "name": "Entitlement assignments",
@@ -502,8 +503,16 @@ SELECT
 FROM spt_managed_attribute ma
 LEFT JOIN spt_application app ON app.id = ma.application
 LEFT JOIN spt_identity owner  ON owner.id = ma.owner
-WHERE ma.type = 'Entitlement'
 ```
+
+!!! warning "Do not filter on `ma.type`"
+    `spt_managed_attribute.type` is the schema object type an entitlement came from, not
+    "is this an entitlement". In a real instance most rows are `group`, then `role`,
+    `workgroup` and site-specific types, and `Entitlement` can be a tiny minority. A
+    statement ending `WHERE ma.type = 'Entitlement'` loaded 454 of 805,497 entitlements in
+    production, and every grant for the rest was held back as dangling. The type is kept as
+    the `entitlementType` column instead. The run now fails when most of a statement's rows
+    cannot be placed (see [Verification](#verification-source-against-database)).
 
 ### Business roles
 
@@ -564,18 +573,28 @@ FROM spt_identity_assigned_roles
 
 ### Role composition
 
-Target `relationships`, `relationshipType` `Contains`. Links a bundle to the entitlement
-profile it grants, so a business role shows which entitlements it contains.
+Target `relationships`, `relationshipType` `Contains`. Links a bundle to each entitlement
+it grants, so a business role shows which entitlements it contains. Each relation row names
+the entitlement by `source_application` + `attribute` + `value`, the same three columns a
+grant joins on. `source_profile_id` is a *profile* id and `display_value` a name, so neither
+resolves to an entitlement.
 
 ```sql
 SELECT
     bpr.bundle_id         AS parentId,
-    bpr.source_profile_id AS childId,
+    ma.id                 AS childId,
     bpr.attribute         AS entitlementAttribute,
     bpr.value             AS entitlementValue,
     bpr.display_value     AS entitlementName
 FROM spt_bundle_profile_relation bpr
+LEFT JOIN spt_managed_attribute ma
+    ON  ma.application = bpr.source_application
+    AND ma.attribute   = bpr.attribute
+    AND ma.value       = bpr.value
 ```
+
+The `LEFT JOIN` is deliberate. A relation that matches no entitlement arrives without a
+`childId` and is counted as skipped, instead of disappearing inside an inner join.
 
 ### Role hierarchy
 

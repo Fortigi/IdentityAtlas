@@ -129,6 +129,14 @@ export function entitlementFacts(ctx, e) {
   };
 }
 
+// spt_managed_attribute.type for entitlement e, drawn from the configured mix.
+export function entitlementType(iiq, e) {
+  const u = unit(fmix32((e ^ 0x5bd1e995) >>> 0));
+  let acc = 0;
+  for (const [type, share] of iiq.entitlementTypes) { acc += share; if (u < acc) return type; }
+  return iiq.entitlementTypes[iiq.entitlementTypes.length - 1][0];
+}
+
 export function managedAttributeRow(ctx, e) {
   const { plan, iiq } = ctx;
   const f = entitlementFacts(ctx, e);
@@ -139,7 +147,7 @@ export function managedAttributeRow(ctx, e) {
   const xml = attributesXml([[iiq.appNameKey, entitlementAppName(ctx, e)], ['sysDescriptions', entitlementDescription(e, plan.keys.name)]]);
   const flag = (bits) => ((h >>> bits) & 1 ? 'true' : 'false');
   return [
-    f.id, t.created, t.modified, owner, f.appId, 'Entitlement', f.attribute, f.value, hash, f.displayName,
+    f.id, t.created, t.modified, owner, f.appId, entitlementType(iiq, e), f.attribute, f.value, hash, f.displayName,
     (h >>> 3) & 1, 1, 0, t.modified, xml,
     flag(4), CERT_FREQUENCIES[(h >>> 5) % CERT_FREQUENCIES.length], `CC${pad((h >>> 8) % 10000, 4)}`,
     flag(20), flag(21), flag(22), flag(23), (h >>> 24) % 17 === 0 ? 'true' : 'false',

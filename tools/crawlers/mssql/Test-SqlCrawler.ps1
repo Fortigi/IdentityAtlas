@@ -94,7 +94,8 @@ Write-Host "`n=== SQL crawler integration test ===" -ForegroundColor Cyan
 $runId = [guid]::NewGuid().ToString('N').Substring(0, 8)
 $cfg = @{ server = "sqltest-$runId"; database = 'iiq'; configName = "SQL crawler test $runId"; systemName = '' }
 
-# ── Run 1: two entitlements, two identities, three assignments ───────────────
+# ── Run 1: twelve entitlements, two identities, 24 grants plus one dangling ──
+# One held-back grant in 25 (4%) stays under the verification's 5% unplaced bound.
 $sqlIdent = 'SELECT identities'; $sqlRes = 'SELECT resources'; $sqlAsgn = 'SELECT assignments'; $sqlRel = 'SELECT relationships'
 $slots = @(
     (Resolve-SqlQuerySlot -Slot @{ name = 'Identities';  target = 'identities';    sql = $sqlIdent }),
@@ -111,11 +112,10 @@ $script:RowsBySlot[$sqlIdent] = @(
 $script:RowsBySlot[$sqlRes] = @(
     (New-TestRow @{ id = "e1-$runId"; name = 'AD-Sales' })
     (New-TestRow @{ id = "e2-$runId"; name = 'AD-Finance' })
+    foreach ($n in 3..12) { New-TestRow @{ id = "e$n-$runId"; name = "AD-Group-$n" } }
 )
 $script:RowsBySlot[$sqlAsgn] = @(
-    (New-TestRow @{ principalId = "u1-$runId"; resourceId = "e1-$runId" })
-    (New-TestRow @{ principalId = "u1-$runId"; resourceId = "e2-$runId" })
-    (New-TestRow @{ principalId = "u2-$runId"; resourceId = "e1-$runId" })
+    foreach ($u in 1..2) { foreach ($n in 1..12) { New-TestRow @{ principalId = "u$u-$runId"; resourceId = "e$n-$runId" } } }
     (New-TestRow @{ principalId = "u9-$runId"; resourceId = "e1-$runId" })   # dangling — must not be sent
 )
 # Source column names, NOT contract names — only the columnMap makes these land.
@@ -182,6 +182,23 @@ $readRow = @($state4.Verification | Where-Object { $_.measured -eq 'read' })[0]
 Write-Result 'A read that stopped early fails verification' (-not $verified4 -and $readRow -and -not $readRow.ok) `
     (($state4.Verification | ForEach-Object { "$($_.scope): expected $($_.expected), $($_.measured) $($_.atlas)" }) -join ', ')
 $script:SourceRowsBySlot.Remove($sqlIdent)
+
+# ── Run 5: most grants name an entitlement the run did not load ──────────────
+# The shape of an entitlement statement filtered on type = 'Entitlement': it loads
+# a sliver, every grant for the rest dangles, and every count still agrees with
+# itself. Only the unplaced bound can fail it.
+Start-Sleep -Seconds 1
+$reg5 = Register-SqlSystem -Cfg $cfg
+$script:RowsBySlot[$sqlAsgn] = @(
+    (New-TestRow @{ principalId = "u1-$runId"; resourceId = "e1-$runId" })
+    foreach ($n in 1..9) { New-TestRow @{ principalId = "u1-$runId"; resourceId = "missing$n-$runId" } }
+)
+$state5 = New-SqlRunState -SystemId $systemId -ServerTime $reg5.serverTime -Slots @($slots[1], $slots[2]) -BatchSize 2 -SyncMode 'delta'
+foreach ($slot in (Get-SqlSlotsInOrder -Slots @($slots[1], $slots[2]))) { Invoke-SqlSlot -Slot $slot -Connection $null -State $state5 | Out-Null }
+$verified5 = Test-Verified -State $state5
+$read5 = @($state5.Verification | Where-Object { $_.scope -eq 'read: Grants' })[0]
+Write-Result 'Grants that mostly dangle fail verification' (-not $verified5 -and $read5 -and -not $read5.ok -and $read5.reason -match 'could not be placed') `
+    (($state5.Verification | ForEach-Object { "$($_.scope): $($_.reason)" }) -join ' | ')
 
 # ── Reconcile safety: the endpoint refuses what it must ──────────────────────
 foreach ($case in @(

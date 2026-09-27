@@ -72,15 +72,25 @@ seconds) are then kept exact on every run without a sweep.
 
 | # | Assumption | If false | Settled by |
 |---|---|---|---|
-| **A1** | `created` / `modified` are `numeric(19,0)` epoch **milliseconds** written by the **application**, not datetimes written by the database. | `@Since` binds as `datetime2` and the overlap becomes an interval; the logic is unchanged. | discovery §2 (column types) |
+| **A1** ✅ | `created` / `modified` are `numeric` epoch **milliseconds** written by the **application**, not datetimes written by the database. **Confirmed** by a production discovery: `numeric` columns holding 13-digit millisecond values. `@Since` binds as a bigint and the overlap is milliseconds. | `@Since` binds as `datetime2` and the overlap becomes an interval; the logic is unchanged. | discovery §2 (column types) |
 | **A2** | `modified` is `NULL` on a row never updated, and set on **every** update. | If `NULL` means something else, drop the `COALESCE`. If some updates do not bump it, that table cannot use a watermark and reads in full. | discovery §8 (`has_modified`, `modified_after_created`) |
 | **A3** | Several application servers write, and their clocks may drift, and a transaction can commit after rows with later timestamps. | The overlap must exceed the worst skew plus the longest write transaction. **Default 15 minutes**, configurable. The cost of too large an overlap is re-reading rows; too small loses rows silently. | not measurable from the database; ask how many application servers write and whether they are time-synchronised |
 | **A4** | Aggregation updates grant rows **in place** and only when they change. | If aggregation deletes and re-inserts unchanged rows, every aggregated row looks new: the delta reads most of the table, and during the delete→insert gap a row is briefly absent (see A5 on the sweep). | discovery §8 churn (rows changed in the last 1 / 7 days) against aggregation frequency; compare `created` distribution on `spt_identity_entitlement` |
 | **A5** | Removals are **physical** `DELETE`s (grants, identities, entitlements), not flags. | If a flag marks them (e.g. `aggregation_state`), a removal is just a change and the watermark finds it; the sweep becomes unnecessary for that table. | discovery §7 (`assigned, granted_by_role, source` breakdown), plus the values of `aggregation_state` |
-| **A6** | `spt_identity_assigned_roles` has **no** timestamp columns. | If it has one, it can use a watermark like any other table. | discovery §2 |
+| **A6** ✅ | `spt_identity_assigned_roles` has **no** timestamp columns. **Confirmed**: its columns are `identity_id`, `idx`, `bundle`. It is read in full every run; at 3.4 million rows in production (not the 1 million first assumed) that is still a short read. | If it has one, it can use a watermark like any other table. | discovery §2 |
 | **A7** | The logical-application catalogue is one small `spt_custom` row. | Nothing: it is read in full every run either way. | discovery §6 |
 | **A8** | Editing an entitlement's logical application (inside its XML) bumps that entitlement's `modified`. | If it does not, membership changes only arrive with a full read of the membership statement, which at 800,000 short rows is acceptable every run. | discovery §8, plus one test edit in a non-production instance |
 | **A9** | Removing a grant bumps the owning identity's `modified` (the identity is refreshed after aggregation). | The sweep cannot be narrowed to changed identities (Part 2, option B) and stays a full key sweep. | a before/after comparison on one identity in a non-production instance |
+
+### Reading from a replica
+
+The production source is Azure SQL **Hyperscale**, which offers read-only replicas
+(`ApplicationIntent=ReadOnly`). Reading there takes the load off the primary, which is
+worth it for the full read and the key sweep. But a replica **lags** the primary. A
+watermark taken from rows read on a lagging replica can move past rows the primary already
+committed, and those rows are then never read. So the delta may use a replica only if the
+overlap (A3) is widened by the worst replica lag, or it reads the primary. This is decided
+when the connection option is built, not by default.
 
 ## Part 2 — the key sweep
 

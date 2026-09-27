@@ -26,7 +26,7 @@ export const TABLES = Object.freeze({
   spt_bundle: ['id', 'created', 'modified', 'owner', 'name', 'display_name', 'displayable_name', 'type', 'disabled', 'attributes'],
   spt_identity_assigned_roles: ['identity_id', 'bundle', 'idx'],
   spt_bundle_profile_relation: [
-    'id', 'created', 'modified', 'bundle_id', 'source_bundle_id', 'source_profile_id', 'application_id',
+    'id', 'created', 'modified', 'bundle_id', 'source_bundle_id', 'source_profile_id', 'source_application',
     'attribute', 'value', 'display_value', 'type', 'inherited',
   ],
   spt_custom: ['id', 'created', 'modified', 'owner', 'name', 'description', 'attributes'],

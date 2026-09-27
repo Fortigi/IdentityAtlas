@@ -593,3 +593,27 @@ describe('contexts and context-members slots', () => {
     expect(validateColumnMap([{ from: 'X', to: 'resourceId' }], 'context-members')).toHaveLength(1);
   });
 });
+
+// The IdentityIQ presets, checked against what a production discovery showed.
+describe('IdentityIQ presets match the real schema', () => {
+  const statements = PRESETS.flatMap(p => p.queries.map(q => ({ preset: p.id, ...q })));
+
+  it('never filters managed attributes on type: most entitlements are type group, not Entitlement', () => {
+    // WHERE ma.type = 'Entitlement' loaded 454 of 805,497 entitlements in production.
+    for (const q of statements) expect(q.sql, `${q.preset} / ${q.name}`).not.toMatch(/\bma\.type\s*=/i);
+  });
+
+  it('still reports the managed-attribute type as a column', () => {
+    for (const q of statements.filter(s => s.name === 'Entitlements')) expect(q.sql).toMatch(/ma\.type\s+AS entitlementType/);
+  });
+
+  it('resolves role composition to entitlement ids by application + attribute + value, keeping unmatched rows', () => {
+    const rc = statements.filter(s => s.name === 'Role composition');
+    expect(rc.length).toBe(PRESETS.length);
+    for (const q of rc) {
+      expect(q.sql).toMatch(/ma\.id\s+AS childId/);
+      expect(q.sql).toMatch(/LEFT JOIN spt_managed_attribute ma\s+ON\s+ma\.application = bpr\.source_application\s+AND ma\.attribute\s+= bpr\.attribute\s+AND ma\.value\s+= bpr\.value/);
+      expect(q.sql).not.toMatch(/source_profile_id\s+AS childId/);
+    }
+  });
+});

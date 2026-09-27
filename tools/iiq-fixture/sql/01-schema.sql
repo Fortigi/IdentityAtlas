@@ -184,9 +184,9 @@ CREATE TABLE spt_identity_assigned_roles (
 );
 
 /* ---- spt_bundle_profile_relation: role → entitlement index -------------- */
--- LOW CONFIDENCE beyond bundle_id / source_profile_id / attribute / value /
--- display_value: application_id is what makes an id-based join to
--- spt_managed_attribute possible, and is to be confirmed.
+-- Confirmed against a production discovery: source_application + attribute +
+-- value join to spt_managed_attribute (application, attribute, value). There is
+-- no application_id column; an earlier guess at one does not exist.
 CREATE TABLE spt_bundle_profile_relation (
     id                  varchar(32)    NOT NULL,
     created             numeric(19,0)  NULL,
@@ -194,7 +194,7 @@ CREATE TABLE spt_bundle_profile_relation (
     bundle_id           varchar(32)    NOT NULL,
     source_bundle_id    varchar(32)    NULL,
     source_profile_id   varchar(32)    NULL,
-    application_id      varchar(32)    NULL,
+    source_application  varchar(32)    NULL,
     attribute           nvarchar(322)  NULL,
     value               nvarchar(450)  NULL,
     display_value       nvarchar(450)  NULL,

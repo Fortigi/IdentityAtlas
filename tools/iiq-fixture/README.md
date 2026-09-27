@@ -49,6 +49,17 @@ flags on `spt_managed_attribute`). Their types are placeholders until checked
 against a real `INFORMATION_SCHEMA` dump, as are the secondary indexes in
 [`sql/02-keys.sql`](sql/02-keys.sql).
 
+## Where the shape comes from
+
+**This fixture's shape is derived from discovery output against a real IdentityIQ
+database, not from assumption, and must be re-derived when the source changes.** A
+fixture written from the same guesses as the code under test cannot falsify them. This
+one once held only `type = 'Entitlement'` managed attributes, and used a role-composition
+column (`application_id`) that production does not have. So the IdentityIQ preset looked
+proven while it would have loaded 454 of 805,497 entitlements. The entitlement type mix
+(`entitlementTypes`) and the `source_application` join column now follow a production
+discovery, rounded and with generic names.
+
 ## Parameters
 
 Shape parameters (volumes, skew, enabled share, systems spread, applications
@@ -67,6 +78,7 @@ IdentityIQ parameters ([`lib/params.mjs`](lib/params.mjs), `--iiq k=v`):
 | `requestedShare` | 0.15 | other grants requested through LCM (`assigned = 1`) |
 | `appNameDriftShare` | 0.002 | entitlements whose application name differs from the catalogue only by case or a trailing space |
 | `unassignedAppShare` | 0 | entitlements with no logical application |
+| `entitlementTypes` | mostly `group`, then `role`, `workgroup`, a custom type; `Entitlement` 0.05% | `spt_managed_attribute.type` mix, as `[type, share]` pairs summing to 1 |
 | `asOf`, `historyDays` | 2026-09-01, 3650 | every timestamp lies in this window, so output does not depend on the clock |
 
 The catalogue record name and the XML keys are deployment-specific in real
