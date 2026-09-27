@@ -1,0 +1,5 @@
+- Fixed re-running a CSV crawler (or any connector that registers systems without a tenant) creating a second copy of every one of its systems and moving all of their accounts, resources and assignments onto the copies. A crawler configuration now maps to the same systems on every run. Duplicates left behind by earlier re-runs are merged into one system when you upgrade.
+- Fixed a re-import duplicating business-role assignments (one governed, one not) and business-role classification then failing on every later run. Existing duplicates are cleaned up by the next classification.
+- A CSV crawler run now fails when business-role classification, the view refresh request or the sync-log entry fails, instead of reporting success.
+- Reduced the storage used by assignments imported by external id: the two ids are no longer stored a second time in the assignment's extended attributes (about 40% of each assignment row). Rows already stored keep them until they are next rewritten.
+- The Docker Compose files now give PostgreSQL 1 GB of shared memory instead of Docker's 64 MB default, which made parallel vacuum and parallel queries fail on large databases.

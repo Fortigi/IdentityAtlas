@@ -401,3 +401,58 @@ describe('normalizeRecords — binary columns', () => {
     expect('photo' in out).toBe(false);
   });
 });
+
+// A resolved external reference is held by the id column it filled, and the row
+// that id points at holds the external id itself. Stored again in
+// extendedAttributes it was 78 of an assignment's 192 bytes on a 41M-row rig.
+describe('normalizeRecords — resolved external references stay out of extendedAttributes', () => {
+  const raCols = ['resourceId', 'principalId', 'identityId', 'assignmentType', 'governed', 'extendedAttributes'];
+  const raOpts = { idGeneration: 'deterministic', idPrefix: 'CSV-resource-assignments', systemPrefix: 'CSV', systemId: 1 };
+  const ext = (r) => (r.extendedAttributes === undefined ? undefined : JSON.parse(r.extendedAttributes));
+
+  it('an assignment carrying only its two references gets no extendedAttributes at all', () => {
+    const [r] = normalizeRecords([{ resourceExternalId: 'RES1', principalExternalId: 'USR1', assignmentType: 'Direct' }], raCols, raOpts);
+    expect(r.resourceId).toBeTruthy();
+    expect(r.principalId).toBeTruthy();
+    // Absent rather than '{}': a batch without the column leaves stored rows as they are.
+    expect(r).not.toHaveProperty('extendedAttributes');
+  });
+
+  it('keeps every other extra field', () => {
+    const [r] = normalizeRecords([{ resourceExternalId: 'RES1', userExternalId: 'USR1', assignmentType: 'Direct', grantedBy: 'hr' }], raCols, raOpts);
+    expect(ext(r)).toEqual({ grantedBy: 'hr' });
+  });
+
+  it('keeps a reference that did not resolve because the caller set the id itself', () => {
+    const explicit = '22222222-2222-2222-2222-222222222222';
+    const [r] = normalizeRecords([{ resourceExternalId: 'RES1', principalId: explicit, principalExternalId: 'USR1', assignmentType: 'Direct' }], raCols, raOpts);
+    expect(r.principalId).toBe(explicit);
+    expect(ext(r)).toEqual({ principalExternalId: 'USR1' });
+  });
+
+  it('keeps the references when ids are not generated (nothing resolves them)', () => {
+    const [r] = normalizeRecords([{ resourceExternalId: 'RES1', principalExternalId: 'USR1' }], raCols, { idGeneration: 'native', systemId: 1 });
+    expect(ext(r)).toEqual({ resourceExternalId: 'RES1', principalExternalId: 'USR1' });
+  });
+
+  it('drops a resolved parentExternalId and memberExternalId too', () => {
+    const [c] = normalizeRecords([{ externalId: 'c2', parentExternalId: 'c1', displayName: 'Ops' }],
+      ['id', 'externalId', 'parentContextId', 'displayName', 'extendedAttributes'],
+      { idGeneration: 'deterministic', idPrefix: 'CSV-contexts', systemPrefix: 'CSV' });
+    expect(c.parentContextId).toBeTruthy();
+    expect(c).not.toHaveProperty('extendedAttributes');
+    const [m] = normalizeRecords([{ contextExternalId: 'c1', memberExternalId: 'alice', memberType: 'Identity', note: 'x' }],
+      ['contextId', 'memberId', 'memberType', 'extendedAttributes'],
+      { idGeneration: 'deterministic', idPrefix: 'CSV-context-members', systemPrefix: 'CSV' });
+    expect(m.memberId).toBeTruthy();
+    expect(ext(m)).toEqual({ note: 'x' });
+  });
+
+  it('keeps a memberExternalId whose memberType names no entity (it did not resolve)', () => {
+    const [m] = normalizeRecords([{ contextExternalId: 'c1', memberExternalId: 'alice', memberType: 'Unknown' }],
+      ['contextId', 'memberId', 'memberType', 'extendedAttributes'],
+      { idGeneration: 'deterministic', idPrefix: 'CSV-context-members', systemPrefix: 'CSV' });
+    expect(m.memberId).toBeUndefined();
+    expect(ext(m)).toEqual({ memberExternalId: 'alice' });
+  });
+});

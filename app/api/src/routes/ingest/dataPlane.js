@@ -64,3 +64,35 @@ export function classifyScope(body, crawler) {
   if (allowed === null) return { clause: '', params: [] };
   return { clause: ' AND ra."systemId" = ANY($1::int[])', params: [allowed] };
 }
+
+// The two statements classify-business-role-assignments runs, in order, in one
+// transaction. `scopeClause` is classifyScope's clause (aliases ra).
+//
+// A membership of a governance resource IS the governed fact, so its ungoverned
+// row is only ever an unclassified copy. Before ingest marked these rows itself,
+// every re-import added such a copy beside the row classify had already flipped
+// (governed is part of the unique key), and flipping the copy then collided with
+// that row: a unique violation, HTTP 500, on every later run. So the copy is
+// removed where the governed row exists, and only the rest is flipped. This does
+// not touch the actual/intent pair migration 047 allows on ordinary resources:
+// both statements are limited to governance resources.
+export function classifyStatements(scopeClause) {
+  const governanceMembership = `r.id = ra."resourceId" AND r."governanceResource" AND ra."governed" = false${scopeClause}`;
+  return {
+    removeCopies: `
+      DELETE FROM "ResourceAssignments" ra
+       USING "Resources" r
+       WHERE ${governanceMembership}
+         AND EXISTS (SELECT 1 FROM "ResourceAssignments" g
+                      WHERE g."governed"
+                        AND g."resourceId" = ra."resourceId"
+                        AND g."principalId" IS NOT DISTINCT FROM ra."principalId"
+                        AND g."identityId" IS NOT DISTINCT FROM ra."identityId"
+                        AND g."assignmentType" = ra."assignmentType")`,
+    markGoverned: `
+      UPDATE "ResourceAssignments" ra
+         SET "governed" = true
+        FROM "Resources" r
+       WHERE ${governanceMembership}`,
+  };
+}
