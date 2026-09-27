@@ -30,6 +30,11 @@ import base from './vitest.config.js';
 //   src/routes/matrix.js, src/routes/resources.js, src/routes/permissions/**,
 //   src/routes/tags/entities.js    -> lib/attributeLabels.js  (withAttributeLabels)
 //
+// src/db/valueCache.js has exactly one killer set, its own co-located test: the
+// module holds no SQL and no callers reach its decisions except through it
+// (routes/matrix/shared.js and db/columnCache.js both just call get()). Its
+// timing branches are driven with fake timers there, which no route test does.
+//
 // attributeLabelChannel.test.js is what drives that last group — it asserts the `label`
 // channel on the column-discovery responses, so a mutant in withAttributeLabels whose only
 // killer lives there would otherwise read as a survivor. tags/entities.test.js is not
@@ -58,6 +63,7 @@ export default defineConfig({
       'src/routes/resources.test.js',
       'src/routes/resources/**/*.test.js',
       'src/routes/permissions/**/*.test.js',
+      'src/db/valueCache.test.js',
       'src/lib/attributeLabels.test.js',
       'src/routes/attributeLabels.test.js',
       'src/routes/attributeLabelChannel.test.js',

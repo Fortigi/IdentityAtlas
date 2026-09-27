@@ -77,6 +77,7 @@
     "071_principal_photo.sql": "c653ca483f94ce15fc771027da9bfe108e5ea4a08b831cf52fe699c3242afbe7",
     "072_ingest_touch_timestamp.sql": "ee98f1bcbc51b373c742b7fb42e1e2839121921ecb72dfa66b5faa1e19fc2749",
     "073_history_skip_initial_load.sql": "6ac704b9619d9317e6eda200332331868284e5548502b4c5b7f1d1a7d8f9986a",
-    "074_systems_tenantless_key.sql": "1b636462b0d9ff25449ea58e3a61dbad78d2dd8d2464de697d9066b0386ca171"
+    "074_systems_tenantless_key.sql": "1b636462b0d9ff25449ea58e3a61dbad78d2dd8d2464de697d9066b0386ca171",
+    "075_principal_manager_index.sql": "786544823b6585943f8ddccea92ea8ac139efca7927fc3f085cd1dac307d3962"
   }
 }

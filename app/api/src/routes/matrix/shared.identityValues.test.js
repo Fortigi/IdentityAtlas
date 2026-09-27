@@ -7,11 +7,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { dbQuery, discoverCols, discoverExt, pageSize } = vi.hoisted(() => ({
+const { dbQuery, discoverCols, discoverExt } = vi.hoisted(() => ({
   dbQuery: vi.fn(async () => ({ rows: [] })),
   discoverCols: vi.fn(async () => ({ values: {}, truncated: {} })),
   discoverExt: vi.fn(async () => ({ values: {}, truncated: {} })),
-  pageSize: vi.fn(() => 500),
 }));
 
 vi.mock('../../db/connection.js', () => ({ query: (...a) => dbQuery(...a), queryOne: vi.fn(), getPool: vi.fn() }));
@@ -25,7 +24,6 @@ vi.mock('../../db/columnCache.js', () => ({
     values:    { ...base.values,    ...ext.values },
     truncated: { ...base.truncated, ...ext.truncated },
   }),
-  valuePageSize: (...a) => pageSize(...a),
 }));
 
 // A fresh module per test — the identity caches are module-scoped with a
@@ -36,7 +34,7 @@ async function freshModule() {
 }
 
 beforeEach(() => {
-  pageSize.mockReset().mockReturnValue(500);
+  delete process.env.MATRIX_VALUE_PAGE_SIZE;
   dbQuery.mockReset().mockResolvedValue({ rows: [{ column_name: 'department', data_type: 'text' }] });
   discoverCols.mockReset().mockResolvedValue({ values: { department: ['Sales'] }, truncated: {} });
   discoverExt.mockReset().mockResolvedValue({ values: { 'ext.costCenter': ['EU-1'] }, truncated: { 'ext.costCenter': true } });
@@ -66,11 +64,13 @@ describe('getIdentityColumnValues', () => {
     const mod = await freshModule();
     await mod.getIdentityColumnValuesMeta();
 
-    pageSize.mockReturnValue(5);
+    // A page cut to the old size is not a usable answer — not even a stale one.
+    process.env.MATRIX_VALUE_PAGE_SIZE = '5';
     await mod.getIdentityColumnValuesMeta();
 
     expect(discoverCols).toHaveBeenCalledTimes(2);
     expect(discoverCols.mock.calls[1][2]).toBe(5);
+    delete process.env.MATRIX_VALUE_PAGE_SIZE;
   });
 
   it('still serves real columns when the schema has no extendedAttributes column', async () => {
