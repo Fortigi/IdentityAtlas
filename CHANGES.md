@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Fixed: a full sync from one connector could delete context data that did not belong to it. Loading a second SQL Server source removed the first source's logical applications, and a routine SQL, CSV or Omada refresh removed every context membership outside its own data, including tags an analyst had assigned by hand. A full sync now only removes contexts and memberships that its own system owns
+- A membership an analyst added by hand is no longer removed by any connector's sync, even on a context the connector owns
+- A connector that sends contexts without saying which system owns them now gets a warning in its job log, because those contexts are never cleaned up when they disappear from the source
+
+## Changes in this PR
+
 - A system's first import no longer writes an audit-history entry for every row it creates. On large imports that history was most of the database (25.7 of 34.9 GB at 41 million assignments) and slowed the import more than all of its indexes. The import is recorded once per table instead, so the matrix scope timeline still starts at the first import. Changes after the first import — and every update or deletion, including during it — are still recorded.
 
 ## Changes in this PR

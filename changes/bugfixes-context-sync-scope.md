@@ -1,3 +1,0 @@
-- Fixed: a full sync from one connector could delete context data that did not belong to it. Loading a second SQL Server source removed the first source's logical applications, and a routine SQL, CSV or Omada refresh removed every context membership outside its own data, including tags an analyst had assigned by hand. A full sync now only removes contexts and memberships that its own system owns
-- A membership an analyst added by hand is no longer removed by any connector's sync, even on a context the connector owns
-- A connector that sends contexts without saying which system owns them now gets a warning in its job log, because those contexts are never cleaned up when they disappear from the source
