@@ -264,3 +264,45 @@ describe('finalize — the merge path', () => {
     expect(S._stagesForTest().has(st.id)).toBe(false);
   });
 });
+
+// A system's initial load writes no per-row insert history (migration 073, #1270).
+// Without these calls a staged first load still wrote a history row per row, and
+// the staged load and the history fix failed to compound — silently.
+describe('initial-load history in the staged finalize', () => {
+  const setLocal = () => sqls.filter(s => /SET LOCAL identity_atlas\.initial_load/.test(s)).length;
+
+  it('merge path: flags the stage\'s own transaction when its system has never synced, before any insert', async () => {
+    handlers.push([/"lastSyncDateTime" IS NULL AS "initialLoad"/, () => ({ rows: [{ initialLoad: true }] })]);
+    const st = open({ systemId: 7 });
+    await S.appendToStage(st, [rec]);
+    await S.finalizeStage(st);
+    const anchor = sqls.findIndex(s => /INSERT INTO "_history"/.test(s));
+    const flag = sqls.findIndex(s => /SET LOCAL identity_atlas\.initial_load/.test(s));
+    const insert = sqls.findIndex(s => /^\s*INSERT INTO "ResourceAssignments"/.test(s));
+    expect(anchor).toBeGreaterThanOrEqual(0);
+    expect(flag).toBeGreaterThan(anchor);
+    expect(insert).toBeGreaterThan(flag);
+  });
+
+  it('merge path: leaves a synced system recorded', async () => {
+    handlers.push([/"lastSyncDateTime" IS NULL AS "initialLoad"/, () => ({ rows: [{ initialLoad: false }] })]);
+    const st = open({ systemId: 7 });
+    await S.appendToStage(st, [rec]);
+    await S.finalizeStage(st);
+    expect(setLocal()).toBe(0);
+  });
+
+  it('empty-table path: one flag for the group, asked about every system, before the bare inserts', async () => {
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: true }] })]);
+    handlers.push([/FILTER \(WHERE "lastSyncDateTime" IS NULL\)/, () => ({ rows: [{ initial: 2 }] })]);
+    const a = open({ systemId: 7 });
+    const b = open({ systemId: 8 });
+    await S.appendToStage(a, [rec]);
+    await S.appendToStage(b, [rec]);
+    await S.finalizeStages([a, b]);
+    expect(setLocal()).toBe(1);
+    expect(sqls.filter(s => /INSERT INTO "_history"/.test(s))).toHaveLength(2);
+    expect(sqls.findIndex(s => /SET LOCAL identity_atlas\.initial_load/.test(s)))
+      .toBeLessThan(sqls.findIndex(s => /^\s*INSERT INTO "ResourceAssignments"/.test(s)));
+  });
+});

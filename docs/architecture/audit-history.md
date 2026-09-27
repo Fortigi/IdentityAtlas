@@ -138,9 +138,16 @@ The Admin page provides a **History Retention** setting (the History Retention s
 To track a new table, create triggers that call the existing `fg_record_history` function:
 
 ```sql
--- INSERT and DELETE: always record
-CREATE TRIGGER trg_history_ins_del
-AFTER INSERT OR DELETE ON "MyNewTable"
+-- INSERT: record, except during a system's initial load (see below)
+CREATE TRIGGER trg_history_ins
+AFTER INSERT ON "MyNewTable"
+FOR EACH ROW
+WHEN (current_setting('identity_atlas.initial_load', true) IS DISTINCT FROM 'on')
+EXECUTE FUNCTION fg_record_history();
+
+-- DELETE: always record
+CREATE TRIGGER trg_history_del
+AFTER DELETE ON "MyNewTable"
 FOR EACH ROW EXECUTE FUNCTION fg_record_history();
 
 -- UPDATE: only when something actually changed
@@ -152,3 +159,37 @@ EXECUTE FUNCTION fg_record_history();
 ```
 
 The trigger function is generic — it works with any table that has an `id` column.
+
+### A system's initial load
+
+The rows a system brings in on its **first** sync are not recorded as individual
+"created" events (migration 073). Until one of a system's syncs has completed —
+when refresh-views stamps `Systems."lastSyncDateTime"` — the ingest engine sets
+`identity_atlas.initial_load = 'on'` with `SET LOCAL` in each batch's transaction,
+and the INSERT trigger skips those rows. Updates and deletes are still recorded,
+every later sync records its inserts, and nothing outside the ingest engine sets
+the flag.
+
+The load itself is recorded instead, once per table and system: an anchor event
+with `rowId = 'initial-load:<systemId>'`, operation `I`, `rowData =
+{"initialLoad": true, "systemId": …}` and no `prevData`. It is written by the
+first batch of the load and never again. No entity has that rowId, so entity
+timelines never show it, and the matrix scope timeline's as-of reconstruction
+ignores it. What it does do is keep `historyStart` (`matrix/scopeHistory.js`) at
+the load time: with no per-row inserts, the anchor is the table's first event.
+
+Why an anchor rather than a row per insert: for imported data a per-row creation
+event was never true. A principal that has existed in the source for nine years
+was not created on the day it was imported. "This system's rows arrived at T" is
+what is true, and one event states exactly that. It follows that rows of a
+system loaded *later* also have no insert event, so a scope timeline point
+between two systems' loads counts the later system's rows as present — they
+were, in the source.
+
+The reason to skip the rows at all is volume: at 41 million assignments the
+initial load's history was 25.7 of 34.9 GB and cost more insert time than all of
+`ResourceAssignments`' indexes together ([Scale Rehearsal](scale-rehearsal.md)).
+
+`test/demo-dataset/Simulate-History.sql`, which back-dates history to give the
+demo a timeline, synthesises the insert events it back-dates for rows that have
+none.

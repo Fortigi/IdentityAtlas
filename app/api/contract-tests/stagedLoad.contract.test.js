@@ -148,3 +148,34 @@ describe('staged load — merge path', () => {
     expect((await live(sysA)).every(x => x.deletedAt === null)).toBe(true);
   });
 });
+
+// Migration 073 / #1270: a system's initial load writes no per-row insert
+// history, and the staged finalize is one of the paths that load arrives by.
+describe('staged load — initial-load history', () => {
+  const inserts = async (systemId) => Number((await pool.query(
+    `SELECT count(*) FROM "_history" WHERE "tableName" = 'ResourceAssignments' AND "operation" = 'I'
+        AND "rowId" LIKE '57a90000-%' AND ("rowData"->>'systemId')::int = $1`, [systemId])).rows[0].count);
+  const anchor = async (systemId) => Number((await pool.query(
+    `SELECT count(*) FROM "_history" WHERE "tableName" = 'ResourceAssignments' AND "rowId" = $1`,
+    [`initial-load:${systemId}`])).rows[0].count);
+
+  beforeEach(async () => {
+    await pool.query(`DELETE FROM "_history" WHERE "rowId" LIKE '57a90000-%' OR "rowId" = ANY($1::text[])`,
+      [[`initial-load:${sysA}`, `initial-load:${sysB}`]]);
+    await pool.query(`UPDATE "Systems" SET "lastSyncDateTime" = NULL WHERE id = ANY($1::int[])`, [[sysA, sysB]]);
+  });
+
+  it('a first load records the load once, not each row', async () => {
+    const r = await stageLoad(sysA, [row(1, 1), row(2, 1), row(3, 1)]);
+    expect(r).toMatchObject({ path: 'merge', inserted: 3 });
+    expect(await inserts(sysA)).toBe(0);
+    expect(await anchor(sysA)).toBe(1);
+  });
+
+  it('once the system has synced, staged inserts are recorded as before', async () => {
+    await pool.query(`UPDATE "Systems" SET "lastSyncDateTime" = now() WHERE id = $1`, [sysB]);
+    await stageLoad(sysB, [row(11, 1), row(12, 1)]);
+    expect(await inserts(sysB)).toBe(2);
+    expect(await anchor(sysB)).toBe(0);
+  });
+});

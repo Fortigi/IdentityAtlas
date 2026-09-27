@@ -34,6 +34,7 @@
 // dropped at startup) and the caller starts over.
 
 import crypto from 'crypto';
+import { markInitialLoad, markInitialLoadForAll } from './initialLoad.js';
 import * as db from '../db/connection.js';
 import { resolveActiveColumns, discoverColumns, scopedDelete, SOFT_DELETE_TABLES } from './engine.js';
 import { bulkInsertIntoTemp } from './tempTableHelpers.js';
@@ -176,6 +177,8 @@ async function mergeStage(client, stage, deleteMissing) {
   const nonKey = nonKeyColumns(stage);
   const keysOnly = nonKey.length === 0;
   await client.query(`ANALYZE "${stage.stageTable}"`);
+  // A system's initial load writes no per-row insert history (migration 073).
+  await markInitialLoad(client, stage.systemId, stage.tableName);
   const inserted = keysOnly ? 0 : await insertNew(client, stage);
   const updated = keysOnly ? 0 : await updateChanged(client, stage, nonKey);
   const deleted = deleteMissing ? await deleteMissingRows(client, stage) : 0;
@@ -221,6 +224,9 @@ async function loadIntoEmptyTable(client, loaded, results) {
       WHERE i.schemaname = 'public' AND i.tablename = $1
         AND NOT EXISTS (SELECT 1 FROM pg_constraint c WHERE c.conname = i.indexname)`, [tableName]);
   for (const { indexname } of idx) await client.query(`DROP INDEX "${indexname}"`);
+  // One transaction for every stage: flagged only if all their systems are on
+  // their initial load (migration 073).
+  await markInitialLoadForAll(client, loaded.map(st => st.systemId), tableName);
   for (const stage of loaded) {
     const d = distinctStageSql(stage);
     const { cols, selectCols } = withSystem(stage, d.cols, d.cols);
