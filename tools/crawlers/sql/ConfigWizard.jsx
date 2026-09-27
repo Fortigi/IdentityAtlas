@@ -37,6 +37,61 @@ const ADVANCED_FIELDS = [
 const SMALL_SELECT_CLS = 'text-sm border border-gray-300 rounded px-2 py-1 bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
 const SMALL_BTN_CLS = 'px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600';
 
+// ─── Step 1 — Connection ──────────────────────────────────────────────────────
+
+// Server, port, database, connection security and the advanced run settings.
+// `fields` carries each value with its setter; the advanced panel's open state
+// is local, since nothing outside this step reads it.
+export function ConnectionStep({ fields: f, onNext, nextDisabled }) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const setAdvancedField = (key, value) => f.setAdvanced(prev => ({ ...prev, [key]: value }));
+  return (
+    <div className="space-y-4">
+      <CrawlerField label="Crawler Name" value={f.displayName} onChange={f.setDisplayName} placeholder="SQL Database" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="md:col-span-2">
+          <CrawlerField
+            label="Server" mono value={f.server} onChange={f.setServer} placeholder="sql01.corp.local"
+            hint={<>Host name or address; a named instance is written <code>host\instance</code></>}
+          />
+        </div>
+        <CrawlerField
+          label="Port" optional mono value={f.port} onChange={f.setPort} placeholder="1433"
+          hint={isValidPort(f.port) ? 'Blank = default (1433) or a named instance' : 'Enter a port between 1 and 65535'}
+        />
+      </div>
+      <CrawlerField label="Database" mono value={f.database} onChange={f.setDatabase} placeholder="identityiq" />
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Connection security</label>
+        <OptionList
+          options={CONNECTION_OPTIONS} type="checkbox" name="connectionOptions" selected={f.connection}
+          onSelect={(key, checked) => f.setConnection(prev => ({ ...prev, [key]: checked }))}
+        />
+      </div>
+
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+        <button type="button" onClick={() => setShowAdvanced(a => !a)} className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+          {showAdvanced ? '▲ Hide' : '▶ Advanced (timeouts, batching, system name)'}
+        </button>
+        {showAdvanced && (
+          <div className="mt-3 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {ADVANCED_FIELDS.map(a => (
+                <CrawlerField key={a.key} label={a.label} type="number" value={f.advanced[a.key]} onChange={v => setAdvancedField(a.key, v)} hint={a.hint} />
+              ))}
+            </div>
+            <CrawlerField
+              label="System name" optional value={f.systemName} onChange={f.setSystemName} placeholder="IdentityIQ"
+              hint="How this source is labelled in Identity Atlas. Leave blank to use the crawler name above."
+            />
+          </div>
+        )}
+      </div>
+      <WizardNav onNext={onNext} nextDisabled={nextDisabled} />
+    </div>
+  );
+}
+
 // ─── Wizard ───────────────────────────────────────────────────────────────────
 
 export default function SqlConfigWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
@@ -51,8 +106,10 @@ export default function SqlConfigWizard({ onComplete, onCancel, initialConfig, i
   const [systemName, setSystemName]   = useState(seed.systemName);
   const [connection, setConnection]   = useState(seed.connection);
   const [advanced, setAdvanced]       = useState(seed.advanced);
-  const setAdvancedField = (key, value) => setAdvanced(prev => ({ ...prev, [key]: value }));
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const connectionFields = {
+    displayName, setDisplayName, server, setServer, port, setPort, database, setDatabase,
+    systemName, setSystemName, connection, setConnection, advanced, setAdvanced,
+  };
 
   const { creds, setCred } = useCredentialFields(initialConfig);
 
@@ -100,52 +157,7 @@ export default function SqlConfigWizard({ onComplete, onCancel, initialConfig, i
       error={error}
     >
 
-      {/* Step 1 — Connection */}
-      {step === 1 && (
-        <div className="space-y-4">
-          <CrawlerField label="Crawler Name" value={displayName} onChange={setDisplayName} placeholder="SQL Database" />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
-              <CrawlerField
-                label="Server" mono value={server} onChange={setServer} placeholder="sql01.corp.local"
-                hint={<>Host name or address; a named instance is written <code>host\instance</code></>}
-              />
-            </div>
-            <CrawlerField
-              label="Port" optional mono value={port} onChange={setPort} placeholder="1433"
-              hint={isValidPort(port) ? 'Blank = default (1433) or a named instance' : 'Enter a port between 1 and 65535'}
-            />
-          </div>
-          <CrawlerField label="Database" mono value={database} onChange={setDatabase} placeholder="identityiq" />
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Connection security</label>
-            <OptionList
-              options={CONNECTION_OPTIONS} type="checkbox" name="connectionOptions" selected={connection}
-              onSelect={(key, checked) => setConnection(prev => ({ ...prev, [key]: checked }))}
-            />
-          </div>
-
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <button type="button" onClick={() => setShowAdvanced(a => !a)} className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
-              {showAdvanced ? '▲ Hide' : '▶ Advanced (timeouts, batching, system name)'}
-            </button>
-            {showAdvanced && (
-              <div className="mt-3 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {ADVANCED_FIELDS.map(f => (
-                    <CrawlerField key={f.key} label={f.label} type="number" value={advanced[f.key]} onChange={v => setAdvancedField(f.key, v)} hint={f.hint} />
-                  ))}
-                </div>
-                <CrawlerField
-                  label="System name" optional value={systemName} onChange={setSystemName} placeholder="IdentityIQ"
-                  hint="How this source is labelled in Identity Atlas. Leave blank to use the crawler name above."
-                />
-              </div>
-            )}
-          </div>
-          <WizardNav onNext={() => setStep(2)} nextDisabled={!canStep1} />
-        </div>
-      )}
+      {step === 1 && <ConnectionStep fields={connectionFields} onNext={() => setStep(2)} nextDisabled={!canStep1} />}
 
       {/* Step 2 — Credentials */}
       {step === 2 && (

@@ -116,7 +116,6 @@ Write-Result 'columnMap made an unaliased statement usable' ($totals['Compositio
 Invoke-SqlReconcile -State $state | Out-Null
 
 # The ingest accepted everything and the cross-statement references resolved.
-$assignments = Invoke-Api -Path "/matrix/assignments?systemId=$systemId&limit=500" -Method Get -ErrorAction SilentlyContinue
 $principals = Invoke-Api -Path "/ingest/principals-presence" -Method Post -Body @{ tenantId = "$($cfg.server)/$($cfg.database)"; systemId = $systemId; ids = @() }
 Write-Result 'Presence lookup answers for the new system' ($null -ne $principals) ''
 

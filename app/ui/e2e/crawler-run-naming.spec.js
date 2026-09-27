@@ -46,6 +46,12 @@ function sampleValue(field, schema, urlFields) {
   if (Array.isArray(schema?.enum)) return schema.enum[0];
   if (schema?.type === 'boolean') return true;
   if (schema?.type === 'number' || schema?.type === 'integer') return 1;
+  // A required list (the SQL crawler's `queries`) gets one sampled item, and an
+  // object item gets its own required fields, sampled the same way.
+  if (schema?.type === 'array') return [sampleValue(field, schema.items, urlFields)];
+  if (schema?.type === 'object') {
+    return Object.fromEntries((schema.required || []).map(f => [f, sampleValue(f, schema.properties?.[f], urlFields)]));
+  }
   if (urlFields.includes(field)) return 'https://e2e.example.com/api';
   return 'e2e-placeholder';
 }

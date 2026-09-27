@@ -272,7 +272,7 @@ function New-SqlRowCallback {
 
 function Invoke-SqlSlot {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] [hashtable]$Slot, [Parameter(Mandatory)] $Connection, [Parameter(Mandatory)] [hashtable]$State, [int]$Pct = 10)
+    param([Parameter(Mandatory)] [hashtable]$Slot, [Parameter(Mandatory)] [AllowNull()] $Connection, [Parameter(Mandatory)] [hashtable]$State, [int]$Pct = 10)
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] $($Slot.name) → $($Slot.target)$(if ($Slot.paged) { ' (paged)' })" -ForegroundColor Cyan
     Update-CrawlerProgress -Step "Query: $($Slot.name)" -Pct $Pct
     $ctx = @{ Slot = $Slot; Map = $null; Streams = (New-SqlSlotStreams -Slot $Slot -State $State); State = $State; Rows = 0; Skipped = 0; Dangling = 0 }
