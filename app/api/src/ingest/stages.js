@@ -36,7 +36,7 @@
 import crypto from 'crypto';
 import { markInitialLoad, markInitialLoadForAll } from './initialLoad.js';
 import * as db from '../db/connection.js';
-import { resolveActiveColumns, discoverColumns, scopedDelete, SOFT_DELETE_TABLES } from './engine.js';
+import { resolveActiveColumns, discoverColumns, scopedDelete, markGovernanceMemberships, SOFT_DELETE_TABLES } from './engine.js';
 import { bulkInsertIntoTemp } from './tempTableHelpers.js';
 import { createSerializedRunner } from '../lib/serializedRunner.js';
 
@@ -173,9 +173,17 @@ async function applyStages(loaded, deleteMissing) {
   return results;
 }
 
+// A membership of a governance resource is governed by definition. The engine and
+// session paths flag such rows before their upsert (#1272); a stage must too, or
+// its key — governed is part of it — misses the row classify already flipped and a
+// staged re-import inserts an ungoverned copy beside it.
+const markGoverned = (client, stage) =>
+  markGovernanceMemberships(client, stage.tableName, stage.stageTable, stage.keyColumns, stage.columns);
+
 async function mergeStage(client, stage, deleteMissing) {
   const nonKey = nonKeyColumns(stage);
   const keysOnly = nonKey.length === 0;
+  await markGoverned(client, stage);
   await client.query(`ANALYZE "${stage.stageTable}"`);
   // A system's initial load writes no per-row insert history (migration 073).
   await markInitialLoad(client, stage.systemId, stage.tableName);
@@ -228,6 +236,7 @@ async function loadIntoEmptyTable(client, loaded, results) {
   // their initial load (migration 073).
   await markInitialLoadForAll(client, loaded.map(st => st.systemId), tableName);
   for (const stage of loaded) {
+    await markGoverned(client, stage);
     const d = distinctStageSql(stage);
     const { cols, selectCols } = withSystem(stage, d.cols, d.cols);
     const res = await client.query(

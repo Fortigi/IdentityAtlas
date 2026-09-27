@@ -25,6 +25,7 @@ const engine = vi.hoisted(() => ({
   resolveActiveColumns: vi.fn(),
   discoverColumns: vi.fn(),
   scopedDelete: vi.fn(async () => 3),
+  markGovernanceMemberships: vi.fn(async () => {}),
 }));
 vi.mock('./engine.js', () => ({ ...engine, SOFT_DELETE_TABLES: new Set(['ResourceAssignments']) }));
 
@@ -304,5 +305,35 @@ describe('initial-load history in the staged finalize', () => {
     expect(sqls.filter(s => /INSERT INTO "_history"/.test(s))).toHaveLength(2);
     expect(sqls.findIndex(s => /SET LOCAL identity_atlas\.initial_load/.test(s)))
       .toBeLessThan(sqls.findIndex(s => /^\s*INSERT INTO "ResourceAssignments"/.test(s)));
+  });
+});
+
+// #1272 flags governance-resource memberships governed before the engine and
+// session upserts. A stage is a third write path; without the same step, a staged
+// re-import inserted an ungoverned copy beside each governed membership.
+describe('governance memberships in the staged finalize', () => {
+  beforeEach(() => engine.markGovernanceMemberships.mockClear());
+  const firstInsert = () => sqls.findIndex(s => /^\s*INSERT INTO "ResourceAssignments"/.test(s));
+
+  it('merge path: flags the stage before inserting from it', async () => {
+    let at = -1;
+    engine.markGovernanceMemberships.mockImplementation(async () => { at = sqls.length; });
+    const st = open({ systemId: 7 });
+    await S.appendToStage(st, [rec]);
+    await S.finalizeStage(st);
+    expect(engine.markGovernanceMemberships).toHaveBeenCalledWith(
+      expect.anything(), 'ResourceAssignments', st.stageTable, RA_KEYS, st.columns);
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(firstInsert()).toBeGreaterThanOrEqual(at);
+  });
+
+  it('empty-table path: flags every stage of the group', async () => {
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: true }] })]);
+    const a = open({ systemId: 7 });
+    const b = open({ systemId: 8 });
+    await S.appendToStage(a, [rec]);
+    await S.appendToStage(b, [rec]);
+    await S.finalizeStages([a, b]);
+    expect(engine.markGovernanceMemberships.mock.calls.map(c => c[2])).toEqual([a.stageTable, b.stageTable]);
   });
 });
