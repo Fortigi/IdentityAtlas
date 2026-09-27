@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed context pages with many members (for example a logical application with 100,000 entitlements) taking minutes to open, and far pages of their member list never loading.
+
+## Changes in this PR
+
 - Fixed opening a very large permissions matrix taking the whole server down: a matrix with more than 400,000 assignments is now refused straight away with the "too many to load" message, instead of being loaded into memory first and crashing the API for every user.
 
 ## Changes in this PR
