@@ -6146,6 +6146,10 @@ key collapse into one row but would still be counted as sent.</p>
 <td>The rows <code>SELECT COUNT_BIG(*)</code> over the statement returns, asked right after the read. A source that changes during the run can also make these differ; re-run to tell the two apart</td>
 </tr>
 <tr>
+<td>Placed, per statement</td>
+<td>At most <strong>5%</strong> of the rows read may be held back: as dangling (they name a resource or principal the run did not load) or skipped (a required column is empty). More means the statements disagree about what exists, for example an entitlement statement that filters out most entitlements while the grant statement does not. A little is normal, e.g. grants held by workgroups that the principals statement leaves out. This bound is also what makes an assignment count with dangling rows an assertion rather than an open range</td>
+</tr>
+<tr>
 <td>Principals, resources, relationships</td>
 <td>The number of <strong>distinct</strong> keys the statement returned. If it returned more rows than distinct keys, the run fails: rows sharing an id overwrite each other, so all but one of them are lost. Make the id column unique</td>
 </tr>
@@ -6508,7 +6512,7 @@ see <a href="../scim/#system-naming">System naming on the SCIM page</a> for the 
 <a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Entitlements"</span><span class="p">,</span>
 <a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a><span class="w">      </span><span class="nt">"target"</span><span class="p">:</span><span class="w"> </span><span class="s2">"resources"</span><span class="p">,</span>
 <a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="w">      </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Entitlement"</span><span class="p">,</span>
-<a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="w">      </span><span class="nt">"sql"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SELECT ma.id, COALESCE(NULLIF(ma.displayable_name, ''), ma.value) AS displayName, ma.attribute AS attributeName FROM spt_managed_attribute ma WHERE ma.type = 'Entitlement'"</span>
+<a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="w">      </span><span class="nt">"sql"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SELECT ma.id, COALESCE(NULLIF(ma.displayable_name, ''), ma.value) AS displayName, ma.attribute AS attributeName FROM spt_managed_attribute ma"</span>
 <a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a><span class="w">    </span><span class="p">},</span>
 <a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a><span class="w">    </span><span class="p">{</span>
 <a id="__codelineno-5-28" name="__codelineno-5-28" href="#__codelineno-5-28"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Entitlement assignments"</span><span class="p">,</span>
@@ -6585,8 +6589,17 @@ the owning application and owner identity ride along as extended attributes.</p>
 <a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_managed_attribute</span><span class="w"> </span><span class="n">ma</span>
 <a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_application</span><span class="w"> </span><span class="n">app</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">app</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">application</span>
 <a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_identity</span><span class="w"> </span><span class="k">owner</span><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="k">owner</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="k">owner</span>
-<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="k">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Entitlement'</span>
 </code></pre></div>
+<div class="admonition warning">
+<p class="admonition-title">Do not filter on <code>ma.type</code></p>
+<p><code>spt_managed_attribute.type</code> is the schema object type an entitlement came from, not
+"is this an entitlement". In a real instance most rows are <code>group</code>, then <code>role</code>,
+<code>workgroup</code> and site-specific types, and <code>Entitlement</code> can be a tiny minority. A
+statement ending <code>WHERE ma.type = 'Entitlement'</code> loaded 454 of 805,497 entitlements in
+production, and every grant for the rest was held back as dangling. The type is kept as
+the <code>entitlementType</code> column instead. The run now fails when most of a statement's rows
+cannot be placed (see <a href="#verification-source-against-database">Verification</a>).</p>
+</div>
 <h3 id="business-roles">Business roles<a class="headerlink" href="#business-roles" title="Permanent link">&para;</a></h3>
 <p>Target <code>resources</code>, <code>resourceType</code> <code>BusinessRole</code>. Every bundle (business, IT and
 organizational roles alike — filter on <code>b.type</code> if you want only some) becomes a
@@ -6633,16 +6646,25 @@ business-role resources.</p>
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity_assigned_roles</span>
 </code></pre></div>
 <h3 id="role-composition">Role composition<a class="headerlink" href="#role-composition" title="Permanent link">&para;</a></h3>
-<p>Target <code>relationships</code>, <code>relationshipType</code> <code>Contains</code>. Links a bundle to the entitlement
-profile it grants, so a business role shows which entitlements it contains.</p>
+<p>Target <code>relationships</code>, <code>relationshipType</code> <code>Contains</code>. Links a bundle to each entitlement
+it grants, so a business role shows which entitlements it contains. Each relation row names
+the entitlement by <code>source_application</code> + <code>attribute</code> + <code>value</code>, the same three columns a
+grant joins on. <code>source_profile_id</code> is a <em>profile</em> id and <code>display_value</code> a name, so neither
+resolves to an entitlement.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">SELECT</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">    </span><span class="n">bpr</span><span class="p">.</span><span class="n">bundle_id</span><span class="w">         </span><span class="k">AS</span><span class="w"> </span><span class="n">parentId</span><span class="p">,</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="n">bpr</span><span class="p">.</span><span class="n">source_profile_id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">childId</span><span class="p">,</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span><span class="w">                 </span><span class="k">AS</span><span class="w"> </span><span class="n">childId</span><span class="p">,</span>
 <a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="n">bpr</span><span class="p">.</span><span class="n">attribute</span><span class="w">         </span><span class="k">AS</span><span class="w"> </span><span class="n">entitlementAttribute</span><span class="p">,</span>
 <a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="n">bpr</span><span class="p">.</span><span class="n">value</span><span class="w">             </span><span class="k">AS</span><span class="w"> </span><span class="n">entitlementValue</span><span class="p">,</span>
 <a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="n">bpr</span><span class="p">.</span><span class="n">display_value</span><span class="w">     </span><span class="k">AS</span><span class="w"> </span><span class="n">entitlementName</span>
 <a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_bundle_profile_relation</span><span class="w"> </span><span class="n">bpr</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_managed_attribute</span><span class="w"> </span><span class="n">ma</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">    </span><span class="k">ON</span><span class="w">  </span><span class="n">ma</span><span class="p">.</span><span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bpr</span><span class="p">.</span><span class="n">source_application</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">attribute</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">bpr</span><span class="p">.</span><span class="n">attribute</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="n">bpr</span><span class="p">.</span><span class="n">value</span>
 </code></pre></div>
+<p>The <code>LEFT JOIN</code> is deliberate. A relation that matches no entitlement arrives without a
+<code>childId</code> and is counted as skipped, instead of disappearing inside an inner join.</p>
 <h3 id="role-hierarchy">Role hierarchy<a class="headerlink" href="#role-hierarchy" title="Permanent link">&para;</a></h3>
 <p>Target <code>relationships</code>, <code>relationshipType</code> <code>Contains</code>. Parent bundle → child bundle, so
 nested roles keep their hierarchy.</p>

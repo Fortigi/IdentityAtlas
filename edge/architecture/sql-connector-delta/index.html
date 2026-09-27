@@ -3169,6 +3169,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#reading-from-a-replica" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading from a replica
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5275,6 +5286,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#reading-from-a-replica" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading from a replica
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5536,8 +5558,8 @@ seconds) are then kept exact on every run without a sweep.</p>
 </thead>
 <tbody>
 <tr>
-<td><strong>A1</strong></td>
-<td><code>created</code> / <code>modified</code> are <code>numeric(19,0)</code> epoch <strong>milliseconds</strong> written by the <strong>application</strong>, not datetimes written by the database.</td>
+<td><strong>A1</strong> ✅</td>
+<td><code>created</code> / <code>modified</code> are <code>numeric</code> epoch <strong>milliseconds</strong> written by the <strong>application</strong>, not datetimes written by the database. <strong>Confirmed</strong> by a production discovery: <code>numeric</code> columns holding 13-digit millisecond values. <code>@Since</code> binds as a bigint and the overlap is milliseconds.</td>
 <td><code>@Since</code> binds as <code>datetime2</code> and the overlap becomes an interval; the logic is unchanged.</td>
 <td>discovery §2 (column types)</td>
 </tr>
@@ -5566,8 +5588,8 @@ seconds) are then kept exact on every run without a sweep.</p>
 <td>discovery §7 (<code>assigned, granted_by_role, source</code> breakdown), plus the values of <code>aggregation_state</code></td>
 </tr>
 <tr>
-<td><strong>A6</strong></td>
-<td><code>spt_identity_assigned_roles</code> has <strong>no</strong> timestamp columns.</td>
+<td><strong>A6</strong> ✅</td>
+<td><code>spt_identity_assigned_roles</code> has <strong>no</strong> timestamp columns. <strong>Confirmed</strong>: its columns are <code>identity_id</code>, <code>idx</code>, <code>bundle</code>. It is read in full every run; at 3.4 million rows in production (not the 1 million first assumed) that is still a short read.</td>
 <td>If it has one, it can use a watermark like any other table.</td>
 <td>discovery §2</td>
 </tr>
@@ -5591,6 +5613,14 @@ seconds) are then kept exact on every run without a sweep.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="reading-from-a-replica">Reading from a replica<a class="headerlink" href="#reading-from-a-replica" title="Permanent link">&para;</a></h3>
+<p>The production source is Azure SQL <strong>Hyperscale</strong>, which offers read-only replicas
+(<code>ApplicationIntent=ReadOnly</code>). Reading there takes the load off the primary, which is
+worth it for the full read and the key sweep. But a replica <strong>lags</strong> the primary. A
+watermark taken from rows read on a lagging replica can move past rows the primary already
+committed, and those rows are then never read. So the delta may use a replica only if the
+overlap (A3) is widened by the worst replica lag, or it reads the primary. This is decided
+when the connection option is built, not by default.</p>
 <h2 id="part-2-the-key-sweep">Part 2 — the key sweep<a class="headerlink" href="#part-2-the-key-sweep" title="Permanent link">&para;</a></h2>
 <h3 id="shape">Shape<a class="headerlink" href="#shape" title="Permanent link">&para;</a></h3>
 <p>For each large scope with physical deletes (entitlement grants, Direct and Indirect):</p>
