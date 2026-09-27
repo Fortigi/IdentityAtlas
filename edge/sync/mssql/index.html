@@ -6679,6 +6679,11 @@ between the worker and the web container cannot cause false deletes.</p>
 <li>It is further scoped to the statement's <strong>type constants</strong>: an <code>Entitlement</code>
   assignment statement can never delete <code>BusinessRole</code> assignments, a <code>Direct</code> statement
   never deletes <code>Eligible</code> rows.</li>
+<li><strong>Contexts</strong> (a catalogue such as logical applications) are this system's only: a full
+  sync removes a catalogue entry that left the source, and never another source's contexts,
+  a manual tag or a generated context. <strong>A membership an analyst added by hand is never
+  removed</strong>, even on one of this crawler's own contexts: a sync removes only memberships it
+  added. See <a href="../../architecture/ingest-api/#contexts-and-context-members-owned-not-system-scoped">Ingest API: contexts and context members</a>.</li>
 <li><strong>Identities and IdentityMembers are never deleted</strong> by this crawler. They have no owning
   system, so — as for midPoint and CSV — they are upsert-only. Accounts (Principals) <em>are</em>
   reconciled.</li>

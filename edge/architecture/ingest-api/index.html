@@ -2990,6 +2990,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Scoped Delete Detection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#contexts-and-context-members-owned-not-system-scoped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contexts and context members: owned, not system-scoped
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -5588,6 +5605,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Scoped Delete Detection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#contexts-and-context-members-owned-not-system-scoped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contexts and context members: owned, not system-scoped
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -6231,6 +6265,27 @@ six hours after it was opened.</p>
 <li><strong>Current-state scoped:</strong> operates on the current table rows (no temporal filtering needed in v5)</li>
 <li><strong>Batch-scoped:</strong> <code>AND NOT EXISTS (SELECT 1 FROM #temp WHERE ...)</code></li>
 </ul>
+<h4 id="contexts-and-context-members-owned-not-system-scoped">Contexts and context members: owned, not system-scoped<a class="headerlink" href="#contexts-and-context-members-owned-not-system-scoped" title="Permanent link">&para;</a></h4>
+<p><code>Contexts</code> and <code>ContextMembers</code> have no <code>systemId</code> column, and every crawler writes them.
+A full sync of either is bounded by <strong>ownership</strong>, derived from the envelope <code>systemId</code>,
+whatever scope the caller sends:</p>
+<ul>
+<li><strong>Contexts:</strong> only <code>variant = 'synced'</code> contexts whose <code>scopeSystemId</code> is the sending
+  system. Manual and generated contexts are never removed by a sync, and nor is another
+  system's context. A crawler must therefore stamp <code>scopeSystemId</code> on the contexts it
+  sends. A synced context without it is never reconciled, and the response carries a
+  <code>warnings</code> entry that the shared crawler ingest prints in the job log.</li>
+<li><strong>Context members:</strong> only memberships of contexts the sender owns, and <strong>never one whose
+  <code>addedBy</code> is <code>'analyst'</code></strong>. A sync removes only memberships it added. An analyst's
+  deliberate addition survives, even on a context the crawler owns, the same way the context
+  algorithm runner replaces only <code>algorithm</code> rows (<a href="../context-redesign/">Context redesign</a>).
+  If the context itself disappears from the source, its memberships go with it.</li>
+</ul>
+<p><code>addedBy</code> is therefore load-bearing, not decorative. Before this bound existed, a full sync
+through an unrestricted key reconciled both tables whole. One SQL Server load removed another
+source's 150 logical applications, and a routine refresh removed an analyst's tag
+membership, while every count check passed. <code>contextSyncScope.contract.test.js</code> pins the
+bound against real PostgreSQL.</p>
 <h3 id="keys-restricted-to-specific-systems">Keys restricted to specific systems<a class="headerlink" href="#keys-restricted-to-specific-systems" title="Permanent link">&para;</a></h3>
 <p>A crawler key with <code>systemIds</code> set can only read and write data of those systems. On top of the envelope <code>systemId</code> check, every batch from such a key is refused (<code>403</code>) when:</p>
 <ul>
