@@ -173,15 +173,17 @@ function Select-BenchmarkUsers {
 }
 
 # ─── 3. Give tagged users governed assignments ──────────────────
-# Build (resourceExternalId, userExternalId) pairs. All assignments share the
-# targetSystemId from step 2 so the deterministic resolver can link them.
+# Build (resource, user) pairs from the ids step 2 read back. Not external ids:
+# the ingest resolves those under the batch's idPrefix, and 'bench-…' is not the
+# namespace the crawler created the roles and users in, so every seeded row
+# pointed at a resource that does not exist and was never classified.
 function Get-AssignmentRecords {
     $records = @()
     foreach ($br in $script:businessRoles) {
         foreach ($u in $script:users15) {
             $records += @{
-                resourceExternalId  = $br.externalId
-                principalExternalId = $u.externalId
+                resourceId          = $br.id
+                principalId         = $u.id
                 assignmentType      = 'Direct'   # membership on a business role; classify (below) flags it governed=true
             }
         }
@@ -199,8 +201,6 @@ function Add-GovernedAssignments {
         syncMode     = 'delta'
         scope        = @{ assignmentType = 'Direct' }
         records      = $records
-        idGeneration = 'deterministic'
-        idPrefix     = 'bench-assignments'
     }
     # No try/catch: the filtered-matrix numbers mean nothing without these rows,
     # so a failure here fails the benchmark instead of being logged past.

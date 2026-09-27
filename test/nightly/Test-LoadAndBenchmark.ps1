@@ -147,7 +147,9 @@ function Test-LoadTestStoredCounts {
     param([string]$DataFolder)
     Write-Host "  Step 3: Verifying stored counts..." -ForegroundColor Cyan
     try {
-        $systems = @(Invoke-LocalApi -Path '/systems')
+        # Invoke-RestMethod emits a JSON array as ONE object; re-emit its items,
+        # or @() holds a single array and every sum below reads 0.
+        $systems = @(Invoke-LocalApi -Path '/systems' | ForEach-Object { $_ })
         $sum = { param($field) ($systems | Measure-Object -Property $field -Sum).Sum }
         $assignments = [long](& $sum 'assignmentCount')
         $principals = [long](& $sum 'principalCount')
