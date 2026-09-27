@@ -177,11 +177,23 @@ describe('IdentityIQ storage', () => {
     expect(new Set(ents.map(e => `${e.application}|${e.attribute}|${e.value}`)).size).toBe(ents.length);
   });
 
+  // A statement filtering on type = 'Entitlement' loaded 454 of 805,497 rows in
+  // production. A fixture holding only 'Entitlement' rows could not show that.
+  it('entitlement types follow the configured mix, with Entitlement a small minority', () => {
+    const ents = readTable(dir, 'spt_managed_attribute');
+    const byType = {};
+    for (const e of ents) byType[e.type] = (byType[e.type] || 0) + 1;
+    for (const t of Object.keys(byType)) expect(IIQ_DEFAULTS.entitlementTypes.map(([k]) => k)).toContain(t);
+    expect(byType.group / ents.length).toBeGreaterThan(0.85);
+    expect((byType.Entitlement || 0) / ents.length).toBeLessThan(0.01);
+    expect(Object.keys(byType).length).toBeGreaterThanOrEqual(3);
+  });
+
   it('role composition points at real entitlements by application + attribute + value', () => {
     const keys = new Set(readTable(dir, 'spt_managed_attribute').map(e => `${e.application}|${e.attribute}|${e.value}`));
     const rel = readTable(dir, 'spt_bundle_profile_relation');
     expect(rel.length).toBeGreaterThanOrEqual(manifest.params.shape.roles);
-    for (const r of rel) expect(keys.has(`${r.application_id}|${r.attribute}|${r.value}`)).toBe(true);
+    for (const r of rel) expect(keys.has(`${r.source_application}|${r.attribute}|${r.value}`)).toBe(true);
   });
 });
 
@@ -246,6 +258,10 @@ describe('determinism, records, parameters, CLI', () => {
     expect(() => resolveIiqParams({ iiq: { workgroups: -1 } })).toThrow(/workgroups/);
     expect(() => resolveIiqParams({ iiq: { roleSizeMin: 5, roleSizeMax: 2 } })).toThrow(/roleSize/);
     expect(() => resolveIiqParams({ iiq: { appNameKey: ' ' } })).toThrow(/appNameKey/);
+    for (const bad of [[], [['group', 0.5]], [['group', 1], ['role', 0]], [['', 1]], 'group']) {
+      expect(() => resolveIiqParams({ iiq: { entitlementTypes: bad } })).toThrow(/entitlementTypes/);
+    }
+    expect(resolveIiqParams({ iiq: { entitlementTypes: [['group', 0.25], ['Entitlement', 0.75]] } }).iiq.entitlementTypes).toHaveLength(2);
     expect(() => resolveIiqParams({ shape: { scale: 0 } })).toThrow(/scale/);
   });
 

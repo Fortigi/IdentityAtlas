@@ -303,3 +303,38 @@ Describe 'Test-SqlRunCounts' {
         @(Test-SqlRunCounts -State (New-State)).Count | Should -Be 0
     }
 }
+
+# A statement's rows that arrive but cannot be placed (dangling or skipped). An
+# entitlement statement filtered on type = 'Entitlement' loaded 454 of 805,497 in
+# production; every grant for the rest dangled, and the run used to pass.
+Describe 'Get-SqlReadVerdict — rows that could not be placed' {
+    It 'fails a read whose rows mostly could not be placed, even when the read itself was complete' {
+        $v = Get-SqlReadVerdict -Read @{ Slot = 'Grants'; Read = [long]46000; Source = [long]46000; Unplaced = [long]45000 }
+        $v.ok | Should -BeFalse
+        $v.reason | Should -Match '^45[.,]000 of the 46[.,]000 rows read \(97[.,]8%\) could not be placed'
+    }
+
+    It 'allows up to 5% and fails just above it' {
+        (Get-SqlReadVerdict -Read @{ Read = [long]100; Source = [long]100; Unplaced = [long]5 }).ok | Should -BeTrue
+        (Get-SqlReadVerdict -Read @{ Read = [long]100; Source = [long]100; Unplaced = [long]6 }).ok | Should -BeFalse
+    }
+
+    It 'fails on the unplaced share even when the source could not be counted' {
+        (Get-SqlReadVerdict -Read @{ Read = [long]10; Source = $null; Reason = 'the statement pages with @Offset'; Unplaced = [long]9 }).ok | Should -BeFalse
+    }
+
+    It 'does not divide by zero on an empty read' {
+        (Get-SqlReadVerdict -Read @{ Read = [long]0; Source = [long]0; Unplaced = [long]0 }).ok | Should -BeTrue
+    }
+}
+
+Describe 'Add-SqlReadCheck — unplaced rows' {
+    It 'records dangling plus skipped rows with the read' {
+        Mock Measure-SqlSource { @{ rows = [long]10; pairs = $null; reason = $null } }
+        $state = New-State
+        $ctx = @{ Slot = @{ name = 'Composition'; target = 'relationships'; paged = $false; sql = 'S' }; Map = @{}; State = $state; Dangling = 3; Skipped = 2 }
+        Add-SqlReadCheck -Ctx $ctx -Connection 'c' -Rows 10
+        $state.Reads[0].Unplaced | Should -Be 5
+        (Get-SqlReadVerdict -Read $state.Reads[0]).ok | Should -BeFalse
+    }
+}

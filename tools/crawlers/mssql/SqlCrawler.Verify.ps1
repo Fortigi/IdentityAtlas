@@ -111,7 +111,7 @@ function Add-SqlReadCheck {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$Ctx, [AllowNull()] $Connection, [long]$Rows = 0)
     $m = Measure-SqlSource -Connection $Connection -Slot $Ctx.Slot -Map $Ctx.Map -CommandTimeout $Ctx.State.CommandTimeout
-    $Ctx.State.Reads.Add(@{ Slot = $Ctx.Slot.name; Read = $Rows; Source = $m.rows; Reason = $m.reason })
+    $Ctx.State.Reads.Add(@{ Slot = $Ctx.Slot.name; Read = $Rows; Source = $m.rows; Reason = $m.reason; Unplaced = [long]($Ctx.Dangling + $Ctx.Skipped) })
     if ($null -ne $m.rows) {
         $pairs = if ($null -ne $m.pairs) { ", $($m.pairs.ToString('N0')) distinct (principal, resource) pairs" }
         Write-Host "  source returns $($m.rows.ToString('N0')) rows$pairs" -ForegroundColor DarkGray
@@ -170,9 +170,24 @@ function Get-SqlScopeVerdict {
 # One statement's read against what the source returns. The database counts
 # above cannot see a read that stopped early: 22,087 rows that all arrive, all
 # distinct, all land, verify perfectly against themselves. Pure.
+# The share of a statement's rows that may arrive and still not be placed: held
+# back as dangling (they name a resource or principal the run did not load) or
+# skipped (a required column is empty). A little is normal, e.g. grants held by
+# workgroups a principals statement leaves out. More means the statements disagree
+# about what exists: an entitlement statement filtered on type = 'Entitlement'
+# loaded 454 of 805,497 rows, every grant for the rest dangled, and the run passed,
+# because a dangling row used to be a footnote and made the assignment count an
+# unbounded "range". This bound is what makes that range an assertion.
+$script:SqlMaxUnplacedShare = 0.05
+
 function Get-SqlReadVerdict {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$Read)
+    $unplaced = [long]$Read.Unplaced
+    if ($Read.Read -gt 0 -and $unplaced / $Read.Read -gt $script:SqlMaxUnplacedShare) {
+        return @{ ok = $false
+                  reason = "$($unplaced.ToString('N0')) of the $($Read.Read.ToString('N0')) rows read ($([Math]::Round(100 * $unplaced / $Read.Read, 1))%) could not be placed: they name a resource or principal this run did not load, or lack a required column. The statements disagree about what exists, e.g. one filters rows another does not" }
+    }
     if ($null -eq $Read.Source) { return @{ ok = $true; reason = "not verified: $($Read.Reason)" } }
     if ($Read.Read -eq $Read.Source) { return @{ ok = $true; reason = $null } }
     return @{ ok = $false

@@ -38,8 +38,13 @@ const ENTITLEMENT_COLUMNS = `    ma.id,
 
 const ENTITLEMENT_FROM = `FROM spt_managed_attribute ma
 LEFT JOIN spt_application app ON app.id = ma.application
-LEFT JOIN spt_identity owner  ON owner.id = ma.owner
-WHERE ma.type = 'Entitlement'`;
+LEFT JOIN spt_identity owner  ON owner.id = ma.owner`;
+
+// NO filter on ma.type. It is the schema object type an entitlement came from
+// (mostly 'group' in a real instance), not "is this an entitlement": every row
+// in spt_managed_attribute is one. Filtering on type = 'Entitlement' loaded 454 of
+// 805,497 in production, and every grant for the rest was held back as dangling.
+// The type is kept as the entitlementType column instead.
 
 // A grant that came from a role is Indirect: that is what Indirect means in the
 // data model, and the matrix reads declared rows only, so access arriving through
@@ -105,19 +110,22 @@ const ROLE_COMPOSITION = {
   name: 'Role composition',
   target: 'relationships',
   relationshipType: 'Contains',
-  sql: `-- CAVEAT: source_profile_id is a PROFILE id, not a managed-attribute id, so
--- these edges point at rows the Entitlements query above does not produce. The
--- crawler holds back a relationship whose ends it has not seen and reports them
--- as "dangling" — expect that count to equal this query's row count until you
--- resolve profiles to entitlements (join spt_profile and its constraints, or
--- ingest profiles as their own resourceType).
+  sql: `-- Each row names the entitlement a role grants by application + attribute +
+-- value, the same three columns a grant joins on. (source_profile_id is a PROFILE
+-- id, not an entitlement id, and display_value is a name, so neither resolves.)
+-- LEFT JOIN on purpose: a relation that matches no entitlement arrives without a
+-- childId, is skipped, and is counted, instead of silently vanishing in a join.
 SELECT
     bpr.bundle_id         AS parentId,
-    bpr.source_profile_id AS childId,
+    ma.id                 AS childId,
     bpr.attribute         AS entitlementAttribute,
     bpr.value             AS entitlementValue,
     bpr.display_value     AS entitlementName
-FROM spt_bundle_profile_relation bpr`,
+FROM spt_bundle_profile_relation bpr
+LEFT JOIN spt_managed_attribute ma
+    ON  ma.application = bpr.source_application
+    AND ma.attribute   = bpr.attribute
+    AND ma.value       = bpr.value`,
 };
 
 // ─── SailPoint IdentityIQ, stock columns only ────────────────────────────────
@@ -243,8 +251,7 @@ WHERE c.name = '${CATALOG_RECORD}'`,
 SELECT
     ma.id AS memberId,
     CAST(ma.attributes AS xml).value('${APPLICATION_XPATH}', 'nvarchar(450)') AS contextName
-FROM spt_managed_attribute ma
-WHERE ma.type = 'Entitlement'`,
+FROM spt_managed_attribute ma`,
   },
   BUSINESS_ROLES,
   entitlementGrants(false),

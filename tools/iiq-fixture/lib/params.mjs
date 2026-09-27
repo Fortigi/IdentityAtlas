@@ -42,6 +42,16 @@ export const IIQ_DEFAULTS = Object.freeze({
   appNameDriftShare: 0.002,
   // Share of entitlements with no logical application at all.
   unassignedAppShare: 0,
+  // spt_managed_attribute.type, as [type, share] pairs summing to 1. In a real
+  // instance this is the schema object type the entitlement came from, and
+  // 'Entitlement' is a small minority: most rows are account groups. A statement
+  // that filters on type = 'Entitlement' therefore loads almost nothing, which a
+  // fixture holding only 'Entitlement' rows could never show. Shape follows a
+  // production discovery, rounded; the custom type stands for a site's own.
+  entitlementTypes: Object.freeze([
+    ['group', 0.9], ['role', 0.075], ['workgroup', 0.015], ['CustomType', 0.0094],
+    ['Entitlement', 0.0005], ['capability', 0.0001],
+  ]),
 });
 
 function assertShare(name, v) {
@@ -53,6 +63,11 @@ export function resolveIiqParams({ shape = {}, iiq = {} } = {}) {
   const s = resolveParams(shape);
   const p = { ...IIQ_DEFAULTS, ...iiq };
   for (const k of ['roleGrantedShare', 'requestedShare', 'ownedShare', 'appNameDriftShare', 'unassignedAppShare']) assertShare(k, p[k]);
+  const typeShares = Array.isArray(p.entitlementTypes) ? p.entitlementTypes : [];
+  const total = typeShares.reduce((sum, [, share]) => sum + share, 0);
+  if (!typeShares.length || typeShares.some(([t, share]) => typeof t !== 'string' || !t || !(share > 0)) || Math.abs(total - 1) > 1e-9) {
+    throw new Error('entitlementTypes must be non-empty [type, share] pairs with positive shares summing to 1');
+  }
   if (!Number.isInteger(p.workgroups) || p.workgroups < 0) throw new Error(`workgroups must be a non-negative integer (got ${p.workgroups})`);
   if (!(p.roleSizeMin >= 1 && p.roleSizeMax >= p.roleSizeMin)) throw new Error('roleSizeMin must be >= 1 and <= roleSizeMax');
   for (const k of ['catalogName', 'appNameKey']) {
