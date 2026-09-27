@@ -49,6 +49,8 @@ on:
     branches:
       - main
       - 'release/**'
+      - 'feature/**'
+      - 'bugfixes/**'
     # NO top-level paths-ignore. The workflow must run on EVERY PR so its
     # `if: always()` gate job (Integration CI Passed) always posts a status —
     # a required status check whose job is skipped stays "pending" forever and
