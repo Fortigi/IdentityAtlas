@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- A system's first import no longer writes an audit-history entry for every row it creates. On large imports that history was most of the database (25.7 of 34.9 GB at 41 million assignments) and slowed the import more than all of its indexes. The import is recorded once per table instead, so the matrix scope timeline still starts at the first import. Changes after the first import — and every update or deletion, including during it — are still recorded.
+
+## Changes in this PR
+
 - The SQL connector can now load a catalogue of groupings as Contexts, for example IdentityIQ logical applications kept in XML, and place each entitlement in its application. Names are matched ignoring case and surrounding spaces, and the job log reports every spelling it had to match that way and every application name the catalogue does not have, instead of silently folding or dropping them
 - The SailPoint IdentityIQ preset now loads each identity as a principal and splits entitlement grants into direct ones and ones that came from a role (shown as Indirect)
 - Added a second IdentityIQ preset that also reads typical identity extension columns (organisation levels, company, cost centre, employee status) and the logical-application catalogue
