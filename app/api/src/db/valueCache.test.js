@@ -60,6 +60,15 @@ describe('valuePageSize — the deployment-tunable preload cap', () => {
 describe('createValueCache — stale-while-revalidate', () => {
   let load, calls;
 
+  // Pinned as absolute durations, not as whatever the module happens to say.
+  // Every timing case below advances the clock BY these constants, so the
+  // constants themselves are the one thing those cases cannot check: halve the
+  // TTL and each of them moves with it and still passes.
+  it('is five minutes fresh, with twenty minutes of grace behind it', () => {
+    expect(COLUMN_CACHE_TTL).toBe(300_000);
+    expect(STALE_GRACE).toBe(1_200_000);
+  });
+
   beforeEach(() => {
     calls = 0;
     load = vi.fn(async () => { calls += 1; return { values: { a: [`gen${calls}`] }, truncated: {} }; });
@@ -86,6 +95,23 @@ describe('createValueCache — stale-while-revalidate', () => {
     vi.advanceTimersByTime(COLUMN_CACHE_TTL - 1);
     await cache.get();
     expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('is stale AT the TTL, not one tick later', async () => {
+    vi.useFakeTimers();
+    const cache = createValueCache('T', load);
+    await cache.get();
+    vi.advanceTimersByTime(COLUMN_CACHE_TTL);      // exactly, not past
+    expect((await cache.get()).values.a).toEqual(['gen1']);   // still stale-served
+    expect(load).toHaveBeenCalledTimes(2);          // …but refreshing
+  });
+
+  it('is out of grace AT the grace deadline, not one tick later', async () => {
+    vi.useFakeTimers();
+    const cache = createValueCache('T', load);
+    await cache.get();
+    vi.advanceTimersByTime(STALE_GRACE);            // exactly, not past
+    expect((await cache.get()).values.a).toEqual(['gen2']);   // awaited, not stale
   });
 
   it('hands back the STALE page past the TTL and refreshes behind it', async () => {

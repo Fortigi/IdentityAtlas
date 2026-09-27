@@ -146,6 +146,7 @@ describe('discoverColumnValues — emits correctly-quoted PascalCase table name'
 
     const [sql, params] = queryMock.mock.calls.find(([s]) => /pg_stats/.test(s));
     expect(sql).toMatch(/n_distinct/);
+    expect(sql).toContain('s.tablename = $1');   // bound, and actually filtered on
     expect(params).toEqual(['Resources']);
   });
 
@@ -184,6 +185,10 @@ describe('planColumnValueQueries — pg_stats routing (a hint, never correctness
     expect(mod.estimateDistinct(0, 1000)).toBe(0);
     expect(mod.estimateDistinct(undefined, 1000)).toBeNull();
     expect(mod.estimateDistinct(-1, 0)).toBeNull();   // no usable row count
+    // An all-NULL column has no distinct values whether or not we know how
+    // many rows there are — it must not fall through to the "unknown" answer
+    // that the missing row count produces for every other column.
+    expect(mod.estimateDistinct(0, 0)).toBe(0);
   });
 
   it('shares the narrow columns and gives each wide one its own branch', () => {
@@ -206,12 +211,31 @@ describe('planColumnValueQueries — pg_stats routing (a hint, never correctness
     expect(plan.separate).toEqual([]);
   });
 
-  it('sheds the widest candidates first once the shared budget is spent', () => {
-    // Narrow/medium/wide, budget big enough for the first two only.
-    const stats = new Map([['a', 10], ['b', 100], ['c', 900]]);
-    const plan = mod.planColumnValueQueries(cols('a', 'b', 'c'), stats, 1000, 5000, 200);
+  it('keeps a column sitting exactly on the limit', () => {
+    const stats = new Map([['a', mod.WIDE_COLUMN_DISTINCT_LIMIT], ['b', 10]]);
+    const plan = mod.planColumnValueQueries(cols('a', 'b'), stats, 1_000_000);
     expect(names(plan.shared)).toEqual(['a', 'b']);
-    expect(names(plan.separate)).toEqual(['c']);
+  });
+
+  it('spends the budget cumulatively, not per column', () => {
+    // Each column is comfortably under the budget; together they are not.
+    // Three of 100 against a budget of 250 is the case that tells a running
+    // total apart from a per-column check — 10/100/900 does not, because the
+    // one that has to go is over the budget on its own either way.
+    const stats = new Map([['a', 100], ['b', 100], ['c', 100]]);
+    const plan = mod.planColumnValueQueries(cols('a', 'b', 'c'), stats, 1000, 5000, 250);
+    expect(plan.shared).toHaveLength(2);
+    expect(plan.separate).toHaveLength(1);
+  });
+
+  it('sheds the widest candidates first once the shared budget is spent', () => {
+    // 200 + 100 + 100 against a budget of 250. Narrowest-first fits the two
+    // 100s and sheds the 200; widest-first would take the 200 and shed both
+    // 100s, leaving one shared column and therefore no shared pass at all.
+    const stats = new Map([['wide', 200], ['b', 100], ['c', 100]]);
+    const plan = mod.planColumnValueQueries(cols('wide', 'b', 'c'), stats, 1000, 5000, 250);
+    expect(names(plan.shared)).toEqual(['b', 'c']);
+    expect(names(plan.separate)).toEqual(['wide']);
   });
 
   it('does not build a shared pass for a single column — that is just a branch', () => {
@@ -228,6 +252,10 @@ describe('planColumnValueQueries — pg_stats routing (a hint, never correctness
     expect(sql).toContain(`('jobTitle', "jobTitle"::text)`);
     expect(sql).toMatch(/PARTITION BY col ORDER BY val/);
     expect(sql).toMatch(/rn <= 501/);
+    // An empty string is not a value anyone filters on, and the per-column
+    // branch has always dropped it — the shared pass must agree, or the same
+    // column offers a blank option depending on which route it took.
+    expect(sql).toContain(`v.val IS NOT NULL AND v.val <> ''`);
     // One scan, not one per column.
     expect(sql.match(/FROM "Principals"/g)).toHaveLength(1);
   });

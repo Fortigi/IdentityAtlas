@@ -221,6 +221,39 @@ describe('the count and the probe stay in step', () => {
     });
   }
 
+  // Each relation's predicate, pinned once. These are the copy-paste mistakes
+  // the registry invites — the entries differ only in a literal or in which
+  // end of the relationship table is the subject — and each of them is silent:
+  // Sponsors would quietly list owners, "Owns agents" would answer the
+  // question "who owns THIS agent", and a tombstoned report or assignment
+  // would keep a row looking populated. Whether the rows come back right is
+  // contract-tests/referenceFilters.contract.test.js's job; that the two
+  // generated shapes say what we meant is this one's.
+  const predicates = [
+    ['principals', 'owners',        `pr."principalId" = u.id AND pr."relationshipType" = 'Owner'`],
+    ['principals', 'sponsors',      `pr."principalId" = u.id AND pr."relationshipType" = 'Sponsor'`],
+    ['principals', 'ownsAgents',    `pr."relatedPrincipalId" = u.id AND pr."relationshipType" = 'Owner'`],
+    ['principals', 'directReports', `m."managerId" = u.id AND m."deletedAt" IS NULL`],
+    ['resources',  'members',       `ra."resourceId" = u.id AND ra."deletedAt" IS NULL`],
+    ['resources',  'owners',        `rr."parentResourceId" = u.id AND rr."relationshipType" = 'HasOwnership'`],
+  ];
+  for (const [table, key, predicate] of predicates) {
+    it(`${table}.${key} correlates on exactly: ${predicate}`, () => {
+      const sql = buildRelationshipWhere(
+        [{ field: `rel.${key}`, value: 'Any (1 or more)' }], table, 'u');
+      expect(sql).toContain(predicate);
+    });
+  }
+
+  it('the counted rows exclude tombstoned ones on both sides of a two-hop relation', () => {
+    const sql = buildRelationshipWhere(
+      [{ field: 'rel.owners', value: 'Any (1 or more)' }], 'resources', 'u');
+    // The owner's assignment must be live AND direct — an owner reached
+    // through a soft-deleted assignment is not an owner any more.
+    expect(sql).toContain(`ra."assignmentType" = 'Direct'`);
+    expect(sql).toContain(`ra."deletedAt" IS NULL`);
+  });
+
   it('the single-valued relation has no relation table in either shape', async () => {
     const filterSql = buildRelationshipWhere(
       [{ field: 'rel.manager', value: 'Any (1 or more)' }], 'principals', 'u');
