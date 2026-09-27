@@ -45,3 +45,20 @@ export async function markInitialLoad(client, systemId, tableName) {
   await client.query(`SET LOCAL identity_atlas.initial_load = 'on'`);
   return true;
 }
+
+// The same for several systems loaded in ONE transaction (the staged finalize's
+// empty-table path inserts every stage of a table together). SET LOCAL covers
+// the whole transaction, so the flag is set only when every one of the systems
+// is on its initial load; one that has already synced keeps its inserts recorded,
+// and then so does the rest of the group. Anchors are written for each system.
+export async function markInitialLoadForAll(client, systemIds, tableName) {
+  const ids = [...new Set(systemIds)];
+  if (ids.length === 0 || ids.some(id => id === null || id === undefined)) return false;
+  const { rows } = await client.query(
+    `SELECT count(*) FILTER (WHERE "lastSyncDateTime" IS NULL)::int AS "initial" FROM "Systems" WHERE "id" = ANY($1::int[])`,
+    [ids]);
+  if (rows[0]?.initial !== ids.length) return false;
+  for (const id of ids) await client.query(ANCHOR_SQL, [tableName, initialLoadRowId(id), id]);
+  await client.query(`SET LOCAL identity_atlas.initial_load = 'on'`);
+  return true;
+}
