@@ -44,19 +44,40 @@ BeforeAll {
     # test. The guard that does is the assertion that the crawler never asks for
     # the mode at all — the flag bought nothing here (its purpose is streaming
     # large BLOBs, and binary columns are skipped) and cost a live run.
-    class FakeReader {
+    #
+    # The double is ENUMERABLE the way SqlDataReader is (DbDataReader implements
+    # IEnumerable, and each step of its enumerator calls Read()). A double that was
+    # not hid a data-loss bug for the life of the crawler: while a transcript runs —
+    # and the worker runs every job under one — binding the reader to a function
+    # parameter enumerates it for the log, which consumed 7 rows per call. Reading
+    # one row and then passing the reader on kept 1 row in 8. Measured against SQL
+    # Server: 125 of 1,000 rows.
+    class FakeReaderEnumerator : System.Collections.IEnumerator {
+        [object]$Reader; [object]$Current
+        FakeReaderEnumerator([object]$r) { $this.Reader = $r }
+        [bool]MoveNext() { $this.Current = $this.Reader; return $this.Reader.Read() }
+        [void]Reset() { throw 'A data reader cannot be rewound' }
+    }
+    class FakeReader : System.Collections.IEnumerable {
         [string[]]$Columns; [object[]]$Rows; [int]$Pos = -1; [bool]$Disposed = $false; [int]$FieldCount
         [bool]$Sequential = $false; [int]$MinOrdinal = 0
         FakeReader([string[]]$c, [object[]]$r) { $this.Columns = $c; $this.Rows = $r; $this.FieldCount = $c.Length }
         [string]GetName([int]$i) { return $this.Columns[$i] }
         [bool]Read() { $this.Pos++; $this.MinOrdinal = 0; return $this.Pos -lt $this.Rows.Count }
         [object]GetValue([int]$i) {
+            if ($this.Pos -lt 0 -or $this.Pos -ge $this.Rows.Count) { throw 'Invalid attempt to read when no data is present.' }
             if ($this.Sequential -and $i -lt $this.MinOrdinal) {
                 throw "Invalid attempt to read from column ordinal '$i'.  With CommandBehavior.SequentialAccess, you may only read from column ordinal '$($this.MinOrdinal)' or greater."
             }
             if ($this.Sequential) { $this.MinOrdinal = $i + 1 }
             return $this.Rows[$this.Pos][$i]
         }
+        [int]GetValues([object[]]$values) {
+            $n = [Math]::Min($values.Length, $this.FieldCount)
+            for ($i = 0; $i -lt $n; $i++) { $values[$i] = $this.GetValue($i) }
+            return $n
+        }
+        [System.Collections.IEnumerator]GetEnumerator() { return [FakeReaderEnumerator]::new($this) }
         [void]Dispose() { $this.Disposed = $true }
     }
     class FakeParam { [string]$Name; [object]$Value; FakeParam([string]$n) { $this.Name = $n } }
@@ -274,23 +295,36 @@ Describe 'ConvertFrom-SqlValue' {
     }
 }
 
-Describe 'Read-SqlRow / Get-SqlReaderColumns' {
+Describe 'ConvertTo-SqlRow' {
     It 'produces an ordered hashtable in column order with converted cells' {
-        $r = [FakeReader]::new(@('id', 'when', 'blob'), @(, @('a1', [System.DBNull]::Value, [byte[]](1))))
-        $cols = Get-SqlReaderColumns -Reader $r
-        $cols | Should -Be @('id', 'when', 'blob')
-        [void]$r.Read()
-        $row = Read-SqlRow -Reader $r -Columns $cols
-        @($row.Keys) | Should -Be @('id', 'when', 'blob')
+        $when = [datetime]::new(2026, 1, 2, 3, 4, 5, [DateTimeKind]::Utc)
+        $row = ConvertTo-SqlRow -Values @('a1', [System.DBNull]::Value, [byte[]](1), 7, $when) -Columns @('id', 'gone', 'blob', 'n', 'when')
+        @($row.Keys) | Should -Be @('id', 'gone', 'blob', 'n', 'when')
         $row.id | Should -Be 'a1'
-        $row.when | Should -BeNull
+        $row.gone | Should -BeNull
         $row.blob | Should -BeNull
+        $row.n | Should -Be 7
+        $row.when | Should -Be '2026-01-02T03:04:05.0000000Z'
     }
 }
 
 Describe 'Invoke-SqlQueryStream' {
     BeforeAll {
         $script:Rows = @(1..7 | ForEach-Object { , @("r$_", $_) })
+    }
+
+    # 29 rows, not a multiple of 8: the old code then threw on the last row instead
+    # of silently returning an eighth, so both failure shapes fail this test.
+    It 'keeps every row while a transcript is running, as it is in the worker' {
+        $rows = @(1..29 | ForEach-Object { , @("r$_", $_) })
+        $conn = [FakeConnection]::new(@('id', 'n'), $rows)
+        $seen = [System.Collections.Generic.List[string]]::new()
+        Start-Transcript -Path (Join-Path $TestDrive 'job.log') -UseMinimalHeader | Out-Null
+        try {
+            $n = Invoke-SqlQueryStream -Connection $conn -Sql 'SELECT id, n FROM t' -OnRow { param($Row) $seen.Add($Row.id) }
+        } finally { Stop-Transcript | Out-Null }
+        $n | Should -Be 29
+        @($seen) | Should -Be @(1..29 | ForEach-Object { "r$_" })
     }
 
     It 'streams every row once, in order, through -OnRow for a plain statement with a single command' {

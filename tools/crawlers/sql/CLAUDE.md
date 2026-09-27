@@ -114,6 +114,13 @@ that names an id it has not seen is skipped and counted (logged as `dangling`), 
 
 ## Known gotchas
 
+- **Never pass a `SqlDataReader` to a PowerShell function or cmdlet.** It is `IEnumerable`, and
+  while a transcript runs (the worker runs every job under one) binding it to *any* parameter
+  enumerates it for the log, which consumes 7 rows per call. `Invoke-SqlReaderPage` once kept
+  1 row in 8 this way, and the read still looked complete. Use the reader's own methods
+  (`GetName`, `GetValues`) and pass the plain value array. Runs by hand have no transcript, so
+  only a worker job shows this. Test it under `Start-Transcript`, with a double that is
+  enumerable the way `DbDataReader` is (see `SqlCrawlerFunctions.Tests.ps1`).
 - **`System.Data.SqlClient` ships inside PowerShell 7** on both Windows and the Linux worker
   image (`/opt/microsoft/powershell/7/System.Data.SqlClient.dll`), so there is no driver to
   install. `Microsoft.Data.SqlClient` is *not* available and must not be referenced.

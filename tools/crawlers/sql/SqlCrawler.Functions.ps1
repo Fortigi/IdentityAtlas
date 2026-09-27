@@ -203,24 +203,25 @@ function ConvertFrom-SqlValue {
     return $Value
 }
 
-function Get-SqlReaderColumns {
-    [CmdletBinding()]
-    [OutputType([string[]])]
-    param([Parameter(Mandatory)] $Reader)
-    $cols = [string[]]::new($Reader.FieldCount)
-    for ($i = 0; $i -lt $Reader.FieldCount; $i++) { $cols[$i] = $Reader.GetName($i) }
-    return , $cols
-}
+#   NEVER PASS THE READER TO A POWERSHELL FUNCTION. A SqlDataReader is
+#   IEnumerable, and each step of its enumerator is a Read(). While a transcript
+#   runs — the worker runs every job under one — binding it to any parameter,
+#   typed or not, enumerates it for the log and silently consumes 7 rows. Reading
+#   a row and then handing the reader to a function kept exactly 1 row in 8: the
+#   field run that loaded 22,087 of 176,703 identities (176,703 − 7 = 8 × 22,087)
+#   and reported success. Only the reader's own methods may touch it; what crosses
+#   a function boundary is the plain value array.
 
-# The current reader row as an ordered hashtable (column name → converted value).
-# Strings and numbers skip the converter call: on a 40 M-row read the per-cell
-# function call is the dominant cost, and those types need no conversion.
-function Read-SqlRow {
+# One row's values (from $reader.GetValues) as an ordered hashtable, column name
+# → converted value. Strings and numbers skip the converter call: on a 40 M-row
+# read the per-cell function call is the dominant cost, and those types need no
+# conversion.
+function ConvertTo-SqlRow {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] $Reader, [Parameter(Mandatory)] [string[]]$Columns)
+    param([Parameter(Mandatory)] [AllowNull()] [object[]]$Values, [Parameter(Mandatory)] [string[]]$Columns)
     $row = [ordered]@{}
     for ($i = 0; $i -lt $Columns.Length; $i++) {
-        $v = $Reader.GetValue($i)
+        $v = $Values[$i]
         if ($v -is [string] -or $v -is [int] -or $v -is [long] -or $v -is [bool]) { $row[$Columns[$i]] = $v }
         else { $row[$Columns[$i]] = ConvertFrom-SqlValue -Value $v }
     }
@@ -248,11 +249,12 @@ function New-SqlCommand {
 # mid-stream truncates the crawl SILENTLY — the job ingests part of the source and
 # reports success, which is worse than failing.
 #
-# Observed in the field: a 176,703-row table returned 22,087 rows in 59 seconds
-# and the run was reported as complete. The crawler holds one result set open for
-# the whole statement while stopping every batch to POST into the API, so that
-# connection sits idle mid-stream for seconds at a time — exactly what an idle-
-# session timeout kills.
+# The crawler holds one result set open for the whole statement while stopping
+# every batch to POST into the API, so the connection sits idle mid-stream for
+# seconds at a time, which is exactly what an idle-session timeout kills. (This
+# probe was first written for the field run that returned 22,087 of 176,703 rows.
+# That run turned out to be the transcript bug described above, not a dropped
+# connection. The probe stays because a dropped connection truncates the same way.)
 #
 # After the rows stop, ask the connection to do one more trivial thing. A dead
 # connection cannot, and that turns silent data loss into a failed job naming the
@@ -301,9 +303,14 @@ function Invoke-SqlReaderPage {
     $reader = $Command.ExecuteReader([System.Data.CommandBehavior]::Default)
     $n = 0
     try {
-        $columns = Get-SqlReaderColumns -Reader $reader
+        # Method calls only: see "NEVER PASS THE READER" above.
+        $width   = $reader.FieldCount
+        $columns = [string[]]::new($width)
+        for ($i = 0; $i -lt $width; $i++) { $columns[$i] = $reader.GetName($i) }
+        $values = [object[]]::new($width)
         while ($reader.Read()) {
-            & $OnRow (Read-SqlRow -Reader $reader -Columns $columns)
+            [void]$reader.GetValues($values)
+            & $OnRow (ConvertTo-SqlRow -Values $values -Columns $columns)
             $n++
         }
     } finally { $reader.Dispose() }

@@ -3,7 +3,7 @@
     Pure row → ingest-record shapers for the SQL Database crawler.
 
 .DESCRIPTION
-    A row is an ordered hashtable (column name → value) as Read-SqlRow produced
+    A row is an ordered hashtable (column name → value) as ConvertTo-SqlRow produced
     it. The shapers map it onto the ingest record for the slot's target by the
     column contract in tools/crawlers/sql/CLAUDE.md:
 
