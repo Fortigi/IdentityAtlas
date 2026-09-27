@@ -36,7 +36,7 @@ const M = (n) => `55555555-0000-0000-0000-0000000000${String(n).padStart(2, '0')
 async function ctx(id, variant, scopeSystemId) {
   await pool.query(
     `INSERT INTO "Contexts" ("id", "variant", "targetType", "contextType", "displayName", "scopeSystemId")
-     VALUES ($1, $2, 'Principal', 'ContractCtx', $1, $3)`, [id, variant, scopeSystemId]);
+     VALUES ($1, $2, 'Principal', 'ContractCtx', $4, $3)`, [id, variant, scopeSystemId, `ctx ${id}`]);
 }
 async function member(contextId, memberId, addedBy) {
   await pool.query(
