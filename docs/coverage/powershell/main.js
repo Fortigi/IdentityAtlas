@@ -341,6 +341,16 @@ var assemblies = [
       { "name": "tools/crawlers/midpoint/Start-MidpointCrawler", "rp": "midpoint_tools_crawlers_midpoint_Start_MidpointCrawler.html", "cl": 0, "ucl": 75, "cal": 75, "tl": 201, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {
+    "name": "tools/crawlers/mssql",
+    "classes": [
+      { "name": "tools/crawlers/mssql/SqlCrawler.Contexts", "rp": "mssql_Contexts.html", "cl": 101, "ucl": 4, "cal": 105, "tl": 231, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/mssql/SqlCrawler.Functions", "rp": "mssql_Functions.html", "cl": 155, "ucl": 2, "cal": 157, "tl": 374, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/mssql/SqlCrawler.Phases", "rp": "mssql_Phases.html", "cl": 153, "ucl": 7, "cal": 160, "tl": 362, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/mssql/SqlCrawler.Transform", "rp": "mssql_Transform.html", "cl": 136, "ucl": 0, "cal": 136, "tl": 333, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/mssql/SqlCrawler.Verify", "rp": "mssql_Verify.html", "cl": 85, "ucl": 0, "cal": 85, "tl": 229, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/mssql/Start-SqlCrawler", "rp": "mssql_tools_crawlers_mssql_Start_SqlCrawler.html", "cl": 0, "ucl": 28, "cal": 28, "tl": 88, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+    ]},
+  {
     "name": "tools/crawlers/odata",
     "classes": [
       { "name": "tools/crawlers/odata/Invoke-ODataAuth", "rp": "odata_tools_crawlers_odata_Invoke_ODataAuth.html", "cl": 70, "ucl": 29, "cal": 99, "tl": 256, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
