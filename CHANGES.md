@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Added an IdentityIQ-shaped SQL Server test fixture (a container definition and a re-runnable schema script) so the SQL connector can be developed and verified without access to a production IdentityIQ database
+- Added a seeded generator that fills the fixture with synthetic data at up to full scale (180,000 identities, 800,000 entitlements, 40 million grants), producing the same dataset as the CSV scale fixture so loads through either connector can be compared, plus a load script that fails when any table's row count differs from what was generated
+
+## Changes in this PR
+
 - Fixed the matrix refresh after a large import: it now runs once, in the background, instead of timing out inside the crawler's request and being retried into a queue of repeated full refreshes.
 - A crawler job now reports whether the matrix refresh succeeded, and fails with a clear message if it did not, instead of calling the failure "non-critical" and reporting success.
 - Restarting Identity Atlas no longer rebuilds the matrix from scratch when it is already populated, which on large datasets took minutes and several gigabytes of disk.
