@@ -313,3 +313,20 @@ describe('crawlerAuthMiddleware — SQL disabled', () => {
     expect(nextCalled).toBe(false);
   });
 });
+
+// One lastUsedAt UPDATE per request, all on one row, exhausted the pool under a
+// bulk load (lib/throttledTouch.js). A burst of requests now stamps once.
+describe('crawlerAuthMiddleware — lastUsedAt stamp', () => {
+  it('stamps a crawler once for a burst of requests, without waiting on its row lock', async () => {
+    // An id no other fixture reaches: crawlerRow() numbers rows upward from 200, and
+    // a row this file already stamped would (correctly) be throttled here.
+    const row = crawlerRow({ id: 987654 });
+    query.mockImplementation(async (sql) => (/FROM "Crawlers"/.test(sql) && !/^UPDATE/.test(sql.trim()) ? { rows: [row] } : { rows: [] }));
+    for (let i = 0; i < 20; i++) expect((await run()).nextCalled).toBe(true);
+    await new Promise(r => setTimeout(r, 0));
+    const stamps = query.mock.calls.filter(([sql]) => /UPDATE "Crawlers" SET "lastUsedAt"/.test(sql));
+    expect(stamps).toHaveLength(1);
+    expect(stamps[0][1]).toEqual([987654]);
+    expect(stamps[0][0]).toContain('FOR UPDATE SKIP LOCKED');
+  });
+});
