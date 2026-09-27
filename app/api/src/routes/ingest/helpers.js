@@ -7,7 +7,7 @@
 // behaviour change — pure code move.
 
 import * as db from '../../db/connection.js';
-import { SOFT_DELETE_TABLES } from '../../ingest/engine.js';
+import { SOFT_DELETE_TABLES, ingest } from '../../ingest/engine.js';
 import { startSession, continueSession, endSession, hasSession, SessionLimitError } from '../../ingest/sessions.js';
 import { ownedRowPredicate, linkDirectorySystems } from '../../ingest/systemBoundary.js';
 
@@ -171,6 +171,47 @@ export async function linkSystemDirectories(entityType) {
   }
 }
 
+// A system without a tenant is keyed on (systemType, displayName) instead of
+// (systemType, tenantId): NULLs never conflict in a unique constraint, so the
+// tenant key let every re-run register each such system again (migration 074).
+export const TENANTLESS_SYSTEM_KEY = ['systemType', 'displayName'];
+export const TENANTLESS_SYSTEM_FILTER = '"tenantId" IS NULL';
+
+// Run the engine upsert for one batch. Systems go in two groups, each against
+// the unique index that identifies it; every other entity is one call. Exported
+// for unit tests.
+export async function ingestBatch(entityType, tableName, keyColumns, normalized, options) {
+  if (entityType !== 'systems') return ingest(null, tableName, keyColumns, normalized, options);
+  const withTenant = normalized.filter(r => r.tenantId != null);
+  const tenantless = normalized.filter(r => r.tenantId == null);
+  const total = { inserted: 0, updated: 0, deleted: 0 };
+  const groups = [
+    [withTenant, keyColumns, options.conflictFilter],
+    [tenantless, TENANTLESS_SYSTEM_KEY, TENANTLESS_SYSTEM_FILTER],
+  ];
+  for (const [records, keys, conflictFilter] of groups) {
+    if (records.length === 0) continue;
+    const r = await ingest(null, tableName, keys, records, { ...options, conflictFilter });
+    total.inserted += r.inserted; total.updated += r.updated; total.deleted += r.deleted;
+  }
+  return total;
+}
+
+// The system row one registration record resolves to, by the same key the
+// upsert used. Only a record with neither key falls back to the display name.
+async function findSystemRow(rec) {
+  if (rec.tenantId && rec.systemType) {
+    return db.queryOne(`SELECT id FROM "Systems" WHERE "tenantId" = $1 AND "systemType" = $2 ORDER BY id DESC LIMIT 1`, [rec.tenantId, rec.systemType]);
+  }
+  if (rec.displayName && rec.systemType) {
+    return db.queryOne(`SELECT id FROM "Systems" WHERE "systemType" = $1 AND "displayName" = $2 AND "tenantId" IS NULL`, [rec.systemType, rec.displayName]);
+  }
+  if (rec.displayName) {
+    return db.queryOne(`SELECT id FROM "Systems" WHERE "displayName" = $1 ORDER BY id DESC LIMIT 1`, [rec.displayName]);
+  }
+  return null;
+}
+
 // Systems endpoint only: resolve the resulting system IDs so crawlers can use
 // them in subsequent calls without hardcoding. Returns an array or undefined.
 // Exported for unit tests.
@@ -179,12 +220,7 @@ export async function lookupSystemIds(entityType, records) {
   try {
     const ids = [];
     for (const rec of records) {
-      let row;
-      if (rec.tenantId && rec.systemType) {
-        row = await db.queryOne(`SELECT id FROM "Systems" WHERE "tenantId" = $1 AND "systemType" = $2 ORDER BY id DESC LIMIT 1`, [rec.tenantId, rec.systemType]);
-      } else if (rec.displayName) {
-        row = await db.queryOne(`SELECT id FROM "Systems" WHERE "displayName" = $1 ORDER BY id DESC LIMIT 1`, [rec.displayName]);
-      }
+      const row = await findSystemRow(rec);
       if (row) ids.push(row.id);
     }
     return ids.length > 0 ? ids : undefined;

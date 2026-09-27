@@ -8,7 +8,7 @@
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
-import { ingest, writeSyncLog } from '../../ingest/engine.js';
+import { writeSyncLog } from '../../ingest/engine.js';
 import { normalizeRecords, extendedAttributesBoundsError } from '../../ingest/normalization.js';
 import {
   restrictedSystemIds, writableCoreColumns, systemBoundaryDenial,
@@ -19,10 +19,10 @@ import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/c
 import { normalizePresenceQuery, lookupCrawlerPresence } from '../../ingest/crawlerPresence.js';
 import { parseReconcileRequest, reconcileStale, ReconcileRequestError } from '../../ingest/reconcileStale.js';
 import { viewRefresh } from './matrixViews.js';
-import { buildSyncLogRow, classifyScope } from './dataPlane.js';
+import { buildSyncLogRow, classifyScope, classifyStatements } from './dataPlane.js';
 import {
   applyIngestDefaults, coerceSystemsSyncMode, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
-  handleSessionPath, applyDeleteByIds, lookupSystemIds, linkSystemDirectories, writeAuditLog, ingestErrorResponse,
+  handleSessionPath, applyDeleteByIds, lookupSystemIds, linkSystemDirectories, writeAuditLog, ingestErrorResponse, ingestBatch,
 } from './helpers.js';
 
 const router = Router();
@@ -105,7 +105,7 @@ function createIngestHandler(entityType) {
       // empty FULL says "this scope is empty now" and reconciles its rows away,
       // which is how a crawler clears a source that no longer serves anything.
       // Short-circuiting here meant that batch was accepted and silently ignored.
-      const result = await ingest(null, tableName, keyColumns, normalized, {
+      const result = await ingestBatch(entityType, tableName, keyColumns, normalized, {
         syncMode: body.syncMode || 'delta', systemId: body.systemId, scope, scopeDeleteFilter, conflictFilter,
         restrictSystemIds: allowed, preserveColumns,
       });
@@ -285,20 +285,18 @@ router.post('/ingest/classify-business-role-assignments', async (req, res) => {
   const scope = classifyScope(req.body, req.crawler);
   if (scope.error) return res.status(scope.status).json({ error: scope.error });
   try {
-    const r = await db.query(`
-      UPDATE "ResourceAssignments" ra
-         SET "governed" = true
-        FROM "Resources" r
-       WHERE r.id = ra."resourceId"
-         AND r."governanceResource"
-         AND ra."governed" = false${scope.clause}
-    `, scope.params);
+    const { removeCopies, markGoverned } = classifyStatements(scope.clause);
+    const [removed, marked] = await db.tx(async (client) => [
+      await client.query(removeCopies, scope.params),
+      await client.query(markGoverned, scope.params),
+    ]);
     // The matrix materialized views are now stale. Schedule the refresh; its
     // outcome is readable at GET /ingest/refresh-views.
     const refresh = viewRefresh.schedule('classify-business-role-assignments');
     return res.json({
       ok: true,
-      governedMarked: r.rowCount || 0,
+      governedMarked: marked.rowCount || 0,
+      ungovernedCopiesRemoved: removed.rowCount || 0,
       viewRefresh: 'scheduled',
       refresh,
     });

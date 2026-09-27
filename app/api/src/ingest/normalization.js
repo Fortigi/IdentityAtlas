@@ -49,8 +49,16 @@ const SIMPLE_EXTERNAL_REFS = [
  *
  * All target column names come from trusted constants (never the record), so the
  * dynamic `normalized[target]` writes can't be remote-property-injected.
+ *
+ * Returns the names of the fields it resolved. Each is now held by the id column
+ * it filled, and the row that id points at holds the external id itself, so the
+ * caller leaves them out of extendedAttributes: stored there, the two ids of an
+ * assignment were 78 of its 192 bytes (41% of the heap on a 41M-row rig) and
+ * were copied into every history snapshot. A field that did not resolve (its
+ * target was already set) is not returned, and is kept.
  */
 function resolveExternalRefs(rec, normalized, coreSet, sysPrefix) {
+  const resolved = [];
   // A parentExternalId names the record's parent in the SAME entity family, so it
   // must land on whichever parent FK the target table has: a Context's parent is
   // another Context ("<sys>-contexts" → parentContextId); a resource
@@ -61,14 +69,17 @@ function resolveExternalRefs(rec, normalized, coreSet, sysPrefix) {
   if (rec.parentExternalId) {
     if (coreSet.has('parentContextId') && !normalized.parentContextId) {
       normalized.parentContextId = deterministicGuid(`${sysPrefix}-contexts`, String(rec.parentExternalId));
+      resolved.push('parentExternalId');
     } else if (coreSet.has('parentResourceId') && !normalized.parentResourceId) {
       normalized.parentResourceId = deterministicGuid(`${sysPrefix}-resources`, String(rec.parentExternalId));
+      resolved.push('parentExternalId');
     }
   }
 
   for (const { field, target, ns } of SIMPLE_EXTERNAL_REFS) {
     if (rec[field] && !normalized[target]) {
       normalized[target] = deterministicGuid(`${sysPrefix}-${ns}`, String(rec[field]));
+      resolved.push(field);
     }
   }
 
@@ -77,8 +88,10 @@ function resolveExternalRefs(rec, normalized, coreSet, sysPrefix) {
     const memberNs = { Identity: 'identities', Principal: 'principals', Resource: 'resources' }[rec.memberType];
     if (memberNs) {
       normalized.memberId = deterministicGuid(`${sysPrefix}-${memberNs}`, String(rec.memberExternalId));
+      resolved.push('memberExternalId');
     }
   }
+  return resolved;
 }
 
 // Columns whose target type is BYTEA. JSON can't carry binary, so crawlers
@@ -120,10 +133,11 @@ function collectExtendedFields(rec, coreSet) {
 }
 
 // Apply deterministic id + external-ref resolution. No-op unless deterministic
-// id generation is requested. Mutates `normalized`.
+// id generation is requested. Mutates `normalized`; returns the reference
+// fields it resolved (see resolveExternalRefs).
 function applyDeterministicIds(rec, normalized, coreSet, options) {
   const { idGeneration, idPrefix, systemPrefix } = options;
-  if (idGeneration !== 'deterministic') return;
+  if (idGeneration !== 'deterministic') return [];
 
   if (rec.externalId) {
     normalized.id = deterministicGuid(idPrefix, String(rec.externalId));
@@ -138,7 +152,7 @@ function applyDeterministicIds(rec, normalized, coreSet, options) {
   // hyphens (splitting on the first hyphen would resolve to the wrong namespace,
   // e.g. a ContextMembers_contextId_fkey violation).
   const sysPrefix = systemPrefix || idPrefix.split('-')[0];
-  resolveExternalRefs(rec, normalized, coreSet, sysPrefix);
+  return resolveExternalRefs(rec, normalized, coreSet, sysPrefix);
 }
 
 // Interpret an already-present extendedAttributes value as a plain object to
@@ -188,7 +202,8 @@ export function normalizeRecords(records, coreColumns, options = {}) {
     const normalized = pickCoreColumns(rec, coreSet);
     const extended = collectExtendedFields(rec, coreSet);
 
-    applyDeterministicIds(rec, normalized, coreSet, { idGeneration, idPrefix, systemPrefix });
+    const resolved = applyDeterministicIds(rec, normalized, coreSet, { idGeneration, idPrefix, systemPrefix });
+    for (const field of resolved) extended.delete(field);
 
     // Set systemId if provided, the record doesn't override it, AND the table has the column
     if (systemId !== undefined && normalized.systemId === undefined && coreSet.has('systemId')) {

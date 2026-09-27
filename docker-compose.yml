@@ -8,6 +8,12 @@ services:
   #       For networked/production use, override via .env file.
   postgres:
     image: postgres:16-alpine
+    # Parallel workers exchange data through /dev/shm. Docker's 64 MB default is
+    # too small at scale: a parallel VACUUM failed with "could not resize shared
+    # memory segment ... No space left on device" on a 41M-assignment database, and
+    # a parallel hash join hits the same limit. A ceiling, not a reservation:
+    # tmpfs only uses memory for what is actually written.
+    shm_size: 1gb
     restart: unless-stopped
     environment:
       POSTGRES_DB:       "${POSTGRES_DB:-identity_atlas}"

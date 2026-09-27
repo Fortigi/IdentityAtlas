@@ -529,23 +529,26 @@ function Register-CsvFallbackSystem {
 }
 
 # ─── Finalize: classify, refresh, and log the sync ──────────────
-# BusinessRole auto-classification + matrix view refresh (both non-critical) and
-# the sync-log entry. Context generation moved to context-algorithm plugin runs.
+# BusinessRole auto-classification, the matrix view refresh request and the
+# sync-log entry. None of them is caught: a classification that fails leaves the
+# governance view unmaintained, and it used to be logged as "non-critical" while
+# the job reported success — on every re-import. A failure here fails the job.
+# (The refresh itself runs in the background; its outcome is the API's to report.)
+# Context generation moved to context-algorithm plugin runs.
 function Complete-CsvRun {
     [CmdletBinding()]
     param([datetime]$SyncStart, [bool]$RefreshViews = $true)
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Auto-classifying BusinessRole assignments..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Classifying assignments' -Pct 85
-    try {
-        Invoke-IngestAPI -Endpoint 'ingest/classify-business-role-assignments' -Body @{} | Out-Null
-        Write-Host "  Done" -ForegroundColor Green
-    } catch { Write-Host "  (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow }
+    Invoke-IngestAPI -Endpoint 'ingest/classify-business-role-assignments' -Body @{} | Out-Null
+    Write-Host "  Done" -ForegroundColor Green
     if ($RefreshViews) {
         Update-CrawlerProgress -Step 'Refreshing views' -Pct 88
-        try { Invoke-IngestAPI -Endpoint 'ingest/refresh-views' -Body @{} | Out-Null; Write-Host "  Views refreshed" -ForegroundColor Green } catch { }
+        Invoke-IngestAPI -Endpoint 'ingest/refresh-views' -Body @{} | Out-Null
+        Write-Host "  View refresh scheduled" -ForegroundColor Green
     }
     $elapsed = (Get-Date) - $SyncStart
     Write-Host "`n=== CSV Sync Complete ===" -ForegroundColor Green
     Write-Host "Duration: $([Math]::Round($elapsed.TotalSeconds))s" -ForegroundColor Gray
-    try { Invoke-IngestAPI -Endpoint 'ingest/sync-log' -Body @{ syncType = 'CSV-FullCrawl'; startTime = $SyncStart.ToString('o'); endTime = (Get-Date).ToString('o'); status = 'Success' } | Out-Null } catch { }
+    Invoke-IngestAPI -Endpoint 'ingest/sync-log' -Body @{ syncType = 'CSV-FullCrawl'; startTime = $SyncStart.ToString('o'); endTime = (Get-Date).ToString('o'); status = 'Success' } | Out-Null
 }

@@ -119,6 +119,27 @@ export function buildUpdateSet(nonKeyCols, tableName, options = {}) {
   }).join(', ');
 }
 
+// A membership of a governance resource (a business role, an access package) is
+// governed by definition; classify-business-role-assignments flags exactly these.
+// Flagging them in the staged batch too, before the upsert, lets a re-import
+// match the row classify already flipped. Without it `governed` (part of the
+// unique key) differed, so every re-import inserted an ungoverned copy beside
+// the governed row. A batch that already carries the governed row for the same
+// grant keeps its ungoverned one as sent: flipping it would put the key in the
+// batch twice. No-op for any other table or a batch without the column.
+export async function markGovernanceMemberships(client, tableName, tempName, keyColumns, activeColumns) {
+  if (tableName !== 'ResourceAssignments' || !activeColumns.some(c => c.name === 'governed')) return;
+  const sameGrant = keyColumns
+    .filter(k => k !== 'governed')
+    .map(k => `g."${k}" IS NOT DISTINCT FROM t."${k}"`)
+    .join(' AND ');
+  await client.query(`
+    UPDATE "${tempName}" t SET "governed" = true
+      FROM "Resources" r
+     WHERE r.id = t."resourceId" AND r."governanceResource" AND t."governed" IS NOT TRUE
+       AND NOT EXISTS (SELECT 1 FROM "${tempName}" g WHERE g."governed" AND ${sameGrant})`);
+}
+
 /**
  * Core ingest operation. Bulk-COPY records into a temp table, then upsert
  * from the temp table into the target.
@@ -184,6 +205,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     // hold time on Postgres (the whole batch is already one transaction, so
     // chunk size only affects statement count, not locking behaviour).
     await bulkInsertIntoTemp(client, tempName, activeColumns, records, 1000, true);
+    await markGovernanceMemberships(client, tableName, tempName, keyColumns, activeColumns);
 
     // Upsert from temp into target. xmax = 0 detects fresh inserts.
     const nonKeyCols = activeColumns.filter(c => !keyColumns.includes(c.name));
