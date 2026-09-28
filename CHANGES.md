@@ -1,5 +1,16 @@
 ## Changes in this PR
 
+- The SQL connector can now refresh incrementally instead of re-reading its whole source. A query opts in by naming the column it advances on (e.g. `modified`) and referencing `@Since` in its SQL; the crawler then reads only the rows that changed since the last successful run. The shipped IdentityIQ example does this for the two entitlement-grant queries, which are the ones large enough for a full read to be an overnight job.
+- Removals are found by a periodic **key sweep**: the query's complete set of ids is read and anything Identity Atlas still holds but the source no longer has is removed. It runs at most once every `sweepIntervalHours` (a day by default), so a removal shows within one interval while routine refreshes stay small.
+- A sweep refuses to remove more than 5% of a scope in one go, and writes nothing when it would — a source read while it is being re-aggregated looks exactly like a mass revocation. `sweepOverride` lets a genuinely large removal through for one run.
+- A query's position is remembered only after the run has been verified end to end, and the stored position is keyed on the text of the query — so editing a query makes the next run read everything again rather than silently skipping the rows its new shape would have returned.
+- Each incremental read goes back a short overlap (15 minutes by default, `watermarkOverlapSeconds`) so rows written by a source whose servers disagree slightly about the time are not stepped over.
+- Stale rows are now removed on the basis of what a query actually read rather than on whether the run was labelled "full": a query that reads its whole table keeps its data exact on every run, incremental ones included. Previously an incremental run removed nothing at all.
+- The Queries step of the SQL wizard gained a **Watermark column** field and, for assignment queries, a **Key sweep** toggle, and reports the combinations that cannot work (a watermark column with no `@Since`, or the other way round).
+- The IdentityIQ-shaped test fixture gained a mutation script, so an incremental refresh can be rehearsed against a source that actually changed.
+
+## Changes in this PR
+
 - SQL connector: the owner a query selects can now become a real owner you can click, instead of an identifier shown as text. Alias the column `ownerId` and tick "Owners from ownerId" on the query, and each resource gets an owner entry linked to it — the same way group owners already work, so the owner shows on the resource, gets its own matrix row, and counts as control rather than as access.
 - The owner may be written as an account id or as an employee number; both are matched against the accounts the same run loaded. An owner matching nobody is reported with the values and how many resources carry each, and no owner is ever invented — the raw value stays where it always was.
 - Owner links are off unless a query asks for them: they add three rows per resource that has an owner, which is around 1.45 million rows on a catalogue of 800,000 entitlements. The shipped SailPoint IdentityIQ examples turn them on for business roles and leave them off for entitlements, with the column already selected so it is one checkbox to change.
