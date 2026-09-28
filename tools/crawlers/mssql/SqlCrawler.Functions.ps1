@@ -272,6 +272,14 @@ function Get-SqlConnectionString {
     $b['Connect Timeout']          = [int]$Cfg.connectTimeout
     $b['Application Name']         = 'Identity Atlas SQL crawler'
     $b['MultipleActiveResultSets'] = $false
+    # Deliberately NO ApplicationIntent=ReadOnly. Azure SQL Hyperscale offers
+    # read-only replicas and reading one would take the load off the primary —
+    # but a replica LAGS it, and a watermark taken from rows read on a lagging
+    # replica moves past rows the primary has already committed. Those rows are
+    # then never read, silently. A replica is only safe once the overlap
+    # (watermarkOverlapSeconds) exceeds the worst replica lag, which is a
+    # deployment decision somebody has to take rather than one this line should
+    # take for them. See docs/architecture/sql-connector-delta.md.
     return $b.ConnectionString
 }
 
