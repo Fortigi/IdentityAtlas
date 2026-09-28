@@ -2,3 +2,4 @@
 - The section reports only what reaches the published image — the API's installed production packages, the libraries bundled into the UI, and the pinned base images — so build- and test-only tooling no longer crowds out the updates that matter.
 - Fixed the release a set of notes is compared against. Patch releases cut from a maintained release line were compared against the newest release overall, so a patch could be described as removing everything a later version had added; a release that was the first of its series could lose its change list and changelog link entirely. Both release workflows now determine this the same way.
 - Added documentation covering how a release's notes are assembled, and corrected the branching guide, which stated that releases can only be cut from the tip of the main branch.
+- No change to behaviour from the lockfile-reading split; it is the same parsing in three smaller pieces.

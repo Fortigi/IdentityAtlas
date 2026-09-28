@@ -118,15 +118,15 @@ def package_name(path):
     return name or None
 
 
-def production_versions(lock_text):
-    """name -> resolved version, for packages that survive `npm ci --omit=dev`.
+def lock_packages(lock_text):
+    """The lockfile's `packages` map, or {} for anything unusable.
 
-    npm marks an entry `dev: true` only when it is reachable *exclusively*
-    through devDependencies, so dropping those leaves exactly the production
-    closure. Workspace links carry no version of their own and are skipped.
-
-    A package resolved at several depths (npm's dedupe fallback) is reported at
-    its shallowest path, which is the copy most consumers load.
+    Every rejection here is a real shape seen in the wild rather than defensive
+    padding: an absent file (`git show` on a ref that predates it), a valid JSON
+    document that is not an object, and lockfileVersion 1, which has no
+    `packages` map at all. The repo is on npm 11 (lockfileVersion 3); rather
+    than guess at the v1 tree shape, report nothing and let the changelog carry
+    that release.
     """
     if not lock_text:
         return {}
@@ -135,29 +135,44 @@ def production_versions(lock_text):
     except (ValueError, TypeError):
         return {}
     if not isinstance(data, dict):
-        # Valid JSON that is not an object (a bare array, a string) — the file
-        # is not a lockfile, whatever its name says.
         return {}
     packages = data.get("packages")
-    if not isinstance(packages, dict):
-        # lockfileVersion 1 has no `packages` map. The repo is on npm 11
-        # (lockfileVersion 3); rather than guess at the old tree shape, report
-        # nothing and let the changelog carry that release.
-        return {}
+    return packages if isinstance(packages, dict) else {}
 
+
+def shipped_entry(path, meta):
+    """(name, version, depth) for one lockfile entry, or None to skip it.
+
+    Skipped: the project itself (the "" key), workspace links and anything
+    without a version (neither carries a version that ships), and `dev: true`
+    — npm sets that only when an entry is reachable *exclusively* through
+    devDependencies, so dropping those leaves exactly the production closure.
+    """
+    if not path or not isinstance(meta, dict):
+        return None
+    if meta.get("dev") or meta.get("link"):
+        return None
+    version = meta.get("version")
+    if not version:
+        return None
+    name = package_name(path)
+    if not name:
+        return None
+    return name, version, path.count("node_modules/")
+
+
+def production_versions(lock_text):
+    """name -> resolved version, for packages that survive `npm ci --omit=dev`.
+
+    A package resolved at several depths (npm's dedupe fallback) is reported at
+    its shallowest path, which is the copy most consumers load.
+    """
     best = {}
-    for path, meta in packages.items():
-        if not path or not isinstance(meta, dict):
-            continue  # "" is the project itself
-        if meta.get("dev") or meta.get("link"):
+    for path, meta in lock_packages(lock_text).items():
+        entry = shipped_entry(path, meta)
+        if entry is None:
             continue
-        version = meta.get("version")
-        if not version:
-            continue
-        name = package_name(path)
-        if not name:
-            continue
-        depth = path.count("node_modules/")
+        name, version, depth = entry
         if name not in best or depth < best[name][1]:
             best[name] = (version, depth)
     return {name: version for name, (version, _) in best.items()}
