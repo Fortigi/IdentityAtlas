@@ -75,6 +75,10 @@ BEGIN
         resource_id varchar(32)    NULL        -- the managed attribute a grant resolves to
     );
     CREATE INDEX ix_fixture_mutation ON fixture_mutation (batch, change);
+    -- Every later run asks "have I touched this row before?" against the whole
+    -- log while scanning millions of grants; without this that is a scan per run.
+    CREATE INDEX ix_fixture_mutation_row ON fixture_mutation (row_id);
+    CREATE INDEX ix_fixture_mutation_identity ON fixture_mutation (identity_id);
 END;
 
 DECLARE @batch int = (SELECT ISNULL(MAX(batch), 0) + 1 FROM fixture_mutation);
