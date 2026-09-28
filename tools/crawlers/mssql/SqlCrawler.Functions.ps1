@@ -103,6 +103,9 @@ function Resolve-SqlQuerySlot {
         contextType      = $contextType
         targetType       = $targetType
         memberType       = $memberType
+        # What the one root every catalogue hangs under is called. Blank means
+        # "name it after the contextType" — see Get-SqlContextRootName.
+        rootDisplayName  = ([string]$Slot.rootDisplayName).Trim()
         paged            = Test-SqlPagedQuery -Sql $sql
     }
 }

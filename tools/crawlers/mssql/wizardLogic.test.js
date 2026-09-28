@@ -21,7 +21,7 @@ describe('newQuerySlot', () => {
     expect(newQuerySlot()).toEqual({
       name: '', target: 'identities', sql: '', enabled: true, columnMap: [],
       resourceType: '', assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User',
-      contextType: '', targetType: 'Resource', memberType: 'Resource',
+      contextType: '', targetType: 'Resource', memberType: 'Resource', rootDisplayName: '',
     });
   });
 
@@ -38,7 +38,7 @@ describe('slotFieldsFor', () => {
     expect(slotFieldsFor('resources')).toEqual(['resourceType']);
     expect(slotFieldsFor('assignments')).toEqual(['resourceType', 'assignmentType', 'governed']);
     expect(slotFieldsFor('relationships')).toEqual(['relationshipType']);
-    expect(slotFieldsFor('contexts')).toEqual(['contextType', 'targetType']);
+    expect(slotFieldsFor('contexts')).toEqual(['contextType', 'targetType', 'rootDisplayName']);
     expect(slotFieldsFor('context-members')).toEqual(['memberType']);
   });
 
@@ -581,7 +581,12 @@ describe('contexts and context-members slots', () => {
 
   it('saves only the slot constants each target uses, trimmed and defaulted', () => {
     expect(buildQuerySlot(catalogue({ contextType: ' Application ', targetType: '', memberType: 'Identity' })))
-      .toEqual({ name: 'Apps', target: 'contexts', sql: 'SELECT 1', enabled: true, contextType: 'Application', targetType: 'Resource' });
+      .toEqual({ name: 'Apps', target: 'contexts', sql: 'SELECT 1', enabled: true, contextType: 'Application', targetType: 'Resource', rootDisplayName: '' });
+    // A root name survives the round-trip, trimmed: without it the preset's
+    // "Logical Applications" would be silently dropped the first time anybody
+    // opened the wizard and saved.
+    expect(buildQuerySlot(catalogue({ contextType: 'Application', rootDisplayName: '  Logical Applications ' })).rootDisplayName)
+      .toBe('Logical Applications');
     expect(buildQuerySlot(members({ memberType: '', contextType: 'X' })))
       .toEqual({ name: 'Members', target: 'context-members', sql: 'SELECT 1', enabled: true, memberType: 'Resource' });
   });

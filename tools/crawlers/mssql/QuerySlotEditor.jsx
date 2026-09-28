@@ -63,6 +63,13 @@ function SlotFields({ slot, update }) {
             placeholder="Application" className={'w-full ' + SMALL_CLS} />
         </div>
       )}
+      {fields.includes('rootDisplayName') && (
+        <div>
+          <label className={LABEL_CLS} title="Every context this query produces hangs under one root with this name, so a long catalogue reads as a tree. Leave it blank to name the root after the context type.">Root name</label>
+          <input value={slot.rootDisplayName} onChange={e => update('rootDisplayName', e.target.value)}
+            placeholder="Logical Applications" className={'w-full ' + SMALL_CLS} />
+        </div>
+      )}
       {fields.includes('targetType') && (
         <EnumSelect label="Groups" value={slot.targetType} options={CONTEXT_TARGET_TYPES} onChange={v => update('targetType', v)} />
       )}

@@ -223,6 +223,10 @@ ${ENTITLEMENT_FROM}`,
     target: 'contexts',
     contextType: 'LogicalApplication',
     targetType: 'Resource',
+    // Every application hangs under one root, so a catalogue of 1,500 is a tree
+    // rather than 1,500 top-level rows. The crawler creates it; see
+    // SqlCrawler.Contexts.ps1 → Get-SqlContextRoot.
+    rootDisplayName: 'Logical Applications',
     sql: `-- One catalogue record whose XML maps each application NAME to its details.
 -- Applications are keyed by their normalised name. When every entry carries a
 -- unique configuration-management reference, alias that column to id instead:
@@ -230,8 +234,16 @@ ${ENTITLEMENT_FROM}`,
 SELECT
     e.k.value('@key', 'nvarchar(450)') AS displayName,
     e.k.value('(value/Map/entry[@key="description"]/@value)[1]', 'nvarchar(max)') AS description,
+    -- The owner as the catalogue spells it. Deployments store an employee
+    -- number here while accounts are keyed on the identity id; the crawler
+    -- translates one to the other against the accounts it has read, and leaves
+    -- anything it cannot match exactly as it found it (and counts it).
     e.k.value('(value/Map/entry[@key="owner"]/@value)[1]', 'nvarchar(255)') AS ownerUserId,
-    e.k.value('(value/Map/entry[@key="applicationOwner"]/@value)[1]', 'nvarchar(255)') AS applicationOwner,
+    -- Both spellings, because XQuery is case-sensitive and deployments differ:
+    -- matching only "applicationOwner" returns NULL, silently, wherever the key
+    -- is written "applicationowner". Kept as an extended attribute -- the
+    -- "owner" key above is the one that becomes the context's owner.
+    e.k.value('(value/Map/entry[@key="applicationOwner" or @key="applicationowner"]/@value)[1]', 'nvarchar(255)') AS applicationOwner,
     e.k.value('(value/Map/entry[@key="abbreviation"]/@value)[1]', 'nvarchar(255)') AS abbreviation,
     e.k.value('(value/Map/entry[@key="cmdbReference"]/@value)[1]', 'nvarchar(255)') AS cmdbReference,
     e.k.value('(value/Map/entry[@key="connectionType"]/@value)[1]', 'nvarchar(255)') AS connectionType,

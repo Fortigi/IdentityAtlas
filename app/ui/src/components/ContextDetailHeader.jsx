@@ -1,6 +1,7 @@
 import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 import { useCanBuildContexts } from '@ui/hooks/useCanBuildContexts';
 import { isRecipeRoot } from './contexts/assistant/recipeDraft';
+import ContextOwner from './contexts/ContextOwner';
 
 // ─── Header — surfaces provenance (variant, target, system, owner) ────────
 export default function ContextDetailHeader({ attrs, onClose, onOpenDetail }) {
@@ -30,11 +31,7 @@ export default function ContextDetailHeader({ attrs, onClose, onOpenDetail }) {
                 {attrs.scopeSystemName}
               </span>
             )}
-            {attrs.ownerUserId && (
-              <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700">
-                Owner: {attrs.ownerUserId}
-              </span>
-            )}
+            <ContextOwner attrs={attrs} onOpenDetail={onOpenDetail} />
           </div>
           {provenance && <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{provenance}</p>}
           {attrs.parentDisplayName && (

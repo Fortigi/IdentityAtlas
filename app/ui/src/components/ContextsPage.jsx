@@ -8,6 +8,7 @@ import ContextTreeSelector from './contexts/ContextTreeSelector';
 import ContextTreeView from './contexts/ContextTreeView';
 import ContextListView from './contexts/ContextListView';
 import NewContextWizard from './contexts/NewContextWizard';
+import ContextOwner from './contexts/ContextOwner';
 import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 
 export default function ContextsPage({ onOpenDetail, onNavigate }) {
@@ -201,6 +202,7 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
                 onSyncTree={syncTree}
                 syncing={syncing}
                 syncMsg={syncMsg}
+                onOpenOwner={(kind, id, name) => onOpenDetail?.(kind, id, name)}
               />
               {editError && (
                 <div className="mx-4 mt-3 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded px-2 py-1">
@@ -260,7 +262,7 @@ function findNodeById(nodes, id) {
   return null;
 }
 
-function SelectedRootHeader({ root, viewMode, onChangeViewMode, onDeleteTree, deleteError, onSyncTree, syncing, syncMsg }) {
+function SelectedRootHeader({ root, viewMode, onChangeViewMode, onDeleteTree, deleteError, onSyncTree, syncing, syncMsg, onOpenOwner }) {
   const v = variantMeta(root.variant);
   const t = targetTypeMeta(root.targetType);
   const [confirming, setConfirming] = useState(false);
@@ -285,11 +287,7 @@ function SelectedRootHeader({ root, viewMode, onChangeViewMode, onDeleteTree, de
                 {root.scopeSystemName}
               </span>
             )}
-            {root.ownerUserId && (
-              <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700" title="Owner">
-                Owner: {root.ownerUserId}
-              </span>
-            )}
+            <ContextOwner attrs={root} onOpenDetail={onOpenOwner} />
           </div>
           {root.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">{root.description}</p>}
         </div>

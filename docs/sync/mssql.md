@@ -53,7 +53,7 @@ the rest of the columns come along for free.
 | `resources` | `id`, `displayName` (falls back to `name`) | `description`, `enabled` |
 | `assignments` | `resourceId`, `principalId` (alias `identityId`, because an `identities` row's account shares its id) | — |
 | `relationships` | `parentId`, `childId` | — |
-| `contexts` | `displayName` (falls back to `name`) | `id` (a stable key; without it the normalised name is the key), `description`, `ownerUserId` |
+| `contexts` | `displayName` (falls back to `name`) | `id` (a stable key; without it the normalised name is the key), `description`, `ownerUserId` (an account key or an employee number — the crawler resolves either) |
 | `context-members` | `memberId`, and `contextId` or `contextName` | — |
 
 How columns are matched and converted:
@@ -92,6 +92,21 @@ load such a catalogue as Contexts and place each member in its context.
 - **Matching members by name** ignores case and surrounding spaces, and is done by the
   crawler, not in SQL. A case-insensitive SQL Server collation calls "Finance" and
   "finance " equal while PostgreSQL calls them different, and the two would disagree.
+- **One root, so a catalogue is a tree.** Every context a `contexts` statement produces
+  hangs under a single root context, named by the statement's **Root name**
+  (`rootDisplayName`, defaulting to the context type, pluralised). Without it a catalogue
+  of 1,500 logical applications loads as 1,500 top-level rows. The root is a synced
+  context of the *same* `contextType`, owned by the same system and sent in the same
+  batch as its children — that is what keeps a re-run from removing it, because the full
+  sync's reconcile is bounded by (variant, `contextType`, system). An empty catalogue
+  gets no root.
+- **The owner is resolved to an account.** A catalogue usually names its owner the way a
+  person is named on paper — IdentityIQ's names it by employee number (`spt_identity.name`)
+  while every account is keyed on the identity id (`spt_identity.id`). The crawler
+  translates one into the other against the accounts the same run has already read, so
+  `ownerUserId` holds something the UI can turn into a person. An owner that matches no
+  account is **kept exactly as the source spells it** and counted in the job log — never
+  dropped, never invented.
 - **Nothing is folded silently.** The job log reports how many source spellings differ
   from the catalogue's own and were matched anyway (with examples), how many memberships
   name a context the catalogue does not have (with the most frequent names), any name two
@@ -347,6 +362,7 @@ file has the shape shown under [Configuration](#configuration); on the command l
 | `relationshipType` | `relationships` | `Contains` | Parent → child link type: `Contains` or `GrantsAccessTo` |
 | `contextType` | `contexts` | — | The `contextType` every context gets, e.g. `LogicalApplication`. Required on a `contexts` statement |
 | `targetType` | `contexts` | `Resource` | What the contexts group: `Resource`, `Identity`, `Principal` or `System` |
+| `rootDisplayName` | `contexts` | the `contextType`, pluralised | What the single root every context hangs under is called, e.g. `Logical Applications` |
 | `memberType` | `context-members` | the `targetType` | What the members are, same values |
 | `principalType` | `identities`, `principals` | `User` | Default `principalType` when the row has no `principalType` column. One of `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox` |
 

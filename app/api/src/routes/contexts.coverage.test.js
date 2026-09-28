@@ -26,6 +26,7 @@ vi.mock('../contexts/plugins/runner.js', () => ({
   enqueueRun: (...a) => enqueueRun(...a),
 }));
 
+const { OWNER_JOIN, OWNER_COLUMNS } = await import('./contexts/read.js');
 const { default: router } = await import('./contexts.js');
 const app = mountRouter(router);
 
@@ -70,6 +71,18 @@ describe('GET /contexts', () => {
     query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get('/api/contexts');
     expect(res.status).toBe(500);
+  });
+
+  // The owner is resolved in the query, not by the browser: 1,500 logical
+  // applications each firing their own lookup is a thousand round-trips on real
+  // data. The resolution itself is pinned against a real database in
+  // contract-tests/contexts-routes.contract.test.js.
+  it('resolves the owner in the query and hands the principal back with the row', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: ID, ownerUserId: 'IIQ-4711', ownerPrincipalId: ID2, ownerDisplayName: 'Leo M. Cohen' }] });
+    const res = await request(app).get('/api/contexts');
+    expect(query.mock.calls[0][0]).toContain(OWNER_JOIN);
+    expect(query.mock.calls[0][0]).toContain(OWNER_COLUMNS);
+    expect(res.body.data[0]).toMatchObject({ ownerPrincipalId: ID2, ownerDisplayName: 'Leo M. Cohen', ownerUserId: 'IIQ-4711' });
   });
 });
 
@@ -138,6 +151,10 @@ describe('GET /contexts/:id', () => {
     expect(res.body.attributes.id).toBe(ID);
     expect(res.body.members).toEqual([{ id: 'm1', displayName: 'Member' }]);
     expect(res.body.subContexts).toEqual([{ id: ID2, displayName: 'Sub' }]);
+    // The detail header is where the owner is shown, so the detail query must
+    // resolve it too — not only the roots list.
+    expect(queryOne.mock.calls[0][0]).toContain(OWNER_JOIN);
+    expect(queryOne.mock.calls[0][0]).toContain(OWNER_COLUMNS);
   });
 
   it('returns empty members for an unknown targetType (no member table)', async () => {

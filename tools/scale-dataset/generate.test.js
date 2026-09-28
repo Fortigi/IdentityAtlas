@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { generateDataset, generateCommaFixture } from './lib/generate.mjs';
 import { CsvWriter, formatField, resolveDelimiter } from './lib/csvWriter.mjs';
+import { ROOT_EXTERNAL_ID } from './lib/emit.mjs';
 import { parseArgs, main } from './generate.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -55,7 +56,8 @@ describe('volumes', () => {
     expect(t['Users.csv'].length).toBe(p.principals);
     expect(t['Resources.csv'].length).toBe(p.entitlements + p.roles);
     expect(t['ContextMembers.csv'].length).toBe(p.entitlements);
-    expect(t['Contexts.csv'].length).toBe(p.logicalApplications);
+    // + 1: the single root every logical application hangs under.
+    expect(t['Contexts.csv'].length).toBe(p.logicalApplications + 1);
     expect(t['Systems.csv'].length).toBe(p.connectors + 1);
     expect(t['Assignments.csv'].length).toBe(p.entitlementAssignments + p.roleAssignments);
     for (const f of manifest.files) expect(t[f.file].length).toBe(f.rows);
@@ -98,7 +100,23 @@ describe('referential integrity', () => {
     const users = new Map(t['Users.csv'].map(u => [u.ExternalId, u]));
     for (const f of ['Resources.csv', 'Users.csv', 'Contexts.csv']) expect(t[f].every(r => systems.has(r.SystemName))).toBe(true);
     expect(t['Users.csv'].filter(u => u.ManagerExternalId).every(u => users.has(u.ManagerExternalId))).toBe(true);
-    expect(t['Contexts.csv'].every(c => users.get(c.OwnerUserId)?.Enabled === 'true')).toBe(true);
+    // The root has no owner of its own; every application below it does, and
+    // that owner is an account somebody could actually be sent to.
+    const apps = t['Contexts.csv'].filter(c => c.ExternalId !== ROOT_EXTERNAL_ID);
+    expect(apps.every(c => users.get(c.OwnerUserId)?.Enabled === 'true')).toBe(true);
+  });
+
+  it('every logical application hangs under one root, and the root under nothing', () => {
+    const roots = t['Contexts.csv'].filter(c => !c.ParentExternalId);
+    expect(roots.map(r => r.ExternalId)).toEqual([ROOT_EXTERNAL_ID]);
+    expect(roots[0].DisplayName).toBe('Logical Applications');
+    // Same contextType as its children, so one sync owns and reconciles the
+    // whole tree; same system, so the row is never orphaned by a re-run.
+    expect(roots[0].ContextType).toBe(t['Contexts.csv'][1].ContextType);
+    expect(roots[0].SystemName).toBe(t['Contexts.csv'][1].SystemName);
+    const children = t['Contexts.csv'].filter(c => c.ExternalId !== ROOT_EXTERNAL_ID);
+    expect(children.length).toBe(manifest.params.logicalApplications);
+    expect(children.every(c => c.ParentExternalId === ROOT_EXTERNAL_ID)).toBe(true);
   });
 
   it('external ids are unique across every file and every system', () => {
