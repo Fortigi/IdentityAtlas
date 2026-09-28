@@ -171,13 +171,21 @@ describe('the manager hierarchy', () => {
     for (const n of sizes) {
       const m = planManagers(n, 0.04, stream(5, `mgr-${n}`));
       expect(m.length).toBe(n);
+      // Collected, not asserted per index: 180k principals would be half a
+      // million assertions, and a failure names the offending index rather than
+      // just the first one.
+      const selfManaged = [];
+      const notLower = [];
+      const outOfRange = [];
       for (let i = 0; i < n; i++) {
-        expect(m[i]).not.toBe(i);
+        if (m[i] === i) selfManaged.push(i);
         // A manager at a lower index is what makes a loop impossible; assert the
         // invariant itself, not just the absence of the shortest loop.
-        expect(m[i]).toBeLessThan(i);
-        expect(m[i]).toBeGreaterThanOrEqual(-1);
+        else if (m[i] > i) notLower.push(i);
+        if (m[i] < -1) outOfRange.push(i);
       }
+      expect({ n, selfManaged, notLower, outOfRange })
+        .toEqual({ n, selfManaged: [], notLower: [], outOfRange: [] });
     }
   });
 
