@@ -1,1 +1,0 @@
-- Fixed the API running out of database connections, and failing requests with "timeout exceeded when trying to connect", while a crawler or report client sends requests in quick succession. Recording when a crawler key or read token was last used no longer writes on every request.
