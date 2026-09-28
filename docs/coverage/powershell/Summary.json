@@ -1,22 +1,22 @@
 {
   "summary": {
-    "generatedon": "2026-09-28T10:10:10Z",
+    "generatedon": "2026-09-28T11:22:10Z",
     "parser": "JaCoCo",
     "assemblies": 14,
     "classes": 158,
     "files": 158,
-    "coveredlines": 7142,
-    "uncoveredlines": 624,
-    "coverablelines": 7766,
-    "totallines": 21233,
+    "coveredlines": 7200,
+    "uncoveredlines": 627,
+    "coverablelines": 7827,
+    "totallines": 21413,
     "linecoverage": 91.9,
     "coveredbranches": 0,
     "totalbranches": 0,
-    "coveredmethods": 746,
-    "fullcoveredmethods": 695,
-    "totalmethods": 767,
+    "coveredmethods": 754,
+    "fullcoveredmethods": 702,
+    "totalmethods": 775,
     "methodcoverage": 97.2,
-    "fullmethodcoverage": 90.6
+    "fullmethodcoverage": 90.5
  },
   "coverage": {
     "assemblies": [
@@ -55,10 +55,10 @@
         { "name": "tools/crawlers/midpoint/MidpointCrawler.Phases", "coverage": 98.5, "coveredlines": 416, "coverablelines": 422, "totallines": 942, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 90, "coveredmethods": 40, "fullcoveredmethods": 36, "totalmethods": 40 },
         { "name": "tools/crawlers/midpoint/MidpointCrawler.Transform", "coverage": 100, "coveredlines": 138, "coverablelines": 138, "totallines": 334, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 14, "fullcoveredmethods": 14, "totalmethods": 14 },
         { "name": "tools/crawlers/midpoint/Start-MidpointCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 75, "totallines": 201, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
-      { "name": "tools/crawlers/mssql", "classes": 6, "coverage": 94, "coveredlines": 644, "coverablelines": 685, "totallines": 1672, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 97.5, "fullmethodcoverage": 90.1, "coveredmethods": 79, "fullcoveredmethods": 73, "totalmethods": 81, "classesinassembly": [
-        { "name": "tools/crawlers/mssql/SqlCrawler.Contexts", "coverage": 96.2, "coveredlines": 102, "coverablelines": 106, "totallines": 236, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 90, "coveredmethods": 10, "fullcoveredmethods": 9, "totalmethods": 10 },
-        { "name": "tools/crawlers/mssql/SqlCrawler.Functions", "coverage": 98.7, "coveredlines": 155, "coverablelines": 157, "totallines": 374, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 94.1, "coveredmethods": 17, "fullcoveredmethods": 16, "totalmethods": 17 },
-        { "name": "tools/crawlers/mssql/SqlCrawler.Phases", "coverage": 95.6, "coveredlines": 153, "coverablelines": 160, "totallines": 362, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 95, "fullmethodcoverage": 75, "coveredmethods": 19, "fullcoveredmethods": 15, "totalmethods": 20 },
+      { "name": "tools/crawlers/mssql", "classes": 6, "coverage": 94.1, "coveredlines": 702, "coverablelines": 746, "totallines": 1852, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 97.7, "fullmethodcoverage": 89.8, "coveredmethods": 87, "fullcoveredmethods": 80, "totalmethods": 89, "classesinassembly": [
+        { "name": "tools/crawlers/mssql/SqlCrawler.Contexts", "coverage": 95.5, "coveredlines": 152, "coverablelines": 159, "totallines": 393, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 88.2, "coveredmethods": 17, "fullcoveredmethods": 15, "totalmethods": 17 },
+        { "name": "tools/crawlers/mssql/SqlCrawler.Functions", "coverage": 98.7, "coveredlines": 156, "coverablelines": 158, "totallines": 377, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 94.1, "coveredmethods": 17, "fullcoveredmethods": 16, "totalmethods": 17 },
+        { "name": "tools/crawlers/mssql/SqlCrawler.Phases", "coverage": 95.8, "coveredlines": 160, "coverablelines": 167, "totallines": 382, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 95.2, "fullmethodcoverage": 76.1, "coveredmethods": 20, "fullcoveredmethods": 16, "totalmethods": 21 },
         { "name": "tools/crawlers/mssql/SqlCrawler.Transform", "coverage": 100, "coveredlines": 144, "coverablelines": 144, "totallines": 368, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 21, "fullcoveredmethods": 21, "totalmethods": 21 },
         { "name": "tools/crawlers/mssql/SqlCrawler.Verify", "coverage": 100, "coveredlines": 90, "coverablelines": 90, "totallines": 244, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 12, "fullcoveredmethods": 12, "totalmethods": 12 },
         { "name": "tools/crawlers/mssql/Start-SqlCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 28, "totallines": 88, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
