@@ -96,16 +96,20 @@ function Get-SqlSourceCountSql {
 
 function Measure-SqlSource {
     [CmdletBinding()]
-    param([AllowNull()] $Connection, [Parameter(Mandatory)] [hashtable]$Slot, [AllowNull()] [hashtable]$Map, [int]$CommandTimeout = 600)
+    param([AllowNull()] $Connection, [Parameter(Mandatory)] [hashtable]$Slot, [AllowNull()] [hashtable]$Map,
+          [int]$CommandTimeout = 600, [AllowNull()] $Since = $null)
     if ($Slot.paged) { return @{ rows = $null; pairs = $null; reason = 'the statement pages with @Offset' } }
     if ($null -eq $Connection) { return @{ rows = $null; pairs = $null; reason = 'there is no source connection' } }
     # A count that cannot run leaves the slot unverified; it never fails the load.
     # The reader stays inside this function: see "NEVER PASS THE READER".
     $cmd = $null; $reader = $null
     try {
-        $cmd = $Connection.CreateCommand()
-        $cmd.CommandText = Get-SqlSourceCountSql -Slot $Slot -Map $Map
-        $cmd.CommandTimeout = $CommandTimeout
+        # The window the count asks about must be the window the read asked
+        # about: a windowed statement counted with @Since unbound is a syntax
+        # error, and counted from zero is the whole table against a window's
+        # rows — a verification that fails every delta run.
+        $cmd = New-SqlCommand -Connection $Connection -Sql (Get-SqlSourceCountSql -Slot $Slot -Map $Map) `
+            -CommandTimeout $CommandTimeout -Since $Since
         $reader = $cmd.ExecuteReader()
         [void]$reader.Read()
         $pairs = $reader.GetValue(1)
@@ -123,7 +127,8 @@ function Measure-SqlSource {
 function Add-SqlReadCheck {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$Ctx, [AllowNull()] $Connection, [long]$Rows = 0)
-    $m = Measure-SqlSource -Connection $Connection -Slot $Ctx.Slot -Map $Ctx.Map -CommandTimeout $Ctx.State.CommandTimeout
+    $since = if ($Ctx.Delta) { $Ctx.Delta.Since } else { $null }
+    $m = Measure-SqlSource -Connection $Connection -Slot $Ctx.Slot -Map $Ctx.Map -CommandTimeout $Ctx.State.CommandTimeout -Since $since
     $Ctx.State.Reads.Add(@{ Slot = $Ctx.Slot.name; Read = $Rows; Source = $m.rows; Reason = $m.reason
                             Unplaced = [long]($Ctx.Dangling + $Ctx.Skipped); Misrouted = [long]$Ctx.Misrouted })
     if ($null -ne $m.rows) {
@@ -232,20 +237,28 @@ function Format-SqlScopeLabel {
 
 # What the database holds for one expectation: its rows in every system the run
 # wrote this scope to, counted since the run's own start.
+#
+# -Before overrides that start. A key sweep read the source's COMPLETE key set,
+# so after it the scope's TOTAL is comparable, not just the part this run
+# touched; passing a date before any row is how that total is asked for.
 function Measure-SqlScopeRows {
     [CmdletBinding()]
     [OutputType([long])]
-    param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] $Expectation)
+    param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] $Expectation, [string]$Before = '')
     $entity = $Expectation.Endpoint -replace '^ingest/', ''
+    $since  = if ($Before) { $Before } else { $State.ServerTime }
     $systems = @($Expectation.Systems)
     if ($systems.Count -eq 0) { $systems = @($State.SystemId) }
     [long]$total = 0
     foreach ($sid in $systems) {
-        $r = Invoke-IngestAPI -Endpoint 'ingest/count' -Body @{ entity = $entity; systemId = $sid; scope = $Expectation.Scope; before = $State.ServerTime }
+        $r = Invoke-IngestAPI -Endpoint 'ingest/count' -Body @{ entity = $entity; systemId = $sid; scope = $Expectation.Scope; before = $since }
         $total += [long]$r.count
     }
     return $total
 }
+
+# Before any row this product has ever written — "count the whole scope".
+$script:SqlBeginningOfTime = '1970-01-01T00:00:00.000Z'
 
 # An external id that two systems both claimed. Both hash to one row in the
 # run's single id namespace, so one silently replaced the other — the same loss
@@ -278,7 +291,7 @@ function Write-SqlVerdictLine {
 function Test-SqlRunCounts {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$State)
-    if ($State.Expect.Count -eq 0 -and $State.Reads.Count -eq 0) { return @() }
+    if ($State.Expect.Count -eq 0 -and $State.Reads.Count -eq 0 -and -not $State.Sweeps) { return @() }
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Verifying: source against database..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Verifying counts' -Pct 93
     $results = [System.Collections.Generic.List[object]]::new()
@@ -289,6 +302,9 @@ function Test-SqlRunCounts {
         $v = Get-SqlScopeVerdict -Expectation $e -Atlas (Measure-SqlScopeRows -State $State -Expectation $e)
         $results.Add((Write-SqlVerdictLine -Label (Format-SqlScopeLabel -Expectation $e) -Verdict $v -Expected $v.expected -Actual $v.atlas))
     }
+    # A swept scope is the one place a TOTAL can be asserted rather than just
+    # the part this run touched — the sweep read the source's whole key set.
+    if ($State.Sweeps) { foreach ($r in (Test-SqlSweepTotals -State $State)) { $results.Add($r) } }
     $collision = Get-SqlIdCollisionVerdict -Catalog $State.Systems
     if ($collision) {
         $results.Add((Write-SqlVerdictLine -Label 'external ids unique across systems' -Verdict $collision -Expected 0 -Actual $collision.atlas -Measured 'collisions'))

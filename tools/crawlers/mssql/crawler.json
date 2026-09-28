@@ -83,6 +83,32 @@
         "default": 10000,
         "description": "Value bound to @PageSize for a query that pages with @Offset / @PageSize."
       },
+      "watermarkOverlapSeconds": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 604800,
+        "default": 900,
+        "description": "How far back of its last watermark each delta re-reads. Covers clock drift between the source's application servers and transactions that commit after rows with later timestamps. Re-read rows are upserts, so too large only costs time; too small loses rows silently."
+      },
+      "sweepIntervalHours": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 8760,
+        "default": 24,
+        "description": "How often a query with sweep enabled reads its complete key set to find what the source no longer has. A removal shows within one interval. 0 disables the sweep."
+      },
+      "sweepMaxDeleteShare": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "maximum": 1,
+        "default": 0.05,
+        "description": "The largest share of a scope a sweep may remove before it refuses and writes nothing. A source read mid-aggregation looks like a mass revocation, and a delete has no undo."
+      },
+      "sweepOverride": {
+        "type": "boolean",
+        "default": false,
+        "description": "Let a sweep remove any share of a scope, for the one run where a large removal is known to be real."
+      },
       "queries": {
         "type": "array",
         "minItems": 1,
@@ -117,7 +143,17 @@
             "sql": {
               "type": "string",
               "minLength": 1,
-              "description": "A SELECT statement. Reference @Offset and @PageSize to have the crawler page through it."
+              "description": "A SELECT statement. Reference @Offset and @PageSize to have the crawler page through it; reference @Since (with watermarkColumn) to have it read only what changed."
+            },
+            "watermarkColumn": {
+              "type": "string",
+              "maxLength": 128,
+              "description": "The returned column whose largest value this run remembers, so the next run can bind @Since to it and read only rows that moved (e.g. modified). The statement must bind @Since. Leave empty to read in full every run — which is what lets the scope be reconciled without a key sweep."
+            },
+            "sweep": {
+              "type": "boolean",
+              "default": false,
+              "description": "assignments only: periodically read this statement's complete key set and remove the assignments the source no longer has. A watermark cannot find a removal, so a windowed assignments query needs this."
             },
             "enabled": {
               "type": "boolean",

@@ -63,7 +63,8 @@ Update-CrawlerProgress -Step 'Registering system' -Pct 2
 $reg   = Register-SqlSystem -Cfg $Cfg
 $State = New-SqlRunState -SystemId $reg.systemId -ServerTime $reg.serverTime -Slots $Cfg.queries `
     -BatchSize $Cfg.batchSize -PageSize $Cfg.pageSize -CommandTimeout $Cfg.commandTimeout -SyncMode $Cfg.syncMode `
-    -SystemType 'SQL' -Tenant $reg.tenantId
+    -SystemType 'SQL' -Tenant $reg.tenantId -OverlapSeconds $Cfg.watermarkOverlapSeconds `
+    -SweepIntervalHours $Cfg.sweepIntervalHours -SweepMaxDeleteShare $Cfg.sweepMaxDeleteShare
 
 Update-CrawlerProgress -Step 'Connecting to SQL Server' -Pct 5
 $Connection = Connect-SqlSource -Cfg $Cfg
@@ -74,6 +75,10 @@ try {
     for ($i = 0; $i -lt $slots.Count; $i++) {
         Invoke-SqlSlot -Slot $slots[$i] -Connection $Connection -State $State -Pct (10 + [int](75 * $i / $slots.Count)) | Out-Null
     }
+    # Additions and changes are in; the only difference left between source and
+    # database is what the source no longer has. The sweep needs the connection,
+    # so it runs before it is disposed.
+    Invoke-SqlSweep -State $State -Connection $Connection -Slots $slots | Out-Null
 } finally {
     $Connection.Dispose()
 }
@@ -81,5 +86,9 @@ try {
 Invoke-SqlReconcile -State $State | Out-Null
 # Source against database, per scope. Throws — failing the job — on any mismatch.
 Test-SqlRunCounts -State $State | Out-Null
+# Only now, with the run proven: an unverified run must re-read its window and
+# re-sweep rather than step over rows it never loaded.
+Save-SqlWatermarks -State $State | Out-Null
+Save-SqlSweepMarks -State $State | Out-Null
 Complete-SqlRun -State $State -SyncStart $syncStart
 #endregion Main

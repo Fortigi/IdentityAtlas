@@ -63,6 +63,13 @@ LEFT JOIN spt_identity owner  ON owner.id = ma.owner`;
 // a role never shows unless it is stored that way. Two statements, two reconcile
 // scopes, so one can never remove the other's rows. The same person can hold the
 // same entitlement both ways, and both rows are kept.
+// The one statement in an IdentityIQ source that a full read cannot be casual
+// about, so it is also the one that reads a WINDOW: it binds @Since against the
+// grant's own timestamp and names that column as its watermark. A watermark
+// cannot see a removal — a deleted row does not bump its own timestamp — so the
+// same slot enables the periodic key sweep, which reads the complete key set
+// and removes what is gone. Everything else in this preset reads in full and is
+// reconciled on completeness instead (docs/architecture/sql-connector-delta.md).
 function entitlementGrants(byRole) {
   return {
     name: byRole ? 'Entitlement grants via a role' : 'Entitlement grants',
@@ -70,19 +77,28 @@ function entitlementGrants(byRole) {
     resourceType: 'Entitlement',
     assignmentType: byRole ? 'Indirect' : 'Direct',
     governed: false,
+    watermarkColumn: 'modified',
+    sweep: true,
     sql: `-- Usually the largest table by far (tens of millions of rows). Rows stream
 -- straight through, so no paging is needed. The join is on application +
 -- attribute + value, which is unique per entitlement; joining on value alone
 -- fans out wherever two attributes share a value.
+--
+-- @Since is epoch MILLISECONDS: created/modified are numeric(19,0) written by
+-- the application, not datetimes written by the database. A first run, an edited
+-- statement and a forced full sync all bind zero, which reads everything.
+-- COALESCE because modified is NULL on a row that was never updated.
 SELECT
     ie.identity_id AS principalId,
-    ma.id          AS resourceId
+    ma.id          AS resourceId,
+    COALESCE(ie.modified, ie.created) AS modified
 FROM spt_identity_entitlement ie
 INNER JOIN spt_managed_attribute ma
     ON  ma.application = ie.application
     AND ma.attribute   = ie.name
     AND ma.value       = ie.value
 WHERE ie.type = 'Entitlement'
+  AND COALESCE(ie.modified, ie.created) >= @Since
   AND ${byRole ? 'ie.granted_by_role = 1' : '(ie.granted_by_role = 0 OR ie.granted_by_role IS NULL)'}`,
   };
 }

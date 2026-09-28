@@ -227,17 +227,24 @@ function ConvertTo-SqlOwnershipRecords {
 # expectation from the source's own distinct-pair count; an owner assignment has
 # no statement of its own, so without a key set it would expect zero and fail
 # the run. See Get-SqlExpectation.
+#
+# -Complete is the owning statement's: these three scopes are derived from the
+# SAME rows, so they read exactly as much of the source as it did. A windowed
+# resources statement therefore leaves all three windowed, and none of them may
+# be reconciled — reconciling them would remove the owner links of every resource
+# outside this run's window. See "Reconcile follows completeness" in
+# docs/architecture/sql-connector-delta.md.
 function New-SqlOwnershipStreams {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] [hashtable]$State)
+    param([Parameter(Mandatory)] [hashtable]$State, [bool]$Complete = $true)
     $t = $script:SqlOwnershipResourceType
     return @{
-        ownershipResource     = New-SqlStreamSpec -State $State -Endpoint 'ingest/resources' -Scope @{ resourceType = $t } -Reconcile
+        ownershipResource     = New-SqlStreamSpec -State $State -Endpoint 'ingest/resources' -Scope @{ resourceType = $t } -Reconcile -Complete $Complete
         ownershipRelationship = New-SqlStreamSpec -State $State -Endpoint 'ingest/resource-relationships' `
-            -Scope @{ relationshipType = $script:SqlOwnershipRelationship } -KeyFields @('parentExternalId', 'childExternalId') -Reconcile
+            -Scope @{ relationshipType = $script:SqlOwnershipRelationship } -KeyFields @('parentExternalId', 'childExternalId') -Reconcile -Complete $Complete
         ownershipAssignment   = New-SqlStreamSpec -State $State -Endpoint 'ingest/resource-assignments' `
             -Scope @{ assignmentType = 'Direct'; resourceType = $t; governed = $false } `
-            -KeyFields @('resourceExternalId', 'principalExternalId') -Reconcile -Keyed
+            -KeyFields @('resourceExternalId', 'principalExternalId') -Reconcile -Keyed -Complete $Complete
     }
 }
 

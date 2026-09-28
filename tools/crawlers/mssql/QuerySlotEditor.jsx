@@ -90,6 +90,20 @@ function SlotFields({ slot, update }) {
       {fields.includes('memberType') && (
         <EnumSelect label="Member type" value={slot.memberType} options={CONTEXT_TARGET_TYPES} onChange={v => update('memberType', v)} />
       )}
+      {fields.includes('watermarkColumn') && (
+        <div>
+          <label className={LABEL_CLS} title="The returned column whose largest value this run remembers, so the next run binds @Since to it and reads only rows that moved. The SQL must reference @Since. Leave it blank to read the whole statement every run.">Watermark column</label>
+          <input value={slot.watermarkColumn || ''} onChange={e => update('watermarkColumn', e.target.value)}
+            placeholder="modified" className={'w-full ' + SMALL_CLS} />
+        </div>
+      )}
+      {fields.includes('sweep') && (
+        <label className={CHECK_CLS + ' pt-5'}
+          title="A watermark cannot see a removal: a deleted row does not bump its own timestamp. With this on, the crawler periodically reads this statement's complete key set and removes the assignments the source no longer has.">
+          <input type="checkbox" checked={slot.sweep === true} onChange={e => update('sweep', e.target.checked)} />
+          Key sweep
+        </label>
+      )}
     </div>
   );
 }

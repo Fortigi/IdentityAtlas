@@ -447,13 +447,16 @@ Describe 'Per-system reconcile' {
         $calls | Should -Be @('resources|11')
     }
 
-    It 'reconciles nothing at all on a delta run' {
+    # A delta run of statements that all read in full still reconciles: what
+    # decides is whether the source's complete set was read, not what the run
+    # calls itself. A routed run does it per system exactly as a full run does.
+    It 'reconciles the routed system on a delta run, because its statements read in full' {
         $state = Invoke-SqlTestRun -SyncMode 'delta' -Slots @((New-Slot 'apps' 'systems'), (New-Slot 'ents' 'resources')) -Rows @{
             apps = @((New-TestRow @{ id = 'APP-1'; displayName = 'HR Portal' }))
             ents = @((New-TestRow @{ id = 'ENT-1'; displayName = 'Payroll admin'; systemId = 'APP-1' }))
         }
-        Invoke-SqlReconcile -State $state | Should -Be 0
-        (Get-Sent 'ingest/reconcile').Count | Should -Be 0
+        Invoke-SqlReconcile -State $state | Out-Null
+        @(Get-Sent 'ingest/reconcile' | ForEach-Object { "$($_.Body.entity)|$($_.Body.systemId)" }) | Should -Be @('resources|11')
     }
 }
 

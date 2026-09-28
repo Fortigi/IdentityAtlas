@@ -30,13 +30,15 @@
 //     the session protocol's full sync uses (engine.scopedDelete).
 //
 // A stage may carry only key columns (a key sweep): finalize then only removes what is
-// missing. Stages live in memory; an API restart abandons them (their tables are
-// dropped at startup) and the caller starts over.
+// missing. `maxDeleteShare` caps that removal at a share of the scope's live rows and
+// refuses the whole finalize (409, nothing written) above it. Stages live in memory; an
+// API restart abandons them (their tables are dropped at startup) and the caller starts
+// over.
 
 import crypto from 'crypto';
 import { markInitialLoad, markInitialLoadForAll } from './initialLoad.js';
 import * as db from '../db/connection.js';
-import { resolveActiveColumns, discoverColumns, scopedDelete, markGovernanceMemberships, SOFT_DELETE_TABLES } from './engine.js';
+import { resolveActiveColumns, discoverColumns, scopedDelete, scopeLiveCount, markGovernanceMemberships, SOFT_DELETE_TABLES } from './engine.js';
 import { bulkInsertIntoTemp } from './tempTableHelpers.js';
 import { createSerializedRunner } from '../lib/serializedRunner.js';
 
@@ -137,29 +139,54 @@ export async function finalizeStage(stage, options = {}) {
 const EMPTY_STAGE = { path: 'empty-stage', inserted: 0, updated: 0, deleted: 0, rows: 0 };
 const nonKeyColumns = (st) => st.columns.filter(c => !st.keyColumns.includes(c.name));
 
+// The columns that carry something the SOURCE said. `systemId` is not one of
+// them: it is stamped from the stage itself, so a stage whose records held
+// nothing but key columns still arrives here carrying it, and "does this stage
+// have anything to insert or update?" must ignore it. Without that, a key sweep
+// — the one caller that sends key columns only — looked like an ordinary load:
+// it inserted bare keyed rows with every attribute null, and on an empty table
+// it took the bulk path and did it without a merge to temper it.
+const contentColumns = (st) => st.columns.filter(c => !st.keyColumns.includes(c.name) && c.name !== 'systemId');
+
+// A sweep is the one operation here with no undo, and the source it reads can
+// be caught mid-aggregation — rows deleted and about to be re-inserted. So a
+// finalize may be given a ceiling: remove at most this share of the scope's
+// live rows, or remove nothing at all. The count is exact (the delete runs and
+// its transaction is rolled back), never an estimate.
+export class DeleteShareExceeded extends StageError {
+  constructor(stage, deleted, scopeRows, maxShare) {
+    super(409, `Refusing to finalize: it would remove ${deleted} of ${scopeRows} rows in ` +
+      `${stage.tableName} for system ${stage.systemId} (${(100 * deleted / scopeRows).toFixed(1)}%), ` +
+      `more than the ${(100 * maxShare).toFixed(1)}% allowed. Nothing was written. ` +
+      `A source read mid-aggregation looks exactly like this; re-run when it has finished, ` +
+      `or repeat with the share raised if the removal is real.`);
+    Object.assign(this, { deleted, scopeRows, maxShare });
+  }
+}
+
 // Finalize stages of ONE table together — the natural unit is a crawler run, which
 // syncs many systems. Together they get one chance at the empty-table path (one
 // lock, one index drop and rebuild, every stage inserted bare); a stage finalized
 // alone after the first would find the table populated. When that path does not
 // apply, each stage merges in its own transaction, so a large re-import is never
 // one giant transaction. Results come back in the order the stages were given.
-export async function finalizeStages(list, { deleteMissing = false } = {}) {
+export async function finalizeStages(list, { deleteMissing = false, maxDeleteShare = 0 } = {}) {
   for (const st of list) stages.delete(st.id);
   const tables = new Set(list.map(st => st.tableName));
   try {
     if (tables.size > 1) throw new StageError(400, 'Stages finalized together must target the same table');
     const loaded = list.filter(st => st.columns);
     if (loaded.length === 0) return list.map(() => ({ ...EMPTY_STAGE }));
-    const results = await runnerFor(loaded[0].tableName)(() => applyStages(loaded, deleteMissing));
+    const results = await runnerFor(loaded[0].tableName)(() => applyStages(loaded, deleteMissing, maxDeleteShare));
     return list.map(st => (st.columns ? results.get(st.id) : { ...EMPTY_STAGE }));
   } finally {
     for (const st of list) await db.query(`DROP TABLE IF EXISTS "${st.stageTable}"`).catch(() => {});
   }
 }
 
-async function applyStages(loaded, deleteMissing) {
+async function applyStages(loaded, deleteMissing, maxDeleteShare) {
   const results = new Map();
-  const canBulk = loaded.every(st => nonKeyColumns(st).length > 0);
+  const canBulk = loaded.every(st => contentColumns(st).length > 0);
   const bulked = canBulk && await db.tx(async (client) => {
     for (const st of loaded) await client.query(`ANALYZE "${st.stageTable}"`);
     if (!(await lockEmptyTable(client, loaded[0].tableName))) return false;
@@ -168,7 +195,7 @@ async function applyStages(loaded, deleteMissing) {
   });
   if (bulked) return results;
   for (const st of loaded) {
-    results.set(st.id, await db.tx(client => mergeStage(client, st, deleteMissing)));
+    results.set(st.id, await db.tx(client => mergeStage(client, st, deleteMissing, maxDeleteShare)));
   }
   return results;
 }
@@ -180,17 +207,31 @@ async function applyStages(loaded, deleteMissing) {
 const markGoverned = (client, stage) =>
   markGovernanceMemberships(client, stage.tableName, stage.stageTable, stage.keyColumns, stage.columns);
 
-async function mergeStage(client, stage, deleteMissing) {
+async function mergeStage(client, stage, deleteMissing, maxDeleteShare = 0) {
   const nonKey = nonKeyColumns(stage);
-  const keysOnly = nonKey.length === 0;
+  const keysOnly = contentColumns(stage).length === 0;
   await markGoverned(client, stage);
   await client.query(`ANALYZE "${stage.stageTable}"`);
   // A system's initial load writes no per-row insert history (migration 073).
   await markInitialLoad(client, stage.systemId, stage.tableName);
   const inserted = keysOnly ? 0 : await insertNew(client, stage);
   const updated = keysOnly ? 0 : await updateChanged(client, stage, nonKey);
+  // The guard's denominator is read BEFORE the delete and inside this same
+  // transaction, so nothing can change between the two halves of the ratio.
+  const scopeRows = deleteMissing && maxDeleteShare > 0 ? await liveCount(client, stage) : null;
   const deleted = deleteMissing ? await deleteMissingRows(client, stage) : 0;
+  // Throwing here rolls the transaction back, so the rows counted above are
+  // still there: the refusal is not "we deleted and then apologised".
+  if (scopeRows !== null && scopeRows > 0 && deleted > scopeRows * maxDeleteShare) {
+    throw new DeleteShareExceeded(stage, deleted, scopeRows, maxDeleteShare);
+  }
   return { path: 'merge', inserted, updated, deleted, rows: stage.rows };
+}
+
+async function liveCount(client, stage) {
+  const tableColumnNames = new Set((await discoverColumns(null, stage.tableName)).map(c => c.name));
+  return scopeLiveCount(client, stage.tableName, stage.systemId, stage.scope, 'systemId',
+    tableColumnNames, stage.scopeDeleteFilter, stage.restrictSystemIds);
 }
 
 // Take the table exclusively and confirm it is empty — both inside this

@@ -365,6 +365,39 @@ export function reconcileAllowed(tableName, clauses, restrictSystemIds) {
   return restrictSystemIds === null && NO_SYSTEM_COLUMN_TABLES.has(tableName);
 }
 
+// The rows a scoped delete is allowed to consider — everything but the
+// "and the source no longer has it" half. Shared with scopeLiveCount so the
+// share a delete guard is measured against counts the SAME population the
+// delete draws from; two hand-kept copies of this predicate would drift and the
+// guard would then be a ratio of two different things.
+function reconcileWhere(tableName, clauses, tableColumnNames, scopeDeleteFilter) {
+  let where = ['1=1', ...clauses].join(' AND ');
+  // A crawler full-sync only owns the links IT created. Account linking and
+  // analyst decisions own a separate set of IdentityMembers, distinguished by a
+  // confidence score (linkConfidence) or an analyst decision (analystOverride).
+  // Exclude those from the reconcile delete so a crawl never wipes account
+  // linking's links or an analyst's confirm/remove. (Columns only exist on
+  // IdentityMembers, so this is a no-op for every other table.)
+  if (tableColumnNames.has('linkConfidence'))  where += ` AND t."linkConfidence" IS NULL`;
+  if (tableColumnNames.has('analystOverride')) where += ` AND t."analystOverride" IS NULL`;
+  if (scopeDeleteFilter) where += ` AND (${scopeDeleteFilter})`;
+  return where;
+}
+
+// How many live rows the scope holds right now — the denominator a staged
+// sweep's delete guard needs, taken inside the same transaction as the delete
+// so the two cannot see different data. Returns null when the bounds would
+// not allow a reconcile at all (there is then nothing to guard).
+export async function scopeLiveCount(client, tableName, systemId, scope, systemIdColumn, tableColumnNames,
+  scopeDeleteFilter = null, restrictSystemIds = null) {
+  const { params, clauses } = reconcileBounds(tableName, systemId, scope, systemIdColumn, tableColumnNames, restrictSystemIds);
+  if (!reconcileAllowed(tableName, clauses, restrictSystemIds)) return null;
+  let where = reconcileWhere(tableName, clauses, tableColumnNames, scopeDeleteFilter);
+  if (SOFT_DELETE_TABLES.has(tableName)) where += ' AND t."deletedAt" IS NULL';
+  const res = await client.query(`SELECT count(*) AS n FROM "${tableName}" t WHERE ${where}`, params);
+  return Number(res.rows[0]?.n ?? 0);
+}
+
 export async function scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter = null, restrictSystemIds = null) {
   const { params, clauses } = reconcileBounds(tableName, systemId, scope, systemIdColumn, tableColumnNames, restrictSystemIds);
   if (!reconcileAllowed(tableName, clauses, restrictSystemIds)) {
@@ -386,18 +419,7 @@ export async function scopedDelete(client, tableName, keyColumns, tempName, syst
     console.warn(`scopedDelete: temp index/analyze failed (continuing): ${err.message}`);
   }
 
-  let where = ['1=1', ...clauses].join(' AND ');
-
-  // A crawler full-sync only owns the links IT created. Account linking and
-  // analyst decisions own a separate set of IdentityMembers, distinguished by a
-  // confidence score (linkConfidence) or an analyst decision (analystOverride).
-  // Exclude those from the reconcile delete so a crawl never wipes account
-  // linking's links or an analyst's confirm/remove. (Columns only exist on
-  // IdentityMembers, so this is a no-op for every other table.)
-  if (tableColumnNames.has('linkConfidence'))  where += ` AND t."linkConfidence" IS NULL`;
-  if (tableColumnNames.has('analystOverride')) where += ` AND t."analystOverride" IS NULL`;
-
-  if (scopeDeleteFilter) where += ` AND (${scopeDeleteFilter})`;
+  const where = reconcileWhere(tableName, clauses, tableColumnNames, scopeDeleteFilter);
 
   const notExistsJoin = keyColumns.map(k => `t."${k}" = src."${k}"`).join(' AND ');
   // Soft-delete tables stamp deletedAt instead of removing the row; the

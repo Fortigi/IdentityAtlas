@@ -29,14 +29,19 @@ export const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', '
 // Which slot-level constants each target uses. A field a target does not use is
 // left out of the saved slot entirely, so the crawler never sees a stray
 // relationshipType on an assignments slot.
+// `watermarkColumn` is offered on the STREAMED targets only. The buffered ones
+// (systems, contexts, context-members) are sent whole as one full sync, so a
+// statement that read a window would present its window as the complete set and
+// the sync would delete everything it did not return. Resolve-SqlQuerySlot
+// refuses that combination too — this just never offers it.
 const SLOT_FIELDS_BY_TARGET = {
   systems: ['systemType'],
-  identities: ['principalType'],
-  principals: ['principalType'],
-  'identity-members': [],
-  resources: ['resourceType', 'ownership'],
-  assignments: ['resourceType', 'assignmentType', 'governed'],
-  relationships: ['relationshipType'],
+  identities: ['principalType', 'watermarkColumn'],
+  principals: ['principalType', 'watermarkColumn'],
+  'identity-members': ['watermarkColumn'],
+  resources: ['resourceType', 'ownership', 'watermarkColumn'],
+  assignments: ['resourceType', 'assignmentType', 'governed', 'watermarkColumn', 'sweep'],
+  relationships: ['relationshipType', 'watermarkColumn'],
   contexts: ['contextType', 'targetType', 'rootDisplayName'],
   'context-members': ['memberType'],
 };
@@ -100,6 +105,7 @@ export function contractColumnOptions(target) {
 const SLOT_DEFAULTS = {
   resourceType: '', ownership: false, assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User',
   systemType: '', contextType: '', targetType: 'Resource', memberType: 'Resource', rootDisplayName: '',
+  watermarkColumn: '', sweep: false,
 };
 
 // A blank editor slot. Every field is bound (the editor switches which ones it
@@ -230,6 +236,23 @@ function validateSlot(slot, index) {
   if (NEEDS_RESOURCE_TYPE.has(slot.target) && blank(slot.resourceType)) errors.push(`${label}: resource type is required for ${slot.target}`);
   if (slot.target === 'contexts' && blank(slot.contextType)) errors.push(`${label}: context type is required for contexts`);
   for (const error of validateColumnMap(slot.columnMap, slot.target)) errors.push(`${label}: ${error}`);
+  for (const error of validateWatermark(slot)) errors.push(`${label}: ${error}`);
+  return errors;
+}
+
+// Mirrors Get-SqlWatermarkColumn. @Since and watermarkColumn are two halves of
+// one thing: a statement that binds @Since with nothing to advance on reads the
+// same window for ever, and a named column with no @Since promises a delta the
+// run never does. A sweep-enabled statement with neither is the same mistake
+// from the other end — it would read its whole key set every run for nothing.
+function validateWatermark(slot) {
+  const sql = String(slot.sql ?? '');
+  const binds = /@Since\b/.test(sql);
+  const column = !blank(slot.watermarkColumn);
+  const errors = [];
+  if (column && !binds) errors.push('watermark column needs the SQL to bind @Since (e.g. AND modified >= @Since)');
+  if (binds && !column) errors.push('the SQL binds @Since but names no watermark column, so its watermark could never move');
+  if (slot.sweep === true && !binds) errors.push('a key sweep only makes sense for a query that reads a window — bind @Since, or turn the sweep off');
   return errors;
 }
 
@@ -291,6 +314,8 @@ const SLOT_FIELD_VALUES = {
   targetType:       s => s.targetType || 'Resource',
   memberType:       s => s.memberType || 'Resource',
   rootDisplayName:  s => (s.rootDisplayName || '').trim(),
+  watermarkColumn:  s => (s.watermarkColumn || '').trim(),
+  sweep:            s => s.sweep === true,
 };
 
 // One editor slot → one crawler.json `queries[]` entry: trimmed, typed, and

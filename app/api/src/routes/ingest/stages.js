@@ -2,8 +2,8 @@
 //
 //   POST   /ingest/stages                  { entity, systemId, scope?, idGeneration?, idPrefix? } → 201 { stageId }
 //   POST   /ingest/stages/:id/rows         { records }                                           → 200 { rows }
-//   POST   /ingest/stages/:id/finalize     { deleteMissing? }                                    → 200 { path, inserted, updated, deleted, rows }
-//   POST   /ingest/stages/finalize         { stageIds, deleteMissing? }                          → 200 { results: [...] }
+//   POST   /ingest/stages/:id/finalize     { deleteMissing?, maxDeleteShare? }                   → 200 { path, inserted, updated, deleted, rows }
+//   POST   /ingest/stages/finalize         { stageIds, deleteMissing?, maxDeleteShare? }         → 200 { results: [...] }
 //   DELETE /ingest/stages/:id                                                                    → 204
 //
 // Records go through exactly the checks a batch on /ingest/<entity> gets —
@@ -47,6 +47,21 @@ function fail(res, err, what) {
 }
 
 const ownerOf = (req) => req.crawler?.id ?? null;
+
+// The optional ceiling on what a finalize may remove, as a share of the scope's
+// live rows. Absent means no ceiling — the behaviour every existing caller has.
+// An out-of-range value is an error rather than a silent clamp: a caller that
+// meant 5 and wrote 5 (500%) would otherwise get no guard at all, which is the
+// one outcome it was asking to avoid.
+function deleteShareOf(body) {
+  const raw = body?.maxDeleteShare;
+  if (raw === undefined || raw === null) return 0;
+  const share = Number(raw);
+  if (!Number.isFinite(share) || share <= 0 || share > 1) {
+    throw new StageError(400, 'maxDeleteShare must be a number greater than 0 and at most 1');
+  }
+  return share;
+}
 
 router.post('/ingest/stages', async (req, res) => {
   if (!guard(req, res)) return;
@@ -116,7 +131,10 @@ router.post('/ingest/stages/finalize', async (req, res) => {
   }
   try {
     const list = ids.map(id => getStage(String(id), ownerOf(req)));
-    const results = await finalizeStages(list, { deleteMissing: req.body?.deleteMissing === true });
+    const results = await finalizeStages(list, {
+      deleteMissing: req.body?.deleteMissing === true,
+      maxDeleteShare: deleteShareOf(req.body),
+    });
     for (const [i, st] of list.entries()) {
       await writeSyncLog(null, `API-stage-${st.entity}-${results[i].path}`, st.tableName, startTime,
         results[i].rows, results[i].inserted, results[i].updated, results[i].deleted, null);
@@ -133,7 +151,10 @@ router.post('/ingest/stages/:id/finalize', async (req, res) => {
   let stage;
   try {
     stage = getStage(req.params.id, ownerOf(req));
-    const result = await finalizeStage(stage, { deleteMissing: req.body?.deleteMissing === true });
+    const result = await finalizeStage(stage, {
+      deleteMissing: req.body?.deleteMissing === true,
+      maxDeleteShare: deleteShareOf(req.body),
+    });
     await writeSyncLog(null, `API-stage-${stage.entity}-${result.path}`, stage.tableName, startTime,
       result.rows, result.inserted, result.updated, result.deleted, null);
     return res.json({ ...result, durationMs: Date.now() - startTime.getTime() });

@@ -57,7 +57,10 @@ function New-SqlRunState {
         [int]$CommandTimeout = 600,
         [string]$SyncMode = 'full',
         [string]$SystemType = 'SQL',
-        [string]$Tenant = ''
+        [string]$Tenant = '',
+        [int]$OverlapSeconds = 900,
+        [int]$SweepIntervalHours = 24,
+        [double]$SweepMaxDeleteShare = 0.05
     )
     $targets = @($Slots | Where-Object { $_.enabled } | ForEach-Object { $_.target })
     return @{
@@ -90,6 +93,10 @@ function New-SqlRunState {
         Ownership       = New-SqlOwnershipTally
         HasResources    = ($targets -contains 'resources')
         HasPrincipals   = ($targets -contains 'identities' -or $targets -contains 'principals')
+        # Did every resources statement read its complete set this run? A key
+        # sweep places each swept pair in its resource's system, so a windowed
+        # resources statement leaves it unable to do that (SqlCrawler.Sweep.ps1).
+        ResourcesComplete = $true
         Scopes          = [System.Collections.Generic.List[hashtable]]::new()
         Contexts        = New-SqlContextCatalog
         Systems         = New-SqlSystemCatalog
@@ -98,6 +105,13 @@ function New-SqlRunState {
         Expect          = @{}
         # One entry per statement: rows read against rows the source returns.
         Reads           = [System.Collections.Generic.List[hashtable]]::new()
+        # One entry per WATERMARKED statement: where it read from and how far it
+        # got. Written back only after the run verifies (Save-SqlWatermarks).
+        Deltas          = [System.Collections.Generic.List[hashtable]]::new()
+        OverlapMs       = [long]$OverlapSeconds * 1000
+        SweepIntervalHours  = $SweepIntervalHours
+        SweepMaxDeleteShare = $SweepMaxDeleteShare
+        Sweeps          = [System.Collections.Generic.List[hashtable]]::new()
         Verification    = $null
         ContextReport   = $null
         Totals          = [ordered]@{}
@@ -115,12 +129,24 @@ function Get-SqlScopeKey {
 # however many slots feed it. The system is part of the key because the
 # reconcile is per system: one call per system a scope was fed into, or the
 # systems left out keep rows this run no longer has.
+#
+# -Complete says this feed read the source's COMPLETE set rather than a window.
+# The timestamp reconcile removes what the run did not touch, which is only a
+# removal when everything that survives was touched — so a scope may reconcile
+# in any run, delta included, as long as EVERY slot feeding it was complete.
+# One windowed slot makes the whole scope unreconcilable, which is why this ANDs
+# rather than overwrites.
 function Add-SqlReconcileScope {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] [string]$Endpoint, [hashtable]$Scope = @{}, [int]$SystemId = 0)
+    param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] [string]$Endpoint, [hashtable]$Scope = @{},
+          [int]$SystemId = 0, [bool]$Complete = $true)
     $key = "$SystemId|" + (Get-SqlScopeKey -Endpoint $Endpoint -Scope $Scope)
-    if ($State.Scopes | Where-Object { $_.Key -eq $key }) { return }
-    $State.Scopes.Add(@{ Key = $key; Endpoint = $Endpoint; Scope = $Scope; SystemId = $SystemId })
+    $existing = @($State.Scopes | Where-Object { $_.Key -eq $key })
+    if ($existing.Count -gt 0) {
+        if (-not $Complete) { $existing[0].Complete = $false }
+        return
+    }
+    $State.Scopes.Add(@{ Key = $key; Endpoint = $Endpoint; Scope = $Scope; SystemId = $SystemId; Complete = $Complete })
 }
 
 #endregion Run state
@@ -132,7 +158,8 @@ function Add-SqlReconcileScope {
 # A slot that routes nothing therefore opens exactly the one stream it always did.
 function New-SqlStreamSpec {
     [CmdletBinding()]
-    param([hashtable]$State, [string]$Endpoint, [hashtable]$Scope = @{}, [string[]]$KeyFields = @('externalId'), [switch]$Reconcile, [switch]$Keyed)
+    param([hashtable]$State, [string]$Endpoint, [hashtable]$Scope = @{}, [string[]]$KeyFields = @('externalId'),
+          [switch]$Reconcile, [switch]$Keyed, [bool]$Complete = $true)
     $expect = $null
     if ($Reconcile) {
         # Every reconciled scope is also verified at the end of the run. The
@@ -143,7 +170,8 @@ function New-SqlStreamSpec {
         $expect.Slots++
     }
     return @{ Endpoint = $Endpoint; Scope = $Scope; KeyFields = $KeyFields; Reconcile = [bool]$Reconcile
-              Expect = $expect; Streams = [System.Collections.Generic.Dictionary[int, object]]::new() }
+              Complete = $Complete; Expect = $expect
+              Streams = [System.Collections.Generic.Dictionary[int, object]]::new() }
 }
 
 # The stream one role uses for one system, opened the first time that system
@@ -159,7 +187,7 @@ function Get-SqlSlotStream {
     $stream = New-CrawlerIngestStream -Endpoint $spec.Endpoint -SystemId $SystemId -IdPrefix $state.IdPrefix `
         -Scope $spec.Scope -BatchSize $state.BatchSize -KeyFields $spec.KeyFields
     if ($spec.Reconcile) {
-        Add-SqlReconcileScope -State $state -Endpoint $spec.Endpoint -Scope $spec.Scope -SystemId $SystemId
+        Add-SqlReconcileScope -State $state -Endpoint $spec.Endpoint -Scope $spec.Scope -SystemId $SystemId -Complete $spec.Complete
         [void]$spec.Expect.Systems.Add($SystemId)
     }
     $spec.Streams[$SystemId] = $stream
@@ -171,39 +199,52 @@ function Get-SqlSlotStream {
 # midPoint and CSV — so they are never routed either.
 function New-SqlSlotStreams {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] [hashtable]$Slot, [Parameter(Mandatory)] [hashtable]$State)
+    param([Parameter(Mandatory)] [hashtable]$Slot, [Parameter(Mandatory)] [hashtable]$State, [bool]$Complete = $true)
     $memberKeys = @('identityExternalId', 'principalExternalId')
     switch ($Slot.target) {
         'identities' {
             return @{
                 identity  = New-SqlStreamSpec -State $State -Endpoint 'ingest/identities'
-                principal = New-SqlStreamSpec -State $State -Endpoint 'ingest/principals' -Scope @{ principalType = $Slot.principalType } -Reconcile
+                principal = New-SqlStreamSpec -State $State -Endpoint 'ingest/principals' -Scope @{ principalType = $Slot.principalType } -Reconcile -Complete $Complete
                 member    = New-SqlStreamSpec -State $State -Endpoint 'ingest/identity-members' -KeyFields $memberKeys
             }
         }
         'principals' {
             return @{
-                principal = New-SqlStreamSpec -State $State -Endpoint 'ingest/principals' -Scope @{ principalType = $Slot.principalType } -Reconcile
+                principal = New-SqlStreamSpec -State $State -Endpoint 'ingest/principals' -Scope @{ principalType = $Slot.principalType } -Reconcile -Complete $Complete
                 member    = New-SqlStreamSpec -State $State -Endpoint 'ingest/identity-members' -KeyFields $memberKeys
             }
         }
         'identity-members' { return @{ member = New-SqlStreamSpec -State $State -Endpoint 'ingest/identity-members' -KeyFields $memberKeys } }
         'resources' {
-            $streams = @{ resource = New-SqlStreamSpec -State $State -Endpoint 'ingest/resources' -Scope @{ resourceType = $Slot.resourceType } -Reconcile }
-            if ($Slot.ownership) { foreach ($e in (New-SqlOwnershipStreams -State $State).GetEnumerator()) { $streams[$e.Key] = $e.Value } }
+            $streams = @{ resource = New-SqlStreamSpec -State $State -Endpoint 'ingest/resources' -Scope @{ resourceType = $Slot.resourceType } -Reconcile -Complete $Complete }
+            # The ownership scopes are derived from the SAME statement, so they
+            # read exactly as much of the source as it did: a windowed resources
+            # statement leaves them windowed too, and none of them may reconcile.
+            if ($Slot.ownership) { foreach ($e in (New-SqlOwnershipStreams -State $State -Complete $Complete).GetEnumerator()) { $streams[$e.Key] = $e.Value } }
             return $streams
         }
         'assignments' {
-            $scope = @{ assignmentType = $Slot.assignmentType; resourceType = $Slot.resourceType; governed = [bool]$Slot.governed }
-            return @{ assignment = New-SqlStreamSpec -State $State -Endpoint 'ingest/resource-assignments' -Scope $scope -KeyFields @('resourceExternalId', 'principalExternalId') -Reconcile }
+            $scope = Get-SqlAssignmentScope -Slot $Slot
+            return @{ assignment = New-SqlStreamSpec -State $State -Endpoint 'ingest/resource-assignments' -Scope $scope -KeyFields @('resourceExternalId', 'principalExternalId') -Reconcile -Complete $Complete }
         }
         # Buffered, not streamed: sent whole by Send-SqlSlotBuffer when the slot ends.
         { $_ -in $script:SqlBufferedTargets } { return @{} }
         'relationships' {
-            return @{ relationship = New-SqlStreamSpec -State $State -Endpoint 'ingest/resource-relationships' -Scope @{ relationshipType = $Slot.relationshipType } -KeyFields @('parentExternalId', 'childExternalId') -Reconcile }
+            return @{ relationship = New-SqlStreamSpec -State $State -Endpoint 'ingest/resource-relationships' -Scope @{ relationshipType = $Slot.relationshipType } -KeyFields @('parentExternalId', 'childExternalId') -Reconcile -Complete $Complete }
         }
     }
     throw "No streams for target '$($Slot.target)'"
+}
+
+# The one definition of an assignment slot's partition: the reconcile scope, the
+# stage's scope and the sweep's scope are the same three columns, and a second
+# spelling of it would let a sweep delete a neighbouring statement's rows.
+function Get-SqlAssignmentScope {
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param([Parameter(Mandatory)] [hashtable]$Slot)
+    return @{ assignmentType = $Slot.assignmentType; resourceType = $Slot.resourceType; governed = [bool]$Slot.governed }
 }
 
 #endregion Streams per slot
@@ -368,7 +409,9 @@ function Add-SqlStreamedRow {
         # Decided once per statement, not per row: at tens of millions of rows a
         # per-row decision is minutes spent re-deriving a constant.
         $ctx.Route = Get-SqlRouteMode -Map $ctx.Map -Target $ctx.Slot.target -Routing (Test-SqlSystemRouting -Catalog $ctx.State.Systems)
+        if ($ctx.Delta) { Resolve-SqlWatermarkColumn -Delta $ctx.Delta -Columns @($Row.Keys) }
     }
+    if ($ctx.Delta) { Update-SqlWatermark -Delta $ctx.Delta -Row $Row }
     & $script:SqlRowHandler $Row $ctx
     $ctx.Rows++
     if ($ctx.Rows % 100000 -eq 0) { Update-CrawlerProgress -Detail "$($ctx.Slot.name): $($ctx.Rows.ToString('N0')) rows" }
@@ -473,15 +516,23 @@ function Write-SqlSlotSummary {
 function Invoke-SqlSlot {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$Slot, [Parameter(Mandatory)] [AllowNull()] $Connection, [Parameter(Mandatory)] [hashtable]$State, [int]$Pct = 10)
-    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] $($Slot.name) → $($Slot.target)$(if ($Slot.paged) { ' (paged)' })" -ForegroundColor Cyan
+    # The watermark is read BEFORE the statement runs, so @Since is the mark the
+    # last verified run left — not one this run is still moving.
+    $delta = New-SqlDeltaState -Slot $Slot -State $State
+    if ($delta) { $State.Deltas.Add($delta) }
+    $window = if ($delta -and $delta.Windowed) { " (since $($delta.Since))" } else { '' }
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] $($Slot.name) → $($Slot.target)$(if ($Slot.paged) { ' (paged)' })$window" -ForegroundColor Cyan
     Update-CrawlerProgress -Step "Query: $($Slot.name)" -Pct $Pct
-    $ctx = @{ Slot = $Slot; Map = $null; Streams = (New-SqlSlotStreams -Slot $Slot -State $State); State = $State
+    $complete = -not ($delta -and $delta.Windowed)
+    if ($Slot.target -eq 'resources' -and -not $complete) { $State.ResourcesComplete = $false }
+    $ctx = @{ Slot = $Slot; Map = $null; Streams = (New-SqlSlotStreams -Slot $Slot -State $State -Complete $complete); State = $State
+              Delta = $delta; Complete = $complete
               Route = 'fixed'; Rows = 0; Skipped = 0; Dangling = 0; Unresolved = 0; Misrouted = 0
               # This statement's own owner tally, folded into the run's at the end.
               Ownership = (New-SqlOwnershipTally) }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $rows = Invoke-SqlQueryStream -Connection $Connection -Sql $Slot.sql -OnRow (New-SqlRowCallback -Ctx $ctx -Handler (Get-SqlRowHandler -Target $Slot.target)) `
-        -CommandTimeout $State.CommandTimeout -Paged $Slot.paged -PageSize $State.PageSize
+        -CommandTimeout $State.CommandTimeout -Paged $Slot.paged -PageSize $State.PageSize -Since $(if ($delta) { $delta.Since } else { $null })
     $sent = Complete-SqlSlotStreams -Ctx $ctx
     if ($Slot.target -in $script:SqlBufferedTargets) { $sent += Send-SqlSlotBuffer -Slot $Slot -State $State }
     Add-SqlReadCheck -Ctx $ctx -Connection $Connection -Rows $rows
@@ -495,8 +546,8 @@ function Invoke-SqlSlot {
         Join-SqlOwnershipTally -Into $State.Ownership -From $ctx.Ownership
     }
     $State.Totals[$Slot.name] = @{ target = $Slot.target; rows = $rows; sent = $sent; skipped = $ctx.Skipped
-                                   dangling = $ctx.Dangling; unresolved = $ctx.Unresolved; misrouted = $ctx.Misrouted; systems = $systems
-                                   ownership = $ownership }
+                                   dangling = $ctx.Dangling; unresolved = $ctx.Unresolved; misrouted = $ctx.Misrouted
+                                   systems = $systems; complete = $complete; ownership = $ownership }
     return $State.Totals[$Slot.name]
 }
 
@@ -513,21 +564,31 @@ function Send-SqlSlotBuffer {
     return $sent
 }
 
-# Full sync only: remove every row of each fed (system, scope) that this run did
-# not touch. One call per system a scope was written to — a scope reconciled
-# against the crawler's own system alone would leave every routed system's stale
-# rows in place, and reconciling a system this run never wrote to would empty it.
+# Remove every row of each fed (system, scope) that this run did not touch. One
+# call per system a scope was written to — a scope reconciled against the
+# crawler's own system alone would leave every routed system's stale rows in
+# place, and reconciling a system this run never wrote to would empty it.
+#
+# COMPLETENESS, not run mode, decides. The reconcile deletes what a run did not
+# touch, which is only a removal when everything still in the source WAS
+# touched. That is true of a statement that read its complete set — whether the
+# run called itself full or delta. So a delta run keeps its small tables (the
+# catalogue, the roles, the role assignments: read in full in seconds) exact
+# without a key sweep, while a windowed statement's scope is left alone, because
+# there every untouched row is simply one that did not change.
 function Invoke-SqlReconcile {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$State)
-    if ($State.SyncMode -ne 'full') {
-        Write-Host "`nDelta sync — stale rows are kept" -ForegroundColor Gray
+    $complete = @($State.Scopes | Where-Object { $_.Complete })
+    $windowed = @($State.Scopes).Count - $complete.Count
+    if ($complete.Count -eq 0) {
+        Write-Host "`nNo scope read its complete set — stale rows are kept (a key sweep is what removes them)" -ForegroundColor Gray
         return 0
     }
-    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Reconciling rows not seen since $($State.ServerTime)..." -ForegroundColor Cyan
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Reconciling rows not seen since $($State.ServerTime)$(if ($windowed) { " ($windowed windowed scope(s) skipped)" })..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Reconciling stale rows' -Pct 90
     $deleted = 0
-    foreach ($s in $State.Scopes) {
+    foreach ($s in $complete) {
         $sid = if ($s.SystemId -gt 0) { $s.SystemId } else { $State.SystemId }
         $deleted += Invoke-CrawlerReconcile -Endpoint $s.Endpoint -SystemId $sid -Scope $s.Scope -Before $State.ServerTime
     }

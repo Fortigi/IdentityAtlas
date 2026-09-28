@@ -31,6 +31,32 @@ function Test-SqlPagedQuery {
     return [bool]($Sql -match '@Offset\b')
 }
 
+# A statement reads a WINDOW when it binds @Since. Without it the statement reads
+# in full every run — right for a small table, and what makes its scope complete
+# enough to reconcile (SqlCrawler.Delta.ps1).
+function Test-SqlDeltaQuery {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([AllowEmptyString()] [string]$Sql)
+    return [bool]($Sql -match '@Since\b')
+}
+
+# @Since and watermarkColumn are two halves of one thing and neither works
+# alone: a bound @Since with nothing to advance on would read the same window
+# for ever, and a named column with no @Since would be an ordinary attribute
+# that quietly promised a delta it never does. Both are operator errors worth
+# naming rather than surprises worth debugging.
+function Get-SqlWatermarkColumn {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([AllowNull()] $Value, [AllowEmptyString()] [string]$Sql, [string]$QueryName)
+    $column = ([string]$Value).Trim()
+    $binds  = Test-SqlDeltaQuery -Sql $Sql
+    if ($column -and -not $binds) { throw "Query '$QueryName': watermarkColumn '$column' needs the statement to bind @Since (e.g. AND modified >= @Since)" }
+    if ($binds -and -not $column) { throw "Query '$QueryName': the statement binds @Since but names no watermarkColumn, so its watermark could never move" }
+    return $column
+}
+
 # An operator's `columnMap` (source column → contract column) as a plain
 # hashtable, however the JSON arrived (hashtable under -AsHashtable, PSCustomObject
 # otherwise). Blank entries are dropped; a non-string target is an error rather
@@ -82,6 +108,16 @@ function Resolve-SqlQuerySlot {
     if (-not $sql.Trim()) { throw "Query '$name': the SQL statement is empty" }
     $resourceType = ([string]$Slot.resourceType).Trim()
     if ($target -in @('resources', 'assignments') -and -not $resourceType) { throw "Query '$name': a $target query needs a resourceType" }
+    if ([bool]$Slot.sweep -and $target -ne 'assignments') { throw "Query '$name': sweep is only supported on an assignments query, not '$target'" }
+    # A buffered target is sent whole, as ONE full sync. A statement that read a
+    # window would present that window as the complete set, and the sync would
+    # delete every row it did not return.
+    if (([string]$Slot.watermarkColumn).Trim() -and $target -in @('systems', 'contexts', 'context-members')) {
+        throw "Query '$name': a '$target' query is sent as one full sync and cannot read a window, so it takes no watermarkColumn"
+    }
+    if ([bool]$Slot.sweep -and -not (Test-SqlDeltaQuery -Sql $sql)) {
+        throw "Query '$name': sweep is for a statement that reads a window — bind @Since, or turn the sweep off (a statement read in full is reconciled without one)"
+    }
     $assignmentType   = Get-SqlSlotEnum -Value $Slot.assignmentType   -Default 'Direct'   -Allowed $script:SqlAssignTypes    -Field 'assignmentType'   -QueryName $name
     $relationshipType = Get-SqlSlotEnum -Value $Slot.relationshipType -Default 'Contains' -Allowed $script:SqlRelTypes       -Field 'relationshipType' -QueryName $name
     $principalType    = Get-SqlSlotEnum -Value $Slot.principalType    -Default 'User'     -Allowed $script:SqlPrincipalTypes -Field 'principalType'    -QueryName $name
@@ -116,6 +152,14 @@ function Resolve-SqlQuerySlot {
         # "name it after the contextType" — see Get-SqlContextRootName.
         rootDisplayName  = ([string]$Slot.rootDisplayName).Trim()
         paged            = Test-SqlPagedQuery -Sql $sql
+        # The column whose largest value this run remembers, so the next run can
+        # bind @Since to it and read only what moved. Blank = read in full.
+        watermarkColumn  = Get-SqlWatermarkColumn -Value $Slot.watermarkColumn -Sql $sql -QueryName $name
+        # Whether this statement's scope may be KEY SWEPT: read its complete key
+        # set and remove whatever the source no longer has. Only an assignments
+        # scope is swept — every other scope in a governance source is small
+        # enough to read in full, which reconciles it without a sweep at all.
+        sweep            = [bool]$Slot.sweep
     }
 }
 
@@ -146,6 +190,25 @@ function Get-SqlConfigInt {
     return $Default
 }
 
+# The share of a scope a sweep may remove before it refuses. Deleting is the one
+# operation here with no undo, and a source read mid-aggregation looks exactly
+# like a mass revocation, so the ceiling is on by default at 5%. `sweepOverride`
+# is the deliberate way past it — one run, said out loud, not a setting that
+# drifts to "off" and is never noticed.
+function Get-SqlSweepShare {
+    [CmdletBinding()]
+    [OutputType([double])]
+    param($Value, [bool]$Override)
+    if ($Override) { return [double]1 }
+    $d = [double]0
+    # Invariant, not the current culture: JSON writes 0.05 and a Dutch-locale
+    # worker would otherwise read that as 5 and take the guard off entirely.
+    $ok = $null -ne $Value -and [double]::TryParse([string]$Value, [System.Globalization.NumberStyles]::Float,
+        [System.Globalization.CultureInfo]::InvariantCulture, [ref]$d)
+    if ($ok -and $d -gt 0 -and $d -le 1) { return $d }
+    return [double]0.05
+}
+
 function Resolve-SqlConfig {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [string]$ConfigPath)
@@ -170,6 +233,17 @@ function Resolve-SqlConfig {
         commandTimeout         = Get-SqlConfigInt -Value $raw['commandTimeoutSeconds'] -Default 600 -Minimum 0
         batchSize              = Get-SqlConfigInt -Value $raw['batchSize'] -Default 5000 -Minimum 100
         pageSize               = Get-SqlConfigInt -Value $raw['pageSize'] -Default 10000 -Minimum 100
+        # How far back of the last watermark each delta re-reads. Several
+        # application servers write the source, their clocks drift, and a long
+        # transaction can commit rows stamped before rows a previous run already
+        # read. Too large an overlap re-reads rows (upserts, so only time is
+        # lost); too small loses them, silently. 15 minutes by default.
+        watermarkOverlapSeconds = Get-SqlConfigInt -Value $raw['watermarkOverlapSeconds'] -Default 900 -Minimum 0
+        # How often a sweep-enabled statement reads its complete key set. The
+        # deltas run on the crawler's own schedule; the sweep runs at most this
+        # often, so a removal shows within one interval. 0 = never sweep.
+        sweepIntervalHours      = Get-SqlConfigInt -Value $raw['sweepIntervalHours'] -Default 24 -Minimum 0
+        sweepMaxDeleteShare     = Get-SqlSweepShare -Value $raw['sweepMaxDeleteShare'] -Override ([bool]$raw['sweepOverride'])
         systemName             = [string]$raw['systemName']
         configName             = [string]$raw['_configName']
         syncMode               = if ($raw['_syncMode'] -eq 'delta') { 'delta' } else { 'full' }
@@ -268,7 +342,8 @@ function ConvertTo-SqlRow {
 
 function New-SqlCommand {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] $Connection, [Parameter(Mandatory)] [string]$Sql, [int]$CommandTimeout = 600, [bool]$Paged = $false, [int]$Offset = 0, [int]$PageSize = 10000)
+    param([Parameter(Mandatory)] $Connection, [Parameter(Mandatory)] [string]$Sql, [int]$CommandTimeout = 600,
+          [bool]$Paged = $false, [int]$Offset = 0, [int]$PageSize = 10000, [AllowNull()] $Since = $null)
     $cmd = $Connection.CreateCommand()
     $cmd.CommandText    = $Sql
     $cmd.CommandTimeout = $CommandTimeout
@@ -277,6 +352,14 @@ function New-SqlCommand {
         $pOffset.Value = $Offset
         $pSize = $cmd.Parameters.Add('@PageSize', [System.Data.SqlDbType]::Int)
         $pSize.Value = $PageSize
+    }
+    # BigInt: the source's created/modified are numeric(19,0) epoch
+    # MILLISECONDS written by the application, not datetimes written by the
+    # database (assumption A1, confirmed against production). An Int parameter
+    # would overflow 24 days after 1970.
+    if ($null -ne $Since) {
+        $pSince = $cmd.Parameters.Add('@Since', [System.Data.SqlDbType]::BigInt)
+        $pSince.Value = [long]$Since
     }
     return $cmd
 }
@@ -370,12 +453,16 @@ function Invoke-SqlQueryStream {
         [Parameter(Mandatory)] [scriptblock]$OnRow,
         [int]$CommandTimeout = 600,
         [bool]$Paged = $false,
-        [int]$PageSize = 10000
+        [int]$PageSize = 10000,
+        # The watermark to bind to @Since, or $null for a statement that does
+        # not read a window. 0 is "the beginning of time": a first run, an
+        # edited statement or a forced full sync, all of which read everything.
+        [AllowNull()] $Since = $null
     )
     [long]$total = 0
     $offset = 0
     do {
-        $cmd = New-SqlCommand -Connection $Connection -Sql $Sql -CommandTimeout $CommandTimeout -Paged $Paged -Offset $offset -PageSize $PageSize
+        $cmd = New-SqlCommand -Connection $Connection -Sql $Sql -CommandTimeout $CommandTimeout -Paged $Paged -Offset $offset -PageSize $PageSize -Since $Since
         try { $n = Invoke-SqlReaderPage -Command $cmd -OnRow $OnRow }
         finally { $cmd.Dispose() }
         $total += $n

@@ -53,12 +53,35 @@ function New-TestRow { param([hashtable]$Cells) $o = [ordered]@{}; foreach ($k i
 # Replace ONLY the SQL boundary: each slot's rows are replayed through the
 # crawler's real callback by name.
 $script:RowsBySlot = @{}
+# What each replayed statement was asked for: the window it bound, so the delta
+# scenarios can assert the crawler read from the mark it stored.
+$script:SinceBySlot = @{}
 function Invoke-SqlQueryStream {
     [CmdletBinding()]
-    param($Connection, [string]$Sql, [scriptblock]$OnRow, [int]$CommandTimeout = 600, [bool]$Paged = $false, [int]$PageSize = 10000)
-    $rows = @($script:RowsBySlot[$Sql])
+    param($Connection, [string]$Sql, [scriptblock]$OnRow, [int]$CommandTimeout = 600, [bool]$Paged = $false, [int]$PageSize = 10000, $Since = $null)
+    $script:SinceBySlot[$Sql] = $Since
+    # A windowed statement replays only the rows past the mark it was given, the
+    # way the source's own WHERE clause would. The key sweep wraps a statement in
+    # SELECT DISTINCT … FROM (…) q, so an unknown text is resolved back to the
+    # statement it wraps.
+    $key = if ($script:RowsBySlot.ContainsKey($Sql)) { $Sql } else { @($script:RowsBySlot.Keys | Where-Object { $Sql.Contains($_) })[0] }
+    $rows = @($script:RowsBySlot[$key])
+    if ($null -ne $Since -and [long]$Since -gt 0) {
+        $rows = @($rows | Where-Object { $null -eq $_['modified'] -or [long]$_['modified'] -ge [long]$Since })
+    }
     foreach ($r in $rows) { & $OnRow $r }
     return [long]$rows.Count
+}
+
+# The sweep asks SQL Server to describe the statement's columns without running
+# it. Off a live connection that is a dynamic-management function; here the
+# replayed rows already say what the columns are.
+function Get-SqlSweepResultColumns {
+    [CmdletBinding()]
+    param($Connection, [hashtable]$Slot, [int]$CommandTimeout = 600)
+    $first = @($script:RowsBySlot[$Slot.sql])[0]
+    if (-not $first) { return $null }
+    return [string[]]@($first.Keys)
 }
 
 # The source-side counts, answered from what the SOURCE holds: the replayed rows,
@@ -66,9 +89,14 @@ function Invoke-SqlQueryStream {
 $script:SourceRowsBySlot = @{}
 function Measure-SqlSource {
     [CmdletBinding()]
-    param($Connection, [hashtable]$Slot, [hashtable]$Map, [int]$CommandTimeout = 600)
+    param($Connection, [hashtable]$Slot, [hashtable]$Map, [int]$CommandTimeout = 600, $Since = $null)
     # @() around the whole if: an if-expression unrolls a one-row array into the row itself.
     $rows = @(if ($script:SourceRowsBySlot.ContainsKey($Slot.sql)) { $script:SourceRowsBySlot[$Slot.sql] } else { $script:RowsBySlot[$Slot.sql] })
+    # The count has to ask about the same window the read asked about, or every
+    # delta run fails verification against the whole table.
+    if ($null -ne $Since -and [long]$Since -gt 0) {
+        $rows = @($rows | Where-Object { $null -eq $_['modified'] -or [long]$_['modified'] -ge [long]$Since })
+    }
     $pairs = $null
     if ($Slot.target -eq 'assignments' -and $Map) { $pairs = [long]@($rows | ForEach-Object { "$($_[$Map.resourceId])|$($_[$Map.principalId])" } | Sort-Object -Unique).Count }
     return @{ rows = [long]$rows.Count; pairs = $pairs; reason = $null }
@@ -327,6 +355,128 @@ $deleted9 = Invoke-SqlReconcile -State $state9
 Write-Result 'A repeat run deletes and recreates no owner link' ($deleted9 -eq 0) "deleted=$deleted9"
 Write-Result 'The repeat run still verifies' (Test-Verified -State $state9) `
     (($state9.Verification | ForEach-Object { "$($_.scope)=$($_.atlas)" }) -join ', ')
+# ── Runs 10-17: the delta — a watermark, a key sweep, and the share ceiling ──
+#
+# Counted from POSTGRESQL, not from ingest totals: /ingest/count with a `before`
+# older than any row is the scope's own live count. An ingest total says what was
+# SENT, which is exactly the number that made a run loading an eighth of its
+# source report success.
+Start-Sleep -Seconds 1
+$dcfg = @{ server = "sqldelta-$runId"; database = 'iiq'; configName = "SQL delta test $runId"; systemName = '' }
+$dreg = Register-SqlSystem -Cfg $dcfg
+$dsys = $dreg.systemId
+$sqlDIdent = 'SELECT delta identities'; $sqlDRes = 'SELECT delta entitlements'; $sqlDAsgn = 'SELECT delta grants'
+$GRANT_SCOPE = @{ assignmentType = 'Direct'; resourceType = 'Entitlement'; governed = $false }
+
+# The scope's own rows in the database, whenever they were written.
+function Get-ScopeCount {
+    param([string]$Entity, [int]$SystemId, [hashtable]$Scope)
+    [int](Invoke-Api -Path '/ingest/count' -Method Post -Body @{ entity = $Entity; systemId = $SystemId; scope = $Scope; before = '1970-01-01T00:00:00.000Z' }).count
+}
+
+$dslots = @(
+    (Resolve-SqlQuerySlot -Slot @{ name = "Delta identities $runId"; target = 'identities'; sql = $sqlDIdent }),
+    (Resolve-SqlQuerySlot -Slot @{ name = "Delta entitlements $runId"; target = 'resources'; sql = $sqlDRes; resourceType = 'Entitlement' }),
+    (Resolve-SqlQuerySlot -Slot @{ name = "Delta grants $runId"; target = 'assignments'; sql = $sqlDAsgn; resourceType = 'Entitlement'
+        watermarkColumn = 'modified'; sweep = $true })
+)
+$dGrantSlot = $dslots[2]
+$script:RowsBySlot[$sqlDIdent] = @(foreach ($u in 1..4) { New-TestRow @{ id = "du$u-$runId"; display_name = "Delta person $u" } })
+$script:RowsBySlot[$sqlDRes]   = @(foreach ($n in 1..13) { New-TestRow @{ id = "de$n-$runId"; name = "Delta entitlement $n" } })
+# 48 grants (4 people x 12 entitlements); de13 is spare, so a later run can add one.
+$script:grantRows = [System.Collections.Generic.List[object]]::new()
+$m = 1000
+foreach ($u in 1..4) { foreach ($n in 1..12) { $m++; [void]$script:grantRows.Add((New-TestRow @{ principalId = "du$u-$runId"; resourceId = "de$n-$runId"; modified = $m })) } }
+$script:RowsBySlot[$sqlDAsgn] = @($script:grantRows)
+
+# One run of the delta configuration, start to finish, exactly as
+# Start-SqlCrawler.ps1 orders it: slots, sweep, reconcile, verify, then — and
+# only then — the marks.
+function Invoke-DeltaRun {
+    param([string]$SyncMode = 'delta', [double]$MaxDeleteShare = 0.05)
+    $reg = Register-SqlSystem -Cfg $dcfg
+    $state = New-SqlRunState -SystemId $reg.systemId -ServerTime $reg.serverTime -Slots $dslots -BatchSize 10 `
+        -SyncMode $SyncMode -OverlapSeconds 0 -SweepIntervalHours 24 -SweepMaxDeleteShare $MaxDeleteShare
+    foreach ($slot in (Get-SqlSlotsInOrder -Slots $dslots)) { Invoke-SqlSlot -Slot $slot -Connection 'conn' -State $state | Out-Null }
+    Invoke-SqlSweep -State $state -Connection 'conn' -Slots $dslots | Out-Null
+    Invoke-SqlReconcile -State $state | Out-Null
+    $state.Verified = Test-Verified -State $state
+    if ($state.Verified) { Save-SqlWatermarks -State $state | Out-Null; Save-SqlSweepMarks -State $state | Out-Null }
+    return $state
+}
+function Get-GrantRowsRead { param([hashtable]$State) [long]$State.Totals["Delta grants $runId"].rows }
+
+# 1. The first run has no mark, so it reads everything.
+$dA = Invoke-DeltaRun -SyncMode 'full'
+$countA = Get-ScopeCount -Entity 'resource-assignments' -SystemId $dsys -Scope $GRANT_SCOPE
+Write-Result 'First run reads every grant and lands them all' ((Get-GrantRowsRead $dA) -eq 48 -and $countA -eq 48) "read=$(Get-GrantRowsRead $dA), postgres=$countA"
+Write-Result 'First run verified, so its watermark was stored' ($dA.Verified -and (Get-CrawlerDeltaToken -SystemId $dsys -Endpoint (Get-SqlWatermarkKey -Slot $dGrantSlot)) -eq '1048') `
+    "token=$(Get-CrawlerDeltaToken -SystemId $dsys -Endpoint (Get-SqlWatermarkKey -Slot $dGrantSlot))"
+
+# 2. A delta against UNCHANGED data: only the boundary row is re-read (the mark
+#    is inclusive), and the database is untouched.
+$dB = Invoke-DeltaRun
+$countB = Get-ScopeCount -Entity 'resource-assignments' -SystemId $dsys -Scope $GRANT_SCOPE
+Write-Result 'A delta after no change reads a window, not the table' ((Get-GrantRowsRead $dB) -eq 1) "read=$(Get-GrantRowsRead $dB) of 48"
+Write-Result 'A delta after no change writes nothing and deletes nothing' ($countB -eq 48) "postgres=$countB (was $countA)"
+
+# 3. A delta picks up an update and an insertion.
+$script:grantRows[0]['modified'] = 2000                                   # du1/de1 updated at the source
+[void]$script:grantRows.Add((New-TestRow @{ principalId = "du1-$runId"; resourceId = "de13-$runId"; modified = 2001 }))
+$script:RowsBySlot[$sqlDAsgn] = @($script:grantRows)
+$dC = Invoke-DeltaRun
+$countC = Get-ScopeCount -Entity 'resource-assignments' -SystemId $dsys -Scope $GRANT_SCOPE
+Write-Result 'A delta picks up the update and the insertion, and only those' ((Get-GrantRowsRead $dC) -eq 3 -and $countC -eq 49) `
+    "read=$(Get-GrantRowsRead $dC) (boundary + update + insert), postgres=$countC"
+
+# 4. A sweep removes exactly what disappeared. Two grants vanish from the source —
+#    neither of them the boundary row, so the delta half still verifies.
+$script:grantRows.RemoveAt(5)     # du1/de6
+$script:grantRows.RemoveAt(5)     # du1/de7
+$script:RowsBySlot[$sqlDAsgn] = @($script:grantRows)
+Remove-CrawlerDeltaToken -SystemId $dsys -Endpoint (Get-SqlSweepKey -Slot $dGrantSlot)   # make the sweep due
+$dD = Invoke-DeltaRun
+$countD = Get-ScopeCount -Entity 'resource-assignments' -SystemId $dsys -Scope $GRANT_SCOPE
+$sweptD = @($dD.Sweeps)[0]
+Write-Result 'A sweep removes exactly what disappeared, and nothing else' ($countD -eq 47 -and $sweptD.Deleted -eq 2) `
+    "postgres=$countD (was $countC), deleted=$($sweptD.Deleted), staged=$($sweptD.Staged)"
+
+# 5. A second delta immediately after is a no-op: the sweep is not due again and
+#    the window has not moved.
+$dE = Invoke-DeltaRun
+$countE = Get-ScopeCount -Entity 'resource-assignments' -SystemId $dsys -Scope $GRANT_SCOPE
+Write-Result 'A second delta immediately after is a no-op' ($countE -eq 47 -and @($dE.Sweeps).Count -eq 0) `
+    "postgres=$countE, sweeps=$(@($dE.Sweeps).Count)"
+
+# 6. The share ceiling. Ten more grants vanish — 10 of 47 is 21%, far past the
+#    5% a half-aggregated source is indistinguishable from. The finalize must
+#    refuse and write NOTHING.
+for ($i = 0; $i -lt 10; $i++) { $script:grantRows.RemoveAt(10) }
+$script:RowsBySlot[$sqlDAsgn] = @($script:grantRows)
+Remove-CrawlerDeltaToken -SystemId $dsys -Endpoint (Get-SqlSweepKey -Slot $dGrantSlot)
+$refused = $false; $refusal = ''
+try { Invoke-DeltaRun | Out-Null } catch { $refused = $true; $refusal = $_.Exception.Message }
+$countF = Get-ScopeCount -Entity 'resource-assignments' -SystemId $dsys -Scope $GRANT_SCOPE
+Write-Result 'A sweep past the share ceiling is refused' $refused ($refusal -replace '\s+', ' ')
+Write-Result 'And it removed nothing at all' ($countF -eq 47) "postgres=$countF (was $countE)"
+Write-Result 'A refused run leaves the watermark where it was' `
+    ((Get-CrawlerDeltaToken -SystemId $dsys -Endpoint (Get-SqlWatermarkKey -Slot $dGrantSlot)) -eq '2001') `
+    "token=$(Get-CrawlerDeltaToken -SystemId $dsys -Endpoint (Get-SqlWatermarkKey -Slot $dGrantSlot))"
+
+# 7. The same sweep with the override goes through.
+Remove-CrawlerDeltaToken -SystemId $dsys -Endpoint (Get-SqlSweepKey -Slot $dGrantSlot)
+$dG = Invoke-DeltaRun -MaxDeleteShare 1
+$countG = Get-ScopeCount -Entity 'resource-assignments' -SystemId $dsys -Scope $GRANT_SCOPE
+Write-Result 'With the override, the same removal is applied' ($countG -eq 37) "postgres=$countG (was $countF)"
+
+# 8. Editing the statement resets its watermark: the next run must read
+#    everything, not skip the rows the new shape would have returned.
+$dslots[2] = Resolve-SqlQuerySlot -Slot @{ name = "Delta grants $runId"; target = 'assignments'; sql = "$sqlDAsgn -- narrowed"
+    resourceType = 'Entitlement'; watermarkColumn = 'modified'; sweep = $true }
+$script:RowsBySlot["$sqlDAsgn -- narrowed"] = @($script:grantRows)
+$dH = Invoke-DeltaRun
+Write-Result 'An edited statement starts from zero instead of skipping rows' ((Get-GrantRowsRead $dH) -eq 37) `
+    "read=$(Get-GrantRowsRead $dH) of 37"
 
 # ── Reconcile safety: the endpoint refuses what it must ──────────────────────
 foreach ($case in @(
@@ -343,7 +493,7 @@ foreach ($case in @(
 # ── Cleanup ──────────────────────────────────────────────────────────────────
 # $routed is empty when the run never reached the routed scenario (an earlier
 # check threw), so this still deletes the one system the run definitely made.
-foreach ($id in (@($systemId) + @($routed))) {
+foreach ($id in (@($systemId) + @($routed) + @($dsys))) {
     try { Invoke-Api -Path "/admin/systems/$id" -Method Delete | Out-Null; Write-Host "  Cleaned up system $id" -ForegroundColor DarkGray }
     catch { Write-Host "  (could not delete test system ${id}: $($_.Exception.Message))" -ForegroundColor Yellow }
 }
