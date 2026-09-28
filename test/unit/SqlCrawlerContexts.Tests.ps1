@@ -18,11 +18,7 @@
 BeforeAll {
     $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
     $script:ApiBaseUrl = 'http://localhost:3001/api'; $script:ApiKey = 'fgc_test'; $script:JobId = 0
-    foreach ($f in @(
-        @('shared', 'Invoke-CrawlerIngest.ps1'), @('shared', 'Invoke-CrawlerIngestStream.ps1'), @('shared', 'Get-CrawlerSystemName.ps1'),
-        @('mssql', 'SqlCrawler.Functions.ps1'), @('mssql', 'SqlCrawler.Transform.ps1'), @('mssql', 'SqlCrawler.Systems.ps1'), @('mssql', 'SqlCrawler.Contexts.ps1'), @('mssql', 'SqlCrawler.Phases.ps1'), @('mssql', 'SqlCrawler.Verify.ps1'))) {
-        . (Join-Path $root 'tools' 'crawlers' $f[0] $f[1])
-    }
+    . (Join-Path $root 'tools' 'crawlers' 'mssql' 'SqlCrawler.Load.ps1')
 
     # A normalised slot, the way Resolve-SqlQuerySlot returns it.
     function Get-Slot([string]$Target, [hashtable]$Over = @{}) {

@@ -47,15 +47,7 @@ Param(
 $ErrorActionPreference = 'Stop'
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
-. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
-. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngestStream.ps1')
-. (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Functions.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Transform.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Systems.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Contexts.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Phases.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Verify.ps1')
+. (Join-Path $PSScriptRoot 'SqlCrawler.Load.ps1')
 
 $Cfg = Resolve-SqlConfig -ConfigPath $ConfigPath
 #endregion Configuration

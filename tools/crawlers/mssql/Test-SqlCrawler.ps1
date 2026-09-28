@@ -32,15 +32,7 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 $JobId = 0
 $script:failures = 0
 
-. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
-. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngestStream.ps1')
-. (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Functions.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Transform.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Systems.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Contexts.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Phases.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Verify.ps1')
+. (Join-Path $PSScriptRoot 'SqlCrawler.Load.ps1')
 
 function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
@@ -242,6 +234,12 @@ Write-Result 'A systems statement registered one system per row' ($routed.Count 
 $namespaces = @($state6.Scopes | ForEach-Object { $_.SystemId } | Sort-Object -Unique)
 Write-Result 'The run wrote to the crawler system AND both routed ones' `
     (@($namespaces | Where-Object { $_ -in $routed }).Count -eq 2 -and $namespaces -contains $systemId) "systems=$($namespaces -join ', ')"
+
+# A full sync reconciles before it verifies, exactly as Start-SqlCrawler.ps1 does.
+# Without this the run leaves the earlier scenarios' rows behind and the NEXT
+# run's reconcile clears them — which reads as "a second identical run deleted
+# something" when in fact the first one never finished.
+Invoke-SqlReconcile -State $state6 | Out-Null
 
 # The database's own answer, per system: the person in the crawler's system, one
 # entitlement and one grant in each routed system.

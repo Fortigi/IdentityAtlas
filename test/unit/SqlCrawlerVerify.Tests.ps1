@@ -24,12 +24,7 @@
 BeforeAll {
     $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
     $script:ApiBaseUrl = 'http://localhost:3001/api'; $script:ApiKey = 'fgc_test'; $script:JobId = 0
-    foreach ($f in @(
-        @('shared', 'Invoke-CrawlerIngest.ps1'), @('shared', 'Invoke-CrawlerIngestStream.ps1'),
-        @('mssql', 'SqlCrawler.Functions.ps1'), @('mssql', 'SqlCrawler.Transform.ps1'), @('mssql', 'SqlCrawler.Systems.ps1'), @('mssql', 'SqlCrawler.Contexts.ps1'),
-        @('mssql', 'SqlCrawler.Phases.ps1'), @('mssql', 'SqlCrawler.Verify.ps1'))) {
-        . (Join-Path $root 'tools' 'crawlers' $f[0] $f[1])
-    }
+    . (Join-Path $root 'tools' 'crawlers' 'mssql' 'SqlCrawler.Load.ps1')
     function New-State { New-SqlRunState -SystemId 5 -ServerTime '2026-09-26T08:00:00.000Z' -Slots @() -BatchSize 1000 }
     function New-Keyed([long]$Rows, [int]$Distinct) {
         $e = Get-SqlExpectation -State (New-State) -Key 'k' -Endpoint 'ingest/principals' -Scope @{ principalType = 'User' }

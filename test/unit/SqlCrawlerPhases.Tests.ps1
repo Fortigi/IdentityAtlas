@@ -21,15 +21,7 @@ BeforeAll {
     $script:ApiBaseUrl = 'http://localhost:3001/api'
     $script:ApiKey     = 'fgc_test'
     $script:JobId      = 0
-    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngest.ps1')
-    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngestStream.ps1')
-    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Get-CrawlerSystemName.ps1')
-    . (Join-Path $sqlDir 'SqlCrawler.Functions.ps1')
-    . (Join-Path $sqlDir 'SqlCrawler.Transform.ps1')
-    . (Join-Path $sqlDir 'SqlCrawler.Systems.ps1')
-    . (Join-Path $sqlDir 'SqlCrawler.Contexts.ps1')
-    . (Join-Path $sqlDir 'SqlCrawler.Phases.ps1')
-    . (Join-Path $sqlDir 'SqlCrawler.Verify.ps1')
+    . (Join-Path $sqlDir 'SqlCrawler.Load.ps1')
 
     function Reset-SqlTestState {
         $script:sent = [System.Collections.Generic.List[object]]::new()
