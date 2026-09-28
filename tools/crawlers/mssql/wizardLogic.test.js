@@ -680,7 +680,6 @@ describe('IdentityIQ presets match the real schema', () => {
     for (const q of statements.filter(s => s.name === 'Entitlements')) expect(q.sql).toMatch(/ma\.type\s+AS entitlementType/);
   });
 
-<<<<<<< HEAD
   it('selects the owner as ownerId on every statement that could carry one', () => {
     // `ownership` reads the ownerId contract column, so an owner the SQL
     // aliases anything else is invisible however the flag is set.
