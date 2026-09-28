@@ -6548,8 +6548,15 @@ query that selects <code>IdentityID</code> and <code>EntitlementID</code>, that 
 <code>"columnMap": { "IdentityID": "principalId", "EntitlementID": "resourceId" }</code>.</p>
 <h3 id="identities">Identities<a class="headerlink" href="#identities" title="Permanent link">&para;</a></h3>
 <p>Target <code>identities</code>, default <code>principalType</code> <code>User</code>. Every non-workgroup identity becomes
-an Identity plus its IdentityIQ account; <code>inactive</code> drives the enabled flag, <code>managerId</code>,
-<code>created</code> and <code>modified</code> land in <code>extendedAttributes</code>.</p>
+an Identity plus its IdentityIQ account; <code>inactive</code> drives the enabled flag, and <code>created</code>
+and <code>modified</code> land in <code>extendedAttributes</code>.</p>
+<p><code>spt_identity.manager</code> holds another identity's <code>id</code>, which is exactly what the rows are
+keyed on, so aliasing it <code>managerId</code> (or <code>managerExternalId</code>) fills the manager
+relationship on both halves of the row — the account's manager and the person's manager.
+Order does not matter: a manager further down the result set links just the same. A row
+naming itself is dropped; a manager your <code>WHERE</code> clause excluded (a workgroup, a leaver)
+leaves the field empty and is counted in the job's warnings rather than stored as a link
+to nobody.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">SELECT</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">display_name</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">displayName</span><span class="p">,</span>

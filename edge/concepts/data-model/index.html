@@ -6044,7 +6044,12 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 </tr>
 </tbody>
 </table>
-<p>Key columns: <code>displayName</code>, <code>principalType</code>, <code>systemId</code>, <code>extendedAttributes</code> (JSON), <code>riskScore</code>. Source-system org placement (e.g. AD OU) is via <code>ContextMembers</code> (<code>memberType='Principal'</code>), not a column.</p>
+<p>Key columns: <code>displayName</code>, <code>principalType</code>, <code>systemId</code>, <code>managerId</code>, <code>extendedAttributes</code> (JSON), <code>riskScore</code>. Source-system org placement (e.g. AD OU) is via <code>ContextMembers</code> (<code>memberType='Principal'</code>), not a column.</p>
+<div class="admonition warning">
+<p class="admonition-title"><code>managerId</code> and <code>managerIdentityId</code> point at different tables</p>
+<p><code>managerId</code> always names a <strong>Principal</strong> — the manager's <em>account</em>. It is self-referential on <code>Principals</code>, and on <code>Contexts</code> it is the org unit's manager account. <code>managerIdentityId</code> always names an <strong>Identity</strong> — the manager as a <em>person</em> — and appears on <code>Identities</code> and <code>Contexts</code>. <code>Identities</code> has no <code>managerId</code> at all.</p>
+<p>Crawlers do not fill either directly: they cannot know an internal id. They send <code>managerExternalId</code> (resolved against the system's principals) or <code>managerIdentityExternalId</code> (resolved against its identities), and the ingest derives the id the manager's own row is keyed by — see <code>app/api/src/ingest/normalization.js</code>. A reference that resolves to nobody is cleared and counted at the end of the load (<code>app/api/src/ingest/managerLinks.js</code>) rather than stored, because <code>managerId IS NOT NULL</code> is what "has a manager" means everywhere else.</p>
+</div>
 <hr />
 <h3 id="principalactivity">PrincipalActivity<a class="headerlink" href="#principalactivity" title="Permanent link">&para;</a></h3>
 <p>High-frequency activity signals: sign-ins, per-app usage, AI agent invocations. This table is intentionally <strong>not</strong> tracked by audit triggers. See <a href="#activity-data-principalactivity">Activity Data</a> below for the reason.</p>

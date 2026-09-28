@@ -5707,7 +5707,7 @@
 <td><code>ManagerExternalId</code></td>
 <td>string</td>
 <td>no</td>
-<td>ExternalId of the manager (for org-chart hierarchy)</td>
+<td>The <code>ExternalId</code> of another row in this file — the person's manager. Feeds the org chart, the manager-hierarchy contexts and the "reports to" filters. Order does not matter: the manager may appear anywhere in the file, or have been imported earlier. A row naming itself is ignored, and a manager that is not in the file (and not already imported) leaves the field empty and is counted in the job's warnings rather than stored as a link to nobody</td>
 </tr>
 <tr>
 <td><code>SystemName</code></td>
