@@ -9,8 +9,9 @@ import { timedQuery } from '../../perf/sqlTimer.js';
 import { createParams } from '../../db/sqlParams.js';
 import {
   getPrincipalColumns, getResourceColumns,
-  discoverColumnValues, discoverExtendedAttrValues, mergeValueSets, valuePageSize,
+  discoverColumnValues, discoverExtendedAttrValues, mergeValueSets,
 } from '../../db/columnCache.js';
+import { createValueCache } from '../../db/valueCache.js';
 import { buildEntitySubquery, collectContextIds } from '../../matrix/filterSql.js';
 import { resourceMeta, buildAssignmentExprs } from '../../db/matrixHelpers.js';
 import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
@@ -27,8 +28,6 @@ export const FILTERABLE_TYPES = new Set([
 
 let identityColumnsCache = null;
 let identityColumnsCacheTime = 0;
-let identityValuesCache = null;
-let identityValuesCacheTime = 0;
 const IDENTITY_CACHE_TTL = 5 * 60 * 1000;
 
 export async function getIdentityColumns() {
@@ -57,13 +56,7 @@ export async function getIdentityColumns() {
 // plus a per-column `truncated` flag. The hand-rolled duplicate this replaced
 // also carried a global 5000-row cap across all ext keys, which silently
 // dropped whole keys once a tenant had enough extension attributes (#928).
-export async function getIdentityColumnValuesMeta() {
-  const now = Date.now();
-  const pageSize = valuePageSize();
-  if (identityValuesCache && identityValuesCache.pageSize === pageSize
-      && (now - identityValuesCacheTime) < IDENTITY_CACHE_TTL) {
-    return identityValuesCache;
-  }
+const identityValues = createValueCache('Identities', async (pageSize) => {
   const cols = await getIdentityColumns();
   const base = await discoverColumnValues('Identities', cols, pageSize);
 
@@ -74,9 +67,11 @@ export async function getIdentityColumnValuesMeta() {
     ext = await discoverExtendedAttrValues('Identities', pageSize);
   } catch { /* extendedAttributes column may be absent on older schemas */ }
 
-  identityValuesCache = { ...mergeValueSets(base, ext), pageSize };
-  identityValuesCacheTime = now;
-  return identityValuesCache;
+  return mergeValueSets(base, ext);
+});
+
+export function getIdentityColumnValuesMeta() {
+  return identityValues.get();
 }
 
 // ─── Filter parsing ─────────────────────────────────────────────────

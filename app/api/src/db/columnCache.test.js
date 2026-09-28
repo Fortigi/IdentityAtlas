@@ -76,86 +76,202 @@ describe('discoverColumns — table/column casing pinned to migrations', () => {
   });
 });
 
-describe('discoverColumnValues — emits correctly-quoted PascalCase table name', () => {
-  // Each call to get{Principal,Resource}ColumnValues makes three queries in
-  // this order:
-  //   1. discoverColumns (information_schema)
-  //   2. discoverColumnValues (UNION ALL over filterable columns)
-  //   3. discoverExtendedAttrValues — key discovery on the JSONB column
-  //   4. (optional) distinct-value UNION ALL over the ext keys from step 3
-  // Tests program as many responses as they inspect; unused ones can be
-  // left as empty rows.
-  function programQueries(columnRows, valueRows, extKeyRows = [], extValueRows = []) {
-    queryMock
-      .mockResolvedValueOnce({ rows: columnRows })
-      .mockResolvedValueOnce({ rows: valueRows })
-      .mockResolvedValueOnce({ rows: extKeyRows });
-    if (extKeyRows.length > 0) {
-      queryMock.mockResolvedValueOnce({ rows: extValueRows });
-    }
-  }
+// A value-discovery pass now issues four KINDS of query, and which of them run
+// depends on the data (a table with no stats row for a column routes it
+// differently from one that has). Tests therefore answer by SQL shape rather
+// than by call index, and assert on the query of the kind they care about.
+function route({ schema = [], stats = [], values = [], ext = [] } = {}) {
+  queryMock.mockImplementation(async (sql) => {
+    if (/information_schema/.test(sql)) return { rows: schema };
+    if (/pg_stats/.test(sql))           return { rows: stats };
+    if (/jsonb_each/.test(sql))         return { rows: ext };
+    return { rows: values };
+  });
+}
 
+// The SQL of the last query matching `re`, or undefined when none was issued.
+function sqlMatching(re) {
+  const hit = [...queryMock.mock.calls].reverse().find(([sql]) => re.test(sql));
+  return hit && hit[0];
+}
+const valuesSql = () => sqlMatching(/SELECT DISTINCT|LATERAL \(VALUES/);
+const extSql    = () => sqlMatching(/jsonb_each/);
+
+describe('discoverColumnValues — emits correctly-quoted PascalCase table name', () => {
   it('Principals: SELECTs FROM "Principals" with double-quoted PascalCase', async () => {
-    programQueries(
-      [{ column_name: 'department', data_type: 'text' }],
-      [{ col: 'department', val: 'Sales' }],
-    );
+    route({
+      schema: [{ column_name: 'department', data_type: 'text' }],
+      values: [{ col: 'department', val: 'Sales' }],
+    });
     const mod = await freshModule();
     const grouped = await mod.getPrincipalColumnValues();
 
-    const valuesSql = queryMock.mock.calls[1][0];
-    expect(valuesSql).toMatch(/FROM "Principals"/);
-    expect(valuesSql).not.toMatch(/FROM "principals"/);
+    expect(valuesSql()).toMatch(/FROM "Principals"/);
+    expect(valuesSql()).not.toMatch(/FROM "principals"/);
     expect(grouped).toEqual({ department: ['Sales'] });
   });
 
   it('Resources: SELECTs FROM "Resources" with double-quoted PascalCase', async () => {
-    programQueries(
-      [{ column_name: 'resourceType', data_type: 'text' }],
-      [{ col: 'resourceType', val: 'Group' }],
-    );
+    route({
+      schema: [{ column_name: 'resourceType', data_type: 'text' }],
+      values: [{ col: 'resourceType', val: 'Group' }],
+    });
     const mod = await freshModule();
     await mod.getResourceColumnValues();
 
-    const valuesSql = queryMock.mock.calls[1][0];
-    expect(valuesSql).toMatch(/FROM "Resources"/);
-    expect(valuesSql).not.toMatch(/FROM "resources"/);
+    expect(valuesSql()).toMatch(/FROM "Resources"/);
+    expect(valuesSql()).not.toMatch(/FROM "resources"/);
   });
 
   it('skips columns whose type is not in FILTERABLE_TYPES (e.g. jsonb, uuid)', async () => {
-    programQueries(
-      [
+    route({
+      schema: [
         { column_name: 'displayName',        data_type: 'text' },
         { column_name: 'extendedAttributes', data_type: 'jsonb' },
         { column_name: 'id',                 data_type: 'uuid'  },
       ],
-      [],
-    );
+    });
     const mod = await freshModule();
     await mod.getPrincipalColumnValues();
 
-    const valuesSql = queryMock.mock.calls[1][0];
-    expect(valuesSql).toMatch(/"displayName"/);
-    expect(valuesSql).not.toMatch(/"extendedAttributes"/);
-    expect(valuesSql).not.toMatch(/\buuid\b/);
+    expect(valuesSql()).toMatch(/"displayName"/);
+    expect(valuesSql()).not.toMatch(/"extendedAttributes"::text/);
+    expect(valuesSql()).not.toMatch(/\buuid\b/);
+  });
+
+  it('asks pg_stats for the table it is discovering, and only that table', async () => {
+    route({ schema: [{ column_name: 'department', data_type: 'text' }] });
+    const mod = await freshModule();
+    await mod.getResourceColumnValues();
+
+    const [sql, params] = queryMock.mock.calls.find(([s]) => /pg_stats/.test(s));
+    expect(sql).toMatch(/n_distinct/);
+    expect(sql).toContain('s.tablename = $1');   // bound, and actually filtered on
+    expect(params).toEqual(['Resources']);
+  });
+
+  it('still discovers values when pg_stats is unreadable — hints are not correctness', async () => {
+    queryMock.mockImplementation(async (sql) => {
+      if (/information_schema/.test(sql)) return { rows: [{ column_name: 'department', data_type: 'text' }] };
+      if (/pg_stats/.test(sql)) throw new Error('permission denied for view pg_stats');
+      if (/jsonb_each/.test(sql)) return { rows: [] };
+      return { rows: [{ col: 'department', val: 'Sales' }] };
+    });
+    const mod = await freshModule();
+    expect(await mod.getPrincipalColumnValues()).toEqual({ department: ['Sales'] });
+  });
+});
+
+describe('planColumnValueQueries — pg_stats routing (a hint, never correctness)', () => {
+  let mod;
+  const col = (name) => ({ name, rawName: name, type: 'text' });
+  const cols = (...names) => names.map(col);
+  const names = (list) => list.map(c => c.name).sort();
+
+  beforeEach(async () => { mod = await freshModule(); });
+
+  it('reads a negative n_distinct as a fraction of the row count', () => {
+    // -1 is "unique": 1000 rows ⇒ 1000 distinct, not 1.
+    expect(mod.estimateDistinct(-1, 1000)).toBe(1000);
+    expect(mod.estimateDistinct(-0.25, 1000)).toBe(250);
+  });
+
+  it('reads a positive n_distinct as an absolute count, independent of the row count', () => {
+    expect(mod.estimateDistinct(7, 1000)).toBe(7);
+    expect(mod.estimateDistinct(7, 10_000_000)).toBe(7);
+  });
+
+  it('distinguishes "all NULL" (0 distinct) from "no stats at all" (unknown)', () => {
+    expect(mod.estimateDistinct(0, 1000)).toBe(0);
+    expect(mod.estimateDistinct(undefined, 1000)).toBeNull();
+    expect(mod.estimateDistinct(-1, 0)).toBeNull();   // no usable row count
+    // An all-NULL column has no distinct values whether or not we know how
+    // many rows there are — it must not fall through to the "unknown" answer
+    // that the missing row count produces for every other column.
+    expect(mod.estimateDistinct(0, 0)).toBe(0);
+  });
+
+  it('shares the narrow columns and gives each wide one its own branch', () => {
+    const stats = new Map([['department', 44], ['jobTitle', 1200], ['displayName', -1]]);
+    const plan = mod.planColumnValueQueries(cols('department', 'jobTitle', 'displayName'), stats, 176_789);
+    expect(names(plan.shared)).toEqual(['department', 'jobTitle']);
+    expect(names(plan.separate)).toEqual(['displayName']);
+  });
+
+  it('gives a column with no stats row its own branch — unknown is treated as wide', () => {
+    const stats = new Map([['department', 44], ['jobTitle', 1200]]);
+    const plan = mod.planColumnValueQueries(cols('department', 'jobTitle', 'mystery'), stats, 1000);
+    expect(names(plan.separate)).toEqual(['mystery']);
+  });
+
+  it('keeps an all-NULL column on the shared pass — it costs the aggregate nothing', () => {
+    const stats = new Map([['department', 44], ['jobTitle', 12], ['photoContentType', 0]]);
+    const plan = mod.planColumnValueQueries(cols('department', 'jobTitle', 'photoContentType'), stats, 1000);
+    expect(names(plan.shared)).toEqual(['department', 'jobTitle', 'photoContentType']);
+    expect(plan.separate).toEqual([]);
+  });
+
+  it('keeps a column sitting exactly on the limit', () => {
+    const stats = new Map([['a', mod.WIDE_COLUMN_DISTINCT_LIMIT], ['b', 10]]);
+    const plan = mod.planColumnValueQueries(cols('a', 'b'), stats, 1_000_000);
+    expect(names(plan.shared)).toEqual(['a', 'b']);
+  });
+
+  it('spends the budget cumulatively, not per column', () => {
+    // Each column is comfortably under the budget; together they are not.
+    // Three of 100 against a budget of 250 is the case that tells a running
+    // total apart from a per-column check — 10/100/900 does not, because the
+    // one that has to go is over the budget on its own either way.
+    const stats = new Map([['a', 100], ['b', 100], ['c', 100]]);
+    const plan = mod.planColumnValueQueries(cols('a', 'b', 'c'), stats, 1000, 5000, 250);
+    expect(plan.shared).toHaveLength(2);
+    expect(plan.separate).toHaveLength(1);
+  });
+
+  it('sheds the widest candidates first once the shared budget is spent', () => {
+    // 200 + 100 + 100 against a budget of 250. Narrowest-first fits the two
+    // 100s and sheds the 200; widest-first would take the 200 and shed both
+    // 100s, leaving one shared column and therefore no shared pass at all.
+    const stats = new Map([['wide', 200], ['b', 100], ['c', 100]]);
+    const plan = mod.planColumnValueQueries(cols('wide', 'b', 'c'), stats, 1000, 5000, 250);
+    expect(names(plan.shared)).toEqual(['b', 'c']);
+    expect(names(plan.separate)).toEqual(['wide']);
+  });
+
+  it('does not build a shared pass for a single column — that is just a branch', () => {
+    const stats = new Map([['department', 44], ['displayName', -1]]);
+    const plan = mod.planColumnValueQueries(cols('department', 'displayName'), stats, 1_000_000);
+    expect(plan.shared).toEqual([]);
+    expect(names(plan.separate)).toEqual(['department', 'displayName']);
+  });
+
+  it('emits one scan for the shared columns and a capped page per column', () => {
+    const sql = mod.sharedColumnPass('Principals', cols('department', 'jobTitle'), 500);
+    expect(sql).toMatch(/FROM "Principals",\s*\n?\s*LATERAL \(VALUES/);
+    expect(sql).toContain(`('department', "department"::text)`);
+    expect(sql).toContain(`('jobTitle', "jobTitle"::text)`);
+    expect(sql).toMatch(/PARTITION BY col ORDER BY val/);
+    expect(sql).toMatch(/rn <= 501/);
+    // An empty string is not a value anyone filters on, and the per-column
+    // branch has always dropped it — the shared pass must agree, or the same
+    // column offers a blank option depending on which route it took.
+    expect(sql).toContain(`v.val IS NOT NULL AND v.val <> ''`);
+    // One scan, not one per column.
+    expect(sql.match(/FROM "Principals"/g)).toHaveLength(1);
   });
 });
 
 describe('discoverExtendedAttrValues — surfaces JSONB keys as ext.<key>', () => {
   it('enumerates scalar JSONB keys and emits distinct values under ext.<key>', async () => {
-    queryMock
-      // discoverColumns — keep tiny so we reach the ext phase quickly
-      .mockResolvedValueOnce({ rows: [{ column_name: 'department', data_type: 'text' }] })
-      // discoverColumnValues — base UNION ALL
-      .mockResolvedValueOnce({ rows: [{ col: 'department', val: 'Sales' }] })
-      // ext key discovery
-      .mockResolvedValueOnce({ rows: [{ key: 'userType' }, { key: 'onPremisesSyncEnabled' }] })
-      // ext value UNION ALL
-      .mockResolvedValueOnce({ rows: [
+    route({
+      schema: [{ column_name: 'department', data_type: 'text' }],
+      values: [{ col: 'department', val: 'Sales' }],
+      ext: [
         { col: 'ext.userType', val: 'Member' },
         { col: 'ext.userType', val: 'Guest' },
         { col: 'ext.onPremisesSyncEnabled', val: 'true' },
-      ]});
+      ],
+    });
 
     const mod = await freshModule();
     const grouped = await mod.getPrincipalColumnValues();
@@ -164,45 +280,50 @@ describe('discoverExtendedAttrValues — surfaces JSONB keys as ext.<key>', () =
     expect(grouped['ext.userType']).toEqual(['Member', 'Guest']);
     expect(grouped['ext.onPremisesSyncEnabled']).toEqual(['true']);
 
-    // Ext key-discovery SQL must restrict to scalar jsonb types — that's what
-    // excludes objects (signInActivity) and arrays (groupTypes) from the list.
-    const keyDiscoverySql = queryMock.mock.calls[2][0];
-    expect(keyDiscoverySql).toMatch(/jsonb_typeof.*IN \('string', 'number', 'boolean'\)/);
-    expect(keyDiscoverySql).toMatch(/FROM "Principals"/);
-
-    // Ext value SQL must use the ->>'<key>' form on the extendedAttributes
-    // column. If anyone changes it back to `->` (returning jsonb) string
-    // equality breaks for booleans/numbers.
-    const extValuesSql = queryMock.mock.calls[3][0];
-    expect(extValuesSql).toMatch(/"extendedAttributes"->>'userType'/);
-    expect(extValuesSql).toMatch(/"extendedAttributes"->>'onPremisesSyncEnabled'/);
+    // Must restrict to scalar jsonb types — that's what excludes objects
+    // (signInActivity) and arrays (groupTypes) from the list.
+    expect(extSql()).toMatch(/jsonb_typeof\(e\.value\) IN \('string', 'number', 'boolean'\)/);
+    expect(extSql()).toMatch(/FROM "Principals" t/);
+    // `#>> '{}'` renders a scalar as text exactly as `->>` did. If anyone
+    // changes it to `->` (which keeps jsonb) every boolean and number comes
+    // back quoted and string equality against a filter value breaks.
+    expect(extSql()).toMatch(/e\.value #>> '\{\}'/);
+    // Keys and values come out of ONE pass — not a key query and then one
+    // query per key, which is what made this the slowest part of discovery.
+    expect(queryMock.mock.calls.filter(([s]) => /jsonb_each|jsonb_object_keys/.test(s))).toHaveLength(1);
   });
 
-  it('drops keys whose name contains unsafe characters (no SQL-injection vector)', async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [] })       // discoverColumns — empty is fine
-      // No base values query because filterableCols is empty → discoverColumnValues returns {}
-      // Actually it WILL issue the UNION ALL only when filterableCols.length > 0, so skip it.
-      // But we still hit the ext key query:
-      .mockResolvedValueOnce({ rows: [
-        { key: 'userType' },
-        { key: "badKey'; DROP TABLE--" },
-        { key: 'extension_deadbeef_sAMAccountName' },
-      ]})
-      .mockResolvedValueOnce({ rows: [
-        { col: 'ext.userType', val: 'Member' },
-        { col: 'ext.extension_deadbeef_sAMAccountName', val: 'jdoe' },
-      ]});
-
+  it('skips a row whose extendedAttributes is not an object instead of failing the whole pass', async () => {
+    route({ schema: [] });
     const mod = await freshModule();
     await mod.getPrincipalColumnValues();
+    // jsonb_each() raises "cannot call jsonb_each on a non-object" on an array
+    // or a bare scalar, and that error would take the entire filter bar down —
+    // so the row is filtered out BEFORE the function is called, inside the
+    // LATERAL, where a WHERE clause would be too late.
+    expect(extSql()).toMatch(/jsonb_each\(\s*CASE WHEN jsonb_typeof\(t\."extendedAttributes"\) = 'object'/);
+  });
 
-    // Call sequence with an empty column list: schema, ext-key-discovery,
-    // ext-value UNION. The base-values query is skipped.
-    const extValuesSql = queryMock.mock.calls[2][0];
-    expect(extValuesSql).toMatch(/'userType'/);
-    expect(extValuesSql).toMatch(/'extension_deadbeef_sAMAccountName'/);
-    expect(extValuesSql).not.toMatch(/DROP TABLE/);
+  it('never interpolates a discovered key into SQL — the key set is found IN the query', async () => {
+    route({
+      schema: [],
+      // A key named like an injection attempt comes back as DATA in the
+      // result. The old two-step form put the discovered key names straight
+      // back into the next query's text; this one never does, so a key can
+      // only ever end up in a response body.
+      ext: [
+        { col: 'ext.userType', val: 'Member' },
+        { col: "ext.badKey'; DROP TABLE--", val: 'x' },
+      ],
+    });
+
+    const mod = await freshModule();
+    const grouped = await mod.getPrincipalColumnValues();
+
+    expect(grouped["ext.badKey'; DROP TABLE--"]).toEqual(['x']);
+    for (const [sql] of queryMock.mock.calls) expect(sql).not.toMatch(/DROP TABLE/);
+    // The safe-identifier guard lives in the query itself.
+    expect(extSql()).toContain("e.key ~ '^[a-zA-Z0-9_]+$'");
   });
 });
 
@@ -220,24 +341,30 @@ describe('distinct-value pages are ordered and flagged when truncated (#928)', (
   }
 
   it('orders inside the subquery and fetches one row past the page size', async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [{ column_name: 'description', data_type: 'text' }] })
-      .mockResolvedValueOnce({ rows: rows('description', 3) })
-      .mockResolvedValueOnce({ rows: [] });
+    route({
+      schema: [{ column_name: 'description', data_type: 'text' }],
+      values: rows('description', 3),
+    });
 
     const mod = await freshModule();
     await mod.getResourceColumnValues();
 
-    const valuesSql = queryMock.mock.calls[1][0];
-    expect(valuesSql).toMatch(/ORDER BY val\s+LIMIT 501/);
+    expect(valuesSql()).toMatch(/ORDER BY val\s+LIMIT 501/);
     expect(mod.DEFAULT_VALUE_PAGE_SIZE).toBe(500);
   });
 
+  it('caps the shared pass at the same page size + 1 probe row', async () => {
+    const mod = await freshModule();
+    const cols = ['a', 'b'].map(n => ({ name: n, rawName: n, type: 'text' }));
+    expect(mod.sharedColumnPass('Principals', cols, 500)).toMatch(/rn <= 501/);
+    expect(mod.sharedColumnPass('Principals', cols, 10)).toMatch(/rn <= 11/);
+  });
+
   it('flags a column that overflows the page and trims it to the page size', async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [{ column_name: 'description', data_type: 'text' }] })
-      .mockResolvedValueOnce({ rows: rows('description', 501) })
-      .mockResolvedValueOnce({ rows: [] });
+    route({
+      schema: [{ column_name: 'description', data_type: 'text' }],
+      values: rows('description', 501),
+    });
 
     const mod = await freshModule();
     const { values, truncated } = await mod.getResourceColumnValuesMeta();
@@ -249,10 +376,10 @@ describe('distinct-value pages are ordered and flagged when truncated (#928)', (
   });
 
   it('leaves a column that fits unflagged', async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [{ column_name: 'description', data_type: 'text' }] })
-      .mockResolvedValueOnce({ rows: rows('description', 500) })
-      .mockResolvedValueOnce({ rows: [] });
+    route({
+      schema: [{ column_name: 'description', data_type: 'text' }],
+      values: rows('description', 500),
+    });
 
     const mod = await freshModule();
     const { values, truncated } = await mod.getResourceColumnValuesMeta();
@@ -262,17 +389,14 @@ describe('distinct-value pages are ordered and flagged when truncated (#928)', (
   });
 
   it('flags an overflowing ext.<key> the same way', async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ key: 'costCenter' }] })
-      .mockResolvedValueOnce({ rows: rows('ext.costCenter', 501) });
+    route({ schema: [], ext: rows('ext.costCenter', 501) });
 
     const mod = await freshModule();
     const { values, truncated } = await mod.getPrincipalColumnValuesMeta();
 
     expect(values['ext.costCenter']).toHaveLength(500);
     expect(truncated['ext.costCenter']).toBe(true);
-    expect(queryMock.mock.calls[2][0]).toMatch(/ORDER BY val\s+LIMIT 501/);
+    expect(extSql()).toMatch(/p\.rn <= 501/);
   });
 
   it('clearColumnCaches() forces a re-query', async () => {
@@ -306,38 +430,20 @@ describe('MATRIX_VALUE_PAGE_SIZE (#928)', () => {
     else process.env.MATRIX_VALUE_PAGE_SIZE = original;
   });
 
-  it('defaults to 500 and clamps at the maximum', async () => {
-    const mod = await freshModule();
-
-    delete process.env.MATRIX_VALUE_PAGE_SIZE;
-    expect(mod.valuePageSize()).toBe(500);
-
-    process.env.MATRIX_VALUE_PAGE_SIZE = '5';
-    expect(mod.valuePageSize()).toBe(5);
-
-    process.env.MATRIX_VALUE_PAGE_SIZE = '999999';
-    expect(mod.valuePageSize()).toBe(mod.MAX_VALUE_PAGE_SIZE);
-  });
-
-  it('falls back to the default for an unusable value', async () => {
-    const mod = await freshModule();
-    for (const bad of ['', '   ', 'lots', '0', '-10']) {
-      process.env.MATRIX_VALUE_PAGE_SIZE = bad;
-      expect(mod.valuePageSize()).toBe(500);
-    }
-  });
+  // What the setting itself parses to is pinned in db/valueCache.test.js;
+  // these cases are about what discovery does with it.
 
   it('pages and flags a small column when the size is lowered', async () => {
     process.env.MATRIX_VALUE_PAGE_SIZE = '5';
-    queryMock
-      .mockResolvedValueOnce({ rows: [{ column_name: 'description', data_type: 'text' }] })
-      .mockResolvedValueOnce({ rows: rows('description', 6) })
-      .mockResolvedValueOnce({ rows: [] });
+    route({
+      schema: [{ column_name: 'description', data_type: 'text' }],
+      values: rows('description', 6),
+    });
 
     const mod = await freshModule();
     const { values, truncated, pageSize } = await mod.getResourceColumnValuesMeta();
 
-    expect(queryMock.mock.calls[1][0]).toMatch(/ORDER BY val\s+LIMIT 6/);
+    expect(valuesSql()).toMatch(/ORDER BY val\s+LIMIT 6/);
     expect(values.description).toEqual(['v0000', 'v0001', 'v0002', 'v0003', 'v0004']);
     expect(truncated.description).toBe(true);
     expect(pageSize).toBe(5);
@@ -345,10 +451,10 @@ describe('MATRIX_VALUE_PAGE_SIZE (#928)', () => {
 
   it('re-discovers instead of serving a cached page cut to the old size', async () => {
     process.env.MATRIX_VALUE_PAGE_SIZE = '2';
-    queryMock
-      .mockResolvedValueOnce({ rows: [{ column_name: 'description', data_type: 'text' }] })
-      .mockResolvedValueOnce({ rows: rows('description', 3) })
-      .mockResolvedValueOnce({ rows: [] });
+    route({
+      schema: [{ column_name: 'description', data_type: 'text' }],
+      values: rows('description', 3),
+    });
 
     const mod = await freshModule();
     expect((await mod.getResourceColumnValuesMeta()).values.description).toHaveLength(2);
@@ -358,10 +464,9 @@ describe('MATRIX_VALUE_PAGE_SIZE (#928)', () => {
     await mod.getResourceColumnValuesMeta();
     expect(queryMock).toHaveBeenCalledTimes(afterFirst);
 
+    // A different page size is a different answer, so the cached one is not
+    // even usable as a stale stand-in: the caller must wait for a fresh page.
     process.env.MATRIX_VALUE_PAGE_SIZE = '10';
-    queryMock
-      .mockResolvedValueOnce({ rows: rows('description', 3) })
-      .mockResolvedValueOnce({ rows: [] });
     const { values, truncated } = await mod.getResourceColumnValuesMeta();
 
     expect(queryMock.mock.calls.length).toBeGreaterThan(afterFirst);
@@ -446,23 +551,69 @@ describe('value caches', () => {
 // ─── SEC-2026-09 L-16 — the discovered extendedAttributes key set is capped ───
 
 describe('discoverExtendedAttrValues — key cap', () => {
-  it('asks for the most frequent safe keys, capped, and binds the cap', async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [{ key: 'userType' }] })
-      .mockResolvedValueOnce({ rows: [{ col: 'ext.userType', val: 'Member' }] });
+  it('keeps the most frequent safe keys, capped, ranked by how many rows carry them', async () => {
+    queryMock.mockResolvedValue({ rows: [{ col: 'ext.userType', val: 'Member' }] });
     const mod = await freshModule();
     await mod.discoverExtendedAttrValues('Principals', 10, 25);
-    const [sql, params] = queryMock.mock.calls[0];
-    expect(sql).toMatch(/GROUP BY key\s+ORDER BY COUNT\(\*\) DESC, key\s+LIMIT \$1/);
-    expect(sql).toContain("key ~ '^[a-zA-Z0-9_]+$'");
-    expect(params).toEqual([25]);
+
+    const [sql] = queryMock.mock.calls[0];
+    expect(sql).toMatch(/ORDER BY sum\(rows\) DESC, col/);
+    expect(sql).toMatch(/k\.krank <= 25/);
+    expect(sql).toMatch(/p\.rn <= 11/);
+    expect(sql).toContain("e.key ~ '^[a-zA-Z0-9_]+$'");
   });
 
   it('defaults the cap to MAX_EXTENDED_ATTR_KEYS (300)', async () => {
-    queryMock.mockResolvedValueOnce({ rows: [] });
+    queryMock.mockResolvedValue({ rows: [] });
     const mod = await freshModule();
     expect(mod.MAX_EXTENDED_ATTR_KEYS).toBe(300);
     await mod.discoverExtendedAttrValues('Resources');
-    expect(queryMock.mock.calls[0][1]).toEqual([300]);
+    expect(queryMock.mock.calls[0][0]).toMatch(/k\.krank <= 300/);
+  });
+
+  it('falls back to the default cap rather than emitting a nonsense one', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const mod = await freshModule();
+    for (const bad of [0, -5, 1.5, 'lots', null]) {
+      queryMock.mockClear();
+      await mod.discoverExtendedAttrValues('Resources', 500, bad);
+      expect(queryMock.mock.calls[0][0]).toMatch(/k\.krank <= 300/);
+    }
+  });
+
+  it('refuses an unsafe table name', async () => {
+    const mod = await freshModule();
+    await expect(mod.discoverExtendedAttrValues('Resources"; DROP')).rejects.toThrow(/Invalid table name/);
+    expect(queryMock).not.toHaveBeenCalled();
+  });
+});
+
+// discoverExtendedAttrKeys is no longer part of the value preload — the keys
+// now fall out of the same pass as the values — but it is still the report
+// builder's field catalog (nlreports/extFields.js), which mocks it. Nothing
+// else pins its SQL, so this does.
+describe('discoverExtendedAttrKeys — the shared field catalog', () => {
+  it('asks for the most frequent scalar, safe-named keys and binds the cap', async () => {
+    queryMock.mockResolvedValue({ rows: [{ key: 'userType' }, { key: 'costCenter' }] });
+    const mod = await freshModule();
+
+    expect(await mod.discoverExtendedAttrKeys('Identities', 25)).toEqual(['userType', 'costCenter']);
+    const [sql, params] = queryMock.mock.calls[0];
+    expect(sql).toMatch(/FROM "Identities", jsonb_object_keys/);
+    expect(sql).toMatch(/jsonb_typeof.*IN \('string', 'number', 'boolean'\)/);
+    expect(sql).toMatch(/GROUP BY key\s+ORDER BY COUNT\(\*\) DESC, key\s+LIMIT \$1/);
+    expect(params).toEqual([25]);
+  });
+
+  it('drops an unsafe key the SQL guard somehow let through', async () => {
+    queryMock.mockResolvedValue({ rows: [{ key: 'userType' }, { key: "bad'; DROP" }] });
+    const mod = await freshModule();
+    expect(await mod.discoverExtendedAttrKeys('Principals')).toEqual(['userType']);
+  });
+
+  it('refuses an unsafe table name', async () => {
+    const mod = await freshModule();
+    await expect(mod.discoverExtendedAttrKeys('Principals"; DROP')).rejects.toThrow(/Invalid table name/);
+    expect(queryMock).not.toHaveBeenCalled();
   });
 });

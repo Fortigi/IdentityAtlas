@@ -14,8 +14,17 @@
 // pre-universal-resource-model fallback and have been dead code since v3.1.
 
 import * as db from './connection.js';
+import {
+  COLUMN_CACHE_TTL, STALE_GRACE, createValueCache, valuePageSize,
+  DEFAULT_VALUE_PAGE_SIZE, MAX_VALUE_PAGE_SIZE, VALUE_SEARCH_LIMIT,
+} from './valueCache.js';
 
-const COLUMN_CACHE_TTL = 5 * 60 * 1000;
+// Re-exported so every existing importer of these keeps working — the page
+// size and the cache policy moved to db/valueCache.js, the discovery did not.
+export {
+  createValueCache, valuePageSize, STALE_GRACE,
+  DEFAULT_VALUE_PAGE_SIZE, MAX_VALUE_PAGE_SIZE, VALUE_SEARCH_LIMIT,
+};
 
 // Postgres data types we treat as filterable. The legacy types like
 // `nvarchar` no longer apply.
@@ -78,38 +87,8 @@ export const getGroupColumns               = getResourceColumns;
 export const getPrincipalOrUserColumns     = getPrincipalColumns;
 
 // ─── Distinct values cache ──────────────────────────────────────
-let principalValuesCache = null;
-let principalValuesCacheTime = 0;
-let principalValuesInflight = null;
-let resourceValuesCache = null;
-let resourceValuesCacheTime = 0;
-let resourceValuesInflight = null;
-
-// How many distinct values we preload per column, and how many a value search
-// returns. The preload is a hard payload cap: a column can have hundreds of
-// thousands of distinct values (`description` in a real tenant) and shipping
-// them all would blow up every filter-dropdown response.
-export const DEFAULT_VALUE_PAGE_SIZE = 500;
-export const MAX_VALUE_PAGE_SIZE = 5000;
-export const VALUE_SEARCH_LIMIT = 50;
-
-// The page size is a deployment setting (`MATRIX_VALUE_PAGE_SIZE`), not a
-// constant, so the capped path can be exercised on a dataset that has nowhere
-// near 500 distinct values. Set it to a handful on a test deployment and every
-// column with more values than that is paged, flagged and searched exactly as
-// `description` is in a tenant with tens of thousands of them — which is what
-// makes #928 verifiable without first importing 500+ resources.
-//
-// Anything unparseable, zero or negative falls back to the default; the value
-// is capped at MAX_VALUE_PAGE_SIZE so a typo can't turn every filter dropdown
-// into a multi-megabyte response.
-export function valuePageSize() {
-  const raw = String(process.env.MATRIX_VALUE_PAGE_SIZE ?? '').trim();
-  if (!raw) return DEFAULT_VALUE_PAGE_SIZE;
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n) || n < 1) return DEFAULT_VALUE_PAGE_SIZE;
-  return Math.min(n, MAX_VALUE_PAGE_SIZE);
-}
+// (the entries themselves are built with createValueCache further down, once
+// the discovery functions they load from are defined)
 
 // Run the UNION ALL of per-column distinct-value subqueries and group the flat
 // (col, val) result in JS.
@@ -148,22 +127,136 @@ function extValueExpr(key) {
   return `"extendedAttributes"->>'${key}'`;
 }
 
+// ─── Query planning for the value preload ───────────────────────
+//
+// Every column used to get its own `SELECT DISTINCT … ORDER BY val LIMIT n`
+// branch, so discovering the values of a 13-column table read the whole table
+// 13 times (a LIMIT after a DISTINCT cannot stop early — there is no index to
+// walk — so each branch is a full scan plus a sort or hash).
+//
+// Most of those columns hold a handful of distinct values, and unpivoting them
+// into ONE pass (`FROM … , LATERAL (VALUES (col, expr), …)`) collapses all of
+// them into a single scan. That only works while the distinct set stays small:
+// a near-unique column such as `displayName` or `description` would put one
+// group per row into the shared hash aggregate, and measured on an 805 k-row
+// Resources table that single-pass form is SLOWER than what it replaced
+// (5.7 s vs 3.3 s). Those columns keep their own branch, where the aggregate
+// is at least not shared with anything else.
+//
+// Which column is which comes from `pg_stats.n_distinct`, which PostgreSQL
+// already maintains for free via ANALYZE. It is used as a ROUTING HINT ONLY:
+// both routes return exactly the same values, so a stale or missing estimate
+// costs time, never correctness. No stats row at all (a table never analysed)
+// means every column takes its own branch — precisely the old behaviour.
+// A column estimated to hold more distinct values than this keeps its own
+// branch, and the shared pass stops accepting columns once their estimates add
+// up to the budget — the shared hash aggregate holds one entry per distinct
+// (column, value) pair, so the budget is what bounds its memory.
+export const WIDE_COLUMN_DISTINCT_LIMIT = 50_000;
+export const SHARED_PASS_DISTINCT_BUDGET = 250_000;
+
+// Estimated distinct values of a column from a pg_stats row, or null when
+// there is no usable estimate. Postgres stores a negative n_distinct as a
+// MULTIPLE OF THE ROW COUNT (-1 = unique, -0.5 = half the rows are distinct),
+// which is the form near-unique columns take, so it has to be scaled by the
+// live row count before it can be compared with anything. A stats row that
+// says 0 is an all-NULL column: no distinct values at all, and therefore the
+// cheapest possible passenger on the shared pass — NOT an unknown, which is
+// what a column with no stats row is.
+export function estimateDistinct(nDistinct, rowCount) {
+  const n = Number(nDistinct);
+  if (!Number.isFinite(n)) return null;
+  if (n >= 0) return n;
+  const rows = Number(rowCount);
+  if (!Number.isFinite(rows) || rows <= 0) return null;
+  return Math.abs(n) * rows;
+}
+
+// Split the filterable columns into the ones that can share one pass and the
+// ones that need their own. Pure, so the routing rule is unit-testable without
+// a database.
+export function planColumnValueQueries(
+  columns, stats, rowCount,
+  limit = WIDE_COLUMN_DISTINCT_LIMIT, budget = SHARED_PASS_DISTINCT_BUDGET,
+) {
+  const separate = [];
+  const candidates = [];
+  for (const c of columns) {
+    const est = estimateDistinct(stats?.get(c.rawName), rowCount);
+    // Unknown estimate ⇒ treat as wide. Being wrong here only costs a scan.
+    if (est === null || est > limit) separate.push(c);
+    else candidates.push({ c, est });
+  }
+  // Narrowest first, so a budget that runs out sheds the widest columns —
+  // the ones that would have dominated the shared aggregate anyway.
+  candidates.sort((a, b) => a.est - b.est);
+  const shared = [];
+  let spent = 0;
+  for (const { c, est } of candidates) {
+    if (spent + est > budget) separate.push(c);
+    else { shared.push(c); spent += est; }
+  }
+  // One column on the shared route is just a branch with extra syntax.
+  if (shared.length < 2) return { shared: [], separate: [...separate, ...shared] };
+  return { shared, separate };
+}
+
+// n_distinct per column for one table, plus its estimated live row count.
+// Best-effort: a deployment whose role cannot read pg_stats (or a table that
+// has never been analysed) simply gets no hints.
+async function columnStats(table) {
+  try {
+    const r = await db.query(
+      `SELECT s.attname, s.n_distinct, c.reltuples
+         FROM pg_stats s
+         JOIN pg_class c ON c.relname = s.tablename
+         JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = s.schemaname
+        WHERE s.schemaname = 'public' AND s.tablename = $1`,
+      [table]
+    );
+    const stats = new Map(r.rows.map(row => [row.attname, row.n_distinct]));
+    return { stats, rowCount: r.rows.length ? Number(r.rows[0].reltuples) : 0 };
+  } catch {
+    return { stats: new Map(), rowCount: 0 };
+  }
+}
+
+// The single-pass branch: unpivot several columns into (col, val) pairs with
+// one scan, then keep the alphabetically first `pageSize + 1` per column.
+export function sharedColumnPass(table, columns, pageSize) {
+  const pairs = columns
+    .map(c => `('${c.name}', ${columnValueExpr(c.rawName)})`)
+    .join(', ');
+  return `SELECT col, val FROM (
+       SELECT col, val, row_number() OVER (PARTITION BY col ORDER BY val) AS rn FROM (
+         SELECT DISTINCT v.col, v.val FROM "${table}",
+           LATERAL (VALUES ${pairs}) AS v(col, val)
+          WHERE v.val IS NOT NULL AND v.val <> ''
+       ) d
+     ) z WHERE rn <= ${pageSize + 1}`;
+}
+
+// The per-column branch, unchanged: the alphabetically first `pageSize`
+// distinct non-null values (+1 probe row, see runValueUnion).
+export function singleColumnPass(table, column, pageSize) {
+  return `SELECT '${column.name}' AS col, val FROM (
+       SELECT DISTINCT ${columnValueExpr(column.rawName)} AS val FROM "${table}"
+        WHERE "${column.rawName}" IS NOT NULL AND ${columnValueExpr(column.rawName)} <> ''
+        ORDER BY val
+        LIMIT ${pageSize + 1}
+     ) t`;
+}
+
 export async function discoverColumnValues(table, columns, pageSize = valuePageSize()) {
   const filterableCols = columns.filter(c => FILTERABLE_TYPES.has(c.type) && SAFE_IDENT_RE.test(c.rawName));
   if (filterableCols.length === 0) return { values: {}, truncated: {} };
   if (!SAFE_IDENT_RE.test(table)) throw new Error(`Invalid table name: ${table}`);
 
-  // One UNION ALL query per filterable column. Each gets the alphabetically
-  // first `pageSize` distinct non-null values (+1 probe row, see
-  // runValueUnion). postgres syntax: ::text cast for non-text columns.
-  const parts = filterableCols.map(c =>
-    `SELECT '${c.name}' AS col, val FROM (
-       SELECT DISTINCT ${columnValueExpr(c.rawName)} AS val FROM "${table}"
-        WHERE "${c.rawName}" IS NOT NULL AND ${columnValueExpr(c.rawName)} <> ''
-        ORDER BY val
-        LIMIT ${pageSize + 1}
-     ) t`
-  );
+  const { stats, rowCount } = await columnStats(table);
+  const { shared, separate } = planColumnValueQueries(filterableCols, stats, rowCount);
+
+  const parts = separate.map(c => singleColumnPass(table, c, pageSize));
+  if (shared.length) parts.push(sharedColumnPass(table, shared, pageSize));
 
   return runValueUnion(parts, pageSize);
 }
@@ -214,27 +307,45 @@ export async function discoverExtendedAttrKeys(table, maxKeys = MAX_EXTENDED_ATT
   return keysRes.rows.map(r => r.key).filter(k => SAFE_IDENT_RE.test(k));
 }
 
+// The keys AND their values in ONE pass over the table.
+//
+// This used to be two steps — `discoverExtendedAttrKeys` to learn the key set,
+// then one `SELECT DISTINCT … ORDER BY … LIMIT` per key — which read the whole
+// table once for the keys and again for every key. On the customer's
+// 805 k-row Resources table that was 13 scans and 11.3 s; expanding each row's
+// JSON exactly once instead does the same work in 4.7 s.
+//
+// `jsonb_each` expands a row's object once and yields every (key, value) pair,
+// so the key list falls out of the same aggregate that produces the values.
+// Keys are still ranked by how many rows carry them and capped at `maxKeys`,
+// and `value #>> '{}'` renders a scalar exactly as `->>` did: booleans become
+// 'true'/'false', numbers their printed form.
+export function extendedAttrValuesSql(table, pageSize, maxKeys) {
+  return `WITH pairs AS (
+       SELECT e.key AS col, e.value #>> '{}' AS val, count(*) AS rows
+         FROM "${table}" t, LATERAL jsonb_each(
+                CASE WHEN jsonb_typeof(t."extendedAttributes") = 'object'
+                     THEN t."extendedAttributes" END) e
+        WHERE jsonb_typeof(e.value) IN ('string', 'number', 'boolean')
+          AND e.key ~ '^[a-zA-Z0-9_]+$'
+        GROUP BY 1, 2
+     ), keys AS (
+       SELECT col, row_number() OVER (ORDER BY sum(rows) DESC, col) AS krank
+         FROM pairs GROUP BY col
+     )
+     SELECT 'ext.' || p.col AS col, p.val
+       FROM (
+         SELECT col, val, row_number() OVER (PARTITION BY col ORDER BY val) AS rn
+           FROM pairs WHERE val IS NOT NULL AND val <> ''
+       ) p
+       JOIN keys k ON k.col = p.col
+      WHERE k.krank <= ${maxKeys} AND p.rn <= ${pageSize + 1}`;
+}
+
 export async function discoverExtendedAttrValues(table, pageSize = valuePageSize(), maxKeys = MAX_EXTENDED_ATTR_KEYS) {
-  const keys = await discoverExtendedAttrKeys(table, maxKeys);
-  if (keys.length === 0) return { values: {}, truncated: {} };
-
-
-  // One UNION ALL per key — same shape as discoverColumnValues, including the
-  // ordered page + overflow probe. The `->> 'key'` form returns text for any
-  // scalar jsonb type, which is what we want: booleans become 'true'/'false',
-  // numbers become their printed form.
-  const parts = keys.map(k =>
-    `SELECT 'ext.${k}' AS col, val FROM (
-       SELECT DISTINCT ${extValueExpr(k)} AS val FROM "${table}"
-        WHERE "extendedAttributes" ? '${k}'
-          AND ${extValueExpr(k)} IS NOT NULL
-          AND ${extValueExpr(k)} <> ''
-        ORDER BY val
-        LIMIT ${pageSize + 1}
-     ) t`
-  );
-
-  return runValueUnion(parts, pageSize);
+  if (!SAFE_IDENT_RE.test(table)) throw new Error(`Invalid table name: ${table}`);
+  const max = Number.isInteger(maxKeys) && maxKeys > 0 ? maxKeys : MAX_EXTENDED_ATTR_KEYS;
+  return runValueUnion([extendedAttrValuesSql(table, pageSize, max)], pageSize);
 }
 
 // Search the distinct values of ONE column for a substring — the escape hatch
@@ -276,60 +387,33 @@ export function mergeValueSets(base, ext) {
 
 // The *Meta getters return { values, truncated, pageSize }; the plain getters
 // return just the value map, which is the shape every existing consumer (filter
-// dropdowns on the Users/Resources/tag pages) already spreads.
-//
-// `pageSize` is also the cache key alongside the TTL: a deployment that changes
-// MATRIX_VALUE_PAGE_SIZE must not keep serving pages cut to the old size.
-export async function getPrincipalColumnValuesMeta() {
-  const now = Date.now();
-  const pageSize = valuePageSize();
-  if (principalValuesCache && principalValuesCache.pageSize === pageSize
-      && (now - principalValuesCacheTime) < COLUMN_CACHE_TTL) {
-    return principalValuesCache;
-  }
-  if (principalValuesInflight) return principalValuesInflight;
-  principalValuesInflight = (async () => {
-    try {
-      const cols = await getPrincipalColumns(null);
-      const [base, ext] = await Promise.all([
-        discoverColumnValues('Principals', cols, pageSize),
-        discoverExtendedAttrValues('Principals', pageSize),
-      ]);
-      const result = { ...mergeValueSets(base, ext), pageSize };
-      principalValuesCache = result;
-      principalValuesCacheTime = Date.now();
-      return result;
-    } finally {
-      principalValuesInflight = null;
-    }
-  })();
-  return principalValuesInflight;
+// dropdowns on the Users/Resources/tag pages) already spreads. The caching
+// policy behind them — including serving stale while revalidating — lives in
+// db/valueCache.js.
+const principalValues = createValueCache('Principals', async (pageSize) => {
+  const cols = await getPrincipalColumns(null);
+  const [base, ext] = await Promise.all([
+    discoverColumnValues('Principals', cols, pageSize),
+    discoverExtendedAttrValues('Principals', pageSize),
+  ]);
+  return mergeValueSets(base, ext);
+});
+
+const resourceValues = createValueCache('Resources', async (pageSize) => {
+  const cols = await getResourceColumns(null);
+  const [base, ext] = await Promise.all([
+    discoverColumnValues('Resources', cols, pageSize),
+    discoverExtendedAttrValues('Resources', pageSize),
+  ]);
+  return mergeValueSets(base, ext);
+});
+
+export function getPrincipalColumnValuesMeta() {
+  return principalValues.get();
 }
 
-export async function getResourceColumnValuesMeta() {
-  const now = Date.now();
-  const pageSize = valuePageSize();
-  if (resourceValuesCache && resourceValuesCache.pageSize === pageSize
-      && (now - resourceValuesCacheTime) < COLUMN_CACHE_TTL) {
-    return resourceValuesCache;
-  }
-  if (resourceValuesInflight) return resourceValuesInflight;
-  resourceValuesInflight = (async () => {
-    try {
-      const cols = await getResourceColumns(null);
-      const [base, ext] = await Promise.all([
-        discoverColumnValues('Resources', cols, pageSize),
-        discoverExtendedAttrValues('Resources', pageSize),
-      ]);
-      const result = { ...mergeValueSets(base, ext), pageSize };
-      resourceValuesCache = result;
-      resourceValuesCacheTime = Date.now();
-      return result;
-    } finally {
-      resourceValuesInflight = null;
-    }
-  })();
-  return resourceValuesInflight;
+export function getResourceColumnValuesMeta() {
+  return resourceValues.get();
 }
 
 export async function getPrincipalColumnValues(_pool) {
@@ -347,10 +431,8 @@ export function clearColumnCaches() {
   principalColumnsCacheTime = 0;
   resourceColumnsCache = null;
   resourceColumnsCacheTime = 0;
-  principalValuesCache = null;
-  principalValuesCacheTime = 0;
-  resourceValuesCache = null;
-  resourceValuesCacheTime = 0;
+  principalValues.clear();
+  resourceValues.clear();
 }
 
 export const getUserColumnValues             = getPrincipalColumnValues;
