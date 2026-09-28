@@ -98,6 +98,28 @@ function Get-SqlSlotEnum {
 # One configured statement → the normalised slot the phases run. Throws an
 # operator-readable error for anything the manifest schema cannot express (a
 # resources/assignments slot without a resourceType, an enum value off the list).
+# The combinations of slot fields that cannot work, refused when the config is
+# read rather than discovered in a job log. They live together because they are
+# one idea — "this statement is asking for two things that contradict each
+# other" — and because Resolve-SqlQuerySlot's job is to NORMALISE, not to judge.
+function Assert-SqlSlotCombination {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Slot, [Parameter(Mandatory)] [string]$Target,
+          [AllowEmptyString()] [string]$Sql, [Parameter(Mandatory)] [string]$QueryName)
+    if ([bool]$Slot.sweep -and $Target -ne 'assignments') {
+        throw "Query '$QueryName': sweep is only supported on an assignments query, not '$Target'"
+    }
+    # A buffered target is sent whole, as ONE full sync. A statement that read a
+    # window would present that window as the complete set, and the sync would
+    # delete every row it did not return.
+    if (([string]$Slot.watermarkColumn).Trim() -and $Target -in @('systems', 'contexts', 'context-members')) {
+        throw "Query '$QueryName': a '$Target' query is sent as one full sync and cannot read a window, so it takes no watermarkColumn"
+    }
+    if ([bool]$Slot.sweep -and -not (Test-SqlDeltaQuery -Sql $Sql)) {
+        throw "Query '$QueryName': sweep is for a statement that reads a window — bind @Since, or turn the sweep off (a statement read in full is reconciled without one)"
+    }
+}
+
 function Resolve-SqlQuerySlot {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $Slot, [int]$Index = 0)
@@ -108,16 +130,7 @@ function Resolve-SqlQuerySlot {
     if (-not $sql.Trim()) { throw "Query '$name': the SQL statement is empty" }
     $resourceType = ([string]$Slot.resourceType).Trim()
     if ($target -in @('resources', 'assignments') -and -not $resourceType) { throw "Query '$name': a $target query needs a resourceType" }
-    if ([bool]$Slot.sweep -and $target -ne 'assignments') { throw "Query '$name': sweep is only supported on an assignments query, not '$target'" }
-    # A buffered target is sent whole, as ONE full sync. A statement that read a
-    # window would present that window as the complete set, and the sync would
-    # delete every row it did not return.
-    if (([string]$Slot.watermarkColumn).Trim() -and $target -in @('systems', 'contexts', 'context-members')) {
-        throw "Query '$name': a '$target' query is sent as one full sync and cannot read a window, so it takes no watermarkColumn"
-    }
-    if ([bool]$Slot.sweep -and -not (Test-SqlDeltaQuery -Sql $sql)) {
-        throw "Query '$name': sweep is for a statement that reads a window — bind @Since, or turn the sweep off (a statement read in full is reconciled without one)"
-    }
+    Assert-SqlSlotCombination -Slot $Slot -Target $target -Sql $sql -QueryName $name
     $assignmentType   = Get-SqlSlotEnum -Value $Slot.assignmentType   -Default 'Direct'   -Allowed $script:SqlAssignTypes    -Field 'assignmentType'   -QueryName $name
     $relationshipType = Get-SqlSlotEnum -Value $Slot.relationshipType -Default 'Contains' -Allowed $script:SqlRelTypes       -Field 'relationshipType' -QueryName $name
     $principalType    = Get-SqlSlotEnum -Value $Slot.principalType    -Default 'User'     -Allowed $script:SqlPrincipalTypes -Field 'principalType'    -QueryName $name
