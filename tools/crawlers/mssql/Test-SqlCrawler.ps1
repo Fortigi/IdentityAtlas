@@ -365,7 +365,11 @@ Start-Sleep -Seconds 1
 $dcfg = @{ server = "sqldelta-$runId"; database = 'iiq'; configName = "SQL delta test $runId"; systemName = '' }
 $dreg = Register-SqlSystem -Cfg $dcfg
 $dsys = $dreg.systemId
-$sqlDIdent = 'SELECT delta identities'; $sqlDRes = 'SELECT delta entitlements'; $sqlDAsgn = 'SELECT delta grants'
+$sqlDIdent = 'SELECT delta identities'; $sqlDRes = 'SELECT delta entitlements'
+# The SQL boundary is stubbed, but the TEXT still has to be a windowed statement:
+# the slot resolver refuses a watermark column on a statement that does not bind
+# @Since, and the sweep key is a hash of exactly this text.
+$sqlDAsgn = 'SELECT delta grants WHERE modified >= @Since'
 $GRANT_SCOPE = @{ assignmentType = 'Direct'; resourceType = 'Entitlement'; governed = $false }
 
 # The scope's own rows in the database, whenever they were written.
@@ -465,7 +469,7 @@ Write-Result 'A refused run leaves the watermark where it was' `
 
 # 7. The same sweep with the override goes through.
 Remove-CrawlerDeltaToken -SystemId $dsys -Endpoint (Get-SqlSweepKey -Slot $dGrantSlot)
-$dG = Invoke-DeltaRun -MaxDeleteShare 1
+Invoke-DeltaRun -MaxDeleteShare 1 | Out-Null
 $countG = Get-ScopeCount -Entity 'resource-assignments' -SystemId $dsys -Scope $GRANT_SCOPE
 Write-Result 'With the override, the same removal is applied' ($countG -eq 37) "postgres=$countG (was $countF)"
 
