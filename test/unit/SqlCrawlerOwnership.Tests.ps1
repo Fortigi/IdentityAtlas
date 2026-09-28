@@ -270,6 +270,47 @@ Describe 'New-SqlOwnershipStreams' {
     }
 }
 
+# The three ownership scopes are derived from the resources statement's own rows,
+# so they read exactly as much of the source as it did. A windowed resources
+# statement (one that binds @Since) therefore leaves them windowed too, and
+# reconciling them would remove the owner links of every resource outside this
+# run's window. See "Reconcile follows completeness" in
+# docs/architecture/sql-connector-delta.md.
+Describe 'Owner scopes follow their statement completeness' {
+    BeforeEach {
+        Reset-SqlTestState
+        Mock Invoke-IngestAPI $script:IngestMock
+        Mock Invoke-SqlQueryStream $script:StreamMock
+        Mock Update-CrawlerProgress { }
+        Mock Get-CrawlerDeltaTokenRow { @{ token = '1758700000000'; lastSyncAt = '2026-09-27T09:00:00Z' } }
+        $script:rowsToReplay = @((New-TestRow @{ id = 'ent-1'; displayName = 'CRM Reader'; ownerId = 'id-ann'; modified = 1758800000000 }))
+    }
+
+    It 'registers all four scopes as reconcilable when the statement read in full' {
+        $state = New-OwnerState
+        Invoke-SqlSlot -Slot (New-ResourceSlot @{ ownership = $true }) -Connection 'conn' -State $state | Out-Null
+        @($state.Scopes).Count | Should -Be 4
+        @($state.Scopes | Where-Object { -not $_.Complete }).Count | Should -Be 0
+        Invoke-SqlReconcile -State $state | Out-Null
+        # One reconcile call per scope: the owned resources, the ownership
+        # resources, the link and the owner's assignment.
+        @($script:sent | Where-Object { $_.Endpoint -eq 'ingest/reconcile' }).Count | Should -Be 4
+    }
+
+    It 'marks all four unreconcilable when the statement read a WINDOW' {
+        $slot  = New-ResourceSlot @{ ownership = $true; watermarkColumn = 'modified'
+                                     sql = 'SELECT id, displayName, ownerId, modified FROM r WHERE modified >= @Since' }
+        $state = New-OwnerState -Mode 'delta'
+        Invoke-SqlSlot -Slot $slot -Connection 'conn' -State $state | Out-Null
+        @($state.Scopes).Count | Should -Be 4
+        # Not one of them — the owner links of every resource outside the window
+        # would otherwise be removed for having gone untouched.
+        @($state.Scopes | Where-Object { $_.Complete }).Count | Should -Be 0
+        Invoke-SqlReconcile -State $state | Should -Be 0
+        @($script:sent | Where-Object { $_.Endpoint -eq 'ingest/reconcile' }).Count | Should -Be 0
+    }
+}
+
 Describe 'Stream flush order' {
     # A slot's last, PARTIAL batch is only sent when the slot ends; the full ones
     # before it already went out as they filled, in the order records were added.

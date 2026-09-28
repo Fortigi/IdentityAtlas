@@ -38,6 +38,26 @@ describe('QuerySlotEditor render', () => {
     expect(html).toMatch(/<input type="checkbox" checked=""[^>]*\/>\s*Governed/);
   });
 
+  it('an assignments slot is the one that offers a key sweep, with its watermark column', () => {
+    const html = render({ ...newQuerySlot('assignments'), watermarkColumn: 'modified', sweep: true });
+    expect(html).toContain('Watermark column');
+    expect(html).toContain('value="modified"');
+    expect(html).toMatch(/<input type="checkbox" checked=""[^>]*\/>\s*Key sweep/);
+  });
+
+  it('a buffered slot offers neither: it is sent whole, so it cannot read a window', () => {
+    for (const target of ['systems', 'contexts', 'context-members']) {
+      const html = render(newQuerySlot(target));
+      expect(html, target).not.toContain('Watermark column');
+      expect(html, target).not.toContain('Key sweep');
+    }
+    // A streamed one offers the watermark but not the sweep — only an
+    // assignments scope is swept.
+    const resources = render(newQuerySlot('resources'));
+    expect(resources).toContain('Watermark column');
+    expect(resources).not.toContain('Key sweep');
+  });
+
   it('a relationships slot shows only the relationship type', () => {
     const html = render(newQuerySlot('relationships'));
     expect(html).toContain('Relationship type');

@@ -359,9 +359,29 @@ Describe 'Invoke-SqlReconcile' {
         }
     }
 
-    It 'a DELTA run reconciles nothing at all' {
+    # Completeness, not run mode. The reconcile removes what the run did not
+    # touch, which is a removal only when everything still in the source WAS
+    # touched — true of a statement read in full, whatever the run calls itself.
+    It 'a DELTA run still reconciles a scope whose statements read their complete set' {
         $state = New-TestState -Slots @() -SyncMode 'delta'
         Add-SqlReconcileScope -State $state -Endpoint 'ingest/resources' -Scope @{ resourceType = 'Entitlement' }
+        Invoke-SqlReconcile -State $state | Should -Be 2
+        @(Get-Sent 'ingest/reconcile').Count | Should -Be 1
+    }
+
+    It 'never reconciles a scope a WINDOWED statement fed — an untouched row there just did not change' {
+        $state = New-TestState -Slots @() -SyncMode 'delta'
+        Add-SqlReconcileScope -State $state -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' } -Complete $false
+        Invoke-SqlReconcile -State $state | Should -Be 0
+        Should -Invoke Invoke-IngestAPI -Exactly 0
+    }
+
+    It 'one windowed statement makes the whole scope unreconcilable, however many complete ones share it' {
+        $state = New-TestState -Slots @()
+        Add-SqlReconcileScope -State $state -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' } -Complete $true
+        Add-SqlReconcileScope -State $state -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' } -Complete $false
+        Add-SqlReconcileScope -State $state -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' } -Complete $true
+        @($state.Scopes).Count | Should -Be 1
         Invoke-SqlReconcile -State $state | Should -Be 0
         Should -Invoke Invoke-IngestAPI -Exactly 0
     }

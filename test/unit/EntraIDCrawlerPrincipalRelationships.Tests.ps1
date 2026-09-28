@@ -16,6 +16,7 @@ BeforeAll {
     $script:entraDir = Join-Path $script:repoRoot 'tools' 'crawlers' 'entra-id'
     $script:sdkDir   = Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'helpers'
     . (Join-Path $script:sdkDir 'Get-FGServicePrincipalType.ps1')
+    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerDeltaToken.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.Functions.ps1')   # provides Get-FGGroupChildrenParallel (mocked below)
     . (Join-Path $script:entraDir 'EntraIDCrawler.PrincipalRelationships.ps1')
 }

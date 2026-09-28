@@ -33,6 +33,7 @@ BeforeAll {
     . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngest.ps1')
     # Send-IngestBatch, Write-Phase, New-AppRoleResourceId, New-OAuth2ScopeResourceId,
     # Format-FGDelegatedPermissionName, Resolve-DirectoryRolePrincipalType.
+    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerDeltaToken.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.Functions.ps1')
     # ConvertTo-*/New-* pure record shapers the phases call.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Transform.ps1')
