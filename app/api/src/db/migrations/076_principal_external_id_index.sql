@@ -23,8 +23,12 @@
 -- system.
 --
 -- NOT CONCURRENTLY: the migration runner wraps each file in a transaction and
--- CREATE INDEX CONCURRENTLY cannot run inside one. This mirrors migration 075,
--- which built the comparable index on 176k rows in ~0.3 s.
+-- CREATE INDEX CONCURRENTLY cannot run inside one. Measured on the 183k-principal
+-- scale environment: the build takes 154 ms, so the exclusive lock is short.
+--
+-- Measured on that same environment, resolving the owner of all 1,500 logical
+-- applications: 48,523 ms before this index (1,465 sequential scans of the
+-- Principals table, one per distinct owner), 23 ms after it.
 
 CREATE INDEX IF NOT EXISTS "ix_Principals_externalId"
     ON "Principals" ("externalId")
