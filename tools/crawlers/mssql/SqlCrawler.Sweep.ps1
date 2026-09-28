@@ -238,6 +238,34 @@ function Invoke-SqlSweepSlot {
               Scope = $ctx.Scope; Seconds = $sw.Elapsed.TotalSeconds }
 }
 
+# A complete read is at least as good as a sweep, so it restarts the interval.
+# Recorded like any other sweep, which means it too is stored only if the run
+# verifies — and Distinct is false, so it asserts no total it never measured.
+function Add-SqlSweepCovered {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] [hashtable]$Slot)
+    $State.Sweeps.Add(@{ Slot = $Slot.name; Key = (Get-SqlSweepKey -Slot $Slot); Read = [long]0; Staged = [long]0
+                         Skipped = [long]0; Deleted = [long]0; Distinct = $false; Covered = $true
+                         Systems = @(); Scope = (Get-SqlAssignmentScope -Slot $Slot); Seconds = 0 })
+}
+
+# Should this statement be swept in this run, and why (not)? Everything that can
+# say "no" lives here, so the phase below is the sweep itself and nothing else.
+function Get-SqlSweepPlan {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] [hashtable]$Slot)
+    $eligible = Get-SqlSweepEligibility -State $State -Slot $Slot
+    if ($eligible.ok) {
+        $due = Test-SqlSweepDue -State $State -Slot $Slot
+        if ($due.due) { return @{ run = $true; key = $due.key; reason = $due.reason } }
+        return @{ run = $false; reason = "sweep not due for '$($Slot.name)' ($($due.reason))"; colour = 'DarkGray' }
+    }
+    if ($eligible.covered) { Add-SqlSweepCovered -State $State -Slot $Slot }
+    $colour = if ($eligible.covered) { 'DarkGray' } else { 'Yellow' }
+    $reason = if ($eligible.reason) { "sweep skipped for '$($Slot.name)': $($eligible.reason)" }
+    return @{ run = $false; reason = $reason; colour = $colour }
+}
+
 # Sweep every eligible statement whose sweep is due. Runs after every slot has
 # streamed, so the delta half of the run has already inserted whatever is new
 # and the only difference left between source and database is what is gone.
@@ -245,27 +273,14 @@ function Invoke-SqlSweep {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] [AllowNull()] $Connection, [hashtable[]]$Slots = @())
     foreach ($slot in @($Slots | Where-Object { $_.enabled -and $_.sweep })) {
-        $eligible = Get-SqlSweepEligibility -State $State -Slot $slot
-        if (-not $eligible.ok) {
-            if ($eligible.reason) {
-                $colour = if ($eligible.covered) { 'DarkGray' } else { 'Yellow' }
-                Write-Host "`n  sweep skipped for '$($slot.name)': $($eligible.reason)" -ForegroundColor $colour
-            }
-            # A complete read is at least as good as a sweep, so it restarts the
-            # interval — recorded like any other sweep, and therefore stored only
-            # if the run verifies.
-            if ($eligible.covered) {
-                $State.Sweeps.Add(@{ Slot = $slot.name; Key = (Get-SqlSweepKey -Slot $slot); Read = [long]0; Staged = [long]0
-                                     Skipped = [long]0; Deleted = [long]0; Distinct = $false; Covered = $true
-                                     Systems = @(); Scope = (Get-SqlAssignmentScope -Slot $slot); Seconds = 0 })
-            }
+        $plan = Get-SqlSweepPlan -State $State -Slot $slot
+        if (-not $plan.run) {
+            if ($plan.reason) { Write-Host "`n  $($plan.reason)" -ForegroundColor $plan.colour }
             continue
         }
-        $due = Test-SqlSweepDue -State $State -Slot $slot
-        if (-not $due.due) { Write-Host "`n  sweep not due for '$($slot.name)' ($($due.reason))" -ForegroundColor DarkGray; continue }
-        Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Key sweep: $($slot.name) — $($due.reason)" -ForegroundColor Cyan
+        Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Key sweep: $($slot.name) — $($plan.reason)" -ForegroundColor Cyan
         Update-CrawlerProgress -Step "Key sweep: $($slot.name)" -Pct 88
-        $r = Invoke-SqlSweepSlot -State $State -Connection $Connection -Slot $slot -Key $due.key
+        $r = Invoke-SqlSweepSlot -State $State -Connection $Connection -Slot $slot -Key $plan.key
         $State.Sweeps.Add($r)
         Write-Host ("  {0:N0} keys staged across {1} system(s) in {2}s — {3:N0} row(s) removed" -f `
             $r.Staged, @($r.Systems).Count, [Math]::Round($r.Seconds), $r.Deleted) -ForegroundColor Green

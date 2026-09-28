@@ -123,6 +123,27 @@ describe('staged load — merge path', () => {
     expect(a.find(x => x.resourceId === R(1))).toMatchObject({ resourceType: 'Group', deletedAt: null });
   });
 
+  // What a key sweep really sends: POST /ingest/stages/:id/rows stamps the
+  // stage's systemId on every normalized record, so the stage carries the key
+  // columns AND systemId. Before contentColumns() ignored systemId, that read as
+  // an ordinary load — it inserted bare keyed rows with every attribute null.
+  it('is still keys-only once systemId has been stamped on the rows', async () => {
+    await stageLoad(sysA, [row(1, 1, { resourceType: 'Group' }), row(2, 1, { resourceType: 'Group' })]);
+    const st = openStage({ tableName: 'ResourceAssignments', keyColumns: KEYS, systemId: sysA,
+      conflictFilter: FILTER, scopeDeleteFilter: FILTER, ownerId: 1 });
+    await appendToStage(st, [
+      { resourceId: R(1), principalId: P(1), assignmentType: 'Direct', governed: false, systemId: sysA },
+      { resourceId: R(3), principalId: P(1), assignmentType: 'Direct', governed: false, systemId: sysA },
+    ]);
+    const r = await finalizeStage(st, { deleteMissing: true });
+    expect(r).toMatchObject({ path: 'merge', inserted: 0, updated: 0, deleted: 1 });
+    const a = await live(sysA);
+    // R(3) is in the stage but NOT in the table, and a sweep must not create it:
+    // it carries no attributes, so inserting it would be a row that says nothing.
+    expect(a.map(x => x.resourceId)).toEqual([R(1), R(2)]);
+    expect(a.find(x => x.resourceId === R(1))).toMatchObject({ resourceType: 'Group', deletedAt: null });
+  });
+
   it('into a truly empty table: bulk path, indexes rebuilt intact (only when nothing else is in the table)', async () => {
     await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [sysSentinel]);
     const others = Number((await pool.query('SELECT count(*) FROM "ResourceAssignments"')).rows[0].count);
@@ -151,6 +172,57 @@ describe('staged load — merge path', () => {
 
 // Migration 073 / #1270: a system's initial load writes no per-row insert
 // history, and the staged finalize is one of the paths that load arrives by.
+// The ceiling a key sweep puts on its own finalize. This is the one operation in
+// the ingest with no undo, and the count has to be exact rather than estimated —
+// so the delete runs and its transaction is rolled back. That only means anything
+// against a real database, which is why it is asserted here and not with a mock.
+describe('staged load — the delete-share ceiling', () => {
+  const sweep = (systemId, rows, maxDeleteShare) => {
+    const st = openStage({ tableName: 'ResourceAssignments', keyColumns: KEYS, systemId,
+      conflictFilter: FILTER, scopeDeleteFilter: FILTER, ownerId: 1 });
+    return appendToStage(st, rows.map(x => ({ ...x, systemId })))
+      .then(() => finalizeStage(st, { deleteMissing: true, maxDeleteShare }));
+  };
+
+  it('lets a removal inside the share through', async () => {
+    await stageLoad(sysA, [row(1, 1), row(2, 1), row(3, 1), row(4, 1)]);
+    // 1 of 4 is 25%; the ceiling here is 50%.
+    await expect(sweep(sysA, [row(1, 1), row(2, 1), row(3, 1)], 0.5)).resolves.toMatchObject({ deleted: 1 });
+    expect((await live(sysA)).filter(x => x.deletedAt === null)).toHaveLength(3);
+  });
+
+  it('refuses one past the share and leaves every row where it was', async () => {
+    await stageLoad(sysA, [row(1, 1), row(2, 1), row(3, 1), row(4, 1)]);
+    const before = await live(sysA);
+    // 3 of 4 is 75%. A source caught mid-aggregation presents exactly like this.
+    await expect(sweep(sysA, [row(1, 1)], 0.5)).rejects.toMatchObject({ status: 409, deleted: 3, scopeRows: 4 });
+    const after = await live(sysA);
+    expect(after.filter(x => x.deletedAt === null)).toHaveLength(4);
+    // Not "deleted and apologised": the rollback means nothing was written at all.
+    expect(after.map(x => x.updatedAt.getTime())).toEqual(before.map(x => x.updatedAt.getTime()));
+  });
+
+  it('measures the share against THIS system and scope, not the whole table', async () => {
+    await stageLoad(sysA, [row(1, 1), row(2, 1)]);
+    await stageLoad(sysB, [row(11, 1), row(12, 1), row(13, 1), row(14, 1), row(15, 1), row(16, 1), row(17, 1), row(18, 1)]);
+    // 1 of A's 2 rows is 50%, even though it is 1 of 10 across the table.
+    await expect(sweep(sysA, [row(1, 1)], 0.4)).rejects.toMatchObject({ status: 409, scopeRows: 2 });
+    expect((await live(sysB)).filter(x => x.deletedAt === null)).toHaveLength(8);
+  });
+
+  it('does not count rows that are already tombstoned', async () => {
+    await stageLoad(sysA, [row(1, 1), row(2, 1), row(3, 1), row(4, 1)]);
+    await stageLoad(sysA, [row(1, 1), row(2, 1)]);            // 3 and 4 tombstoned
+    // 1 of the 2 rows still live is 50%, not 1 of the 4 rows present.
+    await expect(sweep(sysA, [row(1, 1)], 0.4)).rejects.toMatchObject({ status: 409, deleted: 1, scopeRows: 2 });
+  });
+
+  it('without a ceiling the removal goes through however large', async () => {
+    await stageLoad(sysA, [row(1, 1), row(2, 1), row(3, 1), row(4, 1)]);
+    await expect(sweep(sysA, [row(1, 1)], 0)).resolves.toMatchObject({ deleted: 3 });
+  });
+});
+
 describe('staged load — initial-load history', () => {
   const inserts = async (systemId) => Number((await pool.query(
     `SELECT count(*) FROM "_history" WHERE "tableName" = 'ResourceAssignments' AND "operation" = 'I'

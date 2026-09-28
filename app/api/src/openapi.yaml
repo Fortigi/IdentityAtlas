@@ -366,13 +366,20 @@ paths:
         bare, rebuild (under an exclusive lock, falling back when it cannot be had);
         otherwise insert new rows, update only changed rows, and with deleteMissing remove
         rows of the system and scope that are not in the stage. The body reports which path ran.
+        maxDeleteShare (0 < share <= 1) caps that removal at a share of the scope's live rows:
+        above it the finalize is rolled back and answers 409, so a source read mid-aggregation
+        cannot empty a scope. Omit it for no ceiling.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
         '200':
           description: path, inserted, updated, deleted, rows
+        '400':
+          description: maxDeleteShare is not a share
         '404':
           description: Unknown or expired stage
+        '409':
+          description: The removal exceeds maxDeleteShare; nothing was written
   /ingest/stages/finalize:
     post:
       tags: [Ingest]
@@ -380,12 +387,15 @@ paths:
       operationId: finalizeIngestStages
       description: >-
         Finalizes a crawler run's stages together so the whole run gets one chance at the
-        empty-table path; otherwise each stage merges in its own transaction.
+        empty-table path; otherwise each stage merges in its own transaction. deleteMissing and
+        maxDeleteShare apply to every stage of the call, as on the single-stage finalize.
       responses:
         '200':
           description: One result per stage, in the order given
         '400':
-          description: Bad stageIds, or stages of different tables
+          description: Bad stageIds, stages of different tables, or maxDeleteShare is not a share
+        '409':
+          description: A stage's removal exceeds maxDeleteShare; nothing was written
   /ingest/stages/{id}:
     delete:
       tags: [Ingest]
