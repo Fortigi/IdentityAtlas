@@ -127,6 +127,11 @@
               "type": "string",
               "description": "resources / assignments: the resourceType every row gets (e.g. Entitlement, BusinessRole)."
             },
+            "ownership": {
+              "type": "boolean",
+              "default": false,
+              "description": "resources: turn the statement's ownerId column into a real owner you can click, instead of leaving it as an attribute. Adds three rows (an ownership resource, a link and the owner's assignment) per resource that has an owner."
+            },
             "systemType": {
               "type": "string",
               "maxLength": 50,

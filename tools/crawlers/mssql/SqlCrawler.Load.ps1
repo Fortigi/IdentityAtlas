@@ -13,9 +13,9 @@
     in seven places — and forgetting one showed up as "The term
     'New-SqlSystemCatalog' is not recognized", far from its cause.
 
-    Order matters: Transform defines the column contract the rest read, Systems
-    and Contexts define the catalogues Phases fills, and Verify reads the run
-    state Phases creates.
+    Order matters: Transform defines the column contract the rest read, Ownership
+    the owner resolver Contexts and Phases share, Systems and Contexts the
+    catalogues Phases fills, and Verify reads the run state Phases creates.
 
     A caller that wants only part of the crawler (the transform tests shape rows
     with no ingest at all) still dot-sources what it needs directly — this is
@@ -31,6 +31,7 @@ foreach ($f in @(
     (Join-Path $script:SqlSharedDir 'Get-CrawlerSystemName.ps1')
     (Join-Path $script:SqlCrawlerDir 'SqlCrawler.Functions.ps1')
     (Join-Path $script:SqlCrawlerDir 'SqlCrawler.Transform.ps1')
+    (Join-Path $script:SqlCrawlerDir 'SqlCrawler.Ownership.ps1')
     (Join-Path $script:SqlCrawlerDir 'SqlCrawler.Systems.ps1')
     (Join-Path $script:SqlCrawlerDir 'SqlCrawler.Contexts.ps1')
     (Join-Path $script:SqlCrawlerDir 'SqlCrawler.Phases.ps1')

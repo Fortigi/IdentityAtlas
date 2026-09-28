@@ -267,6 +267,67 @@ Write-Result 'A second run resolves the SAME routed systems' (($routed2 -join ',
 $deleted7 = Invoke-SqlReconcile -State $state7
 Write-Result 'A second identical run deletes nothing' ($deleted7 -eq 0) "deleted=$deleted7"
 
+# ── Run 8: owner links, against the real ingest ──────────────────────────────
+# The unit tests mock the ingest entirely, so they cannot say whether a
+# ResourceOwnership resource, a HasOwnership relationship and the owner's Direct
+# assignment are ACCEPTED, or whether the ownership resource's external id
+# resolves across the three endpoints. Only a live run can. It also pins the two
+# behaviours that matter operationally: an owner matching no account creates
+# nothing and does not fail the job, and a repeat run deletes nothing.
+Start-Sleep -Seconds 1
+$reg8 = Register-SqlSystem -Cfg $cfg
+$sqlOwn = 'SELECT owned resources'
+$slots8 = @(
+    (Resolve-SqlQuerySlot -Slot @{ name = 'Identities'; target = 'identities'; sql = $sqlIdent }),
+    (Resolve-SqlQuerySlot -Slot @{ name = 'Owned';      target = 'resources';  sql = $sqlOwn; resourceType = 'Entitlement'; ownership = $true })
+)
+$script:RowsBySlot[$sqlIdent] = @(
+    # The account key and the employee number are deliberately different strings,
+    # so a resolver that echoed its input would fail the "by empno" row below.
+    (New-TestRow @{ id = "o1-$runId"; display_name = 'Olga Owner'; employeeId = "EMP-$runId" })
+)
+$script:RowsBySlot[$sqlOwn] = @(
+    # By account key, by employee number, and one owner who is nobody. The third
+    # must cost the job nothing: 1 of 4 rows is 25%, far past the 5% bound that
+    # fails a run — which it would hit if an unresolved owner counted as unplaced.
+    (New-TestRow @{ id = "w1-$runId"; name = 'Owned by key';      ownerId = "o1-$runId" })
+    (New-TestRow @{ id = "w2-$runId"; name = 'Owned by empno';    ownerId = "EMP-$runId" })
+    (New-TestRow @{ id = "w3-$runId"; name = 'Owned by nobody';   ownerId = "ghost-$runId" })
+    (New-TestRow @{ id = "w4-$runId"; name = 'Owned by no one at all' })
+)
+$state8 = New-SqlRunState -SystemId $systemId -ServerTime $reg8.serverTime -Slots $slots8 -BatchSize 2 -SyncMode 'full'
+$totals8 = @{}
+foreach ($slot in (Get-SqlSlotsInOrder -Slots $slots8)) { $totals8[$slot.name] = Invoke-SqlSlot -Slot $slot -Connection $null -State $state8 }
+$own8 = $totals8['Owned'].ownership
+Write-Result 'Two owners resolved, one by employee number' ($own8.ownershipsEmitted -eq 2 -and $own8.ownersKeyed -eq 1 -and $own8.ownersMapped -eq 1) `
+    "emitted=$($own8.ownershipsEmitted), keyed=$($own8.ownersKeyed), mapped=$($own8.ownersMapped)"
+Write-Result 'An owner matching nobody is reported, not dropped silently' ($own8.ownersUnresolved -eq 1 -and $own8.ownersUnresolvedRows -eq 1) `
+    "unresolved=$($own8.ownersUnresolved) ($($own8.ownersUnresolvedSample -join ', '))"
+Write-Result 'An unresolvable owner is not charged to the unplaced bound' ($totals8['Owned'].skipped -eq 0 -and $totals8['Owned'].dangling -eq 0) `
+    "skipped=$($totals8['Owned'].skipped), dangling=$($totals8['Owned'].dangling)"
+Invoke-SqlReconcile -State $state8 | Out-Null
+Write-Result 'The ingest accepted the owner links and they verify' (Test-Verified -State $state8) `
+    (($state8.Verification | ForEach-Object { "$($_.scope)=$($_.atlas)" }) -join ', ')
+foreach ($pair in @(
+    @{ Key = 'ownership resources'; Entity = 'resources'; Scope = @{ resourceType = 'ResourceOwnership' } }
+    @{ Key = 'HasOwnership links';  Entity = 'resource-relationships'; Scope = @{ relationshipType = 'HasOwnership' } }
+    @{ Key = 'owner assignments';   Entity = 'resource-assignments'; Scope = @{ assignmentType = 'Direct'; resourceType = 'ResourceOwnership'; governed = $false } }
+)) {
+    $r = Invoke-Api -Path '/ingest/count' -Method Post -Body @{ entity = $pair.Entity; systemId = $systemId; scope = $pair.Scope; before = $reg8.serverTime }
+    Write-Result "Database holds 2 $($pair.Key)" ([int]$r.count -eq 2) "count=$([int]$r.count)"
+}
+
+# The same rows again: the ownership ids are derived from the owned resources',
+# so a second run upserts and the three owner scopes reconcile nothing away.
+Start-Sleep -Seconds 1
+$reg9 = Register-SqlSystem -Cfg $cfg
+$state9 = New-SqlRunState -SystemId $systemId -ServerTime $reg9.serverTime -Slots $slots8 -BatchSize 2 -SyncMode 'full'
+foreach ($slot in (Get-SqlSlotsInOrder -Slots $slots8)) { Invoke-SqlSlot -Slot $slot -Connection $null -State $state9 | Out-Null }
+$deleted9 = Invoke-SqlReconcile -State $state9
+Write-Result 'A repeat run deletes and recreates no owner link' ($deleted9 -eq 0) "deleted=$deleted9"
+Write-Result 'The repeat run still verifies' (Test-Verified -State $state9) `
+    (($state9.Verification | ForEach-Object { "$($_.scope)=$($_.atlas)" }) -join ', ')
+
 # ── Reconcile safety: the endpoint refuses what it must ──────────────────────
 foreach ($case in @(
     @{ Name = 'unsystemed entity'; Body = @{ entity = 'identities'; systemId = $systemId; before = $reg.serverTime } },

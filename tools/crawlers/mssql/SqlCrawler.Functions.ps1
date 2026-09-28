@@ -96,6 +96,12 @@ function Resolve-SqlQuerySlot {
         columnMap        = (ConvertTo-SqlColumnMapTable -Value $Slot.columnMap -QueryName $name)
         enabled          = -not ($null -ne $Slot.enabled -and -not [bool]$Slot.enabled)
         resourceType     = $resourceType
+        # resources: turn the statement's ownerId column into a real owner link
+        # (an ownership resource + HasOwnership + a Direct assignment) instead of
+        # leaving it as an attribute. Off by default and on no other target: it
+        # costs three rows per owned resource, which is a decision an operator
+        # takes per statement — docs/sync/mssql.md -> "What owners cost".
+        ownership        = ($target -eq 'resources' -and [bool]$Slot.ownership)
         assignmentType   = $assignmentType
         governed         = [bool]$Slot.governed
         relationshipType = $relationshipType

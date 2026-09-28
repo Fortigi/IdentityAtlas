@@ -140,6 +140,15 @@ This is why we can store *both*:
 
 A user who is both a member and an owner of a group holds two separate resources: the group itself (a `Direct` membership) and a synthetic `GroupOwnership` resource named `Owner @ <group>` (also a `Direct` membership). Migration 046 rewrote the old `assignmentType='Owner'` rows into Direct assignments on this ownership resource, linked back to the group by a `HasOwnership` relationship — mirroring how an `AppRole` hangs off its `Application`. The matrix therefore shows ownership as its own row, with a normal **D** badge, rather than a separate `O`-type cell on the group row. No client-side row-splitting is involved.
 
+The same shape, and the same row, is what every other ownership type produces:
+`ServicePrincipalOwnership` / `ApplicationOwnership` from the Entra app-owner phase
+(linked by `HasAppOwnership`), and `ResourceOwnership` from the SQL connector, whose
+`resourceType` is whatever the operator's statement loaded, so one generic ownership type
+covers all of them and the owned type rides on
+`extendedAttributes.ownedResourceType`. The list every consumer filters on is
+[`app/api/src/lib/ownershipTypes.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/lib/ownershipTypes.js)
+— nothing here needs to know which crawler wrote the row.
+
 Ownership types stay **visible** under "Default row visibility" above, and the distinction is the point of that section: a business-role row duplicates something the matrix already shows as a column, while an ownership row is the *only* place the matrix shows who controls a group. Hiding it would remove information, not a duplicate.
 
 ## Access-package columns — role scopes badge like memberships

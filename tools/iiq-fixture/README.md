@@ -75,6 +75,7 @@ IdentityIQ parameters ([`lib/params.mjs`](lib/params.mjs), `--iiq k=v`):
 | `catalogKeys` | 7 neutral field names | keys inside each catalogue entry |
 | `workgroups` | 60 | workgroup rows in `spt_identity`, on top of the principals |
 | `roleGrantedShare` | 0.2 | grants that came from a role (`granted_by_role = 1`) |
+| `ownedShare` | 0.6 | entitlements carrying an owner (`spt_managed_attribute.owner`, an `spt_identity.id`). Business roles and the logical-application catalogue always have one; `spt_application` never does. This is the number that sets what the SQL connector's owner links cost — see `docs/sync/mssql.md` → "What owners cost" — and it is a realistic choice, not a production measurement |
 | `requestedShare` | 0.15 | other grants requested through LCM (`assigned = 1`) |
 | `appNameDriftShare` | 0.002 | entitlements whose application name differs from the catalogue only by case or a trailing space |
 | `unassignedAppShare` | 0 | entitlements with no logical application |

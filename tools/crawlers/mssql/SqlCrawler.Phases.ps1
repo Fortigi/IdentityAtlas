@@ -85,6 +85,9 @@ function New-SqlRunState {
         # catalogue names a person the way people are named on paper; principals
         # are keyed on the directory's own id. See Resolve-SqlContextOwner.
         PrincipalsByEmployeeId = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        # What the ownership columns produced across the run (one tally, however
+        # many statements ask for owners). SqlCrawler.Ownership.ps1.
+        Ownership       = New-SqlOwnershipTally
         HasResources    = ($targets -contains 'resources')
         HasPrincipals   = ($targets -contains 'identities' -or $targets -contains 'principals')
         Scopes          = [System.Collections.Generic.List[hashtable]]::new()
@@ -129,14 +132,14 @@ function Add-SqlReconcileScope {
 # A slot that routes nothing therefore opens exactly the one stream it always did.
 function New-SqlStreamSpec {
     [CmdletBinding()]
-    param([hashtable]$State, [string]$Endpoint, [hashtable]$Scope = @{}, [string[]]$KeyFields = @('externalId'), [switch]$Reconcile)
+    param([hashtable]$State, [string]$Endpoint, [hashtable]$Scope = @{}, [string[]]$KeyFields = @('externalId'), [switch]$Reconcile, [switch]$Keyed)
     $expect = $null
     if ($Reconcile) {
         # Every reconciled scope is also verified at the end of the run. The
         # expectation spans the scope's SYSTEMS (the reconcile does not): the
         # source's own counts are per statement, not per system, so the only
         # honest comparison sums the database's rows over the systems fed.
-        $expect = Get-SqlExpectation -State $State -Key (Get-SqlScopeKey -Endpoint $Endpoint -Scope $Scope) -Endpoint $Endpoint -Scope $Scope
+        $expect = Get-SqlExpectation -State $State -Key (Get-SqlScopeKey -Endpoint $Endpoint -Scope $Scope) -Endpoint $Endpoint -Scope $Scope -Keyed:$Keyed
         $expect.Slots++
     }
     return @{ Endpoint = $Endpoint; Scope = $Scope; KeyFields = $KeyFields; Reconcile = [bool]$Reconcile
@@ -185,7 +188,11 @@ function New-SqlSlotStreams {
             }
         }
         'identity-members' { return @{ member = New-SqlStreamSpec -State $State -Endpoint 'ingest/identity-members' -KeyFields $memberKeys } }
-        'resources'        { return @{ resource = New-SqlStreamSpec -State $State -Endpoint 'ingest/resources' -Scope @{ resourceType = $Slot.resourceType } -Reconcile } }
+        'resources' {
+            $streams = @{ resource = New-SqlStreamSpec -State $State -Endpoint 'ingest/resources' -Scope @{ resourceType = $Slot.resourceType } -Reconcile }
+            if ($Slot.ownership) { foreach ($e in (New-SqlOwnershipStreams -State $State).GetEnumerator()) { $streams[$e.Key] = $e.Value } }
+            return $streams
+        }
         'assignments' {
             $scope = @{ assignmentType = $Slot.assignmentType; resourceType = $Slot.resourceType; governed = [bool]$Slot.governed }
             return @{ assignment = New-SqlStreamSpec -State $State -Endpoint 'ingest/resource-assignments' -Scope $scope -KeyFields @('resourceExternalId', 'principalExternalId') -Reconcile }
@@ -272,6 +279,7 @@ function Add-SqlResourceRow {
     Add-CrawlerIngestStreamRecord -Stream (Get-SqlSlotStream -Ctx $Ctx -Role 'resource' -SystemId $sid) -Record $rec
     Add-SqlExpectedKey -Expectation $Ctx.Streams.resource.Expect -Key $rec.externalId
     Add-SqlKnownKey -Known $Ctx.State.KnownResources -Key $rec.externalId -SystemId $sid -Catalog $Ctx.State.Systems
+    if ($Ctx.Slot.ownership) { Add-SqlOwnershipRow -Row $Row -Ctx $Ctx -Resource $rec -SystemId $sid }
 }
 
 function Add-SqlAssignmentRow {
@@ -382,6 +390,37 @@ function New-SqlRowCallback {
     return { param($Row) Add-SqlStreamedRow -Row $Row }
 }
 
+# The order a slot's streams must be flushed in: a role is listed AFTER
+# everything its records point at. An unlisted role flushes last, in whatever
+# order the hashtable gives.
+#
+# This is not cosmetic. `IdentityMembers.identityId` has a real foreign key, and
+# a slot's final, PARTIAL batch is only sent here — the full batches before it
+# went out from Add-CrawlerIngestStreamRecord as they filled, in the order the
+# records were added, which is already correct. So the last batch of an
+# `identities` statement was the one at risk, and it is exactly the batch that
+# holds a first run's remainder. Flushed member-first, it inserted links to
+# identities that did not exist yet: "insert or update on table IdentityMembers
+# violates foreign key constraint IdentityMembers_identityId_fkey".
+#
+# It stayed hidden because a hashtable's enumeration order is arbitrary but
+# STABLE, and because every scenario that hit the bad order happened to be
+# re-running over identities a previous run had already created — an UPDATE has
+# nothing to violate. A brand-new person in a batch that never fills is what
+# makes it fire. (The shipped presets use the `principals` target, which emits a
+# member only for a row carrying an identityId, which is why no field run hit it.)
+#
+# Nothing else here has a foreign key — ResourceAssignments and
+# ResourceRelationships deliberately have none, and their cross-references are
+# derived from external ids rather than looked up, so their content is right
+# whatever the order. They are ordered anyway: an order that is correct only
+# because the database does not check it is a trap for the next person.
+$script:SqlStreamFlushOrder = @(
+    'identity', 'principal', 'member',
+    'resource', 'ownershipResource', 'ownershipRelationship', 'ownershipAssignment',
+    'relationship', 'assignment'
+)
+
 # Flush every stream a slot opened — one per (role, system) — and return the
 # total records sent.
 function Complete-SqlSlotStreams {
@@ -389,10 +428,21 @@ function Complete-SqlSlotStreams {
     [OutputType([int])]
     param([Parameter(Mandatory)] [hashtable]$Ctx)
     $sent = 0
-    foreach ($spec in $Ctx.Streams.Values) {
-        foreach ($s in $spec.Streams.Values) { $sent += (Complete-CrawlerIngestStream -Stream $s).sent }
+    foreach ($role in (Get-SqlFlushOrder -Roles @($Ctx.Streams.Keys))) {
+        foreach ($s in $Ctx.Streams[$role].Streams.Values) { $sent += (Complete-CrawlerIngestStream -Stream $s).sent }
     }
     return $sent
+}
+
+# A slot's roles in dependency order. A role the order does not name keeps its
+# place at the end rather than being dropped — a new role must never stop being
+# flushed just because nobody added it to the list.
+function Get-SqlFlushOrder {
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([string[]]$Roles = @())
+    $known = @($script:SqlStreamFlushOrder | Where-Object { $_ -in $Roles })
+    return @($known) + @($Roles | Where-Object { $_ -notin $script:SqlStreamFlushOrder })
 }
 
 # How many systems a slot's rows were spread over.
@@ -426,7 +476,9 @@ function Invoke-SqlSlot {
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] $($Slot.name) → $($Slot.target)$(if ($Slot.paged) { ' (paged)' })" -ForegroundColor Cyan
     Update-CrawlerProgress -Step "Query: $($Slot.name)" -Pct $Pct
     $ctx = @{ Slot = $Slot; Map = $null; Streams = (New-SqlSlotStreams -Slot $Slot -State $State); State = $State
-              Route = 'fixed'; Rows = 0; Skipped = 0; Dangling = 0; Unresolved = 0; Misrouted = 0 }
+              Route = 'fixed'; Rows = 0; Skipped = 0; Dangling = 0; Unresolved = 0; Misrouted = 0
+              # This statement's own owner tally, folded into the run's at the end.
+              Ownership = (New-SqlOwnershipTally) }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $rows = Invoke-SqlQueryStream -Connection $Connection -Sql $Slot.sql -OnRow (New-SqlRowCallback -Ctx $ctx -Handler (Get-SqlRowHandler -Target $Slot.target)) `
         -CommandTimeout $State.CommandTimeout -Paged $Slot.paged -PageSize $State.PageSize
@@ -436,8 +488,15 @@ function Invoke-SqlSlot {
     $sw.Stop()
     $systems = Get-SqlSlotSystemCount -Ctx $ctx
     Write-SqlSlotSummary -Ctx $ctx -Rows $rows -Seconds $sw.Elapsed.TotalSeconds -Systems $systems
+    $ownership = $null
+    if ($Slot.ownership) {
+        $ownership = Get-SqlOwnershipReport -Tally $ctx.Ownership
+        Write-SqlOwnershipReport -Report $ownership
+        Join-SqlOwnershipTally -Into $State.Ownership -From $ctx.Ownership
+    }
     $State.Totals[$Slot.name] = @{ target = $Slot.target; rows = $rows; sent = $sent; skipped = $ctx.Skipped
-                                   dangling = $ctx.Dangling; unresolved = $ctx.Unresolved; misrouted = $ctx.Misrouted; systems = $systems }
+                                   dangling = $ctx.Dangling; unresolved = $ctx.Unresolved; misrouted = $ctx.Misrouted; systems = $systems
+                                   ownership = $ownership }
     return $State.Totals[$Slot.name]
 }
 

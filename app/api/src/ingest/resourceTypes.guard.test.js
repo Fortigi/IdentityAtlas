@@ -33,6 +33,11 @@ const OPEN_VOCAB = [
   'Group', 'EntraDirectoryRole', 'BusinessRole', 'Application', 'AppRole',
   'DelegatedPermission', 'GroupOwnership', 'ServicePrincipalOwnership',
   'ApplicationOwnership', 'AzureRoleAssignment', 'Service', 'Entitlement', 'SAPRole',
+  // The SQL connector's one ownership type. It is generic on purpose — that
+  // crawler's resourceType is whatever the operator's statement says, so naming
+  // the ownership after the owned kind would be an unbounded family. Here it is
+  // just another open-vocabulary value that must keep validating.
+  'ResourceOwnership',
 ];
 
 const R = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
