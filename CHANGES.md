@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- The owner of a context is now shown as a person rather than an internal id, on both the context detail header and the contexts page, and clicking it opens that account. An owner that matches no account still shows the value the source gave, so a missing owner is visible instead of silently blank.
+- The SQL Database crawler now resolves an owner the source names by employee number to the matching account, so owners from an IdentityIQ application catalogue resolve to real people. Owners that match nobody are kept exactly as the source spells them and counted in the job log.
+- Logical applications imported from a SQL catalogue now appear as a tree under one root ("Logical Applications") instead of as a flat list of hundreds of top-level entries. The root name is configurable per contexts query in the crawler wizard.
+- The generated scale dataset builds the same single-root tree, so a generated environment and a real SQL connector look alike.
+- Fixed the IdentityIQ preset's application-owner lookup, which returned nothing on deployments that spell the XML key in lower case.
+
+## Changes in this PR
+
 - The SQL Database crawler now imports the manager relationship. An IdentityIQ (or any other) query that returns the manager's key — aliased `managerId`, as the shipped presets do, or `managerExternalId` — now fills the manager on the account and on the person, instead of leaving it as a raw attribute. Org charts, "reports to" filters and the manager-hierarchy contexts work on SQL sources for the first time.
 - The CSV import now maps the `ManagerExternalId` column in `Users.csv`. The column was already documented and already in the sample file, but nothing read it; existing exports start producing an org chart without being changed.
 - A manager may be listed anywhere in the import — before their report, after them, or in an earlier run — and still links.
