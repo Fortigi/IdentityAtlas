@@ -390,6 +390,37 @@ function New-SqlRowCallback {
     return { param($Row) Add-SqlStreamedRow -Row $Row }
 }
 
+# The order a slot's streams must be flushed in: a role is listed AFTER
+# everything its records point at. An unlisted role flushes last, in whatever
+# order the hashtable gives.
+#
+# This is not cosmetic. `IdentityMembers.identityId` has a real foreign key, and
+# a slot's final, PARTIAL batch is only sent here — the full batches before it
+# went out from Add-CrawlerIngestStreamRecord as they filled, in the order the
+# records were added, which is already correct. So the last batch of an
+# `identities` statement was the one at risk, and it is exactly the batch that
+# holds a first run's remainder. Flushed member-first, it inserted links to
+# identities that did not exist yet: "insert or update on table IdentityMembers
+# violates foreign key constraint IdentityMembers_identityId_fkey".
+#
+# It stayed hidden because a hashtable's enumeration order is arbitrary but
+# STABLE, and because every scenario that hit the bad order happened to be
+# re-running over identities a previous run had already created — an UPDATE has
+# nothing to violate. A brand-new person in a batch that never fills is what
+# makes it fire. (The shipped presets use the `principals` target, which emits a
+# member only for a row carrying an identityId, which is why no field run hit it.)
+#
+# Nothing else here has a foreign key — ResourceAssignments and
+# ResourceRelationships deliberately have none, and their cross-references are
+# derived from external ids rather than looked up, so their content is right
+# whatever the order. They are ordered anyway: an order that is correct only
+# because the database does not check it is a trap for the next person.
+$script:SqlStreamFlushOrder = @(
+    'identity', 'principal', 'member',
+    'resource', 'ownershipResource', 'ownershipRelationship', 'ownershipAssignment',
+    'relationship', 'assignment'
+)
+
 # Flush every stream a slot opened — one per (role, system) — and return the
 # total records sent.
 function Complete-SqlSlotStreams {
@@ -397,10 +428,21 @@ function Complete-SqlSlotStreams {
     [OutputType([int])]
     param([Parameter(Mandatory)] [hashtable]$Ctx)
     $sent = 0
-    foreach ($spec in $Ctx.Streams.Values) {
-        foreach ($s in $spec.Streams.Values) { $sent += (Complete-CrawlerIngestStream -Stream $s).sent }
+    foreach ($role in (Get-SqlFlushOrder -Roles @($Ctx.Streams.Keys))) {
+        foreach ($s in $Ctx.Streams[$role].Streams.Values) { $sent += (Complete-CrawlerIngestStream -Stream $s).sent }
     }
     return $sent
+}
+
+# A slot's roles in dependency order. A role the order does not name keeps its
+# place at the end rather than being dropped — a new role must never stop being
+# flushed just because nobody added it to the list.
+function Get-SqlFlushOrder {
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([string[]]$Roles = @())
+    $known = @($script:SqlStreamFlushOrder | Where-Object { $_ -in $Roles })
+    return @($known) + @($Roles | Where-Object { $_ -notin $script:SqlStreamFlushOrder })
 }
 
 # How many systems a slot's rows were spread over.

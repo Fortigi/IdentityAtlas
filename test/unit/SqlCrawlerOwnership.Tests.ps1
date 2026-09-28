@@ -270,6 +270,53 @@ Describe 'New-SqlOwnershipStreams' {
     }
 }
 
+Describe 'Stream flush order' {
+    # A slot's last, PARTIAL batch is only sent when the slot ends; the full ones
+    # before it already went out as they filled, in the order records were added.
+    # So the flush order here is the order of a first run's remainder — and
+    # IdentityMembers.identityId has a real foreign key. Flushed member-first it
+    # inserts links to identities that do not exist yet, which is exactly what
+    # the CI integration run hit. The order used to be a hashtable's, i.e.
+    # arbitrary.
+    It 'sends what is pointed at before what points at it' {
+        $order = Get-SqlFlushOrder -Roles @('member', 'principal', 'identity')
+        $order.IndexOf('identity')  | Should -BeLessThan $order.IndexOf('member')
+        $order.IndexOf('principal') | Should -BeLessThan $order.IndexOf('member')
+    }
+
+    It 'sends an owned resource before the link and the assignment that name it' {
+        $order = Get-SqlFlushOrder -Roles @('ownershipAssignment', 'ownershipRelationship', 'ownershipResource', 'resource')
+        $order.IndexOf('resource')              | Should -BeLessThan $order.IndexOf('ownershipRelationship')
+        $order.IndexOf('ownershipResource')     | Should -BeLessThan $order.IndexOf('ownershipRelationship')
+        $order.IndexOf('ownershipResource')     | Should -BeLessThan $order.IndexOf('ownershipAssignment')
+    }
+
+    It 'keeps a role nobody listed rather than dropping it from the flush' {
+        # A role that falls out of the flush is a batch that is never sent: the
+        # records vanish and the run still reports success. Ordering must never
+        # be able to do that.
+        $order = Get-SqlFlushOrder -Roles @('member', 'somethingNew', 'identity')
+        @($order | Sort-Object) | Should -Be @('identity', 'member', 'somethingNew')
+    }
+
+    It 'flushes every stream of a real slot exactly once, in that order' {
+        Reset-SqlTestState
+        Mock Invoke-IngestAPI $script:IngestMock
+        Mock Invoke-SqlQueryStream $script:StreamMock
+        Mock Update-CrawlerProgress { }
+        # One row with a batch size of 1000: nothing fills, so EVERY batch is a
+        # slot-end flush — the shape that broke.
+        $script:rowsToReplay = @((New-TestRow @{ id = 'ent-1'; displayName = 'CRM Reader'; ownerId = 'id-ann' }))
+        Invoke-SqlSlot -Slot (New-ResourceSlot @{ ownership = $true }) -Connection 'conn' -State (New-OwnerState) | Out-Null
+        $endpoints = @($script:sent | ForEach-Object { $_.Endpoint })
+        $endpoints.Count | Should -Be 4
+        # The owned resource and the ownership resource share an endpoint; the
+        # link and the assignment must both come after both of them.
+        $endpoints.IndexOf('ingest/resource-relationships') | Should -BeGreaterThan 1
+        $endpoints.IndexOf('ingest/resource-assignments')   | Should -BeGreaterThan 1
+    }
+}
+
 Describe 'Invoke-SqlSlot — a resources slot that carries an owner' {
     BeforeEach {
         Reset-SqlTestState
