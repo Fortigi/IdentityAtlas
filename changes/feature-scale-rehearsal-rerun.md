@@ -1,1 +1,0 @@
-- Updated the 41-million-assignment scale report with a full re-measurement after the scale fixes: before-and-after figures for the load, the post-sync work, a restart, every screen, a repeat import and filter-value discovery, what did not improve, and how the test data differs from a real customer's.

@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Updated the 41-million-assignment scale report with a full re-measurement after the scale fixes: before-and-after figures for the load, the post-sync work, a restart, every screen, a repeat import and filter-value discovery, what did not improve, and how the test data differs from a real customer's.
+
+## Changes in this PR
+
 - Fixed the API running out of database connections, and failing requests with "timeout exceeded when trying to connect", while a crawler or report client sends requests in quick succession. Recording when a crawler key or read token was last used no longer writes on every request.
 
 ## Changes in this PR
