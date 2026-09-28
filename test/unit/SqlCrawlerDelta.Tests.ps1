@@ -44,6 +44,16 @@ BeforeAll {
         return Resolve-SqlQuerySlot -Slot $raw
     }
 
+    # A run state whose grants slot read a WINDOW — the state a sweep is for. A
+    # slot that read in full needs no sweep (the reconcile covers it), so every
+    # sweep test has to say which it is.
+    function New-WindowedState {
+        param([hashtable[]]$Slots = @(), [double]$SweepMaxDeleteShare = 0.05, [int]$SweepIntervalHours = 24)
+        $s = New-DeltaState -Slots $Slots -SweepMaxDeleteShare $SweepMaxDeleteShare -SweepIntervalHours $SweepIntervalHours
+        $s.Deltas.Add((New-ArmedDelta -Since 1758700000000))
+        return $s
+    }
+
     function New-DeltaState {
         param([hashtable[]]$Slots = @(), [string]$SyncMode = 'delta', [int]$OverlapSeconds = 900,
               [int]$SweepIntervalHours = 24, [double]$SweepMaxDeleteShare = 0.05)
@@ -401,10 +411,39 @@ Describe 'Get-SqlSweepEligibility' {
         (Get-SqlSweepEligibility -State (New-DeltaState -SweepIntervalHours 0) -Slot (New-DeltaSlot -Extra @{ sweep = $true })).ok | Should -BeFalse
     }
 
+    # A full read already removed what is gone, through the ordinary reconcile,
+    # and touched every surviving row on the way. Sweeping as well reads the whole
+    # table a second time for nothing: on the rehearsal fixture that is 4 million
+    # grants loaded and then 4 million keys swept.
+    It 'skips the sweep when this run read the statement in full, and counts that as swept' {
+        $state = New-DeltaState -SyncMode 'full'
+        $slot  = New-DeltaSlot -Extra @{ sweep = $true }
+        $v = Get-SqlSweepEligibility -State $state -Slot $slot
+        $v.ok | Should -BeFalse
+        $v.covered | Should -BeTrue
+        Mock Invoke-SqlQueryStream { }
+        Mock Update-CrawlerProgress { }
+        Invoke-SqlSweep -State $state -Connection 'conn' -Slots @($slot) | Should -Be 1
+        Should -Invoke Invoke-SqlQueryStream -Exactly 0
+        @($state.Sweeps)[0].Covered | Should -BeTrue
+        @($state.Sweeps)[0].Key | Should -Be (Get-SqlSweepKey -Slot $slot)
+        # Nothing to compare a total against: the sweep never read a key set.
+        @($state.Sweeps)[0].Distinct | Should -BeFalse
+    }
+
+    It 'still sweeps when the statement read a window' {
+        $state = New-DeltaState
+        $slot  = New-DeltaSlot -Extra @{ sweep = $true }
+        $state.Deltas.Add((New-ArmedDelta -Since 1758700000000))   # this run read a WINDOW
+        (Get-SqlSweepEligibility -State $state -Slot $slot).ok | Should -BeTrue
+    }
+
     It 'refuses a paged statement — its key set cannot be read as one distinct set' {
         $slot = New-DeltaSlot -Extra @{ sweep = $true
             sql = 'SELECT principalId, resourceId, modified FROM g WHERE modified >= @Since ORDER BY id OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY' }
-        $v = Get-SqlSweepEligibility -State (New-DeltaState) -Slot $slot
+        $state = New-DeltaState
+        $state.Deltas.Add((New-ArmedDelta -Since 1758700000000))   # this run read a WINDOW
+        $v = Get-SqlSweepEligibility -State $state -Slot $slot
         $v.ok | Should -BeFalse
         $v.reason | Should -Match 'pages with @Offset'
     }
@@ -416,6 +455,7 @@ Describe 'Get-SqlSweepEligibility' {
         $state = New-DeltaState
         $state.Systems.ByKey['APP-1'] = 11
         $state.ResourcesComplete = $false
+        $state.Deltas.Add((New-ArmedDelta -Since 1758700000000))   # this run read a WINDOW
         $v = Get-SqlSweepEligibility -State $state -Slot (New-DeltaSlot -Extra @{ sweep = $true })
         $v.ok | Should -BeFalse
         $v.reason | Should -Match 'could not be placed in the right one'
@@ -424,6 +464,7 @@ Describe 'Get-SqlSweepEligibility' {
     It 'allows the same run once the resources were read in full' {
         $state = New-DeltaState
         $state.Systems.ByKey['APP-1'] = 11
+        $state.Deltas.Add((New-ArmedDelta -Since 1758700000000))   # this run read a WINDOW
         (Get-SqlSweepEligibility -State $state -Slot (New-DeltaSlot -Extra @{ sweep = $true })).ok | Should -BeTrue
     }
 }
@@ -456,7 +497,7 @@ Describe 'Invoke-SqlSweep' {
 
     It 'stages the key set and finalizes it with the ceiling and the delete on' {
         $slot  = New-DeltaSlot -Extra @{ sweep = $true }
-        $state = New-DeltaState -Slots @($slot) -SweepMaxDeleteShare 0.05
+        $state = New-WindowedState -Slots @($slot) -SweepMaxDeleteShare 0.05
         Invoke-SqlSweep -State $state -Connection 'conn' -Slots @($slot) | Should -Be 1
 
         # The complete set, whatever window the delta half read.
@@ -484,7 +525,7 @@ Describe 'Invoke-SqlSweep' {
 
     It 'sends the KEY columns only — a stage carrying anything else would insert, not just remove' {
         $slot = New-DeltaSlot -Extra @{ sweep = $true }
-        Invoke-SqlSweep -State (New-DeltaState -Slots @($slot)) -Connection 'conn' -Slots @($slot) | Out-Null
+        Invoke-SqlSweep -State (New-WindowedState -Slots @($slot)) -Connection 'conn' -Slots @($slot) | Out-Null
         $rows = @($script:sent | Where-Object { $_.Endpoint -match '/rows$' })
         @($rows).Count | Should -Be 1
         $rec = @($rows[0].Body.records)[0]
@@ -493,7 +534,7 @@ Describe 'Invoke-SqlSweep' {
 
     It 'an explicit override sends no ceiling at all' {
         $slot = New-DeltaSlot -Extra @{ sweep = $true }
-        Invoke-SqlSweep -State (New-DeltaState -Slots @($slot) -SweepMaxDeleteShare 1) -Connection 'conn' -Slots @($slot) | Out-Null
+        Invoke-SqlSweep -State (New-WindowedState -Slots @($slot) -SweepMaxDeleteShare 1) -Connection 'conn' -Slots @($slot) | Out-Null
         $final = @($script:sent | Where-Object { $_.Endpoint -eq 'ingest/stages/finalize' })[0]
         $final.Body.maxDeleteShare | Should -Be 1
     }
@@ -507,7 +548,7 @@ Describe 'Invoke-SqlSweep' {
         }
         Mock Remove-CrawlerIngestStage { }
         $slot = New-DeltaSlot -Extra @{ sweep = $true }
-        { Invoke-SqlSweep -State (New-DeltaState -Slots @($slot)) -Connection 'conn' -Slots @($slot) } |
+        { Invoke-SqlSweep -State (New-WindowedState -Slots @($slot)) -Connection 'conn' -Slots @($slot) } |
             Should -Throw -ExpectedMessage '*would remove 60 of 100 rows*'
         Should -Invoke Remove-CrawlerIngestStage -Exactly 1
     }
@@ -515,13 +556,13 @@ Describe 'Invoke-SqlSweep' {
     It 'does nothing when the sweep is not yet due' {
         Mock Get-CrawlerDeltaTokenRow { @{ token = 'x'; lastSyncAt = ([DateTime]::UtcNow.AddHours(-1).ToString('o')) } }
         $slot = New-DeltaSlot -Extra @{ sweep = $true }
-        Invoke-SqlSweep -State (New-DeltaState -Slots @($slot) -SweepIntervalHours 24) -Connection 'conn' -Slots @($slot) | Should -Be 0
+        Invoke-SqlSweep -State (New-WindowedState -Slots @($slot) -SweepIntervalHours 24) -Connection 'conn' -Slots @($slot) | Should -Be 0
         Should -Invoke Invoke-SqlQueryStream -Exactly 0
     }
 
     It 'leaves a statement with no sweep configured alone' {
         $slot = New-DeltaSlot
-        Invoke-SqlSweep -State (New-DeltaState -Slots @($slot)) -Connection 'conn' -Slots @($slot) | Should -Be 0
+        Invoke-SqlSweep -State (New-WindowedState -Slots @($slot)) -Connection 'conn' -Slots @($slot) | Should -Be 0
         Should -Invoke Invoke-SqlQueryStream -Exactly 0
     }
 }

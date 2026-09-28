@@ -20,7 +20,11 @@ is baked in — SailPoint IdentityIQ ships as a worked example, not as special-c
 | `SqlCrawler.Ownership.ps1` | The `ownership` flag on a `resources` slot: the shared owner resolver (account key, then employee number), the ownership resource / `HasOwnership` link / `Direct` owner assignment it emits, their three reconcile scopes, and the per-statement owner tally |
 | `SqlCrawler.Contexts.ps1` | The `contexts` / `context-members` targets: the catalogue, name → key resolution (through the crawler's one name fold, `ConvertTo-SqlNameKey` in the Transform file), and the fold / unresolved report |
 | `SqlCrawler.Phases.ps1` | Per-slot sync phases: open the ingest streams, run the query, shape + stream every row, then the per-scope reconcile |
+| `SqlCrawler.Delta.ps1` | The per-statement **watermark**: the token key (slot name + hash of the SQL), what `@Since` binds to, following the column while rows stream, and where the mark lands (largest value read − overlap, never backwards) |
+| `SqlCrawler.Sweep.ps1` | The **key sweep**: read a statement's complete key set, stage it, and remove what the source no longer has. Due-based, staged per system, finalized with the share ceiling |
 | `../shared/Invoke-CrawlerIngestStream.ps1` | Shared streaming ingest: chunked delta upserts + end-of-run `POST /ingest/reconcile`. Written for this crawler; any large-set crawler can use it |
+| `../shared/Invoke-CrawlerIngestStage.ps1` | Shared staged-load client (`POST /ingest/stages`): open, stream, finalize. The sweep's anti-join delete is one finalize on it |
+| `../shared/Invoke-CrawlerDeltaToken.ps1` | The one client for `/crawlers/delta-tokens`. Graph's delta tokens and this crawler's watermarks share the table, so they share the endpoint-key rules |
 | `CrawlerMeta.js`, `ConfigWizard.jsx`, `Summary.jsx`, `sqlPresets.js`, `wizardLogic.js` | UI: type-picker entry, 4-step wizard (Connection → Credentials → Queries → Schedule), config card, the IdentityIQ example query set, pure wizard logic |
 | `Test-SqlCrawler.ps1` | CI integration test: runs the phases against the live Ingest API with the SQL boundary stubbed (no SQL Server in CI) |
 | `test/unit/SqlCrawler*.Tests.ps1`, `test/unit/CrawlerIngestStream.Tests.ps1` | Pester unit tests |
@@ -43,9 +47,55 @@ So this crawler never holds a result set in memory and never opens a session:
    worker and web container cannot matter). The API soft-deletes every row in that system + scope
    whose `updatedAt` is older — exactly the rows this run did not touch.
 
-A delta run (`_syncMode: 'delta'`) does steps 1–2 only. A run that fails part-way never reaches
-step 3, so a partial read can never delete anything (same fail-safe as `Test-PhaseInputsComplete`
-in midPoint).
+A run that fails part-way never reaches step 3, so a partial read can never delete anything
+(same fail-safe as `Test-PhaseInputsComplete` in midPoint).
+
+**Completeness, not run mode, decides whether a scope is reconciled.** The reconcile removes
+what a run did not touch, which is only a *removal* when everything still in the source WAS
+touched — true of any statement that read its whole table, whatever the run calls itself. So a
+delta run keeps the small scopes exact, and the scope of a **windowed** statement (one that
+binds `@Since`) is never reconciled: there, an untouched row is simply one that did not change.
+`_syncMode: 'full'` means "ignore every stored watermark", which makes every slot complete
+again.
+
+## Reading only what changed
+
+`SqlCrawler.Delta.ps1` + `SqlCrawler.Sweep.ps1`; the design and what it rests on are in
+[docs/architecture/sql-connector-delta.md](../../../docs/architecture/sql-connector-delta.md).
+A refresh has two halves and they need different mechanisms:
+
+| Half | Mechanism | Slot field |
+|---|---|---|
+| Additions and changes | a per-statement **watermark** on a `modified`-like column | `watermarkColumn` + `@Since` in the SQL |
+| Removals | a periodic **key sweep**: the complete key set, anti-joined in PostgreSQL | `sweep` (assignments only) |
+
+Three properties are the point, and each is load-bearing:
+
+- The token key is `sql:<slot name>:<hash of the SQL text>` (`Get-SqlWatermarkKey`). **Editing a
+  statement changes its key**, so the edited query starts from zero instead of silently
+  skipping the rows its new shape would have returned.
+- The mark is written **only after the run verified** (`Save-SqlWatermarks`, called from
+  `Start-SqlCrawler.ps1` after `Test-SqlRunCounts`). An unverified run re-reads its window;
+  upserts are idempotent, so that costs time, never correctness.
+- The stored value is the largest value READ minus `watermarkOverlapSeconds` (default 900), and
+  never moves backwards. Several application servers write the source and their clocks drift.
+
+`@Since` binds as `SqlDbType.BigInt`: the source's `created`/`modified` are `numeric(19,0)`
+epoch **milliseconds** written by the application (assumption A1, confirmed against
+production). A watermark column whose value does not parse as a `long` is reported and its
+token is NOT stored, so the statement keeps reading in full rather than advancing a mark it
+cannot compare.
+
+The sweep runs after every slot has streamed (so the only difference left between source and
+database is what is gone), at most every `sweepIntervalHours`, and its finalize carries
+`maxDeleteShare` — past 5% of a scope the API writes nothing and answers 409. Deleting is the
+one operation here with no undo, and a source read mid-aggregation is indistinguishable from a
+mass revocation.
+
+`Get-SqlSweepEligibility` refuses a sweep when the run routes into several systems but did not
+read its resources in full: a swept pair follows its resource's system, and without every
+resource id it would be staged into the crawler's own system — after which the finalize would
+remove the routed systems' entire scope.
 
 Identities and IdentityMembers have no `systemId` column, so — like midPoint and CSV — they are
 upsert-only and never reconciled.

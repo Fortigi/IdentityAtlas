@@ -36,6 +36,18 @@
 
 $script:SqlSweepEntity = 'resource-assignments'
 
+# Did this slot read the source's complete set this run? True when it has no
+# watermark at all, and when it has one but bound zero — a first run, an edited
+# statement, or a full sync.
+function Test-SqlSlotReadInFull {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] [hashtable]$Slot)
+    $delta = @($State.Deltas | Where-Object { $_.Slot -eq $Slot.name })
+    if ($delta.Count -eq 0) { return $true }
+    return -not $delta[0].Windowed
+}
+
 # May this statement's scope be swept at all? A sweep stages keys per SYSTEM,
 # and an assignment follows its resource's system — so when the run routes into
 # several systems, the sweep needs every resource id this run's resources
@@ -48,6 +60,15 @@ function Get-SqlSweepEligibility {
     param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] [hashtable]$Slot)
     if (-not $Slot.sweep) { return @{ ok = $false; reason = $null } }
     if ($State.SweepIntervalHours -le 0) { return @{ ok = $false; reason = 'sweepIntervalHours is 0' } }
+    # This run already read the statement's complete set — a first run, an edited
+    # statement, or a forced full sync. Its scope is therefore reconciled, which
+    # removes exactly what a sweep would and has already touched every surviving
+    # row. Sweeping as well would read the whole table a SECOND time for nothing:
+    # on the rehearsal fixture, a full load of 4 million grants and then a sweep
+    # of the same 4 million keys.
+    if (Test-SqlSlotReadInFull -State $State -Slot $Slot) {
+        return @{ ok = $false; covered = $true; reason = 'this run read the statement in full, so the reconcile already removed what is gone' }
+    }
     if ($Slot.paged) { return @{ ok = $false; reason = 'the statement pages with @Offset, so its key set cannot be read as one distinct set' } }
     if ((Test-SqlSystemRouting -Catalog $State.Systems) -and -not $State.ResourcesComplete) {
         return @{ ok = $false; reason = 'this run routes into several systems but did not read its resources in full, so a swept key could not be placed in the right one' }
@@ -226,7 +247,18 @@ function Invoke-SqlSweep {
     foreach ($slot in @($Slots | Where-Object { $_.enabled -and $_.sweep })) {
         $eligible = Get-SqlSweepEligibility -State $State -Slot $slot
         if (-not $eligible.ok) {
-            if ($eligible.reason) { Write-Host "`n  sweep skipped for '$($slot.name)': $($eligible.reason)" -ForegroundColor Yellow }
+            if ($eligible.reason) {
+                $colour = if ($eligible.covered) { 'DarkGray' } else { 'Yellow' }
+                Write-Host "`n  sweep skipped for '$($slot.name)': $($eligible.reason)" -ForegroundColor $colour
+            }
+            # A complete read is at least as good as a sweep, so it restarts the
+            # interval — recorded like any other sweep, and therefore stored only
+            # if the run verifies.
+            if ($eligible.covered) {
+                $State.Sweeps.Add(@{ Slot = $slot.name; Key = (Get-SqlSweepKey -Slot $slot); Read = [long]0; Staged = [long]0
+                                     Skipped = [long]0; Deleted = [long]0; Distinct = $false; Covered = $true
+                                     Systems = @(); Scope = (Get-SqlAssignmentScope -Slot $slot); Seconds = 0 })
+            }
             continue
         }
         $due = Test-SqlSweepDue -State $State -Slot $slot

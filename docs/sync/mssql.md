@@ -509,6 +509,10 @@ file has the shape shown under [Configuration](#configuration); on the command l
 | `systemName` | No | the crawler's name | Override for the Identity Atlas system name — see [System naming](#system-naming) |
 | `batchSize` | No | `5000` | Records per ingest call (100–50 000). Rows stream from SQL Server and are flushed every batch, so memory stays flat however large the result set |
 | `pageSize` | No | `10000` | Value bound to `@PageSize` for a query that pages with `@Offset` / `@PageSize` (100–1 000 000) |
+| `watermarkOverlapSeconds` | No | `900` | How far back of its last position each incremental read goes, to cover clock drift between the source's application servers and transactions that commit late (0–604 800) — see [Reading only what changed](#reading-only-what-changed) |
+| `sweepIntervalHours` | No | `24` | How often a query with **Key sweep** on reads its complete key set to find what the source no longer has. A removal shows within one interval. `0` disables the sweep (0–8760) |
+| `sweepMaxDeleteShare` | No | `0.05` | The largest share of a scope a sweep may remove before it refuses and writes nothing |
+| `sweepOverride` | No | `false` | Let a sweep remove any share of a scope, for the one run where a large removal is known to be real |
 | `queries` | Yes | — | The statements to run, one per object type (at least one) — see below |
 
 ### Query slots (`queries[]`)
@@ -517,7 +521,9 @@ file has the shape shown under [Configuration](#configuration); on the command l
 |---|---|---|---|
 | `name` | Yes | — | Label shown in the job log |
 | `target` | Yes | — | Which Identity Atlas object type the rows become: `identities`, `principals`, `identity-members`, `resources`, `assignments`, `relationships`, `contexts` or `context-members` |
-| `sql` | Yes | — | A `SELECT` statement. Reference `@Offset` and `@PageSize` to have the crawler page through it |
+| `sql` | Yes | — | A `SELECT` statement. Reference `@Offset` and `@PageSize` to have the crawler page through it; reference `@Since` (with `watermarkColumn`) to have it read only what changed |
+| `watermarkColumn` | No | — | The returned column whose largest value this run remembers, so the next run binds `@Since` to it, e.g. `modified`. The statement must reference `@Since`. Empty means read in full every run — see [Reading only what changed](#reading-only-what-changed) |
+| `sweep` | `assignments` | `false` | Periodically read this statement's complete key set and remove the assignments the source no longer has. A windowed assignments query needs this, because a watermark cannot see a removal |
 | `columnMap` | No | — | Object of `{ "<source column>": "<contract column>" }` mapping the names this statement's `SELECT` actually returns onto the contract names, so an existing query can run unedited — see [Using a query you already have](#using-a-query-you-already-have) |
 | `enabled` | No | `true` | Set to `false` to keep a slot in the config without running it |
 | `resourceType` | `resources`, `assignments` | — | The `resourceType` every row gets, e.g. `Entitlement`, `BusinessRole` |
@@ -816,17 +822,120 @@ FROM spt_bundle_children bc
 
 ## Scheduling and sync mode
 
-Schedules work exactly as they do for every pull crawler. A **full** sync streams every
-statement and then reconciles (below). A **delta** sync streams every statement and
-upserts what it finds, but skips the reconcile, so nothing is ever deleted by a delta run.
-There is no change feed to read — a delta run re-reads the statements in full — so the
-difference is purely whether removed rows are cleaned up. A common pattern is a nightly
-full sync; use delta runs only when you want to refresh attributes between full syncs
-without paying for the reconcile.
+Schedules work exactly as they do for every pull crawler. By default every statement is
+read in full on every run, and every scope the run wrote to is then reconciled (below) —
+whether the run is labelled full or delta. **What decides whether stale rows are removed
+is not the run's label but whether the statement read the source's complete set.**
+
+A **full** run always reads everything: it ignores any stored position, which is what
+"Force full sync next run" is for.
+
+To make routine refreshes cheap, give the large statements a position to read from —
+[Reading only what changed](#reading-only-what-changed), below.
 
 After each run the `buildContexts` post-sync hook rebuilds the generated contexts
 (departments, org chart, clusters) so the imported data is visible in the matrix straight
 away.
+
+---
+
+## Reading only what changed
+
+A full read of an identity-governance database at production size — 180 000 identities,
+800 000 entitlements, 40 million grants — takes hours and tens of gigabytes of scratch
+space. That is fine for a first load and wrong for a refresh you want to run hourly.
+
+A refresh has two halves, and they need different mechanisms.
+
+### Additions and changes: a watermark
+
+Give the statement a **watermark column** and reference `@Since` in its SQL. The crawler
+remembers the largest value that column returned, and binds it to `@Since` next run:
+
+```sql
+SELECT
+    ie.identity_id AS principalId,
+    ma.id          AS resourceId,
+    COALESCE(ie.modified, ie.created) AS modified   -- the watermark column
+FROM spt_identity_entitlement ie
+INNER JOIN spt_managed_attribute ma
+    ON  ma.application = ie.application
+    AND ma.attribute   = ie.name
+    AND ma.value       = ie.value
+WHERE ie.type = 'Entitlement'
+  AND COALESCE(ie.modified, ie.created) >= @Since
+```
+
+with `"watermarkColumn": "modified"` on the slot (the **Watermark column** field in the
+wizard). Both halves are required: a watermark column without `@Since`, or `@Since`
+without a watermark column, is refused when the configuration is saved.
+
+Four things worth knowing:
+
+- **`@Since` is a `bigint` holding epoch milliseconds**, because that is how IdentityIQ's
+  `created` / `modified` are stored (`numeric(19,0)`, written by the application). A first
+  run, an edited statement and a forced full sync all bind **zero**, which reads
+  everything.
+- **Editing the statement resets it.** The stored position is keyed on a hash of the SQL
+  text, so a changed query starts from zero instead of silently skipping the rows its new
+  shape would have returned.
+- **It is stored only after the run has been verified** end to end. A failed or unverified
+  run re-reads the same window; every ingest is an upsert, so a re-read costs time, never
+  correctness.
+- **Each run goes back a little further than the last one reached** —
+  `watermarkOverlapSeconds`, 15 minutes by default. Several application servers write an
+  IdentityIQ database, their clocks drift, and a long transaction can commit rows stamped
+  earlier than rows a previous run already read. Re-reading a few minutes is cheap;
+  stepping over a row is silent.
+
+A statement **without** a watermark column reads in full every run. That is the right
+answer for anything small — the catalogue, the roles, the role assignments — and it is
+what keeps their scopes exact without any of the machinery below.
+
+### Removals: a key sweep
+
+A watermark can never find a removal: a row deleted at the source does not bump its own
+timestamp on the way out. Neither can the reconcile, which removes what a run did not
+touch — and a windowed run touches almost nothing, so **the scope of a windowed statement
+is never reconciled**.
+
+Turn on **Key sweep** on the assignment slot instead. Periodically — at most once every
+`sweepIntervalHours`, a day by default — the crawler re-runs that statement with `@Since`
+bound to zero, asks only for the pair of ids, and removes every assignment in that scope
+that the source no longer has. A removal therefore shows within one sweep interval while
+the hourly refreshes stay small.
+
+!!! warning "A sweep refuses to remove more than 5% of a scope"
+    A source read while it is being re-aggregated — rows deleted and about to be
+    re-inserted — looks exactly like a mass revocation, and a delete has no undo. Past
+    `sweepMaxDeleteShare` (0.05) the job fails with the counts and **nothing is written**.
+    If the removal is real, set `sweepOverride` for that one run.
+
+    Schedule sweeps **outside** your aggregation window.
+
+### Putting it together
+
+A workable shape for an IdentityIQ estate:
+
+| Statement | Watermark | Sweep | Why |
+|---|---|---|---|
+| Technical applications, identities, entitlements, business roles, role assignments, role composition | — | — | Small enough to read in full; their scopes stay exact through the ordinary reconcile |
+| Entitlement grants (direct and via a role) | `modified` | on | Tens of millions of rows; the one place a full read is an overnight job |
+
+Run it as often as you like; the sweep paces itself.
+
+### What it does not do
+
+- There is **no change feed**. The crawler asks your statement for a window; if your
+  source does not stamp every update, the window misses those rows. Drop the watermark
+  column for that statement and it reads in full again.
+- A **buffered** target — `systems`, `contexts`, `context-members` — is sent whole as one
+  full sync and cannot read a window. The configuration refuses the combination.
+- Reading from an **Azure SQL read-only replica** (`ApplicationIntent=ReadOnly`) is
+  attractive for the sweep, but a replica lags the primary and a position taken there can
+  move past rows the primary already committed. If you use one, widen
+  `watermarkOverlapSeconds` beyond the worst replica lag — or point the delta at the
+  primary. Decide it deliberately.
 
 ---
 

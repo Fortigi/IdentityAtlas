@@ -1,11 +1,16 @@
-# SQL Connector: Delta Loading (design)
+# SQL Connector: Delta Loading
 
-!!! warning "Design, not yet built"
-    This page is the plan for incremental loads through the [SQL connector](../sync/mssql.md).
-    Several of its steps depend on how the source records changes. Those are written down
-    as **assumptions** (A1–A9) with the discovery query that settles each one and what
-    changes if it turns out false. Nothing here is implemented until the assumptions it
-    rests on are confirmed.
+!!! success "Built — steps 1 to 3"
+    The watermark, reconcile-by-completeness and the key sweep are implemented and
+    rehearsed end to end against the [IdentityIQ-shaped fixture](https://github.com/Fortigi/IdentityAtlas/tree/main/tools/iiq-fixture).
+    Step 4, the sweep narrowed to changed identities, is **not** built: it depends on
+    A9, which is still open.
+
+    Several steps depend on how the source records changes. Those are written down as
+    **assumptions** (A1–A9) with the discovery query that settles each one and what
+    changes if it turns out false. What the implementation relies on, and what happens
+    to it if an open assumption turns out false, is in
+    [What the implementation rests on](#what-the-implementation-rests-on).
 
 ## Why
 
@@ -157,14 +162,36 @@ what it touched (rows touched since the run started equal the delta's distinct k
 
 Staged after a full load is proven end to end, as agreed:
 
-1. **Watermark for the grant statements** (A1, A2, A3). Token storage, `@Since`, the
+1. ✅ **Watermark for the grant statements** (A1, A2, A3). Token storage, `@Since`, the
    overlap, and storing the token only after verification.
-2. **Reconcile by completeness.** Full-read slots reconcile in delta runs (A6, A7).
-3. **Key sweep**, on the shared staging primitive once it exists (A5, and the 5% guard).
-4. **Narrowed sweep**, only if A9 holds and the primitive supports a principal bound.
+2. ✅ **Reconcile by completeness.** Full-read slots reconcile in delta runs (A6, A7).
+3. ✅ **Key sweep**, on the shared staging primitive (A5, and the 5% guard).
+4. ⬜ **Narrowed sweep**, only if A9 holds and the primitive supports a principal bound.
 
 Each step lands with its own tests against the
 [IdentityIQ-shaped fixture](https://github.com/Fortigi/IdentityAtlas/tree/main/tools/iiq-fixture). Its
-timestamps already follow A1/A2, and it needs a mutation script (update some grants,
-delete some, re-insert some) to rehearse a delta and a sweep. That script is the next
-piece of fixture work.
+timestamps already follow A1/A2, and `sql/03-mutate.sql` moves it the way a source moves
+between two refreshes — updated grants, deleted grants, grants deleted and re-inserted
+**unchanged** (the A4 shape), a new identity with grants, a removed entitlement and every
+grant of it, and one identity touched with none of its grants changed (the A9 shape).
+Every key it changes is written to a `fixture_mutation` table first, so a rehearsal
+compares the database against the rows that actually moved rather than against what the
+crawler reports.
+
+## What the implementation rests on
+
+| Assumption | Relied on? | If it turns out false |
+|---|---|---|
+| **A1** ✅ epoch milliseconds, application-written | **Yes.** `@Since` binds as `SqlDbType.BigInt` and the overlap is milliseconds. | The statement fails at the server with a conversion error, loudly, on the first run. A `datetime2` source needs the parameter type and the overlap unit changed — the logic around them does not move. A watermark column that returns something a `long` cannot parse is reported and its token is **not stored**, so the statement keeps reading in full rather than advancing a mark it cannot compare. |
+| **A2** `modified` is NULL until first update, then always set | **Partly.** The shipped statements `COALESCE(modified, created)`, so a NULL is handled. That some updates might not bump it is **not** detectable here. | A table whose updates do not always bump `modified` cannot use a watermark: drop `watermarkColumn` and it reads in full again, which restores exactness at the cost of the read. |
+| **A3** clocks drift between writing application servers | **Yes.** `watermarkOverlapSeconds`, default 900. | Nothing breaks; the number is the only thing to change. Too large costs a re-read (upserts, so time only); too small loses rows silently, which is why the default is generous. |
+| **A4** aggregation updates in place | **No.** Nothing depends on it. | A source that deletes and re-inserts makes every aggregated row look new, so the delta reads most of the table and is merely slower — and a sweep running *during* aggregation sees rows that are about to come back. That is what the 5% ceiling refuses, and `ResourceAssignments` is a soft-delete table, so a flapped row heals on the next delta. |
+| **A5** removals are physical deletes | **No.** The sweep finds a removal either way. | If a flag marks removals instead, the watermark finds them too and the sweep becomes redundant for that table — turn `sweep` off and save the read. |
+| **A6** ✅ `spt_identity_assigned_roles` has no timestamps | **Yes, as a default.** The shipped statement has no `@Since`, so it reads in full and its scope is reconciled on every run. | If the table gains a timestamp it can take a `watermarkColumn` like any other, and then needs a sweep. |
+| **A7** the catalogue is one small `spt_custom` row | **No.** It is read in full either way. | Nothing. |
+| **A8** editing an entitlement's logical application bumps its `modified` | **No.** The membership statement has no `@Since`, so it reads in full. | Nothing. |
+| **A9** removing a grant bumps the owning identity's `modified` | **No.** The sweep is a full key sweep. | Nothing today. It is the one thing that would let the sweep be narrowed to changed identities (option B above), and until it is settled the sweep is scheduled instead. |
+
+The **shape** of the source is what an operator configures, not what the code assumes:
+a statement without `@Since` reads in full, and that is always the correct-but-slower
+answer. Every narrowing is opt-in per statement.

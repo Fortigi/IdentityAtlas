@@ -25,6 +25,23 @@ node generate.mjs --out data --scale 0.01
 
 `load.sh` fails when any table's row count differs from what was generated.
 
+To rehearse an **incremental** load, move the fixture the way a real source moves
+between two refreshes:
+
+```bash
+./mutate.sh                     # updated / deleted / reinserted grants, a new
+                                # identity, a removed entitlement, a touched identity
+```
+
+It prints what it changed and records every affected key in a `fixture_mutation`
+table, so a rehearsal compares the database against the rows that actually moved
+rather than against what the crawler says it did. It is deterministic and
+re-runnable: each run takes a new batch number and picks rows it has not touched
+before. See [`sql/03-mutate.sql`](sql/03-mutate.sql) for what each kind of change
+is for — including the two shapes that exist to falsify an assumption rather than
+to confirm one (grants re-inserted **unchanged**, and an identity touched with none
+of its grants changed).
+
 ## What it creates
 
 | Table | At 100% | Notes |
