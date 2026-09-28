@@ -2,3 +2,4 @@
 - Only production dependencies and container base images are updated on the release line; build- and test-only tooling is left alone, since none of it is present in what customers run.
 - Major version updates are never merged unattended. They still get raised, with a note explaining that a person needs to decide whether the change belongs on a stable line.
 - Added documentation on maintaining a release line: what updates itself, what does not, how to port a fix from the main branch, and how to start the next line.
+- Dependency updates are only merged unattended while the pull request is untouched: if anyone pushes a commit to one, it reverts to being merged by hand.

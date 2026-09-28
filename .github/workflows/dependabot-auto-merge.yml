@@ -40,9 +40,22 @@ permissions:
 jobs:
   auto-merge:
     name: 'Auto-merge dependency update'
-    # github.actor is the account that triggered the event. Anything not opened
-    # by Dependabot itself is none of this workflow's business.
-    if: github.actor == 'dependabot[bot]'
+    # Both halves are required, and they check different things:
+    #
+    #   * `pull_request.user.login` is who AUTHORED the PR. This is the real
+    #     scope guard — a PR opened by anyone else is none of this workflow's
+    #     business, whatever later triggers a run on it.
+    #   * `github.actor` is who triggered THIS run. Requiring it too means that
+    #     once a human pushes a commit to a Dependabot branch, the run is
+    #     skipped and the PR reverts to being merged by hand — human-edited
+    #     code should not ride in on a dependency update's automation.
+    #
+    # Both must hold, so the workflow only ever acts on an untouched Dependabot
+    # PR. It is also scoped to release/** by the trigger above; PRs to main are
+    # never considered here.
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Read Dependabot metadata
