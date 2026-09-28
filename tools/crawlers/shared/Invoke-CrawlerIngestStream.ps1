@@ -38,14 +38,42 @@
 
 # The API container's clock, for a timestamp reconcile. Falls back to the local
 # UTC clock only when talking to an API that predates the field.
+#
+# NOT `[string]$who.serverTime`. Invoke-RestMethod parses an ISO-8601 string in a
+# JSON body into a [datetime] IN LOCAL TIME, and [string] on a datetime formats it
+# with the CURRENT CULTURE — so the exact instant the API sent, say
+# "2026-09-28T13:51:49.472Z", came back as "09/28/2026 13:51:49": no offset, and
+# no milliseconds. Both losses matter.
+#
+#   * The offset made the value mean whatever the RECEIVING container's local
+#     time happens to be. Worker and API in different zones and the run's `before`
+#     is hours out.
+#   * The truncation rounds `before` DOWN by up to a second, which silently widens
+#     "what this run touched" to include the tail of the previous run. A full sync
+#     never noticed — it touches everything, so a slightly early `before` changes
+#     nothing — but a delta run verifies a WINDOW, and back-to-back runs then
+#     count each other's rows. It read as the delta having written 48 rows when it
+#     wrote one.
 function Get-CrawlerServerTime {
     [CmdletBinding()]
     [OutputType([string])]
     param()
     $who = Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/whoami" -Headers @{ Authorization = "Bearer $ApiKey" } -TimeoutSec 30
-    if ($who.serverTime) { return [string]$who.serverTime }
+    if ($who.serverTime) { return ConvertTo-CrawlerIsoTime -Value $who.serverTime }
     Write-Host "  whoami carries no serverTime — falling back to the worker clock for the reconcile" -ForegroundColor Yellow
     return [DateTime]::UtcNow.ToString('o')
+}
+
+# Whatever a JSON field carrying an instant deserialised into → an unambiguous
+# round-trip UTC string. A [datetime] is normalised to UTC; anything else is
+# passed through as the API spelled it.
+function ConvertTo-CrawlerIsoTime {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([AllowNull()] $Value)
+    if ($Value -is [datetime])       { return ([datetime]$Value).ToUniversalTime().ToString('o') }
+    if ($Value -is [DateTimeOffset]) { return ([DateTimeOffset]$Value).UtcDateTime.ToString('o') }
+    return [string]$Value
 }
 
 function New-CrawlerIngestStream {
