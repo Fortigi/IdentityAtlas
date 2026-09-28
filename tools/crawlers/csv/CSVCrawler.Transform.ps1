@@ -148,7 +148,7 @@ $script:CsvReservedColumns = @{
     'Contexts.csv'              = @('ExternalId', 'DisplayName', 'TargetType', 'ContextType', 'Description', 'ParentExternalId', 'OwnerUserId', 'SystemName')
     'Resources.csv'             = @('ExternalId', 'DisplayName', 'ResourceType', 'Description', 'SystemName', 'Enabled')
     'ResourceRelationships.csv' = @('ParentExternalId', 'ChildExternalId', 'RelationshipType', 'SystemName')
-    'Users.csv'                 = @('ExternalId', 'DisplayName', 'Email', 'PrincipalType', 'JobTitle', 'Department', 'SystemName', 'Enabled')
+    'Users.csv'                 = @('ExternalId', 'DisplayName', 'Email', 'PrincipalType', 'JobTitle', 'Department', 'ManagerExternalId', 'SystemName', 'Enabled')
     'Identities.csv'            = @('ExternalId', 'DisplayName', 'Email', 'EmployeeId', 'Department', 'JobTitle', 'SystemName')
     'Certifications.csv'        = @('ExternalId', 'ResourceExternalId', 'UserDisplayName', 'Decision', 'ReviewerDisplayName', 'ReviewedDateTime', 'SystemName')
 }
@@ -232,6 +232,13 @@ function Get-CsvColumnPositions {
 
 # ─── Users.csv ───────────────────────────────────────────────────
 # principalType is validated against the canonical set (falls back to 'User').
+#
+# ManagerExternalId is optional and holds another row's ExternalId. It is passed
+# through as `managerExternalId`; the ingest resolves it to the id that manager's
+# own row is keyed by (app/api/src/ingest/normalization.js), so the two rows may
+# arrive in any order and a manager listed before or after their report links
+# just the same. A row naming ITSELF is dropped here — a self-managing record is
+# a directory artefact, not a hierarchy, and it breaks any org-chart walk.
 
 function ConvertTo-CsvUserRecord {
     [CmdletBinding()]
@@ -250,6 +257,10 @@ function ConvertTo-CsvUserRecord {
         email          = if ($Cols.Contains('Email')) { $Row.Email } else { $null }
         jobTitle       = if ($Cols.Contains('JobTitle')) { $Row.JobTitle } else { $null }
         department     = if ($Cols.Contains('Department')) { $Row.Department } else { $null }
+    }
+    if ($Cols.Contains('ManagerExternalId')) {
+        $mgr = [string]$Row.ManagerExternalId
+        if ($mgr.Trim() -and $mgr.Trim() -ne ([string]$Row.ExternalId).Trim()) { $rec['managerExternalId'] = $mgr.Trim() }
     }
     Add-CsvExtendedAttributes -Row $Row -Extra $Extra -Record $rec
     return $rec

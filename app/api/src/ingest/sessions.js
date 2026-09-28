@@ -15,6 +15,7 @@ import { markInitialLoad } from './initialLoad.js';
 import { resolveActiveColumns, discoverColumns, writeSyncLog, scopedDelete, buildUpdateSet, markGovernanceMemberships } from './engine.js';
 import * as db from '../db/connection.js';
 import { createTempTable, bulkInsertIntoTemp } from './tempTableHelpers.js';
+import { repairManagerLinks, columnsHaveManagerLink } from './managerLinks.js';
 
 const sessions = new Map();
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
@@ -216,6 +217,12 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
       );
     }
 
+    // Last thing before the commit: the whole set is in the table now, which is
+    // the only point at which a manager link can be told apart from one whose
+    // manager simply had not arrived yet.
+    const managerLinks = await repairManagerLinks(session.client, session.tableName, session.systemId,
+                                                  columnsHaveManagerLink(session.activeColumns));
+
     await session.client.query('COMMIT');
 
     const startTime = new Date(session.startedAt);
@@ -225,6 +232,7 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
     return {
       syncId, inserted, updated, deleted,
       totalRecords: session.recordCount,
+      ...(managerLinks ? { managerLinks } : {}),
     };
   } catch (err) {
     try { await session.client.query('ROLLBACK'); } catch { /* ignore */ }

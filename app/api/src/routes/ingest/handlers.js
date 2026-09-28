@@ -10,6 +10,7 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { writeSyncLog } from '../../ingest/engine.js';
 import { normalizeRecords, extendedAttributesBoundsError } from '../../ingest/normalization.js';
+import { repairManagerLinks, managerLinkWarning, batchHasManagerLink } from '../../ingest/managerLinks.js';
 import {
   restrictedSystemIds, writableCoreColumns, systemBoundaryDenial,
   preservedOwnerColumns, linkDirectorySystems,
@@ -40,6 +41,25 @@ async function batchBoundaryError(req, body, allowed, ctx) {
   if (!denial) return null;
   console.warn(`Ingest denied for crawler ${req.crawler?.id}: ${denial}`);
   return { status: 403, error: denial };
+}
+
+// The advisory part of a successful ingest response: the systems it touched, the
+// manager links it had to clear, and the human-readable warnings for both. Each
+// key is present only when there is something to say, so a clean load answers
+// with counts alone. Also logs the warnings, which is the only record a crawler
+// that ignores the body leaves behind.
+function ingestNotices(entityType, body, { systemIds, managerLinks }) {
+  const ownerWarning = unownedContextWarning(entityType, body.records, body.systemId);
+  if (ownerWarning) console.warn('Ingest contexts: %s', ownerWarning);
+  const managerWarning = managerLinkWarning(managerLinks);
+  if (managerWarning) console.warn('Ingest %s: %s', entityType, managerWarning);
+
+  const warnings = [ownerWarning, managerWarning].filter(Boolean);
+  return {
+    ...(systemIds ? { systemIds } : {}),
+    ...(managerLinks ? { managerLinks } : {}),
+    ...(warnings.length ? { warnings } : {}),
+  };
 }
 
 function createIngestHandler(entityType) {
@@ -114,6 +134,11 @@ function createIngestHandler(entityType) {
       const delErr = await applyDeleteByIds(body, tableName, result, allowed);
       if (delErr) return res.status(delErr.status).json(delErr.body);
 
+      // A single batch IS the whole principals load (a crawler that needs more
+      // than one opens a session instead), so this is the point at which a
+      // manager link can be told apart from one whose manager had not arrived.
+      const managerLinks = await repairManagerLinks(db, tableName, body.systemId, batchHasManagerLink(normalized));
+
       // Context-tree acyclicity is enforced at the database (migration 059's
       // deferred trigger) — a cyclic batch aborts the ingest() commit above and is
       // handled in catch. The old post-ingest breakCycles repair is gone: it
@@ -126,8 +151,7 @@ function createIngestHandler(entityType) {
       const durationMs = Date.now() - startTime.getTime();
       await linkSystemDirectories(entityType);
       const systemIds = await lookupSystemIds(entityType, body.records);
-      const ownerWarning = unownedContextWarning(entityType, body.records, body.systemId);
-      if (ownerWarning) console.warn('Ingest contexts: %s', ownerWarning);
+      const notices = ingestNotices(entityType, body, { systemIds, managerLinks });
 
       return res.status(201).json({
         table: tableName,
@@ -136,8 +160,7 @@ function createIngestHandler(entityType) {
         deleted: result.deleted,
         records: body.records.length,
         durationMs,
-        ...(systemIds ? { systemIds } : {}),
-        ...(ownerWarning ? { warnings: [ownerWarning] } : {}),
+        ...notices,
       });
     } catch (err) {
       console.error(`Ingest error (${entityType}):`, err.message);

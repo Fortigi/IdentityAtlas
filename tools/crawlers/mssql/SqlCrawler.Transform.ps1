@@ -31,8 +31,12 @@ $script:SqlContract = @{
     # city / country / officeLocation are columns on that table, so a statement
     # that aliases to them must land there rather than in extendedAttributes —
     # which is where they went while this list was shorter than the table.
-    identities         = @{ core = @('id', 'displayName', 'email', 'givenName', 'surname', 'department', 'jobTitle', 'companyName', 'employeeId', 'city', 'country', 'officeLocation'); aux = @('name', 'userId', 'principalType', 'enabled', 'active', 'inactive', 'disabled') }
-    principals         = @{ core = @('id', 'displayName', 'email', 'givenName', 'surname', 'department', 'jobTitle', 'companyName', 'employeeId'); aux = @('name', 'userId', 'principalType', 'enabled', 'active', 'inactive', 'disabled', 'identityId') }
+    # managerExternalId / managerId are the two spellings a statement may use for
+    # the manager's key in the SOURCE (see Get-SqlManagerRef). Both are consumed:
+    # the value is a real column on both targets now, not source detail, and
+    # keeping a copy in extendedAttributes would only invite the two to drift.
+    identities         = @{ core = @('id', 'displayName', 'email', 'givenName', 'surname', 'department', 'jobTitle', 'companyName', 'employeeId', 'city', 'country', 'officeLocation', 'managerExternalId', 'managerId'); aux = @('name', 'userId', 'principalType', 'enabled', 'active', 'inactive', 'disabled') }
+    principals         = @{ core = @('id', 'displayName', 'email', 'givenName', 'surname', 'department', 'jobTitle', 'companyName', 'employeeId', 'managerExternalId', 'managerId'); aux = @('name', 'userId', 'principalType', 'enabled', 'active', 'inactive', 'disabled', 'identityId') }
     'identity-members' = @{ core = @('identityId', 'principalId', 'isPrimary', 'accountType'); aux = @() }
     resources          = @{ core = @('id', 'displayName', 'description'); aux = @('name', 'enabled', 'active', 'inactive', 'disabled') }
     assignments        = @{ core = @('resourceId', 'principalId', 'identityId'); aux = @() }
@@ -184,6 +188,26 @@ function Get-SqlDisplayName {
     return $Id
 }
 
+# The manager's key AS THE SOURCE SPELLS IT — never a resolved Atlas id, which a
+# crawler cannot know. The ingest turns it into the id the manager's own row is
+# keyed by (app/api/src/ingest/normalization.js).
+#
+# Two accepted spellings, in order: `managerExternalId`, which says what the value
+# is, and `managerId`, which is what the shipped IdentityIQ presets alias
+# `spt_identity.manager` to and what operators' saved queries therefore use. A
+# statement selecting a raw `manager` column must alias it or map it with
+# columnMap — an unaliased `manager` is a display name as often as a key, and
+# consuming it blind would swap a readable attribute for a link to nobody.
+function Get-SqlManagerRef {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Row, [Parameter(Mandatory)] [hashtable]$Map)
+    foreach ($n in @('managerExternalId', 'managerId')) {
+        $v = Get-SqlMapped -Row $Row -Map $Map -Name $n
+        if ($null -ne $v -and ([string]$v).Trim()) { return ([string]$v).Trim() }
+    }
+    return $null
+}
+
 function Get-SqlPrincipalType {
     [CmdletBinding()]
     [OutputType([string])]
@@ -225,6 +249,11 @@ function ConvertTo-SqlPrincipalRecord {
         accountEnabled = Get-SqlEnabledFlag -Row $Row -Map $Map
     }
     Add-SqlPersonFields -Row $Row -Map $Map -Record $rec
+    # A principal's manager is another ACCOUNT, so the reference resolves in the
+    # principals namespace. Self-management is dropped here rather than sent: it
+    # is a directory artefact, not data, and the ingest would only clear it again.
+    $mgr = Get-SqlManagerRef -Row $Row -Map $Map
+    if ($mgr -and $mgr -ne $id) { $rec['managerExternalId'] = $mgr }
     $ext = Get-SqlExtendedAttributes -Row $Row -Map $Map
     if ($ext) { $rec['extendedAttributes'] = $ext }
     return $rec
@@ -242,6 +271,12 @@ function ConvertTo-SqlIdentityRecord {
         displayName = Get-SqlDisplayName -Row $Row -Map $Map -Fallbacks @('name', 'userId') -Id $id
     }
     Add-SqlPersonFields -Row $Row -Map $Map -Record $rec
+    # An Identity's manager is another IDENTITY — the column is managerIdentityId
+    # and "Identities" has no managerId at all. An identities-target row carries
+    # the person and their account under ONE source id, so the same value keys
+    # both, resolved in a different namespace per side.
+    $mgr = Get-SqlManagerRef -Row $Row -Map $Map
+    if ($mgr -and $mgr -ne $id) { $rec['managerIdentityExternalId'] = $mgr }
     $ext = Get-SqlExtendedAttributes -Row $Row -Map $Map
     if ($ext) { $rec['extendedAttributes'] = $ext }
     return $rec

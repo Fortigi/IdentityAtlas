@@ -300,6 +300,83 @@ Describe 'ConvertTo-SqlIdentityRecord / ConvertTo-SqlPrincipalRecord' {
     }
 }
 
+Describe 'Manager reference' {
+    # The value the ingest resolves. A principal's manager is another ACCOUNT
+    # (managerExternalId); an Identity's is another PERSON
+    # (managerIdentityExternalId). Sending either under the other's name links
+    # into the wrong table, so the two field NAMES are what these assert.
+
+    It 'reads the shipped presets'' alias — `i.manager AS managerId`' {
+        # This is the one that must not break: every IdentityIQ preset and every
+        # operator query copied from the docs spells it managerId.
+        $r = New-Row -Cells @{ id = 'i1'; displayName = 'A'; managerId = 'm1' } -Target 'principals'
+        $rec = ConvertTo-SqlPrincipalRecord -Row $r.Row -Map $r.Map -Slot $script:IdentSlot
+        $rec.managerExternalId | Should -Be 'm1'
+        $rec.Contains('managerId') | Should -BeFalse   # never the resolved-id field
+    }
+
+    It 'reads managerExternalId, and prefers it when a query carries both' {
+        $r = New-Row -Cells ([ordered]@{ id = 'i1'; displayName = 'A'; managerId = 'old'; managerExternalId = 'new' }) -Target 'principals'
+        (ConvertTo-SqlPrincipalRecord -Row $r.Row -Map $r.Map -Slot $script:IdentSlot).managerExternalId | Should -Be 'new'
+    }
+
+    It 'matches the spelling rules the rest of the contract uses' {
+        $r = New-Row -Cells @{ id = 'i1'; displayName = 'A'; manager_id = 'm1' } -Target 'principals'
+        (ConvertTo-SqlPrincipalRecord -Row $r.Row -Map $r.Map -Slot $script:IdentSlot).managerExternalId | Should -Be 'm1'
+    }
+
+    It 'keeps the manager OUT of extendedAttributes now that it fills a column' {
+        $r = New-Row -Cells @{ id = 'i1'; displayName = 'A'; managerId = 'm1'; costcenter = 'CC1' } -Target 'principals'
+        $rec = ConvertTo-SqlPrincipalRecord -Row $r.Row -Map $r.Map -Slot $script:IdentSlot
+        $rec.extendedAttributes.Contains('managerId') | Should -BeFalse
+        $rec.extendedAttributes.costcenter | Should -Be 'CC1'
+    }
+
+    It 'an unaliased `manager` column is left alone — it is a name as often as a key' {
+        $r = New-Row -Cells @{ id = 'i1'; displayName = 'A'; manager = 'Bea Boss' } -Target 'principals'
+        $rec = ConvertTo-SqlPrincipalRecord -Row $r.Row -Map $r.Map -Slot $script:IdentSlot
+        $rec.Contains('managerExternalId') | Should -BeFalse
+        $rec.extendedAttributes.manager | Should -Be 'Bea Boss'
+    }
+
+    It 'an operator columnMap can point any column at the manager' {
+        $map = Resolve-SqlColumnMap -Columns @('id', 'displayName', 'mgr') -Target 'principals' -ColumnMap @{ mgr = 'managerExternalId' }
+        $row = [ordered]@{ id = 'i1'; displayName = 'A'; mgr = 'm1' }
+        $rec = ConvertTo-SqlPrincipalRecord -Row $row -Map $map -Slot $script:IdentSlot
+        $rec.managerExternalId | Should -Be 'm1'
+        # and, being consumed, it is not duplicated into extendedAttributes
+        $rec.Contains('extendedAttributes') | Should -BeFalse
+    }
+
+    It 'the identity half of the SAME row gets managerIdentityExternalId, not managerExternalId' {
+        $r = New-Row -Cells @{ id = 'i1'; displayName = 'A'; managerId = 'm1' } -Target 'identities'
+        $identity = ConvertTo-SqlIdentityRecord -Row $r.Row -Map $r.Map
+        $principal = ConvertTo-SqlPrincipalRecord -Row $r.Row -Map $r.Map -Slot $script:IdentSlot
+        $identity.managerIdentityExternalId | Should -Be 'm1'
+        $identity.Contains('managerExternalId') | Should -BeFalse
+        $principal.managerExternalId | Should -Be 'm1'
+        $principal.Contains('managerIdentityExternalId') | Should -BeFalse
+    }
+
+    It 'drops a row that manages itself rather than sending a self-loop' {
+        $r = New-Row -Cells @{ id = ' i1 '; displayName = 'A'; managerId = 'i1' } -Target 'identities'
+        (ConvertTo-SqlPrincipalRecord -Row $r.Row -Map $r.Map -Slot $script:IdentSlot).Contains('managerExternalId') | Should -BeFalse
+        (ConvertTo-SqlIdentityRecord -Row $r.Row -Map $r.Map).Contains('managerIdentityExternalId') | Should -BeFalse
+    }
+
+    It 'sends nothing when the manager column is NULL or blank' {
+        foreach ($m in @($null, '', '   ')) {
+            $r = New-Row -Cells @{ id = 'i1'; displayName = 'A'; managerId = $m } -Target 'principals'
+            (ConvertTo-SqlPrincipalRecord -Row $r.Row -Map $r.Map -Slot $script:IdentSlot).Contains('managerExternalId') | Should -BeFalse
+        }
+    }
+
+    It 'trims the manager key, so it matches the trimmed id of the manager''s own row' {
+        $r = New-Row -Cells @{ id = 'i1'; displayName = 'A'; managerId = '  m1  ' } -Target 'principals'
+        (ConvertTo-SqlPrincipalRecord -Row $r.Row -Map $r.Map -Slot $script:IdentSlot).managerExternalId | Should -Be 'm1'
+    }
+}
+
 Describe 'Identity member records' {
     It 'links an identity to its own account as the primary, by external id' {
         $rec = New-SqlIdentityMemberRecord -IdentityId 'i1' -PrincipalId 'i1'

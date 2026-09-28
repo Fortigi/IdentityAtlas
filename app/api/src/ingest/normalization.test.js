@@ -456,3 +456,102 @@ describe('normalizeRecords — resolved external references stay out of extended
     expect(ext(m)).toEqual({ memberExternalId: 'alice' });
   });
 });
+
+// ── manager resolution ───────────────────────────────────────────────────────
+//
+// The two manager columns are not interchangeable and sit side by side on
+// Contexts: managerId names a PRINCIPAL, managerIdentityId an IDENTITY. Picking
+// the wrong namespace produces a well-formed UUID that points at nothing, which
+// no "is it a UUID" assertion can tell from a correct one. So every test here
+// compares against the id the TARGET ROW is actually keyed by.
+describe('normalizeRecords — manager resolution', () => {
+  const sys = { idGeneration: 'deterministic', systemPrefix: 'IIQ', systemId: 3 };
+  const pOpts = { ...sys, idPrefix: 'IIQ-principals' };
+  const iOpts = { ...sys, idPrefix: 'IIQ-identities' };
+  const principalCols = ['id', 'externalId', 'displayName', 'managerId', 'systemId', 'extendedAttributes'];
+  const identityCols = ['id', 'externalId', 'displayName', 'managerIdentityId', 'extendedAttributes'];
+  const contextCols = ['id', 'externalId', 'displayName', 'managerId', 'managerIdentityId', 'systemId', 'extendedAttributes'];
+  const ext = (r) => (r.extendedAttributes === undefined ? undefined : JSON.parse(r.extendedAttributes));
+
+  it("fills managerId with the id the manager's own principal row is keyed by", () => {
+    const [manager] = normalizeRecords([{ externalId: 'boss', displayName: 'Boss' }], principalCols, pOpts);
+    const [report] = normalizeRecords([{ externalId: 'alice', displayName: 'Alice', managerExternalId: 'boss' }], principalCols, pOpts);
+    expect(report.managerId).toBe(manager.id);
+    expect(report.managerId).not.toBe(report.id);
+  });
+
+  it('resolves a manager named before OR after the report to the same id', () => {
+    const batch = normalizeRecords([
+      { externalId: 'alice', displayName: 'Alice', managerExternalId: 'boss' },
+      { externalId: 'boss', displayName: 'Boss', managerExternalId: 'ceo' },
+      { externalId: 'ceo', displayName: 'Ceo' },
+    ], principalCols, pOpts);
+    expect(batch[0].managerId).toBe(batch[1].id);
+    expect(batch[1].managerId).toBe(batch[2].id);
+    expect(batch[2].managerId).toBeUndefined();
+  });
+
+  it('does NOT resolve a manager in the identities namespace (the wrong-table trap)', () => {
+    const [identityOfBoss] = normalizeRecords([{ externalId: 'boss', displayName: 'Boss' }], identityCols, iOpts);
+    const [report] = normalizeRecords([{ externalId: 'alice', displayName: 'Alice', managerExternalId: 'boss' }], principalCols, pOpts);
+    expect(report.managerId).not.toBe(identityOfBoss.id);
+  });
+
+  it("fills managerIdentityId with the id the manager's own IDENTITY row is keyed by", () => {
+    const [manager] = normalizeRecords([{ externalId: 'boss', displayName: 'Boss' }], identityCols, iOpts);
+    const [report] = normalizeRecords([{ externalId: 'alice', displayName: 'Alice', managerIdentityExternalId: 'boss' }], identityCols, iOpts);
+    expect(report.managerIdentityId).toBe(manager.id);
+  });
+
+  it('a Context carrying both gets two DIFFERENT ids from the same external id', () => {
+    const [ctx] = normalizeRecords(
+      [{ externalId: 'ou-1', displayName: 'Ops', managerExternalId: 'boss', managerIdentityExternalId: 'boss' }],
+      contextCols, { ...sys, idPrefix: 'IIQ-contexts' });
+    const [principal] = normalizeRecords([{ externalId: 'boss', displayName: 'Boss' }], principalCols, pOpts);
+    const [identity] = normalizeRecords([{ externalId: 'boss', displayName: 'Boss' }], identityCols, iOpts);
+    expect(ctx.managerId).toBe(principal.id);
+    expect(ctx.managerIdentityId).toBe(identity.id);
+    expect(ctx.managerId).not.toBe(ctx.managerIdentityId);
+  });
+
+  it('leaves managerExternalId in extendedAttributes when the table has no managerId', () => {
+    // "Identities" has managerIdentityId and NO managerId. Resolving here would
+    // write a key resolveActiveColumns then throws away — the value would vanish.
+    const [r] = normalizeRecords([{ externalId: 'alice', displayName: 'Alice', managerExternalId: 'boss' }], identityCols, iOpts);
+    expect(r.managerId).toBeUndefined();
+    expect(ext(r)).toEqual({ managerExternalId: 'boss' });
+  });
+
+  it('leaves managerIdentityExternalId in extendedAttributes when the table has no managerIdentityId', () => {
+    const [r] = normalizeRecords([{ externalId: 'alice', displayName: 'Alice', managerIdentityExternalId: 'boss' }], principalCols, pOpts);
+    expect(r.managerIdentityId).toBeUndefined();
+    expect(ext(r)).toEqual({ managerIdentityExternalId: 'boss' });
+  });
+
+  it('a resolved manager is dropped from extendedAttributes', () => {
+    const [r] = normalizeRecords([{ externalId: 'alice', displayName: 'Alice', managerExternalId: 'boss' }], principalCols, pOpts);
+    expect(r).not.toHaveProperty('extendedAttributes');
+  });
+
+  it('does not overwrite a managerId the crawler resolved itself (Entra)', () => {
+    const explicit = '33333333-3333-3333-3333-333333333333';
+    const [r] = normalizeRecords(
+      [{ externalId: 'alice', displayName: 'Alice', managerId: explicit, managerExternalId: 'boss' }], principalCols, pOpts);
+    expect(r.managerId).toBe(explicit);
+    expect(ext(r)).toEqual({ managerExternalId: 'boss' });
+  });
+
+  it('keeps the manager reference untouched when ids are not generated', () => {
+    const [r] = normalizeRecords([{ externalId: 'alice', displayName: 'Alice', managerExternalId: 'boss' }],
+      principalCols, { idGeneration: 'native', systemId: 3 });
+    expect(r.managerId).toBeUndefined();
+    expect(ext(r)).toEqual({ managerExternalId: 'boss' });
+  });
+
+  it('a system prefix containing a hyphen still resolves into its own namespace', () => {
+    const opts = { idGeneration: 'deterministic', idPrefix: 'sql-db1-principals', systemPrefix: 'sql-db1', systemId: 9 };
+    const [manager] = normalizeRecords([{ externalId: 'boss', displayName: 'Boss' }], principalCols, opts);
+    const [report] = normalizeRecords([{ externalId: 'alice', displayName: 'Alice', managerExternalId: 'boss' }], principalCols, opts);
+    expect(report.managerId).toBe(manager.id);
+  });
+});

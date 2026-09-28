@@ -87,6 +87,9 @@ beforeEach(() => {
 
 // A valid principals record for the happy path.
 const goodPrincipal = { records: [{ displayName: 'Alice' }], systemId: 1, syncMode: 'full' };
+// The same batch, but carrying a manager link — which is what makes the
+// end-of-load manager repair run at all.
+const withManager = { records: [{ displayName: 'Alice', managerId: UUID }], systemId: 1, syncMode: 'full' };
 
 // ── Empty batches ────────────────────────────────────────────────────────────
 //
@@ -193,6 +196,51 @@ describe('ingest handler — single batch', () => {
     expect(res.body.records).toBe(1);
     expect(typeof res.body.durationMs).toBe('number');
     expect(mockIngest).toHaveBeenCalledOnce();
+  });
+
+  it('reports the manager links it had to clear, and warns about them', async () => {
+    // The repair is the only thing standing between a dangling managerId and a
+    // principal that reads as "has a manager" while every join through it is
+    // empty — so the response has to say it happened, not just do it.
+    mockIngest.mockResolvedValue({ inserted: 1, updated: 0, deleted: 0 });
+    mockQuery.mockImplementation(async (sql) => {
+      const s = String(sql);
+      // managerId has to be a real column for the batch to carry the link.
+      if (/information_schema\.columns/.test(s)) {
+        return { rows: [{ column_name: 'id' }, { column_name: 'display_name' }, { column_name: 'manager_id' }], rowCount: 0 };
+      }
+      if (s.includes('"managerId" = NULL')) return { rows: [{ unresolved: 2, selfReferences: 1 }], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    });
+
+    const res = await request(app).post('/ingest/principals').send(withManager);
+    expect(res.status).toBe(201);
+    expect(res.body.managerLinks).toEqual({ unresolved: 2, selfReferences: 1 });
+    expect(res.body.warnings).toContain('Manager links cleared: 2 named a manager that was not loaded; 1 named themselves as manager.');
+  });
+
+  it('says nothing about manager links when there were none to clear', async () => {
+    mockIngest.mockResolvedValue({ inserted: 1, updated: 0, deleted: 0 });
+    mockQuery.mockImplementation(async (sql) => (/information_schema\.columns/.test(String(sql))
+      ? { rows: [{ column_name: 'id' }, { column_name: 'display_name' }, { column_name: 'manager_id' }], rowCount: 0 }
+      : { rows: [{ unresolved: 0, selfReferences: 0 }], rowCount: 1 }));
+    const res = await request(app).post('/ingest/principals').send(withManager);
+    expect(res.status).toBe(201);
+    expect(res.body).not.toHaveProperty('managerLinks');
+    expect(res.body).not.toHaveProperty('warnings');
+  });
+
+  it('never runs the manager repair for a non-principals batch', async () => {
+    mockIngest.mockResolvedValue({ inserted: 1, updated: 0, deleted: 0 });
+    await request(app).post('/ingest/resources')
+      .send({ records: [{ displayName: 'G', resourceType: 'Group' }], systemId: 1, syncMode: 'full' });
+    expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes('"managerId" = NULL'))).toBe(false);
+  });
+
+  it('never runs it for a principals batch that carries no manager (the photo phase)', async () => {
+    mockIngest.mockResolvedValue({ inserted: 1, updated: 0, deleted: 0 });
+    await request(app).post('/ingest/principals').send(goodPrincipal);
+    expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes('"managerId" = NULL'))).toBe(false);
   });
 
   it('ingests a resources batch (governanceResource derivation path)', async () => {

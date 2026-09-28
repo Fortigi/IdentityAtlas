@@ -456,8 +456,16 @@ query that selects `IdentityID` and `EntitlementID`, that is
 ### Identities
 
 Target `identities`, default `principalType` `User`. Every non-workgroup identity becomes
-an Identity plus its IdentityIQ account; `inactive` drives the enabled flag, `managerId`,
-`created` and `modified` land in `extendedAttributes`.
+an Identity plus its IdentityIQ account; `inactive` drives the enabled flag, and `created`
+and `modified` land in `extendedAttributes`.
+
+`spt_identity.manager` holds another identity's `id`, which is exactly what the rows are
+keyed on, so aliasing it `managerId` (or `managerExternalId`) fills the manager
+relationship on both halves of the row — the account's manager and the person's manager.
+Order does not matter: a manager further down the result set links just the same. A row
+naming itself is dropped; a manager your `WHERE` clause excluded (a workgroup, a leaver)
+leaves the field empty and is counted in the job's warnings rather than stored as a link
+to nobody.
 
 ```sql
 SELECT
