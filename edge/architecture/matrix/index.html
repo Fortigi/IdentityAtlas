@@ -6245,6 +6245,14 @@ attribute-fold views aggregate resources and have no per-resource row.</p>
 <p>…without polluting the user-facing matrix grid. The first row is invisible there; the second row paints User Z's cell with an <code>I</code> badge.</p>
 <h2 id="owner-rows-are-their-own-resource">Owner rows are their own resource<a class="headerlink" href="#owner-rows-are-their-own-resource" title="Permanent link">&para;</a></h2>
 <p>A user who is both a member and an owner of a group holds two separate resources: the group itself (a <code>Direct</code> membership) and a synthetic <code>GroupOwnership</code> resource named <code>Owner @ &lt;group&gt;</code> (also a <code>Direct</code> membership). Migration 046 rewrote the old <code>assignmentType='Owner'</code> rows into Direct assignments on this ownership resource, linked back to the group by a <code>HasOwnership</code> relationship — mirroring how an <code>AppRole</code> hangs off its <code>Application</code>. The matrix therefore shows ownership as its own row, with a normal <strong>D</strong> badge, rather than a separate <code>O</code>-type cell on the group row. No client-side row-splitting is involved.</p>
+<p>The same shape, and the same row, is what every other ownership type produces:
+<code>ServicePrincipalOwnership</code> / <code>ApplicationOwnership</code> from the Entra app-owner phase
+(linked by <code>HasAppOwnership</code>), and <code>ResourceOwnership</code> from the SQL connector, whose
+<code>resourceType</code> is whatever the operator's statement loaded, so one generic ownership type
+covers all of them and the owned type rides on
+<code>extendedAttributes.ownedResourceType</code>. The list every consumer filters on is
+<a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/lib/ownershipTypes.js"><code>app/api/src/lib/ownershipTypes.js</code></a>
+— nothing here needs to know which crawler wrote the row.</p>
 <p>Ownership types stay <strong>visible</strong> under "Default row visibility" above, and the distinction is the point of that section: a business-role row duplicates something the matrix already shows as a column, while an ownership row is the <em>only</em> place the matrix shows who controls a group. Hiding it would remove information, not a duplicate.</p>
 <h2 id="access-package-columns-role-scopes-badge-like-memberships">Access-package columns — role scopes badge like memberships<a class="headerlink" href="#access-package-columns-role-scopes-badge-like-memberships" title="Permanent link">&para;</a></h2>
 <p>The right-hand access-package block is driven by <code>ResourceRelationships</code> (<code>relationshipType='Contains'</code>), whose <code>roleName</code> holds the role scope as the source system names it — Graph stamps <code>accessPackageResourceRole.displayName</code> verbatim, so <code>Member</code>, <code>Owner</code> and <code>Eligible Member</code> all occur. That name maps to a badge letter the same way everywhere:</p>
