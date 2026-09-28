@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { promisify } from 'util';
 import * as db from '../db/connection.js';
 import { createFailureLimiter } from './crawlerAuthFailureLimiter.js';
+import { createThrottledTouch, skipLockedStampSql } from '../lib/throttledTouch.js';
 import { stripPort } from './rateLimitKeys.js';
 import {
   DENIAL,
@@ -161,13 +162,12 @@ function attachCrawler(req, crawler) {
   };
 }
 
-// Update lastUsedAt (fire-and-forget)
-function touchLastUsed(crawlerId) {
-  db.query(
-    `UPDATE "Crawlers" SET "lastUsedAt" = (now() AT TIME ZONE 'utc') WHERE id = $1`,
-    [crawlerId]
-  ).catch(() => {});
-}
+// Update lastUsedAt: fire-and-forget, at most once a minute per crawler, and never
+// waiting behind another stamp of the same row (see lib/throttledTouch.js — one
+// update per request exhausted the pool under a bulk load).
+const touchLastUsed = createThrottledTouch(
+  (sql, params) => db.query(sql, params),
+  skipLockedStampSql('Crawlers', 'lastUsedAt', `(now() AT TIME ZONE 'utc')`));
 
 export async function crawlerAuthMiddleware(req, res, next) {
   // Already authenticated earlier in this request's middleware chain (the

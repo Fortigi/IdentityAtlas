@@ -13,6 +13,7 @@
 
 import crypto from 'crypto';
 import * as db from '../db/connection.js';
+import { createThrottledTouch, skipLockedStampSql } from '../lib/throttledTouch.js';
 
 const TOKEN_PREFIX = 'fgr_';
 const TOKEN_RANDOM_BYTES = 32;
@@ -90,7 +91,12 @@ export async function revokeIdleTokens(idleDays, client = db) {
 // Look up an active token by its plaintext value (called by authMiddleware on
 // every request that uses an `fgr_` bearer). Returns the row or null. Also
 // updates lastUsedAt fire-and-forget — we don't await it because we don't want
-// auth latency to depend on a write.
+// auth latency to depend on a write — at most once a minute per token and never
+// waiting behind another stamp of the same row (lib/throttledTouch.js).
+const touchLastUsed = createThrottledTouch(
+  (sql, params) => db.query(sql, params),
+  skipLockedStampSql('ReadApiKeys', 'lastUsedAt', 'now()'));
+
 export async function findActiveByPlaintext(plaintext) {
   const tokenHash = hashToken(plaintext);
   const r = await db.query(
@@ -104,6 +110,6 @@ export async function findActiveByPlaintext(plaintext) {
   if (row.revoked) return null;
   if (row.expiresAt && new Date(row.expiresAt) < new Date()) return null;
 
-  db.query(`UPDATE "ReadApiKeys" SET "lastUsedAt" = now() WHERE id = $1`, [row.id]).catch(() => {});
+  touchLastUsed(row.id);
   return row;
 }
