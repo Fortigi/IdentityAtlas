@@ -281,7 +281,11 @@ describe('findActiveByPlaintext', () => {
   });
 
   it('still authenticates when the lastUsedAt write fails', async () => {
-    const row = { id: 42, name: 't', revoked: false, expiresAt: null };
+    // A token id of its own, deliberately. The throttle keeps one timestamp per
+    // id in module scope for the lifetime of the file, so reusing an id an
+    // earlier test already stamped means the write under test never happens and
+    // the case goes untested.
+    const row = { id: 4242, name: 't', revoked: false, expiresAt: null };
     stageLookup([row], { touch: () => Promise.reject(new Error('write failed')) });
     // The rejection is swallowed by the module's .catch() — if it were not,
     // this would surface as an unhandled rejection and fail the run.
