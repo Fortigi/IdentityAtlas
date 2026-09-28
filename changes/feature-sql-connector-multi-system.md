@@ -1,8 +1,0 @@
-- The SQL Database connector can now create one Identity Atlas system per technical connector in the source, instead of loading everything into a single flat system. Add a query with the new **Systems** target (for SailPoint IdentityIQ, one row per `spt_application`) and the shipped IdentityIQ examples now include it.
-- Resources, principals, assignments and relationships can say which of those systems they belong to, with a `systemId` (the source's own key for the connector) or `systemName` column — the same idea as the CSV import's Systems file and SystemName column. Both columns are still shown as attributes on the detail page.
-- An assignment goes to its resource's system and a relationship to its parent's, so the grant table — usually the largest in the source — needs no extra join to be routed.
-- A grant can span two systems: a person in the directory holding an entitlement in a connector's system is stored and shown correctly.
-- A row naming a system that no Systems query created is kept, loaded into the crawler's own system, and reported by name with a count, rather than disappearing into it silently. Past 5% of a query's rows the job fails, because at that point the two queries disagree about which connectors exist.
-- A full sync now reconciles each system separately, so a routed system's removed rows are cleaned up and a system that received nothing this run is left untouched.
-- The job fails, naming the ids, if two systems claim the same external id — those rows would otherwise overwrite each other.
-- Existing SQL crawler configurations are unaffected: without a Systems query nothing routes, and every id stays exactly as it was.
