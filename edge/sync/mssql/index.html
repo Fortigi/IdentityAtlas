@@ -6026,7 +6026,7 @@ the rest of the columns come along for free.</p>
 <tr>
 <td><code>contexts</code></td>
 <td><code>displayName</code> (falls back to <code>name</code>)</td>
-<td><code>id</code> (a stable key; without it the normalised name is the key), <code>description</code>, <code>ownerUserId</code></td>
+<td><code>id</code> (a stable key; without it the normalised name is the key), <code>description</code>, <code>ownerUserId</code> (an account key or an employee number — the crawler resolves either)</td>
 </tr>
 <tr>
 <td><code>context-members</code></td>
@@ -6069,6 +6069,21 @@ load such a catalogue as Contexts and place each member in its context.</p>
 <li><strong>Matching members by name</strong> ignores case and surrounding spaces, and is done by the
   crawler, not in SQL. A case-insensitive SQL Server collation calls "Finance" and
   "finance " equal while PostgreSQL calls them different, and the two would disagree.</li>
+<li><strong>One root, so a catalogue is a tree.</strong> Every context a <code>contexts</code> statement produces
+  hangs under a single root context, named by the statement's <strong>Root name</strong>
+  (<code>rootDisplayName</code>, defaulting to the context type, pluralised). Without it a catalogue
+  of 1,500 logical applications loads as 1,500 top-level rows. The root is a synced
+  context of the <em>same</em> <code>contextType</code>, owned by the same system and sent in the same
+  batch as its children — that is what keeps a re-run from removing it, because the full
+  sync's reconcile is bounded by (variant, <code>contextType</code>, system). An empty catalogue
+  gets no root.</li>
+<li><strong>The owner is resolved to an account.</strong> A catalogue usually names its owner the way a
+  person is named on paper — IdentityIQ's names it by employee number (<code>spt_identity.name</code>)
+  while every account is keyed on the identity id (<code>spt_identity.id</code>). The crawler
+  translates one into the other against the accounts the same run has already read, so
+  <code>ownerUserId</code> holds something the UI can turn into a person. An owner that matches no
+  account is <strong>kept exactly as the source spells it</strong> and counted in the job log — never
+  dropped, never invented.</li>
 <li><strong>Nothing is folded silently.</strong> The job log reports how many source spellings differ
   from the catalogue's own and were matched anyway (with examples), how many memberships
   name a context the catalogue does not have (with the most frequent names), any name two
@@ -6444,6 +6459,12 @@ file has the shape shown under <a href="#configuration">Configuration</a>; on th
 <td><code>contexts</code></td>
 <td><code>Resource</code></td>
 <td>What the contexts group: <code>Resource</code>, <code>Identity</code>, <code>Principal</code> or <code>System</code></td>
+</tr>
+<tr>
+<td><code>rootDisplayName</code></td>
+<td><code>contexts</code></td>
+<td>the <code>contextType</code>, pluralised</td>
+<td>What the single root every context hangs under is called, e.g. <code>Logical Applications</code></td>
 </tr>
 <tr>
 <td><code>memberType</code></td>
