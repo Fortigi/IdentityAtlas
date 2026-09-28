@@ -6,6 +6,11 @@ identity-governance export far larger than anything it had run on before —
 stops coping. It is a measurement, not a tuning exercise: where something was slow
 it is characterised here, not fixed.
 
+The fixes that followed were then measured the same way, on `main`, at full scale:
+see [After the fixes](#after-the-fixes-step-7) directly below. Everything from
+[Setup](#setup) onwards is the original rehearsal — the *before* — and is left as
+it was measured.
+
 The dataset comes from the [scale test fixture generator](https://github.com/Fortigi/IdentityAtlas/tree/main/tools/scale-dataset).
 The smaller, uniform load test on [Scaling & Load Testing](scaling.md) is unchanged.
 
@@ -33,6 +38,248 @@ The smaller, uniform load test on [Scaling & Load Testing](scaling.md) is unchan
     - What holds up: the dashboard (2 s), a resource with 171,000 holders (0.6 s),
       a small logical application in the matrix (1 s), the application list
       (0.2 s), and a principal-based report end to end (75 s for 29 MB).
+
+## After the fixes (step 7)
+
+Measured 2026-09-27 on the same rig, the same generator and seed (byte-identical
+files, checksums kept with the run), the same method, after this set had merged:
+
+| PR | Fix |
+|---|---|
+| #1266 | The matrix's 400,000-row limit is enforced in the query, so a large matrix is refused (413) instead of loaded |
+| #1267 | Logical-application members are joined on typed ids, not text |
+| #1269 | The matrix views are refreshed once, in the background, and not on every API start |
+| #1270 | A system's first load writes one history event per table instead of one per row |
+| #1271 | Staged full load: stream into an unindexed stage, apply once, write only changed rows |
+| #1272 | A repeat import is safe: stable systems, no governed duplicates; assignments no longer store their two external ids twice; PostgreSQL gets 1 GB of shared memory |
+| #1274 | The staged load marks business-role memberships governed too |
+| #1276 | A full sync removes only the contexts and memberships its own system owns |
+
+The load, post-sync, restart and query set ran on `main` at `2605d960b`, which has
+every fix above except #1274 and #1276, which merged while the load ran. #1274
+touches only the staged load; #1276 changes the CSV crawler's context reconcile, so
+the context phase on today's `main` may differ slightly from the one timed here. The
+repeat import ran on `main` at `e7817e249`, which has all of them. The harness is
+committed in [`tools/scale-rehearsal`](https://github.com/Fortigi/IdentityAtlas/tree/main/tools/scale-rehearsal).
+
+!!! success "What changed"
+    - **The full 41 M load completes**, in 78 minutes for the whole crawler job
+      (4,663 s, 15 of them waiting for the matrix-view refresh), where it used to stop at 25 M, 103 minutes into the assignments
+      phase, for lack of disk.
+    - **The database is 23.2 GB at 41 M rows** — it was 34.9 GB at 25 M. The audit
+      history of the whole load is 9,306 rows and 18 MB instead of 25.7 GB.
+    - **A repeat import changes nothing it should not**: the same 42 systems with
+      the same ids, no row moved between systems, no governed duplicates, no
+      assignment history.
+    - **The logical-application pages are instant**: 0.2–0.3 s instead of 4 minutes,
+      and the deep page that never finished answers in 0.3 s.
+    - **No request crashed the API.** The unfiltered and enabled-only matrices are
+      refused with 413 instead.
+
+!!! failure "What did not improve, or got worse"
+    - **A large matrix is refused, not shown.** Every principal matrix at this size
+      — unfiltered, enabled only, the largest application — is a 413. The API now
+      survives the request; the user still gets no matrix.
+    - **The refusal is not fast.** The unfiltered matrix takes 9–19 s to refuse on
+      a settled database, and took **285.6 s** straight after the load (see
+      [the first minutes after a load](#the-first-minutes-after-a-load)).
+    - **The largest application's matrix is no better**: 413 after 26–72 s,
+      against 413 after 82 s before.
+    - **Scope statistics and the disabled-accounts report did not improve.**
+      Attribution on one database gives 60–129 s and 20–32 s for *every* code
+      version, old ones included: the rig's run-to-run spread is wider than any
+      difference between versions.
+    - **A resource's member list from the matrix view is still ~20 s** (20.7 s,
+      was 19.3 s) and unpaged, 44 MB.
+    - **The CSV crawler cannot re-import 41 M on this disk.** Every unchanged row
+      is rewritten (its `updatedAt` stamp is indexed): ~4,550 rows/s and ~5 GB of
+      dead rows per 9 M, so the run was stopped at 9 M with 13 GB left. The staged
+      load does the same re-import in 18 minutes writing nothing; the CSV crawler
+      does not use it yet.
+    - **Filter-value discovery takes 17 s** on the resources page and 3.7 s on
+      principals, cold, at the customer's attribute shape — after every API restart
+      and every 5-minute cache expiry.
+
+### Ingest, before and after
+
+| Phase (100%, CSV crawler, full sync) | Before | After |
+|---|---:|---:|
+| Systems + contexts + context members | 71 s | 50 s |
+| Resources | 104 s | 117 s |
+| Users | 31 s | 32 s |
+| **Assignments** | **stopped at 25.25 M after 6,153 s** (4,100 rows/s avg, decaying to 2,750) | **all 41 M in 3,534 s** (11,600 rows/s) |
+| Classify + matrix-view refresh | not reached | 891 s (refresh 862 s + 17 s; classify now finds nothing to flip, see #1272) |
+| **Whole job**, start to end | did not finish | **4,663 s** (the crawler reports 3,758 s; it then waits 901 s for the refresh) |
+| Peak database size (during the refresh) | — | 29.5 GB |
+| Peak crawler `pwsh` RSS | 3.6 GB | 2.1 GB |
+
+| Storage at the end of the load | Before (25.25 M assignments) | After (41 M) |
+|---|---:|---:|
+| Database | 34.9 GB | **23.2 GB** |
+| `_history` | 26.2 M rows, **25.7 GB** | **9,306 rows, 18 MB** |
+| `ResourceAssignments` | 8.6 GB (5.0 GB heap) | 10.6 GB (4.8 GB heap + 5.8 GB indexes) |
+| Matrix view `vw_ResourceUserPermissionAssignments` | not reached | 11.6 GB |
+
+Per assignment, the table went from ~340 B to ~260 B: the two external ids are no
+longer copied into `extendedAttributes` (#1272; 41.6% of the heap of 1 M real rows).
+The 9,306 history rows are one anchor per table and system for the load (#1270),
+the 42 systems, and the contexts.
+
+### Post-sync and restart
+
+| Step | Before | After |
+|---|---:|---:|
+| Classify: flag business-role assignments governed | 171 s (1 M rows) | 17.3 s, 0 rows to flag (flagged at ingest) |
+| First population of the matrix view | 1,166 s + 23 s | **862 s + 17 s** |
+| Crawler behaviour around it | timed out after 300 s, retried four times, stacked a refresh per retry, reported success | waits for the one background refresh, reports its outcome |
+| Refresh with the view already populated | 161 s | 243–244 s (two runs) |
+| API start with populated views | a full refresh, 2–20 min and ~11 GB of scratch disk | **no refresh** |
+| `buildContexts` hook | 404 | **still 404** |
+
+The standalone refresh is slower than before (243 s against 161 s); it was not
+attributed, and with the rig's spread (below) it may not be a real difference.
+
+### Repeat import
+
+The same CSV crawler configuration, run again over byte-identical files on the
+loaded database (`main` at `e7817e249`):
+
+| | Before (10% rig, two runs) | After (100%) |
+|---|---|---|
+| Systems | 42 → **84**; every row re-homed to new ids | 42 → 42, ids identical |
+| Principals / resources per system | all moved | identical (checksums match) |
+| Governed + ungoverned pairs for one grant | created; classification then failed with HTTP 500 on every run | 0 |
+| `_history` | 4.1 GB → **10 GB** | +1,500 rows (context member-count bookkeeping, see below); no assignment, resource, principal or system history |
+| Throughput | 397 s → 909 s for the assignments phase | 4,550 rows/s (first load 11,600) |
+| Outcome | reported success | **stopped at 9.04 M**: would not fit on the disk (below) |
+
+The CSV crawler's full sync stamps `updatedAt` on every row it sends, so an
+unchanged re-import rewrites every row and every index entry: 8.85 M updates, none
+HOT, 8.7 M dead row versions, ~5 GB per 9 M rows. At 41 M that needs ~23 GB more
+than the load; 13 GB was left. This is the trade-off #1271 describes for large
+scopes. The staged load is the path for it:
+
+| Unchanged re-import through the staged load | |
+|---|---:|
+| Rows | 41,000,000 |
+| Time | **1,085 s** (finalize 615 s) |
+| Path | merge, 41 systems |
+| Inserted / updated / deleted | **0 / 0 / 0** |
+| History written | 0 |
+
+It was measured on the #1279 branch: on `main`, the first two attempts failed on a pool exhaustion
+found during this run (below).
+
+### Screens, before and after
+
+Same requests as the [original table](#screens). The *before* column is the
+original rehearsal (`91a2bf3e9`, a database loaded without the history trigger, 25%
+of principals enabled); *after* is the first query set on the fresh step-7
+database. Every enabled filter is at **25%** enabled unless marked 62%.
+
+| Screen / request | Before | After |
+|---|---|---|
+| Matrix, principal rows, unfiltered | **crash** after 31 s | 413 after **285.6 s** (fresh load); 8.8–19.3 s settled |
+| Matrix scope statistics | 48.8 s | 110.1 s; 60–129 s settled (see attribution) |
+| Matrix, enabled accounts only | **crash** after 123 s | 413 after 52.3 s · 62%: 413 after 31.0 s |
+| Matrix, enabled + Finance + a mid-size connector | 413 after 24 s | 413 after 7.4 s · 62%: 413 after 11.5 s |
+| Matrix, resources in the largest logical application | 413 after 82 s | 413 after 71.8 s · 62%: 413 after 26.1 s |
+| Logical applications list | 0.18 s | 0.02 s |
+| Largest application's detail page | **243.5 s** | **0.22 s** |
+| … first page of its members | **243.2 s** | **0.25 s** |
+| … members page at offset 50,000 | **did not finish in 30 min** | **0.33 s** |
+| Resource detail, the top entitlement | 0.58 s | 0.78 s |
+| … its assignments | 1.3 s, 38 MB | 0.77 s, 38 MB |
+| … its members from the matrix view | 19.3 s, 44 MB | 20.7 s, 44 MB |
+| Report *Disabled accounts with access* — rows | 75.4 s, 29.5 MB | 108.3 s (fresh load); 20–32 s settled |
+| … CSV export | 76.4 s, 10.9 MB | 116.7 s (fresh load) |
+| Dashboard statistics | 1.98 s | 1.63 s |
+
+The 62% runs came right after a `VACUUM ANALYZE` of `Principals`, so they are not
+like-for-like with the 25% column; what they show is that the customer's share
+does not make these queries worse.
+
+#### Attribution
+
+Where a number moved, the three code versions were deployed in turn onto **one**
+database (the step-7 one, later in the day) and the same three queries run twice
+each:
+
+| Query | Old code (`27d4754e2`, before every fix) | Pre-merge integration (`e28d84458`) | `main` (`aa7234124`), two passes an hour apart |
+|---|---|---|---|
+| Matrix, unfiltered | **crash** after 36.6 s / 42.8 s | 413 after 17.5 s / 14.0 s | 413 after 19.3 / 9.7 s · 17.7 / 8.8 s |
+| Scope statistics | 97.0 / 108.2 s | 97.4 / 101.8 s | 111.6 / 128.6 s · 60.2 / 61.4 s |
+| Disabled accounts report, rows | 20.3 / 22.7 s | 29.2 / 32.0 s | 32.1 / 28.9 s · 20.3 / 21.3 s |
+
+- The unfiltered-matrix crash is fixed (#1266): a crash on the old code, a refusal
+  on both later ones.
+- Scope statistics and the report: `main` alone spans 60–129 s and 20–32 s across
+  two passes, which covers every other version. No difference between versions is
+  attributable on this rig, and none is claimed.
+- The **285.6 s and 108.3 s** after the load are not the code: the same code on the
+  same data was 15× and 3× faster two hours later.
+
+#### The first minutes after a load
+
+The query set ran within minutes of the 41 M load finishing and of three
+back-to-back refreshes of the matrix view. Queries were several times slower then
+than on the same database two hours later (above). The mechanism was not isolated;
+the candidates are freshly written tables without a visibility map and hint bits
+being set on first read, and the dead rows three consecutive `REFRESH … CONCURRENTLY`
+leave in the view. A user's first minutes after a large import will look like the
+fresh-load column, not the settled one.
+
+### Filter-value discovery
+
+Opening the filter panel on a list page asks `/matrix/columns` for every column's
+values: one `SELECT DISTINCT … LIMIT` per column and per `extendedAttributes` key,
+each a full scan, behind a 5-minute in-process cache. It was not in the original
+query set; the customer reported it. Measured cold (API restarted) and warm:
+
+| | Principals, cold | Resources, cold | Warm |
+|---|---:|---:|---:|
+| Synthetic data (2 principal extension keys) | 0.74 s | 3.6 s | 2 ms |
+| **Customer's attribute shape** (15 on principals, ~13 on resources) | **3.7 s** | **16.9 s** | 3 ms |
+
+The customer shape was written onto the rig's rows with the customer's own
+cardinalities (cost centres 1,846, locations 161, org levels 119 / 44 / 7 over
+176,789 identities). The largest of those is under two thousand distinct values:
+the cost is the number of full scans, not the size of the answer, and it grows with
+every custom attribute a source brings. Every user pays it after each API restart
+and every cache expiry.
+
+### Found during step 7
+
+- **Pool exhaustion from the `lastUsedAt` stamp** (fix proposed in #1279, open at the time of writing). Every
+  authenticated crawler request ran a fire-and-forget `UPDATE` of the same
+  `Crawlers` row. One stalled 5 s on a WAL flush behind an autovacuum; nine more
+  queued on its row lock and held all 10 of the API's pool connections, so the
+  staged load's appends, crawler auth and the worker's job claim all failed with
+  "timeout exceeded when trying to connect". It is the likely reason the crawler's
+  progress updates timed out during the matrix refresh as well.
+- **A failed staged load leaves its stage tables** (2.95 GB here) until the
+  6-hour expiry or the next API start.
+- **Context bookkeeping is recorded as change.** Every matrix-view refresh
+  recalculates context member counts and writes a history row per context even
+  when only `lastCalculatedAt`/`updatedAt` moved: ~6,000 of the load's 7,512
+  context history rows and 1,500 per repeat. The same class of problem migration
+  072 fixed for the entity tables; small at 1,500 contexts, not fixed.
+- **The `buildContexts` hook still 404s** on every CSV run.
+
+### How far this rehearsal is from the customer
+
+The customer's own counts (2026-09-27) against what was generated:
+
+| | Customer | Rehearsal | |
+|---|---:|---:|---|
+| Entitlement assignments | 46,031,331 | 41,000,000 | close |
+| Entitlements (managed attributes) | 805,497 | 810,000 | close |
+| Identities | 176,789 | 180,000 | close |
+| **Enabled share** | **~62%** | 25% | enabled-filtered queries scan ~2.5× fewer rows here; re-run at 62% above |
+| **Roles** | **1,434** | 10,000 | |
+| **Role assignments** | **3,379,865** | 1,000,000 | |
+| **Holders per role (average)** | **~2,350** | ~100 | the customer's roles are **~20× denser**, before the power law concentrates the largest ones. Anything that expands a role to its members, or renders a role column, was measured on a population an order of magnitude too small |
+| **Accounts (`spt_link`)** | **3,549,757** | not modelled | the engagement loads one principal per identity (176,789). Account-level visibility — the request a role-mining engagement tends to produce — is **~20× the principals** anything here was measured at. That is a scope boundary, not a gap in the fixture |
 
 ## Setup
 
@@ -361,24 +608,35 @@ Notes on the ones that matter:
 
 ## What this means for the next piece of work
 
-In the order a 41 M-row load hits them:
+In the order a 41 M-row load hits them. *Status after step 7 in italics.*
 
 1. **Disk, because of `_history`.** 42 of ~68 GB. Whether a first load — or any
    bulk insert of brand-new rows — should be written to the audit history at all
    is a product decision; until it is made, a load this size needs ~70 GB free.
+   *Decided and done (#1270): the whole load now writes 18 MB of history.*
 2. **Index maintenance during bulk load.** Measured at 80–90% of the database-side
    insert cost and the cause of the throughput decay. Dropping and rebuilding the
    13 `ResourceAssignments` indexes around a full load measured ~4.5× faster.
+   *The staged full load does this (#1271); the CSV crawler does not use it yet,
+   and its assignments phase runs at 11,600 rows/s with every index live.*
 3. **Post-load refreshes.** The classify call refreshes the matrix views inside a
    request the crawler abandons after 300 s and then retries, stacking full
    refreshes; the API refreshes again on every start. Each refresh needs ~11 GB of
    scratch space at this size.
+   *Done (#1269): one background refresh, none on start. A refresh still needs
+   ~11 GB and 4–15 minutes.*
 4. **The matrix endpoint.** Enforce the row limit before loading rows (a count, or
    a `LIMIT 400001`), so a large matrix returns 413 instead of taking the API down
    for everyone; then decide what the principal view should show at 41 M.
+   *First half done (#1266). The second half is open: every principal matrix at
+   this size is a 413, and the refusal itself takes 9–19 s.*
 5. **Logical-application membership queries.** The text-cast join makes every
    application page proportional to (resources × members), and nothing stops a
    query its client has abandoned.
+   *The join is fixed (#1267): 0.2–0.3 s. Abandoned queries still run on.*
+6. *New after step 7: the CSV crawler's re-import at this size (it rewrites every
+   row), filter-value discovery (one full scan per attribute, cold after every
+   restart), and a large matrix that can only be refused.*
 
 ## Reproducing
 
@@ -392,6 +650,10 @@ node tools/scale-dataset/generate.mjs --out ./scale-10pct --scale 0.1
 curl -X POST http://localhost:3001/api/admin/crawler-jobs \
   -H 'Content-Type: application/json' -d '{"jobType":"csv","configId":<id>,"syncMode":"full"}'
 ```
+
+The instruments used for the step-7 re-run — load, query set, repeat import,
+attribution, filter shape — are in
+[`tools/scale-rehearsal`](https://github.com/Fortigi/IdentityAtlas/tree/main/tools/scale-rehearsal).
 
 Start at 10%: in about ten minutes it reproduces the ingest profile and the matrix
 crash. The disk wall, the refresh stacking and the four-minute application pages

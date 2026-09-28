@@ -1,0 +1,1 @@
+cd ~/stacks/scale-test && docker compose -p scale-test -f docker-compose.yml -f compose.scale.yml down -v >/dev/null 2>&1 && docker compose -p scale-test -f docker-compose.yml -f compose.scale.yml up -d --wait >/dev/null 2>&1; docker compose -p scale-test ps --format "{{.Name}} {{.Status}}"
