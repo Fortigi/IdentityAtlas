@@ -201,6 +201,74 @@ $read5 = @($state5.Verification | Where-Object { $_.scope -eq 'read: Grants' })[
 Write-Result 'Grants that mostly dangle fail verification' (-not $verified5 -and $read5 -and -not $read5.ok -and $read5.reason -match 'could not be placed') `
     (($state5.Verification | ForEach-Object { "$($_.scope): $($_.reason)" }) -join ' | ')
 
+# ── Run 6: routed systems, and a grant that spans two of them ────────────────
+# The customer's shape: people in the directory system, entitlements in the
+# connector each one came from, every grant crossing the two. Ids are namespaced
+# per RUN, so both halves of the grant resolve; namespaced per system they would
+# hash in different namespaces, match nothing, and be lost without an error —
+# ResourceAssignments has no foreign key on either column. The count below is
+# the database's own, per system.
+Start-Sleep -Seconds 1
+$reg6 = Register-SqlSystem -Cfg $cfg
+$sqlSys = 'SELECT systems'
+$slots6 = @(
+    (Resolve-SqlQuerySlot -Slot @{ name = 'Applications'; target = 'systems';     sql = $sqlSys }),
+    (Resolve-SqlQuerySlot -Slot @{ name = 'Identities';   target = 'identities';  sql = $sqlIdent }),
+    (Resolve-SqlQuerySlot -Slot @{ name = 'Entitlements'; target = 'resources';   sql = $sqlRes;  resourceType = 'Entitlement' }),
+    (Resolve-SqlQuerySlot -Slot @{ name = 'Grants';       target = 'assignments'; sql = $sqlAsgn; resourceType = 'Entitlement' })
+)
+$script:RowsBySlot[$sqlSys] = @(
+    (New-TestRow @{ id = "app1-$runId"; displayName = "Routed A $runId" })
+    (New-TestRow @{ id = "app2-$runId"; displayName = "Routed B $runId" })
+)
+$script:RowsBySlot[$sqlIdent] = @((New-TestRow @{ id = "u1-$runId"; display_name = 'Ann Tester' }))
+$script:RowsBySlot[$sqlRes] = @(
+    (New-TestRow @{ id = "r1-$runId"; name = 'In A'; systemId = "app1-$runId" })
+    (New-TestRow @{ id = "r2-$runId"; name = 'In B'; systemId = "app2-$runId" })
+)
+# No system column: each grant follows its resource, so these land in A and B.
+$script:RowsBySlot[$sqlAsgn] = @(
+    (New-TestRow @{ principalId = "u1-$runId"; resourceId = "r1-$runId" })
+    (New-TestRow @{ principalId = "u1-$runId"; resourceId = "r2-$runId" })
+)
+$state6 = New-SqlRunState -SystemId $systemId -ServerTime $reg6.serverTime -Slots $slots6 -BatchSize 2 -SyncMode 'full' `
+    -SystemType 'SQL' -Tenant $reg6.tenantId
+foreach ($slot in (Get-SqlSlotsInOrder -Slots $slots6)) { Invoke-SqlSlot -Slot $slot -Connection $null -State $state6 | Out-Null }
+$routed = @($state6.Systems.ByKey.Values | Sort-Object)
+Write-Result 'A systems statement registered one system per row' ($routed.Count -eq 2 -and ($routed | Where-Object { $_ -eq $systemId }).Count -eq 0) `
+    "ids=$($routed -join ', '), crawler own=$systemId"
+
+# Every batch of the run shares ONE id namespace, whatever system it went to.
+$namespaces = @($state6.Scopes | ForEach-Object { $_.SystemId } | Sort-Object -Unique)
+Write-Result 'The run wrote to the crawler system AND both routed ones' `
+    (@($namespaces | Where-Object { $_ -in $routed }).Count -eq 2 -and $namespaces -contains $systemId) "systems=$($namespaces -join ', ')"
+
+# The database's own answer, per system: the person in the crawler's system, one
+# entitlement and one grant in each routed system.
+foreach ($pair in @(
+    @{ Key = 'principals in the crawler system'; Entity = 'principals'; SystemId = $systemId; Scope = @{ principalType = 'User' }; Expect = 1 }
+    @{ Key = 'resources in A'; Entity = 'resources'; SystemId = $routed[0]; Scope = @{ resourceType = 'Entitlement' }; Expect = 1 }
+    @{ Key = 'resources in B'; Entity = 'resources'; SystemId = $routed[1]; Scope = @{ resourceType = 'Entitlement' }; Expect = 1 }
+    @{ Key = 'grants in A'; Entity = 'resource-assignments'; SystemId = $routed[0]; Scope = @{ assignmentType = 'Direct'; resourceType = 'Entitlement'; governed = $false }; Expect = 1 }
+    @{ Key = 'grants in B'; Entity = 'resource-assignments'; SystemId = $routed[1]; Scope = @{ assignmentType = 'Direct'; resourceType = 'Entitlement'; governed = $false }; Expect = 1 }
+)) {
+    $r = Invoke-Api -Path '/ingest/count' -Method Post -Body @{ entity = $pair.Entity; systemId = $pair.SystemId; scope = $pair.Scope; before = $reg6.serverTime }
+    Write-Result "Database holds $($pair.Expect) $($pair.Key)" ([int]$r.count -eq $pair.Expect) "count=$([int]$r.count)"
+}
+Write-Result 'Routed run verified end to end' (Test-Verified -State $state6) `
+    (($state6.Verification | ForEach-Object { "$($_.scope)=$($_.atlas)" }) -join ', ')
+
+# A second identical run must find the same systems and change nothing.
+Start-Sleep -Seconds 1
+$reg7 = Register-SqlSystem -Cfg $cfg
+$state7 = New-SqlRunState -SystemId $systemId -ServerTime $reg7.serverTime -Slots $slots6 -BatchSize 2 -SyncMode 'full' `
+    -SystemType 'SQL' -Tenant $reg7.tenantId
+foreach ($slot in (Get-SqlSlotsInOrder -Slots $slots6)) { Invoke-SqlSlot -Slot $slot -Connection $null -State $state7 | Out-Null }
+$routed2 = @($state7.Systems.ByKey.Values | Sort-Object)
+Write-Result 'A second run resolves the SAME routed systems' (($routed2 -join ',') -eq ($routed -join ',')) "ids=$($routed2 -join ', ')"
+$deleted7 = Invoke-SqlReconcile -State $state7
+Write-Result 'A second identical run deletes nothing' ($deleted7 -eq 0) "deleted=$deleted7"
+
 # ── Reconcile safety: the endpoint refuses what it must ──────────────────────
 foreach ($case in @(
     @{ Name = 'unsystemed entity'; Body = @{ entity = 'identities'; systemId = $systemId; before = $reg.serverTime } },
@@ -214,8 +282,12 @@ foreach ($case in @(
 }
 
 # ── Cleanup ──────────────────────────────────────────────────────────────────
-try { Invoke-Api -Path "/admin/systems/$systemId" -Method Delete | Out-Null; Write-Host "  Cleaned up system $systemId" -ForegroundColor DarkGray }
-catch { Write-Host "  (could not delete test system ${systemId}: $($_.Exception.Message))" -ForegroundColor Yellow }
+# $routed is empty when the run never reached the routed scenario (an earlier
+# check threw), so this still deletes the one system the run definitely made.
+foreach ($id in (@($systemId) + @($routed))) {
+    try { Invoke-Api -Path "/admin/systems/$id" -Method Delete | Out-Null; Write-Host "  Cleaned up system $id" -ForegroundColor DarkGray }
+    catch { Write-Host "  (could not delete test system ${id}: $($_.Exception.Message))" -ForegroundColor Yellow }
+}
 
 if ($script:failures -gt 0) {
     Write-Error "SQL crawler integration test: $script:failures check(s) failed"
