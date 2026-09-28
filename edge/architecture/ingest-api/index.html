@@ -3407,7 +3407,7 @@
   <span class="md-ellipsis">
     
   
-    SQL Connector Delta Loading (design)
+    SQL Connector Delta Loading
   
 
     
@@ -6079,11 +6079,11 @@ batch by batch:</p>
 <td>appends a batch; records get the same defaults, validation, id normalization and per-system boundary as <code>/ingest/{entity}</code></td>
 </tr>
 <tr>
-<td><code>POST /ingest/stages/finalize</code> <code>{ stageIds, deleteMissing? }</code></td>
+<td><code>POST /ingest/stages/finalize</code> <code>{ stageIds, deleteMissing?, maxDeleteShare? }</code></td>
 <td>applies a run's stages together</td>
 </tr>
 <tr>
-<td><code>POST /ingest/stages/{id}/finalize</code> <code>{ deleteMissing? }</code></td>
+<td><code>POST /ingest/stages/{id}/finalize</code> <code>{ deleteMissing?, maxDeleteShare? }</code></td>
 <td>applies one stage</td>
 </tr>
 <tr>
@@ -6106,8 +6106,17 @@ takes one of two paths and reports it (<code>path</code> in the result, and the 
   system+scope's rows that are not in the stage (tombstoned on soft-delete tables).
   A tombstoned row that is back is revived.</li>
 </ul>
-<p>A stage may carry only its key columns — a key sweep: finalize then only removes
-what is missing.</p>
+<p>A stage may carry only its key columns — a <strong>key sweep</strong>: finalize then inserts and
+updates nothing and only removes what is missing. (<code>systemId</code> is stamped on every
+staged row from the stage itself, so it does not count as content; a stage whose
+records carried nothing but keys is still a sweep.)</p>
+<p><strong><code>maxDeleteShare</code></strong> caps that removal. With it, finalize measures what the
+anti-join would remove against the scope's live rows — both inside the one
+transaction — and above the share answers <strong>409 and writes nothing at all</strong>
+(the delete is rolled back, so the count is exact rather than an estimate). It
+exists because a source read while it is being re-aggregated is
+indistinguishable from a mass revocation, and a delete has no undo. Leave it out
+for no ceiling, which is what every caller before the SQL connector's sweep does.</p>
 <p><strong>Staged load or timestamp reconcile?</strong> It is a size trade-off, not a verdict on
 either. The timestamp reconcile needs every row the source still has to be touched
 (its <code>updatedAt</code> rewritten) so the untouched ones can be found — cheap for a small

@@ -2625,6 +2625,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reading-only-what-changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading only what changed
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reading only what changed">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#additions-and-changes-a-watermark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Additions and changes: a watermark
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#removals-a-key-sweep" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Removals: a key sweep
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#putting-it-together" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Putting it together
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-it-does-not-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it does not do
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-a-full-sync-deletes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3566,7 +3627,7 @@
   <span class="md-ellipsis">
     
   
-    SQL Connector Delta Loading (design)
+    SQL Connector Delta Loading
   
 
     
@@ -5967,6 +6028,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reading-only-what-changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading only what changed
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reading only what changed">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#additions-and-changes-a-watermark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Additions and changes: a watermark
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#removals-a-key-sweep" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Removals: a key sweep
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#putting-it-together" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Putting it together
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-it-does-not-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it does not do
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-a-full-sync-deletes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6727,6 +6849,30 @@ file has the shape shown under <a href="#configuration">Configuration</a>; on th
 <td>Value bound to <code>@PageSize</code> for a query that pages with <code>@Offset</code> / <code>@PageSize</code> (100–1 000 000)</td>
 </tr>
 <tr>
+<td><code>watermarkOverlapSeconds</code></td>
+<td>No</td>
+<td><code>900</code></td>
+<td>How far back of its last position each incremental read goes, to cover clock drift between the source's application servers and transactions that commit late (0–604 800) — see <a href="#reading-only-what-changed">Reading only what changed</a></td>
+</tr>
+<tr>
+<td><code>sweepIntervalHours</code></td>
+<td>No</td>
+<td><code>24</code></td>
+<td>How often a query with <strong>Key sweep</strong> on reads its complete key set to find what the source no longer has. A removal shows within one interval. <code>0</code> disables the sweep (0–8760)</td>
+</tr>
+<tr>
+<td><code>sweepMaxDeleteShare</code></td>
+<td>No</td>
+<td><code>0.05</code></td>
+<td>The largest share of a scope a sweep may remove before it refuses and writes nothing</td>
+</tr>
+<tr>
+<td><code>sweepOverride</code></td>
+<td>No</td>
+<td><code>false</code></td>
+<td>Let a sweep remove any share of a scope, for the one run where a large removal is known to be real</td>
+</tr>
+<tr>
 <td><code>queries</code></td>
 <td>Yes</td>
 <td>—</td>
@@ -6761,7 +6907,19 @@ file has the shape shown under <a href="#configuration">Configuration</a>; on th
 <td><code>sql</code></td>
 <td>Yes</td>
 <td>—</td>
-<td>A <code>SELECT</code> statement. Reference <code>@Offset</code> and <code>@PageSize</code> to have the crawler page through it</td>
+<td>A <code>SELECT</code> statement. Reference <code>@Offset</code> and <code>@PageSize</code> to have the crawler page through it; reference <code>@Since</code> (with <code>watermarkColumn</code>) to have it read only what changed</td>
+</tr>
+<tr>
+<td><code>watermarkColumn</code></td>
+<td>No</td>
+<td>—</td>
+<td>The returned column whose largest value this run remembers, so the next run binds <code>@Since</code> to it, e.g. <code>modified</code>. The statement must reference <code>@Since</code>. Empty means read in full every run — see <a href="#reading-only-what-changed">Reading only what changed</a></td>
+</tr>
+<tr>
+<td><code>sweep</code></td>
+<td><code>assignments</code></td>
+<td><code>false</code></td>
+<td>Periodically read this statement's complete key set and remove the assignments the source no longer has. A windowed assignments query needs this, because a watermark cannot see a removal</td>
 </tr>
 <tr>
 <td><code>columnMap</code></td>
@@ -7073,16 +7231,120 @@ nested roles keep their hierarchy.</p>
 </code></pre></div>
 <hr />
 <h2 id="scheduling-and-sync-mode">Scheduling and sync mode<a class="headerlink" href="#scheduling-and-sync-mode" title="Permanent link">&para;</a></h2>
-<p>Schedules work exactly as they do for every pull crawler. A <strong>full</strong> sync streams every
-statement and then reconciles (below). A <strong>delta</strong> sync streams every statement and
-upserts what it finds, but skips the reconcile, so nothing is ever deleted by a delta run.
-There is no change feed to read — a delta run re-reads the statements in full — so the
-difference is purely whether removed rows are cleaned up. A common pattern is a nightly
-full sync; use delta runs only when you want to refresh attributes between full syncs
-without paying for the reconcile.</p>
+<p>Schedules work exactly as they do for every pull crawler. By default every statement is
+read in full on every run, and every scope the run wrote to is then reconciled (below) —
+whether the run is labelled full or delta. <strong>What decides whether stale rows are removed
+is not the run's label but whether the statement read the source's complete set.</strong></p>
+<p>A <strong>full</strong> run always reads everything: it ignores any stored position, which is what
+"Force full sync next run" is for.</p>
+<p>To make routine refreshes cheap, give the large statements a position to read from —
+<a href="#reading-only-what-changed">Reading only what changed</a>, below.</p>
 <p>After each run the <code>buildContexts</code> post-sync hook rebuilds the generated contexts
 (departments, org chart, clusters) so the imported data is visible in the matrix straight
 away.</p>
+<hr />
+<h2 id="reading-only-what-changed">Reading only what changed<a class="headerlink" href="#reading-only-what-changed" title="Permanent link">&para;</a></h2>
+<p>A full read of an identity-governance database at production size — 180 000 identities,
+800 000 entitlements, 40 million grants — takes hours and tens of gigabytes of scratch
+space. That is fine for a first load and wrong for a refresh you want to run hourly.</p>
+<p>A refresh has two halves, and they need different mechanisms.</p>
+<h3 id="additions-and-changes-a-watermark">Additions and changes: a watermark<a class="headerlink" href="#additions-and-changes-a-watermark" title="Permanent link">&para;</a></h3>
+<p>Give the statement a <strong>watermark column</strong> and reference <code>@Since</code> in its SQL. The crawler
+remembers the largest value that column returned, and binds it to <code>@Since</code> next run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="k">SELECT</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">    </span><span class="n">ie</span><span class="p">.</span><span class="n">identity_id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span><span class="w">          </span><span class="k">AS</span><span class="w"> </span><span class="n">resourceId</span><span class="p">,</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">    </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">ie</span><span class="p">.</span><span class="n">modified</span><span class="p">,</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">created</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">modified</span><span class="w">   </span><span class="c1">-- the watermark column</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity_entitlement</span><span class="w"> </span><span class="n">ie</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="k">INNER</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_managed_attribute</span><span class="w"> </span><span class="n">ma</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="w">    </span><span class="k">ON</span><span class="w">  </span><span class="n">ma</span><span class="p">.</span><span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">application</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">attribute</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">name</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">value</span>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="k">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Entitlement'</span>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">ie</span><span class="p">.</span><span class="n">modified</span><span class="p">,</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">created</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="o">@</span><span class="n">Since</span>
+</code></pre></div>
+<p>with <code>"watermarkColumn": "modified"</code> on the slot (the <strong>Watermark column</strong> field in the
+wizard). Both halves are required: a watermark column without <code>@Since</code>, or <code>@Since</code>
+without a watermark column, is refused when the configuration is saved.</p>
+<p>Four things worth knowing:</p>
+<ul>
+<li><strong><code>@Since</code> is a <code>bigint</code> holding epoch milliseconds</strong>, because that is how IdentityIQ's
+  <code>created</code> / <code>modified</code> are stored (<code>numeric(19,0)</code>, written by the application). A first
+  run, an edited statement and a forced full sync all bind <strong>zero</strong>, which reads
+  everything.</li>
+<li><strong>Editing the statement resets it.</strong> The stored position is keyed on a hash of the SQL
+  text, so a changed query starts from zero instead of silently skipping the rows its new
+  shape would have returned.</li>
+<li><strong>It is stored only after the run has been verified</strong> end to end. A failed or unverified
+  run re-reads the same window; every ingest is an upsert, so a re-read costs time, never
+  correctness.</li>
+<li><strong>Each run goes back a little further than the last one reached</strong> —
+  <code>watermarkOverlapSeconds</code>, 15 minutes by default. Several application servers write an
+  IdentityIQ database, their clocks drift, and a long transaction can commit rows stamped
+  earlier than rows a previous run already read. Re-reading a few minutes is cheap;
+  stepping over a row is silent.</li>
+</ul>
+<p>A statement <strong>without</strong> a watermark column reads in full every run. That is the right
+answer for anything small — the catalogue, the roles, the role assignments — and it is
+what keeps their scopes exact without any of the machinery below.</p>
+<h3 id="removals-a-key-sweep">Removals: a key sweep<a class="headerlink" href="#removals-a-key-sweep" title="Permanent link">&para;</a></h3>
+<p>A watermark can never find a removal: a row deleted at the source does not bump its own
+timestamp on the way out. Neither can the reconcile, which removes what a run did not
+touch — and a windowed run touches almost nothing, so <strong>the scope of a windowed statement
+is never reconciled</strong>.</p>
+<p>Turn on <strong>Key sweep</strong> on the assignment slot instead. Periodically — at most once every
+<code>sweepIntervalHours</code>, a day by default — the crawler re-runs that statement with <code>@Since</code>
+bound to zero, asks only for the pair of ids, and removes every assignment in that scope
+that the source no longer has. A removal therefore shows within one sweep interval while
+the hourly refreshes stay small.</p>
+<div class="admonition warning">
+<p class="admonition-title">A sweep refuses to remove more than 5% of a scope</p>
+<p>A source read while it is being re-aggregated — rows deleted and about to be
+re-inserted — looks exactly like a mass revocation, and a delete has no undo. Past
+<code>sweepMaxDeleteShare</code> (0.05) the job fails with the counts and <strong>nothing is written</strong>.
+If the removal is real, set <code>sweepOverride</code> for that one run.</p>
+<p>Schedule sweeps <strong>outside</strong> your aggregation window.</p>
+</div>
+<h3 id="putting-it-together">Putting it together<a class="headerlink" href="#putting-it-together" title="Permanent link">&para;</a></h3>
+<p>A workable shape for an IdentityIQ estate:</p>
+<table>
+<thead>
+<tr>
+<th>Statement</th>
+<th>Watermark</th>
+<th>Sweep</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Technical applications, identities, entitlements, business roles, role assignments, role composition</td>
+<td>—</td>
+<td>—</td>
+<td>Small enough to read in full; their scopes stay exact through the ordinary reconcile</td>
+</tr>
+<tr>
+<td>Entitlement grants (direct and via a role)</td>
+<td><code>modified</code></td>
+<td>on</td>
+<td>Tens of millions of rows; the one place a full read is an overnight job</td>
+</tr>
+</tbody>
+</table>
+<p>Run it as often as you like; the sweep paces itself.</p>
+<h3 id="what-it-does-not-do">What it does not do<a class="headerlink" href="#what-it-does-not-do" title="Permanent link">&para;</a></h3>
+<ul>
+<li>There is <strong>no change feed</strong>. The crawler asks your statement for a window; if your
+  source does not stamp every update, the window misses those rows. Drop the watermark
+  column for that statement and it reads in full again.</li>
+<li>A <strong>buffered</strong> target — <code>systems</code>, <code>contexts</code>, <code>context-members</code> — is sent whole as one
+  full sync and cannot read a window. The configuration refuses the combination.</li>
+<li>Reading from an <strong>Azure SQL read-only replica</strong> (<code>ApplicationIntent=ReadOnly</code>) is
+  attractive for the sweep, but a replica lags the primary and a position taken there can
+  move past rows the primary already committed. If you use one, widen
+  <code>watermarkOverlapSeconds</code> beyond the worst replica lag — or point the delta at the
+  primary. Decide it deliberately.</li>
+</ul>
 <hr />
 <h2 id="what-a-full-sync-deletes">What a full sync deletes<a class="headerlink" href="#what-a-full-sync-deletes" title="Permanent link">&para;</a></h2>
 <p>A full sync reconciles <strong>per scope</strong>: for every combination of target and the statement's
