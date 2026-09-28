@@ -127,8 +127,26 @@ history trigger turns each rewrite into about a kilobyte of audit
 
 At full size the sweep moves 40 million pairs of 32-character ids, about 2.6 GB of ids
 before encoding. That is a fraction of a full read, which also carries every attribute
-and pays for every index update, but it is not free. Two ways to make it smaller, in
-order of preference:
+and pays for every index update, but it is not free.
+
+**Measured** on the [IdentityIQ-shaped fixture](https://github.com/Fortigi/IdentityAtlas/tree/main/tools/iiq-fixture)
+at 4 million grants, 80 000 entitlements and 18 000 identities, across 40 routed systems
+(a 2-vCPU host, so read the ratios rather than the absolutes):
+
+| Run | Wall clock | What it read |
+|---|---:|---|
+| Full load | 2 915 s | everything |
+| Delta, no sweep due | 85 s | 2 007 of 4 000 000 grant rows; everything else in full |
+| Delta with the sweep due | 575 s | the same window, plus 4 M keys swept in 490 s |
+| Delta immediately after | 84 s | the same window; sweep not due |
+
+So a delta is **34× cheaper** than the full load, and the sweep is **~6× cheaper** than
+re-reading the same rows as a full load: the key set streams at ~8 100 keys/s into a
+stage against ~1 700 rows/s for an attribute-carrying upsert. The sweep is the expensive
+half of a delta run, which is exactly why it is scheduled rather than run every time —
+and why a run that already read the statement in full does not sweep it as well.
+
+Two ways to make it smaller, in order of preference:
 
 - **Option A: schedule.** Run the sweep nightly or weekly, and deltas hourly. A removal
   then shows within one sweep interval. This works regardless of A9.
@@ -167,6 +185,27 @@ Staged after a full load is proven end to end, as agreed:
 2. ✅ **Reconcile by completeness.** Full-read slots reconcile in delta runs (A6, A7).
 3. ✅ **Key sweep**, on the shared staging primitive (A5, and the 5% guard).
 4. ⬜ **Narrowed sweep**, only if A9 holds and the primitive supports a principal bound.
+
+### Rehearsed
+
+The whole path was rehearsed against a real SQL Server holding the 4 M-grant fixture,
+with `sql/03-mutate.sql` applied between the full load and the first delta. Every number
+below is counted **in PostgreSQL**, keyed on the source's own ids, against the
+`fixture_mutation` log of what actually moved — not against what the crawler reported:
+
+| What the source did | Rows | Grant rows still in Identity Atlas | |
+|---|---:|---:|---|
+| grants updated | 2 000 | 2 000 | the delta re-read them |
+| grants deleted | 500 | **0** | only the sweep can find these |
+| grants deleted and re-inserted **unchanged** | 500 | **500** | the A4 shape: the delta must not read them and the sweep must not remove them |
+| grants of a removed entitlement | 6 | **0** | the entitlement went by reconcile, its grants by sweep |
+| new identity's grants | 5 | 5 | the delta picked them up |
+
+and, from the statements that read in full: the removed entitlement is gone (the
+reconcile took it **in a delta run**, which is the point of reconcile-by-completeness)
+and the new identity is present. The sweep removed 403 + 103 = **506** rows — exactly the
+500 deleted plus the 6 orphaned — and a second delta immediately afterwards removed
+nothing.
 
 Each step lands with its own tests against the
 [IdentityIQ-shaped fixture](https://github.com/Fortigi/IdentityAtlas/tree/main/tools/iiq-fixture). Its
