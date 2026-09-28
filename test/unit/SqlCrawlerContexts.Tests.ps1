@@ -46,6 +46,13 @@ BeforeAll {
         $s.HasResources = $Resources.Count -gt 0
         return $s
     }
+    # A run that has already read accounts, the way a principals slot leaves it:
+    # keyed on the directory's id, indexed by employee number.
+    function Add-KnownPrincipal([hashtable]$State, [string]$Key, [string]$EmployeeId) {
+        $State.HasPrincipals = $true
+        [void]$State.KnownPrincipals.Add($Key)
+        Register-SqlPrincipalAlias -Record ([ordered]@{ externalId = $Key; employeeId = $EmployeeId }) -State $State
+    }
     # The catalogue used throughout: one entry keyed by a CMDB reference, one keyed
     # by its name, and two that fold to the same name.
     function New-Catalogued([string]$Mode = 'full', [string[]]$Resources = @('e1', 'e2', 'e3', 'e4', 'e5')) {
@@ -115,6 +122,80 @@ Describe 'the catalogue (contexts target)' {
         $state.Contexts.Records[0].displayName | Should -BeExactly 'First'
         @($state.Contexts.Duplicates) | Should -Be @('CI1')
         $ctx.Skipped | Should -Be 2
+    }
+}
+
+Describe 'Resolve-SqlContextOwner' {
+    # The real defect: IdentityIQ's application catalogue names the owner by
+    # employee number (spt_identity.name) while every account is keyed on the
+    # identity id (spt_identity.id). The values below are chosen to tell the two
+    # apart — an id that is not an employee number, an employee number that is
+    # not an id, and a third value that is neither.
+    BeforeEach {
+        $script:state = New-State
+        Add-KnownPrincipal $script:state '8a8080f1-id-4711' '10000737'
+        Add-KnownPrincipal $script:state '8a8080f1-id-9002' '10000901'
+        $script:cat = $script:state.Contexts
+    }
+
+    It 'turns an employee number into the account key the principal is stored under' {
+        Resolve-SqlContextOwner -Catalog $cat -Owner '10000737' -State $state | Should -BeExactly '8a8080f1-id-4711'
+        Resolve-SqlContextOwner -Catalog $cat -Owner ' 10000901 ' -State $state | Should -BeExactly '8a8080f1-id-9002'
+        $cat.OwnerMapped | Should -Be 2
+        $cat.OwnerDirect | Should -Be 0
+        $cat.OwnerUnresolved.Count | Should -Be 0
+    }
+
+    It 'leaves an owner that already names an account alone' {
+        Resolve-SqlContextOwner -Catalog $cat -Owner '8a8080f1-id-4711' -State $state | Should -BeExactly '8a8080f1-id-4711'
+        $cat.OwnerDirect | Should -Be 1
+        $cat.OwnerMapped | Should -Be 0
+    }
+
+    It 'keeps an owner that matches nothing, exactly as the source spells it, and counts it' {
+        Resolve-SqlContextOwner -Catalog $cat -Owner '99999999' -State $state | Should -BeExactly '99999999'
+        Resolve-SqlContextOwner -Catalog $cat -Owner '99999999' -State $state | Should -BeExactly '99999999'
+        Resolve-SqlContextOwner -Catalog $cat -Owner 'ghost@example.test' -State $state | Should -BeExactly 'ghost@example.test'
+        $cat.OwnerUnresolved['99999999'] | Should -Be 2
+        $cat.OwnerUnresolved.Count | Should -Be 2
+        $cat.OwnerMapped | Should -Be 0
+    }
+
+    It 'keeps the first account when two share an employee number, rather than flapping between them' {
+        Add-KnownPrincipal $state '8a8080f1-id-zzzz' '10000737'
+        Resolve-SqlContextOwner -Catalog $cat -Owner '10000737' -State $state | Should -BeExactly '8a8080f1-id-4711'
+    }
+
+    It 'passes the owner through untouched, and counts nothing, when the run read no accounts' {
+        $bare = New-State
+        Resolve-SqlContextOwner -Catalog $bare.Contexts -Owner '10000737' -State $bare | Should -BeExactly '10000737'
+        Resolve-SqlContextOwner -Catalog $bare.Contexts -Owner '10000737' | Should -BeExactly '10000737'
+        $bare.Contexts.OwnerUnresolved.Count | Should -Be 0 -Because 'unresolved must mean "we looked and found nobody", not "we did not look"'
+    }
+
+    It 'resolves the owner as the catalogue is read, so the record carries the account key' {
+        $slot = Get-Slot 'contexts' @{ columnMap = @{ cmdb = 'id'; name = 'displayName'; owner = 'ownerUserId' } }
+        Invoke-Rows $slot $state @(
+            (Get-Row @{ cmdb = 'CI001'; name = 'Finance'; owner = '10000737' })
+            (Get-Row @{ cmdb = 'CI002'; name = 'Payroll'; owner = '99999999' })
+            (Get-Row @{ cmdb = 'CI003'; name = 'Ledger'; owner = '' })
+        ) | Out-Null
+        $recs = $state.Contexts.Records
+        $recs[0].ownerUserId | Should -BeExactly '8a8080f1-id-4711'
+        $recs[1].ownerUserId | Should -BeExactly '99999999'
+        $recs[2].Contains('ownerUserId') | Should -BeFalse
+        (Get-SqlContextReport -Catalog $state.Contexts).ownersUnresolvedRows | Should -Be 1
+    }
+}
+
+Describe 'Register-SqlPrincipalAlias' {
+    It 'indexes an account by its employee number and ignores one without' {
+        $s = New-State
+        Register-SqlPrincipalAlias -Record ([ordered]@{ externalId = 'k1'; employeeId = ' 1001 ' }) -State $s
+        Register-SqlPrincipalAlias -Record ([ordered]@{ externalId = 'k2' }) -State $s
+        Register-SqlPrincipalAlias -Record ([ordered]@{ externalId = 'k3'; employeeId = '' }) -State $s
+        $s.PrincipalsByEmployeeId.Count | Should -Be 1
+        $s.PrincipalsByEmployeeId['1001'] | Should -BeExactly 'k1'
     }
 }
 
@@ -233,7 +314,8 @@ Describe 'Send-SqlContextBuffer' {
         $state = New-Catalogued
         Invoke-Rows (Get-Slot 'context-members' @{ columnMap = @{ id = 'memberId'; app = 'contextName' } }) $state @(
             (Get-Row @{ id = 'e1'; app = 'Finance' })) | Out-Null
-        Send-SqlContextBuffer -Slot (Get-Slot 'contexts') -State $state | Should -Be 4
+        # 4 catalogue entries + the one root they hang under.
+        Send-SqlContextBuffer -Slot (Get-Slot 'contexts') -State $state | Should -Be 5
         Send-SqlContextBuffer -Slot (Get-Slot 'context-members') -State $state | Should -Be 1
         $calls[0].Endpoint | Should -Be 'ingest/contexts'
         $calls[0].Body.syncMode | Should -Be 'full'
@@ -251,8 +333,8 @@ Describe 'Send-SqlContextBuffer' {
     It 'stamps every context as owned by this system and scopes the sync to it and the context type' {
         $state = New-Catalogued
         Send-SqlContextBuffer -Slot (Get-Slot 'contexts') -State $state | Out-Null
-        @($calls[0].Body.records).Count | Should -Be 4
-        @($calls[0].Body.records | Where-Object { $_.scopeSystemId -ne 9 }).Count | Should -Be 0
+        @($calls[0].Body.records).Count | Should -Be 5
+        @($calls[0].Body.records | Where-Object { $_.scopeSystemId -ne 9 }).Count | Should -Be 0 -Because 'the root has to be owned exactly like its children or the next sync removes it'
         $calls[0].Body.scope.scopeSystemId | Should -Be 9
         $calls[0].Body.scope.contextType | Should -Be (Get-Slot 'contexts').contextType
     }
@@ -263,6 +345,76 @@ Describe 'Send-SqlContextBuffer' {
         $calls[0].Body.syncMode | Should -Be 'delta'
         Send-SqlContextBuffer -Slot (Get-Slot 'context-members') -State $state | Should -Be 0
         @($calls).Count | Should -Be 1 -Because 'an empty full sync would wipe every membership of the system'
+    }
+}
+
+Describe 'the catalogue root' {
+    BeforeEach {
+        $script:calls = [System.Collections.Generic.List[object]]::new()
+        Mock Invoke-IngestAPI { $script:calls.Add([pscustomobject]@{ Endpoint = $Endpoint; Body = $Body }); @{ inserted = @($Body.records).Count; updated = 0; deleted = 0 } }
+    }
+
+    It 'names the root after the slot, else after the context type, pluralised' {
+        Get-SqlContextRootName -Slot (Get-Slot 'contexts' @{ contextType = 'LogicalApplication'; rootDisplayName = ' Logical Applications ' }) | Should -BeExactly 'Logical Applications'
+        Get-SqlContextRootName -Slot (Get-Slot 'contexts' @{ contextType = 'LogicalApplication' }) | Should -BeExactly 'Logical Applications'
+        ConvertTo-SqlPluralLabel 'BusinessProcess' | Should -BeExactly 'Business Processes'
+        ConvertTo-SqlPluralLabel 'Category'        | Should -BeExactly 'Categories'
+        ConvertTo-SqlPluralLabel 'Application'     | Should -BeExactly 'Applications'
+        ConvertTo-SqlPluralLabel ''                | Should -BeExactly 'Contexts'
+    }
+
+    It 'sends one root first and parents every catalogue entry to it' {
+        $state = New-Catalogued
+        $slot = Get-Slot 'contexts' @{ rootDisplayName = 'Logical Applications' }
+        Send-SqlContextBuffer -Slot $slot -State $state | Should -Be 5
+        $sent = @($calls[0].Body.records)
+        $sent[0].externalId | Should -BeExactly 'root:Application'
+        $sent[0].displayName | Should -BeExactly 'Logical Applications'
+        $sent[0].Contains('parentExternalId') | Should -BeFalse
+        $sent[0].contextType | Should -BeExactly $slot.contextType -Because 'a root outside the reconcile scope is never refreshed'
+        $sent[0].targetType | Should -BeExactly $slot.targetType
+        $sent[0].variant | Should -BeExactly 'synced'
+        @($sent | Select-Object -Skip 1 | Where-Object { $_.parentExternalId -ne 'root:Application' }).Count | Should -Be 0
+    }
+
+    # The trap the handover called out: the reconcile only removes contexts the
+    # system owns, bounded by (variant, contextType, scopeSystemId). A second
+    # identical run must send the same root, under the same key, inside the same
+    # scope — otherwise the sync that follows deletes it and orphans the tree.
+    It 'a second identical run sends exactly one root, the same one, in the same scope' {
+        $first = New-Catalogued
+        Send-SqlContextBuffer -Slot (Get-Slot 'contexts') -State $first | Out-Null
+        $second = New-Catalogued
+        Send-SqlContextBuffer -Slot (Get-Slot 'contexts') -State $second | Out-Null
+
+        $a = @($calls[0].Body.records); $b = @($calls[1].Body.records)
+        @($a | Where-Object { -not $_.Contains('parentExternalId') }).Count | Should -Be 1
+        @($b | Where-Object { -not $_.Contains('parentExternalId') }).Count | Should -Be 1
+        $b[0].externalId | Should -BeExactly $a[0].externalId -Because 'a new key each run would leave the old root behind'
+        @($b.externalId) | Should -Be @($a.externalId)
+        # Same deterministic namespace and the same scope, so the second run
+        # upserts the first run's rows instead of deleting them.
+        $calls[1].Body.idPrefix | Should -Be $calls[0].Body.idPrefix
+        $calls[1].Body.scope.contextType | Should -Be $calls[0].Body.scope.contextType
+        $calls[1].Body.scope.scopeSystemId | Should -Be $calls[0].Body.scope.scopeSystemId
+        $b[0].scopeSystemId | Should -Be 9
+    }
+
+    It 'makes no root for an empty catalogue, so an empty full sync still sends nothing' {
+        $state = New-State
+        Send-SqlContextBuffer -Slot (Get-Slot 'contexts') -State $state | Should -Be 0
+        @($calls).Count | Should -Be 0 -Because 'a batch of nothing but a root would reconcile away every context the last run wrote'
+    }
+
+    It 'leaves a catalogue that already uses the root key flat rather than overwriting the entry' {
+        $state = New-State
+        Invoke-Rows (Get-Slot 'contexts' @{ columnMap = @{ cmdb = 'id'; name = 'displayName' } }) $state @(
+            (Get-Row @{ cmdb = 'root:Application'; name = 'A real application that happens to be keyed like the root' })
+        ) | Out-Null
+        Send-SqlContextBuffer -Slot (Get-Slot 'contexts') -State $state | Should -Be 1
+        $sent = @($calls[0].Body.records)
+        $sent[0].displayName | Should -BeExactly 'A real application that happens to be keyed like the root'
+        $sent[0].Contains('parentExternalId') | Should -BeFalse
     }
 }
 
@@ -279,7 +431,7 @@ Describe 'contexts in the run' {
         $state = New-State
         (New-SqlSlotStreams -Slot (Get-Slot 'contexts') -State $state).Count | Should -Be 0
         $t = Invoke-SqlSlot -Slot (Get-Slot 'contexts') -Connection 'c' -State $state
-        $t.sent | Should -Be 1
+        $t.sent | Should -Be 2 -Because 'the one catalogue row goes up with the root it hangs under'
         $t.unresolved | Should -Be 0
         Should -Invoke Invoke-IngestAPI -Times 1 -Exactly -ParameterFilter { $Endpoint -eq 'ingest/contexts' }
     }

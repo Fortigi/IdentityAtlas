@@ -23,6 +23,14 @@ export const HEADERS = Object.freeze({
 
 export const CONTEXT_TYPE = 'LogicalApplication';
 
+// The one context every logical application hangs under. Without it a dataset
+// with 1,500 applications loads as 1,500 top-level contexts — a list, not a
+// tree, and unreadable however correct the counts are. The key matches the one
+// the SQL crawler builds (SqlCrawler.Contexts.ps1 → Get-SqlContextRootKey) so
+// the generated environment and the connector's own output are shaped alike.
+export const ROOT_EXTERNAL_ID = `root:${CONTEXT_TYPE}`;
+export const ROOT_DISPLAY_NAME = 'Logical Applications';
+
 // Ids — pure functions of (plan, index).
 export const principalId = (plan, i) => opaqueId('P', i, plan.keys.principal);
 export const entitlementId = (plan, e) => opaqueId('E', e, plan.keys.entitlement);
@@ -61,12 +69,17 @@ export function enabledPrincipalNear(plan, start) {
 export async function writeContexts(plan, dir, opts) {
   const w = open(dir, 'Contexts.csv', HEADERS.contexts, opts);
   const rng = stream(plan.params.seed, 'contexts');
+  // The root first — it has no owner and no CMDB reference of its own, and it
+  // carries the same system as its children so one sync owns the whole tree.
+  await w.writeRow([ROOT_EXTERNAL_ID, ROOT_DISPLAY_NAME, CONTEXT_TYPE, 'Resource',
+    'Every logical application in the catalogue', '', IDENTITY_STORE.name, '', '']);
   for (let a = 0; a < plan.params.logicalApplications; a++) {
     const owner = principalId(plan, enabledPrincipalNear(plan, rng.int(plan.params.principals)));
     const cmdb = `CI${String(1000000 + rng.int(8999999)).padStart(7, '0')}`;
     const name = applicationName(a, plan.keys.name);
     await w.writeRow([applicationId(plan, a), name, CONTEXT_TYPE, 'Resource',
-      `Logical application ${name}, spans ${1 + plan.apps.secondaries[a].length} connector(s)`, '', IDENTITY_STORE.name, owner, cmdb]);
+      `Logical application ${name}, spans ${1 + plan.apps.secondaries[a].length} connector(s)`,
+      ROOT_EXTERNAL_ID, IDENTITY_STORE.name, owner, cmdb]);
   }
   return finish(w, 'Contexts.csv');
 }

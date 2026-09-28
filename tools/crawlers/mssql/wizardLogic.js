@@ -35,7 +35,7 @@ const SLOT_FIELDS_BY_TARGET = {
   resources: ['resourceType'],
   assignments: ['resourceType', 'assignmentType', 'governed'],
   relationships: ['relationshipType'],
-  contexts: ['contextType', 'targetType'],
+  contexts: ['contextType', 'targetType', 'rootDisplayName'],
   'context-members': ['memberType'],
 };
 
@@ -89,7 +89,7 @@ export function contractColumnOptions(target) {
 
 const SLOT_DEFAULTS = {
   resourceType: '', assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User',
-  contextType: '', targetType: 'Resource', memberType: 'Resource',
+  contextType: '', targetType: 'Resource', memberType: 'Resource', rootDisplayName: '',
 };
 
 // A blank editor slot. Every field is bound (the editor switches which ones it
@@ -278,6 +278,7 @@ const SLOT_FIELD_VALUES = {
   contextType:      s => (s.contextType || '').trim(),
   targetType:       s => s.targetType || 'Resource',
   memberType:       s => s.memberType || 'Resource',
+  rootDisplayName:  s => (s.rootDisplayName || '').trim(),
 };
 
 // One editor slot → one crawler.json `queries[]` entry: trimmed, typed, and

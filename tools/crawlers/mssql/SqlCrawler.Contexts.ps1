@@ -66,14 +66,53 @@ function New-SqlContextCatalog {
         Unresolved = [System.Collections.Generic.Dictionary[string, int]]::new($ord)
         Members    = [System.Collections.Generic.List[object]]::new()
         MemberKeys = [System.Collections.Generic.HashSet[string]]::new($ord)
+        # Owners: how many the catalogue already named by account key, how many
+        # an employee number had to be translated for, and the ones that match
+        # nobody (raw value -> how many contexts named it).
+        OwnerDirect     = 0
+        OwnerMapped     = 0
+        OwnerUnresolved = [System.Collections.Generic.Dictionary[string, int]]::new($ord)
     }
+}
+
+# A catalogue's owner reference -> the account key that owner is stored under.
+#
+# The catalogue and the directory do not have to agree on how a person is named.
+# IdentityIQ's application catalogue names the owner by employee number, while
+# every account is keyed on the identity id — so the owner the UI showed resolved
+# to nobody, on data that was otherwise correct. The translation happens here,
+# against the accounts this run has already read, and never in SQL: the same
+# statement has to work when the owner is already an account key.
+#
+# An owner that matches nothing is returned UNCHANGED and counted. Dropping it
+# would hide an owner the source does have; inventing one would be worse than
+# either.
+function Resolve-SqlContextOwner {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)] [hashtable]$Catalog,
+        [AllowNull()] [AllowEmptyString()] [string]$Owner,
+        [hashtable]$State
+    )
+    $value = if ($null -eq $Owner) { '' } else { $Owner.Trim() }
+    if (-not $value) { return '' }
+    # No accounts in this run: nothing to resolve against, so the owner is
+    # passed through and NOT counted as unresolved — that number has to mean
+    # "the source names an owner we cannot find", not "we did not look".
+    if ($null -eq $State -or -not $State.HasPrincipals) { return $value }
+    if ($State.KnownPrincipals.Contains($value)) { $Catalog.OwnerDirect++; return $value }
+    $mapped = $null
+    if ($State.PrincipalsByEmployeeId.TryGetValue($value, [ref]$mapped)) { $Catalog.OwnerMapped++; return $mapped }
+    $Catalog.OwnerUnresolved[$value] = 1 + ($Catalog.OwnerUnresolved[$value] ?? 0)
+    return $value
 }
 
 # One contexts-target row -> a Context record in the catalogue. Returns $null
 # (skip) without a usable name; counts a repeated key and keeps the first.
 function Add-SqlContextRecord {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] $Row, [Parameter(Mandatory)] [hashtable]$Map, [Parameter(Mandatory)] [hashtable]$Slot, [Parameter(Mandatory)] [hashtable]$Catalog)
+    param([Parameter(Mandatory)] $Row, [Parameter(Mandatory)] [hashtable]$Map, [Parameter(Mandatory)] [hashtable]$Slot, [Parameter(Mandatory)] [hashtable]$Catalog, [hashtable]$State)
     $display = [string](Get-SqlMapped -Row $Row -Map $Map -Name 'displayName')
     if (-not $display.Trim()) { $display = [string](Get-SqlMapped -Row $Row -Map $Map -Name 'name') }
     $name = ConvertTo-SqlContextName $display
@@ -90,8 +129,8 @@ function Add-SqlContextRecord {
     }
     $desc = Get-SqlMapped -Row $Row -Map $Map -Name 'description'
     if ($null -ne $desc -and [string]$desc -ne '') { $rec['description'] = [string]$desc }
-    $owner = Get-SqlMapped -Row $Row -Map $Map -Name 'ownerUserId'
-    if ($null -ne $owner -and [string]$owner -ne '') { $rec['ownerUserId'] = [string]$owner }
+    $owner = Resolve-SqlContextOwner -Catalog $Catalog -Owner ([string](Get-SqlMapped -Row $Row -Map $Map -Name 'ownerUserId')) -State $State
+    if ($owner) { $rec['ownerUserId'] = $owner }
     $ext = Get-SqlExtendedAttributes -Row $Row -Map $Map
     if ($ext) { $rec['extendedAttributes'] = $ext }
     $Catalog.ByKey[$key] = $rec
@@ -136,7 +175,7 @@ function Resolve-SqlContextReference {
 function Add-SqlContextRow {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $Row, [Parameter(Mandatory)] [hashtable]$Ctx)
-    $rec = Add-SqlContextRecord -Row $Row -Map $Ctx.Map -Slot $Ctx.Slot -Catalog $Ctx.State.Contexts
+    $rec = Add-SqlContextRecord -Row $Row -Map $Ctx.Map -Slot $Ctx.Slot -Catalog $Ctx.State.Contexts -State $Ctx.State
     if (-not $rec) { $Ctx.Skipped++ }
 }
 
@@ -163,6 +202,98 @@ function Add-SqlContextMemberRow {
 
 #endregion Row handlers
 
+#region The root
+
+# 'LogicalApplication' -> 'Logical Applications'. Only ever a fallback: a slot
+# that cares what its root is called says so in rootDisplayName, and the shipped
+# IdentityIQ preset does. English pluralisation is not a science, so this covers
+# the three regular cases and no more.
+function ConvertTo-SqlPluralLabel {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([AllowNull()] [AllowEmptyString()] [string]$Value)
+    $words = (([string]$Value) -creplace '(?<!^)([A-Z])', ' $1').Trim()
+    if (-not $words) { return 'Contexts' }
+    if ($words -match '(?i)(s|x|z|ch|sh)$')  { return $words + 'es' }
+    if ($words -match '(?i)[^aeiou]y$')      { return $words.Substring(0, $words.Length - 1) + 'ies' }
+    return $words + 's'
+}
+
+function Get-SqlContextRootName {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)] [hashtable]$Slot)
+    $named = ([string]$Slot.rootDisplayName).Trim()
+    if ($named) { return $named }
+    return ConvertTo-SqlPluralLabel ([string]$Slot.contextType)
+}
+
+# The key of the root. Namespaced with a colon, which a configuration-management
+# reference and a normalised application name both lack, so it cannot collide
+# with a catalogue entry by accident — and if it somehow does, Get-SqlContextRoot
+# leaves the catalogue alone rather than overwriting a real application.
+function Get-SqlContextRootKey {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)] [hashtable]$Slot)
+    return "root:$($Slot.contextType)"
+}
+
+# The one context every catalogue entry hangs under, or $null when there should
+# not be one.
+#
+# Without it a source with 1,500 logical applications renders as 1,500 top-level
+# rows: a list, not a tree, and unusable however correct the counts are.
+#
+# The root is a synced context of the SAME contextType, sent in the same batch
+# and stamped with the same scopeSystemId as its children. That is deliberate:
+# the full sync's reconcile is bounded by (variant, contextType, scopeSystemId),
+# so a root of some other type would sit OUTSIDE the scope — never deleted, but
+# never refreshed either, and a rename would strand the old one forever. Inside
+# the scope, being in the batch is what keeps it; a second identical run upserts
+# the same deterministic id and changes nothing.
+#
+# An empty catalogue gets no root. A full sync carrying only a root would
+# reconcile away every context a previous run created, and an empty tree is not
+# an improvement on an empty list.
+function Get-SqlContextRoot {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable]$Slot, [Parameter(Mandatory)] [hashtable]$Catalog)
+    if ($Catalog.Records.Count -eq 0) { return $null }
+    $key = Get-SqlContextRootKey -Slot $Slot
+    if ($Catalog.ByKey.ContainsKey($key)) { return $null }
+    return [ordered]@{
+        externalId  = $key
+        displayName = Get-SqlContextRootName -Slot $Slot
+        variant     = 'synced'
+        contextType = $Slot.contextType
+        targetType  = $Slot.targetType
+        description = "Every $($Slot.contextType) this system syncs."
+    }
+}
+
+# The catalogue, hung under its root: the root first, then every entry parented
+# to it. Returns a List so a one-entry catalogue does not unroll to a bare
+# record on the way back (the same trap the buffer-sending code documents).
+function Get-SqlRootedContextRecords {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable]$Slot, [Parameter(Mandatory)] [hashtable]$Catalog)
+    $out = [System.Collections.Generic.List[object]]::new()
+    $root = Get-SqlContextRoot -Slot $Slot -Catalog $Catalog
+    if ($root) {
+        $out.Add($root)
+        # A catalogue entry that already names a parent keeps it: the root is the
+        # fallback for entries with nowhere else to go, not an override.
+        foreach ($r in $Catalog.Records) { if (-not $r.Contains('parentExternalId')) { $r['parentExternalId'] = $root.externalId } }
+    } elseif ($Catalog.Records.Count -gt 0) {
+        Write-Host "  Catalogue already has a context keyed '$(Get-SqlContextRootKey -Slot $Slot)'; leaving it as the tree's own root." -ForegroundColor Yellow
+    }
+    $out.AddRange($Catalog.Records)
+    return , $out
+}
+
+#endregion The root
+
 #region Send and report
 
 # The data-quality facts a catalogue run produced, as plain numbers and samples.
@@ -175,7 +306,14 @@ function Get-SqlContextReport {
     }
     $unresolved = $Catalog.Unresolved.GetEnumerator() | Sort-Object -Property @{ Expression = 'Value'; Descending = $true }, Key |
         Select-Object -First $n | ForEach-Object { "'$($_.Key)' ($($_.Value))" }
+    $ownerLost = $Catalog.OwnerUnresolved.GetEnumerator() | Sort-Object -Property @{ Expression = 'Value'; Descending = $true }, Key |
+        Select-Object -First $n | ForEach-Object { "'$($_.Key)' ($($_.Value))" }
     return [ordered]@{
+        ownersKeyed            = $Catalog.OwnerDirect
+        ownersMapped           = $Catalog.OwnerMapped
+        ownersUnresolved       = $Catalog.OwnerUnresolved.Count
+        ownersUnresolvedRows   = [int](($Catalog.OwnerUnresolved.Values | Measure-Object -Sum).Sum)
+        ownersUnresolvedSample = @($ownerLost)
         contexts            = $Catalog.Records.Count
         members             = $Catalog.Members.Count
         foldedSpellings     = @($folded).Count
@@ -187,6 +325,22 @@ function Get-SqlContextReport {
         ambiguousNames      = @($Catalog.Ambiguous | Select-Object -First $n)
         duplicateKeys       = @($Catalog.Duplicates | Select-Object -First $n)
         duplicateKeyCount   = $Catalog.Duplicates.Count
+    }
+}
+
+# The owner facts, printed when the catalogue is sent (the rest of the report
+# waits for the memberships). An owner nobody can find is the finding here: it
+# is kept exactly as the source spelled it, so the number says how much of the
+# catalogue will show a raw string where a person should be.
+function Write-SqlContextOwnerReport {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Report)
+    if ($Report.ownersMapped) {
+        Write-Host "  $($Report.ownersMapped.ToString('N0')) owner(s) named by employee number were resolved to an account; $($Report.ownersKeyed.ToString('N0')) already named one." -ForegroundColor Gray
+    }
+    if ($Report.ownersUnresolved) {
+        Write-Host "  $($Report.ownersUnresolvedRows.ToString('N0')) context(s) name $($Report.ownersUnresolved) owner(s) that match no account; the value is kept as the source spells it:" -ForegroundColor Yellow
+        foreach ($s in $Report.ownersUnresolvedSample) { Write-Host "    $s" -ForegroundColor Yellow }
     }
 }
 
@@ -218,6 +372,7 @@ function Send-SqlContextBuffer {
     # list, so ONE record arrives bare and .Count counts that record's keys.
     $records = $catalog.Records
     if ($isMembers) { $records = $catalog.Members }
+    else { $records = Get-SqlRootedContextRecords -Slot $Slot -Catalog $catalog }
     $endpoint = if ($isMembers) { 'ingest/context-members' } else { 'ingest/contexts' }
     # Contexts and memberships are shared by every crawler. Stamping this system as
     # the owner is what lets the ingest bound a full sync to them: without it, one
@@ -231,6 +386,8 @@ function Send-SqlContextBuffer {
         $report = Get-SqlContextReport -Catalog $catalog
         Write-SqlContextReport -Report $report
         $State.ContextReport = $report
+    } else {
+        Write-SqlContextOwnerReport -Report (Get-SqlContextReport -Catalog $catalog)
     }
     return $records.Count
 }

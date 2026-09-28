@@ -66,6 +66,10 @@ function New-SqlRunState {
         SyncMode        = $SyncMode
         KnownResources  = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
         KnownPrincipals = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        # employee number -> the account key that account is stored under. A
+        # catalogue names a person the way people are named on paper; principals
+        # are keyed on the directory's own id. See Resolve-SqlContextOwner.
+        PrincipalsByEmployeeId = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::OrdinalIgnoreCase)
         HasResources    = ($targets -contains 'resources')
         HasPrincipals   = ($targets -contains 'identities' -or $targets -contains 'principals')
         Scopes          = [System.Collections.Generic.List[hashtable]]::new()
@@ -159,6 +163,20 @@ function New-SqlSlotStreams {
 # counts the row as skipped (unusable) / dangling (names an id this run has not
 # seen). $Ctx: Slot, Map, Streams, State, Skipped, Dangling.
 
+# Index an account by its employee number so a catalogue that names its owner
+# that way can be resolved to the account key (SqlCrawler.Contexts.ps1).
+# First one wins: two accounts sharing an employee number is a defect in the
+# source, and choosing a different one each run would make the owner flap
+# between two people for no reason the reader could see.
+function Register-SqlPrincipalAlias {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Record, [Parameter(Mandatory)] [hashtable]$State)
+    $employeeId = ([string]$Record.employeeId).Trim()
+    if (-not $employeeId) { return }
+    if ($State.PrincipalsByEmployeeId.ContainsKey($employeeId)) { return }
+    $State.PrincipalsByEmployeeId[$employeeId] = [string]$Record.externalId
+}
+
 function Add-SqlIdentityRow {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $Row, [Parameter(Mandatory)] [hashtable]$Ctx)
@@ -170,6 +188,7 @@ function Add-SqlIdentityRow {
     Add-SqlExpectedKey -Expectation $Ctx.Streams.principal.Expect -Key $identity.externalId
     Add-CrawlerIngestStreamRecord -Stream $Ctx.Streams.member    -Record (New-SqlIdentityMemberRecord -IdentityId $identity.externalId -PrincipalId $identity.externalId)
     [void]$Ctx.State.KnownPrincipals.Add($identity.externalId)
+    Register-SqlPrincipalAlias -Record $principal -State $Ctx.State
 }
 
 function Add-SqlPrincipalRow {
@@ -180,7 +199,8 @@ function Add-SqlPrincipalRow {
     Add-CrawlerIngestStreamRecord -Stream $Ctx.Streams.principal -Record $principal
     Add-SqlExpectedKey -Expectation $Ctx.Streams.principal.Expect -Key $principal.externalId
     [void]$Ctx.State.KnownPrincipals.Add($principal.externalId)
-    $identityId = ([string](Get-SqlMapped -Row $Row -Map $Ctx.Map -Name 'identityId')).Trim()
+    Register-SqlPrincipalAlias -Record $principal -State $Ctx.State
+    $identityId =([string](Get-SqlMapped -Row $Row -Map $Ctx.Map -Name 'identityId')).Trim()
     if ($identityId) {
         Add-CrawlerIngestStreamRecord -Stream $Ctx.Streams.member -Record (New-SqlIdentityMemberRecord -IdentityId $identityId -PrincipalId $principal.externalId -IsPrimary $false -AccountType 'Linked')
     }
