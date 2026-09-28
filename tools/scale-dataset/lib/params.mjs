@@ -41,6 +41,12 @@ export const DEFAULTS = Object.freeze({
   // Share of connectors that are directory-style (entitlement values are LDAP
   // distinguished names — full of commas). The largest connector always is one.
   directoryConnectorShare: 0.3,
+  // Share of the individual contributors at the base of the org chart who report
+  // to nobody — contractors, service accounts, records whose manager has left.
+  // Never zero: a directory where every row has a manager leaves the "has no
+  // manager" half of the reference filters and the Missing Managers report with
+  // nothing to find. See plan.planManagers for the hierarchy's shape.
+  managerlessShare: 0.04,
   // Share of entitlements (and of principals) whose display name is a
   // near-collision of another: same text differing only by case or a trailing
   // space. Matching in the source is by name, so these must survive the load.
@@ -63,7 +69,7 @@ export function resolveParams(overrides = {}) {
   // Connectors are not scaled, but a tiny run cannot have more than it has entitlements.
   out.connectors = Math.max(1, Math.min(p.connectors, out.entitlements));
   if (out.connectors > 255) throw new Error(`connectors must be at most 255 (got ${out.connectors})`);
-  for (const k of ['enabledShare', 'holderCapShare', 'crossSystemShare', 'directoryConnectorShare', 'nameCollisionShare']) assertShare(k, out[k]);
+  for (const k of ['enabledShare', 'holderCapShare', 'crossSystemShare', 'directoryConnectorShare', 'nameCollisionShare', 'managerlessShare']) assertShare(k, out[k]);
   out.enabledPrincipals = Math.round(out.principals * out.enabledShare);
   out.holderCap = Math.max(1, Math.floor(out.principals * out.holderCapShare));
   // Keep the per-entitlement mean feasible at small scales: every entitlement holds

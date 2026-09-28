@@ -42,6 +42,43 @@ const SIMPLE_EXTERNAL_REFS = [
   { field: 'contextExternalId',   target: 'contextId',       ns: 'contexts' },
 ];
 
+// Manager references. The two columns are NOT interchangeable and sit side by
+// side on "Contexts", so swapping them produces a link that reads as correct and
+// points at the wrong table:
+//
+//   managerId         → a PRINCIPAL (an account). Self-referential on
+//                       "Principals"; on "Contexts" it is the org unit's manager
+//                       account (routes/riskScores/list.js joins it to
+//                       "Principals".id).
+//   managerIdentityId → an IDENTITY (a person). "Identities".managerIdentityId is
+//                       the person-level manager (reports/templates/
+//                       missing-managers.js reads exactly this pair, one per
+//                       level). "Identities" has NO managerId column at all.
+//
+// Unlike SIMPLE_EXTERNAL_REFS these are resolved only when the target column
+// really exists on the table being written. Both names are plausible on any
+// person-shaped feed, and resolving one the table cannot store would silently
+// drop it (resolveActiveColumns discards a key that is not a column); leaving it
+// unresolved keeps it in extendedAttributes, where it is at least visible.
+const MANAGER_EXTERNAL_REFS = [
+  { field: 'managerExternalId',         target: 'managerId',         ns: 'principals' },
+  { field: 'managerIdentityExternalId', target: 'managerIdentityId', ns: 'identities' },
+];
+
+// The manager references of one record, resolved only into a column the target
+// table actually has (see MANAGER_EXTERNAL_REFS). Mutates `normalized`; returns
+// the fields it resolved.
+function resolveManagerRefs(rec, normalized, coreSet, sysPrefix) {
+  const resolved = [];
+  for (const { field, target, ns } of MANAGER_EXTERNAL_REFS) {
+    if (rec[field] && coreSet.has(target) && !normalized[target]) {
+      normalized[target] = deterministicGuid(`${sysPrefix}-${ns}`, String(rec[field]));
+      resolved.push(field);
+    }
+  }
+  return resolved;
+}
+
 /**
  * Resolve a record's external-ID references to deterministic UUIDs in the same
  * "<sys>-<entity>" namespace the target entity used, so the generated FKs line
@@ -82,6 +119,8 @@ function resolveExternalRefs(rec, normalized, coreSet, sysPrefix) {
       resolved.push(field);
     }
   }
+
+  resolved.push(...resolveManagerRefs(rec, normalized, coreSet, sysPrefix));
 
   // A context-member's memberId namespace depends on what kind of entity it is.
   if (rec.memberExternalId && !normalized.memberId) {

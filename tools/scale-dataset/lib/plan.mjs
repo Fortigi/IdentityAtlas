@@ -75,6 +75,115 @@ function planPrincipals(p, rng) {
   return enabled;
 }
 
+// ─── The manager hierarchy ───────────────────────────────────────────────────
+//
+// An org chart, not a uniform fan-out. Built top-down in layers: one person at
+// the top, each layer a multiple of the one above it, and everyone left over in
+// the base — the individual contributors, who manage nobody. Within a layer the
+// team sizes follow a power law, so a few managers carry a large team, most
+// carry a handful, and the tail carries one or two.
+//
+// Why it matters that this is not uniform: the org-chart walk, the manager
+// hierarchy context plugin and the "manager of" reference filter all recurse.
+// A uniform two-level fan-out exercises one level of recursion at one width and
+// says nothing about a 40-person department under a 6-person executive layer.
+//
+// Cycles and self-management: a manager is always at a LOWER index than their
+// report, by construction, which makes both impossible rather than unlikely.
+// Both are asserted in the tests anyway — "impossible by construction" is what
+// was said about the last hierarchy that turned out to contain a loop, and a
+// real directory contains both (a self-managing CEO record is routine).
+
+// Each layer is this multiple of the layer above it, from the top down.
+export const ORG_LAYER_SPANS = Object.freeze([4, 5, 6, 8, 10]);
+// A layer is only added while the remainder can still form a base at least this
+// many times wider than it — otherwise the "base" would be narrower than the
+// layer managing it and most of that layer would manage nobody.
+export const ORG_MIN_BASE_SPAN = 6;
+// Team size within a layer ∝ 1/(rank+1)^exponent, clamped to [1, cap].
+export const ORG_SPAN_SKEW = 0.55;
+export const ORG_SPAN_CAP = 90;
+
+// Layer sizes from the top down, summing to exactly `n`. The last entry is the
+// base: everyone who manages nobody.
+export function planLayerSizes(n, spans = ORG_LAYER_SPANS, minBaseSpan = ORG_MIN_BASE_SPAN) {
+  if (n <= 0) return [];
+  if (n === 1) return [1];
+  const sizes = [1];
+  let used = 1;
+  for (const s of spans) {
+    const next = Math.max(1, Math.round(sizes[sizes.length - 1] * s));
+    if (n - used - next < next * minBaseSpan) break;
+    sizes.push(next);
+    used += next;
+  }
+  sizes.push(n - used);
+  return sizes;
+}
+
+// managers[i] = the index of i's manager, or -1 for the person at the top and
+// for the share who report to nobody. An Int32Array of one slot per principal —
+// 720 KB at full scale, versus a row per assignment, which is the rule the whole
+// plan follows.
+export function planManagers(n, managerlessShare, rng) {
+  const managers = new Int32Array(n).fill(-1);
+  const layers = planLayerSizes(n);
+  let parentStart = 0;
+  let start = layers[0] ?? 0;
+  for (let k = 1; k < layers.length; k++) {
+    const parents = layers[k - 1];
+    const size = layers[k];
+    const cap = Math.max(Math.ceil(size / parents), Math.min(ORG_SPAN_CAP, size));
+    const teams = shuffleInPlace(powerLawCounts(parents, size, ORG_SPAN_SKEW, cap), rng);
+    let child = start;
+    const end = start + size;
+    for (let m = 0; m < parents && child < end; m++) {
+      for (let c = 0; c < teams[m] && child < end; c++) managers[child++] = parentStart + m;
+    }
+    parentStart = start;
+    start = end;
+  }
+
+  // Not everyone reports to somebody: contractors, service accounts, and records
+  // whose manager has left. A directory where every single row has a manager is
+  // as unrealistic as one where none does — and it leaves the "has no manager"
+  // half of every reference filter, and the Missing Managers report, with
+  // nothing to find. Cleared only in the base layer, so no subtree is orphaned.
+  const base = layers.length > 1 ? layers[layers.length - 1] : 0;
+  const wanted = Math.round(base * managerlessShare);
+  if (wanted > 0) {
+    const take = exactSelector(base, wanted, rng);
+    for (let i = n - base; i < n; i++) if (take()) managers[i] = -1;
+  }
+  return managers;
+}
+
+// Depth / span facts for the manifest, straight off the plan.
+export function managerStats(managers) {
+  const n = managers.length;
+  const reports = new Uint32Array(n);
+  let withManager = 0;
+  for (let i = 0; i < n; i++) {
+    if (managers[i] >= 0) { reports[managers[i]]++; withManager++; }
+  }
+  const spans = Array.from(reports).filter(c => c > 0).sort((a, b) => b - a);
+  const depth = new Uint16Array(n);
+  let maxDepth = 0;
+  for (let i = 0; i < n; i++) {
+    const m = managers[i];
+    depth[i] = m < 0 ? 0 : depth[m] + 1;   // m < i always, so depth[m] is already final
+    if (depth[i] > maxDepth) maxDepth = depth[i];
+  }
+  return {
+    principalsWithManager: withManager,
+    principalsWithoutManager: n - withManager,
+    managers: spans.length,
+    maxDirectReports: spans[0] ?? 0,
+    medianDirectReports: median(spans),
+    levels: maxDepth + 1,
+  };
+}
+
 // A stride coprime with `n` walks n distinct principals from any start.
 export function coprimeStride(n, rng) {
   if (n <= 2) return 1;
@@ -98,6 +207,7 @@ export function buildPlan(p) {
     entHolders: planHolderCounts(p.entitlements, p.entitlementAssignments, p.assignmentSkew, p.holderCap, rng('entitlement-holders')),
     roleHolders: planHolderCounts(p.roles, p.roleAssignments, p.roleAssignmentSkew, p.holderCap, rng('role-holders')),
     enabled: planPrincipals(p, rng('principals-enabled')),
+    managers: planManagers(p.principals, p.managerlessShare, rng('managers')),
     keys: {
       system: idKey(p.seed, 'system'),
       app: idKey(p.seed, 'application'),
@@ -145,6 +255,7 @@ export function planStats(plan) {
     entitlementHolders: holderStats(plan.entHolders, 100000),
     roleHolders: holderStats(plan.roleHolders, 100000),
     entitlementsPerConnector: plan.connectors.map((c, i) => ({ system: c.name, entitlements: perConnector[i] })),
+    managerHierarchy: managerStats(plan.managers),
     ...applicationSpan(plan),
   };
 }

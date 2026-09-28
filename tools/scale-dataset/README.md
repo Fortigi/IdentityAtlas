@@ -53,6 +53,7 @@ directory's. Each property below is a parameter in [`lib/params.mjs`](lib/params
 | Application size | `applicationSkew` (1.0) | a few very large applications, many small |
 | Commas in values | `directoryConnectorShare` (0.3) | directory-style connectors (always including the largest) emit LDAP distinguished names; every description carries commas too |
 | Name near-collisions | `nameCollisionShare` (0.002) | display names that differ from an earlier one only by case or a trailing space, for entitlements and principals |
+| Manager hierarchy | `managerlessShare` (0.04) | an org chart, not a fan-out: 7 levels, ~10,700 managers (6%), the typical one with a dozen direct reports and the largest with 90; 4% of the base reports to nobody, so `has a manager` and `has no manager` both return rows. A manager is always a lower index than their report, which is what makes a loop or a self-reference impossible |
 
 External ids are opaque (`E-3fa2c91b`, `P-…`, `R-…`, `A-…`, `S-…`) and unique across
 every file and every system. That matters: the crawler's deterministic ids are

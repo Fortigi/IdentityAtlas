@@ -206,6 +206,19 @@ describe('validateRecords — principals', () => {
     );
     expect(result.valid).toBe(true);
   });
+
+  it('accepts a managerExternalId that is NOT a UUID — a source id rarely is', () => {
+    // The whole point of the field: IdentityIQ hands out ids like '0a00016e…'
+    // and an HR export hands out employee numbers. Validating this as a UUID
+    // would reject every source the field exists for.
+    const result = validateRecords([{ ...validPrincipal, managerExternalId: '8a8a01…managerkey' }], 'principals');
+    expect(result.valid).toBe(true);
+  });
+
+  it('rejects a managerExternalId past the column length', () => {
+    const result = validateRecords([{ ...validPrincipal, managerExternalId: 'x'.repeat(501) }], 'principals');
+    expect(result.valid).toBe(false);
+  });
 });
 
 // ── validateRecords — resource-assignments ────────────────────────────────────

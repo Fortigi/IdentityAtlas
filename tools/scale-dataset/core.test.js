@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { fmix32, stream, opaqueId, idKey, gcd, hashLabel } from './lib/random.mjs';
 import { powerLawCounts, exactSelector, weightedPicker, shuffleInPlace, median, zipfWeights } from './lib/distributions.mjs';
 import { resolveParams, DEFAULTS } from './lib/params.mjs';
-import { coprimeStride } from './lib/plan.mjs';
+import { coprimeStride, planLayerSizes, planManagers, managerStats, ORG_LAYER_SPANS } from './lib/plan.mjs';
 import { nearCollision, collisionSource, connectorCatalog, entitlementValue } from './lib/names.mjs';
 
 describe('random', () => {
@@ -146,6 +146,112 @@ describe('selection and picking', () => {
       for (let j = 0; j < n; j++) { seen.add(p); p = (p + s) % n; }
       expect(seen.size).toBe(n);
     }
+  });
+});
+
+describe('the manager hierarchy', () => {
+  const sizes = [1, 2, 3, 10, 100, 900, 180000];
+
+  it('layer sizes sum to the population and never leave a base narrower than its managers', () => {
+    for (const n of sizes) {
+      const layers = planLayerSizes(n);
+      expect(layers.reduce((s, v) => s + v, 0)).toBe(n);
+      expect(layers[0]).toBe(1);
+      if (layers.length > 1) expect(layers.at(-1)).toBeGreaterThanOrEqual(layers.at(-2));
+    }
+  });
+
+  it('is a pyramid: every layer wider than the one above it', () => {
+    const layers = planLayerSizes(180000);
+    for (let k = 1; k < layers.length; k++) expect(layers[k]).toBeGreaterThan(layers[k - 1]);
+    expect(layers.length).toBe(ORG_LAYER_SPANS.length + 2);   // top + spans + base
+  });
+
+  it('nobody manages themselves and no chain loops — at every size', () => {
+    for (const n of sizes) {
+      const m = planManagers(n, 0.04, stream(5, `mgr-${n}`));
+      expect(m.length).toBe(n);
+      // Collected, not asserted per index: 180k principals would be half a
+      // million assertions, and a failure names the offending index rather than
+      // just the first one.
+      const selfManaged = [];
+      const notLower = [];
+      const outOfRange = [];
+      for (let i = 0; i < n; i++) {
+        if (m[i] === i) selfManaged.push(i);
+        // A manager at a lower index is what makes a loop impossible; assert the
+        // invariant itself, not just the absence of the shortest loop.
+        else if (m[i] > i) notLower.push(i);
+        if (m[i] < -1) outOfRange.push(i);
+      }
+      expect({ n, selfManaged, notLower, outOfRange })
+        .toEqual({ n, selfManaged: [], notLower: [], outOfRange: [] });
+    }
+  });
+
+  it('walking up from anybody terminates', () => {
+    const n = 5000;
+    const m = planManagers(n, 0.04, stream(5, 'walk'));
+    for (let i = 0; i < n; i++) {
+      let steps = 0;
+      for (let cur = i; m[cur] >= 0; cur = m[cur]) {
+        if (++steps > n) throw new Error(`cycle reached from ${i}`);
+      }
+      expect(steps).toBeLessThan(20);
+    }
+  });
+
+  it('is shaped like an organisation, not a flat fan-out', () => {
+    const m = planManagers(180000, 0.04, stream(5, 'shape'));
+    const s = managerStats(m);
+    // Most people manage nobody.
+    expect(s.managers / 180000).toBeLessThan(0.1);
+    // A handful of levels, not two and not forty.
+    expect(s.levels).toBeGreaterThanOrEqual(5);
+    expect(s.levels).toBeLessThanOrEqual(9);
+    // A few carry a large team while the typical one carries a handful: a
+    // uniform fan-out would put max and median within a factor of two.
+    expect(s.maxDirectReports).toBeGreaterThan(4 * s.medianDirectReports);
+    expect(s.medianDirectReports).toBeGreaterThanOrEqual(5);
+    expect(s.medianDirectReports).toBeLessThanOrEqual(20);
+  });
+
+  it('leaves a share with no manager at all, so both halves of "has a manager" exist', () => {
+    const n = 20000;
+    const withNone = (share) => managerStats(planManagers(n, share, stream(5, 'none'))).principalsWithoutManager;
+    // The top of the tree accounts for exactly one; the rest is the share.
+    expect(withNone(0)).toBe(1);
+    expect(withNone(0.04)).toBeGreaterThan(0.03 * n);
+    expect(withNone(0.04)).toBeLessThan(0.05 * n);
+    expect(withNone(0.5)).toBeGreaterThan(withNone(0.04));
+  });
+
+  it('clearing a manager never orphans a subtree — only the base layer loses one', () => {
+    const n = 20000;
+    const m = planManagers(n, 0.25, stream(5, 'orphan'));
+    const hasReports = new Set();
+    for (let i = 0; i < n; i++) if (m[i] >= 0) hasReports.add(m[i]);
+    // Nobody who manages somebody was left without a manager, except the person
+    // at the top — otherwise a quarter of the org chart would hang off no root.
+    expect([...hasReports].filter(i => i !== 0 && m[i] === -1)).toEqual([]);
+    expect(hasReports.size).toBeGreaterThan(0);
+  });
+
+  it('is reproducible from the seed and changes with it', () => {
+    const a = planManagers(3000, 0.04, stream(7, 'repro'));
+    const b = planManagers(3000, 0.04, stream(7, 'repro'));
+    const c = planManagers(3000, 0.04, stream(8, 'repro'));
+    expect(Array.from(a)).toEqual(Array.from(b));
+    expect(Array.from(a)).not.toEqual(Array.from(c));
+  });
+
+  it('managerStats counts what it says: reports, managers and depth', () => {
+    // 0 at the top, 1 and 2 report to 0, 3 reports to 1, 4 reports to nobody.
+    const s = managerStats(Int32Array.from([-1, 0, 0, 1, -1]));
+    expect(s).toEqual({
+      principalsWithManager: 3, principalsWithoutManager: 2, managers: 2,
+      maxDirectReports: 2, medianDirectReports: 1.5, levels: 3,
+    });
   });
 });
 

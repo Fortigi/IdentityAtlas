@@ -67,7 +67,7 @@ binary columns are skipped.
 
 | Target | Required columns | Recognised optional columns | Emits |
 |---|---|---|---|
-| `identities` | `id`, `displayName` (falls back to `name`, `userId`, then `id`) | `email`, `givenName`, `surname`, `department`, `jobTitle`, `companyName`, `employeeId`, `principalType`, `enabled` / `active` (or the inverse `inactive` / `disabled`) | one **Identity**, one **Principal** with the same id (the person's account in this system), and the **IdentityMember** link between them |
+| `identities` | `id`, `displayName` (falls back to `name`, `userId`, then `id`) | `email`, `givenName`, `surname`, `department`, `jobTitle`, `companyName`, `employeeId`, `city`, `country`, `officeLocation`, `managerExternalId` (or `managerId`), `principalType`, `enabled` / `active` (or the inverse `inactive` / `disabled`) | one **Identity**, one **Principal** with the same id (the person's account in this system), and the **IdentityMember** link between them |
 | `principals` | `id`, `displayName` (same fallbacks) | as above, plus `identityId` (also emits an IdentityMember link) | one **Principal** |
 | `identity-members` | `identityId`, `principalId` | `isPrimary`, `accountType` | one **IdentityMember** |
 | `resources` | `id`, `displayName` (falls back to `name`) | `description`, `enabled` | one **Resource**; `resourceType` comes from the slot; `governanceResource` is set when it is `BusinessRole` |
@@ -75,6 +75,22 @@ binary columns are skipped.
 | `relationships` | `parentId`, `childId` | — | one **ResourceRelationship**; `relationshipType` from the slot |
 | `contexts` | `displayName` (falls back to `name`) | `id` (the key; else the normalised name), `description`, `ownerUserId` | one **Context**, buffered and sent as one full sync; `contextType` / `targetType` from the slot |
 | `context-members` | `memberId`, `contextId` or `contextName` | — | one **ContextMember**, resolved against the catalogue in `SqlCrawler.Contexts.ps1`; an unknown context drops the membership only, and is reported |
+
+**The manager column.** Select the manager's key *in the source* — the value that
+matches another row's `id`, never an Identity Atlas id, which a query cannot know. Alias
+it `managerExternalId`, or `managerId`, which is what the shipped IdentityIQ presets use
+(`i.manager AS managerId`); both are accepted and `managerExternalId` wins if a statement
+carries both. The ingest resolves it to the row the manager's own `id` produced, so the
+two rows may come back in any order. A row naming itself is dropped, and a manager the
+statement never returned leaves the column empty and is counted in the job's warnings —
+it is never stored as a link that points at nobody. An **unaliased** `manager` column is
+left as an ordinary attribute: it holds a display name as often as a key, so it must be
+aliased or mapped before it is treated as one.
+
+On an `identities` slot, both halves of the row are filled from the same value: the
+Principal gets `managerExternalId` (their manager's **account**) and the Identity gets
+`managerIdentityExternalId` (their manager as a **person**). These are different columns
+pointing at different tables, which is why the crawler does not send one name for both.
 
 ### Using an existing SELECT unchanged — `columnMap`
 

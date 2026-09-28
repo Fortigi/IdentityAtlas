@@ -52,7 +52,7 @@ People, service accounts, bots — anything that can hold permissions.
 | `PrincipalType` | string | no | One of: `User`, `ServicePrincipal`, `ExternalUser`, `SharedMailbox`. Default: `User` |
 | `JobTitle` | string | no | |
 | `Department` | string | no | Used to derive OrgUnit contexts when no `Contexts.csv` is provided |
-| `ManagerExternalId` | string | no | ExternalId of the manager (for org-chart hierarchy) |
+| `ManagerExternalId` | string | no | The `ExternalId` of another row in this file — the person's manager. Feeds the org chart, the manager-hierarchy contexts and the "reports to" filters. Order does not matter: the manager may appear anywhere in the file, or have been imported earlier. A row naming itself is ignored, and a manager that is not in the file (and not already imported) leaves the field empty and is counted in the job's warnings rather than stored as a link to nobody |
 | `SystemName` | string | no | Like Resources — links to a system. Omit for single-system imports |
 | `Enabled` | bool | no | `true`/`false`. Default: `true` |
 

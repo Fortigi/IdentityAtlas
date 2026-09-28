@@ -65,6 +65,11 @@ const SCHEMAS = {
       companyName: { type: 'string', maxLength: 255 },
       employeeId: { type: 'string', maxLength: 255 },
       managerId: { type: 'uuid' },
+      // A crawler knows its source's id for the manager, never our internal one,
+      // so managerId is only usable by a source that already holds resolved
+      // object ids (Entra). Everyone else sends the source id here and the
+      // ingest resolves it in the principals namespace (normalization.js).
+      managerExternalId: { type: 'string', maxLength: 500 },
       contextId: { type: 'uuid' },
       createdDateTime: { type: 'string' },
       extendedAttributes: { type: 'json' },
@@ -205,6 +210,10 @@ const SCHEMAS = {
       givenName: { type: 'string', maxLength: 255 },
       surname: { type: 'string', maxLength: 255 },
       primaryPrincipalId: { type: 'uuid' },
+      // An Identity's manager is another IDENTITY, not an account: the column is
+      // managerIdentityId and there is no managerId on "Identities".
+      managerIdentityId: { type: 'uuid' },
+      managerIdentityExternalId: { type: 'string', maxLength: 500 },
       contextId: { type: 'uuid' },
       extendedAttributes: { type: 'json' },
     },
@@ -245,6 +254,10 @@ const SCHEMAS = {
       sourceRunId: { type: 'uuid' },
       createdByUser: { type: 'string', maxLength: 255 },
       ownerUserId: { type: 'string', maxLength: 255 },
+      // A context carries both: managerId is the org unit's manager ACCOUNT,
+      // managerIdentityId the same manager as a PERSON.
+      managerExternalId: { type: 'string', maxLength: 500 },
+      managerIdentityExternalId: { type: 'string', maxLength: 500 },
       externalId: { type: 'string', maxLength: 500 },
       directMemberCount: { type: 'number' },
       totalMemberCount: { type: 'number' },

@@ -5,7 +5,7 @@
 
 import path from 'node:path';
 import { CsvWriter, formatField } from './csvWriter.mjs';
-import { opaqueId, stream, fmix32 } from './random.mjs';
+import { opaqueId, stream } from './random.mjs';
 import { IDENTITY_STORE, coprimeStride } from './plan.mjs';
 import {
   userName, userAttributes, applicationName, entitlementValue, entitlementDescription,
@@ -108,20 +108,14 @@ export function principalDisplayName(plan, i) {
   return src < 0 ? userName(i, plan.keys.name).display : nearCollision(userName(src, plan.keys.name).display, i);
 }
 
-// The first ~8% of principals are the manager pool; everyone reports to an
-// earlier member of it, so the hierarchy has no cycles.
-export function managerOf(i, poolSize, key) {
-  if (i === 0) return -1;
-  return fmix32((i ^ key) >>> 0) % Math.min(i, poolSize);
-}
-
 export async function writeUsers(plan, dir, opts) {
   const w = open(dir, 'Users.csv', HEADERS.users, opts);
-  const pool = Math.max(1, Math.round(plan.params.principals * 0.08));
   for (let i = 0; i < plan.params.principals; i++) {
     const n = userName(i, plan.keys.name);
     const a = userAttributes(i, plan.keys.name);
-    const m = managerOf(i, pool, plan.keys.principal);
+    // The org chart is decided once, in the plan (planManagers): a manager is
+    // always at a lower index, so no row can name itself or close a loop.
+    const m = plan.managers[i];
     const email = `${n.first}.${n.last}.${i + 1}@example.com`.toLowerCase();
     const row = [principalId(plan, i), principalDisplayName(plan, i), email, 'User', a.jobTitle, a.department,
       m < 0 ? '' : principalId(plan, m), IDENTITY_STORE.name, plan.enabled[i] ? 'true' : 'false', a.employeeType];

@@ -7,7 +7,7 @@
 import crypto from 'node:crypto';
 import { fmix32, hashLabel, stream } from '../../scale-dataset/lib/random.mjs';
 import { userName, userAttributes, applicationName, entitlementValue, entitlementDescription, nearCollision } from '../../scale-dataset/lib/names.mjs';
-import { entitlementDisplayName, principalDisplayName, managerOf, enabledPrincipalNear } from '../../scale-dataset/lib/emit.mjs';
+import { entitlementDisplayName, principalDisplayName, enabledPrincipalNear } from '../../scale-dataset/lib/emit.mjs';
 import { idSpace, iiqId, timestamps, attributesXml } from './iiq.mjs';
 
 // The attribute an entitlement lives under, per connector type.
@@ -49,7 +49,6 @@ export function makeContext(plan, iiq) {
   return {
     plan, iiq, seed, spaces, identityIds,
     appIds: plan.connectors.map(c => iiqId(spaces.application, c.index)),
-    managerPool: Math.max(1, Math.round(n * 0.08)),
   };
 }
 
@@ -83,7 +82,9 @@ export function identityRow(ctx, i) {
   const h = fmix32((i ^ 0x3c6ef372) >>> 0);
   const [companyname, companycode] = COMPANIES[h % COMPANIES.length];
   const [employeegroup, employeesubgroup] = EMPLOYEE_GROUPS[a.employeeType] ?? EMPLOYEE_GROUPS.Employee;
-  const m = managerOf(i, ctx.managerPool, plan.keys.principal);
+  // spt_identity.manager holds another identity's id — the same org chart the
+  // CSV fixture emits, decided once in the plan (plan.planManagers).
+  const m = plan.managers[i];
   return [
     ctx.identityIds[i], t.created, t.modified, null, employeeNumber(i), principalDisplayName(plan, i), u.first, u.last,
     `${u.first}.${u.last}.${i + 1}@example.com`.toLowerCase(), m < 0 ? null : ctx.identityIds[m],

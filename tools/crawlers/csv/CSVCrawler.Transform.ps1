@@ -148,7 +148,7 @@ $script:CsvReservedColumns = @{
     'Contexts.csv'              = @('ExternalId', 'DisplayName', 'TargetType', 'ContextType', 'Description', 'ParentExternalId', 'OwnerUserId', 'SystemName')
     'Resources.csv'             = @('ExternalId', 'DisplayName', 'ResourceType', 'Description', 'SystemName', 'Enabled')
     'ResourceRelationships.csv' = @('ParentExternalId', 'ChildExternalId', 'RelationshipType', 'SystemName')
-    'Users.csv'                 = @('ExternalId', 'DisplayName', 'Email', 'PrincipalType', 'JobTitle', 'Department', 'SystemName', 'Enabled')
+    'Users.csv'                 = @('ExternalId', 'DisplayName', 'Email', 'PrincipalType', 'JobTitle', 'Department', 'ManagerExternalId', 'SystemName', 'Enabled')
     'Identities.csv'            = @('ExternalId', 'DisplayName', 'Email', 'EmployeeId', 'Department', 'JobTitle', 'SystemName')
     'Certifications.csv'        = @('ExternalId', 'ResourceExternalId', 'UserDisplayName', 'Decision', 'ReviewerDisplayName', 'ReviewedDateTime', 'SystemName')
 }
@@ -233,6 +233,27 @@ function Get-CsvColumnPositions {
 # ─── Users.csv ───────────────────────────────────────────────────
 # principalType is validated against the canonical set (falls back to 'User').
 
+# The manager's key from a Users.csv row, or $null when there is none to send.
+#
+# ManagerExternalId is optional and holds another row's ExternalId. It is passed
+# through as `managerExternalId`; the ingest resolves it to the id that manager's
+# own row is keyed by (app/api/src/ingest/normalization.js), so the two rows may
+# arrive in any order and a manager listed before or after their report links
+# just the same. A row naming ITSELF is dropped — a self-managing record is a
+# directory artefact, not a hierarchy, and it breaks any org-chart walk.
+#
+# $Cols is the FILE's header: a value on a row whose column the file does not
+# declare is not part of the file and is not read.
+function Get-CsvManagerRef {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param($Row, [System.Collections.Generic.HashSet[string]]$Cols)
+    if (-not $Cols.Contains('ManagerExternalId')) { return $null }
+    $mgr = ([string]$Row.ManagerExternalId).Trim()
+    if (-not $mgr -or $mgr -eq ([string]$Row.ExternalId).Trim()) { return $null }
+    return $mgr
+}
+
 function ConvertTo-CsvUserRecord {
     [CmdletBinding()]
     param($Row, [int]$SystemId, [System.Collections.Generic.HashSet[string]]$Cols, [string[]]$Extra = @())
@@ -251,6 +272,8 @@ function ConvertTo-CsvUserRecord {
         jobTitle       = if ($Cols.Contains('JobTitle')) { $Row.JobTitle } else { $null }
         department     = if ($Cols.Contains('Department')) { $Row.Department } else { $null }
     }
+    $mgr = Get-CsvManagerRef -Row $Row -Cols $Cols
+    if ($mgr) { $rec['managerExternalId'] = $mgr }
     Add-CsvExtendedAttributes -Row $Row -Extra $Extra -Record $rec
     return $rec
 }

@@ -10,6 +10,7 @@ import * as db from '../../db/connection.js';
 import { SOFT_DELETE_TABLES, ingest } from '../../ingest/engine.js';
 import { startSession, continueSession, endSession, hasSession, SessionLimitError } from '../../ingest/sessions.js';
 import { ownedRowPredicate, linkDirectorySystems } from '../../ingest/systemBoundary.js';
+import { managerLinkWarning } from '../../ingest/managerLinks.js';
 
 export function applyIngestDefaults(entityType, body) {
   if (!Array.isArray(body.records)) body.records = [];
@@ -116,6 +117,7 @@ export async function handleSessionPath(body, ctx) {
       syncId: result.syncId, table: tableName,
       inserted: result.inserted, updated: result.updated, deleted: result.deleted,
       totalRecords: result.totalRecords, session: 'completed',
+      ...(result.managerLinks ? { managerLinks: result.managerLinks, warnings: [managerLinkWarning(result.managerLinks)] } : {}),
     } };
   }
   return null;

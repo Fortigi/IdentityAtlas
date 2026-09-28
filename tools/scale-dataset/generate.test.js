@@ -178,6 +178,47 @@ describe('shape', () => {
     expect(roleRows.every(a => a.AssignmentType === 'Direct' && a.SystemName === 'Identity Store')).toBe(true);
   });
 
+  it('the emitted org chart is a tree — no self-management, no loops', () => {
+    const mgr = new Map(t['Users.csv'].map(u => [u.ExternalId, u.ManagerExternalId || null]));
+    expect([...mgr].filter(([id, m]) => m === id)).toEqual([]);
+    for (const id of mgr.keys()) {
+      const seen = new Set([id]);
+      for (let cur = mgr.get(id); cur; cur = mgr.get(cur)) {
+        expect(seen.has(cur), `loop through ${cur}`).toBe(false);
+        seen.add(cur);
+      }
+    }
+  });
+
+  it('the org chart has depth and an uneven span, and the manifest says so', () => {
+    const rows = t['Users.csv'];
+    const mgr = new Map(rows.map(u => [u.ExternalId, u.ManagerExternalId || null]));
+    const reports = new Map();
+    for (const m of mgr.values()) if (m) reports.set(m, (reports.get(m) ?? 0) + 1);
+    const spans = [...reports.values()].sort((a, b) => b - a);
+
+    const h = manifest.shape.managerHierarchy;
+    expect(h.managers).toBe(spans.length);
+    expect(h.maxDirectReports).toBe(spans[0]);
+    expect(h.principalsWithManager).toBe(rows.filter(u => u.ManagerExternalId).length);
+    expect(h.principalsWithoutManager).toBe(rows.length - h.principalsWithManager);
+
+    // Most people manage nobody; a few manage many.
+    expect(spans.length).toBeLessThan(rows.length / 5);
+    expect(spans[0]).toBeGreaterThan(4 * spans[spans.length >> 1]);
+
+    // More than two levels: somebody's manager has a manager of their own.
+    const depth = (id) => { let d = 0; for (let c = mgr.get(id); c; c = mgr.get(c)) d++; return d; };
+    expect(Math.max(...rows.map(u => depth(u.ExternalId)))).toBe(h.levels - 1);
+    expect(h.levels).toBeGreaterThanOrEqual(4);
+  });
+
+  it('a realistic minority reports to nobody, so both halves of the filter have rows', () => {
+    const none = t['Users.csv'].filter(u => !u.ManagerExternalId).length;
+    expect(none).toBeGreaterThan(1);
+    expect(none / t['Users.csv'].length).toBeLessThan(0.1);
+  });
+
   it('tab output never needs quoting', () => {
     for (const f of FILES) expect(fs.readFileSync(path.join(dir, f), 'utf8').includes('"'), f).toBe(false);
   });

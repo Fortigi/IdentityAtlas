@@ -233,6 +233,49 @@ Describe 'ConvertTo-CsvUserRecord' {
         $row = [PSCustomObject]@{ ExternalId = 'u1'; DisplayName = 'A'; Enabled = 'False' }
         (ConvertTo-CsvUserRecord -Row $row -SystemId 2 -Cols $cols).accountEnabled | Should -BeFalse
     }
+
+    It 'passes ManagerExternalId through under the name the ingest resolves' {
+        # Not managerId: the crawler cannot know an internal id, and a field
+        # called managerId would be validated as a UUID and rejected.
+        $cols = New-ColSet @('ExternalId', 'DisplayName', 'ManagerExternalId')
+        $row = [PSCustomObject]@{ ExternalId = 'u1'; DisplayName = 'A'; ManagerExternalId = 'm1' }
+        $rec = ConvertTo-CsvUserRecord -Row $row -SystemId 2 -Cols $cols
+        $rec.managerExternalId | Should -Be 'm1'
+        $rec.Contains('managerId') | Should -BeFalse
+    }
+
+    It 'trims the manager key so it matches the manager row''s own ExternalId' {
+        $cols = New-ColSet @('ExternalId', 'DisplayName', 'ManagerExternalId')
+        $row = [PSCustomObject]@{ ExternalId = 'u1'; DisplayName = 'A'; ManagerExternalId = '  m1 ' }
+        (ConvertTo-CsvUserRecord -Row $row -SystemId 2 -Cols $cols).managerExternalId | Should -Be 'm1'
+    }
+
+    It 'sends nothing for a blank manager, rather than an empty string' {
+        $cols = New-ColSet @('ExternalId', 'DisplayName', 'ManagerExternalId')
+        foreach ($m in @('', '   ', $null)) {
+            $row = [PSCustomObject]@{ ExternalId = 'u1'; DisplayName = 'A'; ManagerExternalId = $m }
+            (ConvertTo-CsvUserRecord -Row $row -SystemId 2 -Cols $cols).Contains('managerExternalId') | Should -BeFalse
+        }
+    }
+
+    It 'drops a row that names itself as its own manager' {
+        $cols = New-ColSet @('ExternalId', 'DisplayName', 'ManagerExternalId')
+        $row = [PSCustomObject]@{ ExternalId = 'u1'; DisplayName = 'A'; ManagerExternalId = 'u1' }
+        (ConvertTo-CsvUserRecord -Row $row -SystemId 2 -Cols $cols).Contains('managerExternalId') | Should -BeFalse
+    }
+
+    It 'ignores the column when the file does not declare it' {
+        # $Cols is the file's header; a row property without a header column is
+        # not part of the file and must not be read.
+        $cols = New-ColSet @('ExternalId', 'DisplayName')
+        $row = [PSCustomObject]@{ ExternalId = 'u1'; DisplayName = 'A'; ManagerExternalId = 'm1' }
+        (ConvertTo-CsvUserRecord -Row $row -SystemId 2 -Cols $cols).Contains('managerExternalId') | Should -BeFalse
+    }
+
+    It 'is part of the Users.csv schema, so it is not also copied to extendedAttributes' {
+        $names = @('ExternalId', 'DisplayName', 'ManagerExternalId', 'CostCenter')
+        Get-CsvExtraColumns -Columns $names -FileName 'Users.csv' | Should -Be @('CostCenter')
+    }
 }
 
 Describe 'ConvertTo-CsvStreamBatch (assignments)' {
