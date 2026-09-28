@@ -49,6 +49,11 @@ function Get-SqlExpectation {
             Endpoint = $Endpoint; Scope = $Scope; Slots = 0
             Rows = [long]0
             KeySet = $keySet
+            # The systems this scope was written to. The source's own counts are
+            # per statement, never per system, so the database side has to be
+            # summed over exactly the systems the run fed — one of them alone
+            # would read as a shortfall the moment anything is routed.
+            Systems = [System.Collections.Generic.HashSet[int]]::new()
             SourceDistinct = $null; Dangling = [long]0; Unverifiable = $null
         }
     }
@@ -111,7 +116,8 @@ function Add-SqlReadCheck {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$Ctx, [AllowNull()] $Connection, [long]$Rows = 0)
     $m = Measure-SqlSource -Connection $Connection -Slot $Ctx.Slot -Map $Ctx.Map -CommandTimeout $Ctx.State.CommandTimeout
-    $Ctx.State.Reads.Add(@{ Slot = $Ctx.Slot.name; Read = $Rows; Source = $m.rows; Reason = $m.reason; Unplaced = [long]($Ctx.Dangling + $Ctx.Skipped) })
+    $Ctx.State.Reads.Add(@{ Slot = $Ctx.Slot.name; Read = $Rows; Source = $m.rows; Reason = $m.reason
+                            Unplaced = [long]($Ctx.Dangling + $Ctx.Skipped); Misrouted = [long]$Ctx.Misrouted })
     if ($null -ne $m.rows) {
         $pairs = if ($null -ne $m.pairs) { ", $($m.pairs.ToString('N0')) distinct (principal, resource) pairs" }
         Write-Host "  source returns $($m.rows.ToString('N0')) rows$pairs" -ForegroundColor DarkGray
@@ -178,6 +184,13 @@ function Get-SqlScopeVerdict {
 # loaded 454 of 805,497 rows, every grant for the rest dangled, and the run passed,
 # because a dangling row used to be a footnote and made the assignment count an
 # unbounded "range". This bound is what makes that range an assertion.
+#
+# A row naming a system no `systems` statement created is held to the same
+# bound. It is never dropped — the row lands in the crawler's own system, which
+# is what the CSV crawler does — but it IS wrong, and above a rounding error it
+# means the systems statement and this one disagree about which connectors
+# exist. The CSV crawler's silent version of this was a reported defect; the
+# quiet fallback plus a warning is the floor, and this is the ceiling.
 $script:SqlMaxUnplacedShare = 0.05
 
 function Get-SqlReadVerdict {
@@ -187,6 +200,11 @@ function Get-SqlReadVerdict {
     if ($Read.Read -gt 0 -and $unplaced / $Read.Read -gt $script:SqlMaxUnplacedShare) {
         return @{ ok = $false
                   reason = "$($unplaced.ToString('N0')) of the $($Read.Read.ToString('N0')) rows read ($([Math]::Round(100 * $unplaced / $Read.Read, 1))%) could not be placed: they name a resource or principal this run did not load, or lack a required column. The statements disagree about what exists, e.g. one filters rows another does not" }
+    }
+    $misrouted = [long]$Read.Misrouted
+    if ($Read.Read -gt 0 -and $misrouted / $Read.Read -gt $script:SqlMaxUnplacedShare) {
+        return @{ ok = $false
+                  reason = "$($misrouted.ToString('N0')) of the $($Read.Read.ToString('N0')) rows read ($([Math]::Round(100 * $misrouted / $Read.Read, 1))%) name a system no 'systems' statement created, and were loaded into the crawler's own system instead. Either the systems statement is filtered more narrowly than this one, or the two name a connector differently" }
     }
     if ($null -eq $Read.Source) { return @{ ok = $true; reason = "not verified: $($Read.Reason)" } }
     if ($Read.Read -eq $Read.Source) { return @{ ok = $true; reason = $null } }
@@ -199,7 +217,38 @@ function Format-SqlScopeLabel {
     [OutputType([string])]
     param([Parameter(Mandatory)] $Expectation)
     $scope = ($Expectation.Scope.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ', '
-    return "$($Expectation.Endpoint -replace '^ingest/', '')$(if ($scope) { " ($scope)" })"
+    $n = if ($Expectation.Systems) { $Expectation.Systems.Count } else { 0 }
+    $across = if ($n -gt 1) { " ×$n systems" } else { '' }
+    return "$($Expectation.Endpoint -replace '^ingest/', '')$(if ($scope) { " ($scope)" })$across"
+}
+
+# What the database holds for one expectation: its rows in every system the run
+# wrote this scope to, counted since the run's own start.
+function Measure-SqlScopeRows {
+    [CmdletBinding()]
+    [OutputType([long])]
+    param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] $Expectation)
+    $entity = $Expectation.Endpoint -replace '^ingest/', ''
+    $systems = @($Expectation.Systems)
+    if ($systems.Count -eq 0) { $systems = @($State.SystemId) }
+    [long]$total = 0
+    foreach ($sid in $systems) {
+        $r = Invoke-IngestAPI -Endpoint 'ingest/count' -Body @{ entity = $entity; systemId = $sid; scope = $Expectation.Scope; before = $State.ServerTime }
+        $total += [long]$r.count
+    }
+    return $total
+}
+
+# An external id that two systems both claimed. Both hash to one row in the
+# run's single id namespace, so one silently replaced the other — the same loss
+# as two source rows sharing an id, one level up. Returns a verdict or $null.
+function Get-SqlIdCollisionVerdict {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable]$Catalog)
+    if ($Catalog.CollisionRows -le 0) { return $null }
+    $sample = @($Catalog.Collisions.GetEnumerator() | ForEach-Object { "'$($_.Key)' in systems $($_.Value)" }) -join '; '
+    return @{ ok = $false; expected = [long]0; atlas = [long]$Catalog.CollisionRows
+              reason = "$($Catalog.CollisionRows.ToString('N0')) external id(s) were claimed by more than one system. Ids are unique per RUN, not per system, so these rows overwrite each other and one of the two is lost: $sample" }
 }
 
 # One line of the verification table, printed and returned as a result row.
@@ -229,10 +278,12 @@ function Test-SqlRunCounts {
         $results.Add((Write-SqlVerdictLine -Label "read: $($read.Slot)" -Verdict (Get-SqlReadVerdict -Read $read) -Expected $read.Source -Actual $read.Read -Measured 'read'))
     }
     foreach ($e in $State.Expect.Values) {
-        $entity = $e.Endpoint -replace '^ingest/', ''
-        $r = Invoke-IngestAPI -Endpoint 'ingest/count' -Body @{ entity = $entity; systemId = $State.SystemId; scope = $e.Scope; before = $State.ServerTime }
-        $v = Get-SqlScopeVerdict -Expectation $e -Atlas ([long]$r.count)
+        $v = Get-SqlScopeVerdict -Expectation $e -Atlas (Measure-SqlScopeRows -State $State -Expectation $e)
         $results.Add((Write-SqlVerdictLine -Label (Format-SqlScopeLabel -Expectation $e) -Verdict $v -Expected $v.expected -Actual $v.atlas))
+    }
+    $collision = Get-SqlIdCollisionVerdict -Catalog $State.Systems
+    if ($collision) {
+        $results.Add((Write-SqlVerdictLine -Label 'external ids unique across systems' -Verdict $collision -Expected 0 -Actual $collision.atlas -Measured 'collisions'))
     }
     $results = $results.ToArray()
     $State.Verification = $results

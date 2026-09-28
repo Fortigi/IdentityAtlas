@@ -17,7 +17,7 @@
 
 #region Configuration
 
-$script:SqlTargets       = @('identities', 'principals', 'identity-members', 'resources', 'assignments', 'relationships', 'contexts', 'context-members')
+$script:SqlTargets       = @('systems', 'identities', 'principals', 'identity-members', 'resources', 'assignments', 'relationships', 'contexts', 'context-members')
 $script:SqlContextTargetTypes = @('Resource', 'Identity', 'Principal', 'System')
 $script:SqlAssignTypes   = @('Direct', 'Indirect', 'Eligible')
 $script:SqlRelTypes      = @('Contains', 'GrantsAccessTo')
@@ -100,6 +100,9 @@ function Resolve-SqlQuerySlot {
         governed         = [bool]$Slot.governed
         relationshipType = $relationshipType
         principalType    = $principalType
+        # systems: the systemType every system this statement creates gets when
+        # the row does not carry one of its own. Blank means the crawler's own.
+        systemType       = ([string]$Slot.systemType).Trim()
         contextType      = $contextType
         targetType       = $targetType
         memberType       = $memberType

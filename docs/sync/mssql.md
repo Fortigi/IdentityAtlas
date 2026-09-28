@@ -23,6 +23,7 @@ turns into:
 
 | Target | Identity Atlas |
 |---|---|
+| `systems` | One **System** per technical connector in the source. Later statements send their rows to these instead of to the crawler's own system. See [One system per connector](#one-system-per-connector) |
 | `identities` | One **Identity** (the person), one **Principal** with the same id (the person's account in this system) and the **IdentityMember** link between them |
 | `principals` | One **Principal**; with an `identityId` column, also the **IdentityMember** link to that identity |
 | `identity-members` | One **IdentityMember** (links an existing identity to an existing principal) |
@@ -47,12 +48,13 @@ the rest of the columns come along for free.
 
 | Target | Required columns | Recognised optional columns |
 |---|---|---|
+| `systems` | `displayName` (falls back to `name`) | `id` (the key later statements route by; without it the normalised name is the key), `description`, `systemType`, `tenantId`, `enabled` / `active` (or the inverse) |
 | `identities` | `id`, `displayName` (falls back to `name`, then `userId`, then `id`) | `email`, `givenName`, `surname`, `department`, `jobTitle`, `companyName`, `employeeId`, `principalType`, `enabled` / `active` (or the inverse `inactive` / `disabled`) |
-| `principals` | `id`, `displayName` (same fallbacks) | as above, plus `identityId` (also emits an IdentityMember link) |
+| `principals` | `id`, `displayName` (same fallbacks) | as above, plus `identityId` (also emits an IdentityMember link), `systemId` / `systemName` |
 | `identity-members` | `identityId`, `principalId` | `isPrimary`, `accountType` |
-| `resources` | `id`, `displayName` (falls back to `name`) | `description`, `enabled` |
-| `assignments` | `resourceId`, `principalId` (alias `identityId`, because an `identities` row's account shares its id) | — |
-| `relationships` | `parentId`, `childId` | — |
+| `resources` | `id`, `displayName` (falls back to `name`) | `description`, `enabled`, `systemId` / `systemName` |
+| `assignments` | `resourceId`, `principalId` (alias `identityId`, because an `identities` row's account shares its id) | `systemId` / `systemName` |
+| `relationships` | `parentId`, `childId` | `systemId` / `systemName` |
 | `contexts` | `displayName` (falls back to `name`) | `id` (a stable key; without it the normalised name is the key), `description`, `ownerUserId` (an account key or an employee number — the crawler resolves either) |
 | `context-members` | `memberId`, and `contextId` or `contextName` | — |
 
@@ -74,6 +76,88 @@ A row that is missing a required column is skipped and counted; the job log tell
 many rows a statement dropped and why (see [Troubleshooting](#troubleshooting)). If *every*
 row of a statement is skipped, the log warns and names the required columns for that
 statement's target.
+
+### One system per connector
+
+Some sources are themselves aggregators. A SailPoint IdentityIQ database has one
+`spt_application` row per connected system, and every entitlement in it belongs to one of
+them. Loaded as a single flat Identity Atlas system, the first question an analyst asks —
+*which application is this entitlement in?* — has no answer.
+
+A `systems` statement creates one Identity Atlas system per connector, and the other
+statements say which one each row belongs to:
+
+```json
+{ "name": "Technical applications", "target": "systems",
+  "sql": "SELECT a.id, a.name AS displayName, a.type AS applicationType, a.connector FROM spt_application a" }
+
+{ "name": "Entitlements", "target": "resources", "resourceType": "Entitlement",
+  "sql": "SELECT ma.id, ma.displayable_name AS displayName, ma.application AS systemId FROM spt_managed_attribute ma" }
+```
+
+**Routing columns.** On `principals`, `resources`, `assignments` and `relationships`:
+
+| Column | What it holds |
+|---|---|
+| `systemId` | The **source's own key** for the connector — the value that matches a `systems` row's `id`. Not an Identity Atlas id, which a query cannot know. |
+| `systemName` | The connector's name, matched to a `systems` row's `displayName` ignoring case and surrounding spaces. |
+
+`systemId` wins when a row carries both. A row carrying neither stays in the crawler's own
+system — which is how a directory statement keeps its accounts where they belong. Both
+columns are *also* kept in `extendedAttributes`, so nothing that used to be visible on the
+detail page disappears when you start routing.
+
+**An assignment follows its resource, and a relationship its parent.** Neither needs a
+routing column of its own: a grant belongs to whatever grants it. This matters because the
+grant table is usually the largest in the source — tens of millions of rows — and adding a
+join to it to carry a column the crawler can already work out would be the most expensive
+change in the run.
+
+**Identities, identity members and contexts are never routed.** Those tables have no
+`systemId` column at all: an identity is a person, not an account in a system, and a
+context (a logical application) deliberately spans connectors.
+
+#### Ids are unique per run, not per system
+
+Identity Atlas keys are derived from the source's own ids inside one namespace **per
+crawler run**. That is what lets a grant join a principal in the directory system to an
+entitlement in a connector system: both halves are derived the same way, whichever system
+each row was stored in.
+
+The consequence is that **an external id must identify one thing across the whole run**. If
+two connectors both used the entitlement id `GRP-1`, the two rows would derive the same
+Identity Atlas id and one would silently replace the other. IdentityIQ ids are globally
+unique, so this holds there. The crawler does not assume it: it records every id that two
+systems claim and **fails the run** naming them, in the same verification table as the
+other count checks.
+
+#### What routing does not change
+
+Nothing about an existing configuration. Without a `systems` statement there is no routing:
+a `systemId` column is just another attribute, every row goes to the crawler's own system,
+and the ids a run generates are exactly the ones it generated before. Adding a `systems`
+statement to a configuration that has been running does **not** rewrite the ids of anything
+already loaded either — it moves rows to their new systems and leaves their ids alone.
+
+#### When a row names a system that does not exist
+
+The row is kept, loaded into the crawler's own system, and counted. The job log names the
+system references it could not place and how many rows named each. Above 5% of a
+statement's rows the job **fails**: at that point the `systems` statement and that one
+plainly disagree about which connectors exist — usually because one is filtered more
+narrowly than the other.
+
+#### Full syncs with routing
+
+A full sync reconciles **per system**: one pass per system a statement actually wrote to.
+A system that was registered but received no rows this run is left alone rather than
+emptied, and a routed system's stale rows are removed rather than being left behind
+forever. A connector that disappears from the source keeps its (now empty) system; systems
+are never deleted by a sync.
+
+**The crawler's API key must not be restricted to a fixed list of systems.** Such a key
+cannot write to a system it has just created, and the ingest refuses the batch. The
+built-in worker key is unrestricted, so a crawler run from the UI is fine.
 
 ### Contexts from a catalogue
 
@@ -385,8 +469,10 @@ same server) can still be one scope.
 Slots run grouped by target in dependency order, **regardless of the order you configure
 them in**:
 
-`identities` → `principals` → `resources` → `identity-members` → `assignments` → `relationships`
+`systems` → `identities` → `principals` → `resources` → `contexts` → `identity-members` →
+`context-members` → `assignments` → `relationships`
 
+`systems` runs first because everything after it may name one of the systems it creates.
 The crawler remembers every resource id and principal id it emitted during the run. An
 assignment or relationship that names an id it has not seen is **skipped and counted** —
 logged as `dangling` — and never sent. So an assignment statement can only join to
@@ -402,6 +488,11 @@ several SQL crawlers side by side stay distinguishable. Fill in the optional **S
 name** field (`systemName`) only to label the system as something other than the crawler;
 it is an override and always wins. This works the same way as for the other pull crawlers —
 see [System naming on the SCIM page](scim.md#system-naming) for the full explanation.
+
+A `systems` statement adds further systems beside this one, named by the source (see
+[One system per connector](#one-system-per-connector)). The crawler's own system is still
+registered and still holds everything that is not routed elsewhere — the identities, and
+anything a row does not place.
 
 ### Example
 
@@ -702,7 +793,10 @@ sees them again, purged after the retention window. See
   in this version; identities, accounts, resources, assignments and relationships do.
 - **Cross-statement references only.** An assignment or relationship must name ids that
   another statement in the same run produced — it cannot point at a resource imported by a
-  different crawler.
+  different crawler. Across the systems *this* crawler creates, references work normally.
+- **External ids must be unique across the whole run**, not merely within a system — see
+  [Ids are unique per run](#ids-are-unique-per-run-not-per-system). Two systems claiming
+  one id fails the run.
 
 ---
 
@@ -720,5 +814,9 @@ sees them again, purged after the retention window. See
 | The job fails with *columnMap entry '…' must map to a column name* | That `columnMap` entry's value is not a column name (it is a number, a boolean, an object or `null`). Every entry must read `"<source column>": "<contract column>"`, with both sides plain strings. |
 | Attributes I expected are missing from `extendedAttributes` | Binary columns are skipped, and a column whose name matches a contract column — or that a `columnMap` entry points at one — is stored as that field instead. Rename the column in the `SELECT` (or select it twice under two names) if you want both. |
 | The system shows up under the wrong name | The system is named after the crawler unless `systemName` is set — see [System naming](#system-naming). |
+| The log reports rows that *name a system no `systems` statement created* | The value in the row's `systemId` / `systemName` column matches no row the `systems` statement returned. Usually the two statements are filtered differently (the systems statement excludes inactive applications, say) or one names the connector by id and the other by name. The rows are kept in the crawler's own system; past 5% of a statement the job fails. |
+| The job fails with *external id(s) were claimed by more than one system* | Two connectors use the same key for different objects. Ids are unique per run (see [why](#ids-are-unique-per-run-not-per-system)), so the two rows would collapse into one. Make the id unique — prefix it with the application id in the `SELECT`, for instance — or do not route those statements. |
+| The job fails with *Registered N system(s) but the API returned M id(s)* | A registration record could not be found again after the upsert. Check that every `systems` row has a non-empty `displayName`. |
+| Assignments vanish after routing | Almost certainly not this crawler: it derives ids in one namespace per run precisely so that a grant can span two systems. Check the `dangling` count first — a grant naming an entitlement no statement loaded is held back, whatever system it would have gone to. |
 | Rows I removed from the source are still in Identity Atlas | Only a **full** sync reconciles; a delta run never deletes. Also check that the run completed cleanly — a failed run skips the reconcile. |
 | **SQL Database** is not visible in **Add Crawler** | The `CRAWLER_MANIFESTS_DIR` environment variable on the web container must point to the folder containing the crawler manifests. See [Docker setup](../architecture/docker-setup.md). |

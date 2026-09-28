@@ -21,6 +21,7 @@
     "tools/crawlers/mssql/SqlCrawler.Transform.ps1",
     "tools/crawlers/mssql/SqlCrawler.Phases.ps1",
     "tools/crawlers/mssql/SqlCrawler.Contexts.ps1",
+    "tools/crawlers/mssql/SqlCrawler.Systems.ps1",
     "tools/crawlers/mssql/SqlCrawler.Verify.ps1",
     "tools/crawlers/shared/Assert-FGPublicUrl.ps1",
     "tools/crawlers/shared/Get-CrawlerSystemName.ps1",
@@ -149,6 +150,9 @@
     ],
     "tools/crawlers/mssql/SqlCrawler.Phases.ps1": [
       "test/unit/SqlCrawlerPhases.Tests.ps1"
+    ],
+    "tools/crawlers/mssql/SqlCrawler.Systems.ps1": [
+      "test/unit/SqlCrawlerSystems.Tests.ps1"
     ],
     "tools/crawlers/mssql/SqlCrawler.Contexts.ps1": [
       "test/unit/SqlCrawlerContexts.Tests.ps1"

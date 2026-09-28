@@ -21,12 +21,16 @@
 
 // ─── Shared statements ───────────────────────────────────────────────────────
 
+// `ma.application` is aliased systemId, which is what routes each entitlement
+// into the system the "Technical applications" query created for its connector.
+// It is still kept as an attribute (a routing column is consumed AND kept), so
+// nothing that used to be visible disappears.
 const ENTITLEMENT_COLUMNS = `    ma.id,
     COALESCE(NULLIF(ma.displayable_name, ''), ma.value) AS displayName,
     ma.value             AS entitlementValue,
     ma.attribute         AS attributeName,
     ma.type              AS entitlementType,
-    ma.application       AS applicationId,
+    ma.application       AS systemId,
     app.name             AS applicationName,
     ma.owner             AS ownerId,
     owner.display_name   AS ownerName,
@@ -74,6 +78,36 @@ WHERE ie.type = 'Entitlement'
   AND ${byRole ? 'ie.granted_by_role = 1' : '(ie.granted_by_role = 0 OR ie.granted_by_role IS NULL)'}`,
   };
 }
+
+// IdentityIQ is itself an aggregator: spt_application is one row per connected
+// system. Loading all of it as one flat Identity Atlas system loses the thing an
+// analyst asks first — which application an entitlement belongs to — so this
+// query creates one system per connector and every later statement routes to it
+// by aliasing its application column `systemId`.
+//
+// The identities query deliberately does NOT route: IdentityIQ's people are the
+// directory, they live in the crawler's own system, and every grant therefore
+// spans two systems. That works because ids are namespaced per RUN, not per
+// system (tools/crawlers/mssql/SqlCrawler.Systems.ps1).
+const TECHNICAL_APPLICATIONS = {
+  name: 'Technical applications',
+  target: 'systems',
+  sql: `-- One Identity Atlas system per IdentityIQ application. The id is what the
+-- entitlement and account queries route by, so it must be the same column they
+-- alias as systemId (spt_managed_attribute.application, spt_link.application).
+SELECT
+    a.id,
+    a.name          AS displayName,
+    a.type          AS applicationType,
+    a.connector,
+    a.authoritative,
+    a.owner         AS ownerId,
+    i.display_name  AS ownerName,
+    a.created,
+    a.modified
+FROM spt_application a
+LEFT JOIN spt_identity i ON i.id = a.owner`,
+};
 
 const BUSINESS_ROLES = {
   name: 'Business roles',
@@ -133,6 +167,7 @@ LEFT JOIN spt_managed_attribute ma
 // One row per identity, loaded as a principal: IdentityIQ keeps the person and
 // the account in the same row, and assignments hang off principals.
 export const IDENTITYIQ_PRESET = [
+  TECHNICAL_APPLICATIONS,
   {
     name: 'Identities',
     target: 'principals',
@@ -178,6 +213,7 @@ export const APPLICATION_KEY = 'LogicalApplication';
 const APPLICATION_XPATH = `(/Attributes/Map/entry[@key="${APPLICATION_KEY}"]/@value)[1]`;
 
 export const IDENTITYIQ_ORG_PRESET = [
+  TECHNICAL_APPLICATIONS,
   {
     name: 'Identities',
     target: 'principals',
@@ -273,7 +309,7 @@ FROM spt_managed_attribute ma`,
 ];
 
 export const PRESETS = [
-  { id: 'identityiq', label: 'SailPoint IdentityIQ', description: 'Identities, entitlements, business roles, their assignments (direct and via a role) and role composition from the stock spt_* columns', queries: IDENTITYIQ_PRESET },
+  { id: 'identityiq', label: 'SailPoint IdentityIQ', description: 'One system per technical application, plus identities, entitlements, business roles, their assignments (direct and via a role) and role composition from the stock spt_* columns', queries: IDENTITYIQ_PRESET },
   { id: 'identityiq-org', label: 'SailPoint IdentityIQ with organisation extensions', description: 'As above, plus typical identity extension columns and the logical applications kept in XML, as Contexts. Rename the extension columns and the catalogue names to your deployment\'s', queries: IDENTITYIQ_ORG_PRESET },
 ];
 
