@@ -29,11 +29,14 @@
 //     remove rows of this system+scope that are not in the stage — the same anti-join
 //     the session protocol's full sync uses (engine.scopedDelete).
 //
-// A stage may carry only key columns (a key sweep): finalize then only removes what is
-// missing. `maxDeleteShare` caps that removal at a share of the scope's live rows and
-// refuses the whole finalize (409, nothing written) above it. Stages live in memory; an
-// API restart abandons them (their tables are dropped at startup) and the caller starts
-// over.
+// A stage opened with `keysOnly` — a key sweep — is only saying what still exists:
+// finalize inserts and updates nothing and only removes what is missing. (A stage whose
+// records carry no non-key column at all is treated the same way, but a sweep must say
+// so: the rows endpoint stamps systemId on every record, so a sweep's stage and an
+// ordinary load of a scope with no optional attributes look identical.) `maxDeleteShare`
+// caps that removal at a share of the scope's live rows and refuses the whole finalize
+// (409, nothing written) above it. Stages live in memory; an API restart abandons them
+// (their tables are dropped at startup) and the caller starts over.
 
 import crypto from 'crypto';
 import { markInitialLoad, markInitialLoadForAll } from './initialLoad.js';
@@ -58,12 +61,13 @@ function columnType(c) {
 // ── lifecycle ────────────────────────────────────────────────────────────────
 
 export function openStage({ tableName, keyColumns, systemId, scope = {}, conflictFilter = null,
-  scopeDeleteFilter = null, preserveColumns = null, restrictSystemIds = null, ownerId = null, now = Date.now() }) {
+  scopeDeleteFilter = null, preserveColumns = null, restrictSystemIds = null, ownerId = null,
+  keysOnly = false, now = Date.now() }) {
   sweepExpired(now);
   const id = crypto.randomUUID();
   const stage = {
     id, tableName, keyColumns, systemId, scope, conflictFilter, scopeDeleteFilter, preserveColumns,
-    restrictSystemIds, ownerId, stageTable: `${STAGE_PREFIX}${id.replace(/-/g, '')}`,
+    restrictSystemIds, ownerId, keysOnly, stageTable: `${STAGE_PREFIX}${id.replace(/-/g, '')}`,
     columns: null, rows: 0, createdAt: now,
   };
   stages.set(id, stage);
@@ -139,14 +143,21 @@ export async function finalizeStage(stage, options = {}) {
 const EMPTY_STAGE = { path: 'empty-stage', inserted: 0, updated: 0, deleted: 0, rows: 0 };
 const nonKeyColumns = (st) => st.columns.filter(c => !st.keyColumns.includes(c.name));
 
-// The columns that carry something the SOURCE said. `systemId` is not one of
-// them: it is stamped from the stage itself, so a stage whose records held
-// nothing but key columns still arrives here carrying it, and "does this stage
-// have anything to insert or update?" must ignore it. Without that, a key sweep
-// — the one caller that sends key columns only — looked like an ordinary load:
-// it inserted bare keyed rows with every attribute null, and on an empty table
-// it took the bulk path and did it without a merge to temper it.
-const contentColumns = (st) => st.columns.filter(c => !st.keyColumns.includes(c.name) && c.name !== 'systemId');
+// Is this stage here only to say what still exists?
+//
+// It cannot be inferred from the columns, which is the trap: the rows endpoint
+// stamps `systemId` on every normalized record, so a key sweep's stage always
+// carries key columns PLUS systemId — and so does a perfectly ordinary load of a
+// scope whose rows have no optional attributes set, which must still insert. The
+// two are indistinguishable by shape and opposite in intent, so the CALLER says
+// which it is. `keysOnly` only ever makes finalize write less, so trusting it
+// cannot corrupt anything.
+//
+// Left to inference, a sweep inserted a bare keyed row for every grant the delta
+// had not yet loaded — attributes all null, outside its own scope filter, and
+// invisible; and against an empty table it did that through the index-dropping
+// bulk path.
+const isKeysOnly = (st) => st.keysOnly === true || nonKeyColumns(st).length === 0;
 
 // A sweep is the one operation here with no undo, and the source it reads can
 // be caught mid-aggregation — rows deleted and about to be re-inserted. So a
@@ -186,7 +197,7 @@ export async function finalizeStages(list, { deleteMissing = false, maxDeleteSha
 
 async function applyStages(loaded, deleteMissing, maxDeleteShare) {
   const results = new Map();
-  const canBulk = loaded.every(st => contentColumns(st).length > 0);
+  const canBulk = loaded.every(st => !isKeysOnly(st));
   const bulked = canBulk && await db.tx(async (client) => {
     for (const st of loaded) await client.query(`ANALYZE "${st.stageTable}"`);
     if (!(await lockEmptyTable(client, loaded[0].tableName))) return false;
@@ -209,7 +220,7 @@ const markGoverned = (client, stage) =>
 
 async function mergeStage(client, stage, deleteMissing, maxDeleteShare = 0) {
   const nonKey = nonKeyColumns(stage);
-  const keysOnly = contentColumns(stage).length === 0;
+  const keysOnly = isKeysOnly(stage);
   await markGoverned(client, stage);
   await client.query(`ANALYZE "${stage.stageTable}"`);
   // A system's initial load writes no per-row insert history (migration 073).

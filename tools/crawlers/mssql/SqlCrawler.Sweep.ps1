@@ -153,8 +153,11 @@ function Get-SqlSweepStage {
     param([Parameter(Mandatory)] [hashtable]$Ctx, [int]$SystemId)
     $stage = $null
     if ($Ctx.Stages.TryGetValue($SystemId, [ref]$stage)) { return $stage }
+    # -KeysOnly: this stage says what still exists and nothing else. Without it
+    # the finalize would insert a bare keyed row for every grant the delta half
+    # has not loaded yet — no attributes, outside its own scope filter, invisible.
     $stage = New-CrawlerIngestStage -Entity $script:SqlSweepEntity -SystemId $SystemId -IdPrefix $Ctx.State.IdPrefix `
-        -Scope $Ctx.Scope -BatchSize $Ctx.State.BatchSize
+        -Scope $Ctx.Scope -BatchSize $Ctx.State.BatchSize -KeysOnly
     $Ctx.Stages[$SystemId] = $stage
     return $stage
 }

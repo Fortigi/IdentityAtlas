@@ -262,19 +262,32 @@ describe('finalize — the merge path', () => {
 
   // The test above mocks the column discovery down to the key columns alone,
   // which no real request produces: the rows endpoint stamps systemId on every
-  // normalized record, so a sweep's stage always carries it. Before
-  // contentColumns() this stage was not recognised as keys-only at all — it
-  // inserted bare rows with every attribute null, and against an empty table it
-  // did so through the index-dropping bulk path.
-  it('a key sweep is still keys-only once systemId has been stamped on its rows', async () => {
+  // normalized record, so a sweep's stage always carries it — and so does an
+  // ordinary load of a scope whose rows have no optional attributes set. The two
+  // are the same shape and want opposite things, so the caller declares which.
+  it('a declared key sweep inserts and updates nothing, even carrying systemId', async () => {
     engine.resolveActiveColumns.mockResolvedValue(cols(...RA_KEYS, 'systemId'));
     handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: true }] })]);
-    const st = open();
+    const st = open({ keysOnly: true });
     await S.appendToStage(st, [rec]);
     const r = await S.finalizeStage(st, { deleteMissing: true });
     expect(r).toMatchObject({ path: 'merge', inserted: 0, updated: 0, deleted: 3 });
+    // Never the index-dropping bulk path either: a sweep has nothing to bulk-load.
     expect(sqls.some(s => /LOCK TABLE/.test(s))).toBe(false);
     expect(sqls.some(s => /^\s*(INSERT INTO "ResourceAssignments"|UPDATE)/.test(s))).toBe(false);
+  });
+
+  // The other half of the same distinction, and the regression that proved the
+  // shape cannot be inferred: a stage carrying the key columns and systemId and
+  // NOTHING else is a perfectly ordinary load when the caller did not say sweep.
+  it('the same shape WITHOUT the declaration is an ordinary load and still inserts', async () => {
+    engine.resolveActiveColumns.mockResolvedValue(cols(...RA_KEYS, 'systemId'));
+    handlers.push([/^\s*INSERT INTO "ResourceAssignments"/, () => ({ rowCount: 1 })]);
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st, { deleteMissing: true });
+    expect(r).toMatchObject({ path: 'merge', inserted: 1, deleted: 3 });
+    expect(sqls.some(s => /^\s*INSERT INTO "ResourceAssignments"/.test(s))).toBe(true);
   });
 
   it('an empty stage is a no-op and still cleans up', async () => {
@@ -294,7 +307,7 @@ describe('finalize — the merge path', () => {
 describe('finalize — the delete-share ceiling', () => {
   const sweep = async (opts) => {
     engine.resolveActiveColumns.mockResolvedValue(cols(...RA_KEYS, 'systemId'));
-    const st = open();
+    const st = open({ keysOnly: true });
     await S.appendToStage(st, [rec]);
     return S.finalizeStage(st, opts);
   };

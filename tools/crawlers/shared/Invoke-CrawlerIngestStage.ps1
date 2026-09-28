@@ -40,10 +40,16 @@ function New-CrawlerIngestStage {
         [Parameter(Mandatory)] [int]$SystemId,
         [Parameter(Mandatory)] [string]$IdPrefix,
         [hashtable]$Scope = @{},
-        [int]$BatchSize = 5000
+        [int]$BatchSize = 5000,
+        # This stage only says what still exists — a key sweep. Finalize then
+        # inserts and updates nothing and only removes what is missing. It has to
+        # be DECLARED: the rows endpoint stamps systemId on every record, so a
+        # sweep's stage looks exactly like an ordinary load of a scope whose rows
+        # carry no optional attributes, and those two want opposite things.
+        [switch]$KeysOnly
     )
     $body = @{ entity = $Entity; systemId = $SystemId; scope = $Scope
-               idGeneration = 'deterministic'; idPrefix = "$IdPrefix-$Entity" }
+               idGeneration = 'deterministic'; idPrefix = "$IdPrefix-$Entity"; keysOnly = [bool]$KeysOnly }
     $r = Invoke-IngestAPI -Endpoint 'ingest/stages' -Body $body
     if (-not $r.stageId) { throw "The API did not return a stageId for a $Entity stage on system $SystemId" }
     return [pscustomobject]@{

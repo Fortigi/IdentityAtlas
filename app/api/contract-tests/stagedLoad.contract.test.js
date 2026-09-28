@@ -125,12 +125,13 @@ describe('staged load — merge path', () => {
 
   // What a key sweep really sends: POST /ingest/stages/:id/rows stamps the
   // stage's systemId on every normalized record, so the stage carries the key
-  // columns AND systemId. Before contentColumns() ignored systemId, that read as
-  // an ordinary load — it inserted bare keyed rows with every attribute null.
-  it('is still keys-only once systemId has been stamped on the rows', async () => {
+  // columns AND systemId — which is also exactly what an ordinary load of a
+  // scope with no optional attributes carries. Same shape, opposite intent, so
+  // the caller declares it. These two tests are that distinction.
+  it('a DECLARED sweep removes what is missing and creates nothing', async () => {
     await stageLoad(sysA, [row(1, 1, { resourceType: 'Group' }), row(2, 1, { resourceType: 'Group' })]);
     const st = openStage({ tableName: 'ResourceAssignments', keyColumns: KEYS, systemId: sysA,
-      conflictFilter: FILTER, scopeDeleteFilter: FILTER, ownerId: 1 });
+      conflictFilter: FILTER, scopeDeleteFilter: FILTER, ownerId: 1, keysOnly: true });
     await appendToStage(st, [
       { resourceId: R(1), principalId: P(1), assignmentType: 'Direct', governed: false, systemId: sysA },
       { resourceId: R(3), principalId: P(1), assignmentType: 'Direct', governed: false, systemId: sysA },
@@ -142,6 +143,18 @@ describe('staged load — merge path', () => {
     // it carries no attributes, so inserting it would be a row that says nothing.
     expect(a.map(x => x.resourceId)).toEqual([R(1), R(2)]);
     expect(a.find(x => x.resourceId === R(1))).toMatchObject({ resourceType: 'Group', deletedAt: null });
+  });
+
+  it('the same rows WITHOUT the declaration are an ordinary load and do insert', async () => {
+    await stageLoad(sysA, [row(1, 1, { resourceType: 'Group' })]);
+    const st = openStage({ tableName: 'ResourceAssignments', keyColumns: KEYS, systemId: sysA,
+      conflictFilter: FILTER, scopeDeleteFilter: FILTER, ownerId: 1 });
+    await appendToStage(st, [
+      { resourceId: R(1), principalId: P(1), assignmentType: 'Direct', governed: false, systemId: sysA },
+      { resourceId: R(3), principalId: P(1), assignmentType: 'Direct', governed: false, systemId: sysA },
+    ]);
+    expect(await finalizeStage(st, { deleteMissing: true })).toMatchObject({ inserted: 1, deleted: 0 });
+    expect((await live(sysA)).map(x => x.resourceId)).toEqual([R(1), R(3)]);
   });
 
   it('into a truly empty table: bulk path, indexes rebuilt intact (only when nothing else is in the table)', async () => {
@@ -179,7 +192,7 @@ describe('staged load — merge path', () => {
 describe('staged load — the delete-share ceiling', () => {
   const sweep = (systemId, rows, maxDeleteShare) => {
     const st = openStage({ tableName: 'ResourceAssignments', keyColumns: KEYS, systemId,
-      conflictFilter: FILTER, scopeDeleteFilter: FILTER, ownerId: 1 });
+      conflictFilter: FILTER, scopeDeleteFilter: FILTER, ownerId: 1, keysOnly: true });
     return appendToStage(st, rows.map(x => ({ ...x, systemId })))
       .then(() => finalizeStage(st, { deleteMissing: true, maxDeleteShare }));
   };

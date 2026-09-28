@@ -1,6 +1,6 @@
 // Staged full load — HTTP surface of ingest/stages.js.
 //
-//   POST   /ingest/stages                  { entity, systemId, scope?, idGeneration?, idPrefix? } → 201 { stageId }
+//   POST   /ingest/stages                  { entity, systemId, scope?, idGeneration?, idPrefix?, keysOnly? } → 201 { stageId }
 //   POST   /ingest/stages/:id/rows         { records }                                           → 200 { rows }
 //   POST   /ingest/stages/:id/finalize     { deleteMissing?, maxDeleteShare? }                   → 200 { path, inserted, updated, deleted, rows }
 //   POST   /ingest/stages/finalize         { stageIds, deleteMissing?, maxDeleteShare? }         → 200 { results: [...] }
@@ -65,7 +65,7 @@ function deleteShareOf(body) {
 
 router.post('/ingest/stages', async (req, res) => {
   if (!guard(req, res)) return;
-  const { entity, systemId, scope, idGeneration = 'native', idPrefix } = req.body || {};
+  const { entity, systemId, scope, idGeneration = 'native', idPrefix, keysOnly } = req.body || {};
   if (!STAGEABLE.has(entity)) {
     return res.status(400).json({ error: `entity must be one of: ${[...STAGEABLE].join(', ')}` });
   }
@@ -80,6 +80,11 @@ router.post('/ingest/stages', async (req, res) => {
       conflictFilter, scopeDeleteFilter: conflictFilter,
       preserveColumns: await preservedOwnerColumns(tableName, systemId),
       restrictSystemIds: restrictedSystemIds(req.crawler), ownerId: ownerOf(req),
+      // "This stage only says what still exists" — a key sweep. It cannot be
+      // inferred: the rows below stamp systemId on every record, so a sweep's
+      // stage looks exactly like an ordinary load of a scope whose rows have no
+      // optional attributes. Declaring it only ever makes finalize write less.
+      keysOnly: keysOnly === true,
     });
     Object.assign(stage, { entity, idGeneration, idPrefix });
     return res.status(201).json({ stageId: stage.id, table: tableName });
