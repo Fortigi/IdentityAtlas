@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Opening the filters on the Principals page is no longer slow on a large directory. On a 176,789-principal / 805,497-resource install it now answers in 8 ms once warm instead of ~500 ms every single time, and in 1.7 s instead of 3.8 s on the very first load after a restart.
+- The filter bar no longer re-runs the expensive "which relationships have data here" check on every page load and every sub-tab switch. That check went from 434 ms to 2 ms — and from over 8 seconds on a directory that records no owner or sponsor relationships, where it previously scanned the whole Principals table once per account.
+- Discovering the values you can filter on reads each table far fewer times: the Resources filter bar and the matrix wizard's Resource step open in 6.5 s instead of 10.1 s cold, the matrix wizard in 6.0 s instead of 9.1 s, and identity filters in 2.2 s instead of 3.6 s. The lists of values offered are unchanged.
+- Filter values are now refreshed in the background instead of at a user's expense. Previously the five-minute cache expiry meant one unlucky user waited for the whole discovery again every five minutes; now the cached list is shown immediately and refreshed behind the request.
+- A filter dropdown no longer disappears entirely when a single record holds an unexpected shape of extended attributes.
+
+## Changes in this PR
+
 - Fixed: the SailPoint IdentityIQ example queries loaded only the entitlements whose IdentityIQ type is "Entitlement". In a real instance that can be a tiny fraction (most entitlements are account groups), so a run could load a few hundred entitlements out of hundreds of thousands and still report success. Every entitlement is now loaded, with its type kept as an attribute
 - The IdentityIQ role composition query now links each business role to the actual entitlements it grants, instead of to profile ids that never matched anything
 - A SQL connector run now fails when more than 5% of a statement's rows cannot be placed, because they point at something the run did not load or miss a required column. Previously those rows were only mentioned in the job log, so a run that placed a small fraction of its grants could still finish successfully
