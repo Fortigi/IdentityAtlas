@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { compileSpec } from './compile.js';
 import { validateSpec } from './spec.js';
 import { explainSpec } from './explain.js';
+import { OWNERSHIP_RESOURCE_TYPES, OWNERSHIP_TYPES_SQL } from '../lib/ownershipTypes.js';
 
 const compile = (raw) => {
   const { ok, spec, errors } = validateSpec(raw);
@@ -314,6 +315,10 @@ describe('compileSpec — the business roles an account has', () => {
   it('is narrower than access, which still holds every kind of resource', () => {
     const { text } = compile({ entity: 'user', columns: ['displayName', 'access.names', 'businessRoles.names'] });
     expect(text.match(/"resourceType" = 'BusinessRole'/g)).toHaveLength(1);
-    expect(text).toContain(`"resourceType" NOT IN ('GroupOwnership','ApplicationOwnership','ServicePrincipalOwnership')`);
+    // "Access" excludes the synthetic ownership rows — all of them. The list is
+    // shared with the risk engine (lib/ownershipTypes.js), so assert against it
+    // rather than restating it here, where a new ownership type would be missed.
+    expect(text).toContain(`"resourceType" NOT IN ${OWNERSHIP_TYPES_SQL}`);
+    for (const t of OWNERSHIP_RESOURCE_TYPES) expect(text).toContain(`'${t}'`);
   });
 });

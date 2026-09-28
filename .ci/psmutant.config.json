@@ -23,6 +23,7 @@
     "tools/crawlers/mssql/SqlCrawler.Contexts.ps1",
     "tools/crawlers/mssql/SqlCrawler.Systems.ps1",
     "tools/crawlers/mssql/SqlCrawler.Verify.ps1",
+    "tools/crawlers/mssql/SqlCrawler.Ownership.ps1",
     "tools/crawlers/shared/Assert-FGPublicUrl.ps1",
     "tools/crawlers/shared/Get-CrawlerSystemName.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AppRoles.ps1",
@@ -159,6 +160,9 @@
     ],
     "tools/crawlers/mssql/SqlCrawler.Verify.ps1": [
       "test/unit/SqlCrawlerVerify.Tests.ps1"
+    ],
+    "tools/crawlers/mssql/SqlCrawler.Ownership.ps1": [
+      "test/unit/SqlCrawlerOwnership.Tests.ps1"
     ],
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": [
       "test/unit/EntraIDCrawlerTransform.Tests.ps1"

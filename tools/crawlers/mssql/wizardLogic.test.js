@@ -20,7 +20,7 @@ describe('newQuerySlot', () => {
   it('defaults to an enabled identities slot with every slot constant bound', () => {
     expect(newQuerySlot()).toEqual({
       name: '', target: 'identities', sql: '', enabled: true, columnMap: [],
-      resourceType: '', assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User',
+      resourceType: '', ownership: false, assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User',
       systemType: '', contextType: '', targetType: 'Resource', memberType: 'Resource', rootDisplayName: '',
     });
   });
@@ -36,7 +36,7 @@ describe('slotFieldsFor', () => {
     expect(slotFieldsFor('identities')).toEqual(['principalType']);
     expect(slotFieldsFor('principals')).toEqual(['principalType']);
     expect(slotFieldsFor('identity-members')).toEqual([]);
-    expect(slotFieldsFor('resources')).toEqual(['resourceType']);
+    expect(slotFieldsFor('resources')).toEqual(['resourceType', 'ownership']);
     expect(slotFieldsFor('assignments')).toEqual(['resourceType', 'assignmentType', 'governed']);
     expect(slotFieldsFor('relationships')).toEqual(['relationshipType']);
     expect(slotFieldsFor('contexts')).toEqual(['contextType', 'targetType', 'rootDisplayName']);
@@ -262,8 +262,14 @@ describe('buildQuerySlot', () => {
     expect(buildQuerySlot(slot({ target: 'identity-members' }))).toEqual({ name: 'Q', target: 'identity-members', sql: 'SELECT 1', enabled: true });
   });
 
-  it('a resources slot carries only resourceType', () => {
-    expect(buildQuerySlot(slot({ target: 'resources', resourceType: 'Entitlement' }))).toEqual({ name: 'Q', target: 'resources', sql: 'SELECT 1', enabled: true, resourceType: 'Entitlement' });
+  it('a resources slot carries resourceType and the ownership flag, which defaults to off', () => {
+    expect(buildQuerySlot(slot({ target: 'resources', resourceType: 'Entitlement' }))).toEqual({ name: 'Q', target: 'resources', sql: 'SELECT 1', enabled: true, resourceType: 'Entitlement', ownership: false });
+    expect(buildQuerySlot(slot({ target: 'resources', resourceType: 'Entitlement', ownership: true })).ownership).toBe(true);
+    // Anything other than a real true is off: owner links cost three rows per
+    // owned resource, so a stray truthy value must not turn them on.
+    expect(buildQuerySlot(slot({ target: 'resources', resourceType: 'Entitlement', ownership: 'yes' })).ownership).toBe(false);
+    // …and it is a resources-slot field only.
+    expect(buildQuerySlot(slot({ target: 'assignments', resourceType: 'X', ownership: true })).ownership).toBeUndefined();
   });
 
   it('a systems slot carries only systemType, trimmed, and blank means the crawler own type', () => {
@@ -360,7 +366,7 @@ describe('CONTRACT_COLUMNS / contractColumnsFor / contractColumnOptions', () => 
   it('mirrors the column-contract table per target, required columns first', () => {
     expect(CONTRACT_COLUMNS.identities.required).toEqual(['id', 'displayName']);
     expect(CONTRACT_COLUMNS.resources.required).toEqual(['id', 'displayName']);
-    expect(contractColumnOptions('resources')).toEqual(['id', 'displayName', 'name', 'description', 'enabled', 'systemId', 'systemName']);
+    expect(contractColumnOptions('resources')).toEqual(['id', 'displayName', 'name', 'description', 'enabled', 'ownerId', 'systemId', 'systemName']);
     expect(contractColumnOptions('identity-members')).toEqual(['identityId', 'principalId', 'isPrimary', 'accountType']);
     expect(contractColumnOptions('assignments')).toEqual(['resourceId', 'principalId', 'identityId', 'systemId', 'systemName']);
     expect(contractColumnsFor('relationships')).toEqual({ required: ['parentId', 'childId'], optional: ['systemId', 'systemName'] });
@@ -641,6 +647,26 @@ describe('IdentityIQ presets match the real schema', () => {
 
   it('still reports the managed-attribute type as a column', () => {
     for (const q of statements.filter(s => s.name === 'Entitlements')) expect(q.sql).toMatch(/ma\.type\s+AS entitlementType/);
+  });
+
+  it('selects the owner as ownerId on every statement that could carry one', () => {
+    // `ownership` reads the ownerId contract column, so an owner the SQL
+    // aliases anything else is invisible however the flag is set.
+    for (const q of statements.filter(s => ['Entitlements', 'Business roles'].includes(s.name))) {
+      expect(q.sql, `${q.preset} / ${q.name}`).toMatch(/\bowner\s+AS ownerId/);
+    }
+  });
+
+  it('turns owner links on for business roles and leaves them off for entitlements', () => {
+    // Deliberate and measured, not an oversight: the fixture carries an owner on
+    // 60% of entitlements, so at the production catalogue size (805,497) the
+    // entitlement statement alone would add ~1.45M rows across three tables.
+    // Roles are three orders of magnitude smaller. docs/sync/mssql.md →
+    // "What owners cost".
+    for (const q of statements.filter(s => s.name === 'Business roles')) expect(q.ownership).toBe(true);
+    for (const q of statements.filter(s => s.name === 'Entitlements')) expect(q.ownership).toBeFalsy();
+    // Nothing else claims ownership — it is a resources-slot flag.
+    for (const q of statements.filter(s => s.target !== 'resources')) expect(q.ownership).toBeUndefined();
   });
 
   it('resolves role composition to entitlement ids by application + attribute + value, keeping unmatched rows', () => {

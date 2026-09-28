@@ -17,6 +17,7 @@ is baked in — SailPoint IdentityIQ ships as a worked example, not as special-c
 | `SqlCrawler.Transform.ps1` | **Pure** row → ingest-record shapers, one per target, plus the column-contract resolver (`Resolve-SqlColumnMap`) |
 | `SqlCrawler.Verify.ps1` | End-of-run verification. Per statement: rows read against the source's own `COUNT_BIG(*)` (catches a read that stopped early). Per reconcile scope: the distinct keys read (principals, resources, relationships) or the source's distinct pairs (assignments, from the same query) against `POST /ingest/count`. Throws on any mismatch, and on more rows than distinct keys |
 | `SqlCrawler.Systems.ps1` | The `systems` target and per-row routing: the system catalogue, the registration record (and the `(systemType, tenantId)` key that makes a re-run find the same row), the per-statement route mode, and the cross-system id-collision check |
+| `SqlCrawler.Ownership.ps1` | The `ownership` flag on a `resources` slot: the shared owner resolver (account key, then employee number), the ownership resource / `HasOwnership` link / `Direct` owner assignment it emits, their three reconcile scopes, and the per-statement owner tally |
 | `SqlCrawler.Contexts.ps1` | The `contexts` / `context-members` targets: the catalogue, name → key resolution (through the crawler's one name fold, `ConvertTo-SqlNameKey` in the Transform file), and the fold / unresolved report |
 | `SqlCrawler.Phases.ps1` | Per-slot sync phases: open the ingest streams, run the query, shape + stream every row, then the per-scope reconcile |
 | `../shared/Invoke-CrawlerIngestStream.ps1` | Shared streaming ingest: chunked delta upserts + end-of-run `POST /ingest/reconcile`. Written for this crawler; any large-set crawler can use it |
@@ -72,7 +73,7 @@ binary columns are skipped.
 | `identities` | `id`, `displayName` (falls back to `name`, `userId`, then `id`) | `email`, `givenName`, `surname`, `department`, `jobTitle`, `companyName`, `employeeId`, `city`, `country`, `officeLocation`, `managerExternalId` (or `managerId`), `principalType`, `enabled` / `active` (or the inverse `inactive` / `disabled`) | one **Identity**, one **Principal** with the same id (the person's account in this system), and the **IdentityMember** link between them |
 | `principals` | `id`, `displayName` (same fallbacks) | as above, plus `identityId` (also emits an IdentityMember link) | one **Principal** |
 | `identity-members` | `identityId`, `principalId` | `isPrimary`, `accountType` | one **IdentityMember** |
-| `resources` | `id`, `displayName` (falls back to `name`) | `description`, `enabled` | one **Resource**; `resourceType` comes from the slot; `governanceResource` is set when it is `BusinessRole` |
+| `resources` | `id`, `displayName` (falls back to `name`) | `description`, `enabled`, `ownerId` (aux) | one **Resource**; `resourceType` comes from the slot; `governanceResource` is set when it is `BusinessRole`. With `ownership: true` also one **ResourceOwnership** resource, a **HasOwnership** relationship and a **Direct** assignment per resolved owner — see "Owners" |
 | `assignments` | `resourceId`, `principalId` (alias `identityId`, because an `identities` row's account shares its id) | — | one **ResourceAssignment**; `assignmentType`, `governed`, `resourceType` come from the slot |
 | `relationships` | `parentId`, `childId` | — | one **ResourceRelationship**; `relationshipType` from the slot |
 | `contexts` | `displayName` (falls back to `name`) | `id` (the key; else the normalised name), `description`, `ownerUserId` | one **Context**, buffered and sent as one full sync; `contextType` / `targetType` from the slot |
@@ -177,6 +178,37 @@ Slot values are **constants per statement** on purpose: `resourceType`, `assignm
 `governed` and `relationshipType` are also the full-sync reconcile scope, so a per-row override
 would make one statement's reconcile delete another's rows. Two statements with the same target
 and scope are fine — the reconcile runs once per scope after both have streamed.
+
+## Owners
+
+`SqlCrawler.Ownership.ps1`. A `resources` slot with `ownership: true` turns its `ownerId`
+column into the model's existing ownership shape — a `ResourceOwnership` resource named
+after the owned one, a `HasOwnership` relationship to it, and a `Direct` assignment for the
+owner — instead of leaving an identifier in `extendedAttributes` (`ownerId` is `aux`, so it
+stays there as well). Three decisions worth knowing before changing anything here:
+
+- **One ownership resourceType, not one per owned kind.** The Entra crawler can afford
+  `GroupOwnership` / `ServicePrincipalOwnership` / `ApplicationOwnership` because it knows
+  all three at compile time. Here the owned type is whatever the operator's slot says, so a
+  `<that>Ownership` family would be unbounded and the consumers that filter on ownership
+  (`app/api/src/lib/ownershipTypes.js`, read by the risk engine and the report catalogue)
+  could not enumerate it. The owned type travels on
+  `extendedAttributes.ownedResourceType` instead.
+- **Opt-in per statement.** Three rows per owned resource is ~1.45 M rows on a production
+  IdentityIQ catalogue (measured: `docs/sync/mssql.md` → "What owners cost"). The shipped
+  presets turn it on for business roles and leave it off — with the column already
+  selected — for entitlements.
+- **An unresolvable owner is counted, never charged to the unplaced bound.** The owner
+  counters are separate from `Skipped` / `Dangling` on purpose: those feed
+  `Get-SqlReadVerdict`'s 5% rule, which fails a job. An entitlement whose owner cannot be
+  found is a perfectly placed entitlement, so an owner column that resolves for nothing
+  must report loudly and load everything.
+
+`Resolve-SqlPrincipalRef` is the one owner resolver — account key first, then employee
+number — shared with `Resolve-SqlContextOwner`, so a context's owner and a resource's owner
+can never disagree about how a source names a person. They differ only in what failure
+means: a Context keeps the raw string in its `ownerUserId` column, while a resource emits
+nothing (an ownership row with no owner assignment would be an empty matrix row).
 
 ## Slot ordering
 

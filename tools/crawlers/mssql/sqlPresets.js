@@ -25,6 +25,14 @@
 // into the system the "Technical applications" query created for its connector.
 // It is still kept as an attribute (a routing column is consumed AND kept), so
 // nothing that used to be visible disappears.
+//
+// `ma.owner` is aliased ownerId, the column the entitlements slot's `ownership`
+// flag reads. The flag is OFF in both presets: ownership is measured at 60% of
+// entitlements on the IdentityIQ-shaped fixture, so on a production catalogue of
+// 805,497 it is roughly 1.45 million extra rows across three tables — worth
+// having, but a decision to take deliberately rather than inherit. Tick "Owners
+// from ownerId" on the Entitlements query to turn it on; the raw ownerId and
+// ownerName stay in extendedAttributes either way.
 const ENTITLEMENT_COLUMNS = `    ma.id,
     COALESCE(NULLIF(ma.displayable_name, ''), ma.value) AS displayName,
     ma.value             AS entitlementValue,
@@ -109,10 +117,17 @@ FROM spt_application a
 LEFT JOIN spt_identity i ON i.id = a.owner`,
 };
 
+// `ownership: true` turns `b.owner` into a real owner: an ownership resource
+// named after the role, a HasOwnership link to it, and a Direct assignment for
+// the owner. On by default here because every role in IdentityIQ has an owner
+// and there are thousands of roles, not hundreds of thousands — three extra
+// rows each is nothing. The entitlements query leaves it OFF for exactly the
+// opposite reason; see the comment there.
 const BUSINESS_ROLES = {
   name: 'Business roles',
   target: 'resources',
   resourceType: 'BusinessRole',
+  ownership: true,
   sql: `SELECT
     b.id,
     COALESCE(NULLIF(b.display_name, ''), b.name) AS displayName,

@@ -52,7 +52,7 @@ the rest of the columns come along for free.
 | `identities` | `id`, `displayName` (falls back to `name`, then `userId`, then `id`) | `email`, `givenName`, `surname`, `department`, `jobTitle`, `companyName`, `employeeId`, `principalType`, `enabled` / `active` (or the inverse `inactive` / `disabled`) |
 | `principals` | `id`, `displayName` (same fallbacks) | as above, plus `identityId` (also emits an IdentityMember link), `systemId` / `systemName` |
 | `identity-members` | `identityId`, `principalId` | `isPrimary`, `accountType` |
-| `resources` | `id`, `displayName` (falls back to `name`) | `description`, `enabled`, `systemId` / `systemName` |
+| `resources` | `id`, `displayName` (falls back to `name`) | `description`, `enabled`, `ownerId` (only turned into an owner link when the slot sets [`ownership`](#owners-who-controls-this-resource)), `systemId` / `systemName` |
 | `assignments` | `resourceId`, `principalId` (alias `identityId`, because an `identities` row's account shares its id) | `systemId` / `systemName` |
 | `relationships` | `parentId`, `childId` | `systemId` / `systemName` |
 | `contexts` | `displayName` (falls back to `name`) | `id` (a stable key; without it the normalised name is the key), `description`, `ownerUserId` (an account key or an employee number — the crawler resolves either) |
@@ -201,6 +201,86 @@ load such a catalogue as Contexts and place each member in its context.
 The **SailPoint IdentityIQ with organisation extensions** preset shows the pattern end to
 end, including the `CROSS APPLY … nodes()` that turns one catalogue record into one row
 per application.
+
+### Owners: who controls this resource
+
+Most sources record an owner on an entitlement, a role or an application, as a column
+holding an identifier. Selected as an ordinary column it lands in `extendedAttributes`,
+which means the resource's page shows a string like `0ae16562ed5bff…` where a person
+belongs.
+
+Alias that column **`ownerId`** and tick **Owners from ownerId** on the statement
+(`"ownership": true`) and the crawler makes it a real link instead:
+
+```
+Resources(<your resourceType>)          the resource the statement loaded
+  └─ ResourceRelationships(HasOwnership)
+       └─ Resources(ResourceOwnership)  named after the resource it belongs to
+            └─ ResourceAssignments(Direct)   ← the owner
+```
+
+That is the same shape Identity Atlas already uses for the owners of an Entra group, so
+everything that reads ownership reads this for free: the owner appears as a clickable
+account on the resource, the matrix gets an ownership **row** for the resource (a normal
+**D** badge — [Owner rows are their own resource](../architecture/matrix.md#owner-rows-are-their-own-resource)),
+the risk engine counts the owner as control rather than as access, and a report can ask
+"which entitlements have no owner".
+
+A few things worth knowing:
+
+- **The owner value may be an account key or an employee number.** The crawler tries the
+  account's own key first, then the employee number, against the accounts *this run* has
+  already read — never in SQL, so one statement works for both. (IdentityIQ's entitlements
+  name the owner by identity id; its logical-application catalogue names the same people by
+  employee number.)
+- **An owner matching no account produces nothing, and says so.** The job log names the
+  values and how many resources carry each. No owner is invented, and no ownership row is
+  created with nobody on it. The raw `ownerId` — and whatever `ownerName` your statement
+  selected next to it — stay in `extendedAttributes` either way, so nothing is lost.
+- **An owner statement needs an accounts statement.** Without a `principals` or
+  `identities` statement in the same run there is nothing to match against; the log says
+  so rather than reporting every owner as wrong.
+- **It is a resources-statement flag.** The owner of an *assignment* is not a concept;
+  ownership belongs to the thing owned.
+- **A repeat run changes nothing.** The ownership resource's id is derived from the owned
+  resource's, so a second run upserts the same rows. The reconcile of the owner rows is
+  its own scope (`ResourceOwnership` / `HasOwnership`), so it can never touch the resources
+  themselves, the grants, or another statement's rows.
+
+#### What owners cost
+
+Three rows per resource that has an owner: an ownership resource, a relationship and an
+assignment. That is small per resource and large in aggregate, which is why it is off
+unless the statement asks.
+
+Measured on the IdentityIQ-shaped fixture at 10% scale (`tools/iiq-fixture/`), counted in
+PostgreSQL after the run:
+
+| | Entitlements | Business roles |
+|---|---:|---:|
+| Resources loaded | 80,000 | 1,000 |
+| …of which carry an owner | 48,033 (60%) | 1,000 (100%) |
+| Extra rows (resource + link + assignment) | **144,099** | **3,000** |
+
+Scaled to a production catalogue of **805,497** entitlements at the same 60% share, that is
+roughly **1.45 million extra rows**. In a load that already carries 40 million assignment
+rows it is about 3.5% more rows overall — but it is **+60% on the `Resources` table**, and
+those rows appear on the matrix's resource axis and in the resource list. Neither number is
+a reason not to do it; both are reasons to decide it rather than inherit it.
+
+The shipped IdentityIQ presets therefore turn owners **on for business roles** (thousands
+of rows, every one with an owner) and leave them **off for entitlements**, with the
+`ownerId` column already selected so switching them on is one checkbox.
+
+> The 60% share is the fixture's parameter (`ownedShare`), chosen to be realistic rather
+> than measured against a production catalogue. Run the statement below against your own
+> source before you switch it on:
+>
+> ```sql
+> SELECT COUNT_BIG(*) AS total,
+>        SUM(CASE WHEN owner IS NOT NULL THEN 1 ELSE 0 END) AS with_owner
+> FROM spt_managed_attribute;
+> ```
 
 ### Using a query you already have
 
@@ -441,6 +521,7 @@ file has the shape shown under [Configuration](#configuration); on the command l
 | `columnMap` | No | — | Object of `{ "<source column>": "<contract column>" }` mapping the names this statement's `SELECT` actually returns onto the contract names, so an existing query can run unedited — see [Using a query you already have](#using-a-query-you-already-have) |
 | `enabled` | No | `true` | Set to `false` to keep a slot in the config without running it |
 | `resourceType` | `resources`, `assignments` | — | The `resourceType` every row gets, e.g. `Entitlement`, `BusinessRole` |
+| `ownership` | `resources` | `false` | Turn the statement's `ownerId` column into a real owner you can click, instead of leaving it as an attribute. Costs three extra rows per resource that has an owner — see [Owners](#owners-who-controls-this-resource) |
 | `assignmentType` | `assignments` | `Direct` | How the principal holds the resource: `Direct`, `Indirect` or `Eligible` |
 | `governed` | `assignments` | `false` | The assignment is governed (a business-role membership rather than a raw entitlement) |
 | `relationshipType` | `relationships` | `Contains` | Parent → child link type: `Contains` or `GrantsAccessTo` |
@@ -649,6 +730,13 @@ SELECT
 FROM spt_bundle b
 LEFT JOIN spt_identity i ON i.id = b.owner
 ```
+
+The preset ships this statement with **Owners from ownerId** ticked
+(`"ownership": true`), so `b.owner` becomes an owner you can click rather than a hex
+string — see [Owners](#owners-who-controls-this-resource). The entitlements statement
+above selects `ma.owner AS ownerId` in the same way but leaves the box unticked, because
+there are two to three orders of magnitude more entitlements than roles; tick it when you
+want entitlement owners and have read [what it costs](#what-owners-cost).
 
 ### Entitlement assignments
 

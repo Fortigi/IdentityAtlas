@@ -46,7 +46,12 @@ $script:SqlContract = @{
     identities         = @{ core = @('id', 'displayName', 'email', 'givenName', 'surname', 'department', 'jobTitle', 'companyName', 'employeeId', 'city', 'country', 'officeLocation', 'managerExternalId', 'managerId'); aux = @('name', 'userId', 'principalType', 'enabled', 'active', 'inactive', 'disabled') }
     principals         = @{ core = @('id', 'displayName', 'email', 'givenName', 'surname', 'department', 'jobTitle', 'companyName', 'employeeId', 'managerExternalId', 'managerId'); aux = @('name', 'userId', 'principalType', 'enabled', 'active', 'inactive', 'disabled', 'identityId') + $script:SqlRoutingColumns }
     'identity-members' = @{ core = @('identityId', 'principalId', 'isPrimary', 'accountType'); aux = @() }
-    resources          = @{ core = @('id', 'displayName', 'description'); aux = @('name', 'enabled', 'active', 'inactive', 'disabled') + $script:SqlRoutingColumns }
+    # `ownerId` is AUX, not core: a slot with `ownership: true` turns it into a
+    # real owner link (SqlCrawler.Ownership.ps1) AND it stays in
+    # extendedAttributes next to whatever ownerName the statement selected, so
+    # nothing that used to be visible disappears and a slot that does not ask
+    # for ownership behaves exactly as before.
+    resources          = @{ core = @('id', 'displayName', 'description'); aux = @('name', 'enabled', 'active', 'inactive', 'disabled', 'ownerId') + $script:SqlRoutingColumns }
     assignments        = @{ core = @('resourceId', 'principalId', 'identityId'); aux = $script:SqlRoutingColumns }
     relationships      = @{ core = @('parentId', 'childId'); aux = $script:SqlRoutingColumns }
     # One Identity Atlas system per technical connector in the source. `id` is

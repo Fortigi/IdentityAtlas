@@ -14,7 +14,7 @@ export const TARGETS = [
   { id: 'identities',       label: 'Identities',       contract: 'id, displayName (+ email, givenName, surname, department, jobTitle, companyName, employeeId, principalType, enabled …)' },
   { id: 'principals',       label: 'Principals',       contract: 'id, displayName (+ identityId, email, givenName, surname, principalType, enabled, systemId or systemName …)' },
   { id: 'identity-members', label: 'Identity members', contract: 'identityId, principalId (+ isPrimary, accountType)' },
-  { id: 'resources',        label: 'Resources',        contract: 'id, displayName (+ description, enabled, systemId or systemName to route the row to one of the Systems query\'s systems); resourceType is the slot value' },
+  { id: 'resources',        label: 'Resources',        contract: 'id, displayName (+ description, enabled, ownerId, systemId or systemName to route the row to one of the Systems query\'s systems); resourceType is the slot value' },
   { id: 'assignments',      label: 'Assignments',      contract: 'resourceId, principalId (the row follows its resource\'s system unless it names systemId or systemName); resourceType, assignmentType and governed are the slot values' },
   { id: 'relationships',    label: 'Relationships',    contract: 'parentId, childId (the row follows its parent\'s system unless it names systemId or systemName); relationshipType is the slot value' },
   { id: 'contexts',         label: 'Contexts',         contract: 'displayName (+ id as a stable key, description, ownerUserId); contextType and targetType are the slot values' },
@@ -34,7 +34,7 @@ const SLOT_FIELDS_BY_TARGET = {
   identities: ['principalType'],
   principals: ['principalType'],
   'identity-members': [],
-  resources: ['resourceType'],
+  resources: ['resourceType', 'ownership'],
   assignments: ['resourceType', 'assignmentType', 'governed'],
   relationships: ['relationshipType'],
   contexts: ['contextType', 'targetType', 'rootDisplayName'],
@@ -69,7 +69,9 @@ export const CONTRACT_COLUMNS = {
   identities:         { required: ['id', 'displayName'],             optional: PERSON_OPTIONAL },
   principals:         { required: ['id', 'displayName'],             optional: [...PERSON_OPTIONAL, 'identityId', ...ROUTING_OPTIONAL] },
   'identity-members': { required: ['identityId', 'principalId'],     optional: ['isPrimary', 'accountType'] },
-  resources:          { required: ['id', 'displayName'],             optional: ['name', 'description', 'enabled', ...ROUTING_OPTIONAL] },
+  // ownerId is only turned into an owner link when the slot's `ownership` flag
+  // says so; without it the column is an ordinary attribute, as it always was.
+  resources:          { required: ['id', 'displayName'],             optional: ['name', 'description', 'enabled', 'ownerId', ...ROUTING_OPTIONAL] },
   // An identities row's account shares its id, so identityId is accepted where principalId is.
   assignments:        { required: ['resourceId', 'principalId'],     optional: ['identityId', ...ROUTING_OPTIONAL] },
   relationships:      { required: ['parentId', 'childId'],           optional: ROUTING_OPTIONAL },
@@ -96,7 +98,7 @@ export function contractColumnOptions(target) {
 // ─── Slot state ──────────────────────────────────────────────────────────────
 
 const SLOT_DEFAULTS = {
-  resourceType: '', assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User',
+  resourceType: '', ownership: false, assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User',
   systemType: '', contextType: '', targetType: 'Resource', memberType: 'Resource', rootDisplayName: '',
 };
 
@@ -279,6 +281,7 @@ const toInt = (value, fallback) => {
 
 const SLOT_FIELD_VALUES = {
   resourceType:     s => (s.resourceType || '').trim(),
+  ownership:        s => s.ownership === true,
   assignmentType:   s => s.assignmentType || 'Direct',
   governed:         s => s.governed === true,
   relationshipType: s => s.relationshipType || 'Contains',

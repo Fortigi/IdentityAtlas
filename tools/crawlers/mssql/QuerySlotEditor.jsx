@@ -41,6 +41,13 @@ function SlotFields({ slot, update }) {
             placeholder="Entitlement" className={'w-full ' + SMALL_CLS} />
         </div>
       )}
+      {fields.includes('ownership') && (
+        <label className={CHECK_CLS + ' pt-5'}
+          title="Turn the statement's ownerId column into an owner you can click: an ownership resource named after each resource, linked to it, with the owner assigned to it. Adds three rows per resource that has an owner — see the SQL connector docs for what that costs at scale.">
+          <input type="checkbox" checked={slot.ownership === true} onChange={e => update('ownership', e.target.checked)} />
+          Owners from ownerId
+        </label>
+      )}
       {fields.includes('assignmentType') && (
         <EnumSelect label="Assignment type" value={slot.assignmentType} options={ASSIGNMENT_TYPES} onChange={v => update('assignmentType', v)} />
       )}

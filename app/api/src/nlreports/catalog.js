@@ -11,6 +11,7 @@
 
 import { aggregateRowWhere, lastSignInExpr } from '../lib/principalActivity.js';
 import { measurementCte } from '../reports/activityWindow.js';
+import { OWNERSHIP_TYPES_SQL, OWNERSHIP_RELATIONSHIP_TYPES_SQL } from '../lib/ownershipTypes.js';
 
 const notDeleted = (t) => `${t}."deletedAt" IS NULL`;
 
@@ -41,7 +42,11 @@ const systemName = (t) => `(SELECT s."displayName" FROM "Systems" s WHERE s."id"
 
 // Assignment types that mean "is a member / has it" (Eligible = could activate it).
 const HELD = `('Direct','Indirect')`;
-const OWNERSHIP_TYPES = `('GroupOwnership','ApplicationOwnership','ServicePrincipalOwnership')`;
+// The synthetic ownership rows, which are never "a resource someone has". Shared
+// with the risk engine so the two cannot disagree about what ownership is —
+// lib/ownershipTypes.js.
+const OWNERSHIP_TYPES = OWNERSHIP_TYPES_SQL;
+const OWNERSHIP_RELATIONSHIPS = OWNERSHIP_RELATIONSHIP_TYPES_SQL;
 
 export const OPERATORS = {
   eq: { label: 'is', needsValue: true },
@@ -204,7 +209,7 @@ const BASE = {
             from: `"ResourceAssignments" ${ra} JOIN "ResourceRelationships" ${rr} ON ${rr}."childResourceId" = ${ra}."resourceId"
               JOIN "Resources" ${inner} ON ${inner}."id" = ${rr}."parentResourceId"`,
             where: `${ra}."principalId" = ${outer}."id" AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}
-              AND ${rr}."relationshipType" IN ('HasOwnership','HasAppOwnership')`,
+              AND ${rr}."relationshipType" IN ${OWNERSHIP_RELATIONSHIPS}`,
           };
         },
       },
@@ -318,7 +323,7 @@ const BASE = {
       ownerCount: {
         label: 'Owner count', type: 'number', description: 'number of owners',
         sql: (t) => `(SELECT count(*) FROM "ResourceRelationships" rr JOIN "ResourceAssignments" ra ON ra."resourceId" = rr."childResourceId"
-          WHERE rr."parentResourceId" = ${t}."id" AND rr."relationshipType" IN ('HasOwnership','HasAppOwnership') AND ra."deletedAt" IS NULL)`,
+          WHERE rr."parentResourceId" = ${t}."id" AND rr."relationshipType" IN ${OWNERSHIP_RELATIONSHIPS} AND ra."deletedAt" IS NULL)`,
       },
     },
     relations: {
@@ -346,7 +351,7 @@ const BASE = {
           return {
             from: `"ResourceRelationships" ${rr} JOIN "ResourceAssignments" ${ra} ON ${ra}."resourceId" = ${rr}."childResourceId"
               JOIN "Principals" ${inner} ON ${inner}."id" = ${ra}."principalId"`,
-            where: `${rr}."parentResourceId" = ${outer}."id" AND ${rr}."relationshipType" IN ('HasOwnership','HasAppOwnership')
+            where: `${rr}."parentResourceId" = ${outer}."id" AND ${rr}."relationshipType" IN ${OWNERSHIP_RELATIONSHIPS}
               AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}`,
           };
         },

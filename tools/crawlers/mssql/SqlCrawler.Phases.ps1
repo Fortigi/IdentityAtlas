@@ -85,6 +85,9 @@ function New-SqlRunState {
         # catalogue names a person the way people are named on paper; principals
         # are keyed on the directory's own id. See Resolve-SqlContextOwner.
         PrincipalsByEmployeeId = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        # What the ownership columns produced across the run (one tally, however
+        # many statements ask for owners). SqlCrawler.Ownership.ps1.
+        Ownership       = New-SqlOwnershipTally
         HasResources    = ($targets -contains 'resources')
         HasPrincipals   = ($targets -contains 'identities' -or $targets -contains 'principals')
         Scopes          = [System.Collections.Generic.List[hashtable]]::new()
@@ -129,14 +132,14 @@ function Add-SqlReconcileScope {
 # A slot that routes nothing therefore opens exactly the one stream it always did.
 function New-SqlStreamSpec {
     [CmdletBinding()]
-    param([hashtable]$State, [string]$Endpoint, [hashtable]$Scope = @{}, [string[]]$KeyFields = @('externalId'), [switch]$Reconcile)
+    param([hashtable]$State, [string]$Endpoint, [hashtable]$Scope = @{}, [string[]]$KeyFields = @('externalId'), [switch]$Reconcile, [switch]$Keyed)
     $expect = $null
     if ($Reconcile) {
         # Every reconciled scope is also verified at the end of the run. The
         # expectation spans the scope's SYSTEMS (the reconcile does not): the
         # source's own counts are per statement, not per system, so the only
         # honest comparison sums the database's rows over the systems fed.
-        $expect = Get-SqlExpectation -State $State -Key (Get-SqlScopeKey -Endpoint $Endpoint -Scope $Scope) -Endpoint $Endpoint -Scope $Scope
+        $expect = Get-SqlExpectation -State $State -Key (Get-SqlScopeKey -Endpoint $Endpoint -Scope $Scope) -Endpoint $Endpoint -Scope $Scope -Keyed:$Keyed
         $expect.Slots++
     }
     return @{ Endpoint = $Endpoint; Scope = $Scope; KeyFields = $KeyFields; Reconcile = [bool]$Reconcile
@@ -185,7 +188,11 @@ function New-SqlSlotStreams {
             }
         }
         'identity-members' { return @{ member = New-SqlStreamSpec -State $State -Endpoint 'ingest/identity-members' -KeyFields $memberKeys } }
-        'resources'        { return @{ resource = New-SqlStreamSpec -State $State -Endpoint 'ingest/resources' -Scope @{ resourceType = $Slot.resourceType } -Reconcile } }
+        'resources' {
+            $streams = @{ resource = New-SqlStreamSpec -State $State -Endpoint 'ingest/resources' -Scope @{ resourceType = $Slot.resourceType } -Reconcile }
+            if ($Slot.ownership) { foreach ($e in (New-SqlOwnershipStreams -State $State).GetEnumerator()) { $streams[$e.Key] = $e.Value } }
+            return $streams
+        }
         'assignments' {
             $scope = @{ assignmentType = $Slot.assignmentType; resourceType = $Slot.resourceType; governed = [bool]$Slot.governed }
             return @{ assignment = New-SqlStreamSpec -State $State -Endpoint 'ingest/resource-assignments' -Scope $scope -KeyFields @('resourceExternalId', 'principalExternalId') -Reconcile }
@@ -272,6 +279,7 @@ function Add-SqlResourceRow {
     Add-CrawlerIngestStreamRecord -Stream (Get-SqlSlotStream -Ctx $Ctx -Role 'resource' -SystemId $sid) -Record $rec
     Add-SqlExpectedKey -Expectation $Ctx.Streams.resource.Expect -Key $rec.externalId
     Add-SqlKnownKey -Known $Ctx.State.KnownResources -Key $rec.externalId -SystemId $sid -Catalog $Ctx.State.Systems
+    if ($Ctx.Slot.ownership) { Add-SqlOwnershipRow -Row $Row -Ctx $Ctx -Resource $rec -SystemId $sid }
 }
 
 function Add-SqlAssignmentRow {
@@ -426,7 +434,9 @@ function Invoke-SqlSlot {
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] $($Slot.name) → $($Slot.target)$(if ($Slot.paged) { ' (paged)' })" -ForegroundColor Cyan
     Update-CrawlerProgress -Step "Query: $($Slot.name)" -Pct $Pct
     $ctx = @{ Slot = $Slot; Map = $null; Streams = (New-SqlSlotStreams -Slot $Slot -State $State); State = $State
-              Route = 'fixed'; Rows = 0; Skipped = 0; Dangling = 0; Unresolved = 0; Misrouted = 0 }
+              Route = 'fixed'; Rows = 0; Skipped = 0; Dangling = 0; Unresolved = 0; Misrouted = 0
+              # This statement's own owner tally, folded into the run's at the end.
+              Ownership = (New-SqlOwnershipTally) }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $rows = Invoke-SqlQueryStream -Connection $Connection -Sql $Slot.sql -OnRow (New-SqlRowCallback -Ctx $ctx -Handler (Get-SqlRowHandler -Target $Slot.target)) `
         -CommandTimeout $State.CommandTimeout -Paged $Slot.paged -PageSize $State.PageSize
@@ -436,8 +446,15 @@ function Invoke-SqlSlot {
     $sw.Stop()
     $systems = Get-SqlSlotSystemCount -Ctx $ctx
     Write-SqlSlotSummary -Ctx $ctx -Rows $rows -Seconds $sw.Elapsed.TotalSeconds -Systems $systems
+    $ownership = $null
+    if ($Slot.ownership) {
+        $ownership = Get-SqlOwnershipReport -Tally $ctx.Ownership
+        Write-SqlOwnershipReport -Report $ownership
+        Join-SqlOwnershipTally -Into $State.Ownership -From $ctx.Ownership
+    }
     $State.Totals[$Slot.name] = @{ target = $Slot.target; rows = $rows; sent = $sent; skipped = $ctx.Skipped
-                                   dangling = $ctx.Dangling; unresolved = $ctx.Unresolved; misrouted = $ctx.Misrouted; systems = $systems }
+                                   dangling = $ctx.Dangling; unresolved = $ctx.Unresolved; misrouted = $ctx.Misrouted; systems = $systems
+                                   ownership = $ownership }
     return $State.Totals[$Slot.name]
 }
 

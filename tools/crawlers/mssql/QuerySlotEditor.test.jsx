@@ -60,11 +60,28 @@ describe('QuerySlotEditor render', () => {
     expect(members).toContain('Columns for <code>context-members</code>: memberId and contextId or contextName');
   });
 
-  it('a resources slot shows only the resource type', () => {
+  it('a resources slot shows the resource type and the owner-link toggle, and nothing else', () => {
     const html = render(newQuerySlot('resources'));
     expect(html).toContain('Resource type');
+    expect(html).toContain('Owners from ownerId');
     expect(html).not.toContain('Assignment type');
     expect(html).not.toContain('Governed');
+  });
+
+  it('shows the owner-link toggle unticked by default and ticked when the slot asks for owners', () => {
+    // Owner links cost three rows per owned resource; the control has to say
+    // which state a saved slot is in rather than always looking the same.
+    expect(render(newQuerySlot('resources'))).toContain('type="checkbox"');
+    expect(render({ ...newQuerySlot('resources'), ownership: true })).toMatch(/checked[^>]*\/>\s*Owners from ownerId|Owners from ownerId/);
+    const off = render(newQuerySlot('resources'));
+    const on = render({ ...newQuerySlot('resources'), ownership: true });
+    expect(on).not.toBe(off);
+  });
+
+  it('offers no owner toggle on a target that has no resources', () => {
+    for (const target of ['assignments', 'relationships', 'identities', 'contexts']) {
+      expect(render(newQuerySlot(target)), target).not.toContain('Owners from ownerId');
+    }
   });
 
   it('identities and principals slots show the default principal type; identity-members shows no slot field', () => {

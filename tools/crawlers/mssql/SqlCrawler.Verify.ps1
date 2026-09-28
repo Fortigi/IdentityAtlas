@@ -38,12 +38,20 @@ $script:SqlKeyedEndpoints = @('ingest/principals', 'ingest/resources', 'ingest/r
 # The expectation for one (endpoint, scope), created once however many slots feed it.
 function Get-SqlExpectation {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] [string]$Key, [Parameter(Mandatory)] [string]$Endpoint, [hashtable]$Scope = @{})
+    param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] [string]$Key, [Parameter(Mandatory)] [string]$Endpoint, [hashtable]$Scope = @{}, [switch]$Keyed)
     if (-not $State.Expect.ContainsKey($Key)) {
         # Assigned, not `KeySet = if (…) { [HashSet]::new() }`: an if-expression
         # enumerates its output, and an EMPTY set enumerates to nothing — $null.
+        #
+        # -Keyed forces a key set on an endpoint that normally has none. An
+        # assignment scope is unkeyed because it can hold tens of millions of
+        # rows and its expectation comes from the source's own distinct-pair
+        # count instead — but an OWNER assignment has no statement of its own to
+        # count, one per owned resource at most, so it is both affordable to
+        # remember and unverifiable any other way. Without this it would expect
+        # zero and fail every run that emitted one.
         $keySet = $null
-        if ($Endpoint -in $script:SqlKeyedEndpoints) { $keySet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal) }
+        if ($Keyed -or $Endpoint -in $script:SqlKeyedEndpoints) { $keySet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal) }
         $State.Expect[$Key] = @{
             # NOT "Keys": on a hashtable, .Keys is the dictionary's own key collection.
             Endpoint = $Endpoint; Scope = $Scope; Slots = 0
