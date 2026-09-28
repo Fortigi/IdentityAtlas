@@ -10,12 +10,13 @@ import { presetQueries } from './sqlPresets.js';
 // The targets a statement's rows can become, with the one-line column
 // contract the Queries step shows under the SQL. Full table: CLAUDE.md here.
 export const TARGETS = [
+  { id: 'systems',          label: 'Systems',          contract: 'displayName (+ id as the key later queries route by, description, systemType, tenantId, enabled); one Identity Atlas system per technical connector in the source' },
   { id: 'identities',       label: 'Identities',       contract: 'id, displayName (+ email, givenName, surname, department, jobTitle, companyName, employeeId, principalType, enabled …)' },
-  { id: 'principals',       label: 'Principals',       contract: 'id, displayName (+ identityId, email, givenName, surname, principalType, enabled …)' },
+  { id: 'principals',       label: 'Principals',       contract: 'id, displayName (+ identityId, email, givenName, surname, principalType, enabled, systemId or systemName …)' },
   { id: 'identity-members', label: 'Identity members', contract: 'identityId, principalId (+ isPrimary, accountType)' },
-  { id: 'resources',        label: 'Resources',        contract: 'id, displayName (+ description, enabled); resourceType is the slot value' },
-  { id: 'assignments',      label: 'Assignments',      contract: 'resourceId, principalId; resourceType, assignmentType and governed are the slot values' },
-  { id: 'relationships',    label: 'Relationships',    contract: 'parentId, childId; relationshipType is the slot value' },
+  { id: 'resources',        label: 'Resources',        contract: 'id, displayName (+ description, enabled, systemId or systemName to route the row to one of the Systems query\'s systems); resourceType is the slot value' },
+  { id: 'assignments',      label: 'Assignments',      contract: 'resourceId, principalId (the row follows its resource\'s system unless it names systemId or systemName); resourceType, assignmentType and governed are the slot values' },
+  { id: 'relationships',    label: 'Relationships',    contract: 'parentId, childId (the row follows its parent\'s system unless it names systemId or systemName); relationshipType is the slot value' },
   { id: 'contexts',         label: 'Contexts',         contract: 'displayName (+ id as a stable key, description, ownerUserId); contextType and targetType are the slot values' },
   { id: 'context-members',  label: 'Context members',  contract: 'memberId and contextId or contextName (matched to the Contexts query by name, ignoring case and surrounding spaces)' },
 ];
@@ -29,6 +30,7 @@ export const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', '
 // left out of the saved slot entirely, so the crawler never sees a stray
 // relationshipType on an assignments slot.
 const SLOT_FIELDS_BY_TARGET = {
+  systems: ['systemType'],
   identities: ['principalType'],
   principals: ['principalType'],
   'identity-members': [],
@@ -57,14 +59,20 @@ const PERSON_OPTIONAL = [
   'companyName', 'employeeId', 'principalType', 'enabled', 'active', 'inactive', 'disabled',
 ];
 
+// Which system a row belongs to, by the source's own key for the connector or
+// by its name. Only meaningful alongside a Systems query; see
+// tools/crawlers/mssql/SqlCrawler.Systems.ps1.
+const ROUTING_OPTIONAL = ['systemId', 'systemName'];
+
 export const CONTRACT_COLUMNS = {
+  systems:            { required: ['displayName'],                   optional: ['id', 'name', 'description', 'systemType', 'tenantId', 'enabled', 'active', 'inactive', 'disabled'] },
   identities:         { required: ['id', 'displayName'],             optional: PERSON_OPTIONAL },
-  principals:         { required: ['id', 'displayName'],             optional: [...PERSON_OPTIONAL, 'identityId'] },
+  principals:         { required: ['id', 'displayName'],             optional: [...PERSON_OPTIONAL, 'identityId', ...ROUTING_OPTIONAL] },
   'identity-members': { required: ['identityId', 'principalId'],     optional: ['isPrimary', 'accountType'] },
-  resources:          { required: ['id', 'displayName'],             optional: ['name', 'description', 'enabled'] },
+  resources:          { required: ['id', 'displayName'],             optional: ['name', 'description', 'enabled', ...ROUTING_OPTIONAL] },
   // An identities row's account shares its id, so identityId is accepted where principalId is.
-  assignments:        { required: ['resourceId', 'principalId'],     optional: ['identityId'] },
-  relationships:      { required: ['parentId', 'childId'],           optional: [] },
+  assignments:        { required: ['resourceId', 'principalId'],     optional: ['identityId', ...ROUTING_OPTIONAL] },
+  relationships:      { required: ['parentId', 'childId'],           optional: ROUTING_OPTIONAL },
   contexts:           { required: ['displayName'],                   optional: ['id', 'name', 'description', 'ownerUserId'] },
   // One of contextId / contextName is needed; the crawler skips a row with neither.
   'context-members':  { required: ['memberId'],                      optional: ['contextId', 'contextName'] },
@@ -89,7 +97,7 @@ export function contractColumnOptions(target) {
 
 const SLOT_DEFAULTS = {
   resourceType: '', assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User',
-  contextType: '', targetType: 'Resource', memberType: 'Resource', rootDisplayName: '',
+  systemType: '', contextType: '', targetType: 'Resource', memberType: 'Resource', rootDisplayName: '',
 };
 
 // A blank editor slot. Every field is bound (the editor switches which ones it
@@ -275,6 +283,7 @@ const SLOT_FIELD_VALUES = {
   governed:         s => s.governed === true,
   relationshipType: s => s.relationshipType || 'Contains',
   principalType:    s => s.principalType || 'User',
+  systemType:       s => (s.systemType || '').trim(),
   contextType:      s => (s.contextType || '').trim(),
   targetType:       s => s.targetType || 'Resource',
   memberType:       s => s.memberType || 'Resource',

@@ -26,8 +26,8 @@ function EnumSelect({ label, value, options, onChange }) {
 }
 
 // The slot-level constants crawler.json defines per target (resourceType,
-// assignmentType, governed, relationshipType, principalType, contextType,
-// targetType, memberType). Only the ones the
+// assignmentType, governed, relationshipType, principalType, systemType,
+// contextType, targetType, memberType). Only the ones the
 // current target uses are shown — the others are dropped on save anyway.
 function SlotFields({ slot, update }) {
   const fields = slotFieldsFor(slot.target);
@@ -55,6 +55,13 @@ function SlotFields({ slot, update }) {
       )}
       {fields.includes('principalType') && (
         <EnumSelect label="Default principal type" value={slot.principalType} options={PRINCIPAL_TYPES} onChange={v => update('principalType', v)} />
+      )}
+      {fields.includes('systemType') && (
+        <div>
+          <label className={LABEL_CLS} title="The system type every system this query creates gets, unless the row carries a systemType column of its own. Leave it blank for SQL.">Default system type</label>
+          <input value={slot.systemType} onChange={e => update('systemType', e.target.value)}
+            placeholder="SQL" className={'w-full ' + SMALL_CLS} />
+        </div>
       )}
       {fields.includes('contextType') && (
         <div>

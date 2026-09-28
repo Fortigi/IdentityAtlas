@@ -6,6 +6,9 @@
 .DESCRIPTION
     Each configured statement has a target that says what its rows become:
 
+      systems           → one Identity Atlas System per technical connector in the
+                          source; later statements route their rows to these by a
+                          systemId (the source's own key) or systemName column
       identities        → Identities + a Principal per row + the IdentityMember link
       principals        → Principals (+ IdentityMember when the row names an identityId)
       identity-members  → IdentityMembers
@@ -44,14 +47,7 @@ Param(
 $ErrorActionPreference = 'Stop'
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
-. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
-. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngestStream.ps1')
-. (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Functions.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Transform.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Contexts.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Phases.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Verify.ps1')
+. (Join-Path $PSScriptRoot 'SqlCrawler.Load.ps1')
 
 $Cfg = Resolve-SqlConfig -ConfigPath $ConfigPath
 #endregion Configuration
@@ -66,7 +62,8 @@ Write-Host "Queries:   $(@($Cfg.queries | Where-Object { $_.enabled }).Count) en
 Update-CrawlerProgress -Step 'Registering system' -Pct 2
 $reg   = Register-SqlSystem -Cfg $Cfg
 $State = New-SqlRunState -SystemId $reg.systemId -ServerTime $reg.serverTime -Slots $Cfg.queries `
-    -BatchSize $Cfg.batchSize -PageSize $Cfg.pageSize -CommandTimeout $Cfg.commandTimeout -SyncMode $Cfg.syncMode
+    -BatchSize $Cfg.batchSize -PageSize $Cfg.pageSize -CommandTimeout $Cfg.commandTimeout -SyncMode $Cfg.syncMode `
+    -SystemType 'SQL' -Tenant $reg.tenantId
 
 Update-CrawlerProgress -Step 'Connecting to SQL Server' -Pct 5
 $Connection = Connect-SqlSource -Cfg $Cfg

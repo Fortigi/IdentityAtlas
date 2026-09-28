@@ -555,3 +555,63 @@ describe('normalizeRecords — manager resolution', () => {
     expect(report.managerId).toBe(manager.id);
   });
 });
+
+// ── Cross-system references (a crawler that routes rows to several systems) ──
+//
+// A crawler that creates a system per source connector writes a principal into
+// the directory system and the entitlement it grants into the connector's own
+// system, and the assignment joining them travels in a batch addressed to one
+// of the two. Every id is a hash of "<namespace>:<externalId>", and a reference
+// is resolved in the namespace of the batch CARRYING it — so the namespace has
+// to be the RUN's, not the system's. These two tests are a pair: the first is
+// the contract the SQL crawler's routing relies on, the second is what happens
+// if the namespace is ever made per-system again, and it happens with no error.
+describe('normalizeRecords — cross-system references', () => {
+  const principalCols = ['id', 'externalId', 'displayName', 'systemId'];
+  const resourceCols = ['id', 'externalId', 'displayName', 'resourceType', 'systemId'];
+  const assignmentCols = ['resourceId', 'principalId', 'assignmentType', 'systemId'];
+
+  // One namespace for the whole run; only the envelope systemId differs per batch.
+  const run = 'sql-7';
+  const opts = (entity, systemId) => ({
+    idGeneration: 'deterministic', idPrefix: `${run}-${entity}`, systemPrefix: run, systemId,
+  });
+
+  it('resolves an assignment to a principal in one system and a resource in another', () => {
+    const [principal] = normalizeRecords([{ externalId: 'alice', displayName: 'Alice' }],
+      principalCols, opts('principals', 7));
+    const [resource] = normalizeRecords([{ externalId: 'ENT-1', displayName: 'Payroll admin' }],
+      resourceCols, opts('resources', 12));
+    const [assignment] = normalizeRecords(
+      [{ resourceExternalId: 'ENT-1', principalExternalId: 'alice', assignmentType: 'Direct' }],
+      assignmentCols, opts('resource-assignments', 12));
+
+    expect(principal.systemId).toBe(7);
+    expect(resource.systemId).toBe(12);
+    // The join: both sides of the assignment are the ids the other two batches wrote.
+    expect(assignment.principalId).toBe(principal.id);
+    expect(assignment.resourceId).toBe(resource.id);
+  });
+
+  it('a namespace per SYSTEM makes that same assignment resolve to neither side', () => {
+    // What "sql-<systemId>" as the namespace produces once rows are routed.
+    // Nothing throws and no foreign key complains — ResourceAssignments has none
+    // on either column — so the row simply lands pointing at ids no row holds.
+    const perSystem = (entity, systemId) => ({
+      idGeneration: 'deterministic', idPrefix: `sql-${systemId}-${entity}`,
+      systemPrefix: `sql-${systemId}`, systemId,
+    });
+    const [principal] = normalizeRecords([{ externalId: 'alice', displayName: 'Alice' }],
+      principalCols, perSystem('principals', 7));
+    const [resource] = normalizeRecords([{ externalId: 'ENT-1', displayName: 'Payroll admin' }],
+      resourceCols, perSystem('resources', 12));
+    const [assignment] = normalizeRecords(
+      [{ resourceExternalId: 'ENT-1', principalExternalId: 'alice', assignmentType: 'Direct' }],
+      assignmentCols, perSystem('resource-assignments', 12));
+
+    // The resource shares the assignment's system, so that half still matches.
+    expect(assignment.resourceId).toBe(resource.id);
+    // The principal does not, and that is the silent loss the run namespace avoids.
+    expect(assignment.principalId).not.toBe(principal.id);
+  });
+});

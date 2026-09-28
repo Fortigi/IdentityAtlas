@@ -16,7 +16,8 @@ is baked in — SailPoint IdentityIQ ships as a worked example, not as special-c
 | `SqlCrawler.Functions.ps1` | Config resolution, connection-string builder, the streaming query runner (`Invoke-SqlQueryStream`) with `@Offset`/`@PageSize` paging, value conversion |
 | `SqlCrawler.Transform.ps1` | **Pure** row → ingest-record shapers, one per target, plus the column-contract resolver (`Resolve-SqlColumnMap`) |
 | `SqlCrawler.Verify.ps1` | End-of-run verification. Per statement: rows read against the source's own `COUNT_BIG(*)` (catches a read that stopped early). Per reconcile scope: the distinct keys read (principals, resources, relationships) or the source's distinct pairs (assignments, from the same query) against `POST /ingest/count`. Throws on any mismatch, and on more rows than distinct keys |
-| `SqlCrawler.Contexts.ps1` | The `contexts` / `context-members` targets: the catalogue, the ONE normalisation of a context reference (`ConvertTo-SqlContextName`, invariant culture), name → key resolution, and the fold / unresolved report |
+| `SqlCrawler.Systems.ps1` | The `systems` target and per-row routing: the system catalogue, the registration record (and the `(systemType, tenantId)` key that makes a re-run find the same row), the per-statement route mode, and the cross-system id-collision check |
+| `SqlCrawler.Contexts.ps1` | The `contexts` / `context-members` targets: the catalogue, name → key resolution (through the crawler's one name fold, `ConvertTo-SqlNameKey` in the Transform file), and the fold / unresolved report |
 | `SqlCrawler.Phases.ps1` | Per-slot sync phases: open the ingest streams, run the query, shape + stream every row, then the per-scope reconcile |
 | `../shared/Invoke-CrawlerIngestStream.ps1` | Shared streaming ingest: chunked delta upserts + end-of-run `POST /ingest/reconcile`. Written for this crawler; any large-set crawler can use it |
 | `CrawlerMeta.js`, `ConfigWizard.jsx`, `Summary.jsx`, `sqlPresets.js`, `wizardLogic.js` | UI: type-picker entry, 4-step wizard (Connection → Credentials → Queries → Schedule), config card, the IdentityIQ example query set, pure wizard logic |
@@ -67,6 +68,7 @@ binary columns are skipped.
 
 | Target | Required columns | Recognised optional columns | Emits |
 |---|---|---|---|
+| `systems` | `displayName` (falls back to `name`) | `id` (the key later statements route by; else the folded name), `description`, `systemType`, `tenantId`, `enabled` | one **System** per technical connector in the source, registered as a delta. See "One system per connector" |
 | `identities` | `id`, `displayName` (falls back to `name`, `userId`, then `id`) | `email`, `givenName`, `surname`, `department`, `jobTitle`, `companyName`, `employeeId`, `city`, `country`, `officeLocation`, `managerExternalId` (or `managerId`), `principalType`, `enabled` / `active` (or the inverse `inactive` / `disabled`) | one **Identity**, one **Principal** with the same id (the person's account in this system), and the **IdentityMember** link between them |
 | `principals` | `id`, `displayName` (same fallbacks) | as above, plus `identityId` (also emits an IdentityMember link) | one **Principal** |
 | `identity-members` | `identityId`, `principalId` | `isPrimary`, `accountType` | one **IdentityMember** |
@@ -116,9 +118,60 @@ Without it, a row missing a required contract column is skipped, and a statement
 every row is skipped logs a warning naming the target's required columns.
 
 Ids are the source's own keys: every record carries them as `externalId`, and the Ingest API
-derives the UUID primary key deterministically in the `sql-<systemId>` namespace, so re-runs
-update the same rows and cross-references (`resourceExternalId`, `principalExternalId`, …)
-resolve without the crawler ever knowing a UUID.
+derives the UUID primary key deterministically in the `sql-<the crawler's own systemId>`
+namespace, so re-runs update the same rows and cross-references (`resourceExternalId`,
+`principalExternalId`, …) resolve without the crawler ever knowing a UUID.
+
+## One system per connector
+
+`SqlCrawler.Systems.ps1`. A `systems` statement creates one Identity Atlas system per
+technical connector in the source (`spt_application` in IdentityIQ); `principals`,
+`resources`, `assignments` and `relationships` then carry `systemId` (the source's own key
+for the connector) or `systemName`, and each row is sent in a batch addressed to that
+system. The route mode is decided **once per statement** — at 40 M rows a per-row decision
+is minutes of re-deriving a constant — and an assignment with no routing column follows
+its resource, a relationship its parent, so the largest statement in the source needs no
+extra join. Both routing columns are `aux` in the contract: consumed AND kept in
+`extendedAttributes`.
+
+### One namespace per run — the part that is easy to get wrong
+
+**The id namespace is the run's, not the system's.** `IdPrefix` is `sql-<the crawler's own
+system id>` for every batch, whatever system the batch is addressed to.
+
+Deterministic ids are `MD5("<namespace>:<externalId>")`, and the API resolves a
+cross-entity reference in the namespace of the **batch carrying it**
+(`recoverSystemPrefix` in `app/api/src/routes/ingest/helpers.js`). The customer's people
+live in the directory system and their entitlements in the connector systems, so every
+grant spans two. Namespaced per system, the grant's `principalExternalId` would hash in
+the assignment batch's namespace and match no principal — and nothing would say so:
+`ResourceAssignments` has no foreign key on `principalId` or `resourceId`, so the row
+inserts happily, points at nothing, and never appears in the matrix.
+
+Two paired tests pin this. `test/unit/SqlCrawlerSystems.Tests.ps1` → *"joins a principal in
+one system to an entitlement in another"* asserts the three batches share one namespace;
+`app/api/src/ingest/normalization.test.js` → *"cross-system references"* asserts what that
+buys and what a per-system namespace would cost. Both were checked against the mutation
+(`-IdPrefix "sql-$SystemId"`); the first fails, so it is a real assertion.
+
+Because the namespace is the run's, `sql-<own system id>` is byte-for-byte the value a
+single-system run has always used: **no existing installation's ids move.**
+
+The price is that external ids must be unique across every system of a run. `Add-SqlKnownKey`
+records every id two systems claim and `Get-SqlIdCollisionVerdict` fails the run naming
+them — the same treatment the existing "more rows than distinct ids" check gives the same
+defect one level up.
+
+### Reconcile and verification with routing
+
+- The **reconcile** is per `(system, endpoint, scope)` and is registered when a stream for
+  that system actually opens, so a run never reconciles a system it did not write to.
+- An **expectation** is per `(endpoint, scope)` and holds the set of systems it was written
+  to; `Measure-SqlScopeRows` sums `POST /ingest/count` over exactly those. The source's own
+  counts are per statement, never per system, so summing is the only honest comparison.
+- A row naming a system no statement created is kept in the crawler's own system, counted
+  as `Misrouted`, reported by name, and fails the run past the same 5% share
+  `Get-SqlReadVerdict` already uses for unplaced rows.
 
 Slot values are **constants per statement** on purpose: `resourceType`, `assignmentType`,
 `governed` and `relationshipType` are also the full-sync reconcile scope, so a per-row override
@@ -128,7 +181,8 @@ and scope are fine — the reconcile runs once per scope after both have streame
 ## Slot ordering
 
 Slots run grouped by target in dependency order regardless of the order they are configured in:
-`identities` → `principals` → `resources` → `contexts` → `identity-members` → `context-members` → `assignments` → `relationships`.
+`systems` → `identities` → `principals` → `resources` → `contexts` → `identity-members` → `context-members` → `assignments` → `relationships`.
+`systems` is first because everything after it may name one of the systems it creates.
 The crawler remembers every resource and principal id it emitted; an assignment or relationship
 that names an id it has not seen is skipped and counted (logged as `dangling`), never sent.
 

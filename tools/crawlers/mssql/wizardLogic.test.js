@@ -21,7 +21,7 @@ describe('newQuerySlot', () => {
     expect(newQuerySlot()).toEqual({
       name: '', target: 'identities', sql: '', enabled: true, columnMap: [],
       resourceType: '', assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User',
-      contextType: '', targetType: 'Resource', memberType: 'Resource', rootDisplayName: '',
+      systemType: '', contextType: '', targetType: 'Resource', memberType: 'Resource', rootDisplayName: '',
     });
   });
 
@@ -32,6 +32,7 @@ describe('newQuerySlot', () => {
 
 describe('slotFieldsFor', () => {
   it('lists exactly the crawler.json slot constants each target uses', () => {
+    expect(slotFieldsFor('systems')).toEqual(['systemType']);
     expect(slotFieldsFor('identities')).toEqual(['principalType']);
     expect(slotFieldsFor('principals')).toEqual(['principalType']);
     expect(slotFieldsFor('identity-members')).toEqual([]);
@@ -76,8 +77,10 @@ describe('appendPresetSlots', () => {
   it('loads the preset into an empty list', () => {
     const out = appendPresetSlots([], 'identityiq');
     expect(out).toHaveLength(IDENTITYIQ_PRESET.length);
-    expect(out[0]).toMatchObject({ name: 'Identities', target: 'principals', enabled: true, resourceType: '' });
-    expect(out[5]).toMatchObject({ name: 'Role assignments', target: 'assignments', resourceType: 'BusinessRole', governed: true });
+    // The systems query comes first: everything after it routes to what it creates.
+    expect(out[0]).toMatchObject({ name: 'Technical applications', target: 'systems', enabled: true });
+    expect(out[1]).toMatchObject({ name: 'Identities', target: 'principals', enabled: true, resourceType: '' });
+    expect(out[6]).toMatchObject({ name: 'Role assignments', target: 'assignments', resourceType: 'BusinessRole', governed: true });
   });
 
   it('appends after existing slots without touching them', () => {
@@ -193,6 +196,14 @@ describe('validateQueries / canSubmitQueries', () => {
     expect(validateQueries([slot({ target: 'identity-members' })])).toEqual([]);
   });
 
+  it('accepts a systems slot, which needs nothing but a name and a statement', () => {
+    expect(TARGET_IDS).toContain('systems');
+    expect(validateQueries([slot({ target: 'systems' })])).toEqual([]);
+    // Several are fine: they merge into one catalogue, unlike contexts, whose
+    // full sync means a second query would delete the first one's rows.
+    expect(validateQueries([slot({ name: 'A', target: 'systems' }), slot({ name: 'B', target: 'systems' })])).toEqual([]);
+  });
+
   it('still validates a disabled slot, because it is saved and the schema requires its fields', () => {
     expect(validateQueries([slot(), slot({ name: '', enabled: false })])).toEqual(['Query 2: name is required']);
   });
@@ -253,6 +264,12 @@ describe('buildQuerySlot', () => {
 
   it('a resources slot carries only resourceType', () => {
     expect(buildQuerySlot(slot({ target: 'resources', resourceType: 'Entitlement' }))).toEqual({ name: 'Q', target: 'resources', sql: 'SELECT 1', enabled: true, resourceType: 'Entitlement' });
+  });
+
+  it('a systems slot carries only systemType, trimmed, and blank means the crawler own type', () => {
+    expect(buildQuerySlot(slot({ target: 'systems', systemType: ' IdentityIQ ', resourceType: 'X', governed: true })))
+      .toEqual({ name: 'Q', target: 'systems', sql: 'SELECT 1', enabled: true, systemType: 'IdentityIQ' });
+    expect(buildQuerySlot(slot({ target: 'systems' })).systemType).toBe('');
   });
 
   it('falls back to the crawler.json defaults for a blank enum and writes governed as a strict boolean', () => {
@@ -343,10 +360,24 @@ describe('CONTRACT_COLUMNS / contractColumnsFor / contractColumnOptions', () => 
   it('mirrors the column-contract table per target, required columns first', () => {
     expect(CONTRACT_COLUMNS.identities.required).toEqual(['id', 'displayName']);
     expect(CONTRACT_COLUMNS.resources.required).toEqual(['id', 'displayName']);
-    expect(contractColumnOptions('resources')).toEqual(['id', 'displayName', 'name', 'description', 'enabled']);
+    expect(contractColumnOptions('resources')).toEqual(['id', 'displayName', 'name', 'description', 'enabled', 'systemId', 'systemName']);
     expect(contractColumnOptions('identity-members')).toEqual(['identityId', 'principalId', 'isPrimary', 'accountType']);
-    expect(contractColumnOptions('assignments')).toEqual(['resourceId', 'principalId', 'identityId']);
-    expect(contractColumnsFor('relationships')).toEqual({ required: ['parentId', 'childId'], optional: [] });
+    expect(contractColumnOptions('assignments')).toEqual(['resourceId', 'principalId', 'identityId', 'systemId', 'systemName']);
+    expect(contractColumnsFor('relationships')).toEqual({ required: ['parentId', 'childId'], optional: ['systemId', 'systemName'] });
+    expect(contractColumnsFor('systems').required).toEqual(['displayName']);
+  });
+
+  it('offers the routing columns only where a row can carry a system of its own', () => {
+    // Identities and identity members are cross-system tables with no systemId
+    // column at all, so offering one would promise something the model cannot keep.
+    for (const target of ['principals', 'resources', 'assignments', 'relationships']) {
+      expect(contractColumnOptions(target)).toContain('systemId');
+      expect(contractColumnOptions(target)).toContain('systemName');
+    }
+    for (const target of ['identities', 'identity-members', 'contexts', 'context-members']) {
+      expect(contractColumnOptions(target)).not.toContain('systemId');
+      expect(contractColumnOptions(target)).not.toContain('systemName');
+    }
   });
 
   it('offers the person attributes on identities and principals, with identityId only on principals', () => {

@@ -26,6 +26,14 @@
 # The contract per target: `core` columns become record fields and are NOT
 # copied to extendedAttributes; `aux` columns are consumed (fallbacks, flags,
 # links) but ALSO kept in extendedAttributes since they carry source detail.
+#
+# `systemId` / `systemName` — the source's own key for the connector a row
+# belongs to, and its name — are AUX on every routed target: consumed for
+# routing and still kept in extendedAttributes, because they are source detail
+# an analyst wants to see and consuming them outright would quietly delete an
+# attribute that used to be there. See SqlCrawler.Systems.ps1.
+$script:SqlRoutingColumns = @('systemId', 'systemName')
+
 $script:SqlContract = @{
     # The person fields the Identities table actually has (001_core_schema.sql).
     # city / country / officeLocation are columns on that table, so a statement
@@ -36,11 +44,14 @@ $script:SqlContract = @{
     # the value is a real column on both targets now, not source detail, and
     # keeping a copy in extendedAttributes would only invite the two to drift.
     identities         = @{ core = @('id', 'displayName', 'email', 'givenName', 'surname', 'department', 'jobTitle', 'companyName', 'employeeId', 'city', 'country', 'officeLocation', 'managerExternalId', 'managerId'); aux = @('name', 'userId', 'principalType', 'enabled', 'active', 'inactive', 'disabled') }
-    principals         = @{ core = @('id', 'displayName', 'email', 'givenName', 'surname', 'department', 'jobTitle', 'companyName', 'employeeId', 'managerExternalId', 'managerId'); aux = @('name', 'userId', 'principalType', 'enabled', 'active', 'inactive', 'disabled', 'identityId') }
+    principals         = @{ core = @('id', 'displayName', 'email', 'givenName', 'surname', 'department', 'jobTitle', 'companyName', 'employeeId', 'managerExternalId', 'managerId'); aux = @('name', 'userId', 'principalType', 'enabled', 'active', 'inactive', 'disabled', 'identityId') + $script:SqlRoutingColumns }
     'identity-members' = @{ core = @('identityId', 'principalId', 'isPrimary', 'accountType'); aux = @() }
-    resources          = @{ core = @('id', 'displayName', 'description'); aux = @('name', 'enabled', 'active', 'inactive', 'disabled') }
-    assignments        = @{ core = @('resourceId', 'principalId', 'identityId'); aux = @() }
-    relationships      = @{ core = @('parentId', 'childId'); aux = @() }
+    resources          = @{ core = @('id', 'displayName', 'description'); aux = @('name', 'enabled', 'active', 'inactive', 'disabled') + $script:SqlRoutingColumns }
+    assignments        = @{ core = @('resourceId', 'principalId', 'identityId'); aux = $script:SqlRoutingColumns }
+    relationships      = @{ core = @('parentId', 'childId'); aux = $script:SqlRoutingColumns }
+    # One Identity Atlas system per technical connector in the source. `id` is
+    # the key the other statements route by; the name is the fallback key.
+    systems            = @{ core = @('id', 'displayName', 'description', 'systemType', 'tenantId'); aux = @('name', 'enabled', 'active', 'inactive', 'disabled') }
     # A context's id is its key (optional: the normalised name is the fallback),
     # ownerUserId the owner's identifier as the source spells it. A member names
     # its context by id or by name; SqlCrawler.Contexts.ps1 resolves either.
@@ -53,6 +64,20 @@ function ConvertTo-SqlColumnKey {
     [OutputType([string])]
     param([AllowEmptyString()] [string]$Name)
     return ($Name -replace '_', '').ToLowerInvariant()
+}
+
+# The ONE normalisation of a name a source spells inconsistently — a context's
+# display name, a system's. Trim, then fold case with the INVARIANT culture:
+# ToLower() follows the current culture, and under a Turkish locale "I" folds to
+# a dotless "ı" while "i" stays "i", so two machines would disagree about whether
+# two application names are the same. Used by SqlCrawler.Contexts.ps1 and
+# SqlCrawler.Systems.ps1; one rule, so the two can never drift apart.
+function ConvertTo-SqlNameKey {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([AllowNull()] [AllowEmptyString()] [string]$Name)
+    if ($null -eq $Name) { return '' }
+    return $Name.Trim().ToLowerInvariant()
 }
 
 # Resolve the result set's columns against a target's contract. Returns a

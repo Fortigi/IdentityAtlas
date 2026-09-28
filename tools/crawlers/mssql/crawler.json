@@ -102,6 +102,7 @@
             },
             "target": {
               "enum": [
+                "systems",
                 "identities",
                 "principals",
                 "identity-members",
@@ -125,6 +126,11 @@
             "resourceType": {
               "type": "string",
               "description": "resources / assignments: the resourceType every row gets (e.g. Entitlement, BusinessRole)."
+            },
+            "systemType": {
+              "type": "string",
+              "maxLength": 50,
+              "description": "systems: the systemType every system this statement creates gets when the row carries no systemType column of its own. Defaults to SQL."
             },
             "assignmentType": {
               "enum": [
