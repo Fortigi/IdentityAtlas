@@ -553,6 +553,19 @@ Describe 'Invoke-SqlSweep' {
         Should -Invoke Remove-CrawlerIngestStage -Exactly 1
     }
 
+    # "The statement returned nothing" is far more often a broken read than a
+    # source that genuinely holds no grants, and an empty stage finalized with
+    # deleteMissing empties the scope.
+    It 'removes NOTHING when the source returned no keys at all' {
+        $script:rowsToReplay = @()
+        $slot = New-DeltaSlot -Extra @{ sweep = $true }
+        $state = New-WindowedState -Slots @($slot)
+        Invoke-SqlSweep -State $state -Connection 'conn' -Slots @($slot) | Should -Be 1
+        @($script:sent | Where-Object { $_.Endpoint -eq 'ingest/stages' }).Count | Should -Be 0
+        @($script:sent | Where-Object { $_.Endpoint -eq 'ingest/stages/finalize' }).Count | Should -Be 0
+        @($state.Sweeps)[0].Deleted | Should -Be 0
+    }
+
     It 'does nothing when the sweep is not yet due' {
         Mock Get-CrawlerDeltaTokenRow { @{ token = 'x'; lastSyncAt = ([DateTime]::UtcNow.AddHours(-1).ToString('o')) } }
         $slot = New-DeltaSlot -Extra @{ sweep = $true }

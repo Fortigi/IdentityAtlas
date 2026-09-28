@@ -200,6 +200,12 @@ function Complete-SqlSweepStages {
     param([Parameter(Mandatory)] [hashtable]$Ctx)
     $stages = @($Ctx.Stages.Values)
     foreach ($s in $stages) { Complete-CrawlerIngestStage -Stage $s | Out-Null }
+    # No stage at all means the source returned NO keys, and no stage is opened
+    # until a row needs one. Removing nothing is the right answer there: "the
+    # statement returned nothing" is far more often a broken read than a source
+    # that genuinely holds no grants, and an empty stage finalized with
+    # deleteMissing would empty the scope. The share ceiling would refuse it
+    # anyway; this refuses it before the round trip.
     if ($stages.Count -eq 0) { return @() }
     try {
         return Invoke-CrawlerIngestStageFinalize -Stages $stages -DeleteMissing -MaxDeleteShare $Ctx.State.SweepMaxDeleteShare
