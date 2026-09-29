@@ -181,18 +181,30 @@ function Add-SqlContextRow {
     if (-not $rec) { $Ctx.Skipped++ }
 }
 
-# A membership row. No member id → skipped; a member the run has not seen →
-# dangling; a context the catalogue cannot place → unresolved (counted inside
-# the catalogue, and reported). The resource itself is never affected.
+# A membership row. No member id → skipped; no context named at all →
+# unreferenced; a member the run has not seen → dangling; a context the
+# catalogue cannot place → unresolved (counted inside the catalogue, and
+# reported). The resource itself is never affected.
 function Add-SqlContextMemberRow {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $Row, [Parameter(Mandatory)] [hashtable]$Ctx)
     $member = ([string](Get-SqlMapped -Row $Row -Map $Ctx.Map -Name 'memberId')).Trim()
     $contextId = [string](Get-SqlMapped -Row $Row -Map $Ctx.Map -Name 'contextId')
     $contextName = [string](Get-SqlMapped -Row $Row -Map $Ctx.Map -Name 'contextName')
-    # A member that names no context at all is not a membership (a resource
-    # without a logical application): skipped, not "unresolved".
-    if (-not $member -or -not ($contextId.Trim() -or $contextName.Trim())) { $Ctx.Skipped++; return }
+    # The member id is REQUIRED: a row without one is a row this statement could
+    # not place, and it counts against the unplaced bound like any other.
+    if (-not $member) { $Ctx.Skipped++; return }
+    # The context reference is OPTIONAL, and these two used to share the line
+    # above. A member that names no context at all is not a membership — a
+    # resource that belongs to no logical application — and in a real source
+    # that is the common case, not the exception: one run read 805,756 rows of
+    # which 633,012 named nothing. Counted as unplaced, as they were, that is
+    # 78.6% and the run fails the 5% bound, which (because verification runs
+    # before Save-SqlWatermarks) costs EVERY statement its watermark. An absent
+    # optional reference is a fact about the source, not a failure to place a
+    # row, so it is counted and reported separately and left out of the bound.
+    # A context that is named but cannot be placed is still Unresolved.
+    if (-not ($contextId.Trim() -or $contextName.Trim())) { $Ctx.Unreferenced++; return }
     $st = $Ctx.State
     if ($st.HasResources -and $Ctx.Slot.memberType -eq 'Resource' -and -not $st.KnownResources.ContainsKey($member)) { $Ctx.Dangling++; return }
     $catalog = $st.Contexts

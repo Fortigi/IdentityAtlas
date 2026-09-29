@@ -191,6 +191,16 @@ load such a catalogue as Contexts and place each member in its context.
   `ownerUserId` holds something the UI can turn into a person. An owner that matches no
   account is **kept exactly as the source spells it** and counted in the job log — never
   dropped, never invented.
+- **Most members belong to no context, and that is not a problem.** A `context-members`
+  statement usually reads *every* entitlement and maps the few that name an application,
+  so the majority of its rows name nothing at all. Those are counted and reported
+  separately — `633,012 naming no context` — and are **not** held against the 5% bound on
+  rows that could not be placed, because the reference is optional and an absent optional
+  reference is a fact about the source rather than a failure to place a row. What still
+  counts against the bound: a row with no **member id** (a required column), and a row
+  whose member names a resource the run did not load. A row naming a context the
+  catalogue does not have is reported as unresolved, in the job log and the context
+  report.
 - **Nothing is folded silently.** The job log reports how many source spellings differ
   from the catalogue's own and were matched anyway (with examples), how many memberships
   name a context the catalogue does not have (with the most frequent names), any name two

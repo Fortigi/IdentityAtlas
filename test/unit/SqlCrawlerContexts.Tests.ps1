@@ -29,7 +29,7 @@ BeforeAll {
     function Get-Row([hashtable]$Cells) { $o = [ordered]@{}; foreach ($k in ($Cells.Keys | Sort-Object)) { $o[$k] = $Cells[$k] }; $o }
     # Feed rows through a slot's real row handler with its real column map.
     function Invoke-Rows([hashtable]$Slot, [hashtable]$State, [object[]]$Rows) {
-        $ctx = @{ Slot = $Slot; State = $State; Map = $null; Skipped = 0; Dangling = 0; Unresolved = 0 }
+        $ctx = @{ Slot = $Slot; State = $State; Map = $null; Skipped = 0; Dangling = 0; Unresolved = 0; Unreferenced = 0 }
         foreach ($r in $Rows) {
             if (-not $ctx.Map) { $ctx.Map = Resolve-SqlColumnMap -Columns @($r.Keys) -Target $Slot.target -ColumnMap $Slot.columnMap }
             & (Get-SqlRowHandler -Target $Slot.target) $r $ctx
@@ -260,7 +260,7 @@ Describe 'memberships (context-members target)' {
         @($state.Contexts.Records.externalId) | Should -Not -Contain 'ghost app'
     }
 
-    It 'skips a row naming no context or no member, counts an unknown resource as dangling, and collapses repeats' {
+    It 'separates a row naming no context from one with no member, counts an unknown resource as dangling, and collapses repeats' {
         $ctx = Invoke-Rows $slot $state @(
             (Get-Row @{ EntitlementID = 'e1'; LogicalApplication = $null })
             (Get-Row @{ EntitlementID = ''; LogicalApplication = 'Finance' })
@@ -268,10 +268,133 @@ Describe 'memberships (context-members target)' {
             (Get-Row @{ EntitlementID = 'e2'; LogicalApplication = 'Finance' })
             (Get-Row @{ EntitlementID = 'e2'; LogicalApplication = 'FINANCE' })
         )
-        $ctx.Skipped | Should -Be 2
+        # The two used to share one counter. The member id is REQUIRED, so a row
+        # without one is skipped and counts against the unplaced bound; the
+        # context reference is OPTIONAL, so a row naming none is unreferenced
+        # and does not.
+        $ctx.Skipped | Should -Be 1
+        $ctx.Unreferenced | Should -Be 1
         $ctx.Dangling | Should -Be 1
         $ctx.Unresolved | Should -Be 0
         @($state.Contexts.Members).Count | Should -Be 1
+    }
+
+    It 'treats a blank or whitespace-only context reference as unreferenced, not as a failure to place' {
+        $ctx = Invoke-Rows $slot $state @(
+            (Get-Row @{ EntitlementID = 'e1'; LogicalApplication = $null })
+            (Get-Row @{ EntitlementID = 'e2'; LogicalApplication = '' })
+            (Get-Row @{ EntitlementID = 'e3'; LogicalApplication = '   ' })
+        )
+        $ctx.Unreferenced | Should -Be 3
+        $ctx.Skipped | Should -Be 0
+        $ctx.Dangling | Should -Be 0
+        $ctx.Unresolved | Should -Be 0
+        @($state.Contexts.Members).Count | Should -Be 0
+    }
+
+    It 'still counts a context that IS named but cannot be placed as unresolved, which the bound does see' {
+        # The distinction the whole fix rests on: naming nothing is allowed,
+        # naming something the catalogue lacks is a finding.
+        $ctx = Invoke-Rows $slot $state @(
+            (Get-Row @{ EntitlementID = 'e1'; LogicalApplication = 'Ghost App' })
+            (Get-Row @{ EntitlementID = 'e2'; LogicalApplication = $null })
+        )
+        $ctx.Unresolved | Should -Be 1
+        $ctx.Unreferenced | Should -Be 1
+        $ctx.Skipped | Should -Be 0
+    }
+
+    It 'keeps a row that names a context by ID out of the unreferenced count' {
+        $byId = Get-Slot 'context-members' @{ columnMap = @{ EntitlementID = 'memberId'; AppRef = 'contextId' } }
+        $ctx = Invoke-Rows $byId $state @(
+            (Get-Row @{ EntitlementID = 'e1'; AppRef = 'CI001' })
+            (Get-Row @{ EntitlementID = 'e2'; AppRef = '  ' })
+        )
+        $ctx.Unreferenced | Should -Be 1
+        $ctx.Skipped | Should -Be 0
+        @($state.Contexts.Members).Count | Should -Be 1
+    }
+}
+
+# The defect this fixes, at the scale it appeared: a statement reading every
+# entitlement and mapping the few that belong to a logical application. Counted
+# as unplaced, as they were, 78.6% of the rows failed the 5% bound — and because
+# Test-SqlRunCounts runs before Save-SqlWatermarks, that cost EVERY statement in
+# the run its watermark.
+Describe 'an optional reference absent on most rows' {
+    BeforeEach {
+        $script:state = New-State -Resources @(1..50 | ForEach-Object { "e$_" })
+        Invoke-Rows (Get-Slot 'contexts' @{ columnMap = @{ cmdb = 'id'; name = 'displayName' } }) $script:state @(
+            (Get-Row @{ cmdb = 'CI001'; name = 'Finance' })
+        ) | Out-Null
+        $script:slot = Get-Slot 'context-members' @{ columnMap = @{ EntitlementID = 'memberId'; LogicalApplication = 'contextName' } }
+    }
+
+    It 'passes the read bound although 78% of the rows name no context' {
+        # 50 rows: 39 name nothing (78%), 11 name the one context that exists.
+        $rows = @(1..50 | ForEach-Object {
+            Get-Row @{ EntitlementID = "e$_"; LogicalApplication = $(if ($_ -le 11) { 'Finance' }) }
+        })
+        $ctx = Invoke-Rows $slot $state $rows
+        $ctx.Unreferenced | Should -Be 39
+        $ctx.Skipped | Should -Be 0
+        # What Add-SqlReadCheck folds into the bound, and what the bound says.
+        $read = @{ Slot = 'Context members'; Read = [long]50; Source = [long]50
+                   Unplaced = [long]($ctx.Dangling + $ctx.Skipped); Misrouted = [long]0 }
+        $read.Unplaced | Should -Be 0
+        (Get-SqlReadVerdict -Read $read).ok | Should -BeTrue
+        @($state.Contexts.Members).Count | Should -Be 11
+    }
+
+    It 'still fails when the same share of rows is missing the REQUIRED member id' {
+        # Same shape, same 78% — but the column that is missing is the one
+        # without which the row cannot be placed at all.
+        $rows = @(1..50 | ForEach-Object {
+            Get-Row @{ EntitlementID = $(if ($_ -le 11) { "e$_" } else { '' }); LogicalApplication = 'Finance' }
+        })
+        $ctx = Invoke-Rows $slot $state $rows
+        $ctx.Skipped | Should -Be 39
+        $ctx.Unreferenced | Should -Be 0
+        $read = @{ Slot = 'Context members'; Read = [long]50; Source = [long]50
+                   Unplaced = [long]($ctx.Dangling + $ctx.Skipped); Misrouted = [long]0 }
+        $v = Get-SqlReadVerdict -Read $read
+        $v.ok | Should -BeFalse
+        $v.reason | Should -Match '39 of the 50 rows read \(78%\) could not be placed'
+    }
+
+    It 'keeps a context that is named but missing from the catalogue as unresolved, never as unreferenced' {
+        $rows = @(1..50 | ForEach-Object {
+            Get-Row @{ EntitlementID = "e$_"; LogicalApplication = $(if ($_ -le 11) { 'Finance' } else { 'Ghost App' }) }
+        })
+        $ctx = Invoke-Rows $slot $state $rows
+        $ctx.Unresolved | Should -Be 39
+        $ctx.Unreferenced | Should -Be 0
+        $ctx.Skipped | Should -Be 0
+    }
+
+    It 'pins what Add-SqlReadCheck actually folds into the bound: Dangling + Skipped, and neither Unresolved nor Unreferenced' {
+        # Unresolved is NOT part of the bound today and this change does not put
+        # it there — the two are recorded and reported separately, and whether
+        # Unresolved should count against the bound is its own question (the
+        # context report is what surfaces it). Pinned so that a future change to
+        # either is a deliberate one rather than a side effect.
+        $state2 = New-State -Resources @('e1', 'e2', 'e3', 'e4')
+        Invoke-Rows (Get-Slot 'contexts' @{ columnMap = @{ cmdb = 'id'; name = 'displayName' } }) $state2 @(
+            (Get-Row @{ cmdb = 'CI001'; name = 'Finance' })) | Out-Null
+        $ctx = Invoke-Rows $slot $state2 @(
+            (Get-Row @{ EntitlementID = 'e1'; LogicalApplication = $null })      # unreferenced
+            (Get-Row @{ EntitlementID = ''; LogicalApplication = 'Finance' })    # skipped
+            (Get-Row @{ EntitlementID = 'zz'; LogicalApplication = 'Finance' })  # dangling
+            (Get-Row @{ EntitlementID = 'e2'; LogicalApplication = 'Ghost App' })# unresolved
+        )
+        $ctx.Unreferenced | Should -Be 1
+        $ctx.Skipped | Should -Be 1
+        $ctx.Dangling | Should -Be 1
+        $ctx.Unresolved | Should -Be 1
+        # -Connection $null leaves the source uncounted, which is all this needs:
+        # the question is what Add-SqlReadCheck puts in Unplaced.
+        Add-SqlReadCheck -Ctx $ctx -Connection $null -Rows 4
+        $state2.Reads[0].Unplaced | Should -Be 2 -Because 'one skipped plus one dangling; the unreferenced and unresolved rows are neither'
     }
 }
 
