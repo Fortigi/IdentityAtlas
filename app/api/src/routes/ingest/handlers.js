@@ -13,7 +13,7 @@ import { normalizeRecords, extendedAttributesBoundsError } from '../../ingest/no
 import { repairManagerLinks, managerLinkWarning, batchHasManagerLink } from '../../ingest/managerLinks.js';
 import {
   restrictedSystemIds, writableCoreColumns, systemBoundaryDenial,
-  preservedOwnerColumns, linkDirectorySystems,
+  preservedOwnerColumns,
 } from '../../ingest/systemBoundary.js';
 import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, ENTITY_SCOPE_MAP } from '../../ingest/validation.js';
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/crawlerAuth.js';
