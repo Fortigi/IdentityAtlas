@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Library updates now reach the maintained release line on their own. Dependabot checks the release branch daily for updates to the packages and base images that actually ship, and those updates merge themselves once the tests pass — so a release built from that line carries current libraries without anyone shepherding updates onto it.
+- Only production dependencies and container base images are updated on the release line; build- and test-only tooling is left alone, since none of it is present in what customers run.
+- Major version updates are never merged unattended. They still get raised, with a note explaining that a person needs to decide whether the change belongs on a stable line.
+- Added documentation on maintaining a release line: what updates itself, what does not, how to port a fix from the main branch, and how to start the next line.
+- Dependency updates are only merged unattended while the pull request is untouched: if anyone pushes a commit to one, it reverts to being merged by hand.
+
+## Changes in this PR
+
 - Release notes now list the dependency updates a release actually ships: a "Dependency updates" section naming each package that moved, what it moved from and to, and any change to the container base images. Previously a release made up only of library upgrades produced notes with nothing in them, which was exactly the release where operators most needed to see which versions changed.
 - The section reports only what reaches the published image — the API's installed production packages, the libraries bundled into the UI, and the pinned base images — so build- and test-only tooling no longer crowds out the updates that matter.
 - Fixed the release a set of notes is compared against. Patch releases cut from a maintained release line were compared against the newest release overall, so a patch could be described as removing everything a later version had added; a release that was the first of its series could lose its change list and changelog link entirely. Both release workflows now determine this the same way.
