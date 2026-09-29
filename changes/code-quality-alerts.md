@@ -1,1 +1,0 @@
-- Resolved the open GitHub code-quality findings: removed unused code, closed files properly in the scale-rehearsal analysis script, and added tests for how business-role assignments are classified

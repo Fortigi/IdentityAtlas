@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Resolved the open GitHub code-quality findings: removed unused code, closed files properly in the scale-rehearsal analysis script, and added tests for how business-role assignments are classified
+
+## Changes in this PR
+
 - An Excel export of a report run over a **single** application now opens with that application — name, owner, description, CMDB reference, connection type, onboarding sector, abbreviation and manager — above the summaries, and leaves those columns out of the table below. The file reads as a document about an application followed by its entitlements, rather than eight values repeated on every row.
 - A field the source has not filled in still gets its line in that block, so an empty CMDB reference is visible rather than silent.
 - An export covering **several** applications keeps those details on each row, where they genuinely differ, and shows no header block.
