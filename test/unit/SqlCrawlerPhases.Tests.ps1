@@ -426,16 +426,59 @@ Describe 'Register-SqlSystem' {
 Describe 'Complete-SqlRun' {
     BeforeEach { Reset-SqlTestState; Mock Update-CrawlerProgress { } }
 
-    It 'refreshes the views and writes the sync log' {
+    It 'writes the sync log' {
         Mock Invoke-IngestAPI $script:IngestMock
         Complete-SqlRun -State (New-TestState -Slots @()) -SyncStart (Get-Date)
-        @(Get-Sent 'ingest/refresh-views').Count | Should -Be 1
         @(Get-Sent 'ingest/sync-log').Count | Should -Be 1
         (Get-Sent 'ingest/sync-log')[0].Body.systemId | Should -Be 7
     }
 
-    It 'treats a failed view refresh and a failed sync-log write as non-fatal' {
+    # The refresh moved OUT of here and into the entry point's finally, so that a
+    # failed verification still leaves the views reflecting the rows. If it were
+    # left here as well, every successful run would rebuild twice — 3m17s and
+    # 7.6 GB each, at the customer's size.
+    It 'does NOT refresh the views — the entry point owns that now, exactly once' {
+        Mock Invoke-IngestAPI $script:IngestMock
+        Complete-SqlRun -State (New-TestState -Slots @()) -SyncStart (Get-Date)
+        @(Get-Sent 'ingest/refresh-views').Count | Should -Be 0
+    }
+
+    It 'treats a failed sync-log write as non-fatal' {
         Mock Invoke-IngestAPI { throw 'HTTP 500' }
         { Complete-SqlRun -State (New-TestState -Slots @()) -SyncStart (Get-Date) } | Should -Not -Throw
+    }
+}
+
+Describe 'Update-SqlMatrixViews' {
+    BeforeEach { Reset-SqlTestState }
+
+    It 'asks the API to refresh, and says it succeeded' {
+        Mock Update-CrawlerProgress { }
+        Mock Invoke-IngestAPI $script:IngestMock
+        Update-SqlMatrixViews | Should -BeTrue
+        @(Get-Sent 'ingest/refresh-views').Count | Should -Be 1
+    }
+
+    # It runs inside a `finally`. A throw there REPLACES the exception a real
+    # verification failure is carrying, so the job would report the refresh
+    # instead of the mismatch that actually failed it.
+    It 'reports a failed refresh as $false instead of throwing' {
+        Mock Update-CrawlerProgress { }
+        Mock Invoke-IngestAPI { throw 'HTTP 500' }
+        $r = $null
+        { $r = Update-SqlMatrixViews } | Should -Not -Throw
+        $r | Should -BeFalse
+    }
+
+    # Update-CrawlerProgress throws on HTTP 409 (the job was terminated
+    # server-side) by design. That call is inside the try for this reason; with
+    # it outside, a terminated job would throw out of the finally.
+    It 'swallows a progress-report failure too, and never reaches the refresh' {
+        Mock Update-CrawlerProgress { throw 'HTTP 409 job terminated' }
+        Mock Invoke-IngestAPI $script:IngestMock
+        $r = $null
+        { $r = Update-SqlMatrixViews } | Should -Not -Throw
+        $r | Should -BeFalse
+        @(Get-Sent 'ingest/refresh-views').Count | Should -Be 0
     }
 }

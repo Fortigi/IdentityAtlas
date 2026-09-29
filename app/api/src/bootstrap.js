@@ -371,10 +371,15 @@ export async function bootstrapWorker() {
     }
 
     // Migration 013 creates the matrix materialized views WITH NO DATA, so on
-    // first boot they are empty until something builds them. Build them here in
-    // that case only. A populated view is NOT refreshed on start: at scale that is
-    // minutes of work and ~11 GB of scratch disk, and it used to run on every
+    // first boot they are empty until something builds them — and a view that was
+    // refreshed once while the database was still empty stays populated-AND-empty
+    // forever, because `ispopulated` says it is fine. Build them here in those two
+    // cases only. A populated, non-empty view is NOT refreshed on start: at scale
+    // that is minutes of work and gigabytes of result, and it used to run on every
     // restart — including the restart after a crash (scale-rehearsal.md).
+    //
+    // The rebuild runs in the background, so nothing here can hold up the port
+    // index.js has already bound.
     try {
       const { ensureMatrixViewsPopulated } = await import('./routes/ingest.js');
       const outcome = await ensureMatrixViewsPopulated();

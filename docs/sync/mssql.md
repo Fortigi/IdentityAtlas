@@ -374,6 +374,16 @@ delta run is verified the same way, against the rows it touched. Identities and 
 have no system column and are not counted per system; the context report (see
 [Contexts from a catalogue](#contexts-from-a-catalogue)) covers the catalogue.
 
+### What a failed verification does and does not undo
+
+Rows are committed batch by batch, so by the time a verdict exists they are durable.
+The two things that follow a run are therefore split deliberately:
+
+| After a run that FAILED verification | |
+|---|---|
+| **Matrix views** | **Refreshed anyway.** A view that does not reflect committed rows is strictly worse than one that does: a run once loaded 42.6 M assignments, failed on unrelated checks, and left both matrix views empty — so person pages showed no entitlements and a team matrix showed zero, while the data underneath was perfect. The refresh also runs when the crawl throws for any other reason. A failed refresh is logged and never turns a passing run into a failing one, nor hides the verification error |
+| **Watermarks and sweep marks** | **Not stored.** An unverified run must re-read its window and re-sweep next time rather than step over rows it never loaded. Every ingest is an upsert, so a re-read costs time, never correctness |
+
 ---
 
 ## Very large tables

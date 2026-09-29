@@ -596,37 +596,134 @@ describe('POST /ingest/refresh-views', () => {
   });
 });
 
-// ── Startup: build unpopulated matrix views only ────────────────────────────
+// ── Startup: build matrix views that are unusable, and only those ───────────
+//
+// Two states are unusable: never populated (first boot), and populated but
+// EMPTY while the rows the view is built from are there. The second one is the
+// defect — `ispopulated` alone calls a view refreshed once against an empty
+// database fine, so nothing ever rebuilt it, and a customer's install sat with
+// 42.6M assignments behind two 40 kB views until someone refreshed by hand.
+//
+// The query mock is SQL-blind, so each case answers the three questions the
+// code asks by matching the query text: the pg_matviews catalog read, the
+// per-view emptiness probe, and the base-table probe.
 describe('ensureMatrixViewsPopulated', () => {
-  it('leaves populated views alone — no REFRESH at startup', async () => {
+  const MAIN = 'vw_ResourceUserPermissionAssignments';
+  const BR = 'vw_UserPermissionAssignmentViaBusinessRole';
+  const ONE_ROW = { rows: [{ ok: 1 }] };
+  const NO_ROWS = { rows: [] };
+
+  // states: { [view]: { populated, rows } }. baseRows: which base-table probe finds a row.
+  function stubViews(states, baseRows = { assignments: true, relationships: true }) {
     const sqls = [];
-    mockQuery.mockImplementation(async (sql) => { sqls.push(String(sql)); return { rows: [], rowCount: 0 }; });
-    await expect(ensureMatrixViewsPopulated()).resolves.toBe('already-populated');
-    expect(sqls.some(q => /REFRESH MATERIALIZED VIEW/.test(q))).toBe(false);
+    mockQuery.mockImplementation(async (sql) => {
+      const q = String(sql);
+      sqls.push(q);
+      if (/FROM pg_matviews/.test(q)) {
+        return { rows: Object.entries(states).map(([name, s]) => ({ matviewname: name, ispopulated: s.populated })) };
+      }
+      const viewProbe = q.match(/SELECT 1 FROM "(vw_\w+)" LIMIT 1/);
+      if (viewProbe) return states[viewProbe[1]]?.rows ? ONE_ROW : NO_ROWS;
+      if (/FROM "ResourceAssignments"/.test(q)) return baseRows.assignments ? ONE_ROW : NO_ROWS;
+      if (/FROM "ResourceRelationships"/.test(q)) return baseRows.relationships ? ONE_ROW : NO_ROWS;
+      return { rows: [], rowCount: 0 };
+    });
+    // The cooldown claim succeeds unless a test says otherwise.
+    mockQueryOne.mockResolvedValue({ configKey: 'matrixViews.lastProbeRebuildAt' });
+    return sqls;
+  }
+  const refreshes = (sqls) => sqls.filter(q => /REFRESH MATERIALIZED VIEW/.test(q));
+
+  it('leaves populated, non-empty views alone — no REFRESH at startup', async () => {
+    const sqls = stubViews({ [MAIN]: { populated: true, rows: true }, [BR]: { populated: true, rows: true } });
+    await expect(ensureMatrixViewsPopulated({ wait: true })).resolves.toBe('already-populated');
+    expect(refreshes(sqls)).toHaveLength(0);
   });
 
   it('builds the views when one was never populated', async () => {
-    const sqls = [];
-    mockQuery.mockImplementation(async (sql) => {
-      sqls.push(String(sql));
-      return /NOT ispopulated/.test(String(sql))
-        ? { rows: [{ matviewname: 'vw_ResourceUserPermissionAssignments' }] }
-        : { rows: [], rowCount: 0 };
-    });
-    await expect(ensureMatrixViewsPopulated()).resolves.toBe('populated');
-    expect(sqls.filter(q => /REFRESH MATERIALIZED VIEW/.test(q))).toHaveLength(2);
+    const sqls = stubViews({ [MAIN]: { populated: false, rows: false }, [BR]: { populated: true, rows: true } });
+    await expect(ensureMatrixViewsPopulated({ wait: true })).resolves.toBe('populating');
+    expect(refreshes(sqls)).toHaveLength(2);
+  });
+
+  // The defect.
+  it('rebuilds a view that is populated but EMPTY while its source rows exist', async () => {
+    const sqls = stubViews({ [MAIN]: { populated: true, rows: false }, [BR]: { populated: true, rows: true } });
+    await expect(ensureMatrixViewsPopulated({ wait: true })).resolves.toBe('rebuilding');
+    expect(refreshes(sqls)).toHaveLength(2);
+    // Plain REFRESH for the empty one, CONCURRENTLY for the sibling that has
+    // rows to protect — a per-view decision, not a per-run one.
+    expect(refreshes(sqls).find(q => q.includes(MAIN))).not.toMatch(/CONCURRENTLY/);
+    expect(refreshes(sqls).find(q => q.includes(BR))).toMatch(/CONCURRENTLY/);
+  });
+
+  // What separates "the view is empty" from "the view is WRONGLY empty". An
+  // install with no governance data has the business-role view empty and
+  // correct; rebuilding that on every restart is what the probe prevents.
+  it('leaves a populated-but-empty view alone when its source rows do not exist either', async () => {
+    const sqls = stubViews(
+      { [MAIN]: { populated: true, rows: true }, [BR]: { populated: true, rows: false } },
+      { assignments: true, relationships: false },
+    );
+    await expect(ensureMatrixViewsPopulated({ wait: true })).resolves.toBe('already-populated');
+    expect(refreshes(sqls)).toHaveLength(0);
+  });
+
+  // 3m17s and 7.6 GB per rebuild at 42.6M rows: a probe that over-claims must
+  // not be able to spend that on every container restart.
+  it('refuses a probe-driven rebuild while the cooldown holds, and names the view', async () => {
+    const sqls = stubViews({ [MAIN]: { populated: true, rows: false }, [BR]: { populated: true, rows: true } });
+    mockQueryOne.mockResolvedValue(null);   // the conditional upsert wrote nothing
+    await expect(ensureMatrixViewsPopulated({ wait: true }))
+      .resolves.toMatch(/^stale, rebuild on cooldown: vw_ResourceUserPermissionAssignments/);
+    expect(refreshes(sqls)).toHaveLength(0);
+  });
+
+  // …but a view that was never built is not negotiable, however recently a
+  // probe-driven rebuild ran.
+  it('ignores the cooldown for a view that was never built', async () => {
+    const sqls = stubViews({ [MAIN]: { populated: false, rows: false }, [BR]: { populated: true, rows: true } });
+    mockQueryOne.mockResolvedValue(null);
+    await expect(ensureMatrixViewsPopulated({ wait: true })).resolves.toBe('populating');
+    expect(refreshes(sqls)).toHaveLength(2);
+  });
+
+  // A WorkerConfig that cannot be reached must not silently cancel a rebuild the
+  // probe asked for — losing the cooldown is cheaper than losing the matrix.
+  it('rebuilds anyway when the cooldown claim itself fails', async () => {
+    const sqls = stubViews({ [MAIN]: { populated: true, rows: false }, [BR]: { populated: true, rows: true } });
+    mockQueryOne.mockRejectedValue(new Error('relation "WorkerConfig" does not exist'));
+    await expect(ensureMatrixViewsPopulated({ wait: true })).resolves.toBe('rebuilding');
+    expect(refreshes(sqls)).toHaveLength(2);
   });
 
   it('desktop mode keeps refreshing at startup', async () => {
     process.env.DESKTOP_MODE = 'true';
     try {
-      const sqls = [];
-      mockQuery.mockImplementation(async (sql) => { sqls.push(String(sql)); return { rows: [], rowCount: 0 }; });
+      const sqls = stubViews({ [MAIN]: { populated: true, rows: true }, [BR]: { populated: true, rows: true } });
       await expect(ensureMatrixViewsPopulated()).resolves.toBe('refreshed');
-      expect(sqls.filter(q => /REFRESH MATERIALIZED VIEW/.test(q))).toHaveLength(2);
+      expect(refreshes(sqls)).toHaveLength(2);
     } finally {
       delete process.env.DESKTOP_MODE;
     }
+  });
+
+  // The rebuild is minutes of work. index.js binds the port before bootstrap
+  // runs; this keeps that true from this end too, so a slow rebuild can never
+  // sit in front of a platform's startup probe the way a slow migration once did.
+  it('does not wait for the rebuild by default', async () => {
+    let release;
+    const blocked = new Promise(r => { release = r; });
+    let refreshesStarted = 0;
+    mockQuery.mockImplementation(async (sql) => {
+      const q = String(sql);
+      if (/FROM pg_matviews/.test(q)) return { rows: [{ matviewname: MAIN, ispopulated: false }] };
+      if (/REFRESH MATERIALIZED VIEW/.test(q)) { refreshesStarted++; await blocked; }
+      return { rows: [], rowCount: 0 };
+    });
+    await expect(ensureMatrixViewsPopulated()).resolves.toBe('populating');
+    expect(refreshesStarted).toBe(1);   // started, and still hanging
+    release();
   });
 });
 
