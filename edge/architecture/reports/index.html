@@ -3219,13 +3219,30 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#downloads-and-which-formats-carry-the-notices" class="md-nav__link">
+  <a href="#downloads-and-which-formats-carry-a-runs-context" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Downloads, and which formats carry the notices
+        Downloads, and which formats carry a run's context
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Downloads, and which formats carry a run&#39;s context">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#constantcolumns-declared-by-the-run-never-derived" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        constantColumns — declared by the run, never derived
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -5352,13 +5369,30 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#downloads-and-which-formats-carry-the-notices" class="md-nav__link">
+  <a href="#downloads-and-which-formats-carry-a-runs-context" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Downloads, and which formats carry the notices
+        Downloads, and which formats carry a run's context
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Downloads, and which formats carry a run&#39;s context">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#constantcolumns-declared-by-the-run-never-derived" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        constantColumns — declared by the run, never derived
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -5670,21 +5704,61 @@ a source — <code>routes/lookups.test.js</code> proves it by registering one th
 <p><code>EntityLookup</code> is deliberately <strong>not</strong> a merge of <code>PeoplePicker</code>. That one's value is a list of
 objects keyed on a person's sign-in name, because a share recipient is matched on that string rather
 than on a directory id — a different contract from "a list of entity ids".</p>
-<h2 id="downloads-and-which-formats-carry-the-notices">Downloads, and which formats carry the notices<a class="headerlink" href="#downloads-and-which-formats-carry-the-notices" title="Permanent link">&para;</a></h2>
+<h2 id="downloads-and-which-formats-carry-a-runs-context">Downloads, and which formats carry a run's context<a class="headerlink" href="#downloads-and-which-formats-carry-a-runs-context" title="Permanent link">&para;</a></h2>
 <p><code>app/api/src/reports/export.js</code> is keyed on the <strong>format</strong> name, never on a report name, so every
 registered template is downloadable the moment it exists. Today: <code>csv</code>, <code>xlsx</code>, <code>json</code> — in that
 order, which is the order the UI offers them and the first is the default.</p>
-<p>Notices used to be stripped from every download, on the rule "a download is the rows". That was
-really a statement about CSV rather than about downloads: a CSV <em>is</em> a table, so anything above the
-header row breaks every parser that reads it. A workbook has room above the table and a reader who
-expects context there.</p>
+<p>A run produces two things a plain table cannot hold:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>notices</code></td>
+<td>statements ABOUT the rows — what the numbers were computed from, which of them is a summary, when they stop being trustworthy</td>
+</tr>
+<tr>
+<td><code>constantColumns</code></td>
+<td>column keys the run declares hold <strong>one value throughout it</strong> — the application a review is about, say</td>
+</tr>
+</tbody>
+</table>
+<p>Both used to be stripped from every download, on the rule "a download is the rows". That was really a
+statement about CSV rather than about downloads: a CSV <em>is</em> a table, so anything above the header row
+breaks every parser that reads it. A workbook has room above the table and a reader who expects
+context there.</p>
 <p>So the decision belongs to the format and is declared there:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nx">xlsx</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">contentType</span><span class="o">:</span><span class="w"> </span><span class="s1">'…spreadsheetml.sheet'</span><span class="p">,</span><span class="w"> </span><span class="nx">carriesNotices</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nx">serialize</span><span class="o">:</span><span class="w"> </span><span class="nx">toXlsx</span><span class="w"> </span><span class="p">},</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nx">xlsx</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">contentType</span><span class="o">:</span><span class="w"> </span><span class="s1">'…spreadsheetml.sheet'</span><span class="p">,</span><span class="w"> </span><span class="nx">carriesContext</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nx">serialize</span><span class="o">:</span><span class="w"> </span><span class="nx">toXlsx</span><span class="w"> </span><span class="p">},</span>
 </code></pre></div>
-<p><code>routes/reports.js</code> strips <code>notices</code> for every format that does not claim them, so <strong>csv and json are
-byte-for-byte what they were</strong>. A future format (pdf, html) opts in the same way, and the route still
-never asks which report it is serving — only what the chosen format can hold.</p>
-<p>Two consequences worth knowing:</p>
+<p><code>routes/reports.js</code> strips both fields for every format that does not claim them, so <strong>csv and json
+are byte-for-byte what they were</strong>. A future format (pdf, html) opts in the same way, and the route
+still never asks which report it is serving — only what the chosen format can hold. (The flag was
+<code>carriesNotices</code> while notices were the only such field; it is named for the category now that it
+gates two.)</p>
+<h3 id="constantcolumns-declared-by-the-run-never-derived"><code>constantColumns</code> — declared by the run, never derived<a class="headerlink" href="#constantcolumns-declared-by-the-run-never-derived" title="Permanent link">&para;</a></h3>
+<p>The xlsx serializer writes each declared column once, above the table, as a label/value pair, and
+leaves it out of the table. So a review pack for <strong>one</strong> application opens with what the application
+is — name, owner, description, CMDB reference, connection type, onboarding sector, abbreviation,
+manager — and then lists its entitlements, instead of repeating those eight values down 21,000 rows.
+A run over <strong>several</strong> applications declares nothing constant, because they genuinely vary per row.</p>
+<p>Three rules hold it together:</p>
+<ul>
+<li><strong>The run declares it; the serializer does not guess.</strong> A column can hold one distinct value by
+  accident — every entitlement in a small application being non-requestable — and a serializer that
+  derived constancy from the rows would silently delete a real column.</li>
+<li><strong>The serializer takes the declaration at its word.</strong> It reads the value from the first row and
+  does not check the others. A run that declares a column constant and is wrong has a bug in the
+  report; quietly keeping the column would hide it.</li>
+<li><strong><code>columns</code> does not move.</strong> It is the report's contract with the <em>screen</em>, which shows every
+  column whatever the run said. Only the sheet's body is a subset, and no value is lost — what leaves
+  the table appears in the header.</li>
+</ul>
+<p>Nothing is dropped when dropping would leave no table at all.</p>
+<p>Two more consequences worth knowing:</p>
 <ul>
 <li><strong>A serializer may be async.</strong> The route awaits every format, because a workbook is assembled and
   zipped rather than concatenated.</li>
