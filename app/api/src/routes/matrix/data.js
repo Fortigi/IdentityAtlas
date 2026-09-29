@@ -107,14 +107,25 @@ export function buildMatrixContext(filter, built, includeInherited, p) {
   };
 }
 
+// Contexts sidecar for a roll-up's rows. Roll-up rows ARE resources (or business
+// roles, which are resources too), so the Contexts a row belongs to is part of
+// the row's own data — the same `resourceContexts` shape the flat grid already
+// ships, from the same builder and the same single indexed query, rather than a
+// second round trip from the client. `idKey` is where the id sits on the row
+// objects the caller is about to return ('resourceId' for resources, 'id' for
+// business-role rows).
+function rowContexts(p, res, rows, idKey = 'resourceId') {
+  return fetchResourceContexts(p, res, (rows || []).map(r => r?.[idKey]));
+}
+
 // Compute the inherited (effective) attribute-fold counts, normalised so the
 // caller needs no null-guards. Returns empty arrays when the opt-in flag is off
 // or the effective-access engine fails (recorded as a warning).
-async function inheritedAttrFold(ctx) {
+async function inheritedAttrFold(ctx, foldAttributes) {
   const { filter, built, rowType, includeInherited, p } = ctx;
   if (!includeInherited) return { groupValues: [], resources: [], counts: [] };
   try {
-    const inh = await buildInheritedFoldCounts(p, built, rowType, filter.sortAttributes, built.principalCols, filter.rollupCollapsed);
+    const inh = await buildInheritedFoldCounts(p, built, rowType, foldAttributes, built.principalCols, filter.rollupCollapsed);
     return { groupValues: inh?.groupValues || [], resources: inh?.resources || [], counts: inh?.counts || [] };
   } catch (err) {
     built.warnings.push('inherited fold failed: ' + err.message);
@@ -132,13 +143,24 @@ async function handleAttributeFold(res, ctx) {
   const { filter, built, rowType, subjectAlias, subjectJoin, memberIdExpr, subjectIdForFilter, p } = ctx;
 
   const subjCols = rowType === 'identity' ? built.identityCols : built.principalCols;
-  const attrExprs = [];
+  const allAttrExprs = [];
   for (const a of filter.sortAttributes) {
     const resolved = resolveAttrExpr(a.attribute, subjectAlias, subjCols);
     if (resolved.error) return res.status(400).json({ error: resolved.error });
-    attrExprs.push(resolved.attrExpr);
+    allAttrExprs.push(resolved.attrExpr);
   }
-  if (!attrExprs.length) return res.status(400).json({ error: 'No fold attributes' });
+  if (!allAttrExprs.length) return res.status(400).json({ error: 'No fold attributes' });
+
+  // LEVEL CAP: show at most `rollupLevel` attribute header rows. Truncating the
+  // attribute list IS the cap — every builder below derives the visible tuple,
+  // its next value and the header depth from this list, so a shorter list makes
+  // the deepest visible tuple exactly `maxLevel` values long. Doing it here (not
+  // by hiding rows in the UI) also shrinks the GROUP BY: a capped fold aggregates
+  // over fewer distinct tuples and returns fewer columns.
+  const maxLevel = allAttrExprs.length;
+  const level = Math.min(filter.rollupLevel || maxLevel, maxLevel);
+  const attrExprs = allAttrExprs.slice(0, level);
+  const foldAttributes = filter.sortAttributes.slice(0, level);
 
   // COLLAPSE model: nothing folded -> every subject at full depth, so all
   // chosen attributes show as header rows. Folding a group pulls it up.
@@ -166,7 +188,7 @@ async function handleAttributeFold(res, ctx) {
 
   // Fold inherited (effective) access into the layered attribute fold. Holder
   // tuple keys match the fold's visible key, so they reuse existing columns.
-  const inhFold = await inheritedAttrFold(ctx);
+  const inhFold = await inheritedAttrFold(ctx, foldAttributes);
 
   // Hide attribute groups with no in-scope assignments — a column only shows
   // if some resource has a Direct (or inherited) count for it.
@@ -180,17 +202,21 @@ async function handleAttributeFold(res, ctx) {
   collectResources(resMap, inhFold.resources, r => r);
 
   const counts = await scopeCounts(p, res, rowType, built);
-  // Always show one header row per chosen attribute (folded groups occupy
+  // Always show one header row per VISIBLE attribute (folded groups occupy
   // their level and a "folded" cell below), so the structure is visible even
-  // when collapsed — unlike the dynamic-depth Manager-Hierarchy view.
+  // when collapsed — unlike the dynamic-depth Manager-Hierarchy view. `maxLevel`
+  // is how deep the axis could go, so the corner controls know when to stop.
   const maxDepth = attrExprs.length;
+  const foldResources = [...resMap.values()];
   return res.json({
     rollup: 'context', rollupKind: 'context', layered: true, layeredAttributes: true,
     rollupContent: 'resources-only', rollupMetric: filter.rollupMetric, rowType, maxDepth,
+    level, maxLevel,
     nodes,
     groupValues: nodes.map(n => n.id),
     groupTotals: nodes.map(n => ({ groupValue: n.id, total: n.total })),
-    resources: [...resMap.values()],
+    resources: foldResources,
+    resourceContexts: await rowContexts(p, res, foldResources),
     counts: [
       ...cellRows.map(r => ({
         resourceId: r.resourceId, groupValue: r.groupValue,
@@ -291,6 +317,7 @@ async function handleContextLayered(res, ctx) {
 
   const layerCounts = await scopeCounts(p, res, rowType, built);
   const maxDepth = visibleNodes.reduce((m, n) => Math.max(m, n.depth || 1), 1);
+  const layerResources = [...layerResMap.values()];
   return res.json({
     rollup: 'context', rollupKind: 'context', layered: true,
     rollupContextId: filter.rollupContextId, rollupContent: 'resources-only',
@@ -298,7 +325,8 @@ async function handleContextLayered(res, ctx) {
     nodes: visibleNodes,
     groupValues: visibleNodes.map(n => n.id),
     groupTotals: visibleNodes.map(n => ({ groupValue: n.id, total: n.total })),
-    resources: [...layerResMap.values()],
+    resources: layerResources,
+    resourceContexts: await rowContexts(p, res, layerResources),
     counts: [
       ...layerCells.map(r => ({
         resourceId: r.resourceId, groupValue: r.groupValue,
@@ -389,9 +417,11 @@ async function handleContextZoomRoles(res, ctx, z) {
     if (!r.roleId) continue;
     if (!roleMap.has(r.roleId)) roleMap.set(r.roleId, { id: r.roleId, displayName: r.roleName || r.roleId, description: r.roleDescription || '' });
   }
+  const ctxRoleRows = [...roleMap.values()];
   return res.json({
     ...shared,
-    roleRows: [...roleMap.values()],
+    roleRows: ctxRoleRows,
+    resourceContexts: await rowContexts(p, res, ctxRoleRows, 'id'),
     cells: roleRowsRes.filter(r => r.roleId).map(r => ({ roleId: r.roleId, groupValue: r.groupValue, count: r.count })),
   });
 }
@@ -449,11 +479,13 @@ async function handleContextZoomResources(res, ctx, z) {
   }
 
   const mergedCtxTotals = mergeGroupTotals(ctxTotals, inhCtx2?.groupTotals);
+  const zoomResources = [...resMap.values()];
 
   return res.json({
     ...shared,
     groupTotals: mergedCtxTotals,
-    resources: [...resMap.values()],
+    resources: zoomResources,
+    resourceContexts: await rowContexts(p, res, zoomResources),
     counts: [
       ...cellRows.map(r => ({
         resourceId: r.resourceId, groupValue: r.groupValue,
@@ -534,13 +566,15 @@ async function handleRollupRoles(res, ctx, resolved, groupTotals) {
     }
     groupSet.add(row.groupValue);
   }
+  const roleRows = [...roleMap.values()];
   return res.json({
     rollup: filter.rollup,
     rollupContent: 'roles-only',
     rowType,
     groupValues: [...groupSet].sort((a, b) => String(a).localeCompare(String(b))),
     groupTotals,
-    roleRows: [...roleMap.values()],
+    roleRows,
+    resourceContexts: await rowContexts(p, res, roleRows, 'id'),
     cells: rolesResult.filter(r => r.roleId).map(r => ({ roleId: r.roleId, groupValue: r.groupValue, count: r.count })),
     ...counts,
     totalUsers: counts.subjectTotal,
@@ -630,12 +664,14 @@ async function handleRollupResources(res, ctx, resolved, groupTotals) {
   const { businessRoles, roleCounts } = await fetchRollupRoleCounts(res, built, rowType, filter, p);
 
   const mergedGroupTotals = mergeGroupTotals(groupTotals, inhGroupTotals);
+  const rollupResources = [...resMap.values()];
 
   return res.json({
     rollup: filter.rollup,
     rollupContent: filter.rollupContent,
     rowType,
-    resources: [...resMap.values()],
+    resources: rollupResources,
+    resourceContexts: await rowContexts(p, res, rollupResources),
     groupValues: [...groupSet].sort((a, b) => String(a).localeCompare(String(b))),
     groupTotals: mergedGroupTotals,
     counts: [

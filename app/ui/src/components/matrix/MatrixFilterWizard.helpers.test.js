@@ -107,14 +107,14 @@ describe('rollupModeOf', () => {
 describe('applyRollupMode', () => {
   const drilled = {
     rowType: 'identity', rollup: null, rollupKind: 'attribute', rollupContextId: null,
-    rollupPath: ['a'], rollupExpanded: ['b'], rollupCollapsed: ['c'],
+    rollupPath: ['a'], rollupExpanded: ['b'], rollupCollapsed: ['c'], rollupLevel: 2,
     sortHierarchy: { contextId: 'h-1' }, sortAttributes: [{ attribute: 'city', dir: 'asc' }],
   };
 
   it('By attribute starts on the offered attribute, drops the hierarchy sort and the drill state', () => {
     const out = applyRollupMode(drilled, 'attribute', 'department');
     expect(out).toMatchObject({ rollupKind: 'attribute', rollup: 'department', rollupContextId: null, sortHierarchy: null });
-    expect(out).toMatchObject({ rollupPath: [], rollupExpanded: [], rollupCollapsed: [] });
+    expect(out).toMatchObject({ rollupPath: [], rollupExpanded: [], rollupCollapsed: [], rollupLevel: null });
     // Everything else is left alone.
     expect(out.rowType).toBe('identity');
     expect(out.sortAttributes).toEqual([{ attribute: 'city', dir: 'asc' }]);
@@ -197,6 +197,10 @@ describe('commitFilter', () => {
     expect(out.foldAttributes).toBe(true);
     expect(out.rollupExpanded).toEqual([]);
     expect(out.rollupCollapsed).toEqual([]);
+    // …and so does the fold LEVEL, in both modes: applying a matrix whose sort
+    // attributes just changed must not reopen it capped to the old depth.
+    expect(commitFilter({ rollupLevel: 1 }, true).rollupLevel).toBeNull();
+    expect(commitFilter({ rollupLevel: 1 }, false).rollupLevel).toBeNull();
     // Everything the steps edited survives untouched.
     expect(out.rowType).toBe('principal');
     expect(out.sortAttributes).toEqual([{ attribute: 'department', dir: 'asc' }]);

@@ -48,6 +48,7 @@ const FILTER_PART_BY_KEY = new Map([
   // so "view state" never reads as a change to the matrix itself.
   ['rollupExpanded', 'view state'],
   ['rollupCollapsed', 'view state'],
+  ['rollupLevel', 'view state'],
   ['foldAttributes', 'view state'],
   ['foldOnLoad', 'view state'],
   ['sortAttributes', 'view state'],

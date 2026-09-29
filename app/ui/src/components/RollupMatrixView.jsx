@@ -5,9 +5,11 @@ import { attributeLabel, friendlyLabel } from '@ui/utils/formatters';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { exportRollupToExcel } from '@ui/utils/exportRollupToExcel';
 import { useIsDark } from '@ui/contexts/ThemeContext';
+import { buildResourceContextMap, contextsFor } from '@ui/utils/resourceContexts';
 import MatrixCell from './matrix/MatrixCell';
+import MatrixContextsCell from './matrix/MatrixContextsCell';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
-import { MatrixLegendButton } from './matrix/GridCornerControls';
+import { ColumnAxisControls } from './matrix/GridCornerControls';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import GridResizeHandle from './matrix/GridResizeHandle';
@@ -24,6 +26,30 @@ const MAX_ROWS = 300; // this view isn't virtualized — cap rendered resource r
 // Matches the server's attribute-tuple key separator (chr(31)); a tuple key is
 // its attribute values joined by it.
 const TUPLE_SEP = String.fromCharCode(31);
+
+// The Contexts column, pinned immediately right of the 280px row-label column —
+// the same column the per-subject grid shows, in the same place.
+const CTX_COL_STYLE = { left: '280px', minWidth: '180px', maxWidth: '180px' };
+
+// Its header. In the layered header every level gets a cell so the column keeps
+// one width; only the bottom (pinned) row carries the label.
+function ContextsHeaderCell({ isLast }) {
+  return (
+    <th className={`sticky bg-gray-100 dark:bg-gray-800 border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-left text-xs text-gray-600 dark:text-gray-400 font-medium ${isLast ? 'top-0 z-30 border-b' : 'z-20'}`}
+      style={CTX_COL_STYLE}
+      title="Contexts this resource belongs to — group category, tags, clusters. Filter by context in the matrix filter.">
+      {isLast ? 'Contexts' : ''}
+    </th>
+  );
+}
+
+// How far the layered attribute fold is unfolded: the number of attribute levels
+// on screen, out of the number the chosen attributes could show. The server
+// sends both (it is the one that knows how many attributes resolved); 0/0 on
+// every other roll-up shape, which reads as "no level axis" in the corner.
+function foldLevels(rollup) {
+  return { level: rollup.level || 0, maxLevel: rollup.maxLevel || 0 };
+}
 
 // The manager-hierarchy plugin names nodes as a full path "A · B · C (Manager,
 // Name)". Show the deepest org-unit segment as a compact label.
@@ -134,7 +160,7 @@ function BreadcrumbNav({ contextMode, layered, breadcrumb, jumpToCrumb }) {
 }
 
 export default function RollupMatrixView({
-  rollup, filter, counts, managedFilter, setManagedFilter,
+  rollup, filter, counts, managedFilter, setManagedFilter, resourceContexts,
   refreshing, onOpenDetail, onAdjustFilter, onLoadSaved, onFilterChange, onShareView,
 }) {
   const { authFetch } = useAuth();
@@ -303,6 +329,14 @@ export default function RollupMatrixView({
     onFilterChange?.({ ...filter, rollupCollapsed: cur.filter(k => k !== key) });
   }, [filter, onFilterChange]);
 
+  // ── Whole-axis fold: move every column group one level in or out at once.
+  // The per-group keys are dropped with it, because "all columns one level"
+  // means all of them — leaving a hand-folded group behind would make the level
+  // the corner reports a lie for that column.
+  const setFoldLevel = useCallback((next) => {
+    onFilterChange?.({ ...filter, rollupLevel: next, rollupCollapsed: [] });
+  }, [filter, onFilterChange]);
+
   // Breadcrumb navigation: jump to a level. Index 0 = the root (path = []),
   // index i = the i-th drill step.
   const jumpToCrumb = useCallback((idx) => {
@@ -358,11 +392,21 @@ export default function RollupMatrixView({
   const gridHeight = useResizableGridHeight(scrollRef, [columns.length, visibleRoles.length]);
   const gridMaxH = gridHeight.height;
 
-  const trailingCols = visibleRoles.length + 3; // resource + # + Description (+ roles handled separately)
+  const trailingCols = visibleRoles.length + 4; // resource + Contexts + # + Description (+ roles handled separately)
 
-  // The corner above the row labels: what the rows are, and the "?" legend.
+  // Contexts each row belongs to, keyed by uppercase resource id — the same
+  // `resourceContexts` sidecar the per-subject grid renders, which the roll-up
+  // responses now carry too (the rows are resources either way).
+  const ctxMap = useMemo(() => buildResourceContextMap(resourceContexts), [resourceContexts]);
+
+  // The corner above the row labels: what the rows are, the "?" legend, and —
+  // for a layered attribute fold — the level stepper for the whole column axis.
+  const levels = foldLevels(rollup);
   const cornerLabel = (
-    <div className="flex items-center justify-between gap-2"><span>{rowNoun}</span><MatrixLegendButton /></div>
+    <div className="flex items-center justify-between gap-2">
+      <span>{rowNoun}</span>
+      <ColumnAxisControls foldLevel={levels.level} foldMaxLevel={levels.maxLevel} onSetFoldLevel={setFoldLevel} />
+    </div>
   );
 
 
@@ -519,6 +563,7 @@ export default function RollupMatrixView({
     const stick = isLast ? ' sticky top-0' : '';
     const cells = [
       <th key={`corner-${L}`} className={`sticky left-0 ${isLast ? 'top-0 z-40' : 'z-30'} bg-gray-100 dark:bg-gray-800 border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-left align-bottom text-gray-600 dark:text-gray-300 font-medium ${isLast ? 'border-b' : ''}`} style={{ minWidth: '280px' }}>{isLast ? cornerLabel : ''}</th>,
+      <ContextsHeaderCell key={`ctx-${L}`} isLast={isLast} />,
     ];
     let i = 0;
     while (i < indexed.length) {
@@ -601,6 +646,7 @@ export default function RollupMatrixView({
               <th className="sticky left-0 z-30 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-left text-gray-600 dark:text-gray-300 font-medium" style={{ minWidth: '280px' }}>
                 {cornerLabel}
               </th>
+              <ContextsHeaderCell isLast />
               {columns.map(col => {
                 if (col.type === 'group') {
                   const isExp = expanded.has(col.group);
@@ -670,6 +716,11 @@ export default function RollupMatrixView({
                     {r.displayName || r.id}
                   </button>
                 </td>
+                <MatrixContextsCell
+                  contexts={contextsFor(ctxMap, r.id)}
+                  className="sticky border-r bg-white dark:bg-gray-900"
+                  style={{ ...CTX_COL_STYLE, zIndex: 10 }}
+                />
                 {columns.map(col => {
                   if (col.type === 'group') {
                     const n = groupCount(r.id, col.group);

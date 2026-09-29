@@ -95,6 +95,7 @@ describe('useMatrix', () => {
         resources: [{ resourceId: 'r1' }],
         groupValues: ['IT', 'HR'],
         counts: [{ resourceId: 'r1', groupValue: 'IT', directCount: 4 }],
+        resourceContexts: [{ resourceId: 'r1', contexts: [{ id: 'c1', displayName: 'Finance', contextType: 'Tag' }] }],
       },
       '/api/access-package-groups': [],
       '/api/entity-tags': [],
@@ -111,8 +112,12 @@ describe('useMatrix', () => {
     expect(result.current.rollup.attribute).toBe('department');
     expect(result.current.rollup.groupValues).toEqual(['IT', 'HR']);
     expect(result.current.data).toEqual([]);
-    // Roll-up payloads carry no per-resource rows, so the sidecar clears too.
-    expect(result.current.resourceContexts).toEqual([]);
+    // A roll-up carries no per-SUBJECT rows — but its rows are resources, so
+    // the Contexts sidecar survives and the roll-up gets the column too.
+    expect(result.current.resourceContexts).toEqual([
+      { resourceId: 'r1', contexts: [{ id: 'c1', displayName: 'Finance', contextType: 'Tag' }] },
+    ]);
+    expect(result.current.managedByPackages).toEqual([]);   // …that one is per-subject, and does clear
     await waitFor(() => expect(result.current.hasData).toBe(false));
   });
 
@@ -179,6 +184,8 @@ describe('useMatrix response mapping', () => {
     layered:           [true, false],
     layeredAttributes: [true, false],
     maxDepth:          [4, 1],
+    level:             [2, 0],
+    maxLevel:          [3, 0],
     resources:         [[{ resourceId: 'r1' }], []],
     groupValues:       [['IT'], []],
     groupTotals:       [[{ groupValue: 'IT', total: 3 }], []],

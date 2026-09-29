@@ -70,22 +70,30 @@ the category of a group is visible without an export. It sits in the pinned
 block (where resource Type used to be) so it stays on screen while the grid
 scrolls horizontally; Type moved to the right-side block in exchange.
 
-It rides the flat-grid response as a sidecar, not a per-row fetch: `handleFlatGrid`
+It rides the matrix response as a sidecar, not a per-row fetch: the handler
 returns `resourceContexts: [{ resourceId, contexts: [{ id, displayName, contextType }] }]`,
 computed by one indexed batch query over `ContextMembers` → `Contexts`
 (`fetchResourceContexts` in `app/api/src/matrix/resourceContexts.js`), scoped to
 the resources actually on the grid and to `memberType = 'Resource'`. The same
 join backs `GET /api/resources/:id/contexts`. Rows are server-sorted by
 `contextType`, then `displayName`; the cell shows the first two as chips and
-collapses the rest behind a `+N` toggle, while the Excel export writes the full
-comma-joined list.
+collapses the rest behind a `+N` toggle, while the flat grid's Excel export
+writes the full comma-joined list.
 
 Only **Resource-targeted** memberships appear — an Identity- or Principal-targeted
 context (a department, an org unit) is a property of the people in a group, not of
 the group, and never shows on a resource row. The column is display-only: filtering
 by context stays in the filter wizard's context picker (`buildContextClause` in
-`matrix/filterSql.js`). Flat per-subject grid only; the roll-up / layered /
-attribute-fold views aggregate resources and have no per-resource row.
+`matrix/filterSql.js`).
+
+**Every** matrix shape carries it, not just the flat grid. A roll-up aggregates
+the *subject* axis — its rows are still resources (or business roles, which are
+resources too), so they have Contexts to show. All six roll-up response paths
+therefore ship the sidecar from the same builder, and `RollupMatrixView` pins the
+column beside its row labels exactly as the flat grid does. It is one extra
+indexed query per request, over the roll-up's own (smaller) resource list — the
+alternative, looking the contexts up from the client, would have been a
+per-resource fetch over a view that renders hundreds of rows.
 
 ## Badge collapse — what each letter actually means
 
@@ -351,7 +359,8 @@ viewer preference, so one saved matrix opens the same way for everyone.
 saved name — and, when it is shared, with how many people see it — or "Unsaved
 matrix", and marks a loaded matrix that has since changed "Unsaved changes". Filters are compared with `matrixFilterFingerprint()` — canonical
 (key-order-independent) JSON of the **normalised** filter, minus the view-state
-keys `rollupExpanded` / `rollupCollapsed` / `rollupPath` / `foldAttributes`.
+keys `rollupExpanded` / `rollupCollapsed` / `rollupLevel` / `rollupPath` /
+`foldAttributes`.
 Never compare filters with raw `JSON.stringify`:
 
 * the applied filter is always the full shape while a stored one may carry only
@@ -699,6 +708,24 @@ attributes you picked). Counts are computed only for the *visible frontier*
 (`buildContextRollupSql` / `buildAttrCutCellsSql`), so the payload stays small
 regardless of subtree size. The `sortHierarchy → context roll-up` translation
 lives in the `/api/matrix/data` handler in `matrix.js`.
+
+**Whole-axis fold level (attribute fold).** Clicking a header value folds or
+unfolds **one group**. That is not enough on an axis of hundreds of columns, and
+unfolding a group drops it straight to the deepest attribute — so the attribute
+fold also carries `rollupLevel`: how many attribute levels are on screen. The
+grid corner (`ColumnLevelControls` in `matrix/GridCornerControls.jsx`, rendered
+through the shared `ColumnAxisControls`) steps it one level at a time in either
+direction, with a `level/maxLevel` readout and the ends disabled.
+
+The cap is applied on the **server**, by truncating the attribute list before any
+SQL is built — so a capped fold genuinely groups by fewer expressions and returns
+fewer columns, rather than the client hiding rows it already paid for. The
+response reports `level` (visible) and `maxLevel` (how deep it could go);
+`maxDepth` stays "how many header rows to draw", which is now the capped depth.
+Moving the level clears `rollupCollapsed`, because "all columns one level" would
+otherwise leave a hand-folded group behind at a level the corner isn't reporting.
+The Manager-Hierarchy view keeps its expand-only model: its tree depth is
+unbounded, so there is no `maxLevel` to count towards.
 
 **Empty-branch hiding.** A column only appears if at least one in-scope resource
 has a Direct count for that node's subtree, so scoping the matrix to a few

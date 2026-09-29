@@ -27,6 +27,7 @@ export default function MatrixArea({
         <RollupMatrixView
           rollup={rollup}
           filter={matrixFilter}
+          resourceContexts={resourceContexts}
           counts={counts}
           managedFilter={managedFilter}
           setManagedFilter={setManagedFilter}
