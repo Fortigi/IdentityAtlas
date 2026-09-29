@@ -86,12 +86,19 @@ function Get-SqlSweepResultColumns {
 
 # The source-side counts, answered from what the SOURCE holds: the replayed rows,
 # unless a scenario says the source holds more than the reader delivers.
+#
+# -RowsOnly is the count taken BEFORE the read, so a scenario that wants a source
+# which MOVED while it was read answers that one from $script:SourceRowsBeforeBySlot
+# and the one after the read from the two above.
 $script:SourceRowsBySlot = @{}
+$script:SourceRowsBeforeBySlot = @{}
 function Measure-SqlSource {
     [CmdletBinding()]
-    param($Connection, [hashtable]$Slot, [hashtable]$Map, [int]$CommandTimeout = 600, $Since = $null)
+    param($Connection, [hashtable]$Slot, [hashtable]$Map, [int]$CommandTimeout = 600, $Since = $null, [switch]$RowsOnly)
     # @() around the whole if: an if-expression unrolls a one-row array into the row itself.
-    $rows = @(if ($script:SourceRowsBySlot.ContainsKey($Slot.sql)) { $script:SourceRowsBySlot[$Slot.sql] } else { $script:RowsBySlot[$Slot.sql] })
+    $rows = @(if ($RowsOnly -and $script:SourceRowsBeforeBySlot.ContainsKey($Slot.sql)) { $script:SourceRowsBeforeBySlot[$Slot.sql] }
+              elseif ($script:SourceRowsBySlot.ContainsKey($Slot.sql)) { $script:SourceRowsBySlot[$Slot.sql] }
+              else { $script:RowsBySlot[$Slot.sql] })
     # The count has to ask about the same window the read asked about, or every
     # delta run fails verification against the whole table.
     if ($null -ne $Since -and [long]$Since -gt 0) {
@@ -481,6 +488,41 @@ $script:RowsBySlot["$sqlDAsgn -- narrowed"] = @($script:grantRows)
 $dH = Invoke-DeltaRun
 Write-Result 'An edited statement starts from zero instead of skipping rows' ((Get-GrantRowsRead $dH) -eq 37) `
     "read=$(Get-GrantRowsRead $dH) of 37"
+
+# 9. A source that is aggregated WHILE it is read. The statement holds 37 rows
+#    when the read starts and 40 when it ends; the read delivers the 37 it saw.
+#    Held to the single count taken afterwards — as it was — this run fails and
+#    then, because the verification runs before Save-SqlWatermarks, stores no
+#    watermark for ANY statement, so the delta import can never establish a
+#    baseline. It must verify, and the mark must move.
+$narrowed = "$sqlDAsgn -- narrowed"
+$script:SourceRowsBeforeBySlot[$narrowed] = @($script:grantRows)
+$script:SourceRowsBySlot[$narrowed] = @(@($script:grantRows) + @(
+    foreach ($n in 1..3) { New-TestRow @{ principalId = "du2-$runId"; resourceId = "de$n-$runId"; modified = (3000 + $n) } }))
+Remove-CrawlerDeltaToken -SystemId $dsys -Endpoint (Get-SqlWatermarkKey -Slot $dslots[2])
+$dI = Invoke-DeltaRun -SyncMode 'full'
+$readRowI = @($dI.Verification | Where-Object { $_.scope -eq "read: Delta grants $runId" })[0]
+Write-Result 'A source that grew during the read still verifies' ($dI.Verified -and $readRowI -and $readRowI.ok) `
+    "read=$(Get-GrantRowsRead $dI), source after=$(@($script:SourceRowsBySlot[$narrowed]).Count), reason=$($readRowI.reason)"
+Write-Result 'And the drift is reported rather than swallowed' ($readRowI -and $readRowI.reason -match 'moved by 3') "reason=$($readRowI.reason)"
+Write-Result 'So the watermark advances instead of being withheld' `
+    ((Get-CrawlerDeltaToken -SystemId $dsys -Endpoint (Get-SqlWatermarkKey -Slot $dslots[2])) -eq '2001') `
+    "token=$(Get-CrawlerDeltaToken -SystemId $dsys -Endpoint (Get-SqlWatermarkKey -Slot $dslots[2]))"
+
+# 10. The same moving source, but the read stopped early: 37 delivered of a
+#     statement that held 370 at both ends. Drift cannot explain that, and the
+#     run must fail with the mark left where run 9 put it.
+$script:SourceRowsBeforeBySlot[$narrowed] = @(@($script:grantRows) * 10)
+$script:SourceRowsBySlot[$narrowed] = @(@($script:grantRows) * 10)
+$dJ = Invoke-DeltaRun -SyncMode 'full'
+$readRowJ = @($dJ.Verification | Where-Object { $_.scope -eq "read: Delta grants $runId" })[0]
+Write-Result 'A truncated read still fails, whatever the source is doing' ((-not $dJ.Verified) -and $readRowJ -and -not $readRowJ.ok) `
+    "verified=$($dJ.Verified), reason=$($readRowJ.reason)"
+Write-Result 'And an unverified run leaves the watermark alone' `
+    ((Get-CrawlerDeltaToken -SystemId $dsys -Endpoint (Get-SqlWatermarkKey -Slot $dslots[2])) -eq '2001') `
+    "token=$(Get-CrawlerDeltaToken -SystemId $dsys -Endpoint (Get-SqlWatermarkKey -Slot $dslots[2]))"
+$script:SourceRowsBeforeBySlot.Remove($narrowed)
+$script:SourceRowsBySlot.Remove($narrowed)
 
 # ── Reconcile safety: the endpoint refuses what it must ──────────────────────
 foreach ($case in @(
