@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- The matrix views are now rebuilt at the end of every SQL Database crawl whatever the run's verdict. A run that loaded everything but failed verification used to leave the matrix and the entitlement lists blank even though the data was complete and correct.
+- A failed or unverified run still does not store its watermarks or sweep marks, so the next run re-reads the same window and re-sweeps rather than stepping over rows it never loaded.
+- Identity Atlas now detects a matrix view that was built while the database was still empty and stays empty afterwards, and rebuilds it at startup instead of leaving the matrix blank until someone refreshes by hand. The rebuild runs in the background, so it never delays the application coming up, and a view that already holds data is still left alone.
+- The SailPoint IdentityIQ preset reads the logical-application catalogue through a form that both forces the fast query plan and can still be counted by the end-of-run verification, so that statement no longer has to be hand-edited into a shape that silently loses its row-count check.
+
+## Changes in this PR
+
 - SQL Database crawler: a run no longer fails because most rows of a context-membership statement name no context. Entitlements that belong to no logical application are normal, and they are now counted and reported on their own ("633,012 naming no context") instead of being lumped in with rows that were skipped for missing a required column — which could push a healthy run past the 5% limit on rows that could not be placed and, with it, stop every statement's delta watermark from being saved.
 - The job log no longer describes those rows as skipped, and no longer warns that "every row was skipped" when a statement's rows simply carry no optional reference.
 - Unchanged: a row missing the required member id, a row naming a resource the run did not load, and a row naming a context the catalogue does not have are all still reported exactly as before.
