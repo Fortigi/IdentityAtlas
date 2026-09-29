@@ -1,5 +1,9 @@
-// Prev/Next pager for the Business Roles list. Renders nothing on a single page.
-export default function AccessPackagesPagination({ page, setPage, totalPages, total, pageSize }) {
+// Prev/Next pager over a client-held list. Renders nothing on a single page.
+//
+// Shared: the Business Roles list and the Reports table both hold their whole
+// result set in memory and page it locally, and a second copy of this would be
+// the third file in the repo drawing the same three controls.
+export default function Pagination({ page, setPage, totalPages, total, pageSize }) {
   if (totalPages <= 1) return null;
   return (
     <div className="flex items-center justify-between mt-3 text-sm text-gray-600 dark:text-gray-400">

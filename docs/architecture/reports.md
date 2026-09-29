@@ -86,12 +86,47 @@ know renders an explanatory panel rather than breaking the page.
 | Name | Form | What it lists |
 |------|------|---------------|
 | `orphaned-accounts` | `list` | Accounts with no `IdentityMembers` row — i.e. belonging to no identity — excluding service principals, managed identities and AI agents, with the detected account type for each. |
+| `application-access-review` | `list` | One row per entitlement of a named logical application, sectioned into *requestable, not in a role* / *not requestable, not in a role* / *part of a role*, with the certification frequency and entitlement owner as stored and the holders split Direct vs Indirect. |
 
 Orphaned Accounts shares its definition with the `orphaned-accounts` **context plugin** via
 `app/api/src/accountlinking/orphanQuery.js`. That is deliberate: the report and the context answer
 the same question, so they must not be able to drift apart. Note that before account linking has run
 there are no `IdentityMembers` at all, so every account is legitimately listed — the report's
 description says so.
+
+## Counting assignments at scale
+
+A report that counts assignments per resource is the one shape in this framework that can degenerate
+into a whole-table scan, and `ResourceAssignments` is the largest table in the product — 46 million
+rows on the deployment these numbers come from. Three things were measured on a Postgres 16 copy of
+an IdentityIQ-shaped dataset (96,140 entitlements, 4,969,395 assignments, 842 MB heap), counting the
+holders of the largest application's 16,387 entitlements — 864,796 assignment rows in scope.
+
+| Query shape | Time | Plan |
+|---|---:|---|
+| Entitlement ids as a **CTE sub-select** (`WHERE "resourceId" IN (SELECT id FROM ent)`) | **12,478 ms** | Merge join against a **full index scan of all 4.97M rows** — the planner has no row estimate for a CTE, so it falls back to its default and prices a whole-table merge as cheap. |
+| Ids as an explicit `uuid[]` parameter, `count(DISTINCT …)` inside the aggregate | 2,315 ms | Index scan on `ix_RA_resourceId` + incremental sort; 642k random heap reads. `count(DISTINCT …)` forces a sorted `GroupAggregate`. |
+| Ids as a `uuid[]`, de-duplicated by an **inner `SELECT DISTINCT`** | **809 ms** | Parallel seq scan + hash aggregate. Same numbers, no random access. |
+
+So the two rules for any report doing this:
+
+1. **Resolve the ids first and pass them as an explicit array.** A CTE or a sub-select hides the set
+   size from the planner; an array parameter does not. Worth 12× here on its own.
+2. **De-duplicate with an inner `DISTINCT`, not `count(DISTINCT …)`.** The de-duplication is needed —
+   the governed model stores intent and actual as two assignment rows differing only in `governed`,
+   so `count(*)` reports one person as two — but doing it inside the aggregate forces a sort and with
+   it the random-access plan. Worth another 2.9×. The same rewrite took the scope-wide unique-user
+   count from 1,014 ms (with a 41 MB on-disk sort) to 313 ms.
+
+**A covering index was measured and deliberately not added.**
+`("resourceId", "principalId", "assignmentType") INCLUDE ("identityId") WHERE "deletedAt" IS NULL`
+turns the count into a heap-free index-only scan: 809 ms → 515 ms, and the unique-user count
+313 ms → 243 ms. That is 1.4× on the shape we ship, for 330 MB on an 842 MB heap (≈3 GB at the
+production row count), permanent write amplification on the hottest ingest path, and a
+`CREATE INDEX` that the migration runner executes **inside a transaction** during container startup —
+the failure mode that crash-looped a deployment when migration 055's index build outran the startup
+probe. 1.4× does not buy that. If a deployment does hit the wall, the index is the fix, built
+`CONCURRENTLY` outside the migration runner rather than inside it.
 
 ## What keeps the seam honest
 

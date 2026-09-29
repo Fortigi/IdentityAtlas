@@ -262,7 +262,6 @@
     "app/ui/src/components/accessPackages/AccessPackageRow.jsx",
     "app/ui/src/components/accessPackages/AccessPackagesFilterBar.jsx",
     "app/ui/src/components/accessPackages/AccessPackagesHeader.jsx",
-    "app/ui/src/components/accessPackages/AccessPackagesPagination.jsx",
     "app/ui/src/components/accessPackages/AccessPackagesTable.jsx",
     "app/ui/src/components/accessPackages/CategoryManagementBar.jsx",
     "app/ui/src/components/accessPackages/ComplianceStatusCell.jsx",
