@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
 import {
   DEFAULT_EXPORT_FORMAT, EXPORT_FORMATS, EXPORT_FORMAT_NAMES, exportFilename, resolveExportFormat,
+  splitConstantColumns,
 } from './export.js';
 
 const csv = (report) => EXPORT_FORMATS.csv.serialize(report);
@@ -271,11 +272,105 @@ describe('XLSX serialization', () => {
     expect(workbook.worksheets[0].autoFilter).toBeFalsy();
   });
 
+  it('states a run-constant column once above the table, not on every row', async () => {
+    const sheet = await sheetOf({
+      ...NOTICED,
+      columns: [...REPORT.columns, { key: 'system', label: 'System' }],
+      rows: [
+        { displayName: 'Ada', email: 'ada@example.com', system: 'Ledger' },
+        { displayName: 'Grace', email: 'grace@example.com', system: 'Ledger' },
+      ],
+      constantColumns: ['system'],
+    });
+    // Above the table as a label/value pair…
+    expect(sheet.getCell('A4').value).toBe('System');
+    expect(sheet.getCell('B4').value).toBe('Ledger');
+    // …and gone from it. This is the discriminating half: a serializer that
+    // wrote the block but kept the column would pass every assertion above.
+    const tableTop = headerRowOf(sheet, 'Account');
+    const labels = [];
+    sheet.getRow(tableTop).eachCell(cell => labels.push(cell.value));
+    expect(labels).toEqual(['Account', 'Email']);
+    expect(sheet.getRow(tableTop + 1).getCell(3).value).toBeNull();
+  });
+
+  it('keeps the block in the order the run declared, not the column order', async () => {
+    const sheet = await sheetOf({
+      ...NOTICED,
+      columns: [{ key: 'a', label: 'A' }, { key: 'b', label: 'B' }, { key: 'keep', label: 'Keep' }],
+      rows: [{ a: '1', b: '2', keep: 'x' }],
+      constantColumns: ['b', 'a'],
+    });
+    expect([sheet.getCell('A4').value, sheet.getCell('A5').value]).toEqual(['B', 'A']);
+  });
+
+  it('gives an empty constant column its label anyway', async () => {
+    // A field that exists and is unfilled is a finding; silence is not. This is
+    // the common case on a source with no application catalogue.
+    const sheet = await sheetOf({
+      ...NOTICED,
+      columns: [...REPORT.columns, { key: 'cmdb', label: 'CMDB reference' }],
+      rows: [{ displayName: 'Ada', email: 'ada@x', cmdb: null }],
+      constantColumns: ['cmdb'],
+    });
+    expect(sheet.getCell('A4').value).toBe('CMDB reference');
+    expect(sheet.getCell('B4').value).toBeNull();
+  });
+
+  it('keeps every column when the run declares none constant', async () => {
+    const sheet = await sheetOf(NOTICED);
+    const labels = [];
+    sheet.getRow(headerRowOf(sheet, 'Account')).eachCell(cell => labels.push(cell.value));
+    expect(labels).toEqual(['Account', 'Email']);
+    expect(sheet.getCell('A4').value).not.toBe('Account');
+  });
+
   it('returns a Buffer, so the route can send it as a binary body', async () => {
     const buffer = await EXPORT_FORMATS.xlsx.serialize(NOTICED);
     expect(Buffer.isBuffer(buffer)).toBe(true);
     // The zip magic — a .xlsx that is not a zip will not open anywhere.
     expect(buffer.subarray(0, 2).toString()).toBe('PK');
+  });
+});
+
+describe('splitConstantColumns', () => {
+  const columns = [{ key: 'a', label: 'A' }, { key: 'b', label: 'B' }, { key: 'c', label: 'C' }];
+  const rows = [{ a: 1, b: 2, c: 3 }, { a: 1, b: 9, c: 3 }];
+
+  it('splits the declared keys out of the table and pairs them with their label', () => {
+    expect(splitConstantColumns(columns, rows, ['a', 'c'])).toEqual({
+      header: [{ label: 'A', value: 1 }, { label: 'C', value: 3 }],
+      body: [{ key: 'b', label: 'B' }],
+    });
+  });
+
+  it('takes the run at its word rather than checking the other rows', () => {
+    // `b` is not actually constant. Keeping it would hide a bug in the report;
+    // the declaration is the report's responsibility, not the serializer's.
+    expect(splitConstantColumns(columns, rows, ['b']).header).toEqual([{ label: 'B', value: 2 }]);
+  });
+
+  it('ignores a key the report does not declare as a column', () => {
+    expect(splitConstantColumns(columns, rows, ['a', 'ghost'])).toEqual({
+      header: [{ label: 'A', value: 1 }],
+      body: [{ key: 'b', label: 'B' }, { key: 'c', label: 'C' }],
+    });
+  });
+
+  it.each([
+    ['nothing was declared', []],
+    ['the field is absent', undefined],
+    ['the field is not a list', 'a'],
+  ])('changes nothing when %s', (_label, declared) => {
+    expect(splitConstantColumns(columns, rows, declared)).toEqual({ header: [], body: columns });
+  });
+
+  it('changes nothing when there are no rows to read a value from', () => {
+    expect(splitConstantColumns(columns, [], ['a'])).toEqual({ header: [], body: columns });
+  });
+
+  it('refuses to empty the table — a sheet of only a header is worse', () => {
+    expect(splitConstantColumns(columns, rows, ['a', 'b', 'c'])).toEqual({ header: [], body: columns });
   });
 });
 
@@ -312,11 +407,11 @@ describe('resolveExportFormat', () => {
     // The route reads this to decide what to hand the serializer, so it has to
     // be a real boolean on every format, not undefined on the ones that opted out.
     for (const name of EXPORT_FORMAT_NAMES) {
-      expect(typeof resolveExportFormat(name).carriesNotices, name).toBe('boolean');
+      expect(typeof resolveExportFormat(name).carriesContext, name).toBe('boolean');
     }
-    expect(EXPORT_FORMATS.csv.carriesNotices).toBe(false);
-    expect(EXPORT_FORMATS.json.carriesNotices).toBe(false);
-    expect(EXPORT_FORMATS.xlsx.carriesNotices).toBe(true);
+    expect(EXPORT_FORMATS.csv.carriesContext).toBe(false);
+    expect(EXPORT_FORMATS.json.carriesContext).toBe(false);
+    expect(EXPORT_FORMATS.xlsx.carriesContext).toBe(true);
   });
 
   it('never resolves an inherited Object.prototype member', () => {

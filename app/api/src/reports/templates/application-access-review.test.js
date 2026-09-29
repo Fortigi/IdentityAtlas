@@ -270,6 +270,40 @@ describe('application-access-review — application context', () => {
     expect(rowFor(await run(), 'a').applicationOwner).toBe('10007339');
   });
 
+  it('declares the application columns constant for a run over ONE application', async () => {
+    // The Excel export states them once above the table instead of repeating
+    // them down 21,000 rows. Every key must be a real column, or the serializer
+    // silently drops nothing.
+    stage({ entitlements: [ent('a')] });
+    const result = await run();
+    const keys = report.columns.map(c => c.key);
+    expect(result.constantColumns).toEqual([
+      'application', 'applicationOwner', 'applicationDescription', 'cmdbReference',
+      'connectionType', 'onboardingSector', 'abbreviation', 'applicationManager',
+    ]);
+    for (const key of result.constantColumns) expect(keys, key).toContain(key);
+  });
+
+  it('declares nothing constant when the run covers several applications', async () => {
+    // The discriminating case: ONE name matching THREE contexts resolves to
+    // three applications whose details differ per row. A check on the number of
+    // names asked for rather than the number resolved would wrongly collapse
+    // them into one header block.
+    const second = '22222222-2222-2222-2222-222222222222';
+    stage({
+      apps: [app(), app({ id: second, displayName: 'Ledger Engineering 0006' })],
+      entitlements: [ent('a'), { ...ent('b'), appId: second }],
+    });
+    const result = await run();
+    expect(result.constantColumns).toEqual([]);
+    expect(result.rows).toHaveLength(2);
+  });
+
+  it('declares nothing constant when there is nothing to describe', async () => {
+    stage({ entitlements: [] });
+    expect((await run()).constantColumns).toBeUndefined();
+  });
+
   it('reads the deployment-specific catalogue fields under either spelling', async () => {
     stage({
       apps: [app({ extendedAttributes: { onboardingSector: 'Sector A', cmdbreference: 'CI1', applicationManager: 'Ada' } })],
