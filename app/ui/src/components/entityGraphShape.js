@@ -76,7 +76,13 @@ function userRootNodes(core, identityInfo, manager) {
     { key: 'assignments-direct',   label: 'Direct',   count: m.Direct || 0,   kind: 'category' },
     { key: 'assignments-indirect', label: 'Indirect', count: m.Indirect || 0, kind: 'category' },
     { key: 'assignments-eligible', label: 'Eligible', count: m.Eligible || 0, kind: 'category' },
-    { key: 'access-packages', label: 'Access Packages',   count: core.accessPackageCount || 0, kind: 'category' },
+    // Governance resources held by this principal. The count behind it
+    // (`accessPackageCount`) is source-agnostic — the API counts every
+    // `governanceResource`, so an Entra access package, an Omada business role
+    // and a SailPoint access profile all land here. The label must stay
+    // source-neutral too; "Business Roles" is what the resource graph below
+    // already calls the same bucket.
+    { key: 'access-packages', label: 'Business Roles',    count: core.accessPackageCount || 0, kind: 'category' },
     { key: 'identity',        label: 'Identity',          count: identityInfo?.identity ? 1 : 0, kind: 'category' },
     // Principal→principal relationships (migration 057). Shown only when present,
     // so a normal user's graph is unchanged. "Owners"/"Sponsors" appear on the
@@ -212,7 +218,13 @@ async function fetchResourceItems(resourceId, categoryKey, authFetch, _extras = 
   return [];
 }
 
-// ─── Access Package (Business Role) ──────────────────────────────────
+// ─── Business Role ───────────────────────────────────────────────────
+// `entityKind: 'access-package'` is the internal routing key for a
+// `resourceType='BusinessRole'` resource (it names the /api/access-package/…
+// endpoints and the #access-package: hash route). It is NOT a user-facing
+// word: every label below stays source-neutral, because the same entity is an
+// Entra access package, an Omada business role or a SailPoint access profile
+// depending on which system it came from.
 
 function accessPackageRootNodes(core) {
   const a = core.attributes || {};

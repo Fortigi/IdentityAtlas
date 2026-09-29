@@ -53,7 +53,7 @@ Each entity kind has a first ring of relationship categories:
 
 | Kind | Nodes |
 |------|-------|
-| **User** | Manager · Direct Reports · Context · Groups (Direct) · Groups (Indirect) · Groups Owned · Eligible · Access Packages · OAuth2 Grants · Identity |
+| **User** | Manager · Direct Reports · Context · Groups (Direct) · Groups (Indirect) · Groups Owned · Eligible · Business Roles · OAuth2 Grants · Identity |
 | **Resource** | Direct Members · Governed · Owners · Eligible · Business Roles · Member Of · Context |
 | **Access Package** | Assignments · Resources · Policies · Reviews · Pending Requests · Catalog |
 | **Identity** | Linked Accounts · Contexts |
@@ -91,7 +91,7 @@ Clicking any category node **fans its list items out as satellite nodes** around
 - **Click "collapse"** under the graph → drops the whole chain.
 - **Click a different root-ring node** → replaces the whole expansion chain with a new branch.
 
-The list below the graph mirrors the deepest category step on the expansion chain — so after `Access Packages → BR-Employee-Base → Resources`, the list shows the AP's resources with clickable links.
+The list below the graph mirrors the deepest category step on the expansion chain — so after `Business Roles → BR-Employee-Base → Resources`, the list shows the business role's resources with clickable links.
 
 Large fanouts cap at 10 satellites; overflow becomes a `+N more` bubble.
 
