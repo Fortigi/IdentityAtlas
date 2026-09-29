@@ -41,12 +41,24 @@
  *                            plus an optional `_entity` link target.
  * @property {ReportNotice[]} [notices]  Context for those rows. Whether a
  *                            download carries them is the FORMAT's decision,
- *                            declared as `carriesNotices` in export.js: a
+ *                            declared as `carriesContext` in export.js: a
  *                            workbook writes them above the table, a CSV cannot
  *                            (a preamble above the header breaks every parser
  *                            that reads it). So a report whose rows need the
  *                            caveat to be readable *as a CSV* must still carry
  *                            it as a column.
+ * @property {string[]} [constantColumns]  Column keys that hold ONE value for
+ *                            the whole of THIS run — not for the report in
+ *                            general. A format with room for a header shows
+ *                            them once, above the table, and leaves them out of
+ *                            it; a format without one keeps them on every row.
+ *                            Declared by the run, never derived from the rows:
+ *                            a column can happen to hold one distinct value
+ *                            (every entitlement in an application being
+ *                            non-requestable, say) without that being a fact
+ *                            about the run, and deriving it would silently
+ *                            delete a real column. `columns` itself does not
+ *                            change — the screen shows all of them.
  */
 
 /**

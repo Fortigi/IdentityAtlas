@@ -23,11 +23,15 @@ const router = Router();
 // `notices` is whatever the template returned, passed through untouched: the
 // engine never reads a notice, exactly as it never reads a row.
 async function runReport(report, params) {
-  const { rows, notices, truncated } = await report.run(params, {});
+  const { rows, notices, truncated, constantColumns } = await report.run(params, {});
   return {
     ...reportMetadata(report),
     rows,
     notices: Array.isArray(notices) ? notices : [],
+    // Column keys THIS run holds one value for. `columns` above is the report's
+    // and does not change: the screen shows every column whatever the run said,
+    // and only a format with room for a header acts on this.
+    constantColumns: Array.isArray(constantColumns) ? constantColumns : [],
     total: rows.length,
     // A template that stops at a row cap says so; the screen and the download must
     // not present the first N rows as the whole answer.
@@ -81,16 +85,17 @@ router.get('/reports/:name/export', async (req, res) => {
   }
 
   try {
-    // Whether the notices travel with the rows is the FORMAT's call, not this
-    // route's. A CSV is a table and nothing else, so a preamble above the header
-    // would break every parser that reads it; a workbook has room above the
-    // table and a reader who expects to find context there. So a format declares
-    // `carriesNotices` and gets them, and every other format is served exactly
-    // the payload it was served before. The engine still never asks which report
+    // Whether a run's context — its notices, and the columns it declared
+    // constant — travels with the rows is the FORMAT's call, not this route's. A
+    // CSV is a table and nothing else, so a preamble above the header would
+    // break every parser that reads it; a workbook has room above the table and
+    // a reader who expects to find context there. So a format declares
+    // `carriesContext` and gets it, and every other format is served exactly the
+    // payload it was served before. The engine still never asks which report
     // this is — only what the chosen format can hold.
     const full = await runReport(report, params);
-    const { notices: _screenOnly, ...rowsOnly } = full;
-    const payload = exportFormat.carriesNotices ? full : rowsOnly;
+    const { notices: _screenOnly, constantColumns: _headerOnly, ...rowsOnly } = full;
+    const payload = exportFormat.carriesContext ? full : rowsOnly;
 
     const filename = exportFilename(report.name, exportFormat.extension, payload.generatedAt);
     res.setHeader('Content-Type', exportFormat.contentType);

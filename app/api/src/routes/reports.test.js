@@ -144,12 +144,13 @@ describe('GET /api/reports/:name/export', () => {
     const rows = await request(app).get('/api/reports/downloadable-report/rows').expect(200);
     const download = await request(app).get('/api/reports/downloadable-report/export?format=json').expect(200);
 
-    // `notices` is the one deliberate difference: it is on-screen context about
-    // the rows, not part of the data, so a downloaded file carries the rows and
-    // nothing else. Everything else must match byte for byte.
-    const { generatedAt: a, notices, ...served } = rows.body;
+    // `notices` and `constantColumns` are the deliberate differences: both are
+    // context ABOUT the rows rather than part of them, and json does not claim
+    // to carry context. Everything else must match byte for byte.
+    const { generatedAt: a, notices, constantColumns, ...served } = rows.body;
     const { generatedAt: b, ...downloaded } = JSON.parse(download.text);
     expect(notices).toEqual([]);
+    expect(constantColumns).toEqual([]);
     expect(downloaded).toEqual(served);
     expect(Date.parse(a)).not.toBeNaN();
     expect(Date.parse(b)).not.toBeNaN();
@@ -219,6 +220,68 @@ describe('GET /api/reports/:name/export', () => {
     } finally {
       noticed();
     }
+  });
+
+  it('gives the run-constant columns only to a format that claims the context', async () => {
+    // Same seam as the notices. csv keeps every column on every row — it is a
+    // table and is what gets pivoted — and json keeps the key out of its bytes.
+    const constant = registerReport({
+      name: 'constant-report',
+      displayName: 'Constant Report',
+      form: 'list',
+      columns: [{ key: 'thing', label: 'Thing' }, { key: 'system', label: 'System' }],
+      run: async () => ({ rows: [{ thing: 'widget', system: 'Ledger' }], constantColumns: ['system'] }),
+    });
+    try {
+      const csv = await request(app).get('/api/reports/constant-report/export?format=csv').expect(200);
+      expect(csv.text).toBe('"Thing","System"\r\n"widget","Ledger"');
+
+      const json = await request(app).get('/api/reports/constant-report/export?format=json').expect(200);
+      expect(JSON.parse(json.text).constantColumns).toBeUndefined();
+
+      const xlsx = await request(app).get('/api/reports/constant-report/export?format=xlsx')
+        .buffer().parse((res, cb) => {
+          const chunks = [];
+          res.on('data', c => chunks.push(Buffer.from(c)));
+          res.on('end', () => cb(null, Buffer.concat(chunks)));
+        })
+        .expect(200);
+      const sheet = await loadFirstSheet(xlsx.body);
+      // Stated once above the table…
+      expect(sheet.getCell('A4').value).toBe('System');
+      expect(sheet.getCell('B4').value).toBe('Ledger');
+      // …and not a column of it.
+      const labels = [];
+      sheet.eachRow(row => { if (row.getCell(1).value === 'Thing') row.eachCell(c => labels.push(c.value)); });
+      expect(labels).toEqual(['Thing']);
+    } finally {
+      constant();
+    }
+  });
+
+  it('tells the screen every column, whatever the run held constant', async () => {
+    // The report's `columns` contract is the screen's and does not move: only a
+    // format with a header acts on `constantColumns`.
+    const constant = registerReport({
+      name: 'constant-report',
+      displayName: 'Constant Report',
+      form: 'list',
+      columns: [{ key: 'thing', label: 'Thing' }, { key: 'system', label: 'System' }],
+      run: async () => ({ rows: [{ thing: 'widget', system: 'Ledger' }], constantColumns: ['system'] }),
+    });
+    try {
+      const rows = await request(app).get('/api/reports/constant-report/rows').expect(200);
+      expect(rows.body.columns.map(c => c.key)).toEqual(['thing', 'system']);
+      expect(rows.body.constantColumns).toEqual(['system']);
+      expect(rows.body.rows[0].system).toBe('Ledger');
+    } finally {
+      constant();
+    }
+  });
+
+  it('defaults the run-constant columns to an empty list for a template that says nothing', async () => {
+    const rows = await request(app).get('/api/reports/downloadable-report/rows').expect(200);
+    expect(rows.body.constantColumns).toEqual([]);
   });
 
   it('recomputes on every download, so a re-download reflects the latest data', async () => {

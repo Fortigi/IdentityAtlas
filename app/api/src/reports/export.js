@@ -8,16 +8,23 @@
 // downloaded file can never disagree with what the screen showed: same columns,
 // same rows, same `generatedAt`.
 //
-// NOTICES. A report's notices are statements ABOUT the rows — what the numbers
-// were computed from, which of them is a summary, when they stop being
-// trustworthy. They used to be screen-only, which was really a statement about
-// CSV rather than about downloads: a CSV *is* a table, so anything above the
-// header row breaks every parser that reads it. A workbook has room above the
-// table and a reader who expects context there. So the decision is the format's
-// and is declared here as `carriesNotices`; routes/reports.js strips them for
-// every format that does not claim them, and csv and json are byte-for-byte what
-// they were. This is generic on purpose — every report has notices, and a future
-// format (pdf, html) opts in the same way.
+// CONTEXT BEYOND THE ROWS. A run produces two things a plain table cannot hold:
+// its NOTICES (what the numbers were computed from, which of them is a summary,
+// when they stop being trustworthy) and its CONSTANT COLUMNS (keys the run
+// declares hold one value throughout — the application a review is about, say).
+// Both belong above the table, not in it.
+//
+// That used to be framed as "a download is the rows", which was really a
+// statement about CSV: a CSV *is* a table, so anything above the header row
+// breaks every parser that reads it. A workbook has room above the table and a
+// reader who expects context there. So the decision is the format's, declared
+// here as `carriesContext`; routes/reports.js strips both fields for every
+// format that does not claim them, and csv and json stay byte-for-byte what they
+// were. Generic on purpose — a future format (pdf, html) opts in the same way.
+//
+// The flag was called "carriesNotices" while notices were the only such field.
+// It gates two now, so it is named for the category rather than for the first
+// member of it.
 
 import ExcelJS from 'exceljs';
 
@@ -91,11 +98,40 @@ function columnWidth(column, rows) {
 }
 
 /**
- * The block above the table: what this is, when it was computed, and every
- * notice the report returned — which is where a summary lives now that a
- * download can hold one. Returns the row index the table starts on.
+ * The columns a run declared constant, paired with their label and the value
+ * they hold — and the columns left to tabulate.
+ *
+ * The value is read from the first row because the run asserted there is only
+ * one; it is not checked against the others, and deliberately so. A run that
+ * declares a column constant and is wrong has a bug in the report, and silently
+ * "correcting" it here by keeping the column would hide that. A key the report
+ * does not declare as a column is ignored.
+ *
+ * Nothing is dropped when dropping would leave no table: a sheet of nothing but
+ * a header is worse than a repeated column.
  */
-function writeSummary(sheet, { displayName, generatedAt, total, notices = [], truncated }) {
+export function splitConstantColumns(columns, rows, constantColumns) {
+  const wanted = new Set(Array.isArray(constantColumns) ? constantColumns : []);
+  if (wanted.size === 0 || rows.length === 0) return { header: [], body: columns };
+
+  const order = constantColumns.filter(key => columns.some(c => c.key === key));
+  const body = columns.filter(c => !wanted.has(c.key));
+  if (body.length === 0) return { header: [], body: columns };
+
+  const header = order.map(key => ({
+    label: columns.find(c => c.key === key).label,
+    value: rows[0][key],
+  }));
+  return { header, body };
+}
+
+/**
+ * The block above the table: what this is, when it was computed, whatever the
+ * run declared constant, and every notice the report returned — which is where
+ * a summary lives now that a download can hold one. Returns the row index the
+ * table starts on.
+ */
+function writeSummary(sheet, { displayName, generatedAt, total, notices = [], truncated, header = [] }) {
   sheet.getCell('A1').value = String(displayName ?? 'Report');
   sheet.getCell('A1').font = { bold: true, size: 14 };
 
@@ -104,6 +140,17 @@ function writeSummary(sheet, { displayName, generatedAt, total, notices = [], tr
   sheet.getCell('A2').font = MUTED_FONT;
 
   let row = 4;
+  for (const entry of header) {
+    // Label and value in two cells rather than one string, so the block can be
+    // read, sorted and copied as data. An empty value still gets its label: a
+    // field that exists and is unfilled is a finding, and silence is not.
+    sheet.getCell(`A${row}`).value = entry.label;
+    sheet.getCell(`A${row}`).font = { bold: true };
+    sheet.getCell(`B${row}`).value = entry.value === undefined ? null : entry.value;
+    row += 1;
+  }
+  if (header.length) row += 1;
+
   if (truncated) {
     // Louder than a notice, because it changes what the file IS: the first N
     // rows of an answer, presented as a file, read as the whole answer.
@@ -131,24 +178,31 @@ function writeSummary(sheet, { displayName, generatedAt, total, notices = [], tr
  * invariant that actually matters is pinned by the tests, which assert the cell
  * round-trips with its exact original text AND with cell type String.
  */
-async function toXlsx({ displayName, columns = [], rows = [], notices, total, generatedAt, truncated } = {}) {
+async function toXlsx({
+  displayName, columns: declared = [], rows = [], notices, total, generatedAt, truncated, constantColumns,
+} = {}) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Identity Atlas';
   workbook.created = new Date();
 
+  // The sheet's columns are this RUN's, not the report's: a value the run holds
+  // constant is stated once above the table instead of repeated down every row.
+  // `columns` in the payload is untouched — the screen still shows all of them.
+  const { header, body: columns } = splitConstantColumns(declared, rows, constantColumns);
+
   const sheet = workbook.addWorksheet(sheetName(displayName));
-  const headerRow = writeSummary(sheet, { displayName, generatedAt, total, notices, truncated });
+  const headerRow = writeSummary(sheet, { displayName, generatedAt, total, notices, truncated, header });
 
   columns.forEach((column, i) => { sheet.getColumn(i + 1).width = columnWidth(column, rows); });
 
-  const header = sheet.getRow(headerRow);
+  const labelRow = sheet.getRow(headerRow);
   columns.forEach((column, i) => {
-    const cell = header.getCell(i + 1);
+    const cell = labelRow.getCell(i + 1);
     cell.value = column.label;
     cell.font = HEADER_FONT;
     cell.fill = HEADER_FILL;
   });
-  header.commit?.();
+  labelRow.commit?.();
 
   const capped = rows.length > SHEET_ROW_LIMIT - headerRow ? rows.slice(0, SHEET_ROW_LIMIT - headerRow) : rows;
   capped.forEach((row, i) => {
@@ -175,7 +229,7 @@ const SERIALIZERS = {
   xlsx: {
     contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     // The one format with room for them. See NOTICES at the top of this file.
-    carriesNotices: true,
+    carriesContext: true,
     serialize: toXlsx,
   },
   json: { contentType: 'application/json; charset=utf-8', serialize: toJson },
@@ -190,7 +244,7 @@ const SERIALIZERS = {
 // core can't hardcode crawler behaviour.
 export const EXPORT_FORMATS = Object.fromEntries(
   Object.entries(SERIALIZERS).map(([name, format]) => [
-    name, { extension: name, carriesNotices: false, ...format },
+    name, { extension: name, carriesContext: false, ...format },
   ]),
 );
 

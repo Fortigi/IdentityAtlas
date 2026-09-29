@@ -40,6 +40,20 @@ import { OWNERSHIP_RELATIONSHIP_TYPES_SQL, OWNERSHIP_TYPES_SQL } from '../../lib
 // pack may not do.
 export const MAX_ROWS = 50000;
 
+// The application's own facts, in the order an owner reads them. On a run over
+// ONE application every row repeats these eight values, so a format with a
+// header states them once there instead — the review pack an owner is handed
+// opens with what the application is, then lists its entitlements. On a run
+// over several they genuinely vary per row and stay in the table.
+//
+// Declared here rather than derived from the rows: a column can hold one
+// distinct value by accident (every entitlement in a small application being
+// non-requestable), and a serializer that guessed would delete a real column.
+const APPLICATION_COLUMNS = [
+  'application', 'applicationOwner', 'applicationDescription', 'cmdbReference',
+  'connectionType', 'onboardingSector', 'abbreviation', 'applicationManager',
+];
+
 // The three mutually exclusive buckets, worded as the owner reads them.
 export const SECTION_REQUESTABLE = 'requestable, not in a role';
 export const SECTION_NOT_REQUESTABLE = 'not requestable, not in a role';
@@ -253,7 +267,12 @@ export default {
     }
 
     ctx?.log?.(`application-access-review report: ${rows.length} entitlement(s) across ${apps.length} application(s)`);
-    return { rows, notices, truncated };
+    // One application resolved — not one NAME asked for. A name that matches
+    // three contexts resolves to three, and their details differ per row.
+    return {
+      rows, notices, truncated,
+      constantColumns: apps.length === 1 ? APPLICATION_COLUMNS : [],
+    };
   },
 };
 

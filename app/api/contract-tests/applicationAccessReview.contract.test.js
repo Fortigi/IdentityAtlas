@@ -17,6 +17,9 @@ import { bootContractApp } from '../test-utils/contractApp.js';
 
 const SYSTEM_NAME = 'contract-app-access-review';
 const APP_NAME = 'Contract Ledger Application';
+// A second application, so the multi-application case is a real run rather than
+// a simulated one: its details differ per row and must stay in the table.
+const SECOND_APP_NAME = 'Contract Archive Application';
 
 let agent;
 let pool;
@@ -24,6 +27,8 @@ let systemId;
 
 const id = {
   app: randomUUID(),
+  app2: randomUUID(),
+  plain2: randomUUID(),
   plain: randomUUID(),        // requestable, no role, two direct holders
   quiet: randomUUID(),        // not requestable, no role, no holders
   roled: randomUUID(),        // requestable AND in two roles -> section 3
@@ -69,6 +74,19 @@ async function seed() {
       `INSERT INTO "ContextMembers" ("contextId","memberType","memberId","addedBy")
        VALUES ($1,'Resource',$2,'sync')`, [id.app, member]);
   }
+
+  // A second application with its own details, so "several applications" is a
+  // real run rather than a simulated one.
+  await pool.query(
+    `INSERT INTO "Contexts" ("id","variant","targetType","contextType","displayName","description",
+                             "scopeSystemId","ownerUserId","extendedAttributes")
+     VALUES ($1,'synced','Resource','LogicalApplication',$2,'Archive of record',$3,'EMP-1',
+             '{"abbreviation":"CAA","cmdbReference":"CI-2","connectionType":"LDAP","onboardingArea":"Sector R"}'::jsonb)`,
+    [id.app2, SECOND_APP_NAME, systemId]);
+  await resource(id.plain2, 'ENT_ARCHIVE', 'Entitlement', { requestable: 1, certfrequency: 'Annually' });
+  await pool.query(
+    `INSERT INTO "ContextMembers" ("contextId","memberType","memberId","addedBy")
+     VALUES ($1,'Resource',$2,'sync')`, [id.app2, id.plain2]);
 
   // A business role is NOT a member of the application context — it grants into
   // it. Two roles on one entitlement, so the report has to aggregate them.
@@ -124,8 +142,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "ResourceRelationships" WHERE "systemId" = $1`, [systemId]);
-  await pool.query(`DELETE FROM "ContextMembers" WHERE "contextId" = $1`, [id.app]);
-  await pool.query(`DELETE FROM "Contexts" WHERE "id" = $1`, [id.app]);
+  await pool.query(`DELETE FROM "ContextMembers" WHERE "contextId" = ANY($1::uuid[])`, [[id.app, id.app2]]);
+  await pool.query(`DELETE FROM "Contexts" WHERE "id" = ANY($1::uuid[])`, [[id.app, id.app2]]);
   await pool.query(`DELETE FROM "Resources" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "Principals" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "Systems" WHERE "id" = $1`, [systemId]);
@@ -226,5 +244,65 @@ describe('GET /reports/application-access-review/export', () => {
     expect(lines).toHaveLength(3);
     expect(res.text).toContain('"Ledger Clerk, Ledger Supervisor"');
     expect(res.text).toContain('"Not set"');
+  });
+
+  it('opens the workbook with the application, and drops it from the table', async () => {
+    const { default: ExcelJS } = await import('exceljs');
+    const res = await agent.get('/api/reports/application-access-review/export')
+      .query({ applications: APP_NAME, format: 'xlsx' })
+      .buffer().parse((r, cb) => {
+        const chunks = [];
+        r.on('data', c => chunks.push(Buffer.from(c)));
+        r.on('end', () => cb(null, Buffer.concat(chunks)));
+      });
+
+    expect(res.status).toBe(200);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(res.body);
+    const sheet = workbook.worksheets[0];
+
+    // The header block: what the application IS, before the entitlements.
+    const block = {};
+    sheet.eachRow(row => {
+      const label = row.getCell(1).value;
+      if (typeof label === 'string' && !block[label]) block[label] = row.getCell(2).value;
+    });
+    expect(block.Application).toBe(APP_NAME);
+    expect(block['Application owner']).toBe('Owner Person');
+    expect(block['Application description']).toBe('Ledger of record');
+    expect(block['CMDB reference']).toBe('CI-1');
+    expect(block['Connection type']).toBe('SaaS');
+    expect(block['Onboarding sector']).toBe('Sector Q');
+
+    // …and the table below it carries only what varies per entitlement.
+    let labels = [];
+    sheet.eachRow(row => { if (row.getCell(1).value === 'Entitlement') row.eachCell(c => labels.push(c.value)); });
+    expect(labels).toEqual([
+      'Entitlement', 'Section', 'Requestable', 'Certification frequency',
+      'Entitlement owner', 'Entitlement owner email', 'Granted by role(s)',
+      'Users assigned directly', 'Users assigned via a role',
+    ]);
+    expect(labels).not.toContain('CMDB reference');
+  });
+
+  it('keeps the application on every row when the run covers more than one', async () => {
+    const { default: ExcelJS } = await import('exceljs');
+    const res = await agent.get('/api/reports/application-access-review/export')
+      .query({ applications: `${APP_NAME},${SECOND_APP_NAME}`, format: 'xlsx' })
+      .buffer().parse((r, cb) => {
+        const chunks = [];
+        r.on('data', c => chunks.push(Buffer.from(c)));
+        r.on('end', () => cb(null, Buffer.concat(chunks)));
+      });
+
+    expect(res.status).toBe(200);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(res.body);
+    const sheet = workbook.worksheets[0];
+    const labels = [];
+    sheet.eachRow(row => { if (row.getCell(1).value === 'Entitlement') row.eachCell(c => labels.push(c.value)); });
+    // They vary per row now, so they stay in the table and there is no block.
+    expect(labels).toContain('Application');
+    expect(labels).toContain('CMDB reference');
   });
 });

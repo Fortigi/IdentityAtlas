@@ -143,28 +143,59 @@ Three details that are load-bearing rather than decorative:
 objects keyed on a person's sign-in name, because a share recipient is matched on that string rather
 than on a directory id — a different contract from "a list of entity ids".
 
-## Downloads, and which formats carry the notices
+## Downloads, and which formats carry a run's context
 
 `app/api/src/reports/export.js` is keyed on the **format** name, never on a report name, so every
 registered template is downloadable the moment it exists. Today: `csv`, `xlsx`, `json` — in that
 order, which is the order the UI offers them and the first is the default.
 
-Notices used to be stripped from every download, on the rule "a download is the rows". That was
-really a statement about CSV rather than about downloads: a CSV *is* a table, so anything above the
-header row breaks every parser that reads it. A workbook has room above the table and a reader who
-expects context there.
+A run produces two things a plain table cannot hold:
+
+| Field | What it is |
+|---|---|
+| `notices` | statements ABOUT the rows — what the numbers were computed from, which of them is a summary, when they stop being trustworthy |
+| `constantColumns` | column keys the run declares hold **one value throughout it** — the application a review is about, say |
+
+Both used to be stripped from every download, on the rule "a download is the rows". That was really a
+statement about CSV rather than about downloads: a CSV *is* a table, so anything above the header row
+breaks every parser that reads it. A workbook has room above the table and a reader who expects
+context there.
 
 So the decision belongs to the format and is declared there:
 
 ```js
-xlsx: { contentType: '…spreadsheetml.sheet', carriesNotices: true, serialize: toXlsx },
+xlsx: { contentType: '…spreadsheetml.sheet', carriesContext: true, serialize: toXlsx },
 ```
 
-`routes/reports.js` strips `notices` for every format that does not claim them, so **csv and json are
-byte-for-byte what they were**. A future format (pdf, html) opts in the same way, and the route still
-never asks which report it is serving — only what the chosen format can hold.
+`routes/reports.js` strips both fields for every format that does not claim them, so **csv and json
+are byte-for-byte what they were**. A future format (pdf, html) opts in the same way, and the route
+still never asks which report it is serving — only what the chosen format can hold. (The flag was
+`carriesNotices` while notices were the only such field; it is named for the category now that it
+gates two.)
 
-Two consequences worth knowing:
+### `constantColumns` — declared by the run, never derived
+
+The xlsx serializer writes each declared column once, above the table, as a label/value pair, and
+leaves it out of the table. So a review pack for **one** application opens with what the application
+is — name, owner, description, CMDB reference, connection type, onboarding sector, abbreviation,
+manager — and then lists its entitlements, instead of repeating those eight values down 21,000 rows.
+A run over **several** applications declares nothing constant, because they genuinely vary per row.
+
+Three rules hold it together:
+
+- **The run declares it; the serializer does not guess.** A column can hold one distinct value by
+  accident — every entitlement in a small application being non-requestable — and a serializer that
+  derived constancy from the rows would silently delete a real column.
+- **The serializer takes the declaration at its word.** It reads the value from the first row and
+  does not check the others. A run that declares a column constant and is wrong has a bug in the
+  report; quietly keeping the column would hide it.
+- **`columns` does not move.** It is the report's contract with the *screen*, which shows every
+  column whatever the run said. Only the sheet's body is a subset, and no value is lost — what leaves
+  the table appears in the header.
+
+Nothing is dropped when dropping would leave no table at all.
+
+Two more consequences worth knowing:
 
 - **A serializer may be async.** The route awaits every format, because a workbook is assembled and
   zipped rather than concatenated.
