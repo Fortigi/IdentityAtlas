@@ -320,12 +320,13 @@ function noApplicationsNamed() {
 
 const describe = apps => (apps.length === 1 ? `"${apps[0].displayName}"` : `${apps.length} applications`);
 
-// ─── The four data reads ──────────────────────────────────────────────────
+// ─── The five data reads ─────────────────────────────────────────────────
 
 // Every read after this one takes the entitlement ids as an explicit uuid[].
-// That is not cosmetic: fed the same set as a CTE sub-select, the planner falls
-// back to its default row estimate, picks a merge join and scans the whole
-// assignment table — 12.5s where the array form takes 0.5s on the same data.
+// That is not cosmetic: fed the same set as a CTE sub-select, the planner has no
+// row estimate for it, falls back to its default, picks a merge join and scans
+// the whole assignment table. Measured on the same 4.97M-row data, same result:
+// 12,478 ms as a CTE against 809 ms as an array.
 async function fetchEntitlements(appIds) {
   const { rows } = await db.query(
     `SELECT r.id, r."displayName", r."extendedAttributes", cm."contextId" AS "appId"
