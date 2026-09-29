@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- An Excel export of a report run over a **single** application now opens with that application — name, owner, description, CMDB reference, connection type, onboarding sector, abbreviation and manager — above the summaries, and leaves those columns out of the table below. The file reads as a document about an application followed by its entitlements, rather than eight values repeated on every row.
+- A field the source has not filled in still gets its line in that block, so an empty CMDB reference is visible rather than silent.
+- An export covering **several** applications keeps those details on each row, where they genuinely differ, and shows no header block.
+- CSV and JSON downloads are unchanged, and the report on screen still shows every column.
+
+## Changes in this PR
+
 - Report parameters that mean an entity are now **picked from a searchable list** instead of typed from memory. Start typing and matching entries are offered, each with a second line — size, source system — that tells two similarly named ones apart.
 - Picking from the list stores the entry's **identity**, not its name. An application whose name is shared with two others can no longer select all three by accident, so you find out about the ambiguity while choosing rather than from a warning after the report has run.
 - The Application Access Review report's application parameter uses the new picker. A link or bookmark that carries the ids still works, and now shows the application names rather than raw ids.
