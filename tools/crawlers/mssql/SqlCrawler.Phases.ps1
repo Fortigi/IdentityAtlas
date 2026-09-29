@@ -503,6 +503,11 @@ function Write-SqlSlotSummary {
     param([Parameter(Mandatory)] [hashtable]$Ctx, [long]$Rows = 0, [double]$Seconds = 0, [int]$Systems = 1)
     $note = @()
     if ($Ctx.Skipped)    { $note += "$($Ctx.Skipped.ToString('N0')) skipped (no id / required columns)" }
+    # Deliberately not worded as a problem, and deliberately not part of the
+    # colour below: most entitlements belonging to no logical application is
+    # what a healthy source looks like. Reading as an error is what kept this
+    # hidden inside the "skipped (no id / required columns)" count.
+    if ($Ctx.Unreferenced) { $note += "$($Ctx.Unreferenced.ToString('N0')) naming no context" }
     if ($Ctx.Dangling)   { $note += "$($Ctx.Dangling.ToString('N0')) dangling (unknown resource or principal id)" }
     if ($Ctx.Unresolved) { $note += "$($Ctx.Unresolved.ToString('N0')) without a known context" }
     if ($Ctx.Misrouted)  { $note += "$($Ctx.Misrouted.ToString('N0')) naming an unknown system" }
@@ -526,6 +531,15 @@ function Invoke-SqlSlot {
     $complete = -not ($delta -and $delta.Windowed)
     if ($Slot.target -eq 'resources' -and -not $complete) { $State.ResourcesComplete = $false }
     $ctx = @{ Slot = $Slot; Map = $null; Streams = (New-SqlSlotStreams -Slot $Slot -State $State -Complete $complete); State = $State
+              # Rows that arrived intact but carried no value in an OPTIONAL
+              # reference column, so there was nothing to place them against.
+              # Deliberately NOT one of the tallies on the next line: those are
+              # what Add-SqlReadCheck folds into the unplaced bound, and an
+              # absent optional reference is a fact about the source rather than
+              # a row this statement failed to place. Skipped is for a REQUIRED
+              # column being absent. See Add-SqlContextMemberRow, the only
+              # handler with an optional reference today.
+              Unreferenced = 0
               Delta = $delta; Complete = $complete
               Route = 'fixed'; Rows = 0; Skipped = 0; Dangling = 0; Unresolved = 0; Misrouted = 0
               # What the source held when the read started — the other end of the
@@ -553,6 +567,7 @@ function Invoke-SqlSlot {
         Join-SqlOwnershipTally -Into $State.Ownership -From $ctx.Ownership
     }
     $State.Totals[$Slot.name] = @{ target = $Slot.target; rows = $rows; sent = $sent; skipped = $ctx.Skipped
+                                   unreferenced = $ctx.Unreferenced
                                    dangling = $ctx.Dangling; unresolved = $ctx.Unresolved; misrouted = $ctx.Misrouted
                                    systems = $systems; complete = $complete; ownership = $ownership }
     return $State.Totals[$Slot.name]

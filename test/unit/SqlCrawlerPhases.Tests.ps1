@@ -197,6 +197,64 @@ Describe 'New-SqlSlotStreams' {
     }
 }
 
+# The line an operator reads to decide whether a run went well. "skipped (no id
+# / required columns)" was wrong for 633,012 rows of one real run that simply
+# belonged to no logical application, and reading as an error is what kept the
+# defect invisible until the 5% bound failed the job.
+Describe 'Write-SqlSlotSummary' {
+    BeforeAll {
+        # Declared here, not at Describe scope: a helper outside BeforeAll is
+        # invisible to the It blocks.
+        function New-SummaryCtx([hashtable]$Over = @{}) {
+            $c = @{ Slot = @{ name = 'Context members'; target = 'context-members' }
+                    Skipped = 0; Dangling = 0; Unresolved = 0; Misrouted = 0; Unreferenced = 0 }
+            foreach ($k in $Over.Keys) { $c[$k] = $Over[$k] }
+            return $c
+        }
+    }
+
+    BeforeEach {
+        $script:said = [System.Collections.Generic.List[object]]::new()
+        Mock Write-Host { $script:said.Add(@{ Text = [string]$Object; Colour = [string]$ForegroundColor }) }
+    }
+
+    It 'states an absent optional reference as a fact, not as something skipped' {
+        Write-SqlSlotSummary -Ctx (New-SummaryCtx @{ Unreferenced = 633012 }) -Rows 805756 -Seconds 230
+        $line = $script:said[0].Text
+        $line | Should -Match '633[.,]012 naming no context'
+        $line | Should -Not -Match 'skipped'
+        $line | Should -Not -Match 'required columns'
+    }
+
+    It 'does not colour the line as a warning for an absent optional reference, but still does for a real finding' {
+        Write-SqlSlotSummary -Ctx (New-SummaryCtx @{ Unreferenced = 633012 }) -Rows 805756 -Seconds 230
+        $script:said[0].Colour | Should -Be 'Gray'
+        $script:said.Clear()
+        Write-SqlSlotSummary -Ctx (New-SummaryCtx @{ Unreferenced = 10; Skipped = 1 }) -Rows 100 -Seconds 1
+        $script:said[0].Colour | Should -Be 'Yellow'
+    }
+
+    It 'still names skipped, dangling, unresolved and misrouted rows the way it always did' {
+        Write-SqlSlotSummary -Ctx (New-SummaryCtx @{ Skipped = 3; Dangling = 4; Unresolved = 5; Misrouted = 6 }) -Rows 100 -Seconds 2
+        $line = $script:said[0].Text
+        $line | Should -Match '3 skipped \(no id / required columns\)'
+        $line | Should -Match '4 dangling \(unknown resource or principal id\)'
+        $line | Should -Match '5 without a known context'
+        $line | Should -Match '6 naming an unknown system'
+    }
+
+    It 'no longer cries "every row was skipped" when every row simply named no context' {
+        # Skipped -eq Rows used to be true for a statement whose rows all lack an
+        # optional reference, which is the normal shape of such a source.
+        Write-SqlSlotSummary -Ctx (New-SummaryCtx @{ Unreferenced = 50 }) -Rows 50 -Seconds 1
+        @($script:said | Where-Object { $_.Text -match 'every row was skipped' }).Count | Should -Be 0
+        # A statement that really did lose every row still says so.
+        $script:said.Clear()
+        Write-SqlSlotSummary -Ctx (New-SummaryCtx @{ Skipped = 50 }) -Rows 50 -Seconds 1
+        @($script:said | Where-Object { $_.Text -match 'every row was skipped' }).Count | Should -Be 1
+    }
+}
+
 Describe 'Get-SqlRowHandler' {
     It 'maps every target to its handler and rejects an unknown one' {
         Get-SqlRowHandler -Target 'identities' | Should -Be 'Add-SqlIdentityRow'
