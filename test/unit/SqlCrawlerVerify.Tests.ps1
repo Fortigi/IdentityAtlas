@@ -26,9 +26,19 @@ BeforeAll {
     $script:ApiBaseUrl = 'http://localhost:3001/api'; $script:ApiKey = 'fgc_test'; $script:JobId = 0
     . (Join-Path $root 'tools' 'crawlers' 'mssql' 'SqlCrawler.Load.ps1')
     function New-State { New-SqlRunState -SystemId 5 -ServerTime '2026-09-26T08:00:00.000Z' -Slots @() -BatchSize 1000 }
-    function New-Keyed([long]$Rows, [int]$Distinct) {
-        $e = Get-SqlExpectation -State (New-State) -Key 'k' -Endpoint 'ingest/principals' -Scope @{ principalType = 'User' }
+    function New-Keyed([long]$Rows, [int]$Distinct, [string]$Endpoint = 'ingest/principals') {
+        $e = Get-SqlExpectation -State (New-State) -Key 'k' -Endpoint $Endpoint -Scope @{ principalType = 'User' }
         for ($i = 0; $i -lt $Distinct; $i++) { [void]$e.KeySet.Add("p$i") }
+        $e.Rows = $Rows
+        return $e
+    }
+    # A relationships scope the way Add-SqlRelationshipRow fills it: one key per
+    # (parent, child) pair, and $Rows counting every source row that produced one.
+    function New-PairKeyed([long]$Rows, [int]$Distinct, [string]$Endpoint = 'ingest/resource-relationships') {
+        # -Keyed: an assignment endpoint has no key set unless it is asked for,
+        # which is exactly how the ownership owner assignment gets one.
+        $e = Get-SqlExpectation -State (New-State) -Key 'r' -Endpoint $Endpoint -Scope @{ relationshipType = 'Contains' } -Keyed
+        for ($i = 0; $i -lt $Distinct; $i++) { [void]$e.KeySet.Add("role$i|ent$i") }
         $e.Rows = $Rows
         return $e
     }
@@ -79,6 +89,72 @@ Describe 'Get-SqlScopeVerdict — keyed scopes' {
     It 'fails when the database holds fewer or more rows than distinct ids sent' {
         (Get-SqlScopeVerdict -Expectation (New-Keyed -Rows 5 -Distinct 5) -Atlas 4).ok | Should -BeFalse
         (Get-SqlScopeVerdict -Expectation (New-Keyed -Rows 5 -Distinct 5) -Atlas 6).ok | Should -BeFalse
+    }
+
+    It 'keeps the repeated-id failure for resources, where one record really does replace another' {
+        # The check exists for this: two resources sharing an externalId are two
+        # DIFFERENT records, and only one survives. Nothing here may soften.
+        $v = Get-SqlScopeVerdict -Expectation (New-Keyed -Rows 5540 -Distinct 5534 -Endpoint 'ingest/resources') -Atlas 5534
+        $v.ok | Should -BeFalse
+        $v.reason | Should -Match '6 were lost'
+        (Get-SqlScopeVerdict -Expectation (New-Keyed -Rows 176696 -Distinct 22087 -Endpoint 'ingest/resources') -Atlas 22087).ok | Should -BeFalse
+    }
+}
+
+# A relationship is keyed on (parent, child) and an assignment on
+# (resource, principal). Two source rows producing one such key are the same
+# edge — a business role can reference one entitlement through two source
+# applications — so collapsing them is correct and idempotent. Held to the id
+# rule, a real run failed with expected and database BOTH reading 5,534:
+#   FAIL resource-relationships (relationshipType=Contains) expected 5,534  database 5,534
+#        the source returned 5,540 rows for only 5,534 distinct ids ... so 6 were lost
+Describe 'Get-SqlScopeVerdict — scopes keyed on a pair' {
+    It 'passes the field failure: 5,540 source rows, 5,534 distinct pairs, 5,534 in the database' {
+        $v = Get-SqlScopeVerdict -Expectation (New-PairKeyed -Rows 5540 -Distinct 5534) -Atlas 5534
+        $v.ok | Should -BeTrue
+        $v.expected | Should -Be 5534
+        $v.atlas | Should -Be 5534
+        $v.reason | Should -Match '5[.,]540 source rows collapsed to 5[.,]534 distinct pairs'
+        # The specific false claim that failed the run must be gone.
+        $v.reason | Should -Not -Match '\d+ were lost'
+        $v.reason | Should -Not -Match 'Make the id column unique'
+    }
+
+    It 'compares distinct against distinct, so a shortfall in the database still fails' {
+        # The collapse is forgiven; the database disagreeing with what was sent
+        # is not. Without this the change would be a hole rather than a fix.
+        (Get-SqlScopeVerdict -Expectation (New-PairKeyed -Rows 5540 -Distinct 5534) -Atlas 5533).ok | Should -BeFalse
+        (Get-SqlScopeVerdict -Expectation (New-PairKeyed -Rows 5540 -Distinct 5534) -Atlas 5535).ok | Should -BeFalse
+        (Get-SqlScopeVerdict -Expectation (New-PairKeyed -Rows 5540 -Distinct 5534) -Atlas 0).ok | Should -BeFalse
+    }
+
+    It 'says nothing about a collapse when there was none' {
+        $v = Get-SqlScopeVerdict -Expectation (New-PairKeyed -Rows 5534 -Distinct 5534) -Atlas 5534
+        $v.ok | Should -BeTrue
+        $v.reason | Should -BeNullOrEmpty
+    }
+
+    It 'treats a keyed ownership assignment the same way, since its key is (resource, principal) too' {
+        # The only assignment scope that carries a key set: one owner assignment
+        # per owned resource. Two statements naming the same owner of the same
+        # resource are one assignment, not a lost record.
+        $v = Get-SqlScopeVerdict -Expectation (New-PairKeyed -Rows 12 -Distinct 10 -Endpoint 'ingest/resource-assignments') -Atlas 10
+        $v.ok | Should -BeTrue
+        $v.reason | Should -Match 'collapsed to 10 distinct pairs'
+    }
+}
+
+Describe 'Test-SqlPairKeyedEndpoint' {
+    It 'is true exactly for the two endpoints the model keys on a pair' {
+        Test-SqlPairKeyedEndpoint -Endpoint 'ingest/resource-relationships' | Should -BeTrue
+        Test-SqlPairKeyedEndpoint -Endpoint 'ingest/resource-assignments' | Should -BeTrue
+    }
+
+    It 'is false for every scope keyed on one record id, and for nothing at all' {
+        Test-SqlPairKeyedEndpoint -Endpoint 'ingest/resources' | Should -BeFalse
+        Test-SqlPairKeyedEndpoint -Endpoint 'ingest/principals' | Should -BeFalse
+        Test-SqlPairKeyedEndpoint -Endpoint 'ingest/identities' | Should -BeFalse
+        Test-SqlPairKeyedEndpoint -Endpoint '' | Should -BeFalse
     }
 }
 
@@ -204,6 +280,27 @@ Describe 'expectations while streaming' {
         $state.Reads[0].Source | Should -Be 3
     }
 
+    It 'a relationships slot whose join produces one edge twice verifies, through the real streaming path' {
+        # Not the pure verdict this time: the whole path, so the key the handler
+        # actually builds ("parent|child") is the one the verdict judges. A
+        # business role reaching one entitlement through two source applications
+        # is the shape that failed in the field.
+        Mock Measure-SqlSource { @{ rows = [long]3; pairs = $null; reason = $null } }
+        $script:replay = @(
+            ([ordered]@{ parentId = 'role1'; childId = 'ent1' }),
+            ([ordered]@{ parentId = 'role1'; childId = 'ent1' }),
+            ([ordered]@{ parentId = 'role1'; childId = 'ent2' }))
+        Mock Invoke-SqlQueryStream { foreach ($r in $script:replay) { & $OnRow $r }; [long]3 }
+        $state = New-State
+        Invoke-SqlSlot -Slot @{ name = 'Composition'; target = 'relationships'; relationshipType = 'Contains'; sql = 'S'; paged = $false } -Connection 'c' -State $state | Out-Null
+        $e = $state.Expect['ingest/resource-relationships|relationshipType=Contains']
+        $e.Rows | Should -Be 3
+        $e.KeySet.Count | Should -Be 2
+        $v = Get-SqlScopeVerdict -Expectation $e -Atlas 2
+        $v.ok | Should -BeTrue
+        $v.reason | Should -Match '3 source rows collapsed to 2 distinct pairs'
+    }
+
     It 'an assignment slot takes the source distinct pairs and its dangling rows from the one measurement' {
         Mock Measure-SqlSource { @{ rows = [long]9; pairs = [long]7; reason = $null } }
         $script:replay = @(([ordered]@{ principalId = 'p1'; resourceId = 'r1' }), ([ordered]@{ principalId = 'p1'; resourceId = 'r1' }))
@@ -280,6 +377,27 @@ Describe 'Test-SqlRunCounts' {
         { Test-SqlRunCounts -State $state } | Should -Throw '*Verification failed for 1 of 2 check(s): read: Identities: expected 176703, read 22087*'
         $state.Verification[0].scope | Should -Be 'read: Identities'
         $state.Verification[1].ok | Should -BeTrue -Because 'the database does hold everything that was read'
+    }
+
+    It 'no longer fails the whole run over a collapsed relationship pair, and still does over a repeated resource id' {
+        Mock Invoke-IngestAPI { @{ count = 5534 } }
+        Mock Update-CrawlerProgress { }
+        # The field run: the relationships scope agrees with the database exactly
+        # and only the duplicate-id complaint failed the job.
+        $ok = New-State
+        $r = Get-SqlExpectation -State $ok -Key 'r' -Endpoint 'ingest/resource-relationships' -Scope @{ relationshipType = 'Contains' }
+        for ($i = 0; $i -lt 5534; $i++) { [void]$r.KeySet.Add("role$i|ent$i") }
+        $r.Rows = 5540
+        $results = @(Test-SqlRunCounts -State $ok)
+        $results.Count | Should -Be 1
+        $results[0].ok | Should -BeTrue
+        # Same numbers on a resources scope: still a failure, because there one
+        # record really did replace another.
+        $bad = New-State
+        $res = Get-SqlExpectation -State $bad -Key 'x' -Endpoint 'ingest/resources' -Scope @{ resourceType = 'Entitlement' }
+        for ($i = 0; $i -lt 5534; $i++) { [void]$res.KeySet.Add("e$i") }
+        $res.Rows = 5540
+        { Test-SqlRunCounts -State $bad } | Should -Throw '*Verification failed*'
     }
 
     It 'verifies reads alone when no scope was fed' {
