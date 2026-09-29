@@ -1,0 +1,92 @@
+# ─── Unattended dependency merges on a maintained release line ───────────────
+# Enables GitHub auto-merge on Dependabot pull requests targeting release/**, so
+# a dependency update reaches the release branch without anyone clicking merge.
+# Auto-merge does not bypass anything: GitHub holds the PR until every required
+# status check on the "Protect release branches" ruleset is green, then squashes
+# it. A red PR sits there forever, which is the desired behaviour.
+#
+# Deliberately scoped to release/**. Updates to main keep their human merge —
+# main is where features land, the blast radius is different, and the Protect
+# main ruleset requires an approving review that this workflow does not give.
+#
+# ── Why patch and minor only ────────────────────────────────────────────────
+# A major version is the one update that is expected to break callers. On a
+# stable line whose whole purpose is not surprising anyone, taking one
+# unattended is the wrong trade: the customer asked for current libraries, not
+# for a rewrite arriving on a Tuesday. Majors still get a PR, and it waits for a
+# person. They are rare among production dependencies — nothing on this line has
+# had one in months — so this is not a queue anybody has to tend.
+#
+# ── Why pull_request_target ─────────────────────────────────────────────────
+# A `pull_request` run against a Dependabot PR gets a READ-ONLY GITHUB_TOKEN and
+# cannot enable auto-merge. `pull_request_target` runs in the context of the
+# base branch with a writable token.
+#
+# That trigger is dangerous when a workflow checks out and executes PR code,
+# because the code would run with those write permissions. This one never checks
+# out the PR at all — it reads metadata and calls the GitHub API, nothing more.
+# Do not add `actions/checkout` here.
+name: Dependabot auto-merge
+
+on:
+  pull_request_target:
+    branches:
+      - 'release/**'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: 'Auto-merge dependency update'
+    # Both halves are required, and they check different things:
+    #
+    #   * `pull_request.user.login` is who AUTHORED the PR. This is the real
+    #     scope guard — a PR opened by anyone else is none of this workflow's
+    #     business, whatever later triggers a run on it.
+    #   * `github.actor` is who triggered THIS run. Requiring it too means that
+    #     once a human pushes a commit to a Dependabot branch, the run is
+    #     skipped and the PR reverts to being merged by hand — human-edited
+    #     code should not ride in on a dependency update's automation.
+    #
+    # Both must hold, so the workflow only ever acts on an untouched Dependabot
+    # PR. It is also scoped to release/** by the trigger above; PRs to main are
+    # never considered here.
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for patch and minor updates
+        if: |
+          steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+          steps.meta.outputs.update-type == 'version-update:semver-minor'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          echo "Update type: ${{ steps.meta.outputs.update-type }}"
+          # --auto queues the merge behind the branch's required checks rather
+          # than merging now. If a check later fails, nothing is merged.
+          gh pr merge --auto --squash "$PR_URL"
+
+      - name: Leave major updates for a person
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          echo "::notice::Major version update — not auto-merged. A maintainer must review and merge this."
+          gh pr comment "$PR_URL" --body \
+            "This is a **major** version update, so it was not auto-merged onto the release line.
+
+          Patch and minor updates merge themselves once CI is green. A major is the one update expected to change behaviour for callers, and a maintained release line exists to avoid surprises — so this one wants a person.
+
+          If it is safe for this line, merge it. If it belongs only on \`main\`, close it; Dependabot will not reopen it for this branch."

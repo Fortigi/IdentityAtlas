@@ -969,6 +969,7 @@ jobs:
           bash test/ci-scripts/test-dor-trusted-spec.sh
           bash test/ci-scripts/test-dor-agent-sandbox.sh
           bash test/ci-scripts/test-dor-token-checkpoint.sh
+          bash test/ci-scripts/test-release-prev-tag.sh
           bash test/ci-scripts/test-gate-wiring.sh
 
       # The two Python tools that render and feed the Test Coverage docs page.
@@ -982,6 +983,14 @@ jobs:
           python3 -m pip install --quiet pytest
           python3 -m pytest tools/test_generate_coverage_doc.py \
                             tools/mutation/test_stryker_to_mutation_json.py -q
+
+      # Runs only from cut-release.yml / cut-hotfix.yml, so nothing else would
+      # exercise it until a release was already being cut — and a release is a
+      # bad place to discover that the notes generator throws.
+      - name: Test the release-notes dependency delta
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/release-notes/test_dependency_delta.py -q
 
   # ── Stage 15: Docs site build (strict) ────────────────────────────────────
   # `docs.yml` publishes the site, but it only runs on push to main — so until

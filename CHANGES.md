@@ -1,5 +1,39 @@
 ## Changes in this PR
 
+- SQL Database crawler: a run against a large live source that is updated while it is being read no longer fails verification. The crawler now counts each statement's rows in the source both before and after it reads them, and a complete read only has to fall between the two — so a source that gained or lost rows mid-read verifies, while a read that stopped early still fails.
+- The amount the source moved during each read is now reported in the job log and in the verification table, pass or fail ("the source moved by 15,455 rows during the read").
+- Fixed: one drifting statement used to cost the whole run its delta watermarks, because verification runs before they are stored. Against a continuously updated source that made every run fail identically and the delta import could never establish a baseline.
+- The assignment count against the database is allowed the same movement, so it no longer fails for the same reason.
+- Unchanged and still strict: a source that did not move is held to an exact count, the limit on rows that arrive but cannot be placed, and the check that fails a statement whose id column repeats.
+
+## Changes in this PR
+
+- Added an **Application Access Review** report: pick one or more logical applications and get one row per entitlement, split into what the application owner has to decide on (requestable, not granted by a business role), what is information only, and what a business role already manages.
+- Each row carries the certification frequency and entitlement owner exactly as the source stores them, whether the entitlement is requestable, which business role(s) grant it, and how many people hold it directly versus through a role — the split that tells an owner whether an entitlement is reviewable at all.
+- An entitlement with no certification frequency now reads "Not set" rather than a blank cell, and the report warns when the same frequency is stored under near-duplicate spellings instead of quietly merging them.
+- The report summarises the application in five figures: unique users with access, entitlements in scope, distinct entitlement owners, the share of entitlements a role already manages, and the share per certification frequency.
+- The application's own description, owner, abbreviation, CMDB reference, connection type, onboarding sector and application manager travel on every row, so the downloaded CSV stands on its own.
+- Report tables are now paged, so a report with tens of thousands of rows opens instead of freezing the browser. Downloads are unaffected and still contain every row.
+- The IdentityIQ-shaped test fixture now matches what production catalogues actually look like: almost no entitlement has a certification frequency set, and the ones that do use a vocabulary with real-world inconsistencies.
+
+## Changes in this PR
+
+- Library updates now reach the maintained release line on their own. Dependabot checks the release branch daily for updates to the packages and base images that actually ship, and those updates merge themselves once the tests pass — so a release built from that line carries current libraries without anyone shepherding updates onto it.
+- Only production dependencies and container base images are updated on the release line; build- and test-only tooling is left alone, since none of it is present in what customers run.
+- Major version updates are never merged unattended. They still get raised, with a note explaining that a person needs to decide whether the change belongs on a stable line.
+- Added documentation on maintaining a release line: what updates itself, what does not, how to port a fix from the main branch, and how to start the next line.
+- Dependency updates are only merged unattended while the pull request is untouched: if anyone pushes a commit to one, it reverts to being merged by hand.
+
+## Changes in this PR
+
+- Release notes now list the dependency updates a release actually ships: a "Dependency updates" section naming each package that moved, what it moved from and to, and any change to the container base images. Previously a release made up only of library upgrades produced notes with nothing in them, which was exactly the release where operators most needed to see which versions changed.
+- The section reports only what reaches the published image — the API's installed production packages, the libraries bundled into the UI, and the pinned base images — so build- and test-only tooling no longer crowds out the updates that matter.
+- Fixed the release a set of notes is compared against. Patch releases cut from a maintained release line were compared against the newest release overall, so a patch could be described as removing everything a later version had added; a release that was the first of its series could lose its change list and changelog link entirely. Both release workflows now determine this the same way.
+- Added documentation covering how a release's notes are assembled, and corrected the branching guide, which stated that releases can only be cut from the tip of the main branch.
+- No change to behaviour from the lockfile-reading split; it is the same parsing in three smaller pieces.
+
+## Changes in this PR
+
 - The SQL connector can now refresh incrementally instead of re-reading its whole source. A query opts in by naming the column it advances on (e.g. `modified`) and referencing `@Since` in its SQL; the crawler then reads only the rows that changed since the last successful run. The shipped IdentityIQ example does this for the two entitlement-grant queries, which are the ones large enough for a full read to be an overnight job.
 - Removals are found by a periodic **key sweep**: the query's complete set of ids is read and anything Identity Atlas still holds but the source no longer has is removed. It runs at most once every `sweepIntervalHours` (a day by default), so a removal shows within one interval while routine refreshes stay small.
 - A sweep refuses to remove more than 5% of a scope in one go, and writes nothing when it would — a source read while it is being re-aggregated looks exactly like a mass revocation. `sweepOverride` lets a genuinely large removal through for one run.
