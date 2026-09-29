@@ -91,18 +91,22 @@ To publish a build for testers without touching `:latest`:
 
 1. Go to **Actions → Cut Beta → Run workflow**
 2. Enter the version: `Major.Minor.Patch-beta.N` (e.g. `5.3.0-beta.1`, `5.3.0-rc.1`, `5.3.0-alpha.1`)
-3. The workflow creates the tag on the current `main` HEAD
+3. The workflow creates the tag on the current `main` HEAD (or on the optional **ref** input — any branch, tag or commit)
 4. `docker-publish.yml` builds `:beta` + `:5.3.0-beta.1`
 
 Users on `docker-compose.prod.yml` tracking `:latest` are **not** affected.
 
 ## Cutting a Release
 
+> The body of the GitHub release — changelog, baseline comparison and the
+> dependency-update list — is assembled by the workflow. See
+> [How a release's notes are assembled](../process/release-notes.md).
+
 When `main` is stable and ready to ship to customers:
 
 1. Go to **Actions → Cut Release → Run workflow**
 2. Enter the version: `Major.Minor.Patch` (e.g. `5.2.0`)
-3. The workflow creates tag `v5.2.0` on the current `main` HEAD
+3. The workflow creates tag `v5.2.0` on the current `main` HEAD (or on the optional **ref** input — any branch, tag or commit)
 4. `docker-publish.yml` triggers automatically on the tag push and builds `:latest` + `:5.2.0.0`
 
 Customers who track `:latest` will receive the new version on their next `docker compose pull`.
