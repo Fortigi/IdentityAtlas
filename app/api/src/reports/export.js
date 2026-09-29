@@ -7,6 +7,19 @@
 // The serializers take exactly the payload the rows endpoint returns, so a
 // downloaded file can never disagree with what the screen showed: same columns,
 // same rows, same `generatedAt`.
+//
+// NOTICES. A report's notices are statements ABOUT the rows — what the numbers
+// were computed from, which of them is a summary, when they stop being
+// trustworthy. They used to be screen-only, which was really a statement about
+// CSV rather than about downloads: a CSV *is* a table, so anything above the
+// header row breaks every parser that reads it. A workbook has room above the
+// table and a reader who expects context there. So the decision is the format's
+// and is declared here as `carriesNotices`; routes/reports.js strips them for
+// every format that does not claim them, and csv and json are byte-for-byte what
+// they were. This is generic on purpose — every report has notices, and a future
+// format (pdf, html) opts in the same way.
+
+import ExcelJS from 'exceljs';
 
 const FILENAME_PREFIX = 'identity-atlas';
 
@@ -42,8 +55,129 @@ function toJson(report) {
   return JSON.stringify(report, null, 2);
 }
 
+// ─── xlsx ─────────────────────────────────────────────────────────────────
+
+// Excel's own limit. A report that stops at its own cap is already flagged
+// `truncated`; this is the floor under a template that has no cap at all.
+const SHEET_ROW_LIMIT = 1048575;
+// Column widths are derived from content, then clamped: a description column
+// sized to its longest value would be hundreds of characters wide.
+const MIN_WIDTH = 10;
+const MAX_WIDTH = 60;
+const WIDTH_SAMPLE = 200;
+
+const HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+const HEADER_FONT = { bold: true, size: 11, color: { argb: 'FF374151' } };
+const MUTED_FONT = { size: 10, color: { argb: 'FF6B7280' } };
+
+/** Excel rejects these in a sheet name, and caps it at 31 characters. */
+function sheetName(displayName) {
+  return String(displayName || 'Report').replace(/[[\]:*?/\\]/g, ' ').trim().slice(0, 31) || 'Report';
+}
+
+/**
+ * A column's width from the header and the first rows — enough to read the
+ * table without opening it, without sizing the sheet to one outlier. Only the
+ * first `WIDTH_SAMPLE` rows are measured: the width is cosmetic and a report can
+ * be 50,000 rows long.
+ */
+function columnWidth(column, rows) {
+  let longest = String(column.label ?? '').length;
+  for (let i = 0; i < rows.length && i < WIDTH_SAMPLE; i++) {
+    const value = rows[i]?.[column.key];
+    if (value !== null && value !== undefined) longest = Math.max(longest, String(value).length);
+  }
+  return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, longest + 2));
+}
+
+/**
+ * The block above the table: what this is, when it was computed, and every
+ * notice the report returned — which is where a summary lives now that a
+ * download can hold one. Returns the row index the table starts on.
+ */
+function writeSummary(sheet, { displayName, generatedAt, total, notices = [], truncated }) {
+  sheet.getCell('A1').value = String(displayName ?? 'Report');
+  sheet.getCell('A1').font = { bold: true, size: 14 };
+
+  const counted = Number.isFinite(total) ? total : 0;
+  sheet.getCell('A2').value = `${counted.toLocaleString('en-US')} row(s) · generated ${generatedAt ?? ''}`.trim();
+  sheet.getCell('A2').font = MUTED_FONT;
+
+  let row = 4;
+  if (truncated) {
+    // Louder than a notice, because it changes what the file IS: the first N
+    // rows of an answer, presented as a file, read as the whole answer.
+    sheet.getCell(`A${row}`).value = 'This export stops at the report\'s row cap and is NOT the complete result.';
+    sheet.getCell(`A${row}`).font = { bold: true, color: { argb: 'FF991B1B' } };
+    row += 1;
+  }
+  for (const notice of notices) {
+    sheet.getCell(`A${row}`).value = String(notice?.text ?? '');
+    if (notice?.severity === 'warning') sheet.getCell(`A${row}`).font = { color: { argb: 'FF92400E' } };
+    row += 1;
+  }
+  return row + 1; // one blank row between the summary and the table
+}
+
+/**
+ * The whole report as one worksheet: the summary block, then the same table the
+ * CSV holds.
+ *
+ * Cell values are written RAW — no leading-apostrophe guard, deliberately. The
+ * CSV guard (M-05) exists because a CSV cell has no type: a spreadsheet decides
+ * what `=cmd|calc` means when it opens the file. An xlsx cell is typed, and a
+ * string written here is stored as a string, never as a `<f>` formula, so the
+ * apostrophe would be a character of corruption rather than a defence. The
+ * invariant that actually matters is pinned by the tests, which assert the cell
+ * round-trips with its exact original text AND with cell type String.
+ */
+async function toXlsx({ displayName, columns = [], rows = [], notices, total, generatedAt, truncated } = {}) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Identity Atlas';
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet(sheetName(displayName));
+  const headerRow = writeSummary(sheet, { displayName, generatedAt, total, notices, truncated });
+
+  columns.forEach((column, i) => { sheet.getColumn(i + 1).width = columnWidth(column, rows); });
+
+  const header = sheet.getRow(headerRow);
+  columns.forEach((column, i) => {
+    const cell = header.getCell(i + 1);
+    cell.value = column.label;
+    cell.font = HEADER_FONT;
+    cell.fill = HEADER_FILL;
+  });
+  header.commit?.();
+
+  const capped = rows.length > SHEET_ROW_LIMIT - headerRow ? rows.slice(0, SHEET_ROW_LIMIT - headerRow) : rows;
+  capped.forEach((row, i) => {
+    const target = sheet.getRow(headerRow + 1 + i);
+    columns.forEach((column, c) => {
+      const value = row[column.key];
+      target.getCell(c + 1).value = value === undefined ? null : value;
+    });
+  });
+
+  if (columns.length) {
+    // Freeze everything above and including the header, so scrolling a
+    // 39,000-row review keeps both the summary anchor and the column names.
+    sheet.views = [{ state: 'frozen', ySplit: headerRow }];
+    sheet.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: headerRow, column: columns.length } };
+  }
+
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+// Order is the order the UI offers them in, and the first is the default.
 const SERIALIZERS = {
   csv: { contentType: 'text/csv; charset=utf-8', serialize: toCsv },
+  xlsx: {
+    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    // The one format with room for them. See NOTICES at the top of this file.
+    carriesNotices: true,
+    serialize: toXlsx,
+  },
   json: { contentType: 'application/json; charset=utf-8', serialize: toJson },
 };
 
@@ -55,7 +189,9 @@ const SERIALIZERS = {
 // greps `app/api/src` and `app/ui/src` for quoted crawler-type literals so that
 // core can't hardcode crawler behaviour.
 export const EXPORT_FORMATS = Object.fromEntries(
-  Object.entries(SERIALIZERS).map(([name, format]) => [name, { extension: name, ...format }]),
+  Object.entries(SERIALIZERS).map(([name, format]) => [
+    name, { extension: name, carriesNotices: false, ...format },
+  ]),
 );
 
 /** Format names offered for download, in the order the UI should show them. */
