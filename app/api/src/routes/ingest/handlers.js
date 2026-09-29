@@ -19,6 +19,7 @@ import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, EN
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/crawlerAuth.js';
 import { normalizePresenceQuery, lookupCrawlerPresence } from '../../ingest/crawlerPresence.js';
 import { parseReconcileRequest, reconcileStale, countTouched, ReconcileRequestError } from '../../ingest/reconcileStale.js';
+import { oneLineForLog } from '../../lib/oneLineForLog.js';
 import { viewRefresh } from './matrixViews.js';
 import { buildSyncLogRow, classifyScope, classifyStatements } from './dataPlane.js';
 import {
@@ -39,7 +40,7 @@ async function batchBoundaryError(req, body, allowed, ctx) {
   if (!allowed) return null;
   const denial = await systemBoundaryDenial({ ...ctx, records: ctx.normalized, syncMode: body.syncMode, allowed });
   if (!denial) return null;
-  console.warn(`Ingest denied for crawler ${req.crawler?.id}: ${denial}`);
+  console.warn('Ingest denied for crawler %s: %s', req.crawler?.id, oneLineForLog(denial));
   return { status: 403, error: denial };
 }
 
@@ -50,7 +51,7 @@ async function batchBoundaryError(req, body, allowed, ctx) {
 // that ignores the body leaves behind.
 function ingestNotices(entityType, body, { systemIds, managerLinks }) {
   const ownerWarning = unownedContextWarning(entityType, body.records, body.systemId);
-  if (ownerWarning) console.warn('Ingest contexts: %s', ownerWarning);
+  if (ownerWarning) console.warn('Ingest contexts: %s', oneLineForLog(ownerWarning));
   const managerWarning = managerLinkWarning(managerLinks);
   if (managerWarning) console.warn('Ingest %s: %s', entityType, managerWarning);
 
@@ -163,7 +164,7 @@ function createIngestHandler(entityType) {
         ...notices,
       });
     } catch (err) {
-      console.error(`Ingest error (${entityType}):`, err.message);
+      console.error('Ingest error (%s): %s', entityType, oneLineForLog(err.message));
       await writeSyncLog(null, `API-${entityType}`, tableName, startTime,
                          body.records?.length || 0, 0, 0, 0, err.message).catch(() => {});
       // 422 for a context-cycle rejection (migration 059's trigger), else 500.
@@ -280,8 +281,7 @@ router.post('/ingest/reconcile', async (req, res) => {
     // fixed table map, so it is one of a known set — but it still arrives in the
     // request body. Keep it out of the format string and strip line breaks, so no
     // caller can garble or forge a log line (CWE-134 / CWE-117).
-    const safeEntity = String(entity).replace(/[\r\n]+/g, ' ');
-    console.error('Reconcile error (%s): %s', safeEntity, err.message);
+    console.error('Reconcile error (%s): %s', oneLineForLog(entity), oneLineForLog(err.message));
     return res.status(500).json({ error: 'Reconcile failed' });
   }
 });

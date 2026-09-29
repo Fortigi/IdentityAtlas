@@ -13,6 +13,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
+import { format } from 'node:util';
 
 const UUID = '11111111-1111-1111-1111-111111111111';
 
@@ -301,6 +302,17 @@ describe('ingest handler — single batch', () => {
     expect(res.status).toBe(500);
     expect(res.body.error).toMatch(/ingest failed/i);
   });
+
+  // A database error can quote a record value verbatim; one with a line break in
+  // it must not start a second, forged log line (CWE-117).
+  it('logs an engine error on one line, whatever the error text holds', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockIngest.mockRejectedValue(new Error('duplicate key "x"\nINFO admin signed in'));
+    await request(app).post('/ingest/principals').send(goodPrincipal);
+    const logged = format(...spy.mock.calls.find(c => String(c[0]).startsWith('Ingest error'))).trim();
+    spy.mockRestore();
+    expect(logged).toBe('Ingest error (principals): duplicate key "x" INFO admin signed in');
+  });
 });
 
 // ── Session paths ────────────────────────────────────────────────────────────
@@ -488,6 +500,15 @@ describe('POST /ingest/reconcile', () => {
     const res = await request(app).post('/ingest/reconcile').send(body);
     expect(res.status).toBe(500);
     expect(res.body.error).toBe('Reconcile failed');
+  });
+
+  it('logs a reconcile failure on one line', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockReconcileStale.mockRejectedValueOnce(new Error('db down\r\nWARN forged'));
+    await request(app).post('/ingest/reconcile').send(body);
+    const logged = format(...spy.mock.calls.find(c => String(c[0]).startsWith('Reconcile error'))).trim();
+    spy.mockRestore();
+    expect(logged).toBe(`Reconcile error (${body.entity}): db down WARN forged`);
   });
 });
 

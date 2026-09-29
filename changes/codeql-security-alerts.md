@@ -1,0 +1,1 @@
+- Hardened the API logs: ingest warnings and errors that can include crawler-supplied text are now always written as a single line, so a crafted value cannot fake extra log entries
