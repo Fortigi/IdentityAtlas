@@ -40,6 +40,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 | `data.write.tags` | Manage tags | `POST/PATCH/DELETE /api/tags…` |
 | `data.write.categories` | Manage categories | `POST/PATCH/DELETE /api/categories…` |
 | `data.write.reports` | Build custom reports | `POST/PUT/DELETE /api/nl-reports/saved…`, and the report builder (`/api/nl-reports/*`). Running or downloading a report needs only Read data. |
+| `data.read.reports` | Ask questions in plain language | Lets the holder ask the local model a question and read the answer: `POST /api/nl-reports/interpret`, `run`, `resolve` and the read-only `status`, `catalog`, `lookup` and their own `conversations`. Deliberately separate from **Build custom reports**: somebody who may ask a question should not thereby be able to create and delete the saved reports every analyst sees, and asking is NOT implied by building either — the seed `RoleMiner` role carries both. Only takes effect while the experimental **custom reports** feature is switched on. |
 | `data.write.contexts` | Build contexts | The context assistant (`/api/context-assistant/*`), and creating manual contexts and editing context members (`/api/contexts…` writes — also allowed with `admin.context-plugins`). Viewing contexts needs only Read data. |
 | `data.write.risk` | Risk score overrides | `PUT/DELETE /api/risk-scores/:type/:id/override` |
 | `data.write.identity` | Identity link decisions | `PUT/DELETE /api/identities/:id/members/:userId/override` (confirm / reject / clear an account-linking decision) |
@@ -65,7 +66,7 @@ A fresh install ships with this mapping (customisable in the Admin UI):
 | Role | Permissions |
 |---|---|
 | `Admin` | `*` (all permissions) |
-| `RoleMiner` | `data.read`, `data.export.ui`, `data.export.apikey`, `data.share`, `data.write.reports`, `data.write.contexts` |
+| `RoleMiner` | `data.read`, `data.read.reports`, `data.export.ui`, `data.export.apikey`, `data.share`, `data.write.reports`, `data.write.contexts` |
 | `Servicedesk` | `data.read` |
 
 ### No-role users fail closed

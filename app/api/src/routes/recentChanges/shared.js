@@ -74,3 +74,34 @@ export async function lookupIdentity(id) {
 export function resourceCounterpartyKind(resType) {
   return resType === 'BusinessRole' ? 'access-package' : 'resource';
 }
+
+/**
+ * What a history row DID to the row it describes: 'added', 'removed', or
+ * neither.
+ *
+ * The operation alone does not say. `Principals`, `Resources` and
+ * `ResourceAssignments` are SOFT-delete tables (ingest/engine.js,
+ * SOFT_DELETE_TABLES): removing a membership stamps `deletedAt` rather than
+ * deleting the row, so the trigger records it as an UPDATE. Classifying on
+ * 'I' and 'D' alone therefore showed every addition and NO removal at all —
+ * on the deployment this was found on, 127 removals between June and
+ * September were invisible, while the 7562 'D' rows the timeline did show had
+ * all stopped in early July, when soft delete landed.
+ *
+ * A row coming BACK (deletedAt cleared, which is what re-ingesting a
+ * membership does) is an addition again, for the same reason.
+ *
+ * Returns null for an update that changed something else — a backfilled
+ * column, a renamed attribute. Those are not membership changes and must not
+ * be counted as one: the previous code reached its `removed` branch for any
+ * operation that was not 'I', so a column backfill read as a removal.
+ */
+export function changeAction(row) {
+  if (row.operation === 'I') return 'added';
+  if (row.operation === 'D') return 'removed';
+  const before = row.prevData?.deletedAt ?? null;
+  const after = row.rowData?.deletedAt ?? null;
+  if (!before && after) return 'removed';
+  if (before && !after) return 'added';
+  return null;
+}

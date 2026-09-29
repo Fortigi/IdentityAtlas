@@ -302,7 +302,7 @@
   },
   {
     "id": "h-rm-same-groups-user",
-    "question": "users who are in exactly the same groups as Folkertsma, Sipke",
+    "question": "users who are in exactly the same groups as Smit, Lotte",
     "expected": {
       "entity": "user",
       "conditions": [
@@ -312,7 +312,7 @@
           "measure": "identical",
           "reference": {
             "entity": "user",
-            "name": "Folkertsma, Sipke"
+            "name": "Smit, Lotte"
           }
         }
       ]
