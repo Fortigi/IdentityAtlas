@@ -75,3 +75,37 @@ describe('classifyScope', () => {
     expect(classifyScope({ systemId: -1 }, WORKER).status).toBe(400);
   });
 });
+
+describe('classifyStatements', () => {
+  const SCOPE = ' AND ra."systemId" = $1';
+
+  it('applies the caller scope to both statements', () => {
+    const { removeCopies, markGoverned } = classifyStatements(SCOPE);
+    expect(removeCopies).toContain(`ra."governed" = false${SCOPE}`);
+    expect(markGoverned).toContain(`ra."governed" = false${SCOPE}`);
+  });
+
+  it('adds no scope for the tenant-wide pass', () => {
+    const { removeCopies, markGoverned } = classifyStatements('');
+    expect(removeCopies).not.toContain('systemId');
+    expect(markGoverned).not.toContain('systemId');
+  });
+
+  it('only touches ungoverned memberships of governance resources', () => {
+    for (const sql of Object.values(classifyStatements(''))) {
+      expect(sql).toContain('r.id = ra."resourceId" AND r."governanceResource" AND ra."governed" = false');
+    }
+  });
+
+  it('removes a copy only where its governed twin exists, and flips the rest', () => {
+    const { removeCopies, markGoverned } = classifyStatements('');
+    expect(removeCopies).toMatch(/^\s*DELETE FROM "ResourceAssignments" ra/);
+    expect(removeCopies).toContain('EXISTS (SELECT 1 FROM "ResourceAssignments" g');
+    for (const key of ['principalId', 'identityId']) {
+      expect(removeCopies).toContain(`g."${key}" IS NOT DISTINCT FROM ra."${key}"`);
+    }
+    expect(removeCopies).toContain('g."assignmentType" = ra."assignmentType"');
+    expect(markGoverned).toMatch(/^\s*UPDATE "ResourceAssignments" ra\s+SET "governed" = true/);
+    expect(markGoverned).not.toContain('EXISTS');
+  });
+});

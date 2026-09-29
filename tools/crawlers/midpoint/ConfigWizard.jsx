@@ -124,8 +124,6 @@ export default function MidpointConfigWizard({ onComplete, onCancel, initialConf
     await save(displayName, configPayload);
   };
 
-  const inputCls = 'w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
-
   const steps = [
     { n: 1, label: 'Connection' },
     { n: 2, label: 'Credentials' },

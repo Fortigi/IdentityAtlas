@@ -38,9 +38,10 @@ def mib(s):
 
 def read_log(run):
     out = []
-    for raw in open(f"{run}/job-timed.log"):
-        ep, _, text = raw.rstrip('\n').partition('\t')
-        out.append((int(ep), text))
+    with open(f"{run}/job-timed.log") as f:
+        for raw in f:
+            ep, _, text = raw.rstrip('\n').partition('\t')
+            out.append((int(ep), text))
     return out
 
 
@@ -54,7 +55,8 @@ def phase_starts(lines):
 
 
 def job_end(run):
-    timeline = [l.split() for l in open(f"{run}/timeline.txt")]
+    with open(f"{run}/timeline.txt") as f:
+        timeline = [l.split() for l in f]
     return int(next(t[0] for t in timeline if t[1] == 'job-end'))
 
 
@@ -87,7 +89,8 @@ def phase_row(name, s, e, key, rows, samples):
 
 
 def main(run, data):
-    man = json.load(open(f"{data}/manifest.json"))
+    with open(f"{data}/manifest.json") as f:
+        man = json.load(f)
     rows = {f['file']: f['rows'] for f in man['files']}
     starts = phase_starts(read_log(run))
     end = job_end(run)
