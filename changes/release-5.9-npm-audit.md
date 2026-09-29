@@ -1,0 +1,1 @@
+- Updated vulnerable third-party packages in the 5.9 release line (brace-expansion, browserslist, nanoid, undici, vitest and others) so the dependency audit passes again
