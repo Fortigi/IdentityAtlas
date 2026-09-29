@@ -1,4 +1,0 @@
-- Report parameters that mean an entity are now **picked from a searchable list** instead of typed from memory. Start typing and matching entries are offered, each with a second line — size, source system — that tells two similarly named ones apart.
-- Picking from the list stores the entry's **identity**, not its name. An application whose name is shared with two others can no longer select all three by accident, so you find out about the ambiguity while choosing rather than from a warning after the report has run.
-- The Application Access Review report's application parameter uses the new picker. A link or bookmark that carries the ids still works, and now shows the application names rather than raw ids.
-- A report that explains why it has nothing to show — waiting for a parameter, a name that matched nothing, an application with no entitlements — no longer also tells you to refresh after the next crawler run. Only its own explanation is shown.
