@@ -343,12 +343,12 @@ var assemblies = [
   {
     "name": "tools/crawlers/mssql",
     "classes": [
-      { "name": "tools/crawlers/mssql/SqlCrawler.Contexts", "rp": "mssql_Contexts.html", "cl": 151, "ucl": 7, "cal": 158, "tl": 395, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/mssql/SqlCrawler.Contexts", "rp": "mssql_Contexts.html", "cl": 152, "ucl": 7, "cal": 159, "tl": 407, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/mssql/SqlCrawler.Delta", "rp": "mssql_Delta.html", "cl": 56, "ucl": 0, "cal": 56, "tl": 200, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/mssql/SqlCrawler.Functions", "rp": "mssql_Functions.html", "cl": 184, "ucl": 2, "cal": 186, "tl": 494, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/mssql/SqlCrawler.Load", "rp": "mssql_Load.html", "cl": 18, "ucl": 0, "cal": 18, "tl": 44, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/mssql/SqlCrawler.Ownership", "rp": "mssql_Ownership.html", "cl": 82, "ucl": 0, "cal": 82, "tl": 284, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/mssql/SqlCrawler.Phases", "rp": "mssql_Phases.html", "cl": 234, "ucl": 7, "cal": 241, "tl": 620, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/mssql/SqlCrawler.Phases", "rp": "mssql_Phases.html", "cl": 238, "ucl": 6, "cal": 244, "tl": 635, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/mssql/SqlCrawler.Sweep", "rp": "mssql_Sweep.html", "cl": 100, "ucl": 22, "cal": 122, "tl": 334, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/mssql/SqlCrawler.Systems", "rp": "mssql_Systems.html", "cl": 107, "ucl": 3, "cal": 110, "tl": 306, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/mssql/SqlCrawler.Transform", "rp": "mssql_Transform.html", "cl": 148, "ucl": 0, "cal": 148, "tl": 398, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
