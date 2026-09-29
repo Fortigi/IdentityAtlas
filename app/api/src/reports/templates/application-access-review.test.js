@@ -15,7 +15,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../db/connection.js');
 import { query, queryOne } from '../../db/connection.js';
 import report, {
-  FREQUENCY_NOT_SET, MAX_ROWS, SECTION_IN_ROLE, SECTION_NOT_REQUESTABLE, SECTION_REQUESTABLE,
+  FREQUENCY_NOT_SET, MAX_APPLICATIONS, MAX_ROWS,
+  SECTION_IN_ROLE, SECTION_NOT_REQUESTABLE, SECTION_REQUESTABLE,
   certificationFrequency, editDistance, groupOwners, isRequestable, nearDuplicateFrequencies,
   parseList, percentage, pickAttribute, sectionFor,
 } from './application-access-review.js';
@@ -380,6 +381,14 @@ describe('application-access-review — rules', () => {
     expect(parseList(['a', ' b '])).toEqual(['a', 'b']);
     expect(parseList(undefined)).toEqual([]);
     expect(parseList('')).toEqual([]);
+  });
+
+  it('caps the list, because the parameter is user input reaching a query', () => {
+    const many = Array.from({ length: MAX_APPLICATIONS + 50 }, (_, i) => `app-${i}`);
+    expect(parseList(many)).toHaveLength(MAX_APPLICATIONS);
+    expect(parseList(many.join(','))).toHaveLength(MAX_APPLICATIONS);
+    // The cap truncates, it does not empty — the first 500 are still answered.
+    expect(parseList(many)[0]).toBe('app-0');
   });
 
   it('reads requestable out of every shape a source writes it in', () => {

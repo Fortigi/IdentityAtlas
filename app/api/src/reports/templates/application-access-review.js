@@ -59,14 +59,20 @@ export const FREQUENCY_NOT_SET = 'Not set';
 // and 'Annually' are not a data-quality problem.
 const NEAR_DUPLICATE_DISTANCE = 2;
 
+// House rule for every array input (CLAUDE.md -> app/api -> Input validation).
+// A review is held per application; 500 names is already far past any real
+// request and well short of a query no planner can parse.
+export const MAX_APPLICATIONS = 500;
+
 /**
  * A list parameter, however it arrived: `?applications=a,b` is one string,
  * `applications[]=a&applications[]=b` is an array, and the form sends the
- * comma-joined form. Blank entries are dropped rather than matched.
+ * comma-joined form. Blank entries are dropped rather than matched, and the
+ * list is capped — the parameter is user input reaching a query.
  */
-export function parseList(value) {
+export function parseList(value, max = MAX_APPLICATIONS) {
   const parts = Array.isArray(value) ? value : String(value ?? '').split(',');
-  return parts.map(v => String(v ?? '').trim()).filter(Boolean);
+  return parts.map(v => String(v ?? '').trim()).filter(Boolean).slice(0, max);
 }
 
 /**
