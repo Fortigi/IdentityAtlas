@@ -12,7 +12,7 @@ import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { EXPORT_FORMATS } from './export.js';
 import {
-  addPivotTables, buildCacheField, cacheDefinitionXml, pivotStartRow, pivotTableXml, withoutFields, xmlText,
+  addPivotTables, buildCacheField, cacheDefinitionXml, pivotStartRow, pivotTableXml, xmlText,
 } from './xlsxPivots.js';
 
 const COLUMNS = [
@@ -59,21 +59,17 @@ function decodeRecords(records, fields) {
 }
 
 describe('xlsx pivots — the workbook', () => {
-  it('adds one tab per declared pivot, after the data, named as declared', async () => {
+  it('adds one tab per declared pivot, after the summary and the data, named as declared', async () => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(await EXPORT_FORMATS.xlsx.serialize(REPORT));
-    expect(workbook.worksheets.map(s => s.name)).toEqual(['Pivot Sample', 'By owner', 'Via role']);
+    expect(workbook.worksheets.map(s => s.name)).toEqual(['Summary', 'Data', 'By owner', 'Via role']);
   });
 
   it('points the cache at exactly the data table: header row through the last row, every column', async () => {
     const zip = await zipOf(REPORT);
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(await EXPORT_FORMATS.xlsx.serialize(REPORT));
-    let header = 0;
-    workbook.worksheets[0].eachRow((row, i) => { if (!header && row.getCell(1).value === 'Owner') header = i; });
-
     const [source] = attrs(await part(zip, 'xl/pivotCache/pivotCacheDefinition1.xml'), 'worksheetSource');
-    expect(source).toEqual({ ref: `A${header}:D${header + ROWS.length}`, sheet: 'Pivot Sample' });
+    // Data tab: header on row 1, four rows below it, four columns A..D.
+    expect(source).toEqual({ ref: `A1:D${1 + ROWS.length}`, sheet: 'Data' });
   });
 
   it('writes a cache that decodes back into the very rows it came from', async () => {
@@ -97,8 +93,9 @@ describe('xlsx pivots — the workbook', () => {
       .toMatch(/<calcPr[^>]*\/><pivotCaches><pivotCache cacheId="1" r:id="rIdPivotCache1"\/><\/pivotCaches>/);
     expect(await part(zip, 'xl/_rels/workbook.xml.rels'))
       .toContain('Id="rIdPivotCache1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition" Target="pivotCache/pivotCacheDefinition1.xml"');
-    expect(await part(zip, 'xl/worksheets/_rels/sheet2.xml.rels')).toContain('Target="../pivotTables/pivotTable1.xml"');
-    expect(await part(zip, 'xl/worksheets/_rels/sheet3.xml.rels')).toContain('Target="../pivotTables/pivotTable2.xml"');
+    // Tabs 1 and 2 are Summary and Data; the pivots hang off tabs 3 and 4.
+    expect(await part(zip, 'xl/worksheets/_rels/sheet3.xml.rels')).toContain('Target="../pivotTables/pivotTable1.xml"');
+    expect(await part(zip, 'xl/worksheets/_rels/sheet4.xml.rels')).toContain('Target="../pivotTables/pivotTable2.xml"');
     expect(await part(zip, 'xl/pivotTables/_rels/pivotTable2.xml.rels')).toContain('Target="../pivotCache/pivotCacheDefinition1.xml"');
     expect(await part(zip, 'xl/pivotCache/_rels/pivotCacheDefinition1.xml.rels')).toContain('Target="pivotCacheRecords1.xml"');
 
@@ -129,35 +126,38 @@ describe('xlsx pivots — the workbook', () => {
     expect(await part(zip, 'xl/workbook.xml')).not.toContain('pivotCaches');
   });
 
-  it('leaves a column the run moved into the header out of the pivot, instead of failing the download', async () => {
-    // One application: `app` is stated once above the table and is not a table
-    // column, so the pivot cannot name it. Dropping it loses nothing — one value
-    // is one item. 'owner' stays, and still leads the rows.
-    const oneApp = ROWS.map(r => ({ ...r, app: 'Payroll' }));
-    const zip = await zipOf({ ...REPORT, rows: oneApp, constantColumns: ['app'] });
+  it('keeps a run-constant column in the table when a pivot is built on it, so the pivot keeps its level', async () => {
+    // One application: `app` holds one value, so the run declares it constant.
+    // The pivots name it, so it stays a table column and a pivot row — the
+    // owner reads their pivot the same way for one application as for many.
+    // `note` is constant too and no pivot uses it: that one does leave the table.
+    const oneApp = ROWS.map(r => ({ ...r, app: 'Payroll', note: 'n' }));
+    const zip = await zipOf({
+      ...REPORT, columns: [...COLUMNS, { key: 'note', label: 'Note' }], rows: oneApp, constantColumns: ['app', 'note'],
+    });
     const fields = decodeCache(await part(zip, 'xl/pivotCache/pivotCacheDefinition1.xml'));
-    expect(fields.map(f => f.name)).toEqual(['Owner', 'Direct', 'Via role']);
+    expect(fields.map(f => f.name)).toEqual(['Owner', 'Application', 'Direct', 'Via role']);
 
     const first = await part(zip, 'xl/pivotTables/pivotTable1.xml');
-    expect(attrs(first, 'field').map(f => f.x)).toEqual(['0']);
-    expect(attrs(first, 'dataField')[0]).toMatchObject({ name: 'Sum of Direct', fld: '1' });
-    // The second pivot had only `app` on its rows: it keeps its value, as a grand total.
-    const second = await part(zip, 'xl/pivotTables/pivotTable2.xml');
-    expect(second).not.toContain('<rowFields');
-    expect(attrs(second, 'dataField')[0]).toMatchObject({ name: 'Sum of Via role', fld: '2' });
-  });
-
-  it('drops the named keys from every area of a declaration, and leaves the rest alone', () => {
-    const pivot = { name: 'P', rows: ['a', 'b'], filters: ['b', 'c'], values: ['b', 'd'] };
-    expect(withoutFields(pivot, ['b'])).toEqual({ name: 'P', rows: ['a'], filters: ['c'], values: ['d'] });
-    expect(withoutFields({ name: 'Q' }, ['b'])).toEqual({ name: 'Q', rows: [], filters: [], values: [] });
-    expect(pivot.rows).toEqual(['a', 'b']);
+    expect(attrs(first, 'field').map(f => f.x)).toEqual(['0', '1']);
+    expect(attrs(await part(zip, 'xl/pivotTables/pivotTable2.xml'), 'field').map(f => f.x)).toEqual(['1']);
   });
 
   it('adds no pivot tab when the report found nothing to pivot', async () => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(await EXPORT_FORMATS.xlsx.serialize({ ...REPORT, rows: [], total: 0 }));
-    expect(workbook.worksheets.map(s => s.name)).toEqual(['Pivot Sample']);
+    expect(workbook.worksheets.map(s => s.name)).toEqual(['Summary', 'Data']);
+  });
+
+  it('names a pivot tab within what Excel accepts', async () => {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await EXPORT_FORMATS.xlsx.serialize({
+      ...REPORT, pivots: [{ ...PIVOTS[0], name: 'By: [owner] / *everything* far too long to fit' }],
+    }));
+    const name = workbook.worksheets[2].name;
+    expect(name.length).toBeLessThanOrEqual(31);
+    expect(name).not.toMatch(/[[\]:*?/\\]/);
+    expect(name).toMatch(/^By/);
   });
 });
 

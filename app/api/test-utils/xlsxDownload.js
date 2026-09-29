@@ -22,17 +22,23 @@ export function asBinary(test) {
   });
 }
 
-/** The first worksheet of a downloaded workbook. */
-export async function firstSheet(buffer) {
+/**
+ * One tab of a downloaded workbook, by name — 'Summary' (what the table is and
+ * everything said about it) or 'Data' (the table). Fails on a missing tab
+ * rather than returning undefined, so a renamed tab reads as that.
+ */
+export async function sheetNamed(buffer, name) {
   const { default: ExcelJS } = await import('exceljs');
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
-  return workbook.worksheets[0];
+  const sheet = workbook.getWorksheet(name);
+  if (!sheet) throw new Error(`No "${name}" tab; the workbook has ${workbook.worksheets.map(s => s.name).join(', ')}`);
+  return sheet;
 }
 
 /**
- * Every value in column A, top to bottom — the summary block, the header row's
- * first label and then the rows. What a reader sees down the left of the sheet.
+ * Every value in column A, top to bottom. What a reader sees down the left of
+ * the sheet.
  */
 export function columnA(sheet) {
   const values = [];

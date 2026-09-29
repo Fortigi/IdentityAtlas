@@ -127,13 +127,6 @@ function fieldItemsXml(field) {
   return `<items count="${order.length + 1}">${items}<item t="default"/></items>`;
 }
 
-/** A pivot declaration without the given column keys, in any of its areas. */
-export function withoutFields(pivot, keys) {
-  const drop = new Set(keys);
-  const keep = list => (list || []).filter(key => !drop.has(key));
-  return { ...pivot, rows: keep(pivot.rows), filters: keep(pivot.filters), values: keep(pivot.values) };
-}
-
 /** The field indexes a pivot declaration names, failing loudly on a key that is not a column. */
 function fieldIndexes(fields, keys = [], pivotName) {
   return keys.map((key) => {

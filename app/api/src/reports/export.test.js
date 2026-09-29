@@ -116,18 +116,26 @@ describe('JSON serialization', () => {
 // The workbook is read back with the same library that wrote it, so every
 // assertion below is about what a spreadsheet will actually show — not about
 // the calls the serializer happened to make.
-async function sheetOf(report) {
+async function workbookOf(report) {
   const buffer = await EXPORT_FORMATS.xlsx.serialize(report);
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
-  return workbook.worksheets[0];
+  return workbook;
 }
-
-/** The 1-based index of the row holding the column labels. */
-const headerRowOf = (sheet, firstLabel) => {
-  let found = 0;
-  sheet.eachRow((row, i) => { if (!found && row.getCell(1).value === firstLabel) found = i; });
-  return found;
+/** The Data tab: the table and nothing else. */
+const sheetOf = async report => (await workbookOf(report)).getWorksheet('Data');
+/** The Summary tab: what the table is, and everything said about it. */
+const summaryOf = async report => (await workbookOf(report)).getWorksheet('Summary');
+/** Column A of a sheet, top to bottom, as text. */
+const firstColumn = (sheet) => {
+  const cells = [];
+  sheet.eachRow(row => cells.push(String(row.getCell(1).value ?? '')));
+  return cells;
+};
+const labelsOf = (sheet) => {
+  const labels = [];
+  sheet.getRow(1).eachCell(cell => labels.push(cell.value));
+  return labels;
 };
 
 describe('XLSX serialization', () => {
@@ -140,61 +148,54 @@ describe('XLSX serialization', () => {
     ],
   };
 
-  it('writes the report name and the run it came from above the table', async () => {
-    const sheet = await sheetOf(NOTICED);
-    expect(sheet.getCell('A1').value).toBe('Seam Sample');
-    expect(String(sheet.getCell('A2').value)).toContain('2 row(s)');
-    expect(String(sheet.getCell('A2').value)).toContain('2026-09-12T08:30:00.000Z');
+  it('opens with a Summary tab and then a Data tab', async () => {
+    expect((await workbookOf(NOTICED)).worksheets.map(s => s.name)).toEqual(['Summary', 'Data']);
   });
 
-  it('puts every notice in the sheet, in order, above the header row', async () => {
-    const sheet = await sheetOf(NOTICED);
-    const header = headerRowOf(sheet, 'Account');
-    const above = [];
-    sheet.eachRow((row, i) => { if (i < header) above.push(String(row.getCell(1).value ?? '')); });
-    expect(above).toContain('2 account(s) in scope.');
-    expect(above).toContain('Two systems reported no activity.');
-    expect(above.indexOf('2 account(s) in scope.'))
-      .toBeLessThan(above.indexOf('Two systems reported no activity.'));
+  it('writes the report name and the run it came from on the Summary tab', async () => {
+    const summary = await summaryOf(NOTICED);
+    expect(summary.getCell('A1').value).toBe('Seam Sample');
+    expect(String(summary.getCell('A2').value)).toContain('2 row(s)');
+    expect(String(summary.getCell('A2').value)).toContain('2026-09-12T08:30:00.000Z');
   });
 
-  it('moves the table down as the summary grows — the header row is not a constant', async () => {
-    // The discriminating case: a serializer that wrote the header at a fixed row
-    // would pass every "the notices are present" assertion and then overwrite
-    // them, or leave a gap. One notice must move the table by exactly one row.
-    const one = await sheetOf({ ...NOTICED, notices: NOTICED.notices.slice(0, 1) });
-    const two = await sheetOf(NOTICED);
-    expect(headerRowOf(two, 'Account')).toBe(headerRowOf(one, 'Account') + 1);
-    expect(headerRowOf(await sheetOf({ ...REPORT, notices: [] }), 'Account'))
-      .toBe(headerRowOf(one, 'Account') - 1);
+  it('puts every notice on the Summary tab, in order, and none in the table', async () => {
+    const summary = firstColumn(await summaryOf(NOTICED));
+    expect(summary.indexOf('2 account(s) in scope.')).toBeGreaterThan(-1);
+    expect(summary.indexOf('2 account(s) in scope.'))
+      .toBeLessThan(summary.indexOf('Two systems reported no activity.'));
+    expect(firstColumn(await sheetOf(NOTICED))).toEqual(['Account', 'Ada Lovelace', 'Grace Hopper']);
   });
 
-  it('anchors the freeze and the filter on the real header row, not on row 1', async () => {
+  it('starts the table on row 1 however long the summary is', async () => {
+    // The discriminating case: a serializer that still wrote the summary above
+    // the table would put the header lower as the notices grow.
+    for (const notices of [[], NOTICED.notices]) {
+      const sheet = await sheetOf({ ...NOTICED, notices, truncated: true });
+      expect(sheet.getCell('A1').value).toBe('Account');
+    }
+  });
+
+  it('freezes the header row and filters exactly the declared columns', async () => {
     const sheet = await sheetOf(NOTICED);
-    const header = headerRowOf(sheet, 'Account');
-    expect(header).toBeGreaterThan(1);
-    expect(sheet.views[0]).toMatchObject({ state: 'frozen', ySplit: header });
-    // exceljs reads the filter back as an A1 range, which states both halves at
-    // once: it starts on the header row and spans exactly the declared columns.
-    expect(sheet.autoFilter).toBe(`A${header}:B${header}`);
+    expect(sheet.views[0]).toMatchObject({ state: 'frozen', ySplit: 1 });
+    expect(sheet.autoFilter).toBe('A1:B1');
   });
 
   it('writes one row per report row, read through the column keys', async () => {
     const sheet = await sheetOf(NOTICED);
-    const header = headerRowOf(sheet, 'Account');
-    expect(sheet.getRow(header).getCell(2).value).toBe('Email');
-    expect(sheet.getRow(header + 1).getCell(1).value).toBe('Ada Lovelace');
-    expect(sheet.getRow(header + 1).getCell(2).value).toBe('ada@example.com');
-    expect(sheet.getRow(header + 2).getCell(1).value).toBe('Grace Hopper');
-    expect(sheet.lastRow.number).toBe(header + 2);
+    expect(sheet.getRow(1).getCell(2).value).toBe('Email');
+    expect(sheet.getRow(2).getCell(1).value).toBe('Ada Lovelace');
+    expect(sheet.getRow(2).getCell(2).value).toBe('ada@example.com');
+    expect(sheet.getRow(3).getCell(1).value).toBe('Grace Hopper');
+    expect(sheet.lastRow.number).toBe(3);
   });
 
   it('follows the column order, not the key order of the row objects', async () => {
-    const reversed = { ...NOTICED, columns: [...REPORT.columns].reverse() };
-    const sheet = await sheetOf(reversed);
-    const header = headerRowOf(sheet, 'Email');
-    expect(sheet.getRow(header + 1).getCell(1).value).toBe('ada@example.com');
-    expect(sheet.getRow(header + 1).getCell(2).value).toBe('Ada Lovelace');
+    const sheet = await sheetOf({ ...NOTICED, columns: [...REPORT.columns].reverse() });
+    expect(sheet.getRow(1).getCell(1).value).toBe('Email');
+    expect(sheet.getRow(2).getCell(1).value).toBe('ada@example.com');
+    expect(sheet.getRow(2).getCell(2).value).toBe('Ada Lovelace');
   });
 
   it('leaves a formula-looking value exactly as it was, as a string cell', async () => {
@@ -203,7 +204,7 @@ describe('XLSX serialization', () => {
     // corrupt the value rather than defend it. Both halves are asserted — the
     // exact text, and that the cell is a String and not a Formula.
     const sheet = await sheetOf({ ...NOTICED, rows: [{ displayName: '=cmd|calc', email: '+1+1' }] });
-    const row = sheet.getRow(headerRowOf(sheet, 'Account') + 1);
+    const row = sheet.getRow(2);
     expect(row.getCell(1).value).toBe('=cmd|calc');
     expect(row.getCell(1).type).toBe(ExcelJS.ValueType.String);
     expect(row.getCell(1).formula).toBeUndefined();
@@ -211,46 +212,29 @@ describe('XLSX serialization', () => {
   });
 
   it('writes a blank for a missing value and a real zero for a zero', async () => {
-    const report = {
+    const sheet = await sheetOf({
       displayName: 'Counts',
       columns: [{ key: 'thing', label: 'Thing' }, { key: 'count', label: 'Count' }],
       rows: [{ thing: 'widget', count: 0 }, { thing: 'gadget' }, { thing: 'gizmo', count: null }],
       total: 3,
-    };
-    const sheet = await sheetOf(report);
-    const header = headerRowOf(sheet, 'Thing');
-    expect(sheet.getRow(header + 1).getCell(2).value).toBe(0);
-    expect(sheet.getRow(header + 2).getCell(2).value).toBeNull();
-    expect(sheet.getRow(header + 3).getCell(2).value).toBeNull();
-  });
-
-  it('says in the sheet when the file is not the whole answer', async () => {
-    const sheet = await sheetOf({ ...NOTICED, truncated: true });
-    const header = headerRowOf(sheet, 'Account');
-    const above = [];
-    sheet.eachRow((row, i) => { if (i < header) above.push(String(row.getCell(1).value ?? '')); });
-    expect(above.join('\n')).toMatch(/NOT the complete result/);
-    // …and it costs a row, so it cannot silently overwrite the first notice.
-    expect(header).toBe(headerRowOf(await sheetOf(NOTICED), 'Account') + 1);
-  });
-
-  it('keeps a header-only sheet readable when the report found nothing', async () => {
-    const sheet = await sheetOf({ ...NOTICED, rows: [], total: 0 });
-    const header = headerRowOf(sheet, 'Account');
-    expect(sheet.getRow(header).getCell(2).value).toBe('Email');
-    expect(sheet.lastRow.number).toBe(header);
-  });
-
-  it('names the sheet after the report, within what Excel accepts', async () => {
-    const buffer = await EXPORT_FORMATS.xlsx.serialize({
-      ...NOTICED, displayName: 'Access/Review: [2026] *everything* that is far too long to fit',
     });
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
-    const name = workbook.worksheets[0].name;
-    expect(name.length).toBeLessThanOrEqual(31);
-    expect(name).not.toMatch(/[[\]:*?/\\]/);
-    expect(name).toMatch(/^Access Review/);
+    expect(sheet.getRow(2).getCell(2).value).toBe(0);
+    expect(sheet.getRow(3).getCell(2).value).toBeNull();
+    expect(sheet.getRow(4).getCell(2).value).toBeNull();
+  });
+
+  it('says on the Summary tab when the file is not the whole answer', async () => {
+    const summary = firstColumn(await summaryOf({ ...NOTICED, truncated: true }));
+    expect(summary.join('\n')).toMatch(/NOT the complete result/);
+    // …and it costs a row, so it cannot silently overwrite the first notice.
+    expect(summary).toContain('2 account(s) in scope.');
+    expect(summary.length).toBe(firstColumn(await summaryOf(NOTICED)).length + 1);
+  });
+
+  it('keeps a header-only table readable when the report found nothing', async () => {
+    const sheet = await sheetOf({ ...NOTICED, rows: [], total: 0 });
+    expect(labelsOf(sheet)).toEqual(['Account', 'Email']);
+    expect(sheet.lastRow.number).toBe(1);
   });
 
   it('sizes columns to their content, clamped at both ends', async () => {
@@ -268,12 +252,12 @@ describe('XLSX serialization', () => {
     expect(Buffer.isBuffer(buffer)).toBe(true);
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
-    expect(workbook.worksheets[0].name).toBe('Report');
-    expect(workbook.worksheets[0].autoFilter).toBeFalsy();
+    expect(workbook.getWorksheet('Summary').getCell('A1').value).toBe('Report');
+    expect(workbook.getWorksheet('Data').autoFilter).toBeFalsy();
   });
 
-  it('states a run-constant column once above the table, not on every row', async () => {
-    const sheet = await sheetOf({
+  it('states a run-constant column once on the Summary tab, not on every row', async () => {
+    const report = {
       ...NOTICED,
       columns: [...REPORT.columns, { key: 'system', label: 'System' }],
       rows: [
@@ -281,48 +265,60 @@ describe('XLSX serialization', () => {
         { displayName: 'Grace', email: 'grace@example.com', system: 'Ledger' },
       ],
       constantColumns: ['system'],
-    });
-    // Above the table as a label/value pair…
-    expect(sheet.getCell('A4').value).toBe('System');
-    expect(sheet.getCell('B4').value).toBe('Ledger');
-    // …and gone from it. This is the discriminating half: a serializer that
-    // wrote the block but kept the column would pass every assertion above.
-    const tableTop = headerRowOf(sheet, 'Account');
-    const labels = [];
-    sheet.getRow(tableTop).eachCell(cell => labels.push(cell.value));
-    expect(labels).toEqual(['Account', 'Email']);
-    expect(sheet.getRow(tableTop + 1).getCell(3).value).toBeNull();
+    };
+    const summary = await summaryOf(report);
+    expect(summary.getCell('A4').value).toBe('System');
+    expect(summary.getCell('B4').value).toBe('Ledger');
+    // …and gone from the table. This is the discriminating half: a serializer
+    // that wrote the block but kept the column would pass every assertion above.
+    const sheet = await sheetOf(report);
+    expect(labelsOf(sheet)).toEqual(['Account', 'Email']);
+    expect(sheet.getRow(2).getCell(3).value).toBeNull();
+  });
+
+  it('keeps a run-constant column in the table when a pivot is built on it', async () => {
+    const report = {
+      ...NOTICED,
+      columns: [...REPORT.columns, { key: 'system', label: 'System' }, { key: 'cmdb', label: 'CMDB' }],
+      rows: [{ displayName: 'Ada', email: 'ada@x', system: 'Ledger', cmdb: 'C1' }],
+      constantColumns: ['system', 'cmdb'],
+      pivots: [{ name: 'By system', rows: ['system'], values: [] }],
+    };
+    // Still stated on the Summary tab — the summary is complete either way…
+    const summary = await summaryOf(report);
+    expect([summary.getCell('A4').value, summary.getCell('A5').value]).toEqual(['System', 'CMDB']);
+    // …but only the pivot's column stays in the table.
+    const sheet = await sheetOf(report);
+    expect(labelsOf(sheet)).toEqual(['Account', 'Email', 'System']);
+    expect(sheet.getRow(2).getCell(3).value).toBe('Ledger');
   });
 
   it('keeps the block in the order the run declared, not the column order', async () => {
-    const sheet = await sheetOf({
+    const summary = await summaryOf({
       ...NOTICED,
       columns: [{ key: 'a', label: 'A' }, { key: 'b', label: 'B' }, { key: 'keep', label: 'Keep' }],
       rows: [{ a: '1', b: '2', keep: 'x' }],
       constantColumns: ['b', 'a'],
     });
-    expect([sheet.getCell('A4').value, sheet.getCell('A5').value]).toEqual(['B', 'A']);
+    expect([summary.getCell('A4').value, summary.getCell('A5').value]).toEqual(['B', 'A']);
   });
 
   it('gives an empty constant column its label anyway', async () => {
     // A field that exists and is unfilled is a finding; silence is not. This is
     // the common case on a source with no application catalogue.
-    const sheet = await sheetOf({
+    const summary = await summaryOf({
       ...NOTICED,
       columns: [...REPORT.columns, { key: 'cmdb', label: 'CMDB reference' }],
       rows: [{ displayName: 'Ada', email: 'ada@x', cmdb: null }],
       constantColumns: ['cmdb'],
     });
-    expect(sheet.getCell('A4').value).toBe('CMDB reference');
-    expect(sheet.getCell('B4').value).toBeNull();
+    expect(summary.getCell('A4').value).toBe('CMDB reference');
+    expect(summary.getCell('B4').value).toBeNull();
   });
 
   it('keeps every column when the run declares none constant', async () => {
-    const sheet = await sheetOf(NOTICED);
-    const labels = [];
-    sheet.getRow(headerRowOf(sheet, 'Account')).eachCell(cell => labels.push(cell.value));
-    expect(labels).toEqual(['Account', 'Email']);
-    expect(sheet.getCell('A4').value).not.toBe('Account');
+    expect(labelsOf(await sheetOf(NOTICED))).toEqual(['Account', 'Email']);
+    expect((await summaryOf(NOTICED)).getCell('A4').value).not.toBe('Account');
   });
 
   it('returns a Buffer, so the route can send it as a binary body', async () => {
@@ -367,6 +363,13 @@ describe('splitConstantColumns', () => {
 
   it('changes nothing when there are no rows to read a value from', () => {
     expect(splitConstantColumns(columns, [], ['a'])).toEqual({ header: [], body: columns });
+  });
+
+  it('keeps a kept key in the table while still stating it in the header', () => {
+    expect(splitConstantColumns(columns, rows, ['a', 'c'], ['c', 'ghost'])).toEqual({
+      header: [{ key: 'a', label: 'A', value: 1 }, { key: 'c', label: 'C', value: 3 }],
+      body: [{ key: 'b', label: 'B' }, { key: 'c', label: 'C' }],
+    });
   });
 
   it('refuses to empty the table — a sheet of only a header is worse', () => {
