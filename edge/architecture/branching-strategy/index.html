@@ -16,7 +16,7 @@
         <link rel="prev" href="../ci-scope-testing/">
       
       
-        <link rel="next" href="../../process/definition-of-ready/">
+        <link rel="next" href="../../process/release-notes/">
       
       
         
@@ -4010,6 +4010,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../process/release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How a Release's Notes Are Assembled
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../process/definition-of-ready/" class="md-nav__link">
         
   
@@ -5631,16 +5659,21 @@
 <ol>
 <li>Go to <strong>Actions → Cut Beta → Run workflow</strong></li>
 <li>Enter the version: <code>Major.Minor.Patch-beta.N</code> (e.g. <code>5.3.0-beta.1</code>, <code>5.3.0-rc.1</code>, <code>5.3.0-alpha.1</code>)</li>
-<li>The workflow creates the tag on the current <code>main</code> HEAD</li>
+<li>The workflow creates the tag on the current <code>main</code> HEAD (or on the optional <strong>ref</strong> input — any branch, tag or commit)</li>
 <li><code>docker-publish.yml</code> builds <code>:beta</code> + <code>:5.3.0-beta.1</code></li>
 </ol>
 <p>Users on <code>docker-compose.prod.yml</code> tracking <code>:latest</code> are <strong>not</strong> affected.</p>
 <h2 id="cutting-a-release">Cutting a Release<a class="headerlink" href="#cutting-a-release" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>The body of the GitHub release — changelog, baseline comparison and the
+dependency-update list — is assembled by the workflow. See
+<a href="../../process/release-notes/">How a release's notes are assembled</a>.</p>
+</blockquote>
 <p>When <code>main</code> is stable and ready to ship to customers:</p>
 <ol>
 <li>Go to <strong>Actions → Cut Release → Run workflow</strong></li>
 <li>Enter the version: <code>Major.Minor.Patch</code> (e.g. <code>5.2.0</code>)</li>
-<li>The workflow creates tag <code>v5.2.0</code> on the current <code>main</code> HEAD</li>
+<li>The workflow creates tag <code>v5.2.0</code> on the current <code>main</code> HEAD (or on the optional <strong>ref</strong> input — any branch, tag or commit)</li>
 <li><code>docker-publish.yml</code> triggers automatically on the tag push and builds <code>:latest</code> + <code>:5.2.0.0</code></li>
 </ol>
 <p>Customers who track <code>:latest</code> will receive the new version on their next <code>docker compose pull</code>.</p>
