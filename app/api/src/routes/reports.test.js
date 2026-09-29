@@ -11,11 +11,19 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 vi.mock('../db/connection.js');
 import { query, queryOne } from '../db/connection.js';
 import { registerReport } from '../reports/registry.js';
-import { EXPORT_FORMAT_NAMES } from '../reports/export.js';
+import { EXPORT_FORMAT_NAMES, resolveExportFormat } from '../reports/export.js';
 import { BUILT_IN_REPORTS } from '../reports/templates/index.js';
 import reportsRouter from './reports.js';
 
 const app = mountRouter(reportsRouter);
+
+/** The first worksheet of a downloaded workbook, read back with the real library. */
+async function loadFirstSheet(buffer) {
+  const { default: ExcelJS } = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  return workbook.worksheets[0];
+}
 
 beforeEach(() => {
   query.mockReset();
@@ -155,7 +163,7 @@ describe('GET /api/reports/:name/export', () => {
   });
 
   it('400s on a format it does not serve, naming the ones it does', async () => {
-    const res = await request(app).get('/api/reports/downloadable-report/export?format=xlsx').expect(400);
+    const res = await request(app).get('/api/reports/downloadable-report/export?format=pdf').expect(400);
 
     expect(res.body.error).toContain('Unsupported export format');
     for (const name of EXPORT_FORMAT_NAMES) expect(res.body.error).toContain(name);
@@ -169,6 +177,48 @@ describe('GET /api/reports/:name/export', () => {
   it('404s on an unknown report name, before it looks at the format', async () => {
     const res = await request(app).get('/api/reports/not-a-report/export?format=csv').expect(404);
     expect(res.body).toEqual({ error: 'Report not found' });
+  });
+
+  it('gives the notices only to a format that claims it can hold them', async () => {
+    // The seam this route owns: it asks the FORMAT, never the report. csv and
+    // json are unchanged by the arrival of a format that wants notices — a CSV
+    // is a table and a preamble would break every parser reading it.
+    const noticed = registerReport({
+      name: 'noticed-report',
+      displayName: 'Noticed Report',
+      form: 'list',
+      columns: [{ key: 'thing', label: 'Thing' }],
+      run: async () => ({
+        rows: [{ thing: 'widget' }],
+        notices: [{ severity: 'info', text: 'Measured on a Tuesday.' }],
+      }),
+    });
+    try {
+      const csv = await request(app).get('/api/reports/noticed-report/export?format=csv').expect(200);
+      expect(csv.text).toBe('"Thing"\r\n"widget"');
+      expect(csv.text).not.toContain('Tuesday');
+
+      const json = await request(app).get('/api/reports/noticed-report/export?format=json').expect(200);
+      expect(JSON.parse(json.text).notices).toBeUndefined();
+      expect(json.text).not.toContain('Tuesday');
+
+      const xlsx = await request(app).get('/api/reports/noticed-report/export?format=xlsx')
+        .buffer().parse((res, cb) => {
+          const chunks = [];
+          res.on('data', c => chunks.push(Buffer.from(c)));
+          res.on('end', () => cb(null, Buffer.concat(chunks)));
+        })
+        .expect(200);
+      expect(xlsx.headers['content-type'])
+        .toMatch(/spreadsheetml\.sheet/);
+      const sheet = await loadFirstSheet(xlsx.body);
+      const cells = [];
+      sheet.eachRow(row => cells.push(String(row.getCell(1).value ?? '')));
+      expect(cells).toContain('Measured on a Tuesday.');
+      expect(cells).toContain('widget');
+    } finally {
+      noticed();
+    }
   });
 
   it('recomputes on every download, so a re-download reflects the latest data', async () => {
@@ -241,11 +291,23 @@ describe('the seam — adding a report costs only a template', () => {
     const parameterised = await request(app).get('/api/reports/dummy-seam-report/rows?thing=sprocket').expect(200);
     expect(parameterised.body.rows[0].thing).toBe('sprocket');
 
-    // …and it is downloadable, in every format, on the same terms.
+    // …and it is downloadable, in every format, on the same terms. The payload
+    // check dispatches on the format's own declared content type, never on its
+    // name — a binary format is still expected to carry the row, just not as
+    // text this assertion can read.
     for (const format of EXPORT_FORMAT_NAMES) {
-      const download = await request(app).get(`/api/reports/dummy-seam-report/export?format=${format}`).expect(200);
+      const download = await request(app)
+        .get(`/api/reports/dummy-seam-report/export?format=${format}`)
+        .buffer().parse((res, cb) => {
+          const chunks = [];
+          res.on('data', c => chunks.push(Buffer.from(c)));
+          res.on('end', () => cb(null, Buffer.concat(chunks)));
+        })
+        .expect(200);
       expect(download.headers['content-disposition']).toContain(`.${format}"`);
-      expect(download.text).toContain('widget');
+      const textual = /^(text\/|application\/json)/.test(resolveExportFormat(format).contentType);
+      if (textual) expect(download.body.toString('utf8')).toContain('widget');
+      else expect(download.body.length).toBeGreaterThan(0);
     }
   });
 });

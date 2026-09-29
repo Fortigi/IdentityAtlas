@@ -94,6 +94,39 @@ the same question, so they must not be able to drift apart. Note that before acc
 there are no `IdentityMembers` at all, so every account is legitimately listed — the report's
 description says so.
 
+## Downloads, and which formats carry the notices
+
+`app/api/src/reports/export.js` is keyed on the **format** name, never on a report name, so every
+registered template is downloadable the moment it exists. Today: `csv`, `xlsx`, `json` — in that
+order, which is the order the UI offers them and the first is the default.
+
+Notices used to be stripped from every download, on the rule "a download is the rows". That was
+really a statement about CSV rather than about downloads: a CSV *is* a table, so anything above the
+header row breaks every parser that reads it. A workbook has room above the table and a reader who
+expects context there.
+
+So the decision belongs to the format and is declared there:
+
+```js
+xlsx: { contentType: '…spreadsheetml.sheet', carriesNotices: true, serialize: toXlsx },
+```
+
+`routes/reports.js` strips `notices` for every format that does not claim them, so **csv and json are
+byte-for-byte what they were**. A future format (pdf, html) opts in the same way, and the route still
+never asks which report it is serving — only what the chosen format can hold.
+
+Two consequences worth knowing:
+
+- **A serializer may be async.** The route awaits every format, because a workbook is assembled and
+  zipped rather than concatenated.
+- **The xlsx serializer writes cell values raw** — no leading-apostrophe guard. The CSV guard
+  (security finding M-05) exists because a CSV cell has no type and the spreadsheet decides what
+  `=cmd|calc` means when it opens the file. An xlsx cell *is* typed: a string is stored as a string,
+  never as an `<f>` formula. The apostrophe would be a character of corruption, not a defence, so the
+  tests pin the invariant that actually matters — the cell round-trips with its exact original text
+  **and** with cell type `String`. (The UI's own xlsx exports do apply the apostrophe; that is a
+  separate, older path and was left alone.)
+
 ## Counting assignments at scale
 
 A report that counts assignments per resource is the one shape in this framework that can degenerate
