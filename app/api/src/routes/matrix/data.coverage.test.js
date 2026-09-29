@@ -484,6 +484,76 @@ describe('matrix/data — layered attribute fold', () => {
     expect(res.body.warnings.some(w => w.includes('inherited fold failed'))).toBe(true);
   });
 
+  // The level cap is what the grid corner's fold/unfold controls move. It is
+  // applied by TRUNCATING the attribute list before any SQL is built, so a
+  // capped fold also groups by fewer expressions — reading the emitted SQL is
+  // the only way to tell that apart from merely hiding rows in the response.
+  describe('rollupLevel cap', () => {
+    const threeAttrs = (over = {}) => baseFilter({
+      foldAttributes: true,
+      sortAttributes: [
+        { attribute: 'department', dir: 'asc' },
+        { attribute: 'city', dir: 'asc' },
+        { attribute: 'country', dir: 'asc' },
+      ],
+      ...over,
+    });
+    const cellsSql = () => lastSql[Object.keys(lastSql).find(k => k.includes('matrix-attrcut-cells['))];
+
+    beforeEach(() => {
+      buildSubqueriesImpl = async () => baseBuilt({
+        principalCols: ['department', 'city', 'country'].map(n => ({ name: n, rawName: n, type: 'text' })),
+      });
+      labelHandlers = {
+        'matrix-attrcut-cells[': [{ resourceId: 'r1', groupValue: 'Sales', directCount: 1, governedCount: 0 }],
+        'matrix-attrcut-nodes[': [{ groupValue: 'Sales', total: 4, childCount: 2 }],
+      };
+    });
+
+    it('groups by only the first N attributes when capped', async () => {
+      parseFilterImpl = () => threeAttrs({ rollupLevel: 2 });
+      const res = await post({ filter: {} });
+      expect(res.status).toBe(200);
+      expect(cellsSql()).toContain('"department"');
+      expect(cellsSql()).toContain('"city"');
+      expect(cellsSql()).not.toContain('"country"');  // the capped-off level never reaches the GROUP BY
+      expect(res.body.maxDepth).toBe(2);
+      expect(res.body.level).toBe(2);
+      expect(res.body.maxLevel).toBe(3);              // …but the corner still knows how deep it could go
+    });
+
+    it('shows every attribute when uncapped', async () => {
+      parseFilterImpl = () => threeAttrs({ rollupLevel: null });
+      const res = await post({ filter: {} });
+      expect(cellsSql()).toContain('"country"');
+      expect(res.body.level).toBe(3);
+      expect(res.body.maxLevel).toBe(3);
+    });
+
+    it('never caps below one level or above the attributes it has', async () => {
+      parseFilterImpl = () => threeAttrs({ rollupLevel: 1 });
+      const top = await post({ filter: {} });
+      expect(top.body.level).toBe(1);
+      expect(top.body.maxDepth).toBe(1);
+      expect(cellsSql()).not.toContain('"city"');
+
+      parseFilterImpl = () => threeAttrs({ rollupLevel: 9 });
+      const deep = await post({ filter: {} });
+      expect(deep.body.level).toBe(3);
+      expect(deep.body.maxDepth).toBe(3);
+    });
+
+    it('computes inherited access over the visible levels only', async () => {
+      // Otherwise the effective-access fold keys its holders at full depth and
+      // none of them line up with the (shallower) visible columns.
+      parseFilterImpl = () => threeAttrs({ rollupLevel: 2 });
+      const seen = [];
+      inhFold = async (_p, _b, _t, attrs) => { seen.push(attrs); return null; };
+      await post({ filter: { includeInheritedAccess: true } });
+      expect(seen[0].map(a => a.attribute)).toEqual(['department', 'city']);
+    });
+  });
+
   it('merges inherited fold groupValues/resources/counts', async () => {
     parseFilterImpl = () => baseFilter({
       foldAttributes: true,
@@ -664,5 +734,124 @@ describe('matrix/data — layered hierarchy (sortHierarchy)', () => {
     const res = await post({ filter: { includeInheritedAccess: true } });
     expect(res.status).toBe(200);
     expect(res.body.warnings.some(w => w.includes('inherited context fold failed'))).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A roll-up's rows are resources (or business roles, which are resources too),
+// so they carry the same Contexts the flat grid shows. Every roll-up shape has
+// to ship the sidecar: a shape that forgets it leaves the Contexts column empty
+// for that whole view, silently, and the one view large tenants can open is the
+// one most likely to be missed.
+describe('matrix/data — Contexts sidecar on every roll-up shape', () => {
+  const ROLE_ID = '33333333-3333-3333-3333-333333333333';
+  const contextRows = (memberId) => [
+    { resourceId: memberId, id: 'c1', displayName: 'Finance', contextType: 'Tag' },
+  ];
+
+  // Each shape: the filter that selects it, the query rows that make it return
+  // one row, and the id that row is keyed by.
+  const SHAPES = [
+    {
+      name: 'attribute roll-up (resources as rows)',
+      filter: { rollup: 'department', rollupContent: 'resources-only' },
+      rowId: UUID,
+      rows: {
+        'matrix-rollup-totals': [{ groupValue: 'Sales', total: 1 }],
+        'matrix-rollup[': [{ resourceId: UUID, groupValue: 'Sales', directCount: 1, governedCount: 0 }],
+      },
+    },
+    {
+      name: 'attribute roll-up (business roles as rows)',
+      filter: { rollup: 'department', rollupContent: 'roles-only' },
+      rowId: ROLE_ID,
+      rows: {
+        'matrix-rollup-totals': [{ groupValue: 'Sales', total: 1 }],
+        'matrix-rollup-rows[': [{ roleId: ROLE_ID, roleName: 'Approver', groupValue: 'Sales', count: 1 }],
+      },
+    },
+    {
+      name: 'layered attribute fold',
+      filter: { foldAttributes: true },
+      rowId: UUID,
+      rows: {
+        'matrix-attrcut-cells[': [{ resourceId: UUID, groupValue: 'Sales', directCount: 1, governedCount: 0 }],
+        'matrix-attrcut-nodes[': [{ groupValue: 'Sales', total: 1, childCount: 0 }],
+      },
+    },
+    {
+      name: 'context zoom',
+      filter: { rollupKind: 'context', rollupContextId: UUID2, rollupContent: 'resources-only' },
+      rowId: UUID,
+      rows: {
+        'matrix-ctx-focus-children': [{ id: UUID2 }],
+        'matrix-ctx-totals[': [{ groupValue: UUID2, total: 1 }],
+        'matrix-ctx-nodes': [{ id: UUID2, displayName: 'Child', parent: null }],
+        'matrix-ctx-crumbs': [{ id: UUID2, displayName: 'Root' }],
+        'matrix-ctx-rollup[': [{ resourceId: UUID, groupValue: UUID2, directCount: 1, governedCount: 0 }],
+      },
+    },
+    {
+      name: 'context zoom (business roles as rows)',
+      filter: { rollupKind: 'context', rollupContextId: UUID2, rollupContent: 'roles-only' },
+      rowId: ROLE_ID,
+      rows: {
+        'matrix-ctx-focus-children': [{ id: UUID2 }],
+        'matrix-ctx-totals[': [{ groupValue: UUID2, total: 1 }],
+        'matrix-ctx-nodes': [{ id: UUID2, displayName: 'Child', parent: null }],
+        'matrix-ctx-crumbs': [{ id: UUID2, displayName: 'Root' }],
+        'matrix-ctx-roles-rows[': [{ roleId: ROLE_ID, roleName: 'Approver', groupValue: UUID2, count: 1 }],
+      },
+    },
+    {
+      name: 'layered hierarchy',
+      filter: { sortHierarchy: { contextId: UUID2 } },
+      rowId: UUID,
+      rows: {
+        'matrix-ctx-cut': [{ id: UUID2, depth: 1 }],
+        'matrix-ctx-layered[': [{ resourceId: UUID, groupValue: UUID2, directCount: 1, governedCount: 0 }],
+        'matrix-ctx-scoped-members[': [{ groupValue: UUID2, total: 1, direct: 1 }],
+      },
+    },
+  ];
+
+  for (const shape of SHAPES) {
+    it(`ships the sidecar for the ${shape.name}`, async () => {
+      parseFilterImpl = () => baseFilter(shape.filter);
+      labelHandlers = { ...shape.rows, 'matrix-data-resource-contexts': contextRows(shape.rowId) };
+      const res = await post({ filter: {} });
+      expect(res.status).toBe(200);
+      expect(res.body.resourceContexts).toEqual([{
+        resourceId: shape.rowId,
+        contexts: [{ id: 'c1', displayName: 'Finance', contextType: 'Tag' }],
+      }]);
+      // …and it asked about that shape's OWN rows, not some other id.
+      expect(lastSql['matrix-data-resource-contexts']).toContain('"ContextMembers"');
+    });
+  }
+
+  it('leaves the column empty rather than failing the roll-up when Contexts are unavailable', async () => {
+    // Deployments predating the v6 context tables still have to render.
+    parseFilterImpl = () => baseFilter({ rollup: 'department', rollupContent: 'resources-only' });
+    labelHandlers = {
+      'matrix-rollup-totals': [],
+      'matrix-rollup[': [{ resourceId: UUID, groupValue: 'Sales', directCount: 1, governedCount: 0 }],
+      'matrix-data-resource-contexts': () => { throw new Error('ContextMembers missing'); },
+    };
+    const res = await post({ filter: {} });
+    expect(res.status).toBe(200);
+    expect(res.body.resourceContexts).toEqual([]);
+    expect(res.body.resources).toHaveLength(1);   // the grid itself still came back
+  });
+
+  it('does not query Contexts at all for a roll-up with no resolvable rows', async () => {
+    // The lookup is skipped for an empty id list, so an empty roll-up costs no
+    // extra round trip.
+    parseFilterImpl = () => baseFilter({ rollup: 'department', rollupContent: 'resources-only' });
+    labelHandlers = { 'matrix-rollup-totals': [], 'matrix-rollup[': [] };
+    const res = await post({ filter: {} });
+    expect(res.status).toBe(200);
+    expect(res.body.resourceContexts).toEqual([]);
+    expect(lastSql['matrix-data-resource-contexts']).toBeUndefined();
   });
 });

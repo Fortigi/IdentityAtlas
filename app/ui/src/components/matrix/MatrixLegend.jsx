@@ -104,7 +104,7 @@ export default function MatrixLegend({ showBusinessRoles = false }) {
         <div className="flex items-center gap-1.5">
           <span className="inline-block w-4 h-4 rounded-sm border border-gray-300 dark:border-gray-600 shrink-0" style={{ backgroundColor: '#fde68a' }} aria-hidden="true" />
           <span className="text-gray-700 dark:text-gray-300">
-            Coloured cell = membership is <span className="font-medium">governed</span> by a business role / access package (the colour matches its column).
+            Coloured cell = membership is <span className="font-medium">governed</span> by a business role (the colour matches its column).
           </span>
         </div>
         <div className="text-gray-500 dark:text-gray-400 pt-1">

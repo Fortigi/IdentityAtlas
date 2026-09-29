@@ -20,7 +20,53 @@ const MATRIX_VIEWS = [
   '"vw_ResourceUserPermissionAssignments"',
   '"vw_UserPermissionAssignmentViaBusinessRole"',
 ];
+const MATRIX_VIEW_NAMES = MATRIX_VIEWS.map(v => v.replace(/"/g, ''));
 const useSql = process.env.USE_SQL === 'true';
+
+// Why a built matrix view would have rows: the cheap base-table question the
+// view answers the long way. A view that is populated AND empty while its probe
+// returns a row is in a state that cannot be right.
+//
+// That state is reachable and was reached: a matview refreshed once against an
+// empty database is `ispopulated`, and `ispopulated` was the only thing startup
+// looked at, so nothing ever rebuilt it. A customer's install carried 42.6
+// million assignments behind two 40 kB views for as long as it took someone to
+// refresh them by hand.
+//
+// Each probe is a NECESSARY condition for its view to have rows, chosen to stop
+// at the first row rather than to be exact: the view's own top-level GROUP BY
+// means "run the view with LIMIT 1" is not cheap at scale. Over-claiming
+// therefore costs a rebuild, which is why the cooldown below exists.
+const MATRIX_VIEW_PROBES = {
+  // The matrix view is a projection of live assignments carrying a subject.
+  vw_ResourceUserPermissionAssignments: `
+    SELECT 1 FROM "ResourceAssignments"
+     WHERE "deletedAt" IS NULL
+       AND ("principalId" IS NOT NULL OR "identityId" IS NOT NULL)
+     LIMIT 1`,
+  // Governance only. An install with no business roles has this view empty and
+  // CORRECT — the common case — and the probe must agree, or every such install
+  // would rebuild on a timer. So it asks for a governance resource that actually
+  // contains something and is actually held by somebody.
+  vw_UserPermissionAssignmentViaBusinessRole: `
+    SELECT 1
+      FROM "ResourceRelationships" rr
+      JOIN "Resources" gov ON gov.id = rr."parentResourceId" AND gov."governanceResource"
+      JOIN "ResourceAssignments" bru ON bru."resourceId" = rr."parentResourceId"
+                                    AND bru."principalId" IS NOT NULL
+                                    AND bru."deletedAt" IS NULL
+     WHERE rr."relationshipType" = 'Contains'
+     LIMIT 1`,
+};
+
+// A probe-driven rebuild is expensive: measured at 42.6M assignments, rebuilding
+// both views plus ANALYZE is 3m17s and 7.6 GB of result. A probe that
+// over-claims must not be able to spend that on every container restart, so a
+// rebuild the probe asked for claims this key and no other one runs until the
+// window has passed. A view that was NEVER built bypasses it — that one has to
+// happen, and it only ever happens once.
+const AUTO_REBUILD_KEY = 'matrixViews.lastProbeRebuildAt';
+export const AUTO_REBUILD_COOLDOWN = '6 hours';
 
 function canRefresh(req) {
   return crawlerHasPermission(req, 'refreshViews') || crawlerHasPermission(req, 'admin');
@@ -152,8 +198,16 @@ export async function refreshAfterIngest() {
 // that field is only updated by ANALYZE).
 // Pure helper — determines whether CONCURRENTLY can be used for a given view.
 // Exported for unit testing.
-export function refreshKeyword(viewName, populatedSet, isDesktop) {
-  return !isDesktop && populatedSet.has(viewName) ? 'CONCURRENTLY' : '';
+//
+// A populated but EMPTY view counts as unpopulated here. CONCURRENTLY builds the
+// new contents into a temp table and then DIFFS it against the old one; filling
+// an empty view that way is the worst case the diff has — every row of a 7.6 GB
+// result is an insert found by a full outer join — while a plain REFRESH swaps
+// the heap in one pass. The trade CONCURRENTLY buys (readers keep the old
+// contents during the refresh) is worth nothing when the old contents are
+// nothing, so the case that needs the rebuild most gets the fast path.
+export function refreshKeyword(viewName, populatedSet, isDesktop, emptySet = new Set()) {
+  return !isDesktop && populatedSet.has(viewName) && !emptySet.has(viewName) ? 'CONCURRENTLY' : '';
 }
 
 // Crawler-triggered refreshes all go through this one coordinator: debounced,
@@ -169,23 +223,105 @@ export const viewRefresh = createViewRefreshCoordinator(() => refreshAfterIngest
   minIntervalMs: matrixRefreshMinIntervalMs(),
 });
 
-// Startup: build a matrix view only if it has never been populated (first boot
-// after the migrations create them WITH NO DATA). A populated view is left alone:
-// refreshing it is not "cheap" — at 41M assignments it is minutes of work and
-// ~11 GB of scratch disk, and it used to run on every restart, including the
-// restart after a crash. Desktop mode keeps refreshing at startup as before.
-export async function ensureMatrixViewsPopulated() {
+// What each matrix matview is right now: built or not, and — when built —
+// whether it holds any row at all. Both are cheap: pg_matviews is a catalog
+// read and the emptiness question is a one-row scan that stops immediately.
+export async function readMatrixViewStates() {
+  const { rows } = await db.query(
+    `SELECT matviewname, ispopulated FROM pg_matviews WHERE matviewname = ANY($1)`,
+    [MATRIX_VIEW_NAMES],
+  );
+  const states = [];
+  for (const r of rows) {
+    // The identifier is not user input: pg_matviews was filtered against our own
+    // literal list, so matviewname can only be one of those two strings.
+    const probe = r.ispopulated ? await db.query(`SELECT 1 FROM "${r.matviewname}" LIMIT 1`) : null;
+    states.push({ name: r.matviewname, populated: r.ispopulated === true, empty: probe ? probe.rows.length === 0 : true });
+  }
+  return states;
+}
+
+// Every matrix view that needs rebuilding, and why. `neverBuilt` separates the
+// first-boot case (must always run) from the probe-driven one (cooled down).
+export async function findStaleMatrixViews() {
+  const stale = [];
+  for (const s of await readMatrixViewStates()) {
+    if (!s.populated) {
+      stale.push({ view: s.name, neverBuilt: true, reason: 'never built' });
+      continue;
+    }
+    if (!s.empty) continue;
+    const probe = MATRIX_VIEW_PROBES[s.name];
+    if (!probe) continue;
+    const { rows } = await db.query(probe);
+    if (rows.length > 0) {
+      stale.push({ view: s.name, neverBuilt: false, reason: 'populated but empty while the rows it is built from exist' });
+    }
+  }
+  return stale;
+}
+
+// Claim the probe-driven rebuild, atomically: the row is written only when there
+// is none or the last one is older than the cooldown, so two web containers
+// starting together do not both spend three minutes on the same rebuild.
+// Returns false when the claim was refused. A failure to reach WorkerConfig is
+// not a reason to skip a rebuild the probe asked for.
+export async function claimProbeRebuild() {
+  try {
+    const row = await db.queryOne(
+      `INSERT INTO "WorkerConfig" ("configKey", "configValue", "updatedAt")
+       VALUES ($1, to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SSZ'), now() AT TIME ZONE 'utc')
+       ON CONFLICT ("configKey") DO UPDATE
+          SET "configValue" = EXCLUDED."configValue",
+              "updatedAt"   = EXCLUDED."updatedAt"
+        WHERE "WorkerConfig"."updatedAt" < (now() AT TIME ZONE 'utc') - $2::interval
+       RETURNING "configKey"`,
+      [AUTO_REBUILD_KEY, AUTO_REBUILD_COOLDOWN],
+    );
+    return row !== null && row !== undefined;
+  } catch (err) {
+    console.warn(`Matrix-view rebuild cooldown unavailable (${err.message}) — rebuilding anyway`);
+    return true;
+  }
+}
+
+// Startup: rebuild a matrix view that is unusable, and only then.
+//
+// Two ways a view is unusable. It was never populated (first boot, after the
+// migrations create them WITH NO DATA), or it is populated and EMPTY while the
+// rows it is built from are there — the state `ispopulated` alone cannot see,
+// and the one that left a customer's person-detail page showing no entitlements
+// at all behind 42.6 million perfectly loaded assignments.
+//
+// A view that is populated and non-empty is still left alone: refreshing it is
+// not cheap — 3m17s and 7.6 GB at that size — and it used to run on every
+// restart, including the restart after a crash.
+//
+// The rebuild is NOT awaited. index.js already binds the port before bootstrap
+// runs, and this keeps it true from this end too: a three-minute rebuild here
+// must never be able to sit in front of a platform's startup probe, which is how
+// this product crash-looped a deployment once already. Pass { wait: true } to
+// await it (tests, and desktop, where the data is small and the caller is the
+// one that wants it ready).
+export async function ensureMatrixViewsPopulated({ wait = false } = {}) {
   if (process.env.DESKTOP_MODE === 'true') {
     await refreshMatrixViews();
     return 'refreshed';
   }
-  const { rows } = await db.query(
-    `SELECT matviewname FROM pg_matviews WHERE NOT ispopulated AND matviewname = ANY($1)`,
-    [MATRIX_VIEWS.map(v => v.replace(/"/g, ''))],
+  const stale = await findStaleMatrixViews();
+  if (stale.length === 0) return 'already-populated';
+  const detail = stale.map(s => `${s.view} (${s.reason})`).join(', ');
+  if (!stale.some(s => s.neverBuilt) && !(await claimProbeRebuild())) {
+    console.warn(`Matrix views need rebuilding but one was already rebuilt within ${AUTO_REBUILD_COOLDOWN}: ${detail}`);
+    return `stale, rebuild on cooldown: ${detail}`;
+  }
+  console.warn(`Rebuilding matrix views: ${detail}`);
+  const run = refreshMatrixViews().then(
+    () => console.log(`Matrix view rebuild finished: ${detail}`),
+    (err) => console.error(`Matrix view rebuild failed: ${err.message}`),
   );
-  if (rows.length === 0) return 'already-populated';
-  await refreshMatrixViews();
-  return 'populated';
+  if (wait) await run;
+  return stale.some(s => s.neverBuilt) ? 'populating' : 'rebuilding';
 }
 
 
@@ -195,17 +331,18 @@ export async function refreshMatrixViews() {
   // worker, so CONCURRENTLY is not supported. Always use plain REFRESH there.
   const isDesktop = process.env.DESKTOP_MODE === 'true';
   let populatedSet = new Set();
+  let emptySet = new Set();
   if (!isDesktop) {
-    // Fetch which matviews are already populated so we can choose CONCURRENTLY
-    // vs plain REFRESH without letting PostgreSQL log an ERROR on first boot.
-    const { rows: populated } = await db.query(
-      `SELECT matviewname FROM pg_matviews WHERE ispopulated = true AND matviewname = ANY($1)`,
-      [views.map(v => v.replace(/"/g, ''))],
-    );
-    populatedSet = new Set(populated.map(r => r.matviewname));
+    // Which matviews are already populated, and which of those hold nothing, so
+    // we can choose CONCURRENTLY vs plain REFRESH without letting PostgreSQL log
+    // an ERROR on first boot — and without asking CONCURRENTLY to diff a full
+    // rebuild against an empty view. See refreshKeyword.
+    const states = await readMatrixViewStates();
+    populatedSet = new Set(states.filter(s => s.populated).map(s => s.name));
+    emptySet = new Set(states.filter(s => s.empty).map(s => s.name));
   }
   for (const v of views) {
-    const concurrently = refreshKeyword(v.replace(/"/g, ''), populatedSet, isDesktop);
+    const concurrently = refreshKeyword(v.replace(/"/g, ''), populatedSet, isDesktop, emptySet);
     await db.query(`REFRESH MATERIALIZED VIEW ${concurrently} ${v}`);
   }
   // Refresh planner statistics on the matviews and the big base tables.

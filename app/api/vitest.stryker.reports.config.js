@@ -21,6 +21,7 @@ export default defineConfig({
     include: [
       'src/reports/export.test.js',
       'src/reports/registry.test.js',
+      'src/reports/templates/application-access-review.test.js',
       'src/reports/templates/orphaned-accounts.test.js',
       'src/routes/reports.test.js',
       'src/accountlinking/orphanQuery.test.js',

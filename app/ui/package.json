@@ -26,7 +26,7 @@
     "test:mutation:contextassistant": "stryker run stryker.contextassistant.config.json"
   },
   "dependencies": {
-    "@azure/msal-browser": "^5.22.0",
+    "@azure/msal-browser": "^5.23.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
@@ -51,14 +51,14 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
-    "@vitest/coverage-v8": "^5.0.1",
+    "@vitest/coverage-v8": "^5.0.2",
     "eslint": "^10.11.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
     "eslint-plugin-sonarjs": "4.2.1",
     "globals": "^17.12.0",
-    "jsdom": "^30.1.0",
-    "vite": "^8.3.0",
+    "jsdom": "^30.1.1",
+    "vite": "^8.3.1",
     "vitest": "^5.0.0"
   },
   "overrides": {

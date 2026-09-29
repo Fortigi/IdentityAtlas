@@ -81,13 +81,23 @@ router.get('/reports/:name/export', async (req, res) => {
   }
 
   try {
-    // Notices are screen-only: a download is the rows, and a report that needs
-    // its caveat in the file carries it as a column instead.
-    const { notices: _screenOnly, ...payload } = await runReport(report, params);
+    // Whether the notices travel with the rows is the FORMAT's call, not this
+    // route's. A CSV is a table and nothing else, so a preamble above the header
+    // would break every parser that reads it; a workbook has room above the
+    // table and a reader who expects to find context there. So a format declares
+    // `carriesNotices` and gets them, and every other format is served exactly
+    // the payload it was served before. The engine still never asks which report
+    // this is — only what the chosen format can hold.
+    const full = await runReport(report, params);
+    const { notices: _screenOnly, ...rowsOnly } = full;
+    const payload = exportFormat.carriesNotices ? full : rowsOnly;
+
     const filename = exportFilename(report.name, exportFormat.extension, payload.generatedAt);
     res.setHeader('Content-Type', exportFormat.contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(exportFormat.serialize(payload));
+    // A serializer may be async — a workbook is assembled and zipped, not
+    // concatenated — so every format is awaited, including the synchronous ones.
+    res.send(await exportFormat.serialize(payload));
   } catch (err) {
     reportFailed(res, report, 'export', err);
   }

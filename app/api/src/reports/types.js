@@ -39,10 +39,14 @@
  * @typedef {Object} ReportRunResult
  * @property {Object[]} rows  One object per row; keys match the column keys,
  *                            plus an optional `_entity` link target.
- * @property {ReportNotice[]} [notices]  Screen-only context for those rows.
- *                            Downloads stay rows-only, so a report whose rows
- *                            need the caveat to be readable must also carry it
- *                            as a column.
+ * @property {ReportNotice[]} [notices]  Context for those rows. Whether a
+ *                            download carries them is the FORMAT's decision,
+ *                            declared as `carriesNotices` in export.js: a
+ *                            workbook writes them above the table, a CSV cannot
+ *                            (a preamble above the header breaks every parser
+ *                            that reads it). So a report whose rows need the
+ *                            caveat to be readable *as a CSV* must still carry
+ *                            it as a column.
  */
 
 /**

@@ -76,6 +76,19 @@ export function getIdentityColumnValuesMeta() {
 
 // ─── Filter parsing ─────────────────────────────────────────────────
 
+// Most attribute levels a layered fold can show — one per sort attribute, and
+// normaliseSortAttributes caps those at 6.
+export const MAX_ROLLUP_LEVEL = 6;
+
+// A level cap is a whole number of header rows, 1..MAX_ROLLUP_LEVEL. Anything
+// else (absent, 0, negative, fractional, a numeric string, NaN) means "no cap"
+// rather than an error, so an old or hand-edited filter keeps rendering at full
+// depth instead of collapsing to one column.
+export function clampRollupLevel(value) {
+  if (!Number.isInteger(value) || value < 1) return null;
+  return Math.min(value, MAX_ROLLUP_LEVEL);
+}
+
 export function parseFilter(body) {
   const f = body && body.filter;
   if (!f || typeof f !== 'object') return null;
@@ -125,6 +138,13 @@ export function parseFilter(body) {
     // FOLDED (collapse model — default none = full depth, all attribute rows
     // shown). Inverse of rollupExpanded, which the hierarchy view uses.
     rollupCollapsed: Array.isArray(f.rollupCollapsed) ? f.rollupCollapsed.filter(x => typeof x === 'string').slice(0, 500) : [],
+    // Layered attribute fold: how many of the chosen attributes are shown as
+    // header rows. null = all of them (full depth). The grid corner's
+    // fold/unfold controls walk this one level at a time, which is the only way
+    // to move the WHOLE column axis a level — a per-group fold key can express
+    // "this group stops here", but not "every group stops one level shallower",
+    // and unfolding a key drops that group straight back to full depth.
+    rollupLevel: clampRollupLevel(f.rollupLevel),
     // Subject-axis sort order — client-side only, but normalised here so the
     // shape is consistent across endpoints. Max 3 attributes.
     sortAttributes: normaliseSortAttributes(f.sortAttributes),

@@ -554,6 +554,147 @@ describe('RollupMatrixView — layered attribute folds', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Gap 1: the corner had a "?" and nothing else, so the only way to move the
+// column axis was clicking one header value at a time — and unfolding one
+// dropped that group straight to the deepest attribute.
+describe('RollupMatrixView — whole-axis fold level', () => {
+  // A three-attribute fold currently showing two levels.
+  const levelled = (over = {}) => makeRollup({
+    rollupKind: 'context', layered: true, layeredAttributes: true,
+    maxDepth: 2, level: 2, maxLevel: 3,
+    groupValues: ['a1'],
+    counts: [{ resourceId: 'res-1', groupValue: 'a1', directCount: 3, governedCount: 1 }],
+    nodes: [{ id: 'a1', displayName: 'Amsterdam', depth: 2, pathIds: ['dept-eng', 'loc-ams'], pathNames: ['Engineering', 'Amsterdam'], total: 12, childCount: 0 }],
+    ...over,
+  });
+  const foldBtn = () => screen.getByRole('button', { name: 'Fold all columns one level' });
+  const unfoldBtn = () => screen.getByRole('button', { name: 'Unfold all columns one level' });
+
+  it('folds the whole axis one level — not all the way to the top', () => {
+    const { onFilterChange } = renderView({ rollup: levelled() });
+    fireEvent.click(foldBtn());
+    expect(onFilterChange).toHaveBeenCalledWith(expect.objectContaining({ rollupLevel: 1 }));
+  });
+
+  it('unfolds the whole axis one level — not all the way to the deepest attribute', () => {
+    const { onFilterChange } = renderView({ rollup: levelled() });
+    fireEvent.click(unfoldBtn());
+    expect(onFilterChange).toHaveBeenCalledWith(expect.objectContaining({ rollupLevel: 3 }));
+  });
+
+  it('drops the per-group folds, so every column really is at the reported level', () => {
+    // Left in place, a group folded by hand would stay folded while the corner
+    // claimed level 3 — the readout would be wrong for that one column.
+    const { onFilterChange } = renderView({
+      rollup: levelled(),
+      filter: { ...baseFilter, rollupCollapsed: ['dept-eng'] },
+    });
+    fireEvent.click(unfoldBtn());
+    expect(onFilterChange).toHaveBeenCalledWith(expect.objectContaining({ rollupLevel: 3, rollupCollapsed: [] }));
+  });
+
+  it('changes what is rendered: one header row per visible level', () => {
+    const { unmount } = renderView({ rollup: levelled() });
+    expect(document.querySelectorAll('thead tr')).toHaveLength(2);
+    expect(screen.getByText('2/3')).toBeInTheDocument();
+    expect(screen.getByText('Amsterdam')).toBeInTheDocument();
+    unmount();
+
+    // What the server sends back after a fold: one level, one header row, and
+    // the columns are now the top attribute's values.
+    renderView({ rollup: levelled({
+      maxDepth: 1, level: 1,
+      nodes: [{ id: 'dept-eng', displayName: 'Engineering', depth: 1, pathIds: ['dept-eng'], pathNames: ['Engineering'], total: 12, childCount: 4 }],
+      groupValues: ['dept-eng'],
+      counts: [{ resourceId: 'res-1', groupValue: 'dept-eng', directCount: 3, governedCount: 1 }],
+    }) });
+    expect(document.querySelectorAll('thead tr')).toHaveLength(1);
+    expect(screen.getByText('1/3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fold all columns one level' })).toBeDisabled();
+    expect(screen.queryByText('Amsterdam')).not.toBeInTheDocument();
+  });
+
+  it('offers no level stepper on a roll-up that has no levels', () => {
+    // The flat attribute roll-up (the default shape) — one value per column,
+    // nothing to step through.
+    renderView();
+    expect(screen.queryByRole('button', { name: /one level/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'How to read this matrix' })).toBeInTheDocument();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Gap 2: the roll-up's rows are resources, so they carry the same Contexts the
+// per-subject grid shows. The server sends them with the roll-up payload — this
+// view never looks them up itself.
+describe('RollupMatrixView — Contexts column', () => {
+  const contextsCell = (rowLabel) =>
+    screen.getByRole('button', { name: rowLabel }).closest('tr').querySelectorAll('td')[1];
+
+  it('heads the column and pins it beside the resource names', () => {
+    renderView();
+    const header = screen.getByText('Contexts').closest('th');
+    expect(header.style.left).toBe('280px');
+    expect(header.className).toContain('sticky');
+  });
+
+  it('shows a row its own contexts', () => {
+    renderView({ overrides: { resourceContexts: [
+      { resourceId: 'res-1', contexts: [{ id: 'c1', displayName: 'Finance', contextType: 'Tag' }] },
+    ] } });
+    expect(contextsCell('Finance App')).toHaveTextContent('Finance');
+    // …and only to that row: res-2 carries nothing.
+    expect(contextsCell('HR Portal')).toHaveTextContent('—');
+  });
+
+  it('shows an em dash for a resource in no contexts at all', () => {
+    renderView({ overrides: { resourceContexts: [] } });
+    expect(contextsCell('Finance App')).toHaveTextContent('—');
+    expect(contextsCell('Finance App').textContent).not.toMatch(/undefined|null/);
+  });
+
+  it('shows the first two of several contexts and reveals the rest on demand', () => {
+    renderView({ overrides: { resourceContexts: [{
+      resourceId: 'res-1',
+      contexts: [
+        { id: 'c1', displayName: 'Finance', contextType: 'Tag' },
+        { id: 'c2', displayName: 'Payroll', contextType: 'Tag' },
+        { id: 'c3', displayName: 'SOX', contextType: 'BusinessProcess' },
+        { id: 'c4', displayName: 'Tier 0', contextType: 'Cluster' },
+      ],
+    }] } });
+
+    const cell = contextsCell('Finance App');
+    expect(cell).toHaveTextContent('Finance');
+    expect(cell).toHaveTextContent('Payroll');
+    expect(cell).not.toHaveTextContent('SOX');
+    fireEvent.click(screen.getByRole('button', { name: 'Show 2 more contexts' }));
+    expect(contextsCell('Finance App')).toHaveTextContent('SOX');
+    expect(contextsCell('Finance App')).toHaveTextContent('Tier 0');
+  });
+
+  it('matches resource ids case-insensitively, as the flat grid does', () => {
+    // Resource ids come back in mixed case from different queries; a
+    // case-sensitive lookup silently empties the column.
+    renderView({ overrides: { resourceContexts: [
+      { resourceId: 'RES-1', contexts: [{ id: 'c1', displayName: 'Finance', contextType: 'Tag' }] },
+    ] } });
+    expect(contextsCell('Finance App')).toHaveTextContent('Finance');
+  });
+
+  it('carries the column into the layered header too', () => {
+    renderView({ rollup: makeRollup({
+      rollupKind: 'context', layered: true, maxDepth: 2, groupValues: ['n1'],
+      nodes: [{ id: 'n1', displayName: 'EMEA', depth: 2, pathIds: ['root', 'n1'], pathNames: ['Corp', 'EMEA'], total: 3, directMembers: 0, childCount: 0 }],
+    }) });
+    // One labelled header, plus a spacer cell on the level above it so the
+    // column keeps a single width.
+    expect(screen.getAllByTitle(/Contexts this resource belongs to/)).toHaveLength(2);
+    expect(screen.getAllByText('Contexts')).toHaveLength(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 describe('RollupMatrixView — row cap', () => {
   it('caps the table at 300 rows and says how many were hidden', () => {
     const resources = Array.from({ length: 305 }, (_, i) => ({

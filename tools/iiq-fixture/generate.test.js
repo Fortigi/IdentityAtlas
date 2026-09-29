@@ -13,7 +13,7 @@ import { generateDataset } from '../scale-dataset/lib/generate.mjs';
 import { TABLES, LOAD_ORDER, bcpRecord, FIELD_TERMINATOR, ROW_TERMINATOR } from './lib/tables.mjs';
 import { resolveIiqParams, IIQ_DEFAULTS } from './lib/params.mjs';
 import { idSpace, iiqId, timestamps, attributesXml, catalogXml, xmlEscape } from './lib/iiq.mjs';
-import { orgOf } from './lib/rows.mjs';
+import { entitlementCertFrequency, orgOf } from './lib/rows.mjs';
 import { parseArgs } from './generate.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -189,6 +189,50 @@ describe('IdentityIQ storage', () => {
     expect(Object.keys(byType).length).toBeGreaterThanOrEqual(3);
   });
 
+  // 96.7% of a production catalogue has NO certification frequency, and what is
+  // set is a free-text column filled in by hand: a misspelling, a bare 'No', and
+  // two ways of saying the same thing. A fixture where every row carries one of
+  // four tidy values cannot show either problem — and the access-review report
+  // exists to make both visible.
+  it('leaves the certification frequency unset on almost every entitlement', () => {
+    const ents = readTable(dir, 'spt_managed_attribute');
+    const set = ents.filter(e => e.certfrequency !== '');
+    expect(set.length / ents.length).toBeCloseTo(IIQ_DEFAULTS.certFrequencySetShare, 1);
+    expect(set.length).toBeGreaterThan(0);
+    const vocabulary = IIQ_DEFAULTS.certFrequencies.map(([v]) => v);
+    for (const e of set) expect(vocabulary).toContain(e.certfrequency);
+  });
+
+  it('draws the set frequencies from a vocabulary that is dirty on purpose', () => {
+    // Over the whole index range, not the small fixture: the misspelling is
+    // 1.5% of the 3.3% that are set, so a 1,600-row file would show it by luck.
+    const { iiq } = resolveIiqParams({});
+    const values = [];
+    for (let e = 0; e < 200000; e++) {
+      const v = entitlementCertFrequency(iiq, e);
+      if (v !== null) values.push(v);
+    }
+    expect(values.length / 200000).toBeCloseTo(iiq.certFrequencySetShare, 2);
+    // The two values a consumer must not normalise away.
+    expect(values).toContain('Quaterly');
+    expect(values).toContain('No');
+    expect(values).toContain('No certification');
+    const annually = values.filter(v => v === 'Annually').length / values.length;
+    expect(annually).toBeCloseTo(0.42, 1);
+  });
+
+  it('keeps the frequency on its own hash stream, so changing the mix moves nothing else', () => {
+    const { iiq } = resolveIiqParams({});
+    const other = { ...iiq, certFrequencies: [['Weekly', 1]] };
+    const before = Array.from({ length: 500 }, (_, e) => entitlementCertFrequency(iiq, e));
+    const after = Array.from({ length: 500 }, (_, e) => entitlementCertFrequency(other, e));
+    // Which rows are set is unchanged; only what they say changes.
+    expect(after.map(v => v === null)).toEqual(before.map(v => v === null));
+    expect(after.filter(Boolean).every(v => v === 'Weekly')).toBe(true);
+    // And it is deterministic in the index.
+    expect(Array.from({ length: 500 }, (_, e) => entitlementCertFrequency(iiq, e))).toEqual(before);
+  });
+
   it('role composition points at real entitlements by application + attribute + value', () => {
     const keys = new Set(readTable(dir, 'spt_managed_attribute').map(e => `${e.application}|${e.attribute}|${e.value}`));
     const rel = readTable(dir, 'spt_bundle_profile_relation');
@@ -262,6 +306,13 @@ describe('determinism, records, parameters, CLI', () => {
       expect(() => resolveIiqParams({ iiq: { entitlementTypes: bad } })).toThrow(/entitlementTypes/);
     }
     expect(resolveIiqParams({ iiq: { entitlementTypes: [['group', 0.25], ['Entitlement', 0.75]] } }).iiq.entitlementTypes).toHaveLength(2);
+    // The frequency mix is validated the same way — a mix summing to 0.9 would
+    // silently push a tenth of the set rows into whichever value is last.
+    for (const bad of [[], [['Annually', 0.9]], [['Annually', 1], ['No', 0]], [['', 1]], 'Annually']) {
+      expect(() => resolveIiqParams({ iiq: { certFrequencies: bad } })).toThrow(/certFrequencies/);
+    }
+    expect(() => resolveIiqParams({ iiq: { certFrequencySetShare: 1.5 } })).toThrow(/certFrequencySetShare/);
+    expect(resolveIiqParams({ iiq: { certFrequencySetShare: 0 } }).iiq.certFrequencySetShare).toBe(0);
     expect(() => resolveIiqParams({ shape: { scale: 0 } })).toThrow(/scale/);
   });
 

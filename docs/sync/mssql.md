@@ -191,6 +191,16 @@ load such a catalogue as Contexts and place each member in its context.
   `ownerUserId` holds something the UI can turn into a person. An owner that matches no
   account is **kept exactly as the source spells it** and counted in the job log — never
   dropped, never invented.
+- **Most members belong to no context, and that is not a problem.** A `context-members`
+  statement usually reads *every* entitlement and maps the few that name an application,
+  so the majority of its rows name nothing at all. Those are counted and reported
+  separately — `633,012 naming no context` — and are **not** held against the 5% bound on
+  rows that could not be placed, because the reference is optional and an absent optional
+  reference is a fact about the source rather than a failure to place a row. What still
+  counts against the bound: a row with no **member id** (a required column), and a row
+  whose member names a resource the run did not load. A row naming a context the
+  catalogue does not have is reported as unresolved, in the job log and the context
+  report.
 - **Nothing is folded silently.** The job log reports how many source spellings differ
   from the catalogue's own and were matched anyway (with examples), how many memberships
   name a context the catalogue does not have (with the most frequent names), any name two
@@ -332,14 +342,34 @@ How a mapping behaves:
 
 Every run ends with two checks, and each one catches a failure the other cannot see.
 
-**Did the crawler read everything?** After each statement the crawler asks SQL Server
-how many rows the statement returns, and compares that with the rows it read. A read
-that stops early looks exactly like one that finished: every row that did arrive is
-distinct, lands, and agrees with the database. Only the source's own count shows the
-gap. This check found a defect in which a worker job read 22,087 of 176,703
-identities and reported success. For an assignment statement the same query also
-returns the distinct (resource, principal) pairs, so the largest table is scanned once
-more, not twice.
+**Did the crawler read everything?** Around each statement the crawler asks SQL Server
+how many rows the statement returns — once before the read and once after it — and the
+rows it read must land between the two. A read that stops early looks exactly like one
+that finished: every row that did arrive is distinct, lands, and agrees with the
+database. Only the source's own count shows the gap. This check found a defect in which
+a worker job read 22,087 of 176,703 identities and reported success. For an assignment
+statement the count taken *after* the read also returns the distinct (resource,
+principal) pairs, so the largest table is scanned once more, not twice; the count taken
+*before* it is rows only, which is the cheap half.
+
+**A source that is aggregated while it is read.** A live governance database is not
+frozen for the hours a full read takes, so the two counts rarely agree — a field run
+saw 805,491 rows read of 805,547, and 33,857,035 read while the table held 33,841,580
+minutes later (rows had been *deleted* mid-read). That is why the check is a band and
+not an equality: a complete read may land anywhere between the two counts, plus the
+drift itself as slack on either side. The slack is the source's own measured movement,
+never a percentage handed out in advance — a source that did not move is held to exact
+equality, exactly as before. The drift is printed on every run, pass or fail:
+
+```
+  the source moved by 15,455 rows during the read (33,857,035 → 33,841,580)
+```
+
+A flat tolerance would be the wrong trade here: 1% also waves through a read that
+genuinely lost 0.5% of its rows, and because a verified run *stores the watermark*, the
+next delta would start past the missing rows and the loss would be permanent and
+invisible. If the count before the read cannot be taken (a paged statement, or the
+count itself fails), the read is held to the single count taken afterwards, as it was.
 
 **Did everything read reach the database?** Then, one reconcile scope at a time
 (principals of a type, resources of a type, assignments of a type, relationships of a
@@ -349,11 +379,11 @@ key collapse into one row but would still be counted as sent.
 
 | Check | Expected |
 |---|---|
-| Read, per statement | The rows `SELECT COUNT_BIG(*)` over the statement returns, asked right after the read. A source that changes during the run can also make these differ; re-run to tell the two apart |
+| Read, per statement | Between the rows `SELECT COUNT_BIG(*)` over the statement returns before the read and after it, widened on both sides by the difference between them. A source that did not move gives no slack at all |
 | Placed, per statement | At most **5%** of the rows read may be held back: as dangling (they name a resource or principal the run did not load) or skipped (a required column is empty). More means the statements disagree about what exists, for example an entitlement statement that filters out most entitlements while the grant statement does not. A little is normal, e.g. grants held by workgroups that the principals statement leaves out. This bound is also what makes an assignment count with dangling rows an assertion rather than an open range |
 | Principals, resources | The number of **distinct** ids the statement returned. If it returned more rows than distinct ids, the run fails: two records sharing an id overwrite each other, so all but one of them are lost. Make the id column unique |
 | Relationships, owner assignments | The number of **distinct** pairs — (parent, child) for a relationship, (resource, principal) for an owner assignment — compared with the database's own count. A repeated pair is **not** a failure: it is the same edge arriving twice (a business role reaching one entitlement through two source applications, say), and collapsing it loses nothing, because an edge carries nothing but its two ends. The collapse is reported, not failed |
-| Assignments | The source's distinct (resource, principal) pairs. Rows held back as dangling make this a range rather than an exact number |
+| Assignments | The source's distinct (resource, principal) pairs, allowing the same drift as the read (a pair count cannot move by more than the row count did). Rows held back as dangling make this a range rather than an exact number |
 
 A statement that pages with `@Offset` cannot be wrapped in a count, so its read and its
 assignment scope are reported as not verified rather than guessed at.
@@ -363,9 +393,11 @@ The job log ends with a table like this, and **any `FAIL` fails the job**:
 ```
 Verifying: source against database...
   FAIL read: Identities                               expected      176,703  read           22,087
-       the crawler read 22,087 rows but the source returns 176,703. Either the read
-       stopped early or the source changed during the run; ...
-  ok   read: Entitlements                             expected       80,000  read           80,000
+       the crawler read 22,087 rows; the source returns 176,703 rows. The read
+       stopped early. ... no watermark is stored
+  ok   read: Entitlements                             expected       80,056  read           80,000
+       the source held 80,000 rows before the read and 80,056 after — it moved by
+       56 during the read, so a complete read is 79,944-80,112 rows
   ok   resources (resourceType=Entitlement)           expected       80,000  database       80,000
   ok   principals (principalType=User)                expected       22,087  database       22,087
 ```
@@ -374,6 +406,16 @@ The data that did load stays loaded; the failure tells you the load is incomplet
 delta run is verified the same way, against the rows it touched. Identities and Contexts
 have no system column and are not counted per system; the context report (see
 [Contexts from a catalogue](#contexts-from-a-catalogue)) covers the catalogue.
+
+### What a failed verification does and does not undo
+
+Rows are committed batch by batch, so by the time a verdict exists they are durable.
+The two things that follow a run are therefore split deliberately:
+
+| After a run that FAILED verification | |
+|---|---|
+| **Matrix views** | **Refreshed anyway.** A view that does not reflect committed rows is strictly worse than one that does: a run once loaded 42.6 M assignments, failed on unrelated checks, and left both matrix views empty — so person pages showed no entitlements and a team matrix showed zero, while the data underneath was perfect. The refresh also runs when the crawl throws for any other reason. A failed refresh is logged and never turns a passing run into a failing one, nor hides the verification error |
+| **Watermarks and sweep marks** | **Not stored.** An unverified run must re-read its window and re-sweep next time rather than step over rows it never loaded. Every ingest is an upsert, so a re-read costs time, never correctness |
 
 ---
 

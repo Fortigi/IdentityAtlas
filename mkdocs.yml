@@ -196,6 +196,7 @@ nav:
           - CI Pipeline: contributing/ci-pipeline.md
           - CI Scope Testing: architecture/ci-scope-testing.md
           - Release & Branching Strategy: architecture/branching-strategy.md
+          - Maintaining a Release Line: process/maintaining-a-release-line.md
           - How a Release's Notes Are Assembled: process/release-notes.md
           - Definition of Ready: process/definition-of-ready.md
           - DoR state machine & operating procedure: process/dor-state-machine.md

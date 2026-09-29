@@ -503,6 +503,11 @@ function Write-SqlSlotSummary {
     param([Parameter(Mandatory)] [hashtable]$Ctx, [long]$Rows = 0, [double]$Seconds = 0, [int]$Systems = 1)
     $note = @()
     if ($Ctx.Skipped)    { $note += "$($Ctx.Skipped.ToString('N0')) skipped (no id / required columns)" }
+    # Deliberately not worded as a problem, and deliberately not part of the
+    # colour below: most entitlements belonging to no logical application is
+    # what a healthy source looks like. Reading as an error is what kept this
+    # hidden inside the "skipped (no id / required columns)" count.
+    if ($Ctx.Unreferenced) { $note += "$($Ctx.Unreferenced.ToString('N0')) naming no context" }
     if ($Ctx.Dangling)   { $note += "$($Ctx.Dangling.ToString('N0')) dangling (unknown resource or principal id)" }
     if ($Ctx.Unresolved) { $note += "$($Ctx.Unresolved.ToString('N0')) without a known context" }
     if ($Ctx.Misrouted)  { $note += "$($Ctx.Misrouted.ToString('N0')) naming an unknown system" }
@@ -526,11 +531,27 @@ function Invoke-SqlSlot {
     $complete = -not ($delta -and $delta.Windowed)
     if ($Slot.target -eq 'resources' -and -not $complete) { $State.ResourcesComplete = $false }
     $ctx = @{ Slot = $Slot; Map = $null; Streams = (New-SqlSlotStreams -Slot $Slot -State $State -Complete $complete); State = $State
+              # Rows that arrived intact but carried no value in an OPTIONAL
+              # reference column, so there was nothing to place them against.
+              # Deliberately NOT one of the tallies on the next line: those are
+              # what Add-SqlReadCheck folds into the unplaced bound, and an
+              # absent optional reference is a fact about the source rather than
+              # a row this statement failed to place. Skipped is for a REQUIRED
+              # column being absent. See Add-SqlContextMemberRow, the only
+              # handler with an optional reference today.
+              Unreferenced = 0
               Delta = $delta; Complete = $complete
               Route = 'fixed'; Rows = 0; Skipped = 0; Dangling = 0; Unresolved = 0; Misrouted = 0
+              # What the source held when the read started — the other end of the
+              # band Add-SqlReadCheck judges the read against. A live source is
+              # aggregated while it is read, so one count taken afterwards is a
+              # different question from the one the read answered.
+              SourceBefore = $null
               # This statement's own owner tally, folded into the run's at the end.
               Ownership = (New-SqlOwnershipTally) }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    # Inside the stopwatch: the counts are part of what this statement costs.
+    $ctx.SourceBefore = Get-SqlSourceRowsBefore -Ctx $ctx -Connection $Connection
     $rows = Invoke-SqlQueryStream -Connection $Connection -Sql $Slot.sql -OnRow (New-SqlRowCallback -Ctx $ctx -Handler (Get-SqlRowHandler -Target $Slot.target)) `
         -CommandTimeout $State.CommandTimeout -Paged $Slot.paged -PageSize $State.PageSize -Since $(if ($delta) { $delta.Since } else { $null })
     $sent = Complete-SqlSlotStreams -Ctx $ctx
@@ -546,6 +567,7 @@ function Invoke-SqlSlot {
         Join-SqlOwnershipTally -Into $State.Ownership -From $ctx.Ownership
     }
     $State.Totals[$Slot.name] = @{ target = $Slot.target; rows = $rows; sent = $sent; skipped = $ctx.Skipped
+                                   unreferenced = $ctx.Unreferenced
                                    dangling = $ctx.Dangling; unresolved = $ctx.Unresolved; misrouted = $ctx.Misrouted
                                    systems = $systems; complete = $complete; ownership = $ownership }
     return $State.Totals[$Slot.name]
@@ -595,12 +617,41 @@ function Invoke-SqlReconcile {
     return $deleted
 }
 
+# Rebuild the matrix materialized views. Split out of Complete-SqlRun so the
+# entry point can run it from a `finally`: the views must reflect the rows
+# WHATEVER the run's verdict.
+#
+# A crawl commits its rows batch by batch, so by the time anything can fail they
+# are already durable. The refresh used to sit after Test-SqlRunCounts, which
+# THROWS: a run that loaded 42.6 million assignments and then failed an unrelated
+# check left both matrix views empty, so a person's entitlements and a team
+# matrix showed nothing at all while the data underneath was perfect. A view that
+# does not reflect committed rows is strictly worse than one that does.
+#
+# Never throws. A failed refresh must not turn a passing run into a failing one,
+# and — running in a `finally` — must not replace the exception that a real
+# verification failure is carrying. Returns $true when the refresh was asked for
+# successfully, so a caller (and a test) can tell the two apart.
+function Update-SqlMatrixViews {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+    try {
+        # Inside the try as well: Update-CrawlerProgress throws on HTTP 409
+        # (job terminated server-side), which in a finally would mask the real error.
+        Update-CrawlerProgress -Step 'Refreshing views' -Pct 95
+        Invoke-IngestAPI -Endpoint 'ingest/refresh-views' -Body @{} | Out-Null
+        Write-Host "`nViews refreshed" -ForegroundColor Green
+        return $true
+    } catch {
+        Write-Host "`nView refresh failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
+        return $false
+    }
+}
+
 function Complete-SqlRun {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] [datetime]$SyncStart)
-    Update-CrawlerProgress -Step 'Refreshing views' -Pct 95
-    try { Invoke-IngestAPI -Endpoint 'ingest/refresh-views' -Body @{} | Out-Null; Write-Host "`nViews refreshed" -ForegroundColor Green }
-    catch { Write-Host "`nView refresh failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow }
     $elapsed = (Get-Date) - $SyncStart
     Write-Host "`n=== SQL sync complete in $([Math]::Round($elapsed.TotalSeconds))s ===" -ForegroundColor Green
     foreach ($e in $State.Totals.GetEnumerator()) {

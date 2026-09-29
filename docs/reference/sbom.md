@@ -55,7 +55,7 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | vitest | ^5.0.0 | Unit testing framework | MIT |
-| supertest | ^7.2.2 | HTTP integration testing | MIT |
+| supertest | ^7.3.0 | HTTP integration testing | MIT |
 | eslint | ^10.11.0 | JavaScript linter | MIT |
 | eslint-plugin-security | ^4.0.1 | Security-focused lint rules | Apache 2.0 |
 | esbuild | ^0.28.2 | Bundler for desktop launcher build | MIT |
@@ -83,7 +83,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.22.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.23.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
