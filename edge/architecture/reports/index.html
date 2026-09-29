@@ -3241,6 +3241,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#pivot-tables-in-the-workbook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pivot tables in the workbook
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5391,6 +5402,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#pivot-tables-in-the-workbook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pivot tables in the workbook
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5740,11 +5762,16 @@ still never asks which report it is serving — only what the chosen format can 
 <code>carriesNotices</code> while notices were the only such field; it is named for the category now that it
 gates two.)</p>
 <h3 id="constantcolumns-declared-by-the-run-never-derived"><code>constantColumns</code> — declared by the run, never derived<a class="headerlink" href="#constantcolumns-declared-by-the-run-never-derived" title="Permanent link">&para;</a></h3>
-<p>The xlsx serializer writes each declared column once, above the table, as a label/value pair, and
-leaves it out of the table. So a review pack for <strong>one</strong> application opens with what the application
-is — name, owner, description, CMDB reference, connection type, onboarding sector, abbreviation,
-manager — and then lists its entitlements, instead of repeating those eight values down 21,000 rows.
-A run over <strong>several</strong> applications declares nothing constant, because they genuinely vary per row.</p>
+<p>A workbook opens on a <strong>Summary</strong> tab — report name, run line, the declared constant columns as
+label/value pairs, then every notice — followed by a <strong>Data</strong> tab that holds only the table, header on
+row 1. The serializer writes each declared column once, on the Summary tab, and leaves it out of the
+table. So a review pack for <strong>one</strong> application opens with what the application is — name, owner,
+description, CMDB reference, connection type, onboarding sector, abbreviation, manager — instead of
+repeating those eight values down 21,000 rows. A run over <strong>several</strong> applications declares nothing
+constant, because they genuinely vary per row.</p>
+<p><strong>Exception — a column a pivot is built on stays in the table</strong> (and is still stated on the Summary
+tab). A pivot can only read what the table holds, and the owner reads the pivot the same way for one
+application as for many; see <a href="#pivot-tables-in-the-workbook">Pivot tables in the workbook</a>.</p>
 <p>Three rules hold it together:</p>
 <ul>
 <li><strong>The run declares it; the serializer does not guess.</strong> A column can hold one distinct value by
@@ -5770,6 +5797,19 @@ A run over <strong>several</strong> applications declares nothing constant, beca
   <strong>and</strong> with cell type <code>String</code>. (The UI's own xlsx exports do apply the apostrophe; that is a
   separate, older path and was left alone.)</li>
 </ul>
+<h3 id="pivot-tables-in-the-workbook">Pivot tables in the workbook<a class="headerlink" href="#pivot-tables-in-the-workbook" title="Permanent link">&para;</a></h3>
+<p>A template may declare <code>pivots</code> — each <code>{ name, rows, filters, values }</code> in column keys, values
+summed — and the xlsx download then has one ready-made pivot per declaration, each on its own tab
+after Data. The Application Access Review declares the two its owners used to build by hand:
+<em>Direct assignments</em> (filters: Requestable, Users assigned via a role; rows: Application owner →
+Application → Entitlement owner → Certification frequency → Entitlement) and <em>Assignments via roles</em>
+(filter: Users assigned via a role; rows: Granted by role(s) → Entitlement).</p>
+<p>ExcelJS 4.4 (the released line) writes no pivot tables, so <code>reports/xlsxPivots.js</code> adds them to the
+zip ExcelJS produced: one pivot cache over the Data table, shared by every pivot and marked
+<code>refreshOnLoad</code> so Excel lays the pivots out from the sheet when the file opens, and one pivot table
+part per tab. The declaration is metadata (<code>reportMetadata</code> carries <code>pivots</code>), so the serializer still
+never asks which report it is writing. Measured in Excel: a 50,000-row workbook has both pivots ready
+about 4 s after opening, and the pivots add ~0.5 s and ~1 MB to the export.</p>
 <h2 id="counting-assignments-at-scale">Counting assignments at scale<a class="headerlink" href="#counting-assignments-at-scale" title="Permanent link">&para;</a></h2>
 <p>A report that counts assignments per resource is the one shape in this framework that can degenerate
 into a whole-table scan, and <code>ResourceAssignments</code> is the largest table in the product — 46 million
