@@ -25,11 +25,6 @@
 // survives — a definition that reached it without substitution fails loudly
 // rather than silently matching a record literally named "@me".
 
-// Keys that must never be copied from model output onto an object: assigning
-// them by bracket notation reaches the prototype instead of the object. No valid
-// definition carries one.
-const POISON_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-
 /**
  * Replace condition values that are exactly a sentinel.
  *
@@ -42,35 +37,31 @@ const POISON_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
  * turned up as a field name or an entity would be a different bug, and
  * substituting it there would hide it.
  *
+ * WHY A SERIALISE/PARSE ROUND TRIP rather than a hand-written walk. The keys
+ * being copied were written by a model, and `copy[key] = …` with the key
+ * "__proto__" sets the PROTOTYPE instead of a property — prototype pollution
+ * reachable straight from model output, because JSON.parse keeps such a key as
+ * an ordinary own property and hands it on. A replacer has no computed writes at
+ * all: JSON.stringify walks the structure and JSON.parse rebuilds it, so there is
+ * no assignment for a crafted key to hijack. The input is parsed JSON in the first
+ * place (the model's reply), so nothing survives the trip that was ever in it.
+ *
  * @param {unknown} node  a definition, a condition, or any value inside one
  * @param {Map<string, unknown>} replacements  sentinel → what it stands for
  * @returns {unknown} the same shape with the sentinels substituted
  */
 export function substituteValues(node, replacements) {
   if (!replacements || replacements.size === 0) return node;
-  if (Array.isArray(node)) return node.map(n => substituteValues(n, replacements));
   if (node === null || typeof node !== 'object') return node;
 
-  const out = {};
-  for (const [key, value] of Object.entries(node)) {
-    // Keys a model wrote are copied onto a fresh object, and `out["__proto__"] = …`
-    // sets the PROTOTYPE rather than a property — prototype pollution, straight
-    // from model output (JSON.parse keeps such a key as an ordinary own property,
-    // so it reaches here). Dropping them costs nothing: no definition the
-    // compiler understands has a key like this, and validation would refuse one.
-    if (POISON_KEYS.has(key)) continue;
-    // A Map rather than a plain object on purpose: `replacements` is keyed by
-    // strings that came from a model, and `{}.hasOwnProperty` is not a lookup
-    // you want a value called "constructor" to reach.
-    if (key === 'value' && typeof value === 'string' && replacements.has(value)) {
-      out[key] = replacements.get(value);
-    } else if (value !== null && typeof value === 'object') {
-      out[key] = substituteValues(value, replacements);
-    } else {
-      out[key] = value;
-    }
-  }
-  return out;
+  // A Map rather than a plain object on purpose: `replacements` is keyed by
+  // strings that came from a model, and `{}.hasOwnProperty` is not a lookup you
+  // want a value called "constructor" to reach.
+  return JSON.parse(JSON.stringify(node, (key, value) => (
+    key === 'value' && typeof value === 'string' && replacements.has(value)
+      ? replacements.get(value)
+      : value
+  )));
 }
 
 /**

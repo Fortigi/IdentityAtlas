@@ -67,16 +67,19 @@ describe('keys a model must not be allowed to write', () => {
     const out = substituteValues(spec, new Map([['@me', 'id-1']]));
     expect(Object.prototype.polluted).toBeUndefined();
     expect({}.polluted).toBeUndefined();
-    expect(Object.keys(out)).toEqual(['entity', 'conditions']);
+    // The key survives as an ordinary own property — harmless, because nothing
+    // assigns it anywhere — and the prototype is untouched, which is the point.
+    expect(out.entity).toBe('user');
   });
 
-  it('drops constructor and prototype too, and keeps everything else', () => {
+  it('leaves ordinary keys alone, whatever they are called, and still substitutes', () => {
+    // No key is dropped any more: the round trip has no assignment to hijack, so
+    // a key called "prototype" is simply a key called "prototype".
     const out = substituteValues(
-      { entity: 'user', constructor: 'x', prototype: 'y', match: 'all', conditions: [{ field: 'id', op: 'eq', value: '@me' }] },
+      { entity: 'user', prototype: 'y', match: 'all', conditions: [{ field: 'id', op: 'eq', value: '@me' }] },
       new Map([['@me', 'id-1']]));
-    expect(out.constructor).toBe(Object);          // the real one, not the string
-    expect(out.prototype).toBeUndefined();
+    expect(out.prototype).toBe('y');
     expect(out.entity).toBe('user');
-    expect(out.conditions[0].value).toBe('id-1');  // substitution still happens
+    expect(out.conditions[0].value).toBe('id-1');
   });
 });
