@@ -617,12 +617,41 @@ function Invoke-SqlReconcile {
     return $deleted
 }
 
+# Rebuild the matrix materialized views. Split out of Complete-SqlRun so the
+# entry point can run it from a `finally`: the views must reflect the rows
+# WHATEVER the run's verdict.
+#
+# A crawl commits its rows batch by batch, so by the time anything can fail they
+# are already durable. The refresh used to sit after Test-SqlRunCounts, which
+# THROWS: a run that loaded 42.6 million assignments and then failed an unrelated
+# check left both matrix views empty, so a person's entitlements and a team
+# matrix showed nothing at all while the data underneath was perfect. A view that
+# does not reflect committed rows is strictly worse than one that does.
+#
+# Never throws. A failed refresh must not turn a passing run into a failing one,
+# and — running in a `finally` — must not replace the exception that a real
+# verification failure is carrying. Returns $true when the refresh was asked for
+# successfully, so a caller (and a test) can tell the two apart.
+function Update-SqlMatrixViews {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+    try {
+        # Inside the try as well: Update-CrawlerProgress throws on HTTP 409
+        # (job terminated server-side), which in a finally would mask the real error.
+        Update-CrawlerProgress -Step 'Refreshing views' -Pct 95
+        Invoke-IngestAPI -Endpoint 'ingest/refresh-views' -Body @{} | Out-Null
+        Write-Host "`nViews refreshed" -ForegroundColor Green
+        return $true
+    } catch {
+        Write-Host "`nView refresh failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
+        return $false
+    }
+}
+
 function Complete-SqlRun {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] [datetime]$SyncStart)
-    Update-CrawlerProgress -Step 'Refreshing views' -Pct 95
-    try { Invoke-IngestAPI -Endpoint 'ingest/refresh-views' -Body @{} | Out-Null; Write-Host "`nViews refreshed" -ForegroundColor Green }
-    catch { Write-Host "`nView refresh failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow }
     $elapsed = (Get-Date) - $SyncStart
     Write-Host "`n=== SQL sync complete in $([Math]::Round($elapsed.TotalSeconds))s ===" -ForegroundColor Green
     foreach ($e in $State.Totals.GetEnumerator()) {

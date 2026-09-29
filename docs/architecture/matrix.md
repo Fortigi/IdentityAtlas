@@ -46,7 +46,23 @@ The **"Business roles only"** roll-up is unaffected: its rows come from `vw_User
 
 ## Data source
 
-A single materialized view: `vw_ResourceUserPermissionAssignments`. Refreshed at web boot via `bootstrap.js → refreshMatrixViews()` and at end-of-sync via `POST /api/ingest/refresh-views`.
+A single materialized view: `vw_ResourceUserPermissionAssignments`. Refreshed at end-of-sync via `POST /api/ingest/refresh-views`, and at web boot via `bootstrap.js → ensureMatrixViewsPopulated()`.
+
+### When the views get rebuilt, and why there is no timer
+
+Three triggers, all crawl-aware. A clock-driven refresh was asked for and deliberately not built; the reasoning is here so nobody re-litigates it from scratch.
+
+| Trigger | When | Cost |
+|---|---|---|
+| **End of every crawl** | Whatever the run's verdict — a failed verification, or a crawl that threw, still refreshes. Rows commit batch by batch, so they are durable before any verdict exists, and a view that does not reflect them is strictly worse than one that does | One refresh per run |
+| **Web boot** | Only when a view is **unusable**: never populated (first boot), or populated **and empty** while the rows it is built from exist. A populated, non-empty view is left alone. The rebuild runs in the background so it cannot delay the port bind | Nothing in the common case |
+| **Periodic timer** | Not built | — |
+
+**Why `ispopulated` alone was not enough.** A matview refreshed once while the database was empty is *populated* and *empty*, and stays that way forever — nothing rebuilds it, because the only question startup asked was "has this ever been populated". A customer's install carried 42.6 M assignments behind two 40 kB views until someone refreshed by hand. Startup now also asks each view whether it holds any row, and when it does not, asks a cheap base-table probe whether it should. A `WorkerConfig` cooldown bounds how often a probe-driven rebuild can happen, so an over-claiming probe cannot spend three minutes on every container restart; a view that was never built bypasses the cooldown.
+
+**Why no hourly timer.** Measured at 42.6 M assignments: a full rebuild of both views plus `ANALYZE` is **3 min 17 s** and a **7.6 GB** result. A full crawl of a source that size runs for about sixteen hours, so an hourly timer means roughly 48 minutes of full-table work and ~8 GB of scratch churn *during* the crawl, competing with an ingest pipeline that is already the bottleneck — and every one of those refreshes publishes a half-loaded matrix, which reads worse than an obviously stale one. Refreshing at the end of each run plus rebuilding an unusable view at boot covers the case the timer was asked for ("the matrix went stale because a crawl failed") without any of that. If a timer is ever added it must skip while a crawl job is running and skip when nothing has changed since the last refresh — a staleness test, not a clock.
+
+**`CONCURRENTLY` is decided per view, and never for an empty one.** It keeps readers on the old contents but builds the new ones into a temp table and diffs them, which is the worst possible shape for filling an *empty* view — every row of the result is an insert found by a full outer join — while buying nothing, because the readers it protects are reading nothing. So a populated-but-empty view gets a plain one-pass `REFRESH` and its populated sibling still gets `CONCURRENTLY`.
 
 Shape:
 
@@ -164,7 +180,7 @@ There is **no `O` badge here either** — for the same reason as the membership 
 
 ## Performance notes
 
-- The matview is refreshed `CONCURRENTLY` after the first run (which is non-concurrent because the matview starts empty).
+- The matview is refreshed `CONCURRENTLY` once it holds rows; a first build, and a rebuild of a view that is populated but empty, are non-concurrent (see [When the views get rebuilt](#when-the-views-get-rebuilt-and-why-there-is-no-timer)).
 - The unique covering index `(resourceId, principalId, membershipType)` is required for `REFRESH CONCURRENTLY` and also makes the matrix endpoint's per-principal lookups index-only.
 - The Contexts sidecar is one extra indexed query per flat-grid request (`ix_ContextMembers_member`), bounded by the grid's distinct resources — computed once per resource, never per cell.
 - The recursive CTE that previously expanded nested groups *inside* the matview was removed in 013 — it was the dominant cost on the load-test dataset and produced the same matrix for tenants without group-in-group nesting. Group-level expansion happens lazily at click time via the `/nested-groups` endpoint instead.

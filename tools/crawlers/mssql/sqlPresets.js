@@ -298,6 +298,24 @@ ${ENTITLEMENT_FROM}`,
 -- Applications are keyed by their normalised name. When every entry carries a
 -- unique configuration-management reference, alias that column to id instead:
 -- it survives a rename, which a name does not.
+--
+-- KEEP THE DERIVED TABLE WITH ITS "TOP 1". It is not tidiness that can be
+-- flattened back into "FROM spt_custom c ... WHERE c.name = '...'":
+--
+--   * TOP 1 makes "pick the catalogue row, THEN shred it" the only legal order.
+--     Written as a plain WHERE beside the shred, that order is the optimizer's
+--     choice, and a deployment where it chose the other one spent 7,212 seconds
+--     shredding every other (large) record in spt_custom before filtering; the
+--     same read with the filter forced first took 0.2 seconds. (That plan does
+--     not reproduce on the fixture, where both forms push the filter into the
+--     scan and both run in ~4 ms at 2,001 rows / 343 MB of XML — so this form
+--     is not measurably slower, it just removes the choice.)
+--   * It stays ONE statement, so it can be wrapped: the end-of-run verification
+--     measures the source with SELECT COUNT_BIG(*) FROM (<this statement>) q.
+--     The obvious hand-optimisation — hoisting the row into a DECLARE @doc xml
+--     — forces the same plan but makes the statement a multi-statement batch,
+--     which cannot be wrapped, and the slot silently loses its count check
+--     ("not verified: Incorrect syntax near the keyword 'DECLARE'").
 SELECT
     e.k.value('@key', 'nvarchar(450)') AS displayName,
     e.k.value('(value/Map/entry[@key="description"]/@value)[1]', 'nvarchar(max)') AS description,
@@ -315,10 +333,9 @@ SELECT
     e.k.value('(value/Map/entry[@key="cmdbReference"]/@value)[1]', 'nvarchar(255)') AS cmdbReference,
     e.k.value('(value/Map/entry[@key="connectionType"]/@value)[1]', 'nvarchar(255)') AS connectionType,
     e.k.value('(value/Map/entry[@key="onboardingArea"]/@value)[1]', 'nvarchar(255)') AS onboardingArea
-FROM spt_custom c
+FROM (SELECT TOP 1 attributes FROM spt_custom WHERE name = '${CATALOG_RECORD}') c
 CROSS APPLY (SELECT CAST(c.attributes AS xml) AS x) doc
-CROSS APPLY doc.x.nodes('/Attributes/Map/entry') e(k)
-WHERE c.name = '${CATALOG_RECORD}'`,
+CROSS APPLY doc.x.nodes('/Attributes/Map/entry') e(k)`,
   },
   {
     name: 'Logical application members',

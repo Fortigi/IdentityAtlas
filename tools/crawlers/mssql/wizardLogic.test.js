@@ -117,7 +117,7 @@ describe('appendPresetSlots', () => {
 
   it('the organisation preset reads logical applications from the catalogue record and the entitlement XML', () => {
     const byTarget = t => IDENTITYIQ_ORG_PRESET.find(q => q.target === t);
-    expect(byTarget('contexts').sql).toContain(`WHERE c.name = '${CATALOG_RECORD}'`);
+    expect(byTarget('contexts').sql).toContain(`FROM (SELECT TOP 1 attributes FROM spt_custom WHERE name = '${CATALOG_RECORD}') c`);
     expect(byTarget('contexts')).toMatchObject({ contextType: 'LogicalApplication', targetType: 'Resource' });
     expect(byTarget('context-members').sql).toContain(`@key="${APPLICATION_KEY}"`);
     expect(byTarget('context-members').sql).toMatch(/AS memberId[\s\S]*AS contextName/);
@@ -731,6 +731,46 @@ describe('IdentityIQ presets match the real schema', () => {
       expect(q.sql).toMatch(/ma\.id\s+AS childId/);
       expect(q.sql).toMatch(/LEFT JOIN spt_managed_attribute ma\s+ON\s+ma\.application = bpr\.source_application\s+AND ma\.attribute\s+= bpr\.attribute\s+AND ma\.value\s+= bpr\.value/);
       expect(q.sql).not.toMatch(/source_profile_id\s+AS childId/);
+    }
+  });
+
+  // Every slot's source count is measured as SELECT COUNT_BIG(*) FROM (<sql>) q
+  // — see Get-SqlSourceCountSql in SqlCrawler.Verify.ps1. A statement that is a
+  // multi-statement BATCH cannot be wrapped, so the slot silently loses its
+  // count check and reports "not verified: Incorrect syntax near the keyword
+  // 'DECLARE'". It degrades instead of failing, which is right, and which is
+  // also why nothing else would notice.
+  describe('every preset statement can be wrapped in the verifier\'s count', () => {
+    // Comments are fine inside the wrapper (it puts a newline before the close
+    // paren), so strip them before looking for batch syntax — otherwise a
+    // comment that MENTIONS the trap reads as the trap.
+    const code = (sql) => sql.replace(/--[^\n]*/g, '');
+
+    it.each([['DECLARE', /(^|\n)\s*DECLARE\b/i], ['SET', /(^|\n)\s*SET\b/i], ['WITH…INSERT', /(^|\n)\s*(INSERT|UPDATE|DELETE|EXEC)\b/i]])(
+      'starts no %s statement of its own', (_label, pattern) => {
+        for (const q of statements) expect(code(q.sql), `${q.preset} / ${q.name}`).not.toMatch(pattern);
+      });
+
+    it('contains no statement separator', () => {
+      for (const q of statements) expect(code(q.sql), `${q.preset} / ${q.name}`).not.toContain(';');
+    });
+  });
+
+  // The catalogue read is the one statement where the WRAPPABLE form and the
+  // FAST form pulled in opposite directions: a deployment measured 7,212s with
+  // the filter written as a plain WHERE beside the XML shred and 0.2s with it
+  // forced first, and the obvious way to force it — DECLARE @doc xml — is a
+  // batch. The derived table does both. On the fixture (2,001 spt_custom rows,
+  // 343 MB of XML) all three forms return the same 150 rows in ~4 ms, so this
+  // costs nothing measurable and removes the optimizer's choice.
+  it('reads the logical-application catalogue through a TOP 1 derived table, not a bare WHERE', () => {
+    const catalogue = PRESETS.flatMap(p => p.queries).filter(q => q.target === 'contexts');
+    expect(catalogue.length).toBeGreaterThan(0);
+    for (const q of catalogue) {
+      expect(q.sql).toMatch(/FROM \(SELECT TOP 1 attributes FROM spt_custom WHERE name = '[^']+'\) c/);
+      // The filter must not ALSO survive outside the derived table: written
+      // there it is exactly the form whose plan shredded every row first.
+      expect(q.sql.replace(/--[^\n]*/g, '')).not.toMatch(/\n\s*WHERE c\.name/);
     }
   });
 });

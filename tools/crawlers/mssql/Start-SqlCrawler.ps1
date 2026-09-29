@@ -69,26 +69,35 @@ $State = New-SqlRunState -SystemId $reg.systemId -ServerTime $reg.serverTime -Sl
 Update-CrawlerProgress -Step 'Connecting to SQL Server' -Pct 5
 $Connection = Connect-SqlSource -Cfg $Cfg
 try {
-    # @() as well as the helper's own guard: a single enabled query must still be
-    # a one-element ARRAY here, or .Count counts the slot's keys and [0] is $null.
-    $slots = @(Get-SqlSlotsInOrder -Slots $Cfg.queries)
-    for ($i = 0; $i -lt $slots.Count; $i++) {
-        Invoke-SqlSlot -Slot $slots[$i] -Connection $Connection -State $State -Pct (10 + [int](75 * $i / $slots.Count)) | Out-Null
+    try {
+        # @() as well as the helper's own guard: a single enabled query must still be
+        # a one-element ARRAY here, or .Count counts the slot's keys and [0] is $null.
+        $slots = @(Get-SqlSlotsInOrder -Slots $Cfg.queries)
+        for ($i = 0; $i -lt $slots.Count; $i++) {
+            Invoke-SqlSlot -Slot $slots[$i] -Connection $Connection -State $State -Pct (10 + [int](75 * $i / $slots.Count)) | Out-Null
+        }
+        # Additions and changes are in; the only difference left between source and
+        # database is what the source no longer has. The sweep needs the connection,
+        # so it runs before it is disposed.
+        Invoke-SqlSweep -State $State -Connection $Connection -Slots $slots | Out-Null
+    } finally {
+        $Connection.Dispose()
     }
-    # Additions and changes are in; the only difference left between source and
-    # database is what the source no longer has. The sweep needs the connection,
-    # so it runs before it is disposed.
-    Invoke-SqlSweep -State $State -Connection $Connection -Slots $slots | Out-Null
-} finally {
-    $Connection.Dispose()
-}
 
-Invoke-SqlReconcile -State $State | Out-Null
-# Source against database, per scope. Throws — failing the job — on any mismatch.
-Test-SqlRunCounts -State $State | Out-Null
-# Only now, with the run proven: an unverified run must re-read its window and
-# re-sweep rather than step over rows it never loaded.
-Save-SqlWatermarks -State $State | Out-Null
-Save-SqlSweepMarks -State $State | Out-Null
+    Invoke-SqlReconcile -State $State | Out-Null
+    # Source against database, per scope. Throws — failing the job — on any mismatch.
+    Test-SqlRunCounts -State $State | Out-Null
+    # Only now, with the run proven: an unverified run must re-read its window and
+    # re-sweep rather than step over rows it never loaded. These two STAY gated on
+    # the verdict — the refresh below deliberately is not.
+    Save-SqlWatermarks -State $State | Out-Null
+    Save-SqlSweepMarks -State $State | Out-Null
+} finally {
+    # Whatever the verdict, and whatever else threw: every row this run loaded was
+    # committed batch by batch and is durable, so a matrix view that does not
+    # reflect it is strictly worse than one that does. Never throws, so it cannot
+    # turn a passing run into a failing one nor mask a verification failure.
+    Update-SqlMatrixViews | Out-Null
+}
 Complete-SqlRun -State $State -SyncStart $syncStart
 #endregion Main
