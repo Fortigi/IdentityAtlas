@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- SQL Database crawler: a run no longer fails when a statement produces the same relationship twice. A relationship is identified by the pair of things it links, so two source rows describing the same link — a business role reaching one entitlement through two different source applications, for example — are one link and collapsing them loses nothing. The run used to stop with "rows sharing an id overwrite each other, so 6 were lost" even though the source and the database agreed exactly.
+- The same now applies to owner assignments, which are identified by the resource and the person rather than by an id of their own.
+- A collapse is still reported, so a statement whose join unexpectedly fans out is visible in the verification table.
+- Unchanged: two resources or two accounts sharing an id is still a failure, because there one record really does replace another.
+
+## Changes in this PR
+
 - Added fold and unfold controls to the roll-up matrix's grid corner: they move the whole column axis one attribute level at a time, in either direction, and show which level you are on out of how many. Previously a roll-up could only be folded one group at a time, and unfolding a group jumped it straight to the deepest attribute.
 - Added the Contexts column to the roll-up matrix, pinned next to the resource names like the per-subject matrix has it — so the group category, tags and clusters a resource belongs to are visible on the roll-up too. It applies to every roll-up shape, including business roles as rows and the Manager Hierarchy view.
 
