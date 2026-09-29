@@ -21,4 +21,4 @@ export const chat = (args) => impl.chat(args);
 export const listModels = () => impl.listModels();
 /** 'unloaded' | 'starting' | 'ready'. Ollama loads on demand itself and does not say, so it reads as 'ready'. */
 export const modelState = () => (impl.modelState ? impl.modelState() : Promise.resolve('ready'));
-export const warm = (model, systemPrompt) => impl.warm(model, systemPrompt);
+export const warm = (model, systemPrompt, userPrefix = '') => impl.warm(model, systemPrompt, userPrefix);

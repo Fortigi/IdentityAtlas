@@ -9,6 +9,8 @@
 export const PERMISSIONS = Object.freeze({
   'data.read':                 { label: 'Read all data',           group: 'Read',
     description: "View matrix, dashboards, detail pages, governance reads. Effectively 'can sign in at all.'" },
+  'data.read.reports':         { label: 'Ask questions in plain language', group: 'Read',
+    description: 'Ask the local model a question and read the answer — in the Teams bot, or anywhere else that only asks. Does not allow creating, editing or deleting saved reports; that is Build custom reports, which does not imply this one either.' },
 
   'data.export.ui':            { label: 'Export to Excel/CSV',     group: 'Export',
     description: 'Show Excel / CSV export buttons in the UI and allow calls to /api/data-export/*.' },
@@ -60,7 +62,7 @@ export const PERMISSION_GROUPS = Object.freeze(['Read', 'Export', 'Write', 'Admi
 // silently demote the admin role.
 export const SEED_ROLE_PERMISSIONS = Object.freeze({
   Admin:       ['*'],
-  RoleMiner:   ['data.read', 'data.export.ui', 'data.export.apikey', 'data.share', 'data.write.reports', 'data.write.contexts'],
+  RoleMiner:   ['data.read', 'data.read.reports', 'data.export.ui', 'data.export.apikey', 'data.share', 'data.write.reports', 'data.write.contexts'],
   Servicedesk: ['data.read'],
 });
 

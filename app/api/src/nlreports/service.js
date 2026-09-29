@@ -7,16 +7,22 @@
 
 import { query, tx } from '../db/connection.js';
 import { ENTITIES, VALUE_QUERIES } from './catalog.js';
-import { validateSpec } from './spec.js';
+import { PREVIOUS_SENTINEL, validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
+import { sentinelsIn, substituteValues } from './sentinels.js';
+import { keepThePerson } from './autofix.followup.js';
+import { businessRoleTypeWhenAsked, guestsWhenAsked, isYesNoAboutPerson, listsEverythingOfPerson, notSignedInFor } from './autofix.activity.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, autofixSpec, canonicaliseSelf, isRelationLeaf, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, rolesOfPersonAsResources, selfWord } from './autofix.js';
+import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
 import { chat, DEFAULT_MODEL } from './llm.js';
 import { createWarmup, prepareAtStartup } from './warmup.js';
-
-import { resolveNamedObjects } from './references.js';
-import { correctionMessage, findTerms, locateTerms, termConfirmation, termHint, unusedTerms } from './terms.js';
+import { applyChoice, resolveNamedObjects } from './references.js';
+import {
+  applyTermChoice, correctionMessage, findTerms, loadKnownNames, locateTerms, termConfirmation, termHint, unusedTerms,
+} from './terms.js';
 import { isFeatureEnabled } from '../featureFlags.js';
 
 const VALUES_TTL_MS = 5 * 60 * 1000;
@@ -25,9 +31,15 @@ const STATEMENT_TIMEOUT = '15s';
 
 let valuesCache = { at: 0, values: null };
 
+/** Test seam: forget the cached value lists, so a test can supply its own. */
+export function clearValuesCache() { valuesCache = { at: 0, values: null }; }
+
 // The prompt-cache warm-up for the report prompt. Why it re-restores on every call
 // instead of remembering an earlier success: see warmup.js.
-export const { ensureWarm, warmupState } = createWarmup(buildSystemPrompt);
+// The value lists go into the cache behind the system prompt, so a question
+// reads only what follows them. For that they must be the FIRST thing in the
+// user message — contextFor() puts them there.
+export const { ensureWarm, warmupState } = createWarmup(buildSystemPrompt, async () => buildValuesBlock(await loadValues()));
 
 /**
  * Prepare the report prompt's cache when the API starts. See warmup.prepareAtStartup.
@@ -60,10 +72,28 @@ function addTiming(a, b) {
   return out;
 }
 
-const OR_REPAIR_MESSAGE =
-  'The request says "or", but your definition requires ALL conditions at the same time. ' +
-  'Put the alternatives that are joined by "or" together in a group with match "any"; keep the other conditions outside that group. ' +
-  'Reply with the corrected complete JSON.';
+/**
+ * The correction for "X or Y" built as X AND Y, naming X and Y when the
+ * question makes them easy to find. Told only that the request "says or", the
+ * model once grouped the resource type with the date window and left the two
+ * actions ANDed; told which words are the alternatives it has less to guess.
+ */
+export function orRepairMessage(question) {
+  const phrase = disjunctionPhrase(question);
+  const which = phrase
+    ? `The request says "${phrase}": those are alternatives, and your definition requires both at the same time. Put the conditions for exactly those two together in a group with match "any"`
+    : 'The request says "or", but your definition requires ALL conditions at the same time. Put the alternatives that are joined by "or" together in a group with match "any"';
+  return `${which}; keep the other conditions outside that group. Reply with the corrected complete JSON.`;
+}
+
+/** "toegevoegd of verwijderd", "guest or disabled" — the words either side of the or, when there are single words there. */
+export function disjunctionPhrase(question) {
+  const m = String(question ?? '').match(/(\p{L}+)\s+(?:or|of|dan wel)\s+(\p{L}+)/iu);
+  if (!m) return null;
+  const [, left, right] = m;
+  if (DUTCH_WHETHER_VERBS.has(left.toLowerCase())) return null;
+  return `${left} ${m[0].slice(left.length, m[0].length - right.length).trim()} ${right}`;
+}
 
 /** True when the spec has an OR anywhere: top-level, in a group, or inside a relation. */
 export function hasAnyMatch(spec) {
@@ -71,9 +101,49 @@ export function hasAnyMatch(spec) {
   return spec.conditions.some(c => (c.type === 'group' || c.type === 'relation') && c.match === 'any' && c.conditions.length > 1);
 }
 
-/** The question joins alternatives with "or"/"either", but the definition has no OR at all. */
+// Dutch "of" is BOTH "or" and "whether", and the two turn up in one sentence
+// often enough that telling them apart matters: "Kan je me vertellen OF Bram
+// aan groepen toegevoegd is OF eruit gehaald is" opens with the whether sense
+// and joins alternatives with the second. Treating either as a disjunction is
+// not free — a false positive sends the definition back for a repair round that
+// costs a model call and can turn a correct AND into a wrong OR.
+//
+// The one reliable signal: the whether sense follows a verb of asking or
+// finding out. That verb is what is checked for, rather than trying to parse
+// the clause.
+const DUTCH_WHETHER_VERBS = new Set([
+  'vertellen', 'zeggen', 'weten', 'zien', 'kijken', 'checken', 'controleren',
+  'vragen', 'nagaan', 'benieuwd', 'uitzoeken', 'opzoeken',
+]);
+
+// Dutch words that essentially never occur in an English sentence. Two of them
+// are needed before the "of" rule below is applied at all, because "of" is one
+// of the commonest words in ENGLISH — "a list of all guest accounts" — where it
+// is a preposition and means nothing of the sort. Without this gate the repair
+// fired on almost every English question.
+const DUTCH_MARKERS = new Set([
+  'welke', 'wie', 'hoeveel', 'zijn', 'heeft', 'hebben', 'geen', 'niet', 'deze', 'die',
+  'mijn', 'jouw', 'toegevoegd', 'verwijderd', 'gewijzigd', 'eigenaar', 'groepen',
+  'gebruikers', 'leden', 'worden', 'wordt', 'nog', 'laatste', 'wel', 'ook', 'waar',
+  'kan', 'kun', 'vertellen', 'laten', 'zonder', 'uit', 'aan',
+]);
+
+const looksDutch = (words) => words.filter(w => DUTCH_MARKERS.has(w)).length >= 2;
+
+/** Does the question offer alternatives — "X or Y", "X of Y", "X dan wel Y"? */
+export function hasDisjunction(question) {
+  const text = String(question ?? '').toLowerCase();
+  if (/\b(or|either)\b/.test(text)) return true;
+  if (/\bdan wel\b/.test(text)) return true;
+
+  const words = text.split(/[^a-zÀ-ɏ]+/).filter(Boolean);
+  if (!looksDutch(words)) return false;
+  return words.some((word, i) => word === 'of' && i > 0 && !DUTCH_WHETHER_VERBS.has(words[i - 1]));
+}
+
+/** The question joins alternatives, but the definition has no OR at all. */
 export function needsOrRepair(question, spec) {
-  return /\b(or|either)\b/i.test(question) && spec.conditions.length > 1 && !hasAnyMatch(spec);
+  return hasDisjunction(question) && spec.conditions.length > 1 && !hasAnyMatch(spec);
 }
 
 function parseReply(content) {
@@ -84,9 +154,20 @@ function parseReply(content) {
  * The conversation sent to the model: system prompt, earlier turns, then the
  * question with the deployment's values in front of it (when there are any).
  */
-function buildMessages(question, history, values, located = [], attributes = []) {
-  const context = [buildValuesBlock(values), termHint(located), attributesBlock(attributes)].filter(Boolean).join('\n\n');
+/**
+ * Everything put in front of the question for the model on this turn. Kept as
+ * its own value — not just assembled inside the messages — because it is what
+ * the conversation store records: an evaluation that cannot see what the model
+ * was told cannot say whether the model or the prompt got it wrong.
+ */
+export function contextFor({ values, located = [], attributes = [], callerContext = '' }) {
+  // Values first: they are the cached prefix of every user message (see the
+  // warm-up above). Everything after them is read per question.
+  return [buildValuesBlock(values), callerContext, termHint(located), attributesBlock(attributes)]
+    .filter(Boolean).join('\n\n');
+}
 
+function buildMessages(question, history, context) {
   return [
     { role: 'system', content: buildSystemPrompt() },
     ...history,
@@ -112,7 +193,18 @@ export function schemaFor(history, extraFieldNames = []) {
 
 /** The fields every interpret() reply ends with. */
 function replyMeta(ctx, turn) {
-  return { raw: turn.raw, timing: turn.timing, model: ctx.model, repaired: turn.repaired };
+  // `context` is what the model was told beside the question; `raw` is its
+  // last reply. Both go to the conversation store, on every surface.
+  // `substituted` says which placeholders the final definition used — "did it
+  // write @me when told to" cannot be read off the substituted definition.
+  return {
+    raw: turn.raw, timing: turn.timing, model: ctx.model, repaired: turn.repaired,
+    // The model's FIRST reply, when a correction round replaced it: what the
+    // repair started from is the half of the story the final reply cannot tell.
+    firstRaw: turn.repaired && turn.first !== turn.raw ? turn.first : null,
+    context: ctx.context ?? '',
+    substituted: sentinelsIn(turn.reply?.spec, ctx.substitutions),
+  };
 }
 
 /** Ask again after the model's last answer, with a correction. Counts as a repair. */
@@ -134,27 +226,77 @@ async function askForCorrection(ctx, turn, correction) {
   return { content: retry.content, reply: parseReply(retry.content) };
 }
 
-/** One repair round: show the model exactly what the validator rejected. */
+/**
+ * One repair round: show the model exactly what the validator rejected.
+ *
+ * The correction is held to what it was asked: a definition that comes back
+ * valid but without a condition no error named is refused, and the original
+ * error stands. Asked to fix "Added AND Removed", the model once returned a
+ * definition with Removed AND the 90-day window gone — valid, ran, and answered
+ * a different question than the one asked. A stated failure beats that.
+ */
 async function repairInvalidSpec(ctx, turn, result) {
   if (result.ok) return result;
   const retry = await askForCorrection(ctx, turn,
-    `That definition has problems:\n- ${result.errors.join('\n- ')}\nReply with the corrected complete JSON.`);
+    `That definition has problems:\n- ${result.errors.join('\n- ')}\n`
+    + 'Fix only what is listed. Keep every other condition, value, time window and column exactly as it was. '
+    + 'Reply with the corrected complete JSON.');
   if (retry.reply?.kind !== 'report') return result;
+  const retried = ctx.validate(retry.reply.spec);
+  const lost = retried.ok && result.spec ? lostLeaves(result.spec, retried.spec, result.errors) : [];
+  if (lost.length) {
+    return { ...result, errors: [...result.errors, `the correction dropped what the request asked for: ${lost.join('; ')}`] };
+  }
   turn.raw = retry.content;
   turn.reply = retry.reply;
-  return validateSpec(turn.reply.spec, ctx.values, ctx.extFields);
+  return retried;
 }
+
+/**
+ * Did a correction keep everything the definition had? Every correction
+ * round may add or restructure; none may lose a condition it was not told
+ * about. Asked to put "added or removed" in an any-group, the model did —
+ * and dropped the 90-day window, turning 2 rows into 149.
+ */
+const keepsTheRest = (before, after, allowed = []) => !!before?.spec && !!after?.spec
+  && lostLeaves(before.spec, after.spec, allowed.map(f => `"${f}"`)).length === 0;
 
 /** The most common small-model mistake: "X or Y" compiled as X AND Y. */
 async function repairMissingOr(ctx, turn, result) {
   if (!result.ok || !needsOrRepair(ctx.question, result.spec)) return result;
-  const retry = await askForCorrection(ctx, turn, OR_REPAIR_MESSAGE);
-  const retriedResult = retry.reply?.kind === 'report' ? validateSpec(retry.reply.spec, ctx.values, ctx.extFields) : null;
-  // Only take the correction when it is valid and actually contains an "any".
-  if (!retriedResult?.ok || !hasAnyMatch(retriedResult.spec)) return result;
+  const retry = await askForCorrection(ctx, turn, orRepairMessage(ctx.question));
+  const retriedResult = retry.reply?.kind === 'report' ? ctx.validate(retry.reply.spec) : null;
+  // Only take the correction when it is valid, actually contains an "any", and lost nothing.
+  if (!retriedResult?.ok || !hasAnyMatch(retriedResult.spec) || !keepsTheRest(result, retriedResult)) return result;
   turn.raw = retry.content;
   turn.reply = retry.reply;
   return retriedResult;
+}
+
+// Either the placeholder or the caller's id copied out literally counts: both are about them.
+const mentionsCaller = (spec, substitutions) => sentinelsIn(spec, substitutions).includes(ME)
+  || JSON.stringify(spec ?? null).includes(String(substitutions.get(ME)));
+
+/**
+ * The question is about the person asking, the pipeline knows who that is,
+ * and the definition says nothing about them. "In welke access packages zit
+ * ik?" came back as every user in a business role — a tidy, wrong answer. One
+ * correction round, taken only when the corrected definition does use @me.
+ */
+async function repairMissingSelf(ctx, turn, result) {
+  const word = result.ok && ctx.substitutions.has(ME) ? selfWord(ctx.question) : null;
+  // Checked on the VALIDATED definition: a correction made before validation (autofix.js) may already have put the caller in.
+  if (!word || mentionsCaller(result.spec, ctx.substitutions)) return result;
+  const retry = await askForCorrection(ctx, turn,
+    `The request says "${word}": it is about the person asking, but your definition has no condition for them. `
+    + `Add the condition with value ${ME} on the right relation — their own account is id ${ME}; "my groups" = members some id ${ME}; `
+    + `"which access packages am I in" = entity user with id ${ME} and the businessRoles.names column — and keep everything else exactly as it was. `
+    + 'Reply with the corrected complete JSON.');
+  const retried = retry.reply?.kind === 'report' ? ctx.validate(retry.reply.spec) : null;
+  if (!retried?.ok || !sentinelsIn(retry.reply.spec, ctx.substitutions).includes(ME) || !keepsTheRest(result, retried)) return result;
+  turn.raw = retry.content;
+  turn.reply = retry.reply;
+  return retried;
 }
 
 /** A name from the question that occurs in the data but is not in the definition: say where it occurs. */
@@ -162,12 +304,38 @@ async function repairUnusedTerms(ctx, turn, result) {
   const unused = result.ok ? unusedTerms(result.spec, ctx.located) : [];
   if (!unused.length) return result;
   const retry = await askForCorrection(ctx, turn, correctionMessage(unused));
-  const retriedResult = retry.reply?.kind === 'report' ? validateSpec(retry.reply.spec, ctx.values, ctx.extFields) : null;
-  // Only take the correction when it is valid and uses more of the names.
-  if (!retriedResult?.ok || unusedTerms(retriedResult.spec, ctx.located).length >= unused.length) return result;
+  const retriedResult = retry.reply?.kind === 'report' ? ctx.validate(retry.reply.spec) : null;
+  // Only take the correction when it is valid, uses more of the names, and lost nothing.
+  // The message asks the model to remove the condition it used in the name's place — a guessed system — so losing that one is the correction.
+  if (!retriedResult?.ok || unusedTerms(retriedResult.spec, ctx.located).length >= unused.length || !keepsTheRest(result, retriedResult, ['system'])) return result;
   turn.raw = retry.content;
   turn.reply = retry.reply;
   return retriedResult;
+}
+
+/**
+ * A yes/no question about one person answered with everything they hold.
+ * "Does Bram have global admin?" came back as Bram with all his groups — the
+ * reader has to search the list for the answer, and the answer is not even in
+ * it when the thing is a role. One correction round asks for the report of
+ * the thing itself; it is taken only when the corrected definition is about
+ * something other than accounts and still names the person somewhere.
+ */
+export const YES_NO_NOTE = 'A yes/no question: a row below means yes, no rows means no.';
+async function repairYesNo(ctx, turn, result) {
+  if (!result.ok || !isYesNoAboutPerson(ctx.question) || !listsEverythingOfPerson(result.spec)) return result;
+  const retry = await askForCorrection(ctx, turn,
+    'The request asks whether ONE person holds ONE particular thing (a role, group or package named in the request); '
+    + 'your definition lists everything of that kind the person holds, without naming the thing. Reply with a report of that thing '
+    + 'instead: entity resource (group when it is a group), a displayName contains condition with the name asked about, and a members '
+    + 'relation with quantifier some whose condition is the person exactly as you had them. Columns []. Reply with the corrected complete JSON.');
+  const retried = retry.reply?.kind === 'report' ? ctx.validate(retry.reply.spec) : null;
+  const namesTheThing = (spec) => (spec.conditions ?? []).some(c => c.type === 'field' && c.field === 'displayName')
+    && (spec.conditions ?? []).some(c => c.type === 'relation' && (c.conditions ?? []).length);
+  if (!retried?.ok || listsEverythingOfPerson(retried.spec) || ENTITIES[retried.spec.entity]?.detailKind === 'user' || !namesTheThing(retried.spec)) return result;
+  turn.raw = retry.content;
+  turn.reply = retry.reply;
+  return { ...retried, fixes: [...(retried.fixes ?? []), YES_NO_NOTE] };
 }
 
 /**
@@ -192,10 +360,12 @@ function termCheck(ctx, spec, assumptions) {
 
 /** A report reply: repair it if needed, look named objects up, and shape the answer. */
 async function answerReport(ctx, turn) {
-  let result = validateSpec(turn.reply.spec, ctx.values, ctx.extFields);
+  let result = ctx.validate(turn.reply.spec);
   result = await repairInvalidSpec(ctx, turn, result);
   result = await repairMissingOr(ctx, turn, result);
+  result = await repairMissingSelf(ctx, turn, result);
   result = await repairUnusedTerms(ctx, turn, result);
+  result = await repairYesNo(ctx, turn, result);
   const errors = result.errors;
   // Still invalid after the repair round: say so. Validation drops what it rejects
   // and still hands back a spec, so returning that as a report would quietly answer
@@ -204,7 +374,15 @@ async function answerReport(ctx, turn) {
   if (!result.ok || !result.spec) {
     return { kind: 'error', message: 'The model produced a report definition that could not be used.', errors, ...replyMeta(ctx, turn) };
   }
-  const assumptions = Array.isArray(turn.reply.assumptions) ? turn.reply.assumptions.map(String) : [];
+  // The pipeline's own readings first: they describe what actually runs. The
+  // model's assumptions follow — they describe what it MEANT to write, which a
+  // correction above may have changed. (Live test, 24 Sep: a reader saw the
+  // model's "read William as a name fragment" above the pipeline's "read the
+  // request as the roles this person holds" and trusted the wrong one.)
+  const assumptions = [
+    ...(result.fixes ?? []),
+    ...(Array.isArray(turn.reply.assumptions) ? turn.reply.assumptions.map(String) : []),
+  ];
   const termConfirm = termCheck(ctx, result.spec, assumptions);
   if (termConfirm) {
     return { kind: 'confirm', spec: result.spec, confirm: termConfirm, assumptions, ...replyMeta(ctx, turn) };
@@ -227,6 +405,32 @@ async function answerReport(ctx, turn) {
   };
 }
 
+// "the group", "de groep": one particular record, named by nothing. With no
+// name in the question, no "my", nothing carried from an earlier answer and no
+// conversation so far, there is exactly one right response — which one? — and
+// it costs no model round. The model, asked, answers instead: "wie zit er in
+// de groep" came back as every group with "groep" in its name.
+const DEFINITE_UNNAMED = /\b(de|het|the)\s+(groep|group|rol|role|applicatie|application|app|account|gebruiker|user|persoon|person|afdeling|department|team)\b/i;
+const NOUN_PLURAL = { groep: 'groep', group: 'group', rol: 'rol', role: 'role', applicatie: 'applicatie', application: 'application', app: 'app', account: 'account', gebruiker: 'gebruiker', user: 'user', persoon: 'persoon', person: 'person', afdeling: 'afdeling', department: 'department', team: 'team' };
+
+/**
+ * A clarification the pipeline can ask by itself: which one?
+ * @returns {object|null} a clarify reply, or null when the question is not of that shape
+ */
+function askWhichOne(ctx, history, terms) {
+  if (history.length || terms.length || selfWord(ctx.question) || ctx.substitutions.has(PREVIOUS_SENTINEL)) return null;
+  const m = String(ctx.question ?? '').match(DEFINITE_UNNAMED);
+  if (!m) return null;
+  const noun = NOUN_PLURAL[m[2].toLowerCase()] ?? m[2];
+  const dutch = m[1].toLowerCase() !== 'the';
+  const question = dutch
+    ? `Welke ${noun} bedoel je? Noem de naam, dan zoek ik die op.`
+    : `Which ${noun} do you mean? Name it and I will look it up.`;
+  const reply = { kind: 'clarify', question, options: [] };
+  const turn = { raw: JSON.stringify(reply), first: null, reply, timing: { totalMs: 0, promptTokens: 0, outputTokens: 0 }, repaired: false };
+  return { ...answerClarify(ctx, turn), askedBy: 'pipeline' };
+}
+
 function answerClarify(ctx, turn) {
   return {
     kind: 'clarify',
@@ -242,7 +446,19 @@ function answerClarify(ctx, turn) {
  * @param {{role:'user'|'assistant', content:string}[]} [args.history]  earlier turns
  * @param {string} [args.model]
  */
-export async function interpret({ question, history = [], model = DEFAULT_MODEL }) {
+/**
+ * @param {object} args
+ * @param {string} args.question  what the caller actually typed, and nothing else
+ * @param {string} [args.context] facts about THIS caller, prepended for the model
+ *                                but kept out of `question` — see below
+ * @param {object[]} [args.history]
+ * @param {string} [args.model]
+ * @param {Map<string, unknown>} [args.substitutions]  placeholder → value, resolved in every
+ *                                definition the model produces BEFORE it is validated
+ *                                (sentinels.js): `@me` → the caller's account id, `@previous`
+ *                                → the ids of the last answer
+ */
+export async function interpret({ question, context = '', history = [], model = DEFAULT_MODEL, substitutions = new Map(), previousSpec = null }) {
   // Put the processed system prompt back in the server before asking, in case it
   // restarted since the last question. A hit costs ~0.1 s and saves ~3 minutes; a
   // miss is no worse than asking cold, and leaves the cache saved for next time.
@@ -254,21 +470,109 @@ export async function interpret({ question, history = [], model = DEFAULT_MODEL 
   const attributes = matchQuestionAttributes(question, extFields);
   const extraFieldNames = attributeFieldNames(attributes);
   const schema = schemaFor(history, extraFieldNames);
-  const terms = findTerms(question, values);
+  // Terms are looked for in the CALLER'S OWN WORDS, never in the context block
+  // around them. The Teams bot prepends who is asking — "The person asking this
+  // question is Kees van den Berg" — and while that was part of `question`,
+  // every caller's own name was found as a term in the data. The repair round
+  // then told the model it had not used "Kees", and a definition anchored to the
+  // caller's account id came back as `Name contains "Kees" OR Name contains
+  // "Berg"`: a directory-wide report about everyone with a similar name,
+  // presented as the answer to "which groups do I own".
+  // Names the directory knows, so a first name typed in lower case is still
+  // looked up. Server-side only; the model never sees this list.
+  const knownNames = await loadKnownNames(query);
+  const terms = findTerms(question, values, knownNames);
   const located = terms.length ? await locateTerms(terms, query, values) : [];
+  const sent = contextFor({ values, located, attributes, callerContext: context });
   const ctx = {
-    question, model, values, located, extFields,
+    question, model, values, located, extFields, substitutions,
+    // The definition the previous answer in this chat ran, when there was one.
+    previousSpec,
+    context: sent,
     reportSchema: buildReplySchemas(extraFieldNames).reportOnly,
-    messages: buildMessages(question, history, values, located, attributes),
+    messages: buildMessages(question, history, sent),
   };
+  // Every definition the model produces — the first and each repair — has its
+  // placeholders resolved BEFORE it is validated. Otherwise a model that wrote
+  // `@me` exactly as instructed is told that is invalid and sent round again,
+  // a full second model call on this hardware, to copy the uuid instead.
+  // Validation, with the corrections that need no model round (autofix.js)
+  // applied in between: a grouping the request never asked for goes before
+  // validation, and a definition validation rejects is corrected and checked
+  // once more before a repair round is spent on it. What was corrected rides
+  // along as `fixes`, so the answer can say so.
+  ctx.validate = (spec) => {
+    const grouping = dropUnaskedGrouping(nameWrittenAsId(listEqualsToIn(dedupeConditions(spec).spec).spec).spec, ctx.question);
+    const roles = rolesOfPersonAsResources(grouping.spec, ctx.question);
+    const negated = negatedBusinessRole(accessPackageAsRelation(roles.spec).spec, ctx.question);
+    const typed = businessRoleTypeWhenAsked(negated.spec, ctx.question);
+    const guests = guestsWhenAsked(typed.spec, ctx.question);
+    const signIn = notSignedInFor(guests.spec, ctx.question);
+    const generic = genericCompareToRelation(signIn.spec);
+    // The caller's id copied out literally is the placeholder for every rule below.
+    const canonical = canonicaliseSelf(generic.spec, ME, ctx.substitutions.get(ME)).spec;
+    const sides = ctx.substitutions.has(ME) ? resolveSelfAgainstPerson(canonical, ctx.question, ME) : { spec: canonical, notes: [] };
+    const unasked = ctx.substitutions.has(ME) ? dropUnaskedSelf(sides.spec, ctx.question, ME) : { spec: sides.spec, notes: [] };
+    const placed = ctx.substitutions.has(ME) ? relocateSelf(unasked.spec, ME) : { spec: unasked.spec, notes: [] };
+    const added = ctx.substitutions.has(ME) ? addMissingSelf(placed.spec, ctx.question, ME) : { spec: placed.spec, notes: [] };
+    // Compared after substitution, so the caller's id in both reads the same.
+    const refined = refineFromPrevious(substituteValues(addAskedColumns(added.spec, ctx.question).spec, ctx.substitutions), ctx.previousSpec, ctx.question);
+    const person = keepThePerson(refined.spec, ctx.previousSpec, ctx.question);
+    const before = [...grouping.notes, ...roles.notes, ...negated.notes, ...typed.notes, ...guests.notes, ...signIn.notes, ...generic.notes, ...sides.notes, ...unasked.notes, ...placed.notes, ...added.notes, ...refined.notes, ...person.notes];
+    const substituted = person.spec;
+    const first = validateSpec(substituted, ctx.values, ctx.extFields);
+    if (first.ok || !first.spec) return before.length ? { ...first, fixes: before } : first;
+    // Validation drops what it rejects and hands back the rest. When the
+    // request asked for what was dropped ("MFA"), a definition without it
+    // answers a different question — the repair round exists for exactly
+    // those. When nothing in the request asked for it ("accountCount gt 0"
+    // inside members), the model made it up, and the definition without it
+    // is the one asked for: it goes, and the answer says so.
+    // A rejected RELATION is never noise: "access none" on a resource report
+    // ("directory roles that nobody holds") is the members relation misnamed,
+    // and dropping it answers with every role. The repair round renames it.
+    const lost = lostLeaves(substituted, first.spec, []);
+    if (lost.some(leaf => isRelationLeaf(leaf) || askedForLeaf(leaf, ctx.question))) return first;
+    const noise = lost.map(leaf => `Dropped "${leaf}": nothing in the request asks for it.`);
+    const fixed = autofixSpec(first.spec);
+    if (!fixed.notes.length && !noise.length) return first;
+    const again = validateSpec(fixed.spec, ctx.values, ctx.extFields);
+    return again.ok ? { ...again, fixes: [...before, ...noise, ...fixed.notes] } : first;
+  };
+
+  // "Which one?" is asked here, not by the model, when the question names
+  // one particular record and nothing says which.
+  const whichOne = askWhichOne(ctx, history, terms);
+  if (whichOne) return whichOne;
 
   const first = await chat({ model, messages: ctx.messages, schema });
 
-  const turn = { raw: first.content, reply: parseReply(first.content), timing: first.timing, repaired: false };
+  const turn = { raw: first.content, first: first.content, reply: parseReply(first.content), timing: first.timing, repaired: false };
 
   if (turn.reply?.kind === 'report') return answerReport(ctx, turn);
   if (turn.reply?.kind === 'clarify') return answerClarify(ctx, turn);
+  // Not about the data, or asking for a change: one sentence, no report.
+  if (turn.reply?.kind === 'decline') return { kind: 'decline', reason: String(turn.reply.reason || ''), ...replyMeta(ctx, turn) };
   return { kind: 'error', message: 'The model reply was not valid JSON.', ...replyMeta(ctx, turn) };
+}
+
+/**
+ * Apply the analyst's answer to a confirmation. A term choice adds (and may drop)
+ * conditions, so its result is validated again.
+ *
+ * Lives here rather than on the route because both front ends need it: the web
+ * builder POSTs /nl-reports/resolve, and the Teams bot applies the same choice
+ * when a manager picks one of the "did you mean" options out of a card.
+ *
+ * @returns {object|null} the spec to continue with, or null when the choice does not fit
+ */
+export function applyResolveChoice(spec, choice, values, extFields) {
+  if (!choice) return spec;
+  if (choice.kind === 'term') {
+    const revalidated = applyTermChoice(spec, choice) ? validateSpec(spec, values, extFields) : null;
+    return revalidated?.ok ? revalidated.spec : null;
+  }
+  return applyChoice(spec, choice) ? spec : null;
 }
 
 function formatCell(type, v) {
@@ -280,13 +584,45 @@ function formatCell(type, v) {
 }
 
 /**
+ * One result row: the displayed cells, plus the records behind any name list.
+ *
+ * `_links` is deliberately separate from the cell values rather than replacing
+ * them. A name-list cell stays the same readable string it has always been, so
+ * exports, the report table and every other consumer are untouched; a caller
+ * that wants to make those names clickable — or to ask a follow-up question
+ * about them — reads `_links[column]` instead of trying to parse the string
+ * back apart, which is not possible when a name itself contains a comma.
+ */
+function buildRow(r, columns, kind, grouped) {
+  // A grouped row is a value with a count, not a record, so it carries no
+  // entity: the renderer then offers no detail link, which is right — there is
+  // no single record behind "Finance — 42".
+  const row = grouped ? {} : { _entity: { kind, id: r.__id } };
+  const links = {};
+  for (const c of columns) {
+    // Read by alias, write by key: a column whose name is too long for a Postgres
+    // alias is selected under a short one (see compile.js) — and so is the
+    // companion that carries a name list's ids.
+    row[c.key] = formatCell(c.type, r[c.alias]);
+    const pairs = c.linkKind ? r[c.linksAlias] : null;
+    if (pairs?.length) links[c.key] = pairs.map(p => ({ ...p, kind: c.linkKind }));
+  }
+  if (Object.keys(links).length) row._links = links;
+  return row;
+}
+
+/**
  * @param {object} rawSpec  a spec (from the model or edited in the UI)
  * @returns {Promise<object>} { ok:false, errors } or the run result
  */
-export async function runSpec(rawSpec) {
+// `substitutions` resolves the caller's placeholder (@me) in a definition that
+// still carries it: a saved "my groups" report opened by someone else, or an
+// evaluation's expected answer. The bot and the Ask tab hand in definitions
+// with the ids already in (interpret() substitutes before validating).
+export async function runSpec(rawSpec, substitutions = new Map()) {
   const values = await loadValues();
   const extFields = await loadExtFields();
-  const { ok, spec, errors } = validateSpec(rawSpec, values, extFields);
+  const { ok, spec, errors } = validateSpec(substituteValues(rawSpec, substitutions), values, extFields);
   if (!ok) return { ok: false, errors, spec };
   const { confirm } = await resolveNamedObjects(spec, query);
   if (confirm) return { ok: false, errors: [confirm.message], confirm, spec };
@@ -303,17 +639,7 @@ export async function runSpec(rawSpec) {
 
   const truncated = result.rows.length > spec.limit;
   const kind = ENTITIES[spec.entity].detailKind;
-  const rows = result.rows.slice(0, spec.limit).map(r => {
-    // A grouped row is a value with a count, not a record, so it carries no
-    // entity: the renderer then offers no detail link, which is right — there is
-    // no single record behind "Finance — 42".
-    const row = spec.groupBy ? {} : { _entity: { kind, id: r.__id } };
-    // Read by alias, write by key: a column whose name is too long for a Postgres
-    // alias is selected under a short one (see compile.js).
-    for (const c of compiled.columns) row[c.key] = formatCell(c.type, r[c.alias]);
-
-    return row;
-  });
+  const rows = result.rows.slice(0, spec.limit).map(r => buildRow(r, compiled.columns, kind, !!spec.groupBy));
 
   return {
     ok: true,

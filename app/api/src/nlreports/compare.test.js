@@ -37,7 +37,7 @@ describe('compare — validation', () => {
 
   it('rejects what cannot be compared, with a message the model can act on', () => {
     const errs = (c, entity = 'user') => validateSpec({ entity, conditions: [c] }).errors[0];
-    expect(errs({ type: 'compare', relation: 'manager', measure: 'identical', reference: { entity: 'user', name: 'x' } })).toMatch(/compare needs one of these relations of user: directReports, memberOf, businessRoles, access, owns/);
+    expect(errs({ type: 'compare', relation: 'manager', measure: 'identical', reference: { entity: 'user', name: 'x' } })).toMatch(/compare needs one of these relations of user: directReports, memberOf, businessRoles, access, eligibleFor, owns/);
     expect(errs({ type: 'compare', relation: 'memberOf', measure: 'same', reference: { entity: 'user', name: 'x' } })).toMatch(/measure must be one of/);
     expect(errs({ type: 'compare', relation: 'memberOf', measure: 'identical', reference: { entity: 'group', name: 'x' } })).toMatch(/a group has no "memberOf"/);
     expect(errs({ type: 'compare', relation: 'memberOf', measure: 'identical', reference: { entity: 'user', name: '  ' } })).toMatch(/needs the name/);
