@@ -39,19 +39,27 @@ BEGIN;
 -- A system's initial load writes no per-row insert history (migration 073) — only
 -- one anchor event per table and system — so a freshly seeded demo environment has
 -- memberships with no insert event at all, and steps 1 and 3 below would have
--- nothing to move. Synthesised with the same rowId shape the audit trigger uses
--- (migration 022), and only where the row has no insert event yet, so running this
--- twice adds nothing. Simulate-History.sql does the same, for the same reason:
--- without it, both scripts quietly do nothing on a fresh install.
+-- nothing to move. Simulate-History.sql needs the same thing for the same reason,
+-- and does it for three tables.
+--
+-- THE KEY MATTERS. `rowId` has to be spelled exactly as the audit trigger spells
+-- it (migration 022: resourceId|principalId|assignmentType, empty string for a
+-- NULL part), because step 3 ties a removal event back to its own insert event on
+-- that key. Written once here, in a CTE, so the format appears in this file a
+-- single time; the trigger remains its only definition.
+WITH membership AS (
+  SELECT ra.*,
+         COALESCE(ra."resourceId"::text, '') || '|'
+      || COALESCE(ra."principalId"::text, '') || '|'
+      || COALESCE(ra."assignmentType", '') AS history_key
+    FROM "ResourceAssignments" ra
+)
 INSERT INTO "_history" ("tableName", "rowId", "operation", "rowData", "prevData")
-SELECT 'ResourceAssignments', k.key, 'I', to_jsonb(ra), NULL
-  FROM "ResourceAssignments" ra
- CROSS JOIN LATERAL (SELECT COALESCE(ra."resourceId"::text, '') || '|'
-                          || COALESCE(ra."principalId"::text, '') || '|'
-                          || COALESCE(ra."assignmentType", '') AS key) k
+SELECT 'ResourceAssignments', m.history_key, 'I', to_jsonb(m) - 'history_key', NULL
+  FROM membership m
  WHERE NOT EXISTS (SELECT 1 FROM "_history" h
                     WHERE h."tableName" = 'ResourceAssignments'
-                      AND h."rowId" = k.key AND h."operation" = 'I');
+                      AND h."operation" = 'I' AND h."rowId" = m.history_key);
 
 -- ── 1. Grants happened over the last half year ───────────────────────────────
 -- Deterministic: the same row always lands on the same day, because the offset
