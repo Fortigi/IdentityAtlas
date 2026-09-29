@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/reference/permissions/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/reference/ask-assistant/">
       
       
-        <link rel="prev" href="../ask-assistant/">
+        <link rel="prev" href="../report-generator/">
       
       
-        <link rel="next" href="../sql-views/">
+        <link rel="next" href="../permissions/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Permissions & Roles - Identity Atlas</title>
+        <title>Ask Assistant — how it thinks and is tested - Identity Atlas</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#permissions-role-mapping" class="md-skip">
+        <a href="#the-ask-assistant-what-the-model-does-what-it-is-told-and-how-it-is-tested" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Permissions & Roles
+              Ask Assistant — how it thinks and is tested
             
           </span>
         </div>
@@ -2826,34 +2826,6 @@
                 
   
   
-  
-  
-    <li class="md-nav__item">
-      <a href="../ask-assistant/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Ask Assistant — how it thinks and is tested
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
     
   
   
@@ -2873,7 +2845,7 @@
   <span class="md-ellipsis">
     
   
-    Permissions & Roles
+    Ask Assistant — how it thinks and is tested
   
 
     
@@ -2891,7 +2863,7 @@
   <span class="md-ellipsis">
     
   
-    Permissions & Roles
+    Ask Assistant — how it thinks and is tested
   
 
     
@@ -2917,10 +2889,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#how-authorization-works" class="md-nav__link">
+  <a href="#one-question-step-by-step" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How authorization works
+        One question, step by step
       
     </span>
   </a>
@@ -2928,22 +2900,55 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#permission-catalog" class="md-nav__link">
+  <a href="#the-prompt-the-model-is-given" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Permission catalog
+        The prompt the model is given
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Permission catalog">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-it-answers-and-what-it-does-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it answers, and what it does not
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-pipeline-corrects-on-the-models-behalf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the pipeline corrects on the model's behalf
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-test-framework" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The test framework
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The test framework">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#read" class="md-nav__link">
+  <a href="#how-an-answer-is-graded" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Read
+        How an answer is graded
       
     </span>
   </a>
@@ -2951,10 +2956,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#export" class="md-nav__link">
+  <a href="#the-conversation-set" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Export
+        The conversation set
       
     </span>
   </a>
@@ -2962,10 +2967,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#write" class="md-nav__link">
+  <a href="#results" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Write
+        Results
       
     </span>
   </a>
@@ -2973,10 +2978,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#admin" class="md-nav__link">
+  <a href="#running-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Admin
+        Running it
       
     </span>
   </a>
@@ -2989,71 +2994,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#seed-default-role-mapping" class="md-nav__link">
+  <a href="#privacy-in-one-paragraph" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Seed (default) role mapping
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Seed (default) role mapping">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#no-role-users-fail-closed" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        No-role users fail closed
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#getting-the-first-admin-in-bootstrap" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Getting the first admin in (bootstrap)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#ui-gating" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        UI gating
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#deployment-notes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deployment notes
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#testing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Testing
+        Privacy, in one paragraph
       
     </span>
   </a>
@@ -3064,6 +3008,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions & Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -5313,10 +5285,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#how-authorization-works" class="md-nav__link">
+  <a href="#one-question-step-by-step" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How authorization works
+        One question, step by step
       
     </span>
   </a>
@@ -5324,22 +5296,55 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#permission-catalog" class="md-nav__link">
+  <a href="#the-prompt-the-model-is-given" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Permission catalog
+        The prompt the model is given
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Permission catalog">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-it-answers-and-what-it-does-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it answers, and what it does not
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-pipeline-corrects-on-the-models-behalf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the pipeline corrects on the model's behalf
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-test-framework" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The test framework
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The test framework">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#read" class="md-nav__link">
+  <a href="#how-an-answer-is-graded" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Read
+        How an answer is graded
       
     </span>
   </a>
@@ -5347,10 +5352,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#export" class="md-nav__link">
+  <a href="#the-conversation-set" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Export
+        The conversation set
       
     </span>
   </a>
@@ -5358,10 +5363,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#write" class="md-nav__link">
+  <a href="#results" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Write
+        Results
       
     </span>
   </a>
@@ -5369,10 +5374,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#admin" class="md-nav__link">
+  <a href="#running-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Admin
+        Running it
       
     </span>
   </a>
@@ -5385,71 +5390,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#seed-default-role-mapping" class="md-nav__link">
+  <a href="#privacy-in-one-paragraph" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Seed (default) role mapping
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Seed (default) role mapping">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#no-role-users-fail-closed" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        No-role users fail closed
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#getting-the-first-admin-in-bootstrap" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Getting the first admin in (bootstrap)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#ui-gating" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        UI gating
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#deployment-notes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deployment notes
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#testing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Testing
+        Privacy, in one paragraph
       
     </span>
   </a>
@@ -5532,233 +5476,803 @@
   
 
 
-<h1 id="permissions-role-mapping">Permissions &amp; Role Mapping<a class="headerlink" href="#permissions-role-mapping" title="Permanent link">&para;</a></h1>
-<p>Identity Atlas authorizes every API request against a <strong>fixed catalog of permissions</strong>. Customers map their Entra ID <strong>app roles</strong> to those permissions, so "who can do what" is configurable without code changes.</p>
-<p>This page is the reference for the permission model. The catalog below is kept in sync with the code by a test (<code>app/api/src/auth/docsCoverage.test.js</code>) — if a permission is added to the catalog without being documented here, CI fails.</p>
-<h2 id="how-authorization-works">How authorization works<a class="headerlink" href="#how-authorization-works" title="Permanent link">&para;</a></h2>
-<ol>
-<li><strong>Authentication</strong> — when <code>AUTH_ENABLED=true</code>, every <code>/api/*</code> request must carry a valid Entra ID bearer token (or a read/crawler API key). When <code>AUTH_ENABLED=false</code> (the default for local/laptop use) the API runs in <strong>open mode</strong>: all gates are no-ops and a banner warns that anyone with the URL has full access. Open mode is a supported deployment for evaluation and single-user local runs — <strong>do not</strong> use it on a network without a trusted boundary.</li>
-<li><strong>Role → permission resolution</strong> — the token's <code>roles</code> claim is resolved to a set of permissions via the configured mapping (Admin → Authentication → Roles &amp; Permissions), falling back to the built-in seed mapping.</li>
-<li><strong>Per-route enforcement</strong> — each protected route declares the permission(s) it needs via <code>requirePermission(...)</code>. The gate is attached to the <strong>individual route</strong>, not the <code>/api</code> mount, so one router's permission never affects another's endpoints.</li>
-<li><strong>Wildcard</strong> — a role mapped to <code>*</code> is granted every permission (including ones added in future releases). The seed <code>Admin</code> role uses <code>*</code>.</li>
-</ol>
+<h1 id="the-ask-assistant-what-the-model-does-what-it-is-told-and-how-it-is-tested">The Ask assistant: what the model does, what it is told, and how it is tested<a class="headerlink" href="#the-ask-assistant-what-the-model-does-what-it-is-told-and-how-it-is-tested" title="Permanent link">&para;</a></h1>
+<p>The same assistant answers wherever a question is asked in plain language — today the <strong>Ask</strong> bar on the custom-reports page. It is a
+front end on the <a href="../report-generator/">report generator</a>: a small language model running on
+your own hardware turns a question into a <strong>report definition</strong>, the API checks and corrects
+that definition, runs it as read-only SQL, and shows the rows. The model never sees a row, never
+writes SQL, and nothing about a question leaves the server.</p>
+<p>This page is the long version of how that works: the flow of one question, the prompt the
+model is given (verbatim), what the assistant answers and what it refuses, the corrections the
+pipeline makes on the model's behalf, and the test framework the whole thing is judged by.
+Every name in it is made up.</p>
 <div class="admonition note">
-<p class="admonition-title">Read &amp; crawler API keys</p>
-<ul>
-<li><strong>Read API keys (<code>fgr_…</code>)</strong> are accepted only on <code>GET</code> requests to non-admin endpoints (the <code>/api/admin/</code> check ignores path casing) and resolve to <code>data.read</code>. They're used by the generated Excel/Power Query workbook.</li>
-<li><strong>Crawler API keys (<code>fgc_…</code>)</strong> authenticate the worker on <code>/api/crawlers/*</code> and <code>/api/ingest/*</code> only, with their own per-crawler scope (<code>systemIds</code>) and permissions (<code>ingest</code>, <code>refreshViews</code>, <code>admin</code>). They are separate from the user-facing permission catalog below.</li>
-</ul>
+<p class="admonition-title">Where the numbers come from</p>
+<p>Everything measured here was measured on 23 September 2026 on a 2-vCPU host with a real
+directory, with the model that ships (<code>Qwen3-4B-Instruct-2507</code>, 4-bit, llama.cpp). On that
+host the model writes about one token a second and reads about thirteen — every design
+choice below that mentions time follows from those two numbers.</p>
 </div>
-<h2 id="permission-catalog">Permission catalog<a class="headerlink" href="#permission-catalog" title="Permanent link">&para;</a></h2>
-<p>Permissions are grouped into <strong>Read</strong>, <strong>Export</strong>, <strong>Write</strong>, and <strong>Admin</strong>.</p>
-<h3 id="read">Read<a class="headerlink" href="#read" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Permission</th>
-<th>Label</th>
-<th>Notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>data.read</code></td>
-<td>Read all data</td>
-<td>Effectively "can sign in at all." Enforced as authentication-required — any signed-in user can read; there is no per-route <code>requirePermission('data.read')</code> gate. <code>fgr_</code> read tokens are granted it implicitly. The Dashboard reads (<code>GET /api/admin/dashboard-stats</code>, <code>/dashboard-timeseries</code>), run history (<code>GET /api/risk-scoring/runs</code>, <code>/api/context-plugins/runs</code>, <code>/api/account-linking/runs</code>) <code>GET /api/updates/intent</code> and the Performance request log (<code>GET /api/perf*</code>, which also refuses <code>fgr_</code> read tokens) additionally require <strong>at least one</strong> mapped permission, so a signed-in user whose roles map to nothing is refused.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="export">Export<a class="headerlink" href="#export" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Permission</th>
-<th>Label</th>
-<th>Gated endpoint (representative)</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>data.export.ui</code></td>
-<td>Export to Excel/CSV</td>
-<td><code>GET /api/admin/export/curated</code>, <code>POST /api/admin/data-export/workbook</code></td>
-</tr>
-<tr>
-<td><code>data.export.apikey</code></td>
-<td>Generate read-only API keys</td>
-<td><code>POST /api/admin/read-tokens</code> (mint your own <code>fgr_</code> token)</td>
-</tr>
-<tr>
-<td><code>data.share</code></td>
-<td>Create matrix share links</td>
-<td><code>POST /api/matrix/shares</code> (also <code>GET /api/matrix/shares</code> and <code>POST /api/matrix/shares/:id/revoke</code> — the Shared matrices management page). Only takes effect while the experimental <strong>Matrix sharing</strong> feature is switched on — see <a href="../experimental-features/#matrix-sharing">Experimental features</a>. See <a href="../../ui/sharing-a-matrix/">Sharing a matrix</a>.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="write">Write<a class="headerlink" href="#write" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Permission</th>
-<th>Label</th>
-<th>Gated endpoint (representative)</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>data.write.tags</code></td>
-<td>Manage tags</td>
-<td><code>POST/PATCH/DELETE /api/tags…</code></td>
-</tr>
-<tr>
-<td><code>data.write.categories</code></td>
-<td>Manage categories</td>
-<td><code>POST/PATCH/DELETE /api/categories…</code></td>
-</tr>
-<tr>
-<td><code>data.write.reports</code></td>
-<td>Build custom reports</td>
-<td><code>POST/PUT/DELETE /api/nl-reports/saved…</code>, and the report builder (<code>/api/nl-reports/*</code>). Running or downloading a report needs only Read data.</td>
-</tr>
-<tr>
-<td><code>data.read.reports</code></td>
-<td>Ask questions in plain language</td>
-<td>Lets the holder ask the local model a question and read the answer: <code>POST /api/nl-reports/interpret</code>, <code>run</code>, <code>resolve</code> and the read-only <code>status</code>, <code>catalog</code>, <code>lookup</code> and their own <code>conversations</code>. Deliberately separate from <strong>Build custom reports</strong>: somebody who may ask a question should not thereby be able to create and delete the saved reports every analyst sees, and asking is NOT implied by building either — the seed <code>RoleMiner</code> role carries both. Only takes effect while the experimental <strong>custom reports</strong> feature is switched on.</td>
-</tr>
-<tr>
-<td><code>data.write.contexts</code></td>
-<td>Build contexts</td>
-<td>The context assistant (<code>/api/context-assistant/*</code>), and creating manual contexts and editing context members (<code>/api/contexts…</code> writes — also allowed with <code>admin.context-plugins</code>). Viewing contexts needs only Read data.</td>
-</tr>
-<tr>
-<td><code>data.write.risk</code></td>
-<td>Risk score overrides</td>
-<td><code>PUT/DELETE /api/risk-scores/:type/:id/override</code></td>
-</tr>
-<tr>
-<td><code>data.write.identity</code></td>
-<td>Identity link decisions</td>
-<td><code>PUT/DELETE /api/identities/:id/members/:userId/override</code> (confirm / reject / clear an account-linking decision)</td>
-</tr>
-<tr>
-<td><code>data.write.certifications</code></td>
-<td>Certification decisions</td>
-<td><strong>Reserved</strong> — no interactive endpoint yet. Certification decisions are currently ingested via the crawler (<code>POST /api/ingest/governance/certifications</code>). When an approve/revoke endpoint is added it will be gated by this permission.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="admin">Admin<a class="headerlink" href="#admin" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Permission</th>
-<th>Label</th>
-<th>Gated endpoint (representative)</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>admin.crawlers</code></td>
-<td>Crawler configuration</td>
-<td><code>GET/POST/PATCH/DELETE /api/admin/crawlers…</code>, crawler jobs, trigger risk-scoring runs, account-linking config + runs (<code>GET/PUT /api/account-linking/config</code>, <code>POST /api/account-linking/runs</code>), risk profile/classifier reads (<code>GET /api/admin/risk-profile</code>, <code>/api/admin/classifiers</code>)</td>
-</tr>
-<tr>
-<td><code>admin.systems</code></td>
-<td>Systems configuration</td>
-<td><code>PUT /api/systems/:id</code>, owners, clean-database, history-retention (read + write), auto-update status/log/toggle (<code>/api/admin/updates/*</code>)</td>
-</tr>
-<tr>
-<td><code>admin.llm</code></td>
-<td>LLM configuration</td>
-<td><code>/api/admin/llm/*</code>, risk profiles/classifiers (incl. <code>GET /api/admin/risk-profile</code>, <code>/api/admin/classifiers</code>)</td>
-</tr>
-<tr>
-<td><code>admin.context-plugins</code></td>
-<td>Context plugins</td>
-<td><code>/api/context-plugins…</code> (run/configure clustering, manager-hierarchy, etc.)</td>
-</tr>
-<tr>
-<td><code>admin.csv-import</code></td>
-<td>CSV import</td>
-<td><code>/api/admin/crawler-configs/:id/files</code> (any upload-supporting crawler type), custom-connector ingest</td>
-</tr>
-<tr>
-<td><code>admin.read-tokens</code></td>
-<td>Manage read API keys</td>
-<td><code>GET/DELETE /api/admin/read-tokens</code> (list/revoke tokens minted by others)</td>
-</tr>
-<tr>
-<td><code>admin.feature-flags</code></td>
-<td>Feature flags</td>
-<td><code>POST /api/admin/features/toggle</code></td>
-</tr>
-<tr>
-<td><code>admin.auth</code></td>
-<td>Authentication &amp; roles</td>
-<td><code>GET/PUT/DELETE /api/admin/roles</code> — edits this very mapping. A self-lockout guard prevents a save that would strip your own <code>admin.auth</code>.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="seed-default-role-mapping">Seed (default) role mapping<a class="headerlink" href="#seed-default-role-mapping" title="Permanent link">&para;</a></h2>
-<p>A fresh install ships with this mapping (customisable in the Admin UI):</p>
-<table>
-<thead>
-<tr>
-<th>Role</th>
-<th>Permissions</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>Admin</code></td>
-<td><code>*</code> (all permissions)</td>
-</tr>
-<tr>
-<td><code>RoleMiner</code></td>
-<td><code>data.read</code>, <code>data.read.reports</code>, <code>data.export.ui</code>, <code>data.export.apikey</code>, <code>data.share</code>, <code>data.write.reports</code>, <code>data.write.contexts</code></td>
-</tr>
-<tr>
-<td><code>Servicedesk</code></td>
-<td><code>data.read</code></td>
-</tr>
-</tbody>
-</table>
-<h3 id="no-role-users-fail-closed">No-role users fail closed<a class="headerlink" href="#no-role-users-fail-closed" title="Permanent link">&para;</a></h3>
-<p>A signed-in user whose roles resolve to <strong>no</strong> permissions is <strong>denied</strong> every permission gate — they can authenticate but cannot perform any admin or write action. There is deliberately no "no roles → full admin" fallback (that was a privilege-escalation flaw). Note that read endpoints are not permission-gated, so a roleless user can still <em>read</em> data; set <code>AUTH_REQUIRED_ROLES</code> to keep roleless users from signing in at all.</p>
-<h3 id="getting-the-first-admin-in-bootstrap">Getting the first admin in (bootstrap)<a class="headerlink" href="#getting-the-first-admin-in-bootstrap" title="Permanent link">&para;</a></h3>
-<p>Because there's no fallback, you must grant access explicitly:</p>
+<h2 id="one-question-step-by-step">One question, step by step<a class="headerlink" href="#one-question-step-by-step" title="Permanent link">&para;</a></h2>
 <ol>
-<li>In Entra ID, assign your user to an <strong>app role</strong> that the mapping maps to permissions — the seed maps the <strong><code>Admin</code></strong> role to <code>*</code> (full access).</li>
-<li>Then enable auth (<code>AUTH_ENABLED=true</code>) and sign in.</li>
+<li><strong>Who is asking.</strong> The signed-in user is resolved to an account
+   by object id — a primary-key lookup, never a name match. The model is told who that is
+   (the <em>caller block</em> below) so "my", "ik", "mijn" mean something, and is told to write the
+   placeholder <code>@me</code> rather than copy the id.</li>
+<li><strong>What the directory calls things.</strong> The value lists of this deployment (account types,
+   resource types, system names) are put in front of the question; they are the first thing
+   in every user message so they sit in the prompt cache. The names the question mentions
+   ("Bram", "Finance") are looked up server-side and the model is told <em>which fields</em> they
+   occur in — never how many rows.</li>
+<li><strong>The model answers in JSON</strong>, under a grammar: a <code>report</code> (a definition), a <code>clarify</code> (a
+   question back with options), or a <code>decline</code> (one sentence: not something it does). The
+   grammar bounds every list and string, so a model that starts repeating itself stops after a
+   few items instead of running to the token cap.</li>
+<li><strong>The definition is corrected where it has one sensible reading</strong>, before and after
+   validation (the <a href="#what-the-pipeline-corrects-on-the-models-behalf">list</a> is below), and
+   validated against the catalog. A definition that contradicts itself is refused with a
+   message saying what the one sensible fix is.</li>
+<li><strong>At most one correction round per kind of mistake</strong> — an invalid definition, "or" built as
+   "and", a name the definition ignores, the caller missing — and every round is held to its
+   brief: a correction that lost a condition it was not told about is refused and the first
+   definition stands.</li>
+<li><strong>Names are pinned.</strong> A first name is one person: one match is pinned to that record and
+   the answer says who; several are offered as a choice; none asks for the exact name. A group
+   name stays a filter ("groups with License in the name").</li>
+<li><strong>The definition runs</strong> as read-only SQL with a statement timeout, and the answer shows <em>what
+   was understood</em> above the rows — including every correction the pipeline made, as a line in
+   the assumptions.</li>
+<li><strong>What was shown is remembered for the chat</strong> (per chat, per person, for thirty minutes):
+   the records, and the definition. The next question can say "these groups"; a refinement
+   ("only the additions") keeps everything the earlier definition had that it does not mention.</li>
 </ol>
-<p><strong>Locked yourself out?</strong> If you enabled auth before assigning yourself a role, no one can reach the admin UI. Recover from the host shell with the auth CLI — disable auth, assign the role in Entra, then re-enable:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># 1. Disable auth (recovery path), then restart:</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>web<span class="w"> </span>node<span class="w"> </span>src/cli/auth-config.js<span class="w"> </span>disable
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>restart<span class="w"> </span>web
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># 2. Assign your user the Admin app role in Entra ID.</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># 3. Re-enable auth and restart:</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>web<span class="w"> </span>node<span class="w"> </span>src/cli/auth-config.js<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--tenant<span class="w"> </span>&lt;tenant-guid&gt;<span class="w"> </span>--client<span class="w"> </span>&lt;client-guid&gt;
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>docker<span class="w"> </span>compose<span class="w"> </span>restart<span class="w"> </span>web
+<h2 id="the-prompt-the-model-is-given">The prompt the model is given<a class="headerlink" href="#the-prompt-the-model-is-given" title="Permanent link">&para;</a></h2>
+<p>The <strong>system prompt</strong> is generated from the catalog (<code>app/api/src/nlreports/prompt.js</code>) and is
+the same for every deployment of a release, which is what lets it be read once and kept in the
+model server's cache. Everything that varies goes <strong>in front of the question</strong> in the user
+message, in this order:</p>
+<ul>
+<li>the deployment's <strong>value lists</strong> (cached behind the system prompt; see the report generator page);</li>
+<li>the <strong>caller block</strong> — for example:</li>
+</ul>
+<blockquote>
+<p>The person asking this question is Kees van den Berg, whose account id is 3f7c1d2e-9a4b-4c6d-8e1f-2b3c4d5e6f70. When the request says "my", "mine", "I", "mijn" or "ik", it refers to them. Write @me as the value whenever a condition should match that person's own account, for example "my direct reports" = accounts whose manager relation has id @me; "my groups" = the group entity with members some id @me; "groups I have that X does not" / "groepen die ik wel heb, die X niet heeft" = the group entity with members some id @me AND members none for X — @me on the "some" side, X on the "none" side, never the same person on both (and never the user entity).</p>
+</blockquote>
+<ul>
+<li>the <strong>previous-answer block</strong>, when the chat has one — for example:</li>
+</ul>
+<blockquote>
+<p>The previous answer in this chat listed 29 groups / applications (the resource entity). If — and only if — this question refers back to them ("these groups", "deze groepen", "those", "die", "daarvan", "of them"), write @previous as the value of an "in" condition on the id field: {"type":"field","field":"id","op":"in","value":"@previous"}. If the question stands on its own, ignore this and do not use @previous.</p>
+</blockquote>
+<ul>
+<li>the <strong>name hints</strong>: for each name the question mentions, the fields it occurs in
+  (<code>"bram": user.displayName, user.email — not a system name</code>) and the instruction to filter
+  on the one field that fits;</li>
+<li>any of this deployment's own attributes the question names (<code>ext.&lt;key&gt;</code>);</li>
+<li>then <code>Request: &lt;the question as typed&gt;</code>.</li>
+</ul>
+<p>The system prompt as generated from the current code is below — 24,689 characters,
+about 5,500 tokens. To print the one your build carries:
+<code>node -e "import('./app/api/src/nlreports/prompt.js').then(m =&gt; console.log(m.buildSystemPrompt()))"</code>
+in <code>app/api</code>.</p>
+<details class="note">
+<summary>The full system prompt (generated)</summary>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>You translate an analyst's request into a JSON report definition for Identity Atlas, an identity and access governance tool. You never write SQL and you never see data. Reply with JSON only.
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a># Entities
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>## user
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>A user account of a person (members and guests). Use for "users", "accounts", "guests" — and for what people are member of or have access to.
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>fields:
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>- id (text) — unique account id
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>- displayName (text) — display name
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>- email (text) — email / UPN
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>- userType (enum) — Member or Guest (guest = external / B2B user)
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>- accountEnabled (boolean) — true = enabled / active, false = disabled / blocked
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>- givenName (text)
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>- surname (text)
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>- department (text)
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>- jobTitle (text)
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>- companyName (text)
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>- employeeId (text)
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>- employeeType (text)
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>- usageLocation (text) — country code
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>- externalUserState (enum) — PendingAcceptance or Accepted (guests only)
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>- createdDateTime (date) — when the account was created
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>- system (enum) — source system name
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>- riskTier (enum)
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>- groupCount (number) — number of groups the account is a member of
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>- lastSignIn (date) — most recent sign-in (interactive or not)
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>- daysSinceLastSignIn (number) — days since the last sign-in, counted from when sign-in data was collected
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>- signInDataCollected (date) — when sign-in activity was last collected for this account's system
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>relations:
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>- manager (one → user) — the account's manager (another account)
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>- directReports (many → user) — accounts that have this account as their manager
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>- memberOf (many → group) — groups the account is a member of (direct or nested). ONLY groups — for roles, applications or permissions use access
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>- businessRoles (many → resource) — business roles / access packages assigned to this account. Use this for "which business roles does X have" and as the businessRoles.names column
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>- access (many → resource) — any resource the account holds: directory roles, groups, app roles, permissions, business roles, Azure roles. Use this for "has the X role"; for business roles only, use businessRoles
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>- owns (many → resource) — groups and applications this account is an OWNER of (not membership)
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>- identity (one → identity) — the person (identity) this account belongs to, after account linking
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>## group
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>A security or Microsoft 365 group. Use for "groups".
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>fields:
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>- id (text) — unique resource id
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>- displayName (text) — display name
+<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>- description (text)
+<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>- mail (text)
+<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a>- visibility (enum)
+<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>- securityEnabled (boolean) — groups: is a security group
+<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>- mailEnabled (boolean) — groups: is mail enabled
+<a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>- dynamicMembership (boolean) — groups: membership is rule-based (dynamic group)
+<a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a>- roleAssignable (boolean) — groups: can be assigned to Entra roles
+<a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a>- createdDateTime (date)
+<a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a>- system (enum)
+<a id="__codelineno-0-51" name="__codelineno-0-51" href="#__codelineno-0-51"></a>- riskTier (enum)
+<a id="__codelineno-0-52" name="__codelineno-0-52" href="#__codelineno-0-52"></a>- memberCount (number) — number of accounts that hold this resource (members / assignees)
+<a id="__codelineno-0-53" name="__codelineno-0-53" href="#__codelineno-0-53"></a>- ownerCount (number) — number of owners
+<a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a>relations:
+<a id="__codelineno-0-55" name="__codelineno-0-55" href="#__codelineno-0-55"></a>- members (many → account) — accounts that are members of / assigned to this resource (NOT owners)
+<a id="__codelineno-0-56" name="__codelineno-0-56" href="#__codelineno-0-56"></a>- owners (many → account) — accounts that OWN this group or application (NOT members). "nobody owns" = owners none
+<a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a>- businessRoles (many → resource) — business roles / access packages that contain this resource
+<a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a>
+<a id="__codelineno-0-59" name="__codelineno-0-59" href="#__codelineno-0-59"></a>## identity
+<a id="__codelineno-0-60" name="__codelineno-0-60" href="#__codelineno-0-60"></a>A real person, linked to one or more accounts in different systems. Group memberships, access and ownership belong to the ACCOUNTS — a question about what persons have or are member of uses the user entity instead.
+<a id="__codelineno-0-61" name="__codelineno-0-61" href="#__codelineno-0-61"></a>fields:
+<a id="__codelineno-0-62" name="__codelineno-0-62" href="#__codelineno-0-62"></a>- id (text) — unique identity id
+<a id="__codelineno-0-63" name="__codelineno-0-63" href="#__codelineno-0-63"></a>- displayName (text)
+<a id="__codelineno-0-64" name="__codelineno-0-64" href="#__codelineno-0-64"></a>- email (text)
+<a id="__codelineno-0-65" name="__codelineno-0-65" href="#__codelineno-0-65"></a>- givenName (text)
+<a id="__codelineno-0-66" name="__codelineno-0-66" href="#__codelineno-0-66"></a>- surname (text)
+<a id="__codelineno-0-67" name="__codelineno-0-67" href="#__codelineno-0-67"></a>- employeeId (text)
+<a id="__codelineno-0-68" name="__codelineno-0-68" href="#__codelineno-0-68"></a>- department (text)
+<a id="__codelineno-0-69" name="__codelineno-0-69" href="#__codelineno-0-69"></a>- jobTitle (text)
+<a id="__codelineno-0-70" name="__codelineno-0-70" href="#__codelineno-0-70"></a>- companyName (text)
+<a id="__codelineno-0-71" name="__codelineno-0-71" href="#__codelineno-0-71"></a>- city (text)
+<a id="__codelineno-0-72" name="__codelineno-0-72" href="#__codelineno-0-72"></a>- country (text)
+<a id="__codelineno-0-73" name="__codelineno-0-73" href="#__codelineno-0-73"></a>- officeLocation (text)
+<a id="__codelineno-0-74" name="__codelineno-0-74" href="#__codelineno-0-74"></a>- analystVerified (boolean)
+<a id="__codelineno-0-75" name="__codelineno-0-75" href="#__codelineno-0-75"></a>- linkConfidence (number) — how sure the account linking is, 0–100
+<a id="__codelineno-0-76" name="__codelineno-0-76" href="#__codelineno-0-76"></a>- accountCount (number) — number of accounts linked to this person
+<a id="__codelineno-0-77" name="__codelineno-0-77" href="#__codelineno-0-77"></a>relations:
+<a id="__codelineno-0-78" name="__codelineno-0-78" href="#__codelineno-0-78"></a>- accounts (many → account) — the accounts (in any system) linked to this person
+<a id="__codelineno-0-79" name="__codelineno-0-79" href="#__codelineno-0-79"></a>- manager (one → identity) — the person this person reports to
+<a id="__codelineno-0-80" name="__codelineno-0-80" href="#__codelineno-0-80"></a>
+<a id="__codelineno-0-81" name="__codelineno-0-81" href="#__codelineno-0-81"></a>## account
+<a id="__codelineno-0-82" name="__codelineno-0-82" href="#__codelineno-0-82"></a>An account in a connected system: a person's user account (member or guest), a service principal, a managed identity or an AI agent. Use this entity only when non-human accounts matter or the request says "accounts" in general.
+<a id="__codelineno-0-83" name="__codelineno-0-83" href="#__codelineno-0-83"></a>fields:
+<a id="__codelineno-0-84" name="__codelineno-0-84" href="#__codelineno-0-84"></a>- id (text) — unique account id
+<a id="__codelineno-0-85" name="__codelineno-0-85" href="#__codelineno-0-85"></a>- displayName (text) — display name
+<a id="__codelineno-0-86" name="__codelineno-0-86" href="#__codelineno-0-86"></a>- email (text) — email / UPN
+<a id="__codelineno-0-87" name="__codelineno-0-87" href="#__codelineno-0-87"></a>- principalType (enum) — kind of account
+<a id="__codelineno-0-88" name="__codelineno-0-88" href="#__codelineno-0-88"></a>- userType (enum) — Member or Guest (guest = external / B2B user)
+<a id="__codelineno-0-89" name="__codelineno-0-89" href="#__codelineno-0-89"></a>- accountEnabled (boolean) — true = enabled / active, false = disabled / blocked
+<a id="__codelineno-0-90" name="__codelineno-0-90" href="#__codelineno-0-90"></a>- givenName (text)
+<a id="__codelineno-0-91" name="__codelineno-0-91" href="#__codelineno-0-91"></a>- surname (text)
+<a id="__codelineno-0-92" name="__codelineno-0-92" href="#__codelineno-0-92"></a>- department (text)
+<a id="__codelineno-0-93" name="__codelineno-0-93" href="#__codelineno-0-93"></a>- jobTitle (text)
+<a id="__codelineno-0-94" name="__codelineno-0-94" href="#__codelineno-0-94"></a>- companyName (text)
+<a id="__codelineno-0-95" name="__codelineno-0-95" href="#__codelineno-0-95"></a>- employeeId (text)
+<a id="__codelineno-0-96" name="__codelineno-0-96" href="#__codelineno-0-96"></a>- employeeType (text)
+<a id="__codelineno-0-97" name="__codelineno-0-97" href="#__codelineno-0-97"></a>- usageLocation (text) — country code
+<a id="__codelineno-0-98" name="__codelineno-0-98" href="#__codelineno-0-98"></a>- externalUserState (enum) — PendingAcceptance or Accepted (guests only)
+<a id="__codelineno-0-99" name="__codelineno-0-99" href="#__codelineno-0-99"></a>- createdDateTime (date) — when the account was created
+<a id="__codelineno-0-100" name="__codelineno-0-100" href="#__codelineno-0-100"></a>- system (enum) — source system name
+<a id="__codelineno-0-101" name="__codelineno-0-101" href="#__codelineno-0-101"></a>- riskTier (enum)
+<a id="__codelineno-0-102" name="__codelineno-0-102" href="#__codelineno-0-102"></a>- groupCount (number) — number of groups the account is a member of
+<a id="__codelineno-0-103" name="__codelineno-0-103" href="#__codelineno-0-103"></a>- lastSignIn (date) — most recent sign-in (interactive or not)
+<a id="__codelineno-0-104" name="__codelineno-0-104" href="#__codelineno-0-104"></a>- daysSinceLastSignIn (number) — days since the last sign-in, counted from when sign-in data was collected
+<a id="__codelineno-0-105" name="__codelineno-0-105" href="#__codelineno-0-105"></a>- signInDataCollected (date) — when sign-in activity was last collected for this account's system
+<a id="__codelineno-0-106" name="__codelineno-0-106" href="#__codelineno-0-106"></a>relations:
+<a id="__codelineno-0-107" name="__codelineno-0-107" href="#__codelineno-0-107"></a>- manager (one → user) — the account's manager (another account)
+<a id="__codelineno-0-108" name="__codelineno-0-108" href="#__codelineno-0-108"></a>- directReports (many → user) — accounts that have this account as their manager
+<a id="__codelineno-0-109" name="__codelineno-0-109" href="#__codelineno-0-109"></a>- memberOf (many → group) — groups the account is a member of (direct or nested). ONLY groups — for roles, applications or permissions use access
+<a id="__codelineno-0-110" name="__codelineno-0-110" href="#__codelineno-0-110"></a>- businessRoles (many → resource) — business roles / access packages assigned to this account. Use this for "which business roles does X have" and as the businessRoles.names column
+<a id="__codelineno-0-111" name="__codelineno-0-111" href="#__codelineno-0-111"></a>- access (many → resource) — any resource the account holds: directory roles, groups, app roles, permissions, business roles, Azure roles. Use this for "has the X role"; for business roles only, use businessRoles
+<a id="__codelineno-0-112" name="__codelineno-0-112" href="#__codelineno-0-112"></a>- owns (many → resource) — groups and applications this account is an OWNER of (not membership)
+<a id="__codelineno-0-113" name="__codelineno-0-113" href="#__codelineno-0-113"></a>- identity (one → identity) — the person (identity) this account belongs to, after account linking
+<a id="__codelineno-0-114" name="__codelineno-0-114" href="#__codelineno-0-114"></a>
+<a id="__codelineno-0-115" name="__codelineno-0-115" href="#__codelineno-0-115"></a>## resource
+<a id="__codelineno-0-116" name="__codelineno-0-116" href="#__codelineno-0-116"></a>Anything that grants access: a group, a directory role, an application, an app role, a permission, a business role (access package) or an Azure resource. For groups use the group entity.
+<a id="__codelineno-0-117" name="__codelineno-0-117" href="#__codelineno-0-117"></a>fields:
+<a id="__codelineno-0-118" name="__codelineno-0-118" href="#__codelineno-0-118"></a>- id (text) — unique resource id
+<a id="__codelineno-0-119" name="__codelineno-0-119" href="#__codelineno-0-119"></a>- displayName (text) — display name
+<a id="__codelineno-0-120" name="__codelineno-0-120" href="#__codelineno-0-120"></a>- description (text)
+<a id="__codelineno-0-121" name="__codelineno-0-121" href="#__codelineno-0-121"></a>- resourceType (enum) — kind of resource
+<a id="__codelineno-0-122" name="__codelineno-0-122" href="#__codelineno-0-122"></a>- mail (text)
+<a id="__codelineno-0-123" name="__codelineno-0-123" href="#__codelineno-0-123"></a>- visibility (enum)
+<a id="__codelineno-0-124" name="__codelineno-0-124" href="#__codelineno-0-124"></a>- securityEnabled (boolean) — groups: is a security group
+<a id="__codelineno-0-125" name="__codelineno-0-125" href="#__codelineno-0-125"></a>- mailEnabled (boolean) — groups: is mail enabled
+<a id="__codelineno-0-126" name="__codelineno-0-126" href="#__codelineno-0-126"></a>- dynamicMembership (boolean) — groups: membership is rule-based (dynamic group)
+<a id="__codelineno-0-127" name="__codelineno-0-127" href="#__codelineno-0-127"></a>- roleAssignable (boolean) — groups: can be assigned to Entra roles
+<a id="__codelineno-0-128" name="__codelineno-0-128" href="#__codelineno-0-128"></a>- createdDateTime (date)
+<a id="__codelineno-0-129" name="__codelineno-0-129" href="#__codelineno-0-129"></a>- system (enum)
+<a id="__codelineno-0-130" name="__codelineno-0-130" href="#__codelineno-0-130"></a>- riskTier (enum)
+<a id="__codelineno-0-131" name="__codelineno-0-131" href="#__codelineno-0-131"></a>- memberCount (number) — number of accounts that hold this resource (members / assignees)
+<a id="__codelineno-0-132" name="__codelineno-0-132" href="#__codelineno-0-132"></a>- ownerCount (number) — number of owners
+<a id="__codelineno-0-133" name="__codelineno-0-133" href="#__codelineno-0-133"></a>relations:
+<a id="__codelineno-0-134" name="__codelineno-0-134" href="#__codelineno-0-134"></a>- members (many → account) — accounts that are members of / assigned to this resource (NOT owners)
+<a id="__codelineno-0-135" name="__codelineno-0-135" href="#__codelineno-0-135"></a>- owners (many → account) — accounts that OWN this group or application (NOT members). "nobody owns" = owners none
+<a id="__codelineno-0-136" name="__codelineno-0-136" href="#__codelineno-0-136"></a>- businessRoles (many → resource) — business roles / access packages that contain this resource
+<a id="__codelineno-0-137" name="__codelineno-0-137" href="#__codelineno-0-137"></a>
+<a id="__codelineno-0-138" name="__codelineno-0-138" href="#__codelineno-0-138"></a>## change
+<a id="__codelineno-0-139" name="__codelineno-0-139" href="#__codelineno-0-139"></a>A membership or access grant that was ADDED or REMOVED, and when. Use this entity — and ONLY this entity — for questions about what CHANGED, what is NEW, what was REMOVED, or what happened "recently" / "lately" / "in the last N days". Every other entity describes what is true now and cannot answer those. Covers group membership, access packages, app roles and directory roles alike.
+<a id="__codelineno-0-140" name="__codelineno-0-140" href="#__codelineno-0-140"></a>fields:
+<a id="__codelineno-0-141" name="__codelineno-0-141" href="#__codelineno-0-141"></a>- id (text) — unique change id
+<a id="__codelineno-0-142" name="__codelineno-0-142" href="#__codelineno-0-142"></a>- displayName (text) — who and what, as one line ("Jan de Vries — Finance")
+<a id="__codelineno-0-143" name="__codelineno-0-143" href="#__codelineno-0-143"></a>- changedAt (date) — when the change happened. "recently" / "recent" / "de laatste tijd" is this field, within the last 30 days unless the request says otherwise
+<a id="__codelineno-0-144" name="__codelineno-0-144" href="#__codelineno-0-144"></a>- action (enum) — "Added" (granted, or granted back) or "Removed" (revoked)
+<a id="__codelineno-0-145" name="__codelineno-0-145" href="#__codelineno-0-145"></a>- assignmentType (enum) — Direct, Indirect (through a group) or Eligible (can activate it)
+<a id="__codelineno-0-146" name="__codelineno-0-146" href="#__codelineno-0-146"></a>relations:
+<a id="__codelineno-0-147" name="__codelineno-0-147" href="#__codelineno-0-147"></a>- account (one → account) — the account this change was about — who gained or lost the access
+<a id="__codelineno-0-148" name="__codelineno-0-148" href="#__codelineno-0-148"></a>- resource (one → resource) — the group, application or role the access was on
+<a id="__codelineno-0-149" name="__codelineno-0-149" href="#__codelineno-0-149"></a>- manager (one → account) — the manager of the account this change was about. "changes for my people / my team / mijn medewerkers" is this relation
+<a id="__codelineno-0-150" name="__codelineno-0-150" href="#__codelineno-0-150"></a>
+<a id="__codelineno-0-151" name="__codelineno-0-151" href="#__codelineno-0-151"></a># Glossary — these words mean the same thing
+<a id="__codelineno-0-152" name="__codelineno-0-152" href="#__codelineno-0-152"></a>- "person", "people", "identity", "human", "persoon", "personen", "medewerker" → the identity entity (a real person). For what a person is member of, has access to or owns, use the user entity.
+<a id="__codelineno-0-153" name="__codelineno-0-153" href="#__codelineno-0-153"></a>- "account", "user", "user account", "principal", "login", "gebruiker", "gebruikersaccount" → the user entity; the account entity when non-human accounts (service principals, managed identities, AI agents) are included
+<a id="__codelineno-0-154" name="__codelineno-0-154" href="#__codelineno-0-154"></a>- "business role", "access package", "role package", "bedrijfsrol", "toegangspakket" → a resource with resourceType BusinessRole; the business roles an account or a group is in are the businessRoles relation — as a condition ("in business role X") and as the businessRoles.names column
+<a id="__codelineno-0-155" name="__codelineno-0-155" href="#__codelineno-0-155"></a>- "group", "security group", "Microsoft 365 group", "team", "groep" → the group entity
+<a id="__codelineno-0-156" name="__codelineno-0-156" href="#__codelineno-0-156"></a>- "directory role", "admin role", "Entra role", "administrator role", "beheerrol" → a resource with resourceType EntraDirectoryRole
+<a id="__codelineno-0-157" name="__codelineno-0-157" href="#__codelineno-0-157"></a>- "application", "enterprise application", "app", "applicatie" → a resource with resourceType Application
+<a id="__codelineno-0-158" name="__codelineno-0-158" href="#__codelineno-0-158"></a>- "service principal", "app identity", "service account" → an account with principalType ServicePrincipal
+<a id="__codelineno-0-159" name="__codelineno-0-159" href="#__codelineno-0-159"></a>- "guest", "external user", "B2B user", "gast", "externe gebruiker" → userType Guest
+<a id="__codelineno-0-160" name="__codelineno-0-160" href="#__codelineno-0-160"></a>- "disabled", "inactive", "blocked", "uitgeschakeld" → accountEnabled false
+<a id="__codelineno-0-161" name="__codelineno-0-161" href="#__codelineno-0-161"></a>- "owner", "eigenaar" → the owners / owns relation — never membership
+<a id="__codelineno-0-162" name="__codelineno-0-162" href="#__codelineno-0-162"></a>- "rights", "rechten", "permissions", "entitlements", "toegang", "toegangsrechten", "bevoegdheden" → every kind of resource an account holds. "Which rights does X have" = the resource entity with NO resourceType condition and members some for X; "who has right X" = the user entity with the access relation
+<a id="__codelineno-0-163" name="__codelineno-0-163" href="#__codelineno-0-163"></a>- "change", "changed", "changes", "added", "removed", "new", "recent", "recently", "lately", "wijziging", "wijzigingen", "veranderd", "toegevoegd", "verwijderd", "nieuw" → the change entity — what was added or removed over time. Every other entity only describes the present. "added" / "toegevoegd" = action Added; "removed" / "verwijderd" = action Removed; "added or removed", "changes", "updates" = no condition on action. The account changed is the account relation, the group is the resource relation (resourceType Group).
+<a id="__codelineno-0-164" name="__codelineno-0-164" href="#__codelineno-0-164"></a>- "my people", "my team", "my staff", "my employees", "mijn medewerkers", "mijn team", "mijn mensen" → the accounts whose manager is the person asking
+<a id="__codelineno-0-165" name="__codelineno-0-165" href="#__codelineno-0-165"></a>
+<a id="__codelineno-0-166" name="__codelineno-0-166" href="#__codelineno-0-166"></a># Operators per field type
+<a id="__codelineno-0-167" name="__codelineno-0-167" href="#__codelineno-0-167"></a>- text: eq, neq, contains, notContains, startsWith, endsWith, isEmpty, isNotEmpty
+<a id="__codelineno-0-168" name="__codelineno-0-168" href="#__codelineno-0-168"></a>- enum: eq, neq, isEmpty, isNotEmpty
+<a id="__codelineno-0-169" name="__codelineno-0-169" href="#__codelineno-0-169"></a>- boolean: eq, isEmpty, isNotEmpty
+<a id="__codelineno-0-170" name="__codelineno-0-170" href="#__codelineno-0-170"></a>- number: eq, neq, gt, lt, isEmpty, isNotEmpty
+<a id="__codelineno-0-171" name="__codelineno-0-171" href="#__codelineno-0-171"></a>- date: withinLastDays, olderThanDays, isEmpty, isNotEmpty
+<a id="__codelineno-0-172" name="__codelineno-0-172" href="#__codelineno-0-172"></a>Boolean values are true/false. withinLastDays / olderThanDays take a number of days. isEmpty / isNotEmpty take value null.
+<a id="__codelineno-0-173" name="__codelineno-0-173" href="#__codelineno-0-173"></a>
+<a id="__codelineno-0-174" name="__codelineno-0-174" href="#__codelineno-0-174"></a># Conditions
+<a id="__codelineno-0-175" name="__codelineno-0-175" href="#__codelineno-0-175"></a>- field:    {"type":"field","field":"...","op":"...","value":...}
+<a id="__codelineno-0-176" name="__codelineno-0-176" href="#__codelineno-0-176"></a>- relation: {"type":"relation","relation":"...","quantifier":"some"|"none","match":"all","conditions":[field conditions on the RELATED entity]}
+<a id="__codelineno-0-177" name="__codelineno-0-177" href="#__codelineno-0-177"></a>  "has no manager" = relation manager, quantifier none, no conditions. "manager is disabled" = relation manager, quantifier some, condition accountEnabled eq false.
+<a id="__codelineno-0-178" name="__codelineno-0-178" href="#__codelineno-0-178"></a>- group:    {"type":"group","match":"any","conditions":[...]} — use for an OR inside an AND (or the reverse).
+<a id="__codelineno-0-179" name="__codelineno-0-179" href="#__codelineno-0-179"></a>- compare:  {"type":"compare","relation":"members","measure":"identical","minSimilarity":100,"reference":{"entity":"resource","name":"exact name"}}
+<a id="__codelineno-0-180" name="__codelineno-0-180" href="#__codelineno-0-180"></a>  Compares the set each row reaches over a relation (members, memberOf, access, owners, owns, …) with the same set of ONE named record.
+<a id="__codelineno-0-181" name="__codelineno-0-181" href="#__codelineno-0-181"></a>  measure: identical = exactly the same set · containsAll = has everything the reference has (maybe more) · within = has only things the reference also has · similar = overlap of at least minSimilarity percent.
+<a id="__codelineno-0-182" name="__codelineno-0-182" href="#__codelineno-0-182"></a>  The comparison columns (similarity, what is only here, what is missing) are added automatically.
+<a id="__codelineno-0-183" name="__codelineno-0-183" href="#__codelineno-0-183"></a>
+<a id="__codelineno-0-184" name="__codelineno-0-184" href="#__codelineno-0-184"></a># Columns
+<a id="__codelineno-0-185" name="__codelineno-0-185" href="#__codelineno-0-185"></a>Field names of the entity; "manager.displayName" style for the manager; "&lt;relation&gt;.names" or "&lt;relation&gt;.count" for the other relations. Use [] when the user did not ask for specific columns; always include displayName when you do list columns.
+<a id="__codelineno-0-186" name="__codelineno-0-186" href="#__codelineno-0-186"></a>
+<a id="__codelineno-0-187" name="__codelineno-0-187" href="#__codelineno-0-187"></a># Rules
+<a id="__codelineno-0-188" name="__codelineno-0-188" href="#__codelineno-0-188"></a>1. Pick the entity from the noun, using the glossary: persons → identity; users / accounts / guests → user; groups → group. Service principals, managed identities, AI agents, or accounts of every kind → account with a principalType condition. Roles, applications, permissions, business roles, Azure resources → resource with a resourceType condition. When a question about persons is really about their group memberships, access or ownership, use user.
+<a id="__codelineno-0-189" name="__codelineno-0-189" href="#__codelineno-0-189"></a>2. "guests" / "external users" = userType Guest. "disabled" = accountEnabled false; "active"/"enabled" = accountEnabled true. "roles" = resourceType EntraDirectoryRole unless the user means business roles; holding a role = the access relation, never memberOf.
+<a id="__codelineno-0-190" name="__codelineno-0-190" href="#__codelineno-0-190"></a>2a. A business role / access package is the businessRoles relation of a user, an account or a group — as a condition ("in business role X" = businessRoles some with displayName contains X; "part of / in / via an access package" with no package named = businessRoles some with no conditions; "not via an access package" = businessRoles none) and as the column "businessRoles.names". Never a resourceType BusinessRole condition on a group. Use access only when the request is about access of every kind.
+<a id="__codelineno-0-191" name="__codelineno-0-191" href="#__codelineno-0-191"></a>2b. When the request joins conditions with "or" ("either ... or"), put exactly those conditions in a group with match "any"; everything else stays outside that group.
+<a id="__codelineno-0-192" name="__codelineno-0-192" href="#__codelineno-0-192"></a>2c. Sign-in: "not signed in for N days" / "inactive for N days" = daysSinceLastSignIn gt N. "never signed in" = lastSignIn isEmpty AND signInDataCollected isNotEmpty (without the second condition, accounts from systems that collect no sign-in data would be listed too).
+<a id="__codelineno-0-193" name="__codelineno-0-193" href="#__codelineno-0-193"></a>3. A name fragment the user mentions (like "Finance" or "LIC") is a displayName contains filter, unless they say it must match exactly.
+<a id="__codelineno-0-194" name="__codelineno-0-194" href="#__codelineno-0-194"></a>4. Reply with {"kind":"clarify"} ONLY when the request is genuinely ambiguous in a way that changes which rows are returned. Give 2-3 short options. Never ask about columns, sorting or formatting. When the user has answered a question or says to use your judgement, reply with a report.
+<a id="__codelineno-0-195" name="__codelineno-0-195" href="#__codelineno-0-195"></a>5. Record an interpretation choice you made as one short sentence in "assumptions" — at most two, and none when there was nothing to choose.
+<a id="__codelineno-0-196" name="__codelineno-0-196" href="#__codelineno-0-196"></a>6. When the user refines an earlier report ("only the additions", "alleen de toevoegingen", "and who owns those"), reply with the COMPLETE updated definition: keep every condition of the earlier definition — the same person, the same relation, the same time window — and change only what the refinement says. A refinement never swaps the person the earlier report was about for the person asking.
+<a id="__codelineno-0-197" name="__codelineno-0-197" href="#__codelineno-0-197"></a>7. Questions that compare sets — "the same members as", "the same access as", "has everything X has", "similar to", "overlaps with" — use a compare condition. Put the name exactly as the user wrote it in reference.name; a business role or access package is entity resource. "same" = identical, "mostly the same / similar / overlap" = similar with minSimilarity 80 unless the user gives a percentage. Membership of a business role itself ("part of / in business role X") is the businessRoles relation with a displayName condition.
+<a id="__codelineno-0-198" name="__codelineno-0-198" href="#__codelineno-0-198"></a>7a. "What X has that Y does not" — "groups I am in that Jan is not", "rights Piet has that Jan lacks" — is NOT a comparison: it is two conditions on the same relation of the group/resource, one with quantifier some for X and one with quantifier none for Y.
+<a id="__codelineno-0-199" name="__codelineno-0-199" href="#__codelineno-0-199"></a>8. Use ONLY the fields and relations listed above, plus any attribute named in an "Attributes from this deployment's own data" block in front of the request — those field names start with "ext." and are used exactly as written there. When the request depends on information that is neither listed nor in that block (for example MFA, licence cost, passwords), do NOT substitute a different field: reply with {"kind":"clarify"} that names the missing information and asks which field holds it.
+<a id="__codelineno-0-200" name="__codelineno-0-200" href="#__codelineno-0-200"></a>9. Counting per value — ONLY when the request asks "how many … per …", "the number of X per Y", "hoeveel … per …", "a breakdown / distribution by Y", "the unique values of Y with a count" — is "groupBy": "&lt;the Y field&gt;" in the definition, with columns []. The report is then one row per distinct value of that field with the number of records that have it. A request for WHICH records ("which groups", "welke groepen", "list", "show", "aan welke") is never grouped, even when it mentions a field or a count: it lists the records. Group on a field, never on a relation, and never together with a compare condition.
+<a id="__codelineno-0-201" name="__codelineno-0-201" href="#__codelineno-0-201"></a>10. A request that is not about the accounts, persons, groups, resources, access or changes described above — general knowledge, news, people outside the directory, opinions, small talk, writing or translation tasks — or that asks to CHANGE anything (add, remove, delete, grant, revoke, reset, disable, invite) is answered with {"kind":"decline","reason":"&lt;one short sentence&gt;"}. You only produce read-only report definitions; never answer such a request with a report or a clarification, and never guess.
+<a id="__codelineno-0-202" name="__codelineno-0-202" href="#__codelineno-0-202"></a>
+<a id="__codelineno-0-203" name="__codelineno-0-203" href="#__codelineno-0-203"></a>
+<a id="__codelineno-0-204" name="__codelineno-0-204" href="#__codelineno-0-204"></a># Examples
+<a id="__codelineno-0-205" name="__codelineno-0-205" href="#__codelineno-0-205"></a>Request: Show me all disabled service principals
+<a id="__codelineno-0-206" name="__codelineno-0-206" href="#__codelineno-0-206"></a>Reply: {"kind":"report","assumptions":[],"spec":{"entity":"account","match":"all","conditions":[{"type":"field","field":"principalType","op":"eq","value":"ServicePrincipal"},{"type":"field","field":"accountEnabled","op":"eq","value":false}],"columns":[]}}
+<a id="__codelineno-0-207" name="__codelineno-0-207" href="#__codelineno-0-207"></a>
+<a id="__codelineno-0-208" name="__codelineno-0-208" href="#__codelineno-0-208"></a>Request: Which groups have no owner?
+<a id="__codelineno-0-209" name="__codelineno-0-209" href="#__codelineno-0-209"></a>Reply: {"kind":"report","assumptions":[],"spec":{"entity":"group","match":"all","conditions":[{"type":"relation","relation":"owners","quantifier":"none","match":"all","conditions":[]}],"columns":[]}}
+<a id="__codelineno-0-210" name="__codelineno-0-210" href="#__codelineno-0-210"></a>
+<a id="__codelineno-0-211" name="__codelineno-0-211" href="#__codelineno-0-211"></a>Request: Users in Finance that are in a group with Admin in the name. Show name, email and which groups.
+<a id="__codelineno-0-212" name="__codelineno-0-212" href="#__codelineno-0-212"></a>Reply: {"kind":"report","assumptions":["\"in Finance\" means the department contains Finance."],"spec":{"entity":"user","match":"all","conditions":[{"type":"field","field":"department","op":"contains","value":"Finance"},{"type":"relation","relation":"memberOf","quantifier":"some","match":"all","conditions":[{"type":"field","field":"displayName","op":"contains","value":"Admin"}]}],"columns":["displayName","email","memberOf.names"]}}
+<a id="__codelineno-0-213" name="__codelineno-0-213" href="#__codelineno-0-213"></a>
+<a id="__codelineno-0-214" name="__codelineno-0-214" href="#__codelineno-0-214"></a>Request: guests created more than half a year ago that never accepted the invite
+<a id="__codelineno-0-215" name="__codelineno-0-215" href="#__codelineno-0-215"></a>Reply: {"kind":"report","assumptions":["Half a year = 180 days."],"spec":{"entity":"user","match":"all","conditions":[{"type":"field","field":"userType","op":"eq","value":"Guest"},{"type":"field","field":"createdDateTime","op":"olderThanDays","value":180},{"type":"field","field":"externalUserState","op":"eq","value":"PendingAcceptance"}],"columns":[]}}
+<a id="__codelineno-0-216" name="__codelineno-0-216" href="#__codelineno-0-216"></a>
+<a id="__codelineno-0-217" name="__codelineno-0-217" href="#__codelineno-0-217"></a>Request: users with the Exchange Administrator role
+<a id="__codelineno-0-218" name="__codelineno-0-218" href="#__codelineno-0-218"></a>Reply: {"kind":"report","assumptions":["A role is an Entra directory role, held via access."],"spec":{"entity":"user","match":"all","conditions":[{"type":"relation","relation":"access","quantifier":"some","match":"all","conditions":[{"type":"field","field":"resourceType","op":"eq","value":"EntraDirectoryRole"},{"type":"field","field":"displayName","op":"contains","value":"Exchange Administrator"}]}],"columns":[]}}
+<a id="__codelineno-0-219" name="__codelineno-0-219" href="#__codelineno-0-219"></a>
+<a id="__codelineno-0-220" name="__codelineno-0-220" href="#__codelineno-0-220"></a>Request: users in Finance, with the business roles they have
+<a id="__codelineno-0-221" name="__codelineno-0-221" href="#__codelineno-0-221"></a>Reply: {"kind":"report","assumptions":["\"in Finance\" means the department contains Finance."],"spec":{"entity":"user","match":"all","conditions":[{"type":"field","field":"department","op":"contains","value":"Finance"}],"columns":["displayName","email","businessRoles.names"]}}
+<a id="__codelineno-0-222" name="__codelineno-0-222" href="#__codelineno-0-222"></a>
+<a id="__codelineno-0-223" name="__codelineno-0-223" href="#__codelineno-0-223"></a>Request: security groups that have more than 20 members or that can be assigned to roles
+<a id="__codelineno-0-224" name="__codelineno-0-224" href="#__codelineno-0-224"></a>Reply: {"kind":"report","assumptions":["The \"or\" applies to the member count and role-assignable conditions."],"spec":{"entity":"group","match":"all","conditions":[{"type":"field","field":"securityEnabled","op":"eq","value":true},{"type":"group","match":"any","conditions":[{"type":"field","field":"memberCount","op":"gt","value":20},{"type":"field","field":"roleAssignable","op":"eq","value":true}]}],"columns":["displayName","memberCount","roleAssignable"]}}
+<a id="__codelineno-0-225" name="__codelineno-0-225" href="#__codelineno-0-225"></a>
+<a id="__codelineno-0-226" name="__codelineno-0-226" href="#__codelineno-0-226"></a>Request: Who owns applications? include what they own
+<a id="__codelineno-0-227" name="__codelineno-0-227" href="#__codelineno-0-227"></a>Reply: {"kind":"report","assumptions":[],"spec":{"entity":"account","match":"all","conditions":[{"type":"relation","relation":"owns","quantifier":"some","match":"all","conditions":[{"type":"field","field":"resourceType","op":"eq","value":"Application"}]}],"columns":["displayName","principalType","owns.names"]}}
+<a id="__codelineno-0-228" name="__codelineno-0-228" href="#__codelineno-0-228"></a>
+<a id="__codelineno-0-229" name="__codelineno-0-229" href="#__codelineno-0-229"></a>Request: Show everyone with access to Salesforce
+<a id="__codelineno-0-230" name="__codelineno-0-230" href="#__codelineno-0-230"></a>Reply: {"kind":"clarify","question":"How is Salesforce access granted here?","options":["Members of groups with \"Salesforce\" in the name","Accounts with any access to a resource with \"Salesforce\" in the name (groups, app roles, permissions)"]}
+<a id="__codelineno-0-231" name="__codelineno-0-231" href="#__codelineno-0-231"></a>
+<a id="__codelineno-0-232" name="__codelineno-0-232" href="#__codelineno-0-232"></a>Request: users with exactly the same group memberships as Jan de Vries
+<a id="__codelineno-0-233" name="__codelineno-0-233" href="#__codelineno-0-233"></a>Reply: {"kind":"report","assumptions":["\"Jan de Vries\" is a user."],"spec":{"entity":"user","match":"all","conditions":[{"type":"compare","relation":"memberOf","measure":"identical","minSimilarity":100,"reference":{"entity":"user","name":"Jan de Vries"}}],"columns":[]}}
+<a id="__codelineno-0-234" name="__codelineno-0-234" href="#__codelineno-0-234"></a>
+<a id="__codelineno-0-235" name="__codelineno-0-235" href="#__codelineno-0-235"></a>Request: groups whose members overlap at least 70 percent with the Finance Team group
+<a id="__codelineno-0-236" name="__codelineno-0-236" href="#__codelineno-0-236"></a>Reply: {"kind":"report","assumptions":[],"spec":{"entity":"group","match":"all","conditions":[{"type":"compare","relation":"members","measure":"similar","minSimilarity":70,"reference":{"entity":"group","name":"Finance Team"}}],"columns":[]}}
+<a id="__codelineno-0-237" name="__codelineno-0-237" href="#__codelineno-0-237"></a>
+<a id="__codelineno-0-238" name="__codelineno-0-238" href="#__codelineno-0-238"></a>Request: groups that Piet Bakker is in but Jan de Vries is not
+<a id="__codelineno-0-239" name="__codelineno-0-239" href="#__codelineno-0-239"></a>Reply: {"kind":"report","assumptions":[],"spec":{"entity":"group","match":"all","conditions":[{"type":"relation","relation":"members","quantifier":"some","match":"all","conditions":[{"type":"field","field":"displayName","op":"contains","value":"Piet Bakker"}]},{"type":"relation","relation":"members","quantifier":"none","match":"all","conditions":[{"type":"field","field":"displayName","op":"contains","value":"Jan de Vries"}]}],"columns":[]}}
+<a id="__codelineno-0-240" name="__codelineno-0-240" href="#__codelineno-0-240"></a>
+<a id="__codelineno-0-241" name="__codelineno-0-241" href="#__codelineno-0-241"></a>Request: which rights does Piet Bakker have that Jan de Vries does not have?
+<a id="__codelineno-0-242" name="__codelineno-0-242" href="#__codelineno-0-242"></a>Reply: {"kind":"report","assumptions":["Rights = every kind of resource held; no resourceType condition."],"spec":{"entity":"resource","match":"all","conditions":[{"type":"relation","relation":"members","quantifier":"some","match":"all","conditions":[{"type":"field","field":"displayName","op":"contains","value":"Piet Bakker"}]},{"type":"relation","relation":"members","quantifier":"none","match":"all","conditions":[{"type":"field","field":"displayName","op":"contains","value":"Jan de Vries"}]}],"columns":[]}}
+<a id="__codelineno-0-243" name="__codelineno-0-243" href="#__codelineno-0-243"></a>
+<a id="__codelineno-0-244" name="__codelineno-0-244" href="#__codelineno-0-244"></a>Request: was Jan de Vries added to or removed from any group in the last 90 days?
+<a id="__codelineno-0-245" name="__codelineno-0-245" href="#__codelineno-0-245"></a>Reply: {"kind":"report","assumptions":["Both additions and removals: no condition on action."],"spec":{"entity":"change","match":"all","conditions":[{"type":"relation","relation":"account","quantifier":"some","match":"all","conditions":[{"type":"field","field":"displayName","op":"contains","value":"Jan de Vries"}]},{"type":"relation","relation":"resource","quantifier":"some","match":"all","conditions":[{"type":"field","field":"resourceType","op":"eq","value":"Group"}]},{"type":"field","field":"changedAt","op":"withinLastDays","value":90}],"columns":[]}}
+<a id="__codelineno-0-246" name="__codelineno-0-246" href="#__codelineno-0-246"></a>
+<a id="__codelineno-0-247" name="__codelineno-0-247" href="#__codelineno-0-247"></a>Request: How many users are there per department?
+<a id="__codelineno-0-248" name="__codelineno-0-248" href="#__codelineno-0-248"></a>Reply: {"kind":"report","assumptions":[],"spec":{"entity":"user","match":"all","conditions":[],"columns":[],"groupBy":"department"}}
+<a id="__codelineno-0-249" name="__codelineno-0-249" href="#__codelineno-0-249"></a>
+<a id="__codelineno-0-250" name="__codelineno-0-250" href="#__codelineno-0-250"></a>Request: give me the unique job titles of enabled users, with the number of users for each
+<a id="__codelineno-0-251" name="__codelineno-0-251" href="#__codelineno-0-251"></a>Reply: {"kind":"report","assumptions":[],"spec":{"entity":"user","match":"all","conditions":[{"type":"field","field":"accountEnabled","op":"eq","value":true}],"columns":[],"groupBy":"jobTitle"}}
+<a id="__codelineno-0-252" name="__codelineno-0-252" href="#__codelineno-0-252"></a>
+<a id="__codelineno-0-253" name="__codelineno-0-253" href="#__codelineno-0-253"></a>Request: Is Trump the president of the United States?
+<a id="__codelineno-0-254" name="__codelineno-0-254" href="#__codelineno-0-254"></a>Reply: {"kind":"decline","reason":"I only build reports on the accounts, groups, access and changes in Identity Atlas."}
+<a id="__codelineno-0-255" name="__codelineno-0-255" href="#__codelineno-0-255"></a>
+<a id="__codelineno-0-256" name="__codelineno-0-256" href="#__codelineno-0-256"></a>Request: remove Jan de Vries from the Finance group
+<a id="__codelineno-0-257" name="__codelineno-0-257" href="#__codelineno-0-257"></a>Reply: {"kind":"decline","reason":"I can only report on access, not change it — ask an administrator to make the change."}
+<a id="__codelineno-0-258" name="__codelineno-0-258" href="#__codelineno-0-258"></a>
+<a id="__codelineno-0-259" name="__codelineno-0-259" href="#__codelineno-0-259"></a>Request: users that do not have MFA enabled
+<a id="__codelineno-0-260" name="__codelineno-0-260" href="#__codelineno-0-260"></a>Reply: {"kind":"clarify","question":"There is no MFA / authentication-method information in the fields I can use, so I cannot build this report. Which field holds MFA status in your data?","options":["Show all enabled users instead","I will ask an administrator to import MFA data"]}
 </code></pre></div>
-<h2 id="ui-gating">UI gating<a class="headerlink" href="#ui-gating" title="Permanent link">&para;</a></h2>
-<p>The SPA calls <code>GET /api/auth-me</code> after sign-in to learn its own permissions and hides controls the user can't use (the <strong>Admin</strong> tab, its sub-tabs, and export buttons). The server remains the source of truth — hidden controls are also enforced server-side, so hiding is a UX nicety, not a security boundary.</p>
-<h2 id="deployment-notes">Deployment notes<a class="headerlink" href="#deployment-notes" title="Permanent link">&para;</a></h2>
+</details>
+<h2 id="what-it-answers-and-what-it-does-not">What it answers, and what it does not<a class="headerlink" href="#what-it-answers-and-what-it-does-not" title="Permanent link">&para;</a></h2>
+<p><strong>In scope: read-only questions about the directory</strong> — accounts and the persons behind them,
+groups and every other kind of resource, who has what access, who owns what, and what changed
+(added or removed) over time; in English or Dutch; about the person asking ("my"), about a named
+person, or about everyone. Follow-ups that refer to the previous answer, refine it, or ask for a
+different column of the same records.</p>
+<p><strong>Asked back rather than guessed:</strong></p>
 <ul>
-<li><strong>Open mode (<code>AUTH_ENABLED=false</code>)</strong> — supported for local/evaluation use; all permission gates are bypassed.</li>
-<li><strong>Azure App Service</strong> — <code>AUTH_ENABLED=true</code> is set from first boot; the Authentication admin sub-tab is hidden (managed platform).</li>
-<li>Tenant/client IDs are configured via <code>AUTH_TENANT_ID</code> / <code>AUTH_CLIENT_ID</code>; the role→permission mapping is edited live in Admin → Authentication.</li>
-<li><strong>Token audience</strong> — the API accepts only access tokens whose audience is <code>api://&lt;client-id&gt;</code> (its exposed API scope). ID tokens are rejected. This is why the setup walkthrough has you "Expose an API" with the default <code>api://&lt;client-id&gt;</code> Application ID URI.</li>
+<li>a question that depends on data the directory does not hold (MFA state, licence cost,
+  salaries, lease cars): <em>which field holds that?</em> — never a substitute field;</li>
+<li>a person nobody matches: <em>what is the exact name?</em>, with the nearest names offered;</li>
+<li>several persons matching a first name: <em>which one — or everyone with that name?</em>;</li>
+<li>one particular record named by nothing — "who is in <strong>the</strong> group?" — <em>which group do you mean?</em>
+  (asked by the pipeline itself, in two seconds, not by the model).</li>
 </ul>
-<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
-<p>Enforcement is verified by:</p>
+<p><strong>Declined in one sentence, never answered:</strong></p>
 <ul>
-<li><strong><code>app/api/src/auth/permissionMatrix.test.js</code></strong> — for every gated permission, asserts the representative endpoint is reachable <strong>with</strong> the permission and returns <code>403</code> <strong>without</strong> it; plus a completeness guard that fails if any catalog permission is unclassified.</li>
-<li><strong><code>app/api/src/middleware/requirePermission.test.js</code></strong> — unit tests for the gate decision logic.</li>
-<li><strong><code>app/ui/e2e/permission-gating.spec.js</code></strong> — confirms the UI shows/hides the Admin tab and sub-tabs per permission.</li>
-<li><strong><code>app/api/src/auth/docsCoverage.test.js</code></strong> — fails if a catalog permission is missing from this page.</li>
+<li>anything not about the directory: general knowledge ("is Trump the president?"), the weather,
+  small talk, writing or translation tasks;</li>
+<li>any request to <strong>change</strong> something: add, remove, delete, grant, revoke, reset, disable,
+  invite. The assistant only produces read-only report definitions; it has no path that writes.</li>
 </ul>
+<p>A declined or asked-back question is recorded as such (<code>declined</code>, <code>clarified</code>, <code>confirm</code>)
+in the conversation store, not as a failure — so "how often does it refuse, and was it right
+to" can be counted.</p>
+<p><strong>What the person asking is allowed to see</strong> is not narrowed by the assistant in this version:
+whoever may ask may ask about the whole directory. That is stated on every surface and is the
+known gap of the POC (<code>callerScopeFilter</code> in <code>nlreports/caller.js</code> is the seam).</p>
+<h2 id="what-the-pipeline-corrects-on-the-models-behalf">What the pipeline corrects on the model's behalf<a class="headerlink" href="#what-the-pipeline-corrects-on-the-models-behalf" title="Permanent link">&para;</a></h2>
+<p>Each of these is a mistake the model made on a real question, that has exactly one sensible
+reading, and that is now put right without another model round. Every one is stated in the
+answer's assumptions when it happens. Mistakes with two readings still go to the model.</p>
+<table>
+<thead>
+<tr>
+<th>The model wrote</th>
+<th>What it becomes</th>
+<th>Why that is the only reading</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>"action is Added AND action is Removed"</td>
+<td>either one</td>
+<td>both were asked; ANDed they match nothing</td>
+</tr>
+<tr>
+<td>"owner count &gt; 0 AND has no owner"</td>
+<td>has no owner</td>
+<td>the question was about groups <em>without</em> owners</td>
+</tr>
+<tr>
+<td>"within the last 90 days AND more than 180 days ago"</td>
+<td>within the last 90 days</td>
+<td>one phrase, one window</td>
+</tr>
+<tr>
+<td>a <code>groupBy</code> on a "which groups…" question</td>
+<td>a list of the groups</td>
+<td>"which" asks for records; counts were not asked ("5" where five names were wanted)</td>
+</tr>
+<tr>
+<td>"van welke groepen ben ik eigenaar" with nobody in the definition</td>
+<td>the person asking is added</td>
+<td>"ik", a known caller, and no one named: one reading</td>
+</tr>
+<tr>
+<td>"which groups am I in" with <code>@me</code> inside the group condition</td>
+<td><code>@me</code> on the account itself</td>
+<td>an account id inside a group filter matches nothing</td>
+</tr>
+<tr>
+<td>"groups I have that Bram does not" with Bram on both sides</td>
+<td>the person asking on the side mentioned first</td>
+<td>the shape was right, one side was wrong</td>
+</tr>
+<tr>
+<td>a caller condition on a question that never said "my"</td>
+<td>removed</td>
+<td>"these groups" carries the chat forward, not the caller</td>
+</tr>
+<tr>
+<td>"these groups" written on the members relation, on a user report's own id, on a change's account, or inside an OR</td>
+<td>on the record's own id, or on the relation that reaches that kind</td>
+<td>the model got the subject right and the bookkeeping wrong</td>
+</tr>
+<tr>
+<td>"id is [a list]"</td>
+<td>"id is one of"</td>
+<td>a list can only mean one of</td>
+</tr>
+<tr>
+<td>"id is bram"</td>
+<td>"name contains bram", then pinned</td>
+<td>an id is a uuid or a placeholder; a word there is a name</td>
+</tr>
+<tr>
+<td>"in an access package" as a comparison with a reference <em>named</em> "access package", or as a resource type on a group or its members</td>
+<td>the business-role relation</td>
+<td>a kind of thing is not a name</td>
+</tr>
+<tr>
+<td>"not via an access package" written as the positive relation</td>
+<td>the negated relation</td>
+<td>the question's negation applies</td>
+</tr>
+<tr>
+<td>"which directory roles does Anna have" as Anna with everything she holds</td>
+<td>the directory roles whose members include Anna</td>
+<td>a column cannot be filtered; the roles are the report</td>
+</tr>
+<tr>
+<td>an invented condition nothing in the question asks for ("accountCount &gt; 0" inside members)</td>
+<td>dropped, with a note</td>
+<td>the question never asked for it; one it <em>did</em> ask for goes back to the model</td>
+</tr>
+<tr>
+<td>a condition repeated eight times</td>
+<td>once</td>
+<td>echoes are not conditions</td>
+</tr>
+<tr>
+<td>"only the additions" after a question about Bram's changes, with Bram swapped for the caller and the window gone</td>
+<td>Bram and the window restored</td>
+<td>a refinement changes only what it says</td>
+</tr>
+</tbody>
+</table>
+<p>And two guards that are not corrections:</p>
+<ul>
+<li><strong>No correction round may lose a condition it was not told about.</strong> The "or" correction once
+  added "added or removed" and dropped the 90-day window, turning 2 rows into 149; it is now
+  refused and the first definition stands.</li>
+<li><strong>A reply that starts repeating stops early</strong>: eight conditions per list in the grammar (the
+  largest measured answer needs four) and 450 tokens; a loop that once ran thirteen minutes to
+  the old cap now ends in under two.</li>
+</ul>
+<h2 id="the-test-framework">The test framework<a class="headerlink" href="#the-test-framework" title="Permanent link">&para;</a></h2>
+<p>Three question sets live in <code>tools/nl-reports/</code>, and one script runs them
+(<code>eval.mjs</code>, see the report generator page for the basics):</p>
+<table>
+<thead>
+<tr>
+<th>Set</th>
+<th>What it is</th>
+<th>Size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>questions.json</code></td>
+<td>the tuning set: prompt and rules were changed while looking at it</td>
+<td>42</td>
+</tr>
+<tr>
+<td><code>holdout.json</code></td>
+<td>written before tuning, never used to improve anything — the honest number</td>
+<td>17</td>
+</tr>
+<tr>
+<td><code>chat.json</code></td>
+<td>the <strong>conversation set</strong>: the questions people typed when asking in plain language, as NL/EN pairs sharing one expected answer, with follow-ups asked in the same chat, and the categories a chat gets wrong in ways a report page never shows</td>
+<td>26 pairs, 10 follow-ups, 4 pending</td>
+</tr>
+</tbody>
+</table>
+<h3 id="how-an-answer-is-graded">How an answer is graded<a class="headerlink" href="#how-an-answer-is-graded" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>By rows, not by shape.</strong> The model's definition and the hand-written expected definition
+  are both run; the answer is right when they return the same records. "Name contains Bram" and
+  "name is Bram de Groot" are the same answer if they match the same rows.</li>
+<li><strong>What is shown counts too.</strong> "Which groups am I in" may come back as 118 group rows or as
+  one row (the caller) with a cell listing 118 groups; both put the same records in front of the
+  reader. A question may also have <strong>more than one right reading</strong> ("who are the members of
+  these groups": the people, or the groups with a members column) and an answer must match one.</li>
+<li><strong>A refusal, a question back, or a "which person" can be the right answer</strong> (<code>expectKind</code>),
+  and for those the model's clarification is <em>not</em> answered on its behalf.</li>
+<li><strong>Follow-ups are real follow-ups</strong>: asked under a chat id after the previous answer's run, so
+  the API's own bookkeeping — not the test script — decides what "these groups" means. Their
+  expected definition may say <code>@previous</code> for the records the opening answer's expected
+  definition returned.</li>
+<li><strong>Every answer must arrive within five minutes</strong>; a right answer that took longer counts as
+  wrong, because nobody waited for it.</li>
+<li><strong>The person asking is whoever runs the evaluation</strong> (<code>@me</code>, from the token); the sets name
+  made-up people, and a small alias file kept <em>outside</em> the repository maps them onto the real
+  directory at run time (<code>--names</code>).</li>
+</ul>
+<p>The summary reports the score per category and per language, how many answers exceeded the
+limit, how many correction rounds were spent, and median / p90 / slowest times.</p>
+<h3 id="the-conversation-set">The conversation set<a class="headerlink" href="#the-conversation-set" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Dutch</th>
+<th>English</th>
+<th>A right answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>question</td>
+<td>Van welke groepen ben ik lid?</td>
+<td>Which groups am I a member of?</td>
+<td>group rows; then → <em>Welke van deze groepen zijn onderdeel van een access package?</em></td>
+</tr>
+<tr>
+<td>question</td>
+<td>Van welke groepen ben ik eigenaar?</td>
+<td>Which groups do I own?</td>
+<td>group rows; then → <em>Zijn er in de laatste 180 dagen updates geweest aan deze groepen?</em> → <em>Wie zijn de leden van deze groepen?</em></td>
+</tr>
+<tr>
+<td>question</td>
+<td>Kan je me vertellen welke groepen ik wel heb, die bram niet heeft?</td>
+<td>Can you tell me which groups I have that bram does not have?</td>
+<td>group rows</td>
+</tr>
+<tr>
+<td>question</td>
+<td>Welke rechten heb ik, die bram niet heeft?</td>
+<td>Which rights do I have that bram does not have?</td>
+<td>resource rows</td>
+</tr>
+<tr>
+<td>question</td>
+<td>Kan je me vertellen aan welke groepen bram in de laatste 90 dagen is toegevoegd? En of hij uit groepen is verwijderd?</td>
+<td>Can you tell me which groups bram was added to in the last 90 days? And whether he was removed from any?</td>
+<td>change rows; then → <em>Alleen de toevoegingen graag.</em></td>
+</tr>
+<tr>
+<td>question</td>
+<td>Aan welke groepen is bram recent toegevoegd of verwijderd?</td>
+<td>Which groups was bram recently added to or removed from?</td>
+<td>change rows</td>
+</tr>
+<tr>
+<td>question</td>
+<td>Welke groepen heeft bram die niet via een access package zijn uitgedeeld?</td>
+<td>Which groups does bram have that were not handed out through an access package?</td>
+<td>group rows</td>
+</tr>
+<tr>
+<td>question</td>
+<td>Kan je me een lijstje geven van disabled accounts?</td>
+<td>Can you give me a list of disabled accounts?</td>
+<td>account rows; then → <em>Van welke groepen zijn deze accounts nog lid?</em></td>
+</tr>
+<tr>
+<td>question</td>
+<td>In welke groepen zitten de medewerkers van Anna?</td>
+<td>Which groups are the people reporting to Anna in?</td>
+<td>user rows</td>
+</tr>
+<tr>
+<td>question</td>
+<td>Welke gasten zijn de afgelopen 180 dagen aan groepen toegevoegd?</td>
+<td>Which guests were added to groups in the last 180 days?</td>
+<td>change rows</td>
+</tr>
+<tr>
+<td>question</td>
+<td>In welke access packages zit ik?</td>
+<td>Which access packages am I in?</td>
+<td>resource rows</td>
+</tr>
+<tr>
+<td>question</td>
+<td>Welke directory rollen heeft Anna?</td>
+<td>Which directory roles does Anna have?</td>
+<td>resource rows</td>
+</tr>
+<tr>
+<td>question</td>
+<td>Wie heeft dezelfde groepen als ik?</td>
+<td>Who has the same groups as I do?</td>
+<td><em>pending — a comparison against the caller’s own account (@me in a compare reference) is not supported yet</em></td>
+</tr>
+<tr>
+<td>question</td>
+<td>Wie zit er in de groepen waarvan bram eigenaar is?</td>
+<td>Who is in the groups that bram owns?</td>
+<td><em>pending — needs a relation inside a relation (the members of the groups owned by X), which the definition language does not allow</em></td>
+</tr>
+<tr>
+<td>count</td>
+<td>Hoeveel gebruikers zijn er per afdeling?</td>
+<td>How many users are there per department?</td>
+<td>counts per department</td>
+</tr>
+<tr>
+<td>scope</td>
+<td>Is Trump de president van Amerika?</td>
+<td>Is Trump the president of the United States?</td>
+<td>declined</td>
+</tr>
+<tr>
+<td>scope</td>
+<td>Wat voor weer wordt het morgen in Amsterdam?</td>
+<td>What will the weather be like in Amsterdam tomorrow?</td>
+<td>declined</td>
+</tr>
+<tr>
+<td>scope</td>
+<td>Schrijf een gedicht over onze groepen.</td>
+<td>Write a poem about our groups.</td>
+<td>declined</td>
+</tr>
+<tr>
+<td>scope</td>
+<td>Verwijder bram uit alle groepen.</td>
+<td>Remove bram from all groups.</td>
+<td>declined</td>
+</tr>
+<tr>
+<td>scope</td>
+<td>Voeg mij toe aan de Global Administrator rol.</td>
+<td>Add me to the Global Administrator role.</td>
+<td>declined</td>
+</tr>
+<tr>
+<td>unknown</td>
+<td>Wat is het wachtwoord van bram?</td>
+<td>What is bram’s password?</td>
+<td>declined (or clarify)</td>
+</tr>
+<tr>
+<td>unknown</td>
+<td>Hoeveel verdient bram per jaar?</td>
+<td>How much does bram earn per year?</td>
+<td>declined (or clarify)</td>
+</tr>
+<tr>
+<td>unknown</td>
+<td>Welke gebruikers hebben MFA uit staan?</td>
+<td>Which users have MFA switched off?</td>
+<td>asked back (or decline)</td>
+</tr>
+<tr>
+<td>unknown</td>
+<td>Welke medewerkers hebben een Tesla als leaseauto?</td>
+<td>Which employees have a Tesla as their lease car?</td>
+<td>asked back (or decline)</td>
+</tr>
+<tr>
+<td>question</td>
+<td>Welke gastaccounts hebben de laatste 90 dagen niet ingelogd?</td>
+<td>Which guest accounts have not signed in for the last 90 days?</td>
+<td>user rows</td>
+</tr>
+<tr>
+<td>question</td>
+<td>Welke gasten zijn nog nooit ingelogd?</td>
+<td>Which guests have never signed in?</td>
+<td>user rows</td>
+</tr>
+<tr>
+<td>scope</td>
+<td>Wat was mijn vraag?</td>
+<td>What was my question?</td>
+<td>declined (or clarify)</td>
+</tr>
+<tr>
+<td>question</td>
+<td>Wie kan de rol Global Administrator aanvragen?</td>
+<td>Who is eligible for the Global Administrator role?</td>
+<td>resource rows <em>or</em> user rows</td>
+</tr>
+<tr>
+<td>question</td>
+<td>Heeft bram de rol Global Administrator?</td>
+<td>Does bram have the Global Administrator role?</td>
+<td>resource rows <em>or</em> user rows; then → <em>En kan hij die rol aanvragen?</em></td>
+</tr>
+<tr>
+<td>question</td>
+<td>Zit bram in de groep ACME - Algemeen - Partners?</td>
+<td>Is bram a member of the group ACME - Algemeen - Partners?</td>
+<td>group rows <em>or</em> user rows</td>
+</tr>
+<tr>
+<td>nobody</td>
+<td>In welke groepen zit Voldemort?</td>
+<td>Which groups is Voldemort in?</td>
+<td>asked which person</td>
+</tr>
+<tr>
+<td>ambiguous</td>
+<td>Wie zit er in de groep?</td>
+<td>Who is in the group?</td>
+<td>asked back</td>
+</tr>
+</tbody>
+</table>
+<p>Categories: <strong>question</strong> — the things people actually asked; <strong>followup</strong> — asked in the same
+chat as the row above it; <strong>count</strong> — a counting question, to check the grouping that the
+"which groups" rule removes is kept when it <em>is</em> asked for; <strong>scope</strong> — not about the directory,
+or a request to change something; <strong>unknown</strong> — data the directory does not hold; <strong>nobody</strong> —
+a person who does not exist; <strong>ambiguous</strong> — one particular record named by nothing.</p>
+<h3 id="results">Results<a class="headerlink" href="#results" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Set</th>
+<th>23 September 2026, first run of the day</th>
+<th>Final build that day</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Conversation set (58 graded answers)</td>
+<td>28/58 — questions 4/24, follow-ups 2/10, scope 10/10, unknown 8/8, nobody 2/2, count 2/2, ambiguous 0/2; two answers over five minutes</td>
+<td><strong>58/58</strong> — every category full; median 75 s, p90 168 s, slowest 293 s, none over five minutes</td>
+</tr>
+<tr>
+<td>Held-out set (17)</td>
+<td>13/17</td>
+<td><strong>15/17</strong>, median 74 s, p90 109 s</td>
+</tr>
+</tbody>
+</table>
+<p>Everything between the two columns is the correction list above and the guards around it; the
+model did not change. What the first run got wrong is worth naming, because it is what a chat
+on a small model gets wrong by default: a surname particle ("van") taken for a person's name;
+"5" where five names were wanted; the caller forgotten or put on the wrong side; the person and
+the time window silently dropped by a correction round; a comparison used where a difference
+was asked; a thirteen-minute loop.</p>
+<p>Still weak, and said so: comparisons of sets ("business roles whose members are all in group
+X") remain the held-out miss; "disabled accounts" is read literally (every disabled principal,
+service principals included); a third follow-up in one chat whose question has no noun of its
+own can still copy the previous definition.</p>
+<p><strong>24 September 2026.</strong> The set grew to 72 graded answers (six pairs from a live test that morning:
+guests not signed in for N days, "what was my question", who is eligible for a role, and yes/no
+questions about one person, with a follow-up), five more corrections went in (sign-in windows, guests,
+the business-role type, a yes/no question answered with everything the person holds, and "he" in a
+follow-up keeping the person), and the same sets were run on larger models with more CPU. On the
+shipped 4B model the set scores 67/72 at 2 threads and 68/72 at 8; the 30B-A3B mixture-of-experts
+model scores 69/72 with every follow-up right, at half the time. The full table and what it means are
+in <a href="../report-generator/#larger-models-on-more-cpu-24-september-2026">Larger models on more CPU</a>.</p>
+<h3 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># expected answers still right for your data (SQL only, no model)</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--check<span class="w"> </span>--file<span class="w"> </span>tools/nl-reports/chat.json<span class="w"> </span>--base<span class="w"> </span>https://&lt;host&gt;<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>--names<span class="w"> </span>names.local.json<span class="w"> </span>--token-cmd<span class="w"> </span><span class="s2">"az account get-access-token --resource api://&lt;web app id&gt; --query accessToken -o tsv"</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># the measurement (holds the model server for the duration; one question per person at a time)</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--models<span class="w"> </span>qwen3:4b-instruct-2507-q4_K_M<span class="w"> </span>--file<span class="w"> </span>tools/nl-reports/chat.json<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span>--base<span class="w"> </span>https://&lt;host&gt;<span class="w"> </span>--names<span class="w"> </span>names.local.json<span class="w"> </span>--token-cmd<span class="w"> </span><span class="s2">"..."</span><span class="w"> </span>--max-seconds<span class="w"> </span><span class="m">300</span>
+</code></pre></div>
+<h2 id="privacy-in-one-paragraph">Privacy, in one paragraph<a class="headerlink" href="#privacy-in-one-paragraph" title="Permanent link">&para;</a></h2>
+<p>The model runs on your own hardware and is given the catalog, the value lists, the names in the
+question and where they occur — never a row, never a count. What is recorded per question, on
+both surfaces, is who asked, what they typed, what the model was told, its first and final
+reply, the validated definition, the row count and column names, and timings. The rows are
+never stored. See <a href="../report-generator/#privacy">Privacy</a> for the report generator as a whole.</p>
 
 
 

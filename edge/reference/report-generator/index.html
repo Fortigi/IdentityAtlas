@@ -16,7 +16,7 @@
         <link rel="prev" href="../experimental-features/">
       
       
-        <link rel="next" href="../permissions/">
+        <link rel="next" href="../ask-assistant/">
       
       
         
@@ -2895,6 +2895,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#larger-models-on-more-cpu-24-september-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Larger models on more CPU (24 September 2026)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#what-the-mistakes-look-like" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2907,6 +2918,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#who-can-ask-and-where" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Who can ask, and where
+      
+    </span>
+  </a>
   
 </li>
       
@@ -3042,6 +3064,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ask-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ask Assistant — how it thinks and is tested
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -3210,10 +3260,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_10" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_11" >
         
           
-          <label class="md-nav__link" for="__nav_6_10" id="__nav_6_10_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6_11" id="__nav_6_11_label" tabindex="">
             
   
   
@@ -3231,8 +3281,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6_10">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -5353,6 +5403,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#larger-models-on-more-cpu-24-september-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Larger models on more CPU (24 September 2026)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#what-the-mistakes-look-like" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5365,6 +5426,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#who-can-ask-and-where" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Who can ask, and where
+      
+    </span>
+  </a>
   
 </li>
       
@@ -5586,6 +5658,26 @@ scale-to-zero, the prompt cache on Azure Files, the request time limits describe
 still built by hand — see <a href="../../ui/custom-reports/">Custom Reports</a>. The feature as a whole is off
 until an operator enables it under <strong>Admin → Experimental</strong>.</p>
 </div>
+<div class="admonition note">
+<p class="admonition-title">The table predates the <code>change</code> entity, grouping and the chat; both sets were re-run on 23 September 2026</p>
+<p>The table below was measured against a system prompt without the <code>change</code> entity and
+without counting per value. On 23 September 2026, on a 2-CPU host with real directory data
+and the corrections described under <a href="#what-the-mistakes-look-like">What the mistakes look like</a>:</p>
+<ul>
+<li><strong>held-out set: 15/17</strong> (13/15 with a non-empty answer), median 74 s, p90 109 s, one
+  question over the 5-minute limit (a subset comparison that failed after two rounds);</li>
+<li><strong>conversation set (<code>chat.json</code>, 58 graded answers): 58/58</strong> — the questions people typed
+  when asking in plain language, in Dutch and English, 10 follow-ups in the same conversation,
+  10 out-of-scope requests declined, 8 questions about data we do not have asked back or
+  declined, 2 about a person who does not exist asked back, 2 genuinely ambiguous ones asked
+  back, 2 counts kept; median 75 s, p90 168 s, slowest 293 s, none over 5 minutes. The
+  number is the sum of one full run (51/58) and a re-run of the seven rows whose fixes
+  landed during it, on the same build.</li>
+</ul>
+<p>The chat's first run that day scored 28/58 with a median of 77 s and two answers over the
+limit; everything between those two numbers is in the list below, none of it a change of
+model. The latency figures further down are from the tuning host.</p>
+</div>
 <h2 id="why-this-exists">Why this exists<a class="headerlink" href="#why-this-exists" title="Permanent link">&para;</a></h2>
 <p>Every customer asks the same kind of question about their own environment: <em>guest accounts without a
 manager</em>, <em>groups nobody owns</em>, <em>accounts that still sit in a licence group</em>. Each answer is a
@@ -5742,6 +5834,148 @@ small to tune further without fitting them. A few questions have an empty correc
 definition can also produce; counting only questions with a non-empty answer, the shipped model scores
 33/41 and 12/15. Re-run any time with <code>tools/nl-reports/eval.mjs</code> —
 see <a href="#measuring-it-yourself">Measuring it yourself</a>.</p>
+<p>The held-out run of 23 September 2026 (final build) missed two: a subset comparison ("business roles
+whose members are all in group X"), which remains the weakest kind of question, and one over-specified
+name filter (name <strong>and</strong> description must contain "License", one group differs). The conversation set
+missed nothing on that build; the categories it grades — scope, unknown data, a person who does not
+exist, an ambiguous question, follow-ups — are the ones a chat gets wrong in ways a report page never
+shows, and each has its own row in <code>tools/nl-reports/chat.json</code>.</p>
+<h3 id="larger-models-on-more-cpu-24-september-2026">Larger models on more CPU (24 September 2026)<a class="headerlink" href="#larger-models-on-more-cpu-24-september-2026" title="Permanent link">&para;</a></h3>
+<p>The question behind this run: is the 4B model the ceiling, or does a bigger model on a bigger
+CPU budget answer more questions right? Measured on a fresh install in Azure (one
+<code>Standard_E8bds_v5</code> VM — 8 vCPU, 64 GB, Docker, the same compose files a customer gets), with a
+copy of the same tenant, the same prompt and the same two sets: the held-out set (17 questions) and
+the conversation set (72 graded turns: 64 questions in Dutch and English, 12 follow-ups, and the
+scope / unknown-data / unknown-person / ambiguous rows). Every model runs through the same
+pipeline, so the corrections it makes on the model's behalf count for all of them. The VM's cores are
+about 1.3× faster than the reference host's (median 58 s against 74 s for the same run), so read the
+times relative to each other.</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>RAM for the model server</th>
+<th>Threads</th>
+<th>Held-out</th>
+<th>Conversation set</th>
+<th>NL / EN</th>
+<th>Follow-ups</th>
+<th>Median</th>
+<th>p90</th>
+<th>Slowest</th>
+<th>Over 5 min</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Qwen3-4B-Instruct-2507 (shipped)</td>
+<td>4 GB</td>
+<td>2</td>
+<td>14/17</td>
+<td>67/72</td>
+<td>35/36 · 32/36</td>
+<td>11/12</td>
+<td>68 s</td>
+<td>143 s</td>
+<td>352 s</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Qwen3-8B (thinking off)</td>
+<td>10 GB</td>
+<td>4</td>
+<td>13/17</td>
+<td>63/72</td>
+<td>32/36 · 31/36</td>
+<td>10/12</td>
+<td>45 s</td>
+<td>102 s</td>
+<td>250 s</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Qwen3-14B (thinking off)</td>
+<td>22 GB</td>
+<td>8</td>
+<td>14/17</td>
+<td>64/72</td>
+<td>31/36 · 33/36</td>
+<td>11/12</td>
+<td>53 s</td>
+<td>102 s</td>
+<td>160 s</td>
+<td>0</td>
+</tr>
+<tr>
+<td><strong>Qwen3-30B-A3B-Instruct-2507</strong></td>
+<td>24 GB</td>
+<td>8</td>
+<td><strong>16/17</strong></td>
+<td><strong>69/72</strong></td>
+<td>34/36 · 35/36</td>
+<td><strong>12/12</strong></td>
+<td><strong>34 s</strong></td>
+<td><strong>80 s</strong></td>
+<td>191 s</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Gemma 3 12B</td>
+<td>20 GB</td>
+<td>8</td>
+<td>abandoned</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>~355 s</td>
+<td>—</td>
+<td>—</td>
+<td>every question</td>
+</tr>
+<tr>
+<td>Qwen3-4B-Instruct-2507, more threads</td>
+<td>4 GB</td>
+<td>8</td>
+<td>14/17</td>
+<td>68/72</td>
+<td>35/36 · 33/36</td>
+<td>11/12</td>
+<td>32 s</td>
+<td>72 s</td>
+<td>113 s</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<p>What the table says:</p>
+<ul>
+<li><strong>The 30B-A3B model is the one that helps.</strong> It is a mixture-of-experts model: 30B parameters on
+  disk, 3B active per token, so it <em>reads</em> like a big model and <em>writes</em> at the speed of a small
+  one — the fastest tier here and the most accurate, with every follow-up right and both languages
+  level. Its three misses on the conversation set are two readings of "the groups of Anna's direct
+  reports" (a relation inside a relation, which the definition language cannot express) and one
+  "access packages" question answered as every resource — corrected by a pipeline rule since. What it
+  needs: about 24 GB of memory for the model server (the 18.6 GB model file plus the context; measured 14 GB resident with the rest in the page cache) and 8 CPU threads; at 2 threads it would be
+  about four times slower.</li>
+<li><strong>8B and 14B do not help.</strong> They are the older hybrid generation (April 2025) run with thinking
+  off, because thinking tokens at CPU speed would blow the time limit; in that mode they are no more
+  accurate than the 4B Instruct-2507 and make different mistakes (dropping the person from a change
+  question, leaving out a principal type). More threads make them faster, not better.</li>
+<li><strong>Gemma 3 does not work with this design at all</strong>: llama.cpp cannot reuse the saved prompt cache
+  for its sliding-window attention, so every question re-reads the whole prompt — about six minutes
+  each, the same finding as with Gemma 3 4B earlier.</li>
+<li><strong>The 4B is not far behind.</strong> Its misses are model wobble: the same question passes on one run and
+  fails on the next (13 to 15 of 17 across runs today; the conversation set gave 66, 67 and 68 of 72 on three runs), an invented condition, a name filter also
+  applied to the description. That is what the correction rules in the pipeline exist for, and it is
+  why the 30B's cleaner first attempts show up more in the follow-ups and in the repair count (five
+  repair rounds in 72 turns against eight) than in the raw score.</li>
+</ul>
+<p>The "License" question every model misses (name <strong>and</strong> description must contain the word — one group
+differs) and the subset comparison remain the two standing misses of the held-out set.</p>
+<p>To run the same matrix: build the images with the other models' URL and checksum
+(<code>setup/docker/Dockerfile.report-generator</code> takes them as build arguments), set
+<code>REPORT_GENERATOR_CPUS</code> / <code>REPORT_GENERATOR_MEMORY</code>, and run <code>tools/nl-reports/eval.mjs</code> for
+<code>holdout.json</code> and <code>chat.json</code> — see <a href="#measuring-it-yourself">Measuring it yourself</a>.</p>
 <h3 id="what-the-mistakes-look-like">What the mistakes look like<a class="headerlink" href="#what-the-mistakes-look-like" title="Permanent link">&para;</a></h3>
 <p>About one question in seven comes back wrong, so the point is not perfection but <strong>visible</strong>
 mistakes. Typical failures, all of which show up in the plain-language reading:</p>
@@ -5752,14 +5986,61 @@ mistakes. Typical failures, all of which show up in the plain-language reading:<
   on <strong>neither</strong> of the two deliberately ambiguous questions.</li>
 </ul>
 <p><strong>Comparisons are the weakest kind of question: 3 of 6 correct</strong> across both sets. The one this feature
-was demonstrated with ("groups with the same members as business role <em>Fortigi - Algemeen - Maten</em>,
+was demonstrated with ("groups with the same members as business role <em>ACME - Algemeen - Partners</em>,
 not part of it") is among the three that pass. For a comparison that matters, build it with
 <strong>+ compare with…</strong> in the editor — once built, a comparison is exact; only the translation from
 words is uncertain.</p>
-<p>Three failure modes are handled in code rather than left to the model:</p>
+<p>Several failure modes are handled in code rather than left to the model. Two of them were once
+handed back to the model to fix and are now corrected on the spot — at about a token a second on
+the CPU box a correction round costs one to three minutes, and the model's correction was not
+reliably better (asked to fix "added AND removed" it dropped "removed" and the 90-day window
+with it). Every correction made this way is stated in the report's assumptions.</p>
 <ul>
-<li><strong>"or" read as "and"</strong> — if the question contains <em>or</em> but the definition has no any-group, the
-  generator asks the model once to correct it, and keeps the original if the correction is no better.</li>
+<li><strong>A mistake with one sensible reading is corrected without asking</strong> — "action is Added AND
+  action is Removed" becomes <em>either</em>; "owner count above zero" beside "has no owner" loses
+  the count; "within the last 90 days" beside "more than 180 days ago" keeps the recent bound;
+  and a count-per-value grouping the question never asked for is removed ("which groups was he
+  added to" once came back as the number 5). A mistake with two readings ("empty and not
+  empty") is still put to the model.</li>
+<li><strong>The person asking is put where they belong</strong> — "van welke groepen ben ik eigenaar" whose
+  definition names nobody gets the caller added (into an empty owners/members relation, or on
+  the account itself); "which groups am I in" with the caller's id written inside the group
+  condition is moved to the account; "groups I have that bram does not" with bram on both
+  sides puts the caller on the side the question mentions first. Only when the definition names
+  somebody else is the model asked once to add the caller.</li>
+<li><strong>Follow-up bookkeeping is corrected, not trusted</strong> — the ids of "these groups" written on the
+  members relation, on a user report's own id, or on a change's account are moved to where that
+  kind of record is reached; "id is [a list]" is read as "one of"; a name written as an id is a
+  name.</li>
+<li><strong>A kind of thing is not a name</strong> — "in an access package" written as a comparison with a
+  reference named "access package", or as a resource type on a group or its members, is the
+  business-role relation; the column a question asks to see (members, owners, groups, access
+  packages, manager) is added when the definition left it out.</li>
+<li><strong>An invented condition goes, an asked-for one does not</strong> — a condition validation rejects is
+  checked against the question: one nothing in the question asks for ("accountCount &gt; 0" inside
+  members) is dropped with a note; one the question did ask for ("MFA") goes to the correction
+  round, and a definition without it is never run.</li>
+<li><strong>A loop stops early</strong> — the reply grammar allows eight conditions per list (the largest
+  measured answer needs four) and 450 tokens; a model repeating one condition ran 13 minutes to
+  the old cap. Repeated conditions collapse to one.</li>
+<li><strong>A correction may only fix what it was told</strong> — every correction round (invalid definition,
+  "or", a name not used, the caller missing) compares the corrected definition with the original
+  leaf by leaf; one that lost a condition it was not told about is refused and the original
+  stands. The "or" correction once added "added or removed" and dropped the 90-day window,
+  turning 2 rows into 149.</li>
+<li><strong>A first name is one person</strong> — "bram" written as a name-contains filter is looked up
+  before the report runs: one match is pinned to that person (the reading says who), several
+  are offered as a choice, none asks for the exact name. On a small directory the substring
+  happened to be right; on a large one it counts every Bram.</li>
+<li>
+<p><strong>Out of scope is declined, not guessed</strong> — a request that is not about the data (general
+  knowledge, small talk, writing) or that asks to change access is answered with one sentence
+  and no report, in every front end, and filed as <code>declined</code> rather than as a failure.</p>
+</li>
+<li>
+<p><strong>"or" read as "and"</strong> — if the question contains <em>or</em> but the definition has no any-group, the
+  generator asks the model once to correct it, and keeps the original if the correction is no better.</p>
+</li>
 <li><strong>Invented values</strong> — a definition with an unknown field, operator or type value is rejected, the
   validator's own message is handed back to the model, and it gets one attempt to fix it. If the
   corrected definition is still invalid, the analyst gets an error — never a report quietly built from
@@ -5769,6 +6050,40 @@ words is uncertain.</p>
   where validation would have cut it anyway. Before that limit existed, one question listed the same ten
   columns until the token cap: 570 seconds and a reply that was no longer JSON. It now answers in 46.</li>
 </ul>
+<p>For the chat on top of this — the flow of one question, the prompt verbatim, what is answered and what is refused, the corrections made on the model's behalf and the conversation-set results — see <a href="../ask-assistant/">The Ask assistant</a>.</p>
+<h2 id="who-can-ask-and-where">Who can ask, and where<a class="headerlink" href="#who-can-ask-and-where" title="Permanent link">&para;</a></h2>
+<p>The same model answers questions in three places, and they are gated by <strong>two</strong> different
+permissions on purpose.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Permission</th>
+<th>What it is for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Ask</strong> tab</td>
+<td><code>data.read.reports</code></td>
+<td>Type a question, read an answer. No definition editor, no saving. It knows who is asking, so "my groups" and "mijn medewerkers" mean you.</td>
+</tr>
+</tbody>
+</table>
+<p>| <strong>Custom reports</strong> builder | <code>data.write.reports</code> | Build, edit, save and delete report definitions everyone sees. |</p>
+<p>Asking and building are separate rights and neither implies the other. A pilot manager who
+should be able to find out who has access to what does not thereby get to delete the saved
+reports an analyst depends on; an analyst holds both, so nothing they could do before
+changes. Warming the model stays with <code>data.write.reports</code> — one model server, one slot,
+shared by everyone, so spending its CPU is not a read action.</p>
+<p>Every question asked in plain language is kept in the conversation store for the store's retention
+period (90 days by default, <code>NL_REPORTS_LOG_RETENTION_DAYS</code>), per person: the question, what the
+model was told, what it replied, the definition that ran and how the answer ended. That log is what
+makes a wrong answer diagnosable after the fact, and what the evaluation reads. <strong>Result rows are
+never stored</strong> — only the definition that produced them, so re-running a conversation re-runs the
+query rather than replaying stale data. Nobody sees anyone else's conversations.</p>
+<p>Asking is gated by <code>data.read.reports</code> and the <strong>custom reports</strong> feature flag, so a deployment
+that has not switched the feature on has no plain-language endpoints at all.</p>
 <h2 id="privacy">Privacy<a class="headerlink" href="#privacy" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Nothing leaves the deployment.</strong> The model runs in a container next to Identity Atlas. There is no
@@ -5887,7 +6202,12 @@ tokens) — minutes on a small CPU. Three things fix that:</p>
    baked into them.</li>
 <li><strong>The processed instructions are saved to disk</strong> (llama.cpp slot cache) and restored in ~0.1 s on
    every later start. That is measured on local disk; on Azure the 561 MB file lives on an Azure Files
-   share, whose restore time has not been measured.</li>
+   share, whose restore time has not been measured.
+   A second file holds the instructions <strong>plus this deployment's value lists</strong> — the first thing in
+   every user message — derived from the first file in seconds (restore it, read a few hundred
+   tokens, save). Questions start from that one, so the server reads only what follows the lists:
+   the caller, the name hints, the question. When the lists change, the next warm-up writes a fresh
+   file; until then the server reuses what still matches, which is the instructions.</li>
 <li><strong>Preparation runs in the background</strong> at API startup, and the builder says "preparing" instead of
    blocking. <code>node tools/nl-reports/prepare-prompt-cache.mjs</code> does it on demand and verifies a restore
    actually works.</li>
@@ -6036,10 +6356,15 @@ Admin → Roles.</p>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># accuracy + latency, per model</span>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--models<span class="w"> </span>qwen3:4b-instruct-2507-q4_K_M
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--models<span class="w"> </span>qwen3:4b-instruct-2507-q4_K_M<span class="w"> </span>--file<span class="w"> </span>tools/nl-reports/holdout.json
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1"># against a stack with sign-in on: a bearer for a signed-in analyst, or a command that mints one</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--check<span class="w"> </span>--base<span class="w"> </span>https://&lt;host&gt;<span class="w"> </span>--token-cmd<span class="w"> </span><span class="s2">"az account get-access-token --resource api://&lt;web app id&gt; --query accessToken -o tsv"</span>
 </code></pre></div>
-<p>Questions live in <code>tools/nl-reports/questions.json</code> (used while tuning) and <code>holdout.json</code> (kept
-untouched, so the number means something). Each question carries a hand-written reference definition;
-a model's answer counts only if it returns the same rows.</p>
+<p>Questions live in <code>tools/nl-reports/questions.json</code> (used while tuning), <code>holdout.json</code> (kept
+untouched, so the number means something) and <code>chat.json</code> (the questions people typed into the
+in plain language, in Dutch and English, with follow-ups asked in the same conversation; "my" means
+whoever runs it, so it needs a signed-in stack). Each question carries a hand-written reference
+definition; a model's answer counts only if it returns the same rows.</p>
 
 
 
