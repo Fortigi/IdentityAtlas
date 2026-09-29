@@ -6754,8 +6754,12 @@ key collapse into one row but would still be counted as sent.</p>
 <td>At most <strong>5%</strong> of the rows read may be held back: as dangling (they name a resource or principal the run did not load) or skipped (a required column is empty). More means the statements disagree about what exists, for example an entitlement statement that filters out most entitlements while the grant statement does not. A little is normal, e.g. grants held by workgroups that the principals statement leaves out. This bound is also what makes an assignment count with dangling rows an assertion rather than an open range</td>
 </tr>
 <tr>
-<td>Principals, resources, relationships</td>
-<td>The number of <strong>distinct</strong> keys the statement returned. If it returned more rows than distinct keys, the run fails: rows sharing an id overwrite each other, so all but one of them are lost. Make the id column unique</td>
+<td>Principals, resources</td>
+<td>The number of <strong>distinct</strong> ids the statement returned. If it returned more rows than distinct ids, the run fails: two records sharing an id overwrite each other, so all but one of them are lost. Make the id column unique</td>
+</tr>
+<tr>
+<td>Relationships, owner assignments</td>
+<td>The number of <strong>distinct</strong> pairs — (parent, child) for a relationship, (resource, principal) for an owner assignment — compared with the database's own count. A repeated pair is <strong>not</strong> a failure: it is the same edge arriving twice (a business role reaching one entitlement through two source applications, say), and collapsing it loses nothing, because an edge carries nothing but its two ends. The collapse is reported, not failed</td>
 </tr>
 <tr>
 <td>Assignments</td>
