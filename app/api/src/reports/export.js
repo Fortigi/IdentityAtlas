@@ -27,6 +27,7 @@
 // member of it.
 
 import ExcelJS from 'exceljs';
+import { addPivotTables } from './xlsxPivots.js';
 
 const FILENAME_PREFIX = 'identity-atlas';
 
@@ -77,6 +78,13 @@ const HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F
 const HEADER_FONT = { bold: true, size: 11, color: { argb: 'FF374151' } };
 const MUTED_FONT = { size: 10, color: { argb: 'FF6B7280' } };
 
+// The workbook's fixed tabs, before any pivot tabs.
+const SUMMARY_SHEET = 'Summary';
+const DATA_SHEET = 'Data';
+const SUMMARY_LABEL_WIDTH = 28;
+// The Data tab is only the table, so its header is always the first row.
+const HEADER_ROW = 1;
+
 /** Excel rejects these in a sheet name, and caps it at 31 characters. */
 function sheetName(displayName) {
   return String(displayName || 'Report').replace(/[[\]:*?/\\]/g, ' ').trim().slice(0, 31) || 'Report';
@@ -108,17 +116,21 @@ function columnWidth(column, rows) {
  * does not declare as a column is ignored.
  *
  * Nothing is dropped when dropping would leave no table: a sheet of nothing but
- * a header is worse than a repeated column.
+ * a header is worse than a repeated column. A key in `keep` — a column a pivot
+ * is built on — is stated in the header AND stays in the table: a pivot can only
+ * read what the table holds.
  */
-export function splitConstantColumns(columns, rows, constantColumns) {
+export function splitConstantColumns(columns, rows, constantColumns, keep = []) {
   const wanted = new Set(Array.isArray(constantColumns) ? constantColumns : []);
   if (wanted.size === 0 || rows.length === 0) return { header: [], body: columns };
 
+  const kept = new Set(keep);
   const order = constantColumns.filter(key => columns.some(c => c.key === key));
-  const body = columns.filter(c => !wanted.has(c.key));
+  const body = columns.filter(c => !wanted.has(c.key) || kept.has(c.key));
   if (body.length === 0) return { header: [], body: columns };
 
   const header = order.map(key => ({
+    key,
     label: columns.find(c => c.key === key).label,
     value: rows[0][key],
   }));
@@ -126,12 +138,15 @@ export function splitConstantColumns(columns, rows, constantColumns) {
 }
 
 /**
- * The block above the table: what this is, when it was computed, whatever the
- * run declared constant, and every notice the report returned — which is where
- * a summary lives now that a download can hold one. Returns the row index the
- * table starts on.
+ * The Summary tab: what this is, when it was computed, whatever the run
+ * declared constant, and every notice the report returned — which is where a
+ * summary lives now that a download can hold one. Its own tab, so the Data tab
+ * is nothing but the table: row 1 is the header, and a pivot or filter built on
+ * it by hand needs no range picking.
  */
 function writeSummary(sheet, { displayName, generatedAt, total, notices = [], truncated, header = [] }) {
+  sheet.getColumn(1).width = SUMMARY_LABEL_WIDTH;
+  sheet.getColumn(2).width = MAX_WIDTH;
   sheet.getCell('A1').value = String(displayName ?? 'Report');
   sheet.getCell('A1').font = { bold: true, size: 14 };
 
@@ -163,12 +178,16 @@ function writeSummary(sheet, { displayName, generatedAt, total, notices = [], tr
     if (notice?.severity === 'warning') sheet.getCell(`A${row}`).font = { color: { argb: 'FF92400E' } };
     row += 1;
   }
-  return row + 1; // one blank row between the summary and the table
+}
+
+/** Every column key the declared pivots are built on. */
+function pivotKeys(pivots) {
+  return pivots.flatMap(p => [...(p.rows || []), ...(p.filters || []), ...(p.values || [])]);
 }
 
 /**
- * The whole report as one worksheet: the summary block, then the same table the
- * CSV holds.
+ * The whole report as a workbook: a Summary tab, then a Data tab holding the
+ * same table the CSV holds, then one tab per declared pivot.
  *
  * Cell values are written RAW — no leading-apostrophe guard, deliberately. The
  * CSV guard (M-05) exists because a CSV cell has no type: a spreadsheet decides
@@ -177,21 +196,26 @@ function writeSummary(sheet, { displayName, generatedAt, total, notices = [], tr
  * apostrophe would be a character of corruption rather than a defence. The
  * invariant that actually matters is pinned by the tests, which assert the cell
  * round-trips with its exact original text AND with cell type String.
+ *
+ * A report that declares `pivots` gets each one on its own tab after the data,
+ * over that same table — see xlsxPivots.js.
  */
 async function toXlsx({
-  displayName, columns: declared = [], rows = [], notices, total, generatedAt, truncated, constantColumns,
+  displayName, columns: declared = [], rows = [], notices, total, generatedAt, truncated, constantColumns, pivots = [],
 } = {}) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Identity Atlas';
   workbook.created = new Date();
 
-  // The sheet's columns are this RUN's, not the report's: a value the run holds
-  // constant is stated once above the table instead of repeated down every row.
+  // The table's columns are this RUN's, not the report's: a value the run holds
+  // constant is stated once on the Summary tab instead of repeated down every
+  // row — unless a pivot is built on it, which needs it in the table.
   // `columns` in the payload is untouched — the screen still shows all of them.
-  const { header, body: columns } = splitConstantColumns(declared, rows, constantColumns);
+  const { header, body: columns } = splitConstantColumns(declared, rows, constantColumns, pivotKeys(pivots));
 
-  const sheet = workbook.addWorksheet(sheetName(displayName));
-  const headerRow = writeSummary(sheet, { displayName, generatedAt, total, notices, truncated, header });
+  writeSummary(workbook.addWorksheet(SUMMARY_SHEET), { displayName, generatedAt, total, notices, truncated, header });
+  const sheet = workbook.addWorksheet(DATA_SHEET);
+  const headerRow = HEADER_ROW;
 
   columns.forEach((column, i) => { sheet.getColumn(i + 1).width = columnWidth(column, rows); });
 
@@ -214,13 +238,23 @@ async function toXlsx({
   });
 
   if (columns.length) {
-    // Freeze everything above and including the header, so scrolling a
-    // 39,000-row review keeps both the summary anchor and the column names.
+    // Freeze the header, so scrolling a 39,000-row review keeps the column names.
     sheet.views = [{ state: 'frozen', ySplit: headerRow }];
     sheet.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: headerRow, column: columns.length } };
   }
 
-  return Buffer.from(await workbook.xlsx.writeBuffer());
+  // A pivot over no rows has no items to show, so an empty report gets none.
+  const pivotSheets = capped.length && columns.length
+    ? pivots.map(pivot => ({ sheetId: workbook.addWorksheet(sheetName(pivot.name)).id, pivot }))
+    : [];
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  const lastColumn = sheet.getColumn(columns.length || 1).letter;
+  return addPivotTables(buffer, {
+    sheet: sheet.name,
+    ref: `A${headerRow}:${lastColumn}${headerRow + capped.length}`,
+    columns,
+    rows: capped,
+  }, pivotSheets);
 }
 
 // Order is the order the UI offers them in, and the first is the default.

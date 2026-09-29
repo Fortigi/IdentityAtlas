@@ -83,6 +83,26 @@ describe('application-access-review — template contract', () => {
       'abbreviation', 'cmdbReference', 'connectionType', 'onboardingSector', 'applicationManager',
     ]));
   });
+
+  it('ships the two pivots owners build by hand, each over columns the report has', () => {
+    // The decisions, not a copy of the literal: which count each pivot sums,
+    // what it is broken down by, outermost first, and what it filters on.
+    const [direct, viaRole] = report.pivots;
+    expect(report.pivots).toHaveLength(2);
+    expect([direct.name, viaRole.name]).toEqual(['Direct assignments', 'Assignments via roles']);
+    expect([direct.values, viaRole.values]).toEqual([['directAssignments'], ['viaRoleAssignments']]);
+    expect(direct.rows[0]).toBe('applicationOwner');
+    expect(direct.rows.at(-1)).toBe('entitlement');
+    expect(direct.rows.indexOf('entitlementOwner')).toBeLessThan(direct.rows.indexOf('certificationFrequency'));
+    expect(viaRole.rows.join(' > ')).toBe('businessRoles > entitlement');
+    expect(direct.filters).toContain('requestable');
+    expect(viaRole.filters).not.toContain('requestable');
+    // A renamed column would otherwise only surface as a failed download.
+    const keys = new Set(report.columns.map(c => c.key));
+    for (const pivot of report.pivots) {
+      for (const key of [...pivot.filters, ...pivot.rows, ...pivot.values]) expect(keys, `${pivot.name}: ${key}`).toContain(key);
+    }
+  });
 });
 
 // ─── the three sections ───────────────────────────────────────────────────

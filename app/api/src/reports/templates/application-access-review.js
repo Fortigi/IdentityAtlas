@@ -226,6 +226,23 @@ export default {
     { key: 'onboardingSector', label: 'Onboarding sector' },
     { key: 'applicationManager', label: 'Application manager' },
   ],
+  // The two views every owner conversation builds by hand from the export: who
+  // holds what directly, broken down by owner and certification frequency, and
+  // what the business roles hand out.
+  pivots: [
+    {
+      name: 'Direct assignments',
+      filters: ['requestable', 'viaRoleAssignments'],
+      rows: ['applicationOwner', 'application', 'entitlementOwner', 'certificationFrequency', 'entitlement'],
+      values: ['directAssignments'],
+    },
+    {
+      name: 'Assignments via roles',
+      filters: ['viaRoleAssignments'],
+      rows: ['businessRoles', 'entitlement'],
+      values: ['viaRoleAssignments'],
+    },
+  ],
 
   async run(params, ctx) {
     const wanted = parseList(params?.applications);

@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { mountRouter } from '../../test-utils/routeTestKit.js';
-import { asBinary, firstSheet, headerLabels } from '../../test-utils/xlsxDownload.js';
+import { asBinary, columnA, headerLabels, sheetNamed } from '../../test-utils/xlsxDownload.js';
 
 vi.mock('../db/connection.js');
 import { query, queryOne } from '../db/connection.js';
@@ -199,11 +199,9 @@ describe('GET /api/reports/:name/export', () => {
       const xlsx = await asBinary(request(app).get('/api/reports/noticed-report/export?format=xlsx')).expect(200);
       expect(xlsx.headers['content-type'])
         .toMatch(/spreadsheetml\.sheet/);
-      const sheet = await firstSheet(xlsx.body);
-      const cells = [];
-      sheet.eachRow(row => cells.push(String(row.getCell(1).value ?? '')));
-      expect(cells).toContain('Measured on a Tuesday.');
-      expect(cells).toContain('widget');
+      // The notice on the Summary tab, the row in the table.
+      expect(columnA(await sheetNamed(xlsx.body, 'Summary'))).toContain('Measured on a Tuesday.');
+      expect(columnA(await sheetNamed(xlsx.body, 'Data'))).toEqual(['Thing', 'widget']);
     } finally {
       noticed();
     }
@@ -227,12 +225,12 @@ describe('GET /api/reports/:name/export', () => {
       expect(JSON.parse(json.text).constantColumns).toBeUndefined();
 
       const xlsx = await asBinary(request(app).get('/api/reports/constant-report/export?format=xlsx')).expect(200);
-      const sheet = await firstSheet(xlsx.body);
-      // Stated once above the table…
-      expect(sheet.getCell('A4').value).toBe('System');
-      expect(sheet.getCell('B4').value).toBe('Ledger');
-      // …and not a column of it.
-      expect(headerLabels(sheet, 'Thing')).toEqual(['Thing']);
+      // Stated once on the Summary tab…
+      const summary = await sheetNamed(xlsx.body, 'Summary');
+      expect(summary.getCell('A4').value).toBe('System');
+      expect(summary.getCell('B4').value).toBe('Ledger');
+      // …and not a column of the table.
+      expect(headerLabels(await sheetNamed(xlsx.body, 'Data'), 'Thing')).toEqual(['Thing']);
     } finally {
       constant();
     }

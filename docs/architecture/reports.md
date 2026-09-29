@@ -175,11 +175,17 @@ gates two.)
 
 ### `constantColumns` — declared by the run, never derived
 
-The xlsx serializer writes each declared column once, above the table, as a label/value pair, and
-leaves it out of the table. So a review pack for **one** application opens with what the application
-is — name, owner, description, CMDB reference, connection type, onboarding sector, abbreviation,
-manager — and then lists its entitlements, instead of repeating those eight values down 21,000 rows.
-A run over **several** applications declares nothing constant, because they genuinely vary per row.
+A workbook opens on a **Summary** tab — report name, run line, the declared constant columns as
+label/value pairs, then every notice — followed by a **Data** tab that holds only the table, header on
+row 1. The serializer writes each declared column once, on the Summary tab, and leaves it out of the
+table. So a review pack for **one** application opens with what the application is — name, owner,
+description, CMDB reference, connection type, onboarding sector, abbreviation, manager — instead of
+repeating those eight values down 21,000 rows. A run over **several** applications declares nothing
+constant, because they genuinely vary per row.
+
+**Exception — a column a pivot is built on stays in the table** (and is still stated on the Summary
+tab). A pivot can only read what the table holds, and the owner reads the pivot the same way for one
+application as for many; see [Pivot tables in the workbook](#pivot-tables-in-the-workbook).
 
 Three rules hold it together:
 
@@ -206,6 +212,22 @@ Two more consequences worth knowing:
   tests pin the invariant that actually matters — the cell round-trips with its exact original text
   **and** with cell type `String`. (The UI's own xlsx exports do apply the apostrophe; that is a
   separate, older path and was left alone.)
+
+### Pivot tables in the workbook
+
+A template may declare `pivots` — each `{ name, rows, filters, values }` in column keys, values
+summed — and the xlsx download then has one ready-made pivot per declaration, each on its own tab
+after Data. The Application Access Review declares the two its owners used to build by hand:
+*Direct assignments* (filters: Requestable, Users assigned via a role; rows: Application owner →
+Application → Entitlement owner → Certification frequency → Entitlement) and *Assignments via roles*
+(filter: Users assigned via a role; rows: Granted by role(s) → Entitlement).
+
+ExcelJS 4.4 (the released line) writes no pivot tables, so `reports/xlsxPivots.js` adds them to the
+zip ExcelJS produced: one pivot cache over the Data table, shared by every pivot and marked
+`refreshOnLoad` so Excel lays the pivots out from the sheet when the file opens, and one pivot table
+part per tab. The declaration is metadata (`reportMetadata` carries `pivots`), so the serializer still
+never asks which report it is writing. Measured in Excel: a 50,000-row workbook has both pivots ready
+about 4 s after opening, and the pivots add ~0.5 s and ~1 MB to the export.
 
 ## Counting assignments at scale
 

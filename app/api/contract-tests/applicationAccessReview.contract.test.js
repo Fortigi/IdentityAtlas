@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'crypto';
 import { bootContractApp } from '../test-utils/contractApp.js';
-import { asBinary, firstSheet, headerLabels } from '../test-utils/xlsxDownload.js';
+import { asBinary, headerLabels, sheetNamed } from '../test-utils/xlsxDownload.js';
 
 const SYSTEM_NAME = 'contract-app-access-review';
 const APP_NAME = 'Contract Ledger Application';
@@ -247,20 +247,18 @@ describe('GET /reports/application-access-review/export', () => {
     expect(res.text).toContain('"Not set"');
   });
 
-  /** The sheet a run over `applications` produces. */
-  async function workbookFor(applications) {
+  /** One tab of the workbook a run over `applications` produces. */
+  async function workbookFor(applications, tab = 'Data') {
     const res = await asBinary(
       agent.get('/api/reports/application-access-review/export').query({ applications, format: 'xlsx' }));
     expect(res.status).toBe(200);
-    return firstSheet(res.body);
+    return sheetNamed(res.body, tab);
   }
 
-  it('opens the workbook with the application, and drops it from the table', async () => {
-    const sheet = await workbookFor(APP_NAME);
-
-    // The header block: what the application IS, before the entitlements.
+  it('opens the workbook with the application, and keeps in the table only what the pivots need', async () => {
+    // The Summary tab: what the application IS, before the entitlements.
     const block = {};
-    sheet.eachRow(row => {
+    (await workbookFor(APP_NAME, 'Summary')).eachRow(row => {
       const label = row.getCell(1).value;
       if (typeof label === 'string' && !(label in block)) block[label] = row.getCell(2).value;
     });
@@ -271,11 +269,13 @@ describe('GET /reports/application-access-review/export', () => {
     expect(block['Connection type']).toBe('SaaS');
     expect(block['Onboarding sector']).toBe('Sector Q');
 
-    // …and the table below it carries only what varies per entitlement.
-    expect(headerLabels(sheet, 'Entitlement')).toEqual([
+    // …and the table carries what varies per entitlement, plus the two
+    // one-value columns the owner pivot is built on — the description, CMDB
+    // reference and the rest are stated once on the Summary tab and nowhere else.
+    expect(headerLabels(await workbookFor(APP_NAME), 'Entitlement')).toEqual([
       'Entitlement', 'Section', 'Requestable', 'Certification frequency',
       'Entitlement owner', 'Entitlement owner email', 'Granted by role(s)',
-      'Users assigned directly', 'Users assigned via a role',
+      'Users assigned directly', 'Users assigned via a role', 'Application', 'Application owner',
     ]);
   });
 
