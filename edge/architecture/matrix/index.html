@@ -6260,21 +6260,28 @@ resource belongs to — group category, tags, clusters, business processes — s
 the category of a group is visible without an export. It sits in the pinned
 block (where resource Type used to be) so it stays on screen while the grid
 scrolls horizontally; Type moved to the right-side block in exchange.</p>
-<p>It rides the flat-grid response as a sidecar, not a per-row fetch: <code>handleFlatGrid</code>
+<p>It rides the matrix response as a sidecar, not a per-row fetch: the handler
 returns <code>resourceContexts: [{ resourceId, contexts: [{ id, displayName, contextType }] }]</code>,
 computed by one indexed batch query over <code>ContextMembers</code> → <code>Contexts</code>
 (<code>fetchResourceContexts</code> in <code>app/api/src/matrix/resourceContexts.js</code>), scoped to
 the resources actually on the grid and to <code>memberType = 'Resource'</code>. The same
 join backs <code>GET /api/resources/:id/contexts</code>. Rows are server-sorted by
 <code>contextType</code>, then <code>displayName</code>; the cell shows the first two as chips and
-collapses the rest behind a <code>+N</code> toggle, while the Excel export writes the full
-comma-joined list.</p>
+collapses the rest behind a <code>+N</code> toggle, while the flat grid's Excel export
+writes the full comma-joined list.</p>
 <p>Only <strong>Resource-targeted</strong> memberships appear — an Identity- or Principal-targeted
 context (a department, an org unit) is a property of the people in a group, not of
 the group, and never shows on a resource row. The column is display-only: filtering
 by context stays in the filter wizard's context picker (<code>buildContextClause</code> in
-<code>matrix/filterSql.js</code>). Flat per-subject grid only; the roll-up / layered /
-attribute-fold views aggregate resources and have no per-resource row.</p>
+<code>matrix/filterSql.js</code>).</p>
+<p><strong>Every</strong> matrix shape carries it, not just the flat grid. A roll-up aggregates
+the <em>subject</em> axis — its rows are still resources (or business roles, which are
+resources too), so they have Contexts to show. All six roll-up response paths
+therefore ship the sidecar from the same builder, and <code>RollupMatrixView</code> pins the
+column beside its row labels exactly as the flat grid does. It is one extra
+indexed query per request, over the roll-up's own (smaller) resource list — the
+alternative, looking the contexts up from the client, would have been a
+per-resource fetch over a view that renders hundreds of rows.</p>
 <h2 id="badge-collapse-what-each-letter-actually-means">Badge collapse — what each letter actually means<a class="headerlink" href="#badge-collapse-what-each-letter-actually-means" title="Permanent link">&para;</a></h2>
 <p>The user reads three letters. The DB stores a handful of assignment types. The translation lives in migration 049's CASE expression and is intentionally lossy:</p>
 <table>
@@ -6579,7 +6586,8 @@ viewer preference, so one saved matrix opens the same way for everyone.</p>
 saved name — and, when it is shared, with how many people see it — or "Unsaved
 matrix", and marks a loaded matrix that has since changed "Unsaved changes". Filters are compared with <code>matrixFilterFingerprint()</code> — canonical
 (key-order-independent) JSON of the <strong>normalised</strong> filter, minus the view-state
-keys <code>rollupExpanded</code> / <code>rollupCollapsed</code> / <code>rollupPath</code> / <code>foldAttributes</code>.
+keys <code>rollupExpanded</code> / <code>rollupCollapsed</code> / <code>rollupLevel</code> / <code>rollupPath</code> /
+<code>foldAttributes</code>.
 Never compare filters with raw <code>JSON.stringify</code>:</p>
 <ul>
 <li>the applied filter is always the full shape while a stored one may carry only
@@ -7001,6 +7009,22 @@ attributes you picked). Counts are computed only for the <em>visible frontier</e
 (<code>buildContextRollupSql</code> / <code>buildAttrCutCellsSql</code>), so the payload stays small
 regardless of subtree size. The <code>sortHierarchy → context roll-up</code> translation
 lives in the <code>/api/matrix/data</code> handler in <code>matrix.js</code>.</p>
+<p><strong>Whole-axis fold level (attribute fold).</strong> Clicking a header value folds or
+unfolds <strong>one group</strong>. That is not enough on an axis of hundreds of columns, and
+unfolding a group drops it straight to the deepest attribute — so the attribute
+fold also carries <code>rollupLevel</code>: how many attribute levels are on screen. The
+grid corner (<code>ColumnLevelControls</code> in <code>matrix/GridCornerControls.jsx</code>, rendered
+through the shared <code>ColumnAxisControls</code>) steps it one level at a time in either
+direction, with a <code>level/maxLevel</code> readout and the ends disabled.</p>
+<p>The cap is applied on the <strong>server</strong>, by truncating the attribute list before any
+SQL is built — so a capped fold genuinely groups by fewer expressions and returns
+fewer columns, rather than the client hiding rows it already paid for. The
+response reports <code>level</code> (visible) and <code>maxLevel</code> (how deep it could go);
+<code>maxDepth</code> stays "how many header rows to draw", which is now the capped depth.
+Moving the level clears <code>rollupCollapsed</code>, because "all columns one level" would
+otherwise leave a hand-folded group behind at a level the corner isn't reporting.
+The Manager-Hierarchy view keeps its expand-only model: its tree depth is
+unbounded, so there is no <code>maxLevel</code> to count towards.</p>
 <p><strong>Empty-branch hiding.</strong> A column only appears if at least one in-scope resource
 has a Direct count for that node's subtree, so scoping the matrix to a few
 resources drops the org branches / attribute groups those resources aren't used
