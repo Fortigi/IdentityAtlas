@@ -1,3 +1,0 @@
-- Reports can now be downloaded as **Excel**, alongside CSV and JSON. The sheet opens with the report's name, when it was run, and every summary and warning the report produced — then the table below, with the header row frozen and a filter on it.
-- A report's summaries used to be visible only on screen and were lost on download. They now travel in the Excel file, so a review pack you send to someone else still says what it was measured from. CSV and JSON downloads are unchanged.
-- An Excel export of a report that stopped at its row cap says so in the sheet, in red, above the table — a partial answer no longer reads as the whole one.

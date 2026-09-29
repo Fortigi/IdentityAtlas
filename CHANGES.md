@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Reports can now be downloaded as **Excel**, alongside CSV and JSON. The sheet opens with the report's name, when it was run, and every summary and warning the report produced — then the table below, with the header row frozen and a filter on it.
+- A report's summaries used to be visible only on screen and were lost on download. They now travel in the Excel file, so a review pack you send to someone else still says what it was measured from. CSV and JSON downloads are unchanged.
+- An Excel export of a report that stopped at its row cap says so in the sheet, in red, above the table — a partial answer no longer reads as the whole one.
+
+## Changes in this PR
+
 - SQL Database crawler: a run against a large live source that is updated while it is being read no longer fails verification. The crawler now counts each statement's rows in the source both before and after it reads them, and a complete read only has to fall between the two — so a source that gained or lost rows mid-read verifies, while a read that stopped early still fails.
 - The amount the source moved during each read is now reported in the job log and in the verification table, pass or fail ("the source moved by 15,455 rows during the read").
 - Fixed: one drifting statement used to cost the whole run its delta watermarks, because verification runs before they are stored. Against a continuously updated source that made every run fail identically and the delta import could never establish a baseline.
