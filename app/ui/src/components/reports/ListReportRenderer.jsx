@@ -57,23 +57,31 @@ export default function ListReportRenderer({ report, onOpenDetail }) {
   return (
     <div>
       <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-      <table className="min-w-full text-sm">
-        <caption className="sr-only">{report.displayName}</caption>
-        <thead className="bg-gray-50 dark:bg-gray-700/50">
-          <tr>
-            {columns.map(col => (
-              <th key={col.key} scope="col" className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-300">
-                {col.label}
-              </th>
+        <table className="min-w-full text-sm">
+          <caption className="sr-only">{report.displayName}</caption>
+          <thead className="bg-gray-50 dark:bg-gray-700/50">
+            <tr>
+              {columns.map(col => (
+                <th key={col.key} scope="col" className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-300">
+                  {col.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+            {/* The fallback key is the row's position in the WHOLE result, not
+                in the page: per-page indices repeat across pages, which would
+                have React reuse row 0's node for the next page's row 0. */}
+            {visible.map((row, i) => (
+              <ReportRow
+                key={row._entity?.id || safePage * ROWS_PER_PAGE + i}
+                row={row}
+                columns={columns}
+                onOpenDetail={onOpenDetail}
+              />
             ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-          {visible.map((row, i) => (
-            <ReportRow key={row._entity?.id || i} row={row} columns={columns} onOpenDetail={onOpenDetail} />
-          ))}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
       </div>
       <Pagination
         page={safePage}
