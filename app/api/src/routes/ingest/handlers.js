@@ -164,9 +164,10 @@ function createIngestHandler(entityType) {
         ...notices,
       });
     } catch (err) {
-      console.error('Ingest error (%s): %s', entityType, oneLineForLog(err.message));
+      const safeErrMessage = oneLineForLog(err?.message);
+      console.error('Ingest error (%s): %s', entityType, safeErrMessage);
       await writeSyncLog(null, `API-${entityType}`, tableName, startTime,
-                         body.records?.length || 0, 0, 0, 0, err.message).catch(() => {});
+                         body.records?.length || 0, 0, 0, 0, safeErrMessage).catch(() => {});
       // 422 for a context-cycle rejection (migration 059's trigger), else 500.
       const errRes = ingestErrorResponse(err);
       return res.status(errRes.status).json(errRes.body);
