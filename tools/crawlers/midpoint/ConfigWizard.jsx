@@ -104,6 +104,14 @@ export default function MidpointConfigWizard({ onComplete, onCancel, initialConf
   const credentialFields = creds;
   const canStep2 = canSubmitCredentials(authMethod, credentialFields, isEdit);
 
+  const steps = [
+    { n: 1, label: 'Connection' },
+    { n: 2, label: 'Credentials' },
+    { n: 3, label: 'Objects & Mapping' },
+    { n: 4, label: 'Schedule' },
+  ];
+  const handleStepClick = (n) => { setStep(n); if (n === 3) fetchDiscovery(); };
+
   const handleSave = async () => {
     const configPayload = {
       baseUrl: baseUrl.trim(),
@@ -123,14 +131,6 @@ export default function MidpointConfigWizard({ onComplete, onCancel, initialConf
 
     await save(displayName, configPayload);
   };
-
-  const steps = [
-    { n: 1, label: 'Connection' },
-    { n: 2, label: 'Credentials' },
-    { n: 3, label: 'Objects & Mapping' },
-    { n: 4, label: 'Schedule' },
-  ];
-  const handleStepClick = (n) => { setStep(n); if (n === 3) fetchDiscovery(); };
 
   return (
     <WizardShell
