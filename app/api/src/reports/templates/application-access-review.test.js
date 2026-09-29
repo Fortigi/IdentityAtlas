@@ -83,6 +83,28 @@ describe('application-access-review — template contract', () => {
       'abbreviation', 'cmdbReference', 'connectionType', 'onboardingSector', 'applicationManager',
     ]));
   });
+
+  it('ships the two pivots owners build by hand, each over columns the report has', () => {
+    expect(report.pivots).toEqual([
+      {
+        name: 'Direct assignments',
+        filters: ['requestable', 'viaRoleAssignments'],
+        rows: ['applicationOwner', 'application', 'entitlementOwner', 'certificationFrequency', 'entitlement'],
+        values: ['directAssignments'],
+      },
+      {
+        name: 'Assignments via roles',
+        filters: ['viaRoleAssignments'],
+        rows: ['businessRoles', 'entitlement'],
+        values: ['viaRoleAssignments'],
+      },
+    ]);
+    // A renamed column would otherwise only surface as a failed download.
+    const keys = new Set(report.columns.map(c => c.key));
+    for (const pivot of report.pivots) {
+      for (const key of [...pivot.filters, ...pivot.rows, ...pivot.values]) expect(keys, `${pivot.name}: ${key}`).toContain(key);
+    }
+  });
 });
 
 // ─── the three sections ───────────────────────────────────────────────────

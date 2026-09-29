@@ -20,6 +20,7 @@ export default defineConfig({
     ...base.test,
     include: [
       'src/reports/export.test.js',
+      'src/reports/xlsxPivots.test.js',
       'src/reports/registry.test.js',
       'src/lookups/registry.test.js',
       'src/lookups/sources/logicalApplications.test.js',

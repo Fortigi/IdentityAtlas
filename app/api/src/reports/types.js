@@ -75,7 +75,18 @@
  *                                       by the UI's form-renderer map.
  * @property {Object} parametersSchema  JSON-Schema-ish (required + properties).
  * @property {ReportColumn[]} columns
+ * @property {ReportPivot[]} [pivots]   Pivot tables the xlsx download opens with.
  * @property {Function} run             (params, ctx) => Promise<ReportRunResult>
+ */
+
+/**
+ * @typedef {Object} ReportPivot
+ *   One pivot table, on its own tab of the xlsx download, over the report's
+ *   rows. Every field is a column key; values are summed.
+ * @property {string}   name       Tab name.
+ * @property {string[]} [rows]     Row fields, outermost first.
+ * @property {string[]} [filters]  Filter (page) fields.
+ * @property {string[]} [values]   Fields summed in the value area.
  */
 
 export {};

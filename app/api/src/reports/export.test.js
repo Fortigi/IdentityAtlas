@@ -339,7 +339,7 @@ describe('splitConstantColumns', () => {
 
   it('splits the declared keys out of the table and pairs them with their label', () => {
     expect(splitConstantColumns(columns, rows, ['a', 'c'])).toEqual({
-      header: [{ label: 'A', value: 1 }, { label: 'C', value: 3 }],
+      header: [{ key: 'a', label: 'A', value: 1 }, { key: 'c', label: 'C', value: 3 }],
       body: [{ key: 'b', label: 'B' }],
     });
   });
@@ -347,12 +347,12 @@ describe('splitConstantColumns', () => {
   it('takes the run at its word rather than checking the other rows', () => {
     // `b` is not actually constant. Keeping it would hide a bug in the report;
     // the declaration is the report's responsibility, not the serializer's.
-    expect(splitConstantColumns(columns, rows, ['b']).header).toEqual([{ label: 'B', value: 2 }]);
+    expect(splitConstantColumns(columns, rows, ['b']).header).toEqual([{ key: 'b', label: 'B', value: 2 }]);
   });
 
   it('ignores a key the report does not declare as a column', () => {
     expect(splitConstantColumns(columns, rows, ['a', 'ghost'])).toEqual({
-      header: [{ label: 'A', value: 1 }],
+      header: [{ key: 'a', label: 'A', value: 1 }],
       body: [{ key: 'b', label: 'B' }, { key: 'c', label: 'C' }],
     });
   });

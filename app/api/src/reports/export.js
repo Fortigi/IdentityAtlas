@@ -27,6 +27,7 @@
 // member of it.
 
 import ExcelJS from 'exceljs';
+import { addPivotTables, withoutFields } from './xlsxPivots.js';
 
 const FILENAME_PREFIX = 'identity-atlas';
 
@@ -119,6 +120,7 @@ export function splitConstantColumns(columns, rows, constantColumns) {
   if (body.length === 0) return { header: [], body: columns };
 
   const header = order.map(key => ({
+    key,
     label: columns.find(c => c.key === key).label,
     value: rows[0][key],
   }));
@@ -177,9 +179,12 @@ function writeSummary(sheet, { displayName, generatedAt, total, notices = [], tr
  * apostrophe would be a character of corruption rather than a defence. The
  * invariant that actually matters is pinned by the tests, which assert the cell
  * round-trips with its exact original text AND with cell type String.
+ *
+ * A report that declares `pivots` gets each one on its own tab after the data,
+ * over that same table — see xlsxPivots.js.
  */
 async function toXlsx({
-  displayName, columns: declared = [], rows = [], notices, total, generatedAt, truncated, constantColumns,
+  displayName, columns: declared = [], rows = [], notices, total, generatedAt, truncated, constantColumns, pivots = [],
 } = {}) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Identity Atlas';
@@ -220,7 +225,24 @@ async function toXlsx({
     sheet.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: headerRow, column: columns.length } };
   }
 
-  return Buffer.from(await workbook.xlsx.writeBuffer());
+  // A pivot over no rows has no items to show, so an empty report gets none. A
+  // column this run moved into the header is not in the table either; the pivot
+  // drops it too — one value is one item, a level that says nothing.
+  const inHeader = header.map(h => h.key);
+  const pivotSheets = capped.length && columns.length
+    ? pivots.map(pivot => ({
+      sheetId: workbook.addWorksheet(sheetName(pivot.name)).id,
+      pivot: withoutFields(pivot, inHeader),
+    }))
+    : [];
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  const lastColumn = sheet.getColumn(columns.length || 1).letter;
+  return addPivotTables(buffer, {
+    sheet: sheet.name,
+    ref: `A${headerRow}:${lastColumn}${headerRow + capped.length}`,
+    columns,
+    rows: capped,
+  }, pivotSheets);
 }
 
 // Order is the order the UI offers them in, and the first is the default.
