@@ -14,6 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'crypto';
 import { bootContractApp } from '../test-utils/contractApp.js';
+import { asBinary, firstSheet, headerLabels } from '../test-utils/xlsxDownload.js';
 
 const SYSTEM_NAME = 'contract-app-access-review';
 const APP_NAME = 'Contract Ledger Application';
@@ -246,26 +247,22 @@ describe('GET /reports/application-access-review/export', () => {
     expect(res.text).toContain('"Not set"');
   });
 
-  it('opens the workbook with the application, and drops it from the table', async () => {
-    const { default: ExcelJS } = await import('exceljs');
-    const res = await agent.get('/api/reports/application-access-review/export')
-      .query({ applications: APP_NAME, format: 'xlsx' })
-      .buffer().parse((r, cb) => {
-        const chunks = [];
-        r.on('data', c => chunks.push(Buffer.from(c)));
-        r.on('end', () => cb(null, Buffer.concat(chunks)));
-      });
-
+  /** The sheet a run over `applications` produces. */
+  async function workbookFor(applications) {
+    const res = await asBinary(
+      agent.get('/api/reports/application-access-review/export').query({ applications, format: 'xlsx' }));
     expect(res.status).toBe(200);
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(res.body);
-    const sheet = workbook.worksheets[0];
+    return firstSheet(res.body);
+  }
+
+  it('opens the workbook with the application, and drops it from the table', async () => {
+    const sheet = await workbookFor(APP_NAME);
 
     // The header block: what the application IS, before the entitlements.
     const block = {};
     sheet.eachRow(row => {
       const label = row.getCell(1).value;
-      if (typeof label === 'string' && !block[label]) block[label] = row.getCell(2).value;
+      if (typeof label === 'string' && !(label in block)) block[label] = row.getCell(2).value;
     });
     expect(block.Application).toBe(APP_NAME);
     expect(block['Application owner']).toBe('Owner Person');
@@ -275,32 +272,15 @@ describe('GET /reports/application-access-review/export', () => {
     expect(block['Onboarding sector']).toBe('Sector Q');
 
     // …and the table below it carries only what varies per entitlement.
-    let labels = [];
-    sheet.eachRow(row => { if (row.getCell(1).value === 'Entitlement') row.eachCell(c => labels.push(c.value)); });
-    expect(labels).toEqual([
+    expect(headerLabels(sheet, 'Entitlement')).toEqual([
       'Entitlement', 'Section', 'Requestable', 'Certification frequency',
       'Entitlement owner', 'Entitlement owner email', 'Granted by role(s)',
       'Users assigned directly', 'Users assigned via a role',
     ]);
-    expect(labels).not.toContain('CMDB reference');
   });
 
   it('keeps the application on every row when the run covers more than one', async () => {
-    const { default: ExcelJS } = await import('exceljs');
-    const res = await agent.get('/api/reports/application-access-review/export')
-      .query({ applications: `${APP_NAME},${SECOND_APP_NAME}`, format: 'xlsx' })
-      .buffer().parse((r, cb) => {
-        const chunks = [];
-        r.on('data', c => chunks.push(Buffer.from(c)));
-        r.on('end', () => cb(null, Buffer.concat(chunks)));
-      });
-
-    expect(res.status).toBe(200);
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(res.body);
-    const sheet = workbook.worksheets[0];
-    const labels = [];
-    sheet.eachRow(row => { if (row.getCell(1).value === 'Entitlement') row.eachCell(c => labels.push(c.value)); });
+    const labels = headerLabels(await workbookFor(`${APP_NAME},${SECOND_APP_NAME}`), 'Entitlement');
     // They vary per row now, so they stay in the table and there is no block.
     expect(labels).toContain('Application');
     expect(labels).toContain('CMDB reference');

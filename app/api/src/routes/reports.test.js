@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { mountRouter } from '../../test-utils/routeTestKit.js';
+import { asBinary, firstSheet, headerLabels } from '../../test-utils/xlsxDownload.js';
 
 vi.mock('../db/connection.js');
 import { query, queryOne } from '../db/connection.js';
@@ -16,14 +17,6 @@ import { BUILT_IN_REPORTS } from '../reports/templates/index.js';
 import reportsRouter from './reports.js';
 
 const app = mountRouter(reportsRouter);
-
-/** The first worksheet of a downloaded workbook, read back with the real library. */
-async function loadFirstSheet(buffer) {
-  const { default: ExcelJS } = await import('exceljs');
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
-  return workbook.worksheets[0];
-}
 
 beforeEach(() => {
   query.mockReset();
@@ -203,16 +196,10 @@ describe('GET /api/reports/:name/export', () => {
       expect(JSON.parse(json.text).notices).toBeUndefined();
       expect(json.text).not.toContain('Tuesday');
 
-      const xlsx = await request(app).get('/api/reports/noticed-report/export?format=xlsx')
-        .buffer().parse((res, cb) => {
-          const chunks = [];
-          res.on('data', c => chunks.push(Buffer.from(c)));
-          res.on('end', () => cb(null, Buffer.concat(chunks)));
-        })
-        .expect(200);
+      const xlsx = await asBinary(request(app).get('/api/reports/noticed-report/export?format=xlsx')).expect(200);
       expect(xlsx.headers['content-type'])
         .toMatch(/spreadsheetml\.sheet/);
-      const sheet = await loadFirstSheet(xlsx.body);
+      const sheet = await firstSheet(xlsx.body);
       const cells = [];
       sheet.eachRow(row => cells.push(String(row.getCell(1).value ?? '')));
       expect(cells).toContain('Measured on a Tuesday.');
@@ -239,21 +226,13 @@ describe('GET /api/reports/:name/export', () => {
       const json = await request(app).get('/api/reports/constant-report/export?format=json').expect(200);
       expect(JSON.parse(json.text).constantColumns).toBeUndefined();
 
-      const xlsx = await request(app).get('/api/reports/constant-report/export?format=xlsx')
-        .buffer().parse((res, cb) => {
-          const chunks = [];
-          res.on('data', c => chunks.push(Buffer.from(c)));
-          res.on('end', () => cb(null, Buffer.concat(chunks)));
-        })
-        .expect(200);
-      const sheet = await loadFirstSheet(xlsx.body);
+      const xlsx = await asBinary(request(app).get('/api/reports/constant-report/export?format=xlsx')).expect(200);
+      const sheet = await firstSheet(xlsx.body);
       // Stated once above the table…
       expect(sheet.getCell('A4').value).toBe('System');
       expect(sheet.getCell('B4').value).toBe('Ledger');
       // …and not a column of it.
-      const labels = [];
-      sheet.eachRow(row => { if (row.getCell(1).value === 'Thing') row.eachCell(c => labels.push(c.value)); });
-      expect(labels).toEqual(['Thing']);
+      expect(headerLabels(sheet, 'Thing')).toEqual(['Thing']);
     } finally {
       constant();
     }
@@ -359,14 +338,7 @@ describe('the seam — adding a report costs only a template', () => {
     // name — a binary format is still expected to carry the row, just not as
     // text this assertion can read.
     for (const format of EXPORT_FORMAT_NAMES) {
-      const download = await request(app)
-        .get(`/api/reports/dummy-seam-report/export?format=${format}`)
-        .buffer().parse((res, cb) => {
-          const chunks = [];
-          res.on('data', c => chunks.push(Buffer.from(c)));
-          res.on('end', () => cb(null, Buffer.concat(chunks)));
-        })
-        .expect(200);
+      const download = await asBinary(request(app).get(`/api/reports/dummy-seam-report/export?format=${format}`)).expect(200);
       expect(download.headers['content-disposition']).toContain(`.${format}"`);
       const textual = /^(text\/|application\/json)/.test(resolveExportFormat(format).contentType);
       if (textual) expect(download.body.toString('utf8')).toContain('widget');
