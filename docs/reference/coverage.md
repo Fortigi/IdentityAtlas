@@ -6,7 +6,7 @@ Test quality across the project's automated suites — line/branch/method covera
 
 | Suite | Line | Branch | Method | Cyclomatic | Cognitive | Mutation | Lines covered |
 |-------|------|--------|--------|------------|-----------|----------|---------------|
-| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 92.6% | 84.5% | 90.4% | 3.5 / 20 | 2.0 / 15 | 86.0% | 12,065 / 13,021 |
+| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 92.7% | 84.6% | 90.3% | 3.4 / 20 | 2.0 / 15 | 86.0% | 12,192 / 13,148 |
 | [UI (React / Vitest)](../coverage/ui/index.html) | 86.3% | 76.8% | 76.5% | 2.8 / 28 | 1.1 / 15 | 69.5% | 8,121 / 9,410 |
 | [PowerShell (Pester)](../coverage/powershell/index.html) | 92.2% | — | 97.4% | 3.8 / 15 | 3.8 / 15 | 100.0% | 7,774 / 8,424 |
 
@@ -18,8 +18,8 @@ Every figure above is scoped to what its tool actually measured. The notes below
 
 ### API (Node / Vitest — unit + contract)
 
-- **Mutation is scoped.** Mutation testing covers 79 file(s) of 283 — 25% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 18 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
-- **method coverage (90.4%) sits below line coverage (92.6%)** — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.
+- **Mutation is scoped.** Mutation testing covers 80 file(s) of 284 — 26% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 18 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
+- **method coverage (90.3%) sits below line coverage (92.7%)** — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.
 - **The most complex code is the least branch-covered.** `app/api/src/routes/contexts/members.js` (Async arrow function, cyclomatic 19, 81.0% branch) — below this suite's own branch average, so the aggregate percentage overstates how well the hard parts are tested.
 
 ### UI (React / Vitest)
@@ -41,4 +41,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-09-29 15:47 UTC from commit `f5dbdcd5`._
+_Generated 2026-09-29 18:53 UTC from commit `6aabb518`._
