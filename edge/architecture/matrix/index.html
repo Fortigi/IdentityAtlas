@@ -1377,6 +1377,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#when-the-views-get-rebuilt-and-why-there-is-no-timer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When the views get rebuilt, and why there is no timer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#resource-metadata-columns-contexts-pinned-left-type-description-right" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5623,6 +5634,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#when-the-views-get-rebuilt-and-why-there-is-no-timer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When the views get rebuilt, and why there is no timer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#resource-metadata-columns-contexts-pinned-left-type-description-right" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6166,7 +6188,38 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 </table>
 <p>The <strong>"Business roles only"</strong> roll-up is unaffected: its rows come from <code>vw_UserPermissionAssignmentViaBusinessRole</code> keyed by business role, not from the resource axis. Ownership types are deliberately <em>not</em> on the deny-list — see "Owner rows are their own resource" below.</p>
 <h2 id="data-source">Data source<a class="headerlink" href="#data-source" title="Permanent link">&para;</a></h2>
-<p>A single materialized view: <code>vw_ResourceUserPermissionAssignments</code>. Refreshed at web boot via <code>bootstrap.js → refreshMatrixViews()</code> and at end-of-sync via <code>POST /api/ingest/refresh-views</code>.</p>
+<p>A single materialized view: <code>vw_ResourceUserPermissionAssignments</code>. Refreshed at end-of-sync via <code>POST /api/ingest/refresh-views</code>, and at web boot via <code>bootstrap.js → ensureMatrixViewsPopulated()</code>.</p>
+<h3 id="when-the-views-get-rebuilt-and-why-there-is-no-timer">When the views get rebuilt, and why there is no timer<a class="headerlink" href="#when-the-views-get-rebuilt-and-why-there-is-no-timer" title="Permanent link">&para;</a></h3>
+<p>Three triggers, all crawl-aware. A clock-driven refresh was asked for and deliberately not built; the reasoning is here so nobody re-litigates it from scratch.</p>
+<table>
+<thead>
+<tr>
+<th>Trigger</th>
+<th>When</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>End of every crawl</strong></td>
+<td>Whatever the run's verdict — a failed verification, or a crawl that threw, still refreshes. Rows commit batch by batch, so they are durable before any verdict exists, and a view that does not reflect them is strictly worse than one that does</td>
+<td>One refresh per run</td>
+</tr>
+<tr>
+<td><strong>Web boot</strong></td>
+<td>Only when a view is <strong>unusable</strong>: never populated (first boot), or populated <strong>and empty</strong> while the rows it is built from exist. A populated, non-empty view is left alone. The rebuild runs in the background so it cannot delay the port bind</td>
+<td>Nothing in the common case</td>
+</tr>
+<tr>
+<td><strong>Periodic timer</strong></td>
+<td>Not built</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why <code>ispopulated</code> alone was not enough.</strong> A matview refreshed once while the database was empty is <em>populated</em> and <em>empty</em>, and stays that way forever — nothing rebuilds it, because the only question startup asked was "has this ever been populated". A customer's install carried 42.6 M assignments behind two 40 kB views until someone refreshed by hand. Startup now also asks each view whether it holds any row, and when it does not, asks a cheap base-table probe whether it should. A <code>WorkerConfig</code> cooldown bounds how often a probe-driven rebuild can happen, so an over-claiming probe cannot spend three minutes on every container restart; a view that was never built bypasses the cooldown.</p>
+<p><strong>Why no hourly timer.</strong> Measured at 42.6 M assignments: a full rebuild of both views plus <code>ANALYZE</code> is <strong>3 min 17 s</strong> and a <strong>7.6 GB</strong> result. A full crawl of a source that size runs for about sixteen hours, so an hourly timer means roughly 48 minutes of full-table work and ~8 GB of scratch churn <em>during</em> the crawl, competing with an ingest pipeline that is already the bottleneck — and every one of those refreshes publishes a half-loaded matrix, which reads worse than an obviously stale one. Refreshing at the end of each run plus rebuilding an unusable view at boot covers the case the timer was asked for ("the matrix went stale because a crawl failed") without any of that. If a timer is ever added it must skip while a crawl job is running and skip when nothing has changed since the last refresh — a staleness test, not a clock.</p>
+<p><strong><code>CONCURRENTLY</code> is decided per view, and never for an empty one.</strong> It keeps readers on the old contents but builds the new ones into a temp table and diffs them, which is the worst possible shape for filling an <em>empty</em> view — every row of the result is an insert found by a full outer join — while buying nothing, because the readers it protects are reading nothing. So a populated-but-empty view gets a plain one-pass <code>REFRESH</code> and its populated sibling still gets <code>CONCURRENTLY</code>.</p>
 <p>Shape:</p>
 <table>
 <thead>
@@ -6333,7 +6386,7 @@ covers all of them and the owned type rides on
 <p>There is <strong>no <code>O</code> badge here either</strong> — for the same reason as the membership badges: ownership is its own resource, and a package granting a group's Owner role still grants access the subject holds today. The mapping lives in <code>getApRoleBadge</code> (<code>app/ui/src/utils/accessPackageStyles.js</code>) and is shared by the grid (<code>MatrixGroupRow.jsx</code>) and the Excel export (<code>exportToExcel.js</code>) so the file can't disagree with the screen; migration 049 applies the same <code>%eligible%</code> rule server-side when it derives governed-intent rows.</p>
 <h2 id="performance-notes">Performance notes<a class="headerlink" href="#performance-notes" title="Permanent link">&para;</a></h2>
 <ul>
-<li>The matview is refreshed <code>CONCURRENTLY</code> after the first run (which is non-concurrent because the matview starts empty).</li>
+<li>The matview is refreshed <code>CONCURRENTLY</code> once it holds rows; a first build, and a rebuild of a view that is populated but empty, are non-concurrent (see <a href="#when-the-views-get-rebuilt-and-why-there-is-no-timer">When the views get rebuilt</a>).</li>
 <li>The unique covering index <code>(resourceId, principalId, membershipType)</code> is required for <code>REFRESH CONCURRENTLY</code> and also makes the matrix endpoint's per-principal lookups index-only.</li>
 <li>The Contexts sidecar is one extra indexed query per flat-grid request (<code>ix_ContextMembers_member</code>), bounded by the grid's distinct resources — computed once per resource, never per cell.</li>
 <li>The recursive CTE that previously expanded nested groups <em>inside</em> the matview was removed in 013 — it was the dominant cost on the load-test dataset and produced the same matrix for tenants without group-in-group nesting. Group-level expansion happens lazily at click time via the <code>/nested-groups</code> endpoint instead.</li>

@@ -2350,6 +2350,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Verification: source against database">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-a-failed-verification-does-and-does-not-undo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a failed verification does and does not undo
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -5809,6 +5826,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Verification: source against database">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-a-failed-verification-does-and-does-not-undo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a failed verification does and does not undo
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -6746,6 +6780,27 @@ assignment scope are reported as not verified rather than guessed at.</p>
 delta run is verified the same way, against the rows it touched. Identities and Contexts
 have no system column and are not counted per system; the context report (see
 <a href="#contexts-from-a-catalogue">Contexts from a catalogue</a>) covers the catalogue.</p>
+<h3 id="what-a-failed-verification-does-and-does-not-undo">What a failed verification does and does not undo<a class="headerlink" href="#what-a-failed-verification-does-and-does-not-undo" title="Permanent link">&para;</a></h3>
+<p>Rows are committed batch by batch, so by the time a verdict exists they are durable.
+The two things that follow a run are therefore split deliberately:</p>
+<table>
+<thead>
+<tr>
+<th>After a run that FAILED verification</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Matrix views</strong></td>
+<td><strong>Refreshed anyway.</strong> A view that does not reflect committed rows is strictly worse than one that does: a run once loaded 42.6 M assignments, failed on unrelated checks, and left both matrix views empty — so person pages showed no entitlements and a team matrix showed zero, while the data underneath was perfect. The refresh also runs when the crawl throws for any other reason. A failed refresh is logged and never turns a passing run into a failing one, nor hides the verification error</td>
+</tr>
+<tr>
+<td><strong>Watermarks and sweep marks</strong></td>
+<td><strong>Not stored.</strong> An unverified run must re-read its window and re-sweep next time rather than step over rows it never loaded. Every ingest is an upsert, so a re-read costs time, never correctness</td>
+</tr>
+</tbody>
+</table>
 <hr />
 <h2 id="very-large-tables">Very large tables<a class="headerlink" href="#very-large-tables" title="Permanent link">&para;</a></h2>
 <p>An entitlement-assignment table can hold <strong>tens of millions of rows</strong> — 40 M is a real
