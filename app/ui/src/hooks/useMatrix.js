@@ -41,6 +41,11 @@ function toRollupState(body) {
     layered:       body.layered       || false,
     layeredAttributes: body.layeredAttributes || false,
     maxDepth:      body.maxDepth      || 1,
+    // Attribute fold only: how many levels are showing and how many the chosen
+    // attributes could show. 0/0 on every other shape, which is how the grid
+    // corner knows it has no level axis to offer.
+    level:         body.level         || 0,
+    maxLevel:      body.maxLevel      || 0,
     resources:     body.resources     || [],
     groupValues:   body.groupValues   || [],
     groupTotals:   body.groupTotals   || [],
@@ -195,12 +200,13 @@ export function useMatrix(filter) {
         }
         const body = await res.json();
         if (cancelled) return;
-        // Roll-up responses have no per-subject rows (and so no per-resource
-        // sidecars); flat-grid responses have no roll-up payload.
+        // Roll-up responses have no per-subject rows; flat-grid responses have
+        // no roll-up payload. The Contexts sidecar is keyed by RESOURCE, not by
+        // subject, so both shapes carry it — a roll-up's rows are resources too.
         setRollup(body.rollup ? toRollupState(body) : null);
         setData(body.rollup ? [] : (body.data || []));
         setManagedByPackages(body.rollup ? [] : (body.managedByPackages || []));
-        setResourceContexts(body.rollup ? [] : (body.resourceContexts || []));
+        setResourceContexts(body.resourceContexts || []);
         setRowType(body.rowType || 'principal');
         setCounts(toCounts(body));
         setError(null);
