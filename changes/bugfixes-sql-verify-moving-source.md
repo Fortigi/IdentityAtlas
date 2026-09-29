@@ -1,5 +1,0 @@
-- SQL Database crawler: a run against a large live source that is updated while it is being read no longer fails verification. The crawler now counts each statement's rows in the source both before and after it reads them, and a complete read only has to fall between the two — so a source that gained or lost rows mid-read verifies, while a read that stopped early still fails.
-- The amount the source moved during each read is now reported in the job log and in the verification table, pass or fail ("the source moved by 15,455 rows during the read").
-- Fixed: one drifting statement used to cost the whole run its delta watermarks, because verification runs before they are stored. Against a continuously updated source that made every run fail identically and the delta import could never establish a baseline.
-- The assignment count against the database is allowed the same movement, so it no longer fails for the same reason.
-- Unchanged and still strict: a source that did not move is held to an exact count, the limit on rows that arrive but cannot be placed, and the check that fails a statement whose id column repeats.
