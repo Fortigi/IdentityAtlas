@@ -97,6 +97,8 @@ IdentityIQ parameters ([`lib/params.mjs`](lib/params.mjs), `--iiq k=v`):
 | `appNameDriftShare` | 0.002 | entitlements whose application name differs from the catalogue only by case or a trailing space |
 | `unassignedAppShare` | 0 | entitlements with no logical application |
 | `entitlementTypes` | mostly `group`, then `role`, `workgroup`, a custom type; `Entitlement` 0.05% | `spt_managed_attribute.type` mix, as `[type, share]` pairs summing to 1 |
+| `certFrequencySetShare` | 0.033 | share of entitlements whose `certfrequency` is set at all. Measured on a production catalogue: 96.7% have none, and closing that gap is what an application-owner access review is for |
+| `certFrequencies` | `Annually`, `Quarterly`, `Bi-Annually`, `Monthly`, `No certification`, `Not Applicable`, `Quaterly`, `No` | the values that ARE set, as `[value, share]` pairs summing to 1. Deliberately dirty — a free-text column filled in by hand holds a misspelling and a bare `No`, and a consumer must show them as stored rather than normalise them away |
 | `asOf`, `historyDays` | 2026-09-01, 3650 | every timestamp lies in this window, so output does not depend on the clock |
 
 The catalogue record name and the XML keys are deployment-specific in real

@@ -52,22 +52,46 @@ export const IIQ_DEFAULTS = Object.freeze({
     ['group', 0.9], ['role', 0.075], ['workgroup', 0.015], ['CustomType', 0.0094],
     ['Entitlement', 0.0005], ['capability', 0.0001],
   ]),
+  // Share of entitlements whose certification frequency has been SET at all.
+  // Measured at 3.3% on a production catalogue: almost nothing carries one, and
+  // closing that gap is the point of an application-owner access review. A
+  // fixture where every entitlement has a frequency cannot show the gap, and
+  // the report that reports on it would look finished while reporting nothing.
+  certFrequencySetShare: 0.033,
+  // The values that ARE set, as [value, share] pairs summing to 1. This is
+  // deliberately a dirty vocabulary, because the production one is: a free-text
+  // column filled in by hand over years holds a misspelling ('Quaterly'), a
+  // bare 'No', and two ways of saying the same thing. Consumers must show these
+  // as stored rather than normalise them, and a fixture with four tidy values
+  // cannot test that.
+  certFrequencies: Object.freeze([
+    ['Annually', 0.42], ['Quarterly', 0.24], ['Bi-Annually', 0.13], ['Monthly', 0.09],
+    ['No certification', 0.06], ['Not Applicable', 0.04], ['Quaterly', 0.015], ['No', 0.005],
+  ]),
 });
 
 function assertShare(name, v) {
   if (!(v >= 0 && v <= 1)) throw new Error(`${name} must be between 0 and 1 (got ${v})`);
 }
 
+// A [value, share] mix: non-empty, every share positive, and the shares summing
+// to 1 — a mix summing to 0.9 would silently push a tenth of the rows into the
+// last value, which is exactly the kind of skew a fixture must not invent.
+function assertWeighted(name, pairs) {
+  const list = Array.isArray(pairs) ? pairs : [];
+  const total = list.reduce((sum, [, share]) => sum + share, 0);
+  if (!list.length || list.some(([v, share]) => typeof v !== 'string' || !v || !(share > 0)) || Math.abs(total - 1) > 1e-9) {
+    throw new Error(`${name} must be non-empty [value, share] pairs with positive shares summing to 1`);
+  }
+}
+
 // { shape, iiq } → resolved shape (via the shared resolver) plus validated iiq.
 export function resolveIiqParams({ shape = {}, iiq = {} } = {}) {
   const s = resolveParams(shape);
   const p = { ...IIQ_DEFAULTS, ...iiq };
-  for (const k of ['roleGrantedShare', 'requestedShare', 'ownedShare', 'appNameDriftShare', 'unassignedAppShare']) assertShare(k, p[k]);
-  const typeShares = Array.isArray(p.entitlementTypes) ? p.entitlementTypes : [];
-  const total = typeShares.reduce((sum, [, share]) => sum + share, 0);
-  if (!typeShares.length || typeShares.some(([t, share]) => typeof t !== 'string' || !t || !(share > 0)) || Math.abs(total - 1) > 1e-9) {
-    throw new Error('entitlementTypes must be non-empty [type, share] pairs with positive shares summing to 1');
-  }
+  for (const k of ['roleGrantedShare', 'requestedShare', 'ownedShare', 'appNameDriftShare', 'unassignedAppShare', 'certFrequencySetShare']) assertShare(k, p[k]);
+  assertWeighted('entitlementTypes', p.entitlementTypes);
+  assertWeighted('certFrequencies', p.certFrequencies);
   if (!Number.isInteger(p.workgroups) || p.workgroups < 0) throw new Error(`workgroups must be a non-negative integer (got ${p.workgroups})`);
   if (!(p.roleSizeMin >= 1 && p.roleSizeMax >= p.roleSizeMin)) throw new Error('roleSizeMin must be >= 1 and <= roleSizeMax');
   for (const k of ['catalogName', 'appNameKey']) {

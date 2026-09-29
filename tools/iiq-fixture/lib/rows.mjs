@@ -17,7 +17,6 @@ const ATTRIBUTE_BY_TYPE = Object.freeze({
 });
 const COMPANIES = Object.freeze([['Example Holding', 'C100'], ['Example Operations', 'C200'], ['Example Services', 'C300'], ['Example Labs', 'C400']]);
 const COUNTRIES = Object.freeze(['NL', 'NL', 'NL', 'US', 'US', 'DE', 'BE', 'FR', 'GB', 'SG', 'KR', 'TW', 'CN', 'JP']);
-const CERT_FREQUENCIES = Object.freeze(['Quarterly', 'Semi-Annual', 'Annual', 'Annual']);
 const EMPLOYEE_GROUPS = Object.freeze({ Employee: ['Internal', 'Permanent'], Contractor: ['External', 'Contractor'], Service: ['Internal', 'Service'], Temporary: ['External', 'Temporary'] });
 const SECTORS = 12;
 const DIVISIONS = 5;
@@ -130,12 +129,27 @@ export function entitlementFacts(ctx, e) {
   };
 }
 
+// The value a [value, share] mix produces for a uniform draw in [0,1).
+function weighted(mix, u) {
+  let acc = 0;
+  for (const [value, share] of mix) { acc += share; if (u < acc) return value; }
+  return mix[mix.length - 1][0];
+}
+
 // spt_managed_attribute.type for entitlement e, drawn from the configured mix.
 export function entitlementType(iiq, e) {
-  const u = unit(fmix32((e ^ 0x5bd1e995) >>> 0));
-  let acc = 0;
-  for (const [type, share] of iiq.entitlementTypes) { acc += share; if (u < acc) return type; }
-  return iiq.entitlementTypes[iiq.entitlementTypes.length - 1][0];
+  return weighted(iiq.entitlementTypes, unit(fmix32((e ^ 0x5bd1e995) >>> 0)));
+}
+
+// spt_managed_attribute.certfrequency for entitlement e: null for the large
+// majority that never had one set, and otherwise a value from the configured
+// vocabulary — misspellings included, because the source's is not clean.
+// Its own hash stream, so changing the frequency mix does not move the owner,
+// the type or the requestable flag of any row.
+export function entitlementCertFrequency(iiq, e) {
+  const h = fmix32((e ^ 0x27d4eb2f) >>> 0);
+  if (unit(h) >= iiq.certFrequencySetShare) return null;
+  return weighted(iiq.certFrequencies, unit(fmix32(h)));
 }
 
 export function managedAttributeRow(ctx, e) {
@@ -150,7 +164,7 @@ export function managedAttributeRow(ctx, e) {
   return [
     f.id, t.created, t.modified, owner, f.appId, entitlementType(iiq, e), f.attribute, f.value, hash, f.displayName,
     (h >>> 3) & 1, 1, 0, t.modified, xml,
-    flag(4), CERT_FREQUENCIES[(h >>> 5) % CERT_FREQUENCIES.length], `CC${pad((h >>> 8) % 10000, 4)}`,
+    flag(4), entitlementCertFrequency(iiq, e), `CC${pad((h >>> 8) % 10000, 4)}`,
     flag(20), flag(21), flag(22), flag(23), (h >>> 24) % 17 === 0 ? 'true' : 'false',
   ];
 }
