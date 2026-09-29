@@ -1,0 +1,3 @@
+- Renamed the "Access Packages" category in the relationship graph on identity, user and account detail pages to "Business Roles" — the same wording the resource graph already used. The graph shows governance data from every connected system (Entra access packages, Omada business roles, SailPoint access profiles), so it no longer uses one vendor's name for it. Breadcrumbs above the list under the graph follow the new wording.
+- Removed the leftover "access package" synonym from the matrix legend, which now says "governed by a business role" in line with the rest of the legend.
+- Added a guard so a source-specific vendor word (Entra, Omada or SailPoint vocabulary) can no longer be introduced as a category name in the relationship graph.
