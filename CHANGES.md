@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Added fold and unfold controls to the roll-up matrix's grid corner: they move the whole column axis one attribute level at a time, in either direction, and show which level you are on out of how many. Previously a roll-up could only be folded one group at a time, and unfolding a group jumped it straight to the deepest attribute.
+- Added the Contexts column to the roll-up matrix, pinned next to the resource names like the per-subject matrix has it — so the group category, tags and clusters a resource belongs to are visible on the roll-up too. It applies to every roll-up shape, including business roles as rows and the Manager Hierarchy view.
+
+## Changes in this PR
+
 - The matrix views are now rebuilt at the end of every SQL Database crawl whatever the run's verdict. A run that loaded everything but failed verification used to leave the matrix and the entitlement lists blank even though the data was complete and correct.
 - A failed or unverified run still does not store its watermarks or sweep marks, so the next run re-reads the same window and re-sweeps rather than stepping over rows it never loaded.
 - Identity Atlas now detects a matrix view that was built while the database was still empty and stays empty afterwards, and rebuilds it at startup instead of leaving the matrix blank until someone refreshes by hand. The rebuild runs in the background, so it never delays the application coming up, and a view that already holds data is still left alone.
