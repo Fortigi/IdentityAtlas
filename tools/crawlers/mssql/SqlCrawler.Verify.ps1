@@ -14,17 +14,37 @@
         (principals, resources, relationships) remembers how many rows it saw and
         how many DISTINCT keys. Rows > keys means the source returned several rows
         per id; only one of each can survive, and the run fails naming the count.
-      * After every statement the crawler asks the SOURCE how many rows the
-        statement returns (Measure-SqlSource). Rows read must equal it. This is
-        the check that sees a read which stopped early: every count below only
-        knows what arrived. It was missing when a job read 22,087 of 176,703
-        identities, all distinct, all landed, and verified perfectly.
+      * Around every statement the crawler asks the SOURCE how many rows the
+        statement returns (Measure-SqlSource) — once BEFORE the read and once
+        after — and the rows read must land inside the band those two counts
+        describe. This is the check that sees a read which stopped early: every
+        count below only knows what arrived. It was missing when a job read
+        22,087 of 176,703 identities, all distinct, all landed, and verified
+        perfectly.
       * An assignment scope can hold tens of millions of rows, so instead of
         remembering keys the same source query returns its distinct
         (principal, resource) count, in the same pass.
       * After the run, POST /ingest/count gives each scope's live rows that this
         run touched, counted in the database. Anything other than the expected
         count fails the job, with a table saying which scope and by how much.
+
+    A SOURCE THAT MOVES. A large governance database is aggregated continuously;
+    a read of it takes hours, and nothing freezes it meanwhile. Holding the read
+    to a single count taken afterwards therefore failed every run against one:
+    805,491 rows read of 805,547; 33,857,035 read of 33,841,580 (more than the
+    table held minutes later — rows were deleted mid-read); 5,315,294 of
+    5,325,064. Because the verification runs BEFORE Save-SqlWatermarks, one
+    drifting statement meant no watermark was stored for any statement and the
+    delta import could never establish a baseline.
+
+    The fix is to ask the right question rather than to loosen the answer. The
+    source is counted at both ends of the read, and a complete read must land
+    between them, with the observed drift allowed as slack on either side — so a
+    source that did not move is still held to exact equality, and a source that
+    moved by N rows buys exactly N rows of tolerance. A flat percentage would
+    have been the wrong trade: 1% also waves through a read that genuinely lost
+    0.5% of its rows, and a verified run WRITES the watermark, so that loss would
+    be stepped over permanently and invisibly on the next delta.
 
     Contexts and identities have no systemId and cannot be counted per system;
     the context report in SqlCrawler.Contexts.ps1 covers the catalogue.
@@ -63,6 +83,13 @@ function Get-SqlExpectation {
             # would read as a shortfall the moment anything is routed.
             Systems = [System.Collections.Generic.HashSet[int]]::new()
             SourceDistinct = $null; Dangling = [long]0; Unverifiable = $null
+            # How far the source moved under the statements feeding this scope,
+            # summed. The distinct-pair count is measured once, after the read,
+            # and a pair count cannot have moved by more than the ROW count did
+            # — one inserted or deleted row changes at most one pair — so the
+            # row drift is this count's tolerance too, for free. Measuring it
+            # directly would mean a second GROUP BY over tens of millions of rows.
+            Drift = [long]0
         }
     }
     return $State.Expect[$Key]
@@ -76,28 +103,33 @@ function Add-SqlExpectedKey {
     [void]$Expectation.KeySet.Add($Key)
 }
 
-# What SQL Server says the statement returns, asked after the read: its row
-# count and, for an assignment statement, its distinct (principal, resource)
-# pairs, both from ONE pass (a GROUP BY whose groups are the pairs and whose
-# sizes sum to the rows), so a 40-million-row statement is scanned once more,
-# not twice. The row count is what catches a read that stopped early: the
-# crawler's own tallies only know what arrived. A paged statement carries
-# ORDER BY … OFFSET, which cannot be wrapped as a derived table, so it is
-# reported as unverifiable rather than guessed at.
+# What SQL Server says the statement returns: its row count and, for an
+# assignment statement, its distinct (principal, resource) pairs, both from ONE
+# pass (a GROUP BY whose groups are the pairs and whose sizes sum to the rows),
+# so a 40-million-row statement is scanned once more, not twice. The row count
+# is what catches a read that stopped early: the crawler's own tallies only know
+# what arrived. A paged statement carries ORDER BY … OFFSET, which cannot be
+# wrapped as a derived table, so it is reported as unverifiable rather than
+# guessed at.
+#
+# -RowsOnly is the count taken BEFORE the read. Only the row count is wanted
+# there — the pair count is needed once, and the GROUP BY is the expensive half:
+# measured on the rehearsal fixture, 3.0 s for the rows against 4.8 s for rows
+# and pairs over the same 3.2 M-row statement.
 function Get-SqlSourceCountSql {
     [CmdletBinding()]
     [OutputType([string])]
-    param([Parameter(Mandatory)] [hashtable]$Slot, [AllowNull()] [hashtable]$Map)
+    param([Parameter(Mandatory)] [hashtable]$Slot, [AllowNull()] [hashtable]$Map, [switch]$RowsOnly)
     $inner = "(`n$($Slot.sql)`n) q"
     $p = if ($Map.principalId) { $Map.principalId } else { $Map.identityId }
-    if ($Slot.target -ne 'assignments' -or -not $Map.resourceId -or -not $p) { return "SELECT COUNT_BIG(*), NULL FROM $inner" }
+    if ($RowsOnly -or $Slot.target -ne 'assignments' -or -not $Map.resourceId -or -not $p) { return "SELECT COUNT_BIG(*), NULL FROM $inner" }
     return "SELECT COALESCE(SUM(g.n), 0), COUNT_BIG(*) FROM (SELECT COUNT_BIG(*) AS n FROM $inner GROUP BY q.[$($Map.resourceId -replace '\]', ']]')], q.[$($p -replace '\]', ']]')]) g"
 }
 
 function Measure-SqlSource {
     [CmdletBinding()]
     param([AllowNull()] $Connection, [Parameter(Mandatory)] [hashtable]$Slot, [AllowNull()] [hashtable]$Map,
-          [int]$CommandTimeout = 600, [AllowNull()] $Since = $null)
+          [int]$CommandTimeout = 600, [AllowNull()] $Since = $null, [switch]$RowsOnly)
     if ($Slot.paged) { return @{ rows = $null; pairs = $null; reason = 'the statement pages with @Offset' } }
     if ($null -eq $Connection) { return @{ rows = $null; pairs = $null; reason = 'there is no source connection' } }
     # A count that cannot run leaves the slot unverified; it never fails the load.
@@ -108,7 +140,7 @@ function Measure-SqlSource {
         # about: a windowed statement counted with @Since unbound is a syntax
         # error, and counted from zero is the whole table against a window's
         # rows — a verification that fails every delta run.
-        $cmd = New-SqlCommand -Connection $Connection -Sql (Get-SqlSourceCountSql -Slot $Slot -Map $Map) `
+        $cmd = New-SqlCommand -Connection $Connection -Sql (Get-SqlSourceCountSql -Slot $Slot -Map $Map -RowsOnly:$RowsOnly) `
             -CommandTimeout $CommandTimeout -Since $Since
         $reader = $cmd.ExecuteReader()
         [void]$reader.Read()
@@ -122,18 +154,53 @@ function Measure-SqlSource {
     }
 }
 
-# After each statement: measure the source once, record whether the read was
+# The window the counts ask about must be the window the read asked about. Read
+# once, from the delta state the slot started with, so both ends of the band and
+# the read itself are bound to the same @Since.
+function Get-SqlCountWindow {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable]$Ctx)
+    if ($Ctx.Delta) { return $Ctx.Delta.Since }
+    return $null
+}
+
+# BEFORE the statement runs: how many rows the source held when the read started.
+# Half of the band a moving source is judged against; $null when there is nothing
+# to count against (a paged statement, no connection) or the count failed, in
+# which case the read falls back to the single count taken afterwards.
+function Get-SqlSourceRowsBefore {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable]$Ctx, [AllowNull()] $Connection)
+    # Map is resolved from the first row, so it does not exist yet — which costs
+    # nothing, because -RowsOnly does not use it.
+    if ($null -eq $Connection -or $Ctx.Slot.paged) { return $null }
+    $m = Measure-SqlSource -Connection $Connection -Slot $Ctx.Slot -Map $null `
+        -CommandTimeout $Ctx.State.CommandTimeout -Since (Get-SqlCountWindow -Ctx $Ctx) -RowsOnly
+    if ($null -eq $m.rows) {
+        Write-Host "  the source could not be counted before the read ($($m.reason)); the read will be held to the single count taken afterwards" -ForegroundColor Yellow
+        return $null
+    }
+    Write-Host "  source holds $($m.rows.ToString('N0')) rows before the read" -ForegroundColor DarkGray
+    return $m.rows
+}
+
+# After each statement: measure the source again, record whether the read was
 # complete, and give an assignment scope its expectation from the same answer.
 function Add-SqlReadCheck {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$Ctx, [AllowNull()] $Connection, [long]$Rows = 0)
-    $since = if ($Ctx.Delta) { $Ctx.Delta.Since } else { $null }
-    $m = Measure-SqlSource -Connection $Connection -Slot $Ctx.Slot -Map $Ctx.Map -CommandTimeout $Ctx.State.CommandTimeout -Since $since
-    $Ctx.State.Reads.Add(@{ Slot = $Ctx.Slot.name; Read = $Rows; Source = $m.rows; Reason = $m.reason
+    $m = Measure-SqlSource -Connection $Connection -Slot $Ctx.Slot -Map $Ctx.Map -CommandTimeout $Ctx.State.CommandTimeout -Since (Get-SqlCountWindow -Ctx $Ctx)
+    $Ctx.State.Reads.Add(@{ Slot = $Ctx.Slot.name; Read = $Rows; Before = $Ctx.SourceBefore; Source = $m.rows; Reason = $m.reason
                             Unplaced = [long]($Ctx.Dangling + $Ctx.Skipped); Misrouted = [long]$Ctx.Misrouted })
     if ($null -ne $m.rows) {
         $pairs = if ($null -ne $m.pairs) { ", $($m.pairs.ToString('N0')) distinct (principal, resource) pairs" }
         Write-Host "  source returns $($m.rows.ToString('N0')) rows$pairs" -ForegroundColor DarkGray
+    }
+    # Always reported, pass or fail: how far the source moved under the read is a
+    # finding about the source, not only an input to the verdict.
+    $band = Get-SqlReadBand -Before $Ctx.SourceBefore -After $m.rows
+    if ($band -and $band.Moving) {
+        Write-Host "  the source moved by $($band.Drift.ToString('N0')) rows during the read ($(([long]$Ctx.SourceBefore).ToString('N0')) → $(([long]$m.rows).ToString('N0')))" -ForegroundColor DarkGray
     }
     if ($Ctx.Slot.target -eq 'assignments') { Add-SqlAssignmentExpectation -Ctx $Ctx -Measure $m -Rows $Rows }
 }
@@ -150,11 +217,32 @@ function Add-SqlAssignmentExpectation {
     if ($Rows -eq 0) { $expect.SourceDistinct = [long]$expect.SourceDistinct; return }
     if ($null -eq $Measure.pairs) { $expect.Unverifiable = $Measure.reason; return }
     $expect.SourceDistinct = [long]$expect.SourceDistinct + $Measure.pairs
+    # See Drift in Get-SqlExpectation: the row drift bounds how far the pair
+    # count can have moved between the read and the single pass that counted it.
+    $band = Get-SqlReadBand -Before $Ctx.SourceBefore -After $Measure.rows
+    if ($band) { $expect.Drift += $band.Drift }
 }
 
 #endregion Expectations
 
 #region Verdict
+
+# A scope small enough to have remembered its keys. Both sides of this
+# comparison are the crawler's OWN: the distinct keys it sent against the rows
+# the database now holds. A moving source cannot explain a difference here, so
+# nothing about drift belongs in it — it stays exact.
+function Get-SqlKeyedScopeVerdict {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Expectation, [Parameter(Mandatory)] [long]$Atlas)
+    $e = $Expectation
+    $distinct = [long]$e.KeySet.Count
+    if ($e.Rows -gt $distinct) {
+        return @{ ok = $false; expected = $distinct; atlas = $Atlas
+                  reason = "the source returned $($e.Rows.ToString('N0')) rows for only $($distinct.ToString('N0')) distinct ids; rows sharing an id overwrite each other, so $(($e.Rows - $distinct).ToString('N0')) were lost. Make the id column unique" }
+    }
+    if ($Atlas -ne $distinct) { return @{ ok = $false; expected = $distinct; atlas = $Atlas; reason = 'the database holds a different number of rows than were sent' } }
+    return @{ ok = $true; expected = $distinct; atlas = $Atlas; reason = $null }
+}
 
 # One scope's verdict: what was expected, what the database holds, and whether
 # that is a failure. Pure given the expectation and the database count.
@@ -162,26 +250,26 @@ function Get-SqlScopeVerdict {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $Expectation, [Parameter(Mandatory)] [long]$Atlas)
     $e = $Expectation
-    if ($e.KeySet) {
-        $distinct = [long]$e.KeySet.Count
-        if ($e.Rows -gt $distinct) {
-            return @{ ok = $false; expected = $distinct; atlas = $Atlas
-                      reason = "the source returned $($e.Rows.ToString('N0')) rows for only $($distinct.ToString('N0')) distinct ids; rows sharing an id overwrite each other, so $(($e.Rows - $distinct).ToString('N0')) were lost. Make the id column unique" }
-        }
-        if ($Atlas -ne $distinct) { return @{ ok = $false; expected = $distinct; atlas = $Atlas; reason = 'the database holds a different number of rows than were sent' } }
-        return @{ ok = $true; expected = $distinct; atlas = $Atlas; reason = $null }
-    }
+    if ($e.KeySet) { return Get-SqlKeyedScopeVerdict -Expectation $e -Atlas $Atlas }
     if ($null -ne $e.Unverifiable) { return @{ ok = $true; expected = $null; atlas = $Atlas; reason = "not verified: $($e.Unverifiable)" } }
     # Distinct pairs the source holds, less rows held back as dangling (a dangling
-    # row is never sent). Exact when nothing dangled and one slot fed the scope.
+    # row is never sent). Exact when nothing dangled and one slot fed the scope —
+    # and when the source did not move under the read. It did in the field, and
+    # the same drift that made the read check fail made this one fail too
+    # ("expected 5,325,064, database 5,315,294"), so the pair count carries the
+    # same slack: see Drift in Get-SqlExpectation.
+    $drift = [long]$e.Drift
+    $moved = if ($drift -gt 0) { "; the source moved by $($drift.ToString('N0')) rows while it was read, which is the slack allowed here" }
     $expected = [long]$e.SourceDistinct - $e.Dangling
     if ($e.Dangling -eq 0 -and $e.Slots -eq 1) {
-        if ($Atlas -ne $expected) { return @{ ok = $false; expected = $expected; atlas = $Atlas; reason = 'the database holds a different number of distinct assignments than the source' } }
-        return @{ ok = $true; expected = $expected; atlas = $Atlas; reason = $null }
+        if ([Math]::Abs($Atlas - $expected) -gt $drift) {
+            return @{ ok = $false; expected = $expected; atlas = $Atlas; reason = "the database holds a different number of distinct assignments than the source$moved" }
+        }
+        return @{ ok = $true; expected = $expected; atlas = $Atlas; reason = $(if ($drift -gt 0) { "within the drift the source showed while it was read ($($drift.ToString('N0')) rows)" }) }
     }
     # Dangling rows may repeat a pair, and two slots may overlap: a bound, not an equality.
-    if ($Atlas -lt $expected -or $Atlas -gt [long]$e.SourceDistinct) {
-        return @{ ok = $false; expected = $expected; atlas = $Atlas; reason = "outside the possible range $($expected.ToString('N0'))-$(([long]$e.SourceDistinct).ToString('N0'))" }
+    if ($Atlas -lt $expected - $drift -or $Atlas -gt [long]$e.SourceDistinct + $drift) {
+        return @{ ok = $false; expected = $expected; atlas = $Atlas; reason = "outside the possible range $(($expected - $drift).ToString('N0'))-$((([long]$e.SourceDistinct) + $drift).ToString('N0'))$moved" }
     }
     return @{ ok = $true; expected = $expected; atlas = $Atlas; reason = 'within range (dangling rows or overlapping statements make it inexact)' }
 }
@@ -206,6 +294,47 @@ function Get-SqlScopeVerdict {
 # quiet fallback plus a warning is the floor, and this is the ceiling.
 $script:SqlMaxUnplacedShare = 0.05
 
+# The range a complete read may land in, from the source counted at both ends of
+# it. $null when the source could not be counted at all.
+#
+# Without a count from before the read there is only one number, so the band is
+# that number twice and the comparison is the exact equality it always was.
+#
+# With both, the read may land anywhere between them — and the observed drift is
+# allowed as slack on either side as well. That slack is not a tolerance handed
+# out in advance; it is the source's own measured movement. A source that did
+# not move gets none, and is held to exact equality exactly as before. A source
+# that moved by N rows gets N, which is what makes the two ends a band rather
+# than two numbers that must both be hit: under READ COMMITTED a read lasting
+# hours may miss a row deleted while it ran and see one inserted and deleted
+# again, neither of which the endpoints record. The residual is honest and
+# stated: a source churning by N rows makes this check blind to a loss of up to
+# ~N rows, which is why the drift is printed on every run whether or not it
+# passes. It cannot hide the failure this check exists for — the shipped defect
+# lost 87.5% of its rows.
+function Get-SqlReadBand {
+    [CmdletBinding()]
+    param([AllowNull()] $Before, [AllowNull()] $After)
+    if ($null -eq $After) { return $null }
+    $a = [long]$After
+    if ($null -eq $Before) { return @{ Lo = $a; Hi = $a; Drift = [long]0; Moving = $false } }
+    $b = [long]$Before
+    $drift = [long][Math]::Abs($a - $b)
+    return @{ Lo = [long]([Math]::Min($a, $b) - $drift); Hi = [long]([Math]::Max($a, $b) + $drift)
+              Drift = $drift; Moving = ($drift -gt 0) }
+}
+
+# How the band is described in the verdict table.
+function Format-SqlReadBand {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)] [hashtable]$Read, [Parameter(Mandatory)] [hashtable]$Band)
+    if (-not $Band.Moving) { return "the source returns $($Band.Hi.ToString('N0')) rows" }
+    return ("the source held $(([long]$Read.Before).ToString('N0')) rows before the read and " +
+            "$(([long]$Read.Source).ToString('N0')) after — it moved by $($Band.Drift.ToString('N0')) during the read, " +
+            "so a complete read is $($Band.Lo.ToString('N0'))-$($Band.Hi.ToString('N0')) rows")
+}
+
 function Get-SqlReadVerdict {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$Read)
@@ -219,10 +348,15 @@ function Get-SqlReadVerdict {
         return @{ ok = $false
                   reason = "$($misrouted.ToString('N0')) of the $($Read.Read.ToString('N0')) rows read ($([Math]::Round(100 * $misrouted / $Read.Read, 1))%) name a system no 'systems' statement created, and were loaded into the crawler's own system instead. Either the systems statement is filtered more narrowly than this one, or the two name a connector differently" }
     }
-    if ($null -eq $Read.Source) { return @{ ok = $true; reason = "not verified: $($Read.Reason)" } }
-    if ($Read.Read -eq $Read.Source) { return @{ ok = $true; reason = $null } }
+    $band = Get-SqlReadBand -Before $Read.Before -After $Read.Source
+    if ($null -eq $band) { return @{ ok = $true; reason = "not verified: $($Read.Reason)" } }
+    if ($Read.Read -ge $band.Lo -and $Read.Read -le $band.Hi) {
+        # A moving source is worth saying out loud even when it passes.
+        return @{ ok = $true; reason = $(if ($band.Moving) { Format-SqlReadBand -Read $Read -Band $band }) }
+    }
+    $short = if ($Read.Read -lt $band.Lo) { 'The read stopped early' } else { 'The read returned more rows than the source ever held' }
     return @{ ok = $false
-              reason = "the crawler read $($Read.Read.ToString('N0')) rows but the source returns $(([long]$Read.Source).ToString('N0')). Either the read stopped early or the source changed during the run; a partial read cannot be told apart from a finished one by the rows alone" }
+              reason = "the crawler read $($Read.Read.ToString('N0')) rows; $(Format-SqlReadBand -Read $Read -Band $band). $short. A partial read cannot be told apart from a finished one by the rows alone, so the run is not verified and no watermark is stored" }
 }
 
 function Format-SqlScopeLabel {

@@ -176,6 +176,14 @@ be verified: after finalize, the database count of the scope must equal the sour
 distinct key count. That is the same check a full run makes today. A delta run verifies
 what it touched (rows touched since the run started equal the delta's distinct keys).
 
+Because the token is stored only after verification, a verification that is too strict is
+not a conservative choice — it withholds the marks for **every** statement, including the
+ones that verified, so the delta import never gets a baseline. A live source is aggregated
+while it is read, so each statement's rows are counted before *and* after the read and the
+rows read must land between the two, widened by the observed drift. A source that did not
+move is still held to exact equality; see
+[Verification](../sync/mssql.md#verification-source-against-database).
+
 ## Part 3 — order of work
 
 Staged after a full load is proven end to end, as agreed:

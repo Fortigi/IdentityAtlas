@@ -298,6 +298,74 @@ Describe 'Save-SqlWatermarks' {
     }
 }
 
+# Start-SqlCrawler.ps1 runs Test-SqlRunCounts BEFORE Save-SqlWatermarks and
+# Save-SqlSweepMarks, so a statement the verification rejects costs the whole run
+# its marks — not just its own. That is what turned a source drifting by 0.046%
+# into a delta import that could never establish a baseline: every run failed
+# identically and no watermark was ever written for any statement.
+Describe 'verify-then-save: which runs are allowed to remember where they got to' {
+    BeforeAll {
+        # The ordering itself lives in the entry point, which runs live I/O the
+        # moment it is dot-sourced. Assert it as text, then exercise it below.
+        $script:entryPoint = Get-Content (Join-Path $script:repoRoot 'tools' 'crawlers' 'mssql' 'Start-SqlCrawler.ps1') -Raw
+
+        # The entry point's closing sequence, in its order. Helpers must be
+        # declared inside BeforeAll or the It blocks cannot see them.
+        function Invoke-VerifyThenSave {
+            param([hashtable]$State)
+            try { Test-SqlRunCounts -State $State | Out-Null }
+            catch { return @{ Verified = $false; Error = $_.Exception.Message } }
+            Save-SqlWatermarks -State $State | Out-Null
+            Save-SqlSweepMarks -State $State | Out-Null
+            return @{ Verified = $true; Error = $null }
+        }
+
+        # A run whose one watermarked statement read $Read rows out of a source
+        # that held $Before when the read started and $After when it ended.
+        function New-RunAt([long]$Read, [long]$Before, [long]$After) {
+            $state = New-DeltaState
+            $d = New-ArmedDelta -Since 1758700000000
+            $d.Max = 1758900000000; $d.Rows = $Read
+            $state.Deltas.Add($d)
+            $state.Reads.Add(@{ Slot = 'Grants'; Read = $Read; Before = $Before; Source = $After; Reason = $null
+                                Unplaced = [long]0; Misrouted = [long]0 })
+            return $state
+        }
+    }
+
+    BeforeEach {
+        $script:written = [System.Collections.Generic.List[object]]::new()
+        Mock Set-CrawlerDeltaToken { $script:written.Add(@{ Endpoint = $Endpoint; Token = $Token }) }
+        Mock Update-CrawlerProgress { }
+        Mock Invoke-IngestAPI { @{ count = 0 } }
+    }
+
+    It 'a source that drifted while it was read verifies, so the marks advance' {
+        $r = Invoke-VerifyThenSave -State (New-RunAt 33857035 33857035 33841580)
+        $r.Verified | Should -BeTrue
+        @($script:written).Count | Should -Be 1
+        $script:written[0].Token | Should -Be '1758899100000'
+    }
+
+    It 'a truncated read fails, and NOTHING is remembered — not the watermark, not the sweep' {
+        $state = New-RunAt 22087 176703 176703
+        $state.Sweeps.Add(@{ Slot = 'Grants'; Key = 'sql:sweep:Grants:abc'; Staged = [long]5; Distinct = $false })
+        $r = Invoke-VerifyThenSave -State $state
+        $r.Verified | Should -BeFalse
+        $r.Error | Should -Match 'Verification failed'
+        Should -Invoke Set-CrawlerDeltaToken -Exactly 0
+    }
+
+    It 'the entry point still verifies before it saves' {
+        # If this ever reorders, a failed run starts stepping over rows it never
+        # read, and the failure is permanent and invisible.
+        $verify = $script:entryPoint.IndexOf('Test-SqlRunCounts')
+        $verify | Should -BeGreaterThan 0
+        $script:entryPoint.IndexOf('Save-SqlWatermarks') | Should -BeGreaterThan $verify
+        $script:entryPoint.IndexOf('Save-SqlSweepMarks') | Should -BeGreaterThan $verify
+    }
+}
+
 # ─── The slot binds it ───────────────────────────────────────────────────────
 
 Describe 'Invoke-SqlSlot with a watermark' {
@@ -307,6 +375,7 @@ Describe 'Invoke-SqlSlot with a watermark' {
         Mock Invoke-IngestAPI { $script:sent.Add(@{ Endpoint = $Endpoint; Body = $Body }); @{ inserted = 1; updated = 0 } }
         Mock Update-CrawlerProgress { }
         Mock Add-SqlReadCheck { }
+        Mock Get-SqlSourceRowsBefore { }
         Mock Invoke-SqlQueryStream {
             $script:boundSince = $Since
             foreach ($r in $script:rowsToReplay) { & $OnRow $r }

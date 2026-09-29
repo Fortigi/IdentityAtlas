@@ -528,9 +528,16 @@ function Invoke-SqlSlot {
     $ctx = @{ Slot = $Slot; Map = $null; Streams = (New-SqlSlotStreams -Slot $Slot -State $State -Complete $complete); State = $State
               Delta = $delta; Complete = $complete
               Route = 'fixed'; Rows = 0; Skipped = 0; Dangling = 0; Unresolved = 0; Misrouted = 0
+              # What the source held when the read started — the other end of the
+              # band Add-SqlReadCheck judges the read against. A live source is
+              # aggregated while it is read, so one count taken afterwards is a
+              # different question from the one the read answered.
+              SourceBefore = $null
               # This statement's own owner tally, folded into the run's at the end.
               Ownership = (New-SqlOwnershipTally) }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    # Inside the stopwatch: the counts are part of what this statement costs.
+    $ctx.SourceBefore = Get-SqlSourceRowsBefore -Ctx $ctx -Connection $Connection
     $rows = Invoke-SqlQueryStream -Connection $Connection -Sql $Slot.sql -OnRow (New-SqlRowCallback -Ctx $ctx -Handler (Get-SqlRowHandler -Target $Slot.target)) `
         -CommandTimeout $State.CommandTimeout -Paged $Slot.paged -PageSize $State.PageSize -Since $(if ($delta) { $delta.Since } else { $null })
     $sent = Complete-SqlSlotStreams -Ctx $ctx

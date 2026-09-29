@@ -32,9 +32,9 @@ BeforeAll {
         $e.Rows = $Rows
         return $e
     }
-    function New-Pairs([long]$SourceDistinct, [long]$Dangling = 0, [int]$Slots = 1) {
+    function New-Pairs([long]$SourceDistinct, [long]$Dangling = 0, [int]$Slots = 1, [long]$Drift = 0) {
         $e = Get-SqlExpectation -State (New-State) -Key 'a' -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' }
-        $e.SourceDistinct = $SourceDistinct; $e.Dangling = $Dangling; $e.Slots = $Slots
+        $e.SourceDistinct = $SourceDistinct; $e.Dangling = $Dangling; $e.Slots = $Slots; $e.Drift = $Drift
         return $e
     }
     # A connection whose command answers one row of $Values from ExecuteReader (or
@@ -42,9 +42,20 @@ BeforeAll {
     # whether the reader and command were disposed.
     function New-FakeConnection($Values) {
         $script:lastSql = $null; $script:disposed = [System.Collections.Generic.List[string]]::new()
+        $script:lastParams = [System.Collections.Generic.List[object]]::new()
         $conn = [pscustomobject]@{}
         $conn | Add-Member -MemberType ScriptMethod -Name CreateCommand -Value {
-            $cmd = [pscustomobject]@{ CommandText = ''; CommandTimeout = 0 }
+            # A parameter bag, so a test can assert what the count was BOUND to —
+            # a count that does not bind the read's own @Since asks about the
+            # whole table and fails every delta run.
+            $bag = [pscustomobject]@{}
+            $bag | Add-Member -MemberType ScriptMethod -Name Add -Value {
+                param($Name, $Type)
+                $p = [pscustomobject]@{ ParameterName = $Name; SqlDbType = $Type; Value = $null }
+                $script:lastParams.Add($p)
+                return $p
+            }
+            $cmd = [pscustomobject]@{ CommandText = ''; CommandTimeout = 0; Parameters = $bag }
             $cmd | Add-Member -MemberType ScriptMethod -Name ExecuteReader -Value {
                 $script:lastSql = $this.CommandText
                 $script:lastTimeout = $this.CommandTimeout
@@ -80,6 +91,15 @@ Describe 'Get-SqlScopeVerdict — keyed scopes' {
         (Get-SqlScopeVerdict -Expectation (New-Keyed -Rows 5 -Distinct 5) -Atlas 4).ok | Should -BeFalse
         (Get-SqlScopeVerdict -Expectation (New-Keyed -Rows 5 -Distinct 5) -Atlas 6).ok | Should -BeFalse
     }
+
+    It 'stays exact however much the source moved: both sides of this one are the crawler own' {
+        # Keys SENT against rows the database holds. A source aggregated mid-read
+        # cannot explain a difference here, so drift must buy nothing.
+        $e = New-Keyed -Rows 1000 -Distinct 1000
+        $e.Drift = [long]500
+        (Get-SqlScopeVerdict -Expectation $e -Atlas 999).ok | Should -BeFalse
+        (Get-SqlScopeVerdict -Expectation $e -Atlas 1000).ok | Should -BeTrue
+    }
 }
 
 Describe 'Get-SqlScopeVerdict — assignment scopes' {
@@ -101,6 +121,32 @@ Describe 'Get-SqlScopeVerdict — assignment scopes' {
     It 'treats two statements feeding one scope as a range too' {
         (Get-SqlScopeVerdict -Expectation (New-Pairs 100 0 2) -Atlas 100).ok | Should -BeTrue
         (Get-SqlScopeVerdict -Expectation (New-Pairs 100 0 2) -Atlas 101).ok | Should -BeFalse
+    }
+
+    It 'allows the database to differ by exactly what the source moved, and not by more' {
+        # The database-side half of the same field failure:
+        # "expected 5,325,064, database 5,315,294". The pair count is measured
+        # once, after the read; a pair cannot have moved by more than the rows did.
+        (Get-SqlScopeVerdict -Expectation (New-Pairs 5325064 0 1 9770) -Atlas 5315294).ok | Should -BeTrue
+        (Get-SqlScopeVerdict -Expectation (New-Pairs 400000 0 1 10) -Atlas 399990).ok | Should -BeTrue
+        (Get-SqlScopeVerdict -Expectation (New-Pairs 400000 0 1 10) -Atlas 400010).ok | Should -BeTrue
+        $v = Get-SqlScopeVerdict -Expectation (New-Pairs 400000 0 1 10) -Atlas 399989
+        $v.ok | Should -BeFalse
+        $v.reason | Should -Match 'the source moved by 10 rows while it was read'
+        (Get-SqlScopeVerdict -Expectation (New-Pairs 400000 0 1 10) -Atlas 400011).ok | Should -BeFalse
+    }
+
+    It 'gives a scope whose source did not move no slack, so a single lost assignment still fails' {
+        (Get-SqlScopeVerdict -Expectation (New-Pairs 400000 0 1 0) -Atlas 399999).ok | Should -BeFalse
+        (Get-SqlScopeVerdict -Expectation (New-Pairs 400000 0 1 0) -Atlas 400000).reason | Should -BeNullOrEmpty
+    }
+
+    It 'widens the dangling range by the drift too, at both ends' {
+        # 100 pairs, 10 held back, source moved by 2: 88..102 rather than 90..100.
+        (Get-SqlScopeVerdict -Expectation (New-Pairs 100 10 1 2) -Atlas 88).ok | Should -BeTrue
+        (Get-SqlScopeVerdict -Expectation (New-Pairs 100 10 1 2) -Atlas 102).ok | Should -BeTrue
+        (Get-SqlScopeVerdict -Expectation (New-Pairs 100 10 1 2) -Atlas 87).ok | Should -BeFalse
+        (Get-SqlScopeVerdict -Expectation (New-Pairs 100 10 1 2) -Atlas 103).reason | Should -Match 'outside the possible range 88-102'
     }
 
     It 'reports an unverifiable scope without failing it' {
@@ -130,6 +176,16 @@ Describe 'Get-SqlSourceCountSql' {
         Get-SqlSourceCountSql -Slot @{ target = 'assignments'; sql = 'S' } -Map $null | Should -Match $plain
         Get-SqlSourceCountSql -Slot @{ target = 'assignments'; sql = 'S' } -Map @{ resourceId = 'r' } | Should -Match $plain
     }
+
+    It '-RowsOnly drops the GROUP BY even for a fully mapped assignment statement' {
+        # The count taken BEFORE the read wants the rows and nothing else. The
+        # distinct-pair GROUP BY is the expensive half — 3.0 s against 4.8 s over
+        # the same 3.2 M-row statement on the rehearsal fixture — and the pair
+        # count is needed once, afterwards.
+        $sql = Get-SqlSourceCountSql -Slot @{ target = 'assignments'; sql = 'S' } -Map @{ resourceId = 'r'; principalId = 'p' } -RowsOnly
+        $sql | Should -Match '^SELECT COUNT_BIG\(\*\), NULL FROM \(\s+S\s+\) q$'
+        $sql | Should -Not -Match 'GROUP BY'
+    }
 }
 
 Describe 'Measure-SqlSource' {
@@ -149,6 +205,18 @@ Describe 'Measure-SqlSource' {
         $m.pairs | Should -BeNullOrEmpty
     }
 
+    It 'asks for the rows-only count when -RowsOnly is set, binding the same window' {
+        $m = Measure-SqlSource -Connection (New-FakeConnection @([long]33857035, [System.DBNull]::Value)) `
+            -Slot @{ target = 'assignments'; paged = $false; sql = 'S' } -Map @{ resourceId = 'r'; principalId = 'p' } -Since ([long]1700000000000) -RowsOnly
+        $m.rows | Should -Be 33857035
+        $script:lastSql | Should -Not -Match 'GROUP BY'
+        # The window the count asks about must be the window the read asked
+        # about, or a delta run compares a window's rows with the whole table.
+        @($script:lastParams).Count | Should -Be 1
+        $script:lastParams[0].ParameterName | Should -Be '@Since'
+        $script:lastParams[0].Value | Should -Be 1700000000000
+    }
+
     It 'does not attempt a paged statement or a missing connection, and survives a failure' {
         (Measure-SqlSource -Connection 'x' -Slot @{ paged = $true; sql = 'S' } -Map @{}).reason | Should -Match '@Offset'
         (Measure-SqlSource -Connection $null -Slot @{ paged = $false; sql = 'S' } -Map @{}).reason | Should -Match 'no source connection'
@@ -163,7 +231,8 @@ Describe 'Get-SqlReadVerdict' {
     It 'fails the shipped case: 22,087 rows read of 176,703, although every one of them was distinct and landed' {
         $v = Get-SqlReadVerdict -Read @{ Slot = 'Identities'; Read = [long]22087; Source = [long]176703 }
         $v.ok | Should -BeFalse
-        $v.reason | Should -Match 'read 22[.,]087 rows but the source returns 176[.,]703'
+        $v.reason | Should -Match 'read 22[.,]087 rows; the source returns 176[.,]703 rows'
+        $v.reason | Should -Match 'The read stopped early'
     }
 
     It 'fails a read of more rows than the source now returns, and passes an exact one' {
@@ -177,6 +246,115 @@ Describe 'Get-SqlReadVerdict' {
         $v = Get-SqlReadVerdict -Read @{ Read = [long]5; Source = $null; Reason = 'the statement pages with @Offset' }
         $v.ok | Should -BeTrue
         $v.reason | Should -Be 'not verified: the statement pages with @Offset'
+    }
+}
+
+# A large governance source is aggregated continuously; a read of it takes hours
+# and nothing freezes it. The three rows below are the field run that failed:
+# 805,491 read of 805,547; 33,857,035 read while the table held 33,841,580
+# minutes later; 5,315,294 read of 5,325,064. Held to the count taken afterwards
+# alone, all three fail — and because the verification runs before
+# Save-SqlWatermarks, no watermark is stored for ANY statement.
+Describe 'Get-SqlReadVerdict — a source that moves under the read' {
+    It 'passes the field run that used to fail: read inside the band the two counts describe' {
+        # Entitlements: the source grew by 56 while it was read.
+        $grew = Get-SqlReadVerdict -Read @{ Slot = 'Entitlements'; Read = [long]805491; Before = [long]805491; Source = [long]805547 }
+        $grew.ok | Should -BeTrue
+        # Grants via a role: grew by 9,770.
+        (Get-SqlReadVerdict -Read @{ Read = [long]5315294; Before = [long]5315294; Source = [long]5325064 }).ok | Should -BeTrue
+        # Entitlement grants: SHRANK by 15,455 — rows were deleted mid-read, which
+        # is why the crawler saw more rows than the table held afterwards.
+        $shrank = Get-SqlReadVerdict -Read @{ Read = [long]33857035; Before = [long]33857035; Source = [long]33841580 }
+        $shrank.ok | Should -BeTrue
+        $shrank.reason | Should -Match 'moved by 15[.,]455 during the read'
+    }
+
+    It 'reports the drift on every moving source, pass or fail, naming both counts and the band' {
+        $v = Get-SqlReadVerdict -Read @{ Read = [long]1005; Before = [long]1000; Source = [long]1010 }
+        $v.ok | Should -BeTrue
+        $v.reason | Should -Match 'held 1[.,]000 rows before the read and 1[.,]010 after'
+        $v.reason | Should -Match 'moved by 10 during the read, so a complete read is 990-1[.,]020 rows'
+    }
+
+    It 'passes a read that exceeded both counts by no more than the source moved, and fails one that exceeded them by more' {
+        # A source shrinking 1,000 -> 900 may still yield 1,010 rows: a row can be
+        # read and then deleted. 1,001 is not more than the 100 of slack it bought.
+        (Get-SqlReadVerdict -Read @{ Read = [long]1000; Before = [long]1000; Source = [long]900 }).ok | Should -BeTrue
+        (Get-SqlReadVerdict -Read @{ Read = [long]1100; Before = [long]1000; Source = [long]900 }).ok | Should -BeTrue
+        $v = Get-SqlReadVerdict -Read @{ Read = [long]1101; Before = [long]1000; Source = [long]900 }
+        $v.ok | Should -BeFalse
+        $v.reason | Should -Match 'returned more rows than the source ever held'
+    }
+
+    It 'still fails a read that stopped early, and the more the source moved the more it had to lose to pass' {
+        # Grew 1,000 -> 1,010, so the floor is 990. One row below it fails.
+        (Get-SqlReadVerdict -Read @{ Read = [long]990; Before = [long]1000; Source = [long]1010 }).ok | Should -BeTrue
+        $v = Get-SqlReadVerdict -Read @{ Read = [long]989; Before = [long]1000; Source = [long]1010 }
+        $v.ok | Should -BeFalse
+        $v.reason | Should -Match 'The read stopped early'
+    }
+
+    It 'fails the 87.5% loss however hard the source churns, which is the whole point of the check' {
+        # The shipped defect: 22,087 of 176,703 arrived. Even a source that moved
+        # by 10,000 rows — far more than any field run has shown — cannot explain
+        # losing seven rows in eight.
+        (Get-SqlReadVerdict -Read @{ Read = [long]22087; Before = [long]176703; Source = [long]176703 }).ok | Should -BeFalse
+        (Get-SqlReadVerdict -Read @{ Read = [long]22087; Before = [long]176703; Source = [long]166703 }).ok | Should -BeFalse
+        (Get-SqlReadVerdict -Read @{ Read = [long]22087; Before = [long]176703; Source = [long]186703 }).ok | Should -BeFalse
+    }
+
+    It 'gives a source that did not move no slack at all: the band is the exact equality it always was' {
+        # This is what keeps the check capable of catching a small silent loss. A
+        # 1% flat tolerance would wave 990 through, and a verified run WRITES the
+        # watermark, so the 10 lost rows would be stepped over permanently.
+        (Get-SqlReadVerdict -Read @{ Read = [long]1000; Before = [long]1000; Source = [long]1000 }).ok | Should -BeTrue
+        (Get-SqlReadVerdict -Read @{ Read = [long]999; Before = [long]1000; Source = [long]1000 }).ok | Should -BeFalse
+        (Get-SqlReadVerdict -Read @{ Read = [long]1001; Before = [long]1000; Source = [long]1000 }).ok | Should -BeFalse
+        (Get-SqlReadVerdict -Read @{ Read = [long]990; Before = [long]1000; Source = [long]1000 }).ok | Should -BeFalse
+    }
+
+    It 'falls back to exact equality when only one count could be taken' {
+        # No count from before the read (a paged statement, or the count failed):
+        # one number is all there is, so the comparison is what it always was.
+        (Get-SqlReadVerdict -Read @{ Read = [long]999; Before = $null; Source = [long]1000 }).ok | Should -BeFalse
+        (Get-SqlReadVerdict -Read @{ Read = [long]1000; Before = $null; Source = [long]1000 }).ok | Should -BeTrue
+    }
+
+    It 'holds the unplaced and misrouted bounds exactly as strictly for a moving source' {
+        # Role assignments failed in the field with 100% of its rows unplaced,
+        # because a statement it referenced was disabled. Nothing about a moving
+        # source may soften that: the two findings are independent.
+        $v = Get-SqlReadVerdict -Read @{ Read = [long]1000; Before = [long]1000; Source = [long]1010; Unplaced = [long]1000 }
+        $v.ok | Should -BeFalse
+        $v.reason | Should -Match 'could not be placed'
+        (Get-SqlReadVerdict -Read @{ Read = [long]1000; Before = [long]1000; Source = [long]1010; Misrouted = [long]51 }).ok | Should -BeFalse
+        (Get-SqlReadVerdict -Read @{ Read = [long]1000; Before = [long]1000; Source = [long]1010; Misrouted = [long]50 }).ok | Should -BeTrue
+    }
+}
+
+Describe 'Get-SqlReadBand' {
+    It 'is the single count twice when there is no count from before the read' {
+        $b = Get-SqlReadBand -Before $null -After ([long]500)
+        $b.Lo | Should -Be 500
+        $b.Hi | Should -Be 500
+        $b.Drift | Should -Be 0
+        $b.Moving | Should -BeFalse
+    }
+
+    It 'is nothing at all when the source could not be counted' {
+        Get-SqlReadBand -Before ([long]500) -After $null | Should -BeNullOrEmpty
+    }
+
+    It 'widens by exactly the drift, whichever way the source moved' {
+        $grew = Get-SqlReadBand -Before ([long]1000) -After ([long]1010)
+        $grew.Lo | Should -Be 990
+        $grew.Hi | Should -Be 1020
+        $grew.Drift | Should -Be 10
+        $grew.Moving | Should -BeTrue
+        $shrank = Get-SqlReadBand -Before ([long]1010) -After ([long]1000)
+        $shrank.Lo | Should -Be 990
+        $shrank.Hi | Should -Be 1020
+        $shrank.Drift | Should -Be 10
     }
 }
 
@@ -215,7 +393,11 @@ Describe 'expectations while streaming' {
         $e.SourceDistinct | Should -Be 7
         $e.Dangling | Should -Be 0
         $state.Reads[0].Source | Should -Be 9
-        Should -Invoke Measure-SqlSource -Times 1 -Exactly
+        # Twice: once before the read for the band's floor, once after for the
+        # rows and the distinct pairs. Not three times — the pair count is the
+        # expensive half and is asked for exactly once.
+        Should -Invoke Measure-SqlSource -Times 2 -Exactly
+        Should -Invoke Measure-SqlSource -Times 1 -Exactly -ParameterFilter { $RowsOnly }
     }
 
     It 'an empty assignment read still asks the source, so a read that returned nothing cannot pass for an empty table' {
@@ -320,6 +502,76 @@ Describe 'Get-SqlReadVerdict — rows that could not be placed' {
 
     It 'does not divide by zero on an empty read' {
         (Get-SqlReadVerdict -Read @{ Read = [long]0; Source = [long]0; Unplaced = [long]0 }).ok | Should -BeTrue
+    }
+}
+
+Describe 'Get-SqlSourceRowsBefore' {
+    BeforeEach { Mock Write-Host { } }
+
+    It 'counts the rows only, in the same window the read will use' {
+        Mock Measure-SqlSource { @{ rows = [long]805491; pairs = $null; reason = $null } }
+        $ctx = @{ Slot = @{ name = 'Entitlements'; target = 'assignments'; paged = $false; sql = 'S' }
+                  State = (New-State); Delta = @{ Since = [long]1700000000000 } }
+        Get-SqlSourceRowsBefore -Ctx $ctx -Connection 'c' | Should -Be 805491
+        Should -Invoke Measure-SqlSource -Times 1 -Exactly -ParameterFilter { $RowsOnly -and $Since -eq 1700000000000 }
+    }
+
+    It 'binds no window for a statement that reads in full' {
+        Mock Measure-SqlSource { @{ rows = [long]12; pairs = $null; reason = $null } }
+        $ctx = @{ Slot = @{ name = 'Apps'; target = 'resources'; paged = $false; sql = 'S' }; State = (New-State); Delta = $null }
+        Get-SqlSourceRowsBefore -Ctx $ctx -Connection 'c' | Should -Be 12
+        Should -Invoke Measure-SqlSource -Times 1 -Exactly -ParameterFilter { $null -eq $Since }
+    }
+
+    It 'does not ask at all for a paged statement or without a connection' {
+        Mock Measure-SqlSource { throw 'must not be called' }
+        $paged = @{ Slot = @{ name = 'P'; target = 'resources'; paged = $true; sql = 'S' }; State = (New-State); Delta = $null }
+        Get-SqlSourceRowsBefore -Ctx $paged -Connection 'c' | Should -BeNullOrEmpty
+        $plain = @{ Slot = @{ name = 'P'; target = 'resources'; paged = $false; sql = 'S' }; State = (New-State); Delta = $null }
+        Get-SqlSourceRowsBefore -Ctx $plain -Connection $null | Should -BeNullOrEmpty
+        Should -Invoke Measure-SqlSource -Times 0 -Exactly
+    }
+
+    It 'says so and falls back when the count could not be taken, instead of failing the load' {
+        Mock Measure-SqlSource { @{ rows = $null; pairs = $null; reason = 'the source count failed: timeout' } }
+        $ctx = @{ Slot = @{ name = 'Grants'; target = 'assignments'; paged = $false; sql = 'S' }; State = (New-State); Delta = $null }
+        Get-SqlSourceRowsBefore -Ctx $ctx -Connection 'c' | Should -BeNullOrEmpty
+        Should -Invoke Write-Host -Times 1 -Exactly -ParameterFilter { $Object -match 'could not be counted before the read' -and $Object -match 'timeout' }
+    }
+}
+
+Describe 'Add-SqlReadCheck — a source that moved' {
+    BeforeEach { Mock Write-Host { } }
+
+    It 'records both ends of the band and reports the drift as a finding' {
+        Mock Measure-SqlSource { @{ rows = [long]33841580; pairs = $null; reason = $null } }
+        $state = New-State
+        $ctx = @{ Slot = @{ name = 'Entitlement grants'; target = 'relationships'; paged = $false; sql = 'S' }; Map = @{}
+                  State = $state; SourceBefore = [long]33857035; Dangling = 0; Skipped = 0; Misrouted = 0 }
+        Add-SqlReadCheck -Ctx $ctx -Connection 'c' -Rows 33857035
+        $state.Reads[0].Before | Should -Be 33857035
+        $state.Reads[0].Source | Should -Be 33841580
+        (Get-SqlReadVerdict -Read $state.Reads[0]).ok | Should -BeTrue
+        Should -Invoke Write-Host -Times 1 -Exactly -ParameterFilter { $Object -match 'moved by 15[.,]455 rows during the read' }
+    }
+
+    It 'gives the assignment scope the same drift as its slack, and nothing when the source held still' {
+        Mock Measure-SqlSource { @{ rows = [long]1010; pairs = [long]1000; reason = $null } }
+        $state = New-State
+        $slot = @{ name = 'G'; target = 'assignments'; resourceType = 'Entitlement'; assignmentType = 'Direct'; governed = $false; paged = $false; sql = 'S' }
+        $streams = New-SqlSlotStreams -Slot $slot -State $state -Complete $true
+        $ctx = @{ Slot = $slot; Map = @{ resourceId = 'r'; principalId = 'p' }; State = $state; Streams = $streams
+                  SourceBefore = [long]1000; Dangling = 0; Skipped = 0; Misrouted = 0 }
+        Add-SqlReadCheck -Ctx $ctx -Connection 'c' -Rows 1005
+        $streams.assignment.Expect.SourceDistinct | Should -Be 1000
+        $streams.assignment.Expect.Drift | Should -Be 10
+
+        $state2 = New-State
+        $streams2 = New-SqlSlotStreams -Slot $slot -State $state2 -Complete $true
+        $ctx2 = @{ Slot = $slot; Map = @{ resourceId = 'r'; principalId = 'p' }; State = $state2; Streams = $streams2
+                   SourceBefore = [long]1010; Dangling = 0; Skipped = 0; Misrouted = 0 }
+        Add-SqlReadCheck -Ctx $ctx2 -Connection 'c' -Rows 1010
+        $streams2.assignment.Expect.Drift | Should -Be 0
     }
 }
 
