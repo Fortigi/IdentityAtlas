@@ -48,12 +48,51 @@
 
     Contexts and identities have no systemId and cannot be counted per system;
     the context report in SqlCrawler.Contexts.ps1 covers the catalogue.
+
+    A PAIR IS NOT AN ID, which qualifies the first bullet above. "Rows > keys
+    means rows were lost" holds only where the key names ONE record, as a
+    resource's or a principal's externalId does. A relationship is keyed on
+    (parent, child) and an assignment on (resource, principal): two source rows
+    producing one such key are the same edge, and collapsing them loses nothing.
+    Those scopes are therefore compared distinct-against-distinct, the way the
+    unkeyed assignment path has always compared the source's own distinct pairs.
+    See SqlPairKeyedEndpoints.
 #>
 
 #region Expectations
 
 # Endpoints whose key set is small enough to hold in memory for an exact count.
 $script:SqlKeyedEndpoints = @('ingest/principals', 'ingest/resources', 'ingest/resource-relationships')
+
+# Endpoints whose key is a PAIR the data model already treats as unique — a
+# relationship is (parent, child) and an assignment is (resource, principal) —
+# rather than one id naming one record.
+#
+# The difference decides whether two source rows that produce the same key are a
+# data-loss finding or a duplicate edge. For a resource or a principal, one id
+# arriving twice means two DIFFERENT records collided and one silently replaced
+# the other: real loss, and the check that catches it stays exactly as strict.
+# For a pair, the two rows ARE the same edge — a business role can reference one
+# entitlement through two source applications, and collapsing those is correct
+# and idempotent, because an edge carries nothing but its two ends. Held to the
+# id rule, a real run failed on
+#   "the source returned 5,540 rows for only 5,534 distinct ids ... so 6 were
+#    lost" while expected and database both read 5,534 —
+# the scope agreed with itself perfectly and the job failed on the complaint
+# alone. So a pair-keyed scope is compared distinct-against-distinct, which is
+# what the unkeyed assignment path has always done with the source's own
+# "distinct (principal, resource) pairs"; this gives the keyed ownership
+# assignments and the relationships the same treatment rather than a second
+# mechanism.
+$script:SqlPairKeyedEndpoints = @('ingest/resource-relationships', 'ingest/resource-assignments')
+
+# Is this scope keyed on a pair rather than on one record's id?
+function Test-SqlPairKeyedEndpoint {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([AllowNull()] [AllowEmptyString()] [string]$Endpoint)
+    return $Endpoint -in $script:SqlPairKeyedEndpoints
+}
 
 # The expectation for one (endpoint, scope), created once however many slots feed it.
 function Get-SqlExpectation {
@@ -231,17 +270,26 @@ function Add-SqlAssignmentExpectation {
 # comparison are the crawler's OWN: the distinct keys it sent against the rows
 # the database now holds. A moving source cannot explain a difference here, so
 # nothing about drift belongs in it — it stays exact.
+#
+# What a REPEATED key means depends on what the key is, which is the whole of
+# SqlPairKeyedEndpoints: one id naming one record means a genuine overwrite,
+# while a pair naming an edge means the same edge arrived twice.
 function Get-SqlKeyedScopeVerdict {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $Expectation, [Parameter(Mandatory)] [long]$Atlas)
     $e = $Expectation
     $distinct = [long]$e.KeySet.Count
-    if ($e.Rows -gt $distinct) {
+    $collapsed = [long]$e.Rows - $distinct
+    if ($collapsed -gt 0 -and -not (Test-SqlPairKeyedEndpoint -Endpoint $e.Endpoint)) {
         return @{ ok = $false; expected = $distinct; atlas = $Atlas
-                  reason = "the source returned $($e.Rows.ToString('N0')) rows for only $($distinct.ToString('N0')) distinct ids; rows sharing an id overwrite each other, so $(($e.Rows - $distinct).ToString('N0')) were lost. Make the id column unique" }
+                  reason = "the source returned $($e.Rows.ToString('N0')) rows for only $($distinct.ToString('N0')) distinct ids; rows sharing an id overwrite each other, so $($collapsed.ToString('N0')) were lost. Make the id column unique" }
     }
     if ($Atlas -ne $distinct) { return @{ ok = $false; expected = $distinct; atlas = $Atlas; reason = 'the database holds a different number of rows than were sent' } }
-    return @{ ok = $true; expected = $distinct; atlas = $Atlas; reason = $null }
+    # Worth saying even though it passes: a statement producing the same edge
+    # twice is usually a join fanning out, which is harmless here but is the
+    # first thing to look at if the numbers ever surprise someone.
+    return @{ ok = $true; expected = $distinct; atlas = $Atlas
+              reason = $(if ($collapsed -gt 0) { "$($e.Rows.ToString('N0')) source rows collapsed to $($distinct.ToString('N0')) distinct pairs; a repeated pair is the same edge, so nothing was lost" }) }
 }
 
 # One scope's verdict: what was expected, what the database holds, and whether

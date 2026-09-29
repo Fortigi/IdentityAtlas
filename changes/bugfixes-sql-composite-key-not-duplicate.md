@@ -1,0 +1,4 @@
+- SQL Database crawler: a run no longer fails when a statement produces the same relationship twice. A relationship is identified by the pair of things it links, so two source rows describing the same link — a business role reaching one entitlement through two different source applications, for example — are one link and collapsing them loses nothing. The run used to stop with "rows sharing an id overwrite each other, so 6 were lost" even though the source and the database agreed exactly.
+- The same now applies to owner assignments, which are identified by the resource and the person rather than by an id of their own.
+- A collapse is still reported, so a statement whose join unexpectedly fans out is visible in the verification table.
+- Unchanged: two resources or two accounts sharing an id is still a failure, because there one record really does replace another.
