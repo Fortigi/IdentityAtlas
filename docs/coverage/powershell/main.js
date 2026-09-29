@@ -352,7 +352,7 @@ var assemblies = [
       { "name": "tools/crawlers/mssql/SqlCrawler.Sweep", "rp": "mssql_Sweep.html", "cl": 100, "ucl": 22, "cal": 122, "tl": 334, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/mssql/SqlCrawler.Systems", "rp": "mssql_Systems.html", "cl": 107, "ucl": 3, "cal": 110, "tl": 306, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/mssql/SqlCrawler.Transform", "rp": "mssql_Transform.html", "cl": 148, "ucl": 0, "cal": 148, "tl": 398, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/mssql/SqlCrawler.Verify", "rp": "mssql_Verify.html", "cl": 145, "ucl": 1, "cal": 146, "tl": 453, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/mssql/SqlCrawler.Verify", "rp": "mssql_Verify.html", "cl": 149, "ucl": 1, "cal": 150, "tl": 501, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/mssql/Start-SqlCrawler", "rp": "mssql_tools_crawlers_mssql_Start_SqlCrawler.html", "cl": 0, "ucl": 25, "cal": 25, "tl": 103, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {

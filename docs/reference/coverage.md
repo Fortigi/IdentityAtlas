@@ -8,7 +8,7 @@ Test quality across the project's automated suites — line/branch/method covera
 |-------|------|--------|--------|------------|-----------|----------|---------------|
 | [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 92.6% | 84.4% | 90.5% | 3.5 / 20 | 2.0 / 15 | 86.0% | 12,003 / 12,959 |
 | [UI (React / Vitest)](../coverage/ui/index.html) | 86.2% | 76.8% | 76.4% | 2.8 / 28 | 1.1 / 15 | 69.5% | 8,063 / 9,353 |
-| [PowerShell (Pester)](../coverage/powershell/index.html) | 92.2% | — | 97.4% | 3.8 / 15 | 3.8 / 15 | 100.0% | 7,770 / 8,420 |
+| [PowerShell (Pester)](../coverage/powershell/index.html) | 92.2% | — | 97.4% | 3.8 / 15 | 3.8 / 15 | 100.0% | 7,774 / 8,424 |
 
 **Cyclomatic** / **Cognitive** are _average / max_ per unit (each function, and for PowerShell each script/module body too): PowerShell via [PSComplexity](https://github.com/Fortigi/PSComplexity), JS/TS via ESLint's `complexity` rule + [eslint-plugin-sonarjs](https://github.com/SonarSource/eslint-plugin-sonarjs). **Mutation** is the share of injected faults the tests catch via [PSMutant](https://github.com/Fortigi/PSMutant), PowerShell-only today. A suite without a given signal shows —.
 
@@ -41,4 +41,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-09-29 14:34 UTC from commit `add3e521`._
+_Generated 2026-09-29 14:41 UTC from commit `1811c220`._
