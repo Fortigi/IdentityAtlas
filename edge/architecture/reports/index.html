@@ -3208,6 +3208,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#parameters-that-mean-an-entity-x-lookup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameters that mean an entity — x-lookup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#downloads-and-which-formats-carry-the-notices" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5330,6 +5341,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#parameters-that-mean-an-entity-x-lookup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameters that mean an entity — x-lookup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#downloads-and-which-formats-carry-the-notices" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5586,6 +5608,68 @@ know renders an explanatory panel rather than breaking the page.</p>
 the same question, so they must not be able to drift apart. Note that before account linking has run
 there are no <code>IdentityMembers</code> at all, so every account is legitimately listed — the report's
 description says so.</p>
+<h2 id="parameters-that-mean-an-entity-x-lookup">Parameters that mean an entity — <code>x-lookup</code><a class="headerlink" href="#parameters-that-mean-an-entity-x-lookup" title="Permanent link">&para;</a></h2>
+<p>A parameter whose value is an entity (an application, a system, a business role) should be <strong>picked</strong>,
+not typed: a name can match several entities, and a report parameterised by a typed name silently
+runs over all of them.</p>
+<p>A template says so with one annotation, and nothing else changes:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nx">applications</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="s1">'array'</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s1">'Logical applications'</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="s1">'x-lookup'</span><span class="o">:</span><span class="w"> </span><span class="s1">'logical-applications'</span><span class="p">,</span><span class="w">        </span><span class="c1">// a source name, not a query</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="s1">'x-lookupPlaceholder'</span><span class="o">:</span><span class="w"> </span><span class="s1">'Search logical applications…'</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">},</span>
+</code></pre></div>
+<p><code>SchemaConfigForm</code> checks <code>x-lookup</code> <strong>before</strong> <code>type</code>, because it says what the value <em>means</em> while
+<code>type</code> only says how it is carried, and renders <code>components/inputs/EntityLookup</code>. The stored value is
+still an array of strings, so a hand-written URL and an older bookmark keep working. Same annotation
+style as <code>x-attributeSource</code> in the context-plugin schemas.</p>
+<p>The server half is a registry with the same shape as the report registry — <code>app/api/src/lookups/</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>Job</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lookups/types.js</code></td>
+<td>the <code>LookupSource</code> contract: <code>name</code>, <code>displayName</code>, <code>search({q, limit})</code>, optional <code>resolve({ids})</code></td>
+</tr>
+<tr>
+<td><code>lookups/sources/&lt;name&gt;.js</code></td>
+<td>one source; returns <strong>options</strong> (<code>value</code> / <code>label</code> / <code>hint</code>), never rows</td>
+</tr>
+<tr>
+<td><code>lookups/sources/index.js</code></td>
+<td>the one registration line</td>
+</tr>
+<tr>
+<td><code>lookups/registry.js</code></td>
+<td><code>registerLookup</code> / <code>getLookup</code> / <code>listLookups</code></td>
+</tr>
+<tr>
+<td><code>routes/lookups.js</code></td>
+<td><code>GET /api/lookups</code>, <code>GET /api/lookups/:source?q=</code> and <code>?ids=</code></td>
+</tr>
+</tbody>
+</table>
+<p>Adding a lookup is a source file plus one index line. The route, the registry and the form never name
+a source — <code>routes/lookups.test.js</code> proves it by registering one the route has never heard of.</p>
+<p>Three details that are load-bearing rather than decorative:</p>
+<ul>
+<li><strong>The source normalises, the client does not.</strong> Returning <code>{ value, label, hint }</code> is what lets one
+  control render every source; a client that knew about contexts could not also render systems.</li>
+<li><strong>The response echoes <code>q</code>.</strong> A reply for an earlier keystroke arriving late is discarded instead of
+  drawn over the current one. Without it the list flickers backwards under fast typing — the same
+  guard <code>/api/matrix/column-values</code> makes by echoing <code>column</code>.</li>
+<li><strong><code>resolve({ids})</code> exists so a bookmark reads as names.</strong> Ids that arrive in a URL are turned back
+  into labels; a source may omit it, and the chips then show the raw ids.</li>
+</ul>
+<p><code>EntityLookup</code> is deliberately <strong>not</strong> a merge of <code>PeoplePicker</code>. That one's value is a list of
+objects keyed on a person's sign-in name, because a share recipient is matched on that string rather
+than on a directory id — a different contract from "a list of entity ids".</p>
 <h2 id="downloads-and-which-formats-carry-the-notices">Downloads, and which formats carry the notices<a class="headerlink" href="#downloads-and-which-formats-carry-the-notices" title="Permanent link">&para;</a></h2>
 <p><code>app/api/src/reports/export.js</code> is keyed on the <strong>format</strong> name, never on a report name, so every
 registered template is downloadable the moment it exists. Today: <code>csv</code>, <code>xlsx</code>, <code>json</code> — in that
@@ -5595,7 +5679,7 @@ really a statement about CSV rather than about downloads: a CSV <em>is</em> a ta
 header row breaks every parser that reads it. A workbook has room above the table and a reader who
 expects context there.</p>
 <p>So the decision belongs to the format and is declared there:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nx">xlsx</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">contentType</span><span class="o">:</span><span class="w"> </span><span class="s1">'…spreadsheetml.sheet'</span><span class="p">,</span><span class="w"> </span><span class="nx">carriesNotices</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nx">serialize</span><span class="o">:</span><span class="w"> </span><span class="nx">toXlsx</span><span class="w"> </span><span class="p">},</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nx">xlsx</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">contentType</span><span class="o">:</span><span class="w"> </span><span class="s1">'…spreadsheetml.sheet'</span><span class="p">,</span><span class="w"> </span><span class="nx">carriesNotices</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nx">serialize</span><span class="o">:</span><span class="w"> </span><span class="nx">toXlsx</span><span class="w"> </span><span class="p">},</span>
 </code></pre></div>
 <p><code>routes/reports.js</code> strips <code>notices</code> for every format that does not claim them, so <strong>csv and json are
 byte-for-byte what they were</strong>. A future format (pdf, html) opts in the same way, and the route still
