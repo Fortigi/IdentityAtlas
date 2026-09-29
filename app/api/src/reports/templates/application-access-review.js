@@ -183,7 +183,13 @@ export default {
       applications: {
         type: 'array',
         title: 'Logical applications',
-        description: 'One or more logical applications, by name or by id, comma-separated.',
+        description: 'Pick one or more. Picking from the list stores the application\'s id, so a '
+          + 'name shared by several applications can no longer select all of them by accident.',
+        // Offered as a searchable list rather than typed from memory. The value
+        // is still an array of strings, so a hand-written URL and an older
+        // bookmark keep working — see app/api/src/lookups/.
+        'x-lookup': 'logical-applications',
+        'x-lookupPlaceholder': 'Search logical applications…',
       },
     },
   },

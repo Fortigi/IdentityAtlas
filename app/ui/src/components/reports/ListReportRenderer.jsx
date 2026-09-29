@@ -46,10 +46,18 @@ export default function ListReportRenderer({ report, onOpenDetail }) {
   );
 
   if (rows.length === 0) {
+    // A report that returned notices has already said why it is empty — it is
+    // waiting for a parameter, a name matched nothing, an application has no
+    // entitlements. Those notices are rendered above this table, so adding
+    // "refresh after the next crawler run" here contradicts them and sends the
+    // reader after a data problem that does not exist. Only one explanation
+    // survives, and the report's own beats the engine's guess.
+    const explained = (report.notices || []).length > 0;
     return (
       <EmptyState
         title="No rows"
-        hint={`${report.displayName} found nothing to report on the current data. Refresh after the next crawler or account-linking run to check again.`}
+        hint={explained ? undefined
+          : `${report.displayName} found nothing to report on the current data. Refresh after the next crawler or account-linking run to check again.`}
       />
     );
   }

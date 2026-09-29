@@ -94,6 +94,55 @@ the same question, so they must not be able to drift apart. Note that before acc
 there are no `IdentityMembers` at all, so every account is legitimately listed — the report's
 description says so.
 
+## Parameters that mean an entity — `x-lookup`
+
+A parameter whose value is an entity (an application, a system, a business role) should be **picked**,
+not typed: a name can match several entities, and a report parameterised by a typed name silently
+runs over all of them.
+
+A template says so with one annotation, and nothing else changes:
+
+```js
+applications: {
+  type: 'array',
+  title: 'Logical applications',
+  'x-lookup': 'logical-applications',        // a source name, not a query
+  'x-lookupPlaceholder': 'Search logical applications…',
+},
+```
+
+`SchemaConfigForm` checks `x-lookup` **before** `type`, because it says what the value *means* while
+`type` only says how it is carried, and renders `components/inputs/EntityLookup`. The stored value is
+still an array of strings, so a hand-written URL and an older bookmark keep working. Same annotation
+style as `x-attributeSource` in the context-plugin schemas.
+
+The server half is a registry with the same shape as the report registry — `app/api/src/lookups/`:
+
+| Piece | Job |
+|---|---|
+| `lookups/types.js` | the `LookupSource` contract: `name`, `displayName`, `search({q, limit})`, optional `resolve({ids})` |
+| `lookups/sources/<name>.js` | one source; returns **options** (`value` / `label` / `hint`), never rows |
+| `lookups/sources/index.js` | the one registration line |
+| `lookups/registry.js` | `registerLookup` / `getLookup` / `listLookups` |
+| `routes/lookups.js` | `GET /api/lookups`, `GET /api/lookups/:source?q=` and `?ids=` |
+
+Adding a lookup is a source file plus one index line. The route, the registry and the form never name
+a source — `routes/lookups.test.js` proves it by registering one the route has never heard of.
+
+Three details that are load-bearing rather than decorative:
+
+- **The source normalises, the client does not.** Returning `{ value, label, hint }` is what lets one
+  control render every source; a client that knew about contexts could not also render systems.
+- **The response echoes `q`.** A reply for an earlier keystroke arriving late is discarded instead of
+  drawn over the current one. Without it the list flickers backwards under fast typing — the same
+  guard `/api/matrix/column-values` makes by echoing `column`.
+- **`resolve({ids})` exists so a bookmark reads as names.** Ids that arrive in a URL are turned back
+  into labels; a source may omit it, and the chips then show the raw ids.
+
+`EntityLookup` is deliberately **not** a merge of `PeoplePicker`. That one's value is a list of
+objects keyed on a person's sign-in name, because a share recipient is matched on that string rather
+than on a directory id — a different contract from "a list of entity ids".
+
 ## Downloads, and which formats carry the notices
 
 `app/api/src/reports/export.js` is keyed on the **format** name, never on a report name, so every

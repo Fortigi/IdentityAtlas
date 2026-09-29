@@ -99,6 +99,28 @@ describe('ListReportRenderer', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
+  it('does not guess at a reason when the report already gave one', () => {
+    // The notices are rendered above this table by ReportViewPage. A report
+    // waiting for a parameter would otherwise be told, underneath its own
+    // "name an application" notice, to refresh after the next crawler run —
+    // sending the reader after a data problem that does not exist.
+    renderWithProviders(<ListReportRenderer report={report({
+      rows: [],
+      notices: [{ severity: 'info', text: 'Name one or more logical applications to review.' }],
+    })} />);
+
+    expect(screen.getByText('No rows')).toBeInTheDocument();
+    expect(screen.queryByText(/found nothing to report on the current data/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Refresh after the next crawler/)).not.toBeInTheDocument();
+  });
+
+  it('still explains itself when the report said nothing at all', () => {
+    // The discriminating pair for the case above: an empty `notices` array is
+    // not an explanation, so the engine's hint is still the only one there is.
+    renderWithProviders(<ListReportRenderer report={report({ rows: [], notices: [] })} />);
+    expect(screen.getByText(/Orphaned Accounts found nothing/)).toBeInTheDocument();
+  });
+
   it('tolerates a response with neither columns nor rows', () => {
     renderWithProviders(<ListReportRenderer report={{ displayName: 'Empty Report' }} />);
     expect(screen.getByText('No rows')).toBeInTheDocument();

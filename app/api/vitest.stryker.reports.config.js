@@ -21,6 +21,9 @@ export default defineConfig({
     include: [
       'src/reports/export.test.js',
       'src/reports/registry.test.js',
+      'src/lookups/registry.test.js',
+      'src/lookups/sources/logicalApplications.test.js',
+      'src/routes/lookups.test.js',
       'src/reports/templates/application-access-review.test.js',
       'src/reports/templates/orphaned-accounts.test.js',
       'src/routes/reports.test.js',

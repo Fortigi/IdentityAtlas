@@ -56,6 +56,7 @@ import resourcesRouter from './routes/resources.js';
 import attributeLabelsRouter from './routes/attributeLabels.js';
 import contextsRouter from './routes/contexts.js';
 import contextPluginsRouter from './routes/contextPlugins.js';
+import lookupsRouter from './routes/lookups.js';
 import reportsRouter from './routes/reports.js';
 import nlReportsRouter from './routes/nlReports.js';
 import contextAssistantRouter from './routes/contextAssistant.js';
@@ -387,6 +388,7 @@ export function createApp() {
   app.use('/api', authMiddleware, contextsRouter);
   // Reports — an analyst read surface (it exposes nothing the Contexts page
   // doesn't already show), so plain auth, no admin permission gate.
+  app.use('/api', authMiddleware, lookupsRouter);
   app.use('/api', authMiddleware, reportsRouter);
   // Custom reports + the local-model report generator (read-only queries).
   // The experimental-feature gate and the permission gate are applied PER ROUTE
