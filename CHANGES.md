@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Release notes now list the dependency updates a release actually ships: a "Dependency updates" section naming each package that moved, what it moved from and to, and any change to the container base images. Previously a release made up only of library upgrades produced notes with nothing in them, which was exactly the release where operators most needed to see which versions changed.
+- The section reports only what reaches the published image — the API's installed production packages, the libraries bundled into the UI, and the pinned base images — so build- and test-only tooling no longer crowds out the updates that matter.
+- Fixed the release a set of notes is compared against. Patch releases cut from a maintained release line were compared against the newest release overall, so a patch could be described as removing everything a later version had added; a release that was the first of its series could lose its change list and changelog link entirely. Both release workflows now determine this the same way.
+- Added documentation covering how a release's notes are assembled, and corrected the branching guide, which stated that releases can only be cut from the tip of the main branch.
+- No change to behaviour from the lockfile-reading split; it is the same parsing in three smaller pieces.
+
+## Changes in this PR
+
 - The SQL connector can now refresh incrementally instead of re-reading its whole source. A query opts in by naming the column it advances on (e.g. `modified`) and referencing `@Since` in its SQL; the crawler then reads only the rows that changed since the last successful run. The shipped IdentityIQ example does this for the two entitlement-grant queries, which are the ones large enough for a full read to be an overnight job.
 - Removals are found by a periodic **key sweep**: the query's complete set of ids is read and anything Identity Atlas still holds but the source no longer has is removed. It runs at most once every `sweepIntervalHours` (a day by default), so a removal shows within one interval while routine refreshes stay small.
 - A sweep refuses to remove more than 5% of a scope in one go, and writes nothing when it would — a source read while it is being re-aggregated looks exactly like a mass revocation. `sweepOverride` lets a genuinely large removal through for one run.
