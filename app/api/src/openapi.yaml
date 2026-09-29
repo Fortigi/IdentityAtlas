@@ -2240,10 +2240,10 @@ components:
             type: object
             required: [name]
             properties:
-              name: { type: string, description: Tab name. }
-              rows: { type: array, items: { type: string }, description: Row fields, outermost first. }
-              filters: { type: array, items: { type: string }, description: Filter fields. }
-              values: { type: array, items: { type: string }, description: Summed fields. }
+              name: { type: string, description: "Tab name." }
+              rows: { type: array, items: { type: string }, description: "Row fields, outermost first." }
+              filters: { type: array, items: { type: string }, description: "Filter fields." }
+              values: { type: array, items: { type: string }, description: "Summed fields." }
         source:
           type: string
           enum: [builtin, custom]
