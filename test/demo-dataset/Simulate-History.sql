@@ -14,6 +14,30 @@
 
 BEGIN;
 
+-- 0. Give every live row an insert event to back-date. A system's initial load
+--    no longer writes one per row (migration 073) — only one anchor event per
+--    table and system — so the demo's rows arrive without any. Synthesised with
+--    the same rowId shape the audit trigger uses (migration 022), and only where
+--    the row has no insert event yet, so running this twice adds nothing.
+INSERT INTO "_history" ("tableName", "rowId", "operation", "rowData", "prevData")
+SELECT 'Principals', p.id::text, 'I', to_jsonb(p) - 'photo', NULL
+  FROM "Principals" p
+ WHERE NOT EXISTS (SELECT 1 FROM "_history" h
+                    WHERE h."tableName" = 'Principals' AND h."rowId" = p.id::text AND h."operation" = 'I');
+
+INSERT INTO "_history" ("tableName", "rowId", "operation", "rowData", "prevData")
+SELECT 'Resources', r.id::text, 'I', to_jsonb(r), NULL
+  FROM "Resources" r
+ WHERE NOT EXISTS (SELECT 1 FROM "_history" h
+                    WHERE h."tableName" = 'Resources' AND h."rowId" = r.id::text AND h."operation" = 'I');
+
+INSERT INTO "_history" ("tableName", "rowId", "operation", "rowData", "prevData")
+SELECT 'ResourceAssignments', k.key, 'I', to_jsonb(ra), NULL
+  FROM "ResourceAssignments" ra
+ CROSS JOIN LATERAL (SELECT COALESCE(ra."resourceId"::text, '') || '|' || COALESCE(ra."principalId"::text, '') || '|' || COALESCE(ra."assignmentType", '') AS key) k
+ WHERE NOT EXISTS (SELECT 1 FROM "_history" h
+                    WHERE h."tableName" = 'ResourceAssignments' AND h."rowId" = k.key AND h."operation" = 'I');
+
 -- 1. Baseline: every initial insert happened 180 days ago.
 UPDATE "_history" SET "changedAt" = now() - INTERVAL '180 days';
 

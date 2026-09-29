@@ -227,6 +227,29 @@ const isBusinessRoleType = (c) => c?.type === 'field' && c.field === 'resourceTy
  * Where the entity has a businessRoles relation, that is what was meant.
  * @returns {{ spec: object, notes: string[] }}
  */
+/** A resourceType = BusinessRole condition on something that HAS no resource type. */
+const strayRoleType = (condition, owner) => isBusinessRoleType(condition) && !owner?.fields?.resourceType;
+
+/**
+ * One condition, rewritten. Returns what to keep (possibly nothing) and whether a
+ * business-role condition was taken out of it — which is what tells the caller to
+ * put the relation in its place.
+ * @returns {{ keep: object|null, stray: boolean }}
+ */
+function withoutStrayRoleType(condition, owner, recurse) {
+  if (strayRoleType(condition, owner)) return { keep: null, stray: true };
+  if (condition.type === 'relation') {
+    const target = ENTITIES[owner.relations?.[condition.relation]?.target];
+    const had = condition.conditions ?? [];
+    const inner = had.filter(x => !strayRoleType(x, target));
+    if (inner.length !== had.length) {
+      return { keep: inner.length ? { ...condition, conditions: inner } : null, stray: true };
+    }
+  }
+  if (condition.type === 'group') return { keep: { ...condition, conditions: recurse(condition.conditions, owner) }, stray: false };
+  return { keep: condition, stray: false };
+}
+
 export function accessPackageAsRelation(spec) {
   const entity = ENTITIES[spec?.entity];
   if (!entity?.relations?.businessRoles) return { spec, notes: [] };
@@ -235,20 +258,16 @@ export function accessPackageAsRelation(spec) {
   const fix = (conditions, owner) => {
     const out = [];
     let wanted = false;
-    for (const c of conditions ?? []) {
-      if (isBusinessRoleType(c) && !owner.fields?.resourceType) { wanted = true; continue; }
-      if (c.type === 'relation') {
-        const target = ENTITIES[owner.relations?.[c.relation]?.target];
-        const inner = (c.conditions ?? []).filter(x => !(isBusinessRoleType(x) && target && !target.fields?.resourceType));
-        if (inner.length !== (c.conditions ?? []).length) {
-          wanted = true;
-          if (inner.length) out.push({ ...c, conditions: inner });
-          continue;
-        }
-      }
-      out.push(c.type === 'group' ? { ...c, conditions: fix(c.conditions, owner) } : c);
+    for (const condition of conditions ?? []) {
+      const { keep, stray } = withoutStrayRoleType(condition, owner, fix);
+      if (stray) wanted = true;
+      if (keep) out.push(keep);
     }
-    if (wanted && !out.some(c => c.type === 'relation' && c.relation === 'businessRoles')) { out.push(inRole()); moved++; } else if (wanted) moved++;
+    if (!wanted) return out;
+    moved++;
+    // The relation stands in for what was taken out — unless the definition
+    // already says it, in which case it said the same thing twice.
+    if (!out.some(c => c.type === 'relation' && c.relation === 'businessRoles')) out.push(inRole());
     return out;
   };
   const conditions = fix(spec.conditions, entity);

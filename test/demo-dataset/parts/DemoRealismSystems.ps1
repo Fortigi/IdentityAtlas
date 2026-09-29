@@ -190,55 +190,85 @@ function Add-DemoRealismRoleHolders {
     is what makes "service principals that own an application" a real question),
     and three have no owner at all.
 #>
+# Which group's members hold an application role, and what share of them. An
+# administrator role is held by everyone in the admin group; a reporting role by a
+# quarter of the users. Doing it twice — a group AND an app role — is what a real
+# tenant looks like after two people solved the same problem.
+function Get-DemoRealismAppRoleSource {
+    param(
+        [Parameter(Mandatory)][string]$AppKey,
+        [Parameter(Mandatory)][string]$Role
+    )
+    $groupKey = if ($Role -eq 'Beheerder') { "app-$AppKey-admins" } else { "app-$AppKey-users" }
+    $share = switch ($Role) { 'Beheerder' { 100 } 'Rapportage' { 25 } default { 60 } }
+    return @{ GroupKey = $groupKey; Share = $share }
+}
+
+# One application role: the resource, its edge to the application, and its holders.
+function Add-DemoRealismAppRole {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)]$App,
+        [Parameter(Mandatory)][string]$Role,
+        [Parameter(Mandatory)][string]$AppId
+    )
+    $roleKey = "$($App.Key)-$Role"
+    $roleId = Add-DemoResource $State -Id (New-DemoGuid "res-realism-approle-$roleKey") `
+        -DisplayName "$($App.Name) - $Role" -ResourceType 'AppRole' -SystemId $State.SystemIds['entra'] `
+        -Description "Applicatierol $Role in $($App.Name)"
+    Add-DemoRelationship $State -ParentResourceId $AppId -ChildResourceId $roleId -RelationshipType 'HasAppRole'
+    $State.Realism.AppRoles[$roleKey] = @{ id = $roleId; app = $App.Key; role = $Role }
+
+    $source = Get-DemoRealismAppRoleSource -AppKey $App.Key -Role $Role
+    if (-not $State.Realism.GroupMembers.ContainsKey($source.GroupKey)) { return }
+    $i = 0
+    foreach ($principal in $State.Realism.GroupMembers[$source.GroupKey]) {
+        $i++
+        if ((Get-DemoIndex -Seed "approle-$roleKey-$i" -Modulo 100) -lt $source.Share) {
+            Add-DemoAssignment $State -ResourceId $roleId -PrincipalId $principal -AssignmentType 'Direct'
+        }
+    }
+}
+
+# Who owns an application: the first six a person, the next three a service
+# principal (which is what makes "service principals that own an application" a
+# real question), and the rest nobody at all.
+function Add-DemoRealismAppOwner {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)]$App,
+        [Parameter(Mandatory)][string]$AppId,
+        [Parameter(Mandatory)][int]$Ordinal
+    )
+    if ($Ordinal -le 6) {
+        $people = @($State.Realism.People)
+        $owner = $people[(Get-DemoIndex -Seed "appowner-$($App.Key)" -Modulo $people.Count)]
+        Add-DemoRealismOwnership $State -AppId $AppId -AppName $App.Name -Key $App.Key `
+            -PrincipalId (Get-DemoPrincipalId $owner.id) -Kind 'ApplicationOwnership'
+        return
+    }
+    if ($Ordinal -le 9) {
+        $serviceAccounts = @($State.Realism.NonHuman.Keys | Where-Object { $_ -like 'RSVC-*' })
+        $svcKey = $serviceAccounts[(Get-DemoIndex -Seed "appownersvc-$($App.Key)" -Modulo $serviceAccounts.Count)]
+        Add-DemoRealismOwnership $State -AppId $AppId -AppName $App.Name -Key $App.Key `
+            -PrincipalId $State.Realism.NonHuman[$svcKey] -Kind 'ServicePrincipalOwnership'
+    }
+}
+
 function Add-DemoRealismApplications {
     param([Parameter(Mandatory)]$State)
-
-    $sysEntra = $State.SystemIds['entra']
-    $people = @($State.Realism.People)
-    $serviceAccounts = @($State.Realism.NonHuman.Keys | Where-Object { $_ -like 'RSVC-*' })
 
     $n = 0
     foreach ($app in $script:RealismApps) {
         $n++
         $appId = Add-DemoResource $State -Id (New-DemoGuid "res-realism-app-$($app.Key)") `
-            -DisplayName "$($app.Name) (applicatie)" -ResourceType 'Application' -SystemId $sysEntra `
+            -DisplayName "$($app.Name) (applicatie)" -ResourceType 'Application' -SystemId $State.SystemIds['entra'] `
             -Description "Enterprise application voor $($app.Name)"
 
         foreach ($role in $script:RealismAppRoles) {
-            $roleKey = "$($app.Key)-$role"
-            $roleId = Add-DemoResource $State -Id (New-DemoGuid "res-realism-approle-$roleKey") `
-                -DisplayName "$($app.Name) - $role" -ResourceType 'AppRole' -SystemId $sysEntra `
-                -Description "Applicatierol $role in $($app.Name)"
-            Add-DemoRelationship $State -ParentResourceId $appId -ChildResourceId $roleId -RelationshipType 'HasAppRole'
-            $State.Realism.AppRoles[$roleKey] = @{ id = $roleId; app = $app.Key; role = $role }
-
-            # Who holds the role: the members of the matching group, so the app
-            # role and the group access tell the same story — the way a real
-            # tenant ends up, having done it twice.
-            $groupKey = if ($role -eq 'Beheerder') { "app-$($app.Key)-admins" } else { "app-$($app.Key)-users" }
-            $share = switch ($role) { 'Beheerder' { 100 } 'Rapportage' { 25 } default { 60 } }
-            if ($State.Realism.GroupMembers.ContainsKey($groupKey)) {
-                $i = 0
-                foreach ($principal in $State.Realism.GroupMembers[$groupKey]) {
-                    $i++
-                    if ((Get-DemoIndex -Seed "approle-$roleKey-$i" -Modulo 100) -lt $share) {
-                        Add-DemoAssignment $State -ResourceId $roleId -PrincipalId $principal -AssignmentType 'Direct'
-                    }
-                }
-            }
+            Add-DemoRealismAppRole $State -App $app -Role $role -AppId $appId
         }
-
-        # Ownership: people, then service principals, then three with nobody.
-        if ($n -le 6) {
-            $owner = $people[(Get-DemoIndex -Seed "appowner-$($app.Key)" -Modulo $people.Count)]
-            Add-DemoRealismOwnership $State -AppId $appId -AppName $app.Name -Key $app.Key `
-                -PrincipalId (Get-DemoPrincipalId $owner.id) -Kind 'ApplicationOwnership'
-        }
-        elseif ($n -le 9) {
-            $svcKey = $serviceAccounts[(Get-DemoIndex -Seed "appownersvc-$($app.Key)" -Modulo $serviceAccounts.Count)]
-            Add-DemoRealismOwnership $State -AppId $appId -AppName $app.Name -Key $app.Key `
-                -PrincipalId $State.Realism.NonHuman[$svcKey] -Kind 'ServicePrincipalOwnership'
-        }
+        Add-DemoRealismAppOwner $State -App $app -AppId $appId -Ordinal $n
     }
 }
 

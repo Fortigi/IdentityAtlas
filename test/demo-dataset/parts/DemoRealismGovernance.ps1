@@ -107,6 +107,72 @@ function Add-DemoRealismGovernance {
     the holder does not already hold directly — an Indirect assignment, minus the
     one in twelve left out as a provisioning gap.
 #>
+# Everything a role grants, as Contains edges: the groups and the application
+# roles. Returns the resource ids, which is what a holder's memberships are
+# materialised from. A key that names nothing is skipped rather than fatal, so a
+# role can mention a group a later slice adds.
+function Add-DemoRealismRoleGrants {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)][string]$RoleId,
+        [AllowEmptyCollection()][string[]]$GroupKeys,
+        [AllowEmptyCollection()][string[]]$AppRoleKeys
+    )
+    $grants = [System.Collections.Generic.List[object]]::new()
+    foreach ($groupKey in $GroupKeys) {
+        $group = $State.Realism.Groups[$groupKey]
+        if (-not $group) { continue }
+        Add-DemoRelationship $State -ParentResourceId $RoleId -ChildResourceId $group.id -RelationshipType 'Contains' -RoleName 'Member'
+        $grants.Add($group.id)
+    }
+    foreach ($appRoleKey in $AppRoleKeys) {
+        if (-not $State.Realism.AppRoles.Contains($appRoleKey)) { continue }
+        Add-DemoRelationship $State -ParentResourceId $RoleId -ChildResourceId $State.Realism.AppRoles[$appRoleKey].id `
+            -RelationshipType 'Contains' -RoleName 'Member'
+        $grants.Add($State.Realism.AppRoles[$appRoleKey].id)
+    }
+    # As above: the comma keeps a one-item list from arriving as a bare value.
+    return , $grants.ToArray()
+}
+
+<#
+.SYNOPSIS
+    What holding the role actually got one person.
+.DESCRIPTION
+    The role assignment is the intent; the memberships it confers are the fact, and
+    the two are allowed to disagree. One holder in twelve is missing one of the
+    things the role grants — a sync that failed and nobody noticed, which is the
+    finding a governance report exists to surface. A membership the person already
+    holds directly is left alone: that is drift the other way, and the governed flag
+    is what tells the two apart.
+#>
+function Add-DemoRealismRoleGrantsToHolder {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)][string]$Key,
+        [Parameter(Mandatory)][string]$PrincipalId,
+        [AllowEmptyCollection()][object[]]$Grants = @()
+    )
+    $gapAt = Get-DemoIndex -Seed "gap-$Key-$PrincipalId" -Modulo $script:RealismGapRate
+    $n = 0
+    foreach ($grantId in $Grants) {
+        $skip = ($n -eq $gapAt)
+        $n++
+        if ($skip) { continue }
+        if ($State.Realism.Held.Add("$grantId|$PrincipalId")) {
+            Add-DemoAssignment $State -ResourceId $grantId -PrincipalId $PrincipalId -AssignmentType 'Indirect'
+        }
+    }
+}
+
+<#
+.SYNOPSIS
+    One business role, its contents, and the assignments that follow from it.
+.DESCRIPTION
+    Contains-edges for every group and application role it grants, a governed Direct
+    assignment per holder, the memberships those confer (minus the deliberate gap),
+    and an Eligible assignment for everyone who may only request it.
+#>
 function Add-DemoRealismRole {
     param(
         [Parameter(Mandatory)]$State,
@@ -124,37 +190,15 @@ function Add-DemoRealismRole {
         -Description $Description -CatalogId $CatalogId
     $State.Realism.Roles[$Key] = @{ id = $roleId; name = $Name }
 
-    # What the role grants.
-    $grants = [System.Collections.Generic.List[object]]::new()
-    foreach ($groupKey in $GroupKeys) {
-        $group = $State.Realism.Groups[$groupKey]
-        if (-not $group) { continue }
-        Add-DemoRelationship $State -ParentResourceId $roleId -ChildResourceId $group.id -RelationshipType 'Contains' -RoleName 'Member'
-        $grants.Add($group.id)
-    }
-    foreach ($appRoleKey in $AppRoleKeys) {
-        if (-not $State.Realism.AppRoles.Contains($appRoleKey)) { continue }
-        $appRole = $State.Realism.AppRoles[$appRoleKey]
-        Add-DemoRelationship $State -ParentResourceId $roleId -ChildResourceId $appRole.id -RelationshipType 'Contains' -RoleName 'Member'
-        $grants.Add($appRole.id)
-    }
+    # No @() around the call: the helper already returns the array whole (see the
+    # unary comma in it), and wrapping it again would nest one array inside another.
+    $grants = Add-DemoRealismRoleGrants $State -RoleId $roleId -GroupKeys $GroupKeys -AppRoleKeys $AppRoleKeys
 
-    # Who holds it, and what that gets them.
     $holderIds = [System.Collections.Generic.List[string]]::new()
     foreach ($principalId in $Holders) {
         Add-DemoAssignment $State -ResourceId $roleId -PrincipalId $principalId -AssignmentType 'Direct' -Governed
         $holderIds.Add($principalId)
-
-        $gapAt = Get-DemoIndex -Seed "gap-$Key-$principalId" -Modulo $script:RealismGapRate
-        $n = 0
-        foreach ($grantId in $grants) {
-            # The gap: one holder in twelve does not get one of the things.
-            if ($n -eq $gapAt) { $n++; continue }
-            $n++
-            if ($State.Realism.Held.Add("$grantId|$principalId")) {
-                Add-DemoAssignment $State -ResourceId $grantId -PrincipalId $principalId -AssignmentType 'Indirect'
-            }
-        }
+        Add-DemoRealismRoleGrantsToHolder $State -Key $Key -PrincipalId $principalId -Grants $grants
     }
     foreach ($principalId in $EligibleHolders) {
         Add-DemoAssignment $State -ResourceId $roleId -PrincipalId $principalId -AssignmentType 'Eligible'
@@ -188,44 +232,63 @@ function Add-DemoRealismDeptRoles {
 }
 
 # The roles that cross applications — including the three you can only request.
+# Who holds a function role. A role with a department is held by a share of that
+# department; the partner role has none, and is held by the guests who accepted
+# their invitation — which is what an access package for externals looks like.
+function Get-DemoRealismRoleHolders {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)]$Role
+    )
+    $holders = [System.Collections.Generic.List[string]]::new()
+    if (-not $Role.Dept) {
+        foreach ($guest in $State.Realism.Guests) {
+            if (-not $guest.pending) { $holders.Add($guest.principalId) }
+        }
+        # The unary comma keeps the array whole: PowerShell unrolls a returned
+        # collection, so one holder would come back as a bare string and none as
+        # $null. Same trap as New-DemoState's lists.
+        return , $holders.ToArray()
+    }
+    foreach ($person in $State.Realism.ByDept[$Role.Dept]) {
+        if ((Get-DemoIndex -Seed "funcrole-$($Role.Key)-$($person.id)" -Modulo 100) -lt $Role.Share) {
+            $holders.Add((Get-DemoPrincipalId $person.id))
+        }
+    }
+    return , $holders.ToArray()
+}
+
+# Who may REQUEST it. Drawn from outside the holders on purpose: "can this person
+# activate it" and "does this person have it" must have different answers for the
+# same name, or the eligible column proves nothing.
+function Get-DemoRealismEligibleHolders {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)]$Role,
+        [AllowEmptyCollection()][string[]]$Holders = @()
+    )
+    $eligible = [System.Collections.Generic.List[string]]::new()
+    if (-not $Role.ContainsKey('Eligible')) { return , $eligible.ToArray() }
+
+    $candidates = @($State.Realism.People | Where-Object { $Holders -notcontains (Get-DemoPrincipalId $_.id) })
+    for ($n = 0; $n -lt $Role.Eligible; $n++) {
+        $principalId = Get-DemoPrincipalId $candidates[(Get-DemoIndex -Seed "elig-$($Role.Key)-$n" -Modulo $candidates.Count)].id
+        if (-not $eligible.Contains($principalId)) { $eligible.Add($principalId) }
+    }
+    return , $eligible.ToArray()
+}
+
 function Add-DemoRealismFunctionRoles {
     param(
         [Parameter(Mandatory)]$State,
         [Parameter(Mandatory)]$Catalogs
     )
     foreach ($role in $script:RealismFunctionRoles) {
-        $holders = [System.Collections.Generic.List[string]]::new()
-        $eligible = [System.Collections.Generic.List[string]]::new()
-
-        if ($role.Dept) {
-            foreach ($person in $State.Realism.ByDept[$role.Dept]) {
-                if ((Get-DemoIndex -Seed "funcrole-$($role.Key)-$($person.id)" -Modulo 100) -lt $role.Share) {
-                    $holders.Add((Get-DemoPrincipalId $person.id))
-                }
-            }
-        }
-        else {
-            # The partner role is held by guests, which is what an access package
-            # for externals really looks like.
-            foreach ($guest in $State.Realism.Guests) {
-                if (-not $guest.pending) { $holders.Add($guest.principalId) }
-            }
-        }
-
-        # Eligibility is drawn from OUTSIDE the holders: the population that could
-        # ask for the role but does not have it.
-        if ($role.ContainsKey('Eligible')) {
-            $candidates = @($State.Realism.People | Where-Object { -not $holders.Contains((Get-DemoPrincipalId $_.id)) })
-            for ($n = 0; $n -lt $role.Eligible; $n++) {
-                $person = $candidates[(Get-DemoIndex -Seed "elig-$($role.Key)-$n" -Modulo $candidates.Count)]
-                $principalId = Get-DemoPrincipalId $person.id
-                if (-not $eligible.Contains($principalId)) { $eligible.Add($principalId) }
-            }
-        }
-
+        $holders = Get-DemoRealismRoleHolders -State $State -Role $role
+        $eligible = Get-DemoRealismEligibleHolders -State $State -Role $role -Holders $holders
         $null = Add-DemoRealismRole $State -Key $role.Key -Name $role.Name -CatalogId $Catalogs[$role.Cat].Id `
             -Description "Functierol $($role.Name)" -GroupKeys $role.Groups -AppRoleKeys $role.AppRoles `
-            -Holders $holders.ToArray() -EligibleHolders $eligible.ToArray()
+            -Holders $holders -EligibleHolders $eligible
     }
 }
 

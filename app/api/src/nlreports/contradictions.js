@@ -93,23 +93,32 @@ export function countSays(c) {
  * relation with conditions under quantifier none is left alone: "has owners,
  * none of them called Jan" is a real report.
  */
+/**
+ * The message for one count field against one relation it counts, or null when
+ * the two can live together. "has owners, none of them called Jan" is a real
+ * report, so a relation with conditions under quantifier none is left alone.
+ */
+function countVersusRelation(field, says, relation) {
+  if (says === 'some' && relation.quantifier === 'none' && !(relation.conditions?.length)) {
+    return `"${field}" above zero and "${relation.relation}" none cannot both hold`
+      + ` — for "without ${relation.relation}" keep only the relation with quantifier none; for "with ${relation.relation}" keep only "${field}" gt 0`;
+  }
+  if (says === 'zero' && relation.quantifier !== 'none') {
+    return `"${field}" of zero and "${relation.relation}" some cannot both hold — keep one of them`;
+  }
+  return null;
+}
+
 function countConflicts(conditions, match, entity) {
   if (match === 'any' || !entity) return [];
-  const found = [];
   const all = conditions ?? [];
+  const found = [];
   for (const c of all.filter(x => x.type === 'field')) {
     const counted = entity.fields?.[c.field]?.counts;
     const says = counted ? countSays(c) : null;
     if (!says) continue;
-    for (const r of all.filter(x => x.type === 'relation' && x.relation === counted)) {
-      if (says === 'some' && r.quantifier === 'none' && !(r.conditions?.length)) {
-        found.push(`"${c.field}" above zero and "${r.relation}" none cannot both hold`
-          + ` — for "without ${r.relation}" keep only the relation with quantifier none; for "with ${r.relation}" keep only "${c.field}" gt 0`);
-      }
-      if (says === 'zero' && r.quantifier !== 'none') {
-        found.push(`"${c.field}" of zero and "${r.relation}" some cannot both hold — keep one of them`);
-      }
-    }
+    const against = all.filter(x => x.type === 'relation' && x.relation === counted);
+    found.push(...against.map(r => countVersusRelation(c.field, says, r)).filter(Boolean));
   }
   return found;
 }

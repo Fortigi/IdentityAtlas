@@ -42,23 +42,29 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# The demo job is normally queued with no config at all, so a missing or
-# unreadable file simply means "all defaults" rather than an error.
-$includeVolumeData = $false
-$includeRealismData = $false
-if (Test-Path $ConfigPath) {
+# Which optional slices this run was asked for.
+#
+# The demo job is normally queued with no config at all, so a missing or unreadable
+# file simply means "all defaults" rather than an error: loading demo data is the
+# point of the job, and refusing to do it because a settings file was not there
+# would be the wrong trade.
+function Get-DemoCrawlerOptions {
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Path)
+
+    $options = @{ IncludeVolume = $false; IncludeRealism = $false }
+    if (-not (Test-Path $Path)) { return $options }
     try {
-        $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
-        if ($config.PSObject.Properties.Name -contains 'includeVolumeData') {
-            $includeVolumeData = [bool]$config.includeVolumeData
-        }
-        if ($config.PSObject.Properties.Name -contains 'includeRealismData') {
-            $includeRealismData = [bool]$config.includeRealismData
-        }
+        $config = Get-Content $Path -Raw | ConvertFrom-Json
+        $named = $config.PSObject.Properties.Name
+        if ($named -contains 'includeVolumeData') { $options.IncludeVolume = [bool]$config.includeVolumeData }
+        if ($named -contains 'includeRealismData') { $options.IncludeRealism = [bool]$config.includeRealismData }
     } catch {
         Write-Host "  Warning: could not read crawler config — using defaults ($($_.Exception.Message))" -ForegroundColor Yellow
     }
+    return $options
 }
+
+$options = Get-DemoCrawlerOptions -Path $ConfigPath
 
 $appRoot     = if ($env:IA_APP_ROOT) { $env:IA_APP_ROOT.TrimEnd('/\') } else { '/app' }
 $datasetPath = "$appRoot/test/demo-dataset/demo-company.json"
@@ -91,11 +97,11 @@ if (Test-Path $genScript) {
     # Both slices are opt-in and independent, so the switches are passed through
     # rather than branched over every combination.
     $genArgs = @{ OutputPath = $datasetPath }
-    if ($includeVolumeData) {
+    if ($options.IncludeVolume) {
         Write-Host "  Including the high-cardinality volume slice" -ForegroundColor Cyan
         $genArgs['IncludeVolume'] = $true
     }
-    if ($includeRealismData) {
+    if ($options.IncludeRealism) {
         Write-Host "  Including the realism slice (~600 staff, several systems, business roles)" -ForegroundColor Cyan
         $genArgs['IncludeRealism'] = $true
     }

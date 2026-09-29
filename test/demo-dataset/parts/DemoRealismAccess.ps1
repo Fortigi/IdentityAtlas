@@ -241,30 +241,55 @@ function Add-DemoRealismMailAccess {
       * one member of a team in five holds one or two applications or projects
         nobody else on their team holds, so the clusters are not perfect.
 #>
+# The groups of a department somebody left: its own group, its applications and
+# its projects. One to three of them stay behind, which is why an account can say
+# Finance while its access says Engineering.
+function Add-DemoRealismPreviousDepartmentAccess {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)]$Person,
+        [Parameter(Mandatory)][string]$PrincipalId
+    )
+    if (-not $Person.prevDept) { return }
+
+    $slug = ($Person.prevDept -replace '\s+', '-')
+    $candidates = @("dept-$slug")
+    $candidates += @($script:RealismApps | Where-Object { $_.Dept -eq $Person.prevDept } | ForEach-Object { "app-$($_.Key)-users" })
+    $candidates += @($script:RealismProjects | Where-Object { $_.Dept -eq $Person.prevDept } | ForEach-Object { "prj-$($_.Key)" })
+
+    $keep = 1 + (Get-DemoIndex -Seed "keep-$($Person.id)" -Modulo 3)
+    for ($n = 0; $n -lt [Math]::Min($keep, $candidates.Count); $n++) {
+        $null = Add-DemoRealismMember $State `
+            -GroupKey $candidates[(Get-DemoIndex -Seed "keepwhich-$($Person.id)-$n" -Modulo $candidates.Count)] `
+            -PrincipalId $PrincipalId
+    }
+}
+
+# The one member of a team in five who holds something nobody else on the team
+# has: a project they were lent to, an application they administer. Without it the
+# clusters would be perfect and role mining trivial.
+function Add-DemoRealismOddExtras {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)]$Person,
+        [Parameter(Mandatory)][string]$PrincipalId
+    )
+    if ((Get-DemoIndex -Seed "odd-$($Person.id)" -Modulo 100) -ge 20) { return }
+
+    $extra = 1 + (Get-DemoIndex -Seed "oddcount-$($Person.id)" -Modulo 2)
+    for ($n = 0; $n -lt $extra; $n++) {
+        $app = $script:RealismApps[(Get-DemoIndex -Seed "oddapp-$($Person.id)-$n" -Modulo $script:RealismApps.Count)]
+        $null = Add-DemoRealismMember $State -GroupKey "app-$($app.Key)-users" -PrincipalId $PrincipalId
+    }
+}
+
 function Add-DemoRealismLegacyAccess {
     param([Parameter(Mandatory)]$State)
 
     foreach ($person in $State.Realism.People) {
         $principal = Get-DemoRealismPrincipal $person
-
-        if ($person.prevDept) {
-            $slug = ($person.prevDept -replace '\s+', '-')
-            $keep = 1 + (Get-DemoIndex -Seed "keep-$($person.id)" -Modulo 3)
-            $candidates = @("dept-$slug")
-            $candidates += @($script:RealismApps | Where-Object { $_.Dept -eq $person.prevDept } | ForEach-Object { "app-$($_.Key)-users" })
-            $candidates += @($script:RealismProjects | Where-Object { $_.Dept -eq $person.prevDept } | ForEach-Object { "prj-$($_.Key)" })
-            for ($n = 0; $n -lt [Math]::Min($keep, $candidates.Count); $n++) {
-                $null = Add-DemoRealismMember $State -GroupKey $candidates[(Get-DemoIndex -Seed "keepwhich-$($person.id)-$n" -Modulo $candidates.Count)] -PrincipalId $principal
-            }
-        }
-
-        if ((Get-DemoIndex -Seed "odd-$($person.id)" -Modulo 100) -lt 20) {
-            $extra = 1 + (Get-DemoIndex -Seed "oddcount-$($person.id)" -Modulo 2)
-            for ($n = 0; $n -lt $extra; $n++) {
-                $app = $script:RealismApps[(Get-DemoIndex -Seed "oddapp-$($person.id)-$n" -Modulo $script:RealismApps.Count)]
-                $null = Add-DemoRealismMember $State -GroupKey "app-$($app.Key)-users" -PrincipalId $principal
-            }
-        }
+        Add-DemoRealismPreviousDepartmentAccess $State -Person $person -PrincipalId $principal
+        Add-DemoRealismOddExtras $State -Person $person -PrincipalId $principal
     }
 }
 

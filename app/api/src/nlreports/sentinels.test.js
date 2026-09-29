@@ -58,3 +58,25 @@ describe('substituteValues with nothing in force', () => {
     expect(substituteValues(spec, undefined)).toBe(spec);
   });
 });
+
+describe('keys a model must not be allowed to write', () => {
+  it('drops __proto__ instead of setting a prototype', () => {
+    // JSON.parse keeps "__proto__" as an ordinary own property, so it really does
+    // reach the walker; `out[key] = value` would then set the prototype.
+    const spec = JSON.parse('{"entity":"user","conditions":[],"__proto__":{"polluted":true}}');
+    const out = substituteValues(spec, new Map([['@me', 'id-1']]));
+    expect(Object.prototype.polluted).toBeUndefined();
+    expect({}.polluted).toBeUndefined();
+    expect(Object.keys(out)).toEqual(['entity', 'conditions']);
+  });
+
+  it('drops constructor and prototype too, and keeps everything else', () => {
+    const out = substituteValues(
+      { entity: 'user', constructor: 'x', prototype: 'y', match: 'all', conditions: [{ field: 'id', op: 'eq', value: '@me' }] },
+      new Map([['@me', 'id-1']]));
+    expect(out.constructor).toBe(Object);          // the real one, not the string
+    expect(out.prototype).toBeUndefined();
+    expect(out.entity).toBe('user');
+    expect(out.conditions[0].value).toBe('id-1');  // substitution still happens
+  });
+});
