@@ -167,80 +167,116 @@ $script:RealismAggResourceId = '00000000-0000-0000-0000-000000000000'
     assert its shape (name collisions, manager chains, career moves) without
     generating the whole dataset.
 #>
+<#
+.SYNOPSIS
+    One member of staff, before anything is written.
+.DESCRIPTION
+    Everything about a person that is a pure function of their position in the
+    roster: name, level, team, title, tenure, whether they moved department, and
+    the buckets the later parts read (sign-in staleness, which extra accounts they
+    hold). The manager is filled in afterwards, because it needs the department's
+    leads to exist first.
+#>
+function New-DemoRealismPerson {
+    param(
+        [Parameter(Mandatory)][int]$Seq,
+        [Parameter(Mandatory)]$Dept,
+        [Parameter(Mandatory)][int]$IndexInDept,
+        [Parameter(Mandatory)][int]$LeadCount,
+        [AllowEmptyCollection()][System.Collections.Generic.HashSet[string]]$UsedEmails
+    )
+    $id = 'R{0:D4}' -f $Seq
+    $drawn = Get-DemoRealismName -Seq $Seq
+    $level = if ($IndexInDept -eq 0) { 'head' } elseif ($IndexInDept -le $LeadCount) { 'lead' } else { 'staff' }
+    $team = if ($level -eq 'staff') { ($IndexInDept - $LeadCount - 1) % $LeadCount } else { $IndexInDept - 1 }
+    $title = switch ($level) {
+        'head' { "Head of $($Dept.Name)" }
+        'lead' { "Team Lead $($Dept.Name)" }
+        default { $Dept.Titles[(Get-DemoIndex -Seed "title-$id" -Modulo $Dept.Titles.Count)] }
+    }
+    $tenure = Get-DemoIndex -Seed "tenure-$id" -Modulo 19
+
+    return [ordered]@{
+        id           = $id
+        name         = "$($drawn.Given) $($drawn.Surname)"
+        given        = $drawn.Given
+        surname      = $drawn.Surname
+        email        = (Get-DemoRealismEmail -Given $drawn.Given -Surname $drawn.Surname -Used $UsedEmails)
+        dept         = $Dept.Name
+        title        = $title
+        generic      = ($script:RealismGenericTitles -contains $title)
+        level        = $level
+        team         = if ($level -eq 'head') { "$($Dept.Name) - Lead" } else { "$($Dept.Name) - Team $($team + 1)" }
+        teamIndex    = $team
+        manager      = $null        # filled in by Set-DemoRealismManagers
+        tenureYears  = $tenure
+        prevDept     = (Get-DemoRealismPreviousDepartment -Id $id -Tenure $tenure -Dept $Dept.Name)
+        employeeType = $script:RealismEmployeeTypes[(Get-DemoIndex -Seed "emptype-$id" -Modulo $script:RealismEmployeeTypes.Count)]
+        location     = $script:RealismLocations[(Get-DemoIndex -Seed "loc-$id" -Modulo $script:RealismLocations.Count)]
+        signInBucket = (Get-DemoIndex -Seed "signin-$id" -Modulo 100)
+        extraAccount = (Get-DemoIndex -Seed "accounts-$id" -Modulo 100)
+    }
+}
+
+# The department somebody left, or $null. Tenure drives the career: roughly two in
+# five people with seven years or more moved at some point, and the access part
+# leaves some of the old department's groups behind them.
+function Get-DemoRealismPreviousDepartment {
+    param(
+        [Parameter(Mandatory)][string]$Id,
+        [Parameter(Mandatory)][int]$Tenure,
+        [Parameter(Mandatory)][string]$Dept
+    )
+    if ($Tenure -lt 7) { return $null }
+    if ((Get-DemoIndex -Seed "moved-$Id" -Modulo 10) -ge 4) { return $null }
+    $others = @($script:RealismDepartments | Where-Object { $_.Name -ne $Dept })
+    return $others[(Get-DemoIndex -Seed "prevdept-$Id" -Modulo $others.Count)].Name
+}
+
+# The chain inside one department: the head reports to the standard dataset's CEO,
+# the leads to the head, and each staff member to the lead whose team they are on.
+function Set-DemoRealismManagers {
+    param([Parameter(Mandatory)][System.Collections.Generic.List[object]]$DeptPeople)
+
+    $head = $DeptPeople[0]
+    $head.manager = 'E0001'
+    $leads = @($DeptPeople | Where-Object { $_.level -eq 'lead' })
+    foreach ($lead in $leads) { $lead.manager = $head.id }
+    foreach ($person in @($DeptPeople | Where-Object { $_.level -eq 'staff' })) {
+        $person.manager = $leads[$person.teamIndex % $leads.Count].id
+    }
+}
+
+<#
+.SYNOPSIS
+    The roster: one record per member of staff, before anything is written.
+.DESCRIPTION
+    A pure function of the tables at the top of this file, so the Pester tests can
+    assert its shape (name collisions, manager chains, career moves) without
+    generating the whole dataset. One head per department, a lead per ~14 people
+    (2-6 of them), and staff spread over the leads' teams — because everyone on a
+    team shares most of their access later, whatever their title says.
+#>
 function New-DemoRealismRoster {
     $roster = [System.Collections.Generic.List[object]]::new()
     $usedEmails = [System.Collections.Generic.HashSet[string]]::new()
     $seq = 0
 
     foreach ($dept in $script:RealismDepartments) {
-        # One head, then a lead per ~14 people (2-6), then staff spread over the
-        # leads' teams. Everyone on a team shares most of their access later,
-        # whatever their title says.
         $leadCount = [Math]::Min(6, [Math]::Max(2, [int][Math]::Ceiling(($dept.Count - 1) / 14.0)))
         $deptPeople = [System.Collections.Generic.List[object]]::new()
 
         for ($i = 0; $i -lt $dept.Count; $i++) {
             $seq++
-            $id = 'R{0:D4}' -f $seq
-
-            $drawn = Get-DemoRealismName -Seq $seq
-            $given = $drawn.Given
-            $surname = $drawn.Surname
-
-            $level = if ($i -eq 0) { 'head' } elseif ($i -le $leadCount) { 'lead' } else { 'staff' }
-            $team = if ($level -eq 'staff') { ($i - $leadCount - 1) % $leadCount } else { $i - 1 }
-            $title = switch ($level) {
-                'head' { "Head of $($dept.Name)" }
-                'lead' { "Team Lead $($dept.Name)" }
-                default { $dept.Titles[(Get-DemoIndex -Seed "title-$id" -Modulo $dept.Titles.Count)] }
-            }
-
-            # Tenure drives the career: long-timers moved department, and the
-            # groups part leaves some of the old department's access behind.
-            $tenure = Get-DemoIndex -Seed "tenure-$id" -Modulo 19
-            $prevDept = $null
-            if ($tenure -ge 7 -and (Get-DemoIndex -Seed "moved-$id" -Modulo 10) -lt 4) {
-                $others = @($script:RealismDepartments | Where-Object { $_.Name -ne $dept.Name })
-                $prevDept = $others[(Get-DemoIndex -Seed "prevdept-$id" -Modulo $others.Count)].Name
-            }
-
-            $teamName = if ($level -eq 'head') { "$($dept.Name) - Lead" } else { "$($dept.Name) - Team $($team + 1)" }
-
-            $record = [ordered]@{
-                id           = $id
-                name         = "$given $surname"
-                given        = $given
-                surname      = $surname
-                email        = (Get-DemoRealismEmail -Given $given -Surname $surname -Used $usedEmails)
-                dept         = $dept.Name
-                title        = $title
-                generic      = ($script:RealismGenericTitles -contains $title)
-                level        = $level
-                team         = $teamName
-                teamIndex    = $team
-                manager      = $null        # filled in below, once the leads are known
-                tenureYears  = $tenure
-                prevDept     = $prevDept
-                employeeType = $script:RealismEmployeeTypes[(Get-DemoIndex -Seed "emptype-$id" -Modulo $script:RealismEmployeeTypes.Count)]
-                location     = $script:RealismLocations[(Get-DemoIndex -Seed "loc-$id" -Modulo $script:RealismLocations.Count)]
-                signInBucket = (Get-DemoIndex -Seed "signin-$id" -Modulo 100)
-                extraAccount = (Get-DemoIndex -Seed "accounts-$id" -Modulo 100)
-            }
-            $roster.Add($record)
-            $deptPeople.Add($record)
+            $person = New-DemoRealismPerson -Seq $seq -Dept $dept -IndexInDept $i -LeadCount $leadCount -UsedEmails $usedEmails
+            $roster.Add($person)
+            $deptPeople.Add($person)
         }
-
-        # Manager chain: head reports to the CEO of the standard dataset, leads to
-        # the head, staff to the lead whose team they are on.
-        $head = $deptPeople[0]
-        $head.manager = 'E0001'
-        $leads = @($deptPeople | Where-Object { $_.level -eq 'lead' })
-        foreach ($lead in $leads) { $lead.manager = $head.id }
-        foreach ($person in @($deptPeople | Where-Object { $_.level -eq 'staff' })) {
-            $person.manager = $leads[$person.teamIndex % $leads.Count].id
-        }
+        Set-DemoRealismManagers -DeptPeople $deptPeople
     }
 
+    # The few people with no manager at all. Every directory has them, and
+    # "accounts without a manager" is a question people ask.
     foreach ($person in $roster) {
         if ($script:RealismNoManager -contains $person.id) { $person.manager = $null }
     }

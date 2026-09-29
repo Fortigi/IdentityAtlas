@@ -22,27 +22,52 @@ const freshConversationId = () =>
  * (they were true once, for that machine on that day) and the choices of a
  * "did you mean" (those were the options of the moment).
  */
+// The model's reply as it was stored, or null when there is nothing to parse.
+// A row written before the model answered has no raw reply at all, and a
+// half-written one is not worth a thrown error on the way back in.
+function parseStoredReply(rawReply) {
+  try { return rawReply ? JSON.parse(rawReply) : null; } catch { return null; }
+}
+
+const asList = (value) => (Array.isArray(value) ? value : []);
+
+// One builder per kind. Every one of them says timing: null, because a timing was
+// true once, for that machine on that day, and re-showing it would be a lie.
+const REBUILD = {
+  clarify: ({ parsed, clarification, rawReply }) => ({
+    kind: 'clarify', question: parsed.question ?? clarification ?? '',
+    options: asList(parsed.options), raw: rawReply, timing: null,
+  }),
+  decline: ({ parsed, clarification, rawReply }) => ({
+    kind: 'decline', reason: parsed?.reason ?? clarification ?? '', raw: rawReply, timing: null,
+  }),
+  report: ({ parsed, definition, rawReply }) => ({
+    kind: 'report', spec: definition ?? parsed?.spec ?? null,
+    assumptions: asList(parsed?.assumptions), raw: rawReply, timing: null, resumed: true,
+  }),
+  confirm: ({ definition, clarification, rawReply }) => ({
+    kind: 'confirm', spec: definition ?? null, raw: rawReply, timing: null,
+    // The choices of the moment are gone; the question that was asked is not.
+    confirm: { message: clarification ?? 'A name needed confirming.', choices: [] },
+  }),
+  error: ({ outcome }) => ({
+    kind: 'error', errors: [], timing: null,
+    message: outcome === 'timeout' ? 'That took too long, so it was stopped.' : 'This turn could not be turned into a report.',
+  }),
+};
+
+/** Which kind a stored turn rebuilds as. The first match wins, top to bottom. */
+function storedKind({ parsed, definition, outcome }) {
+  if (parsed?.kind === 'clarify') return 'clarify';
+  if (parsed?.kind === 'decline' || outcome === 'declined') return 'decline';
+  if (definition || parsed?.kind === 'report') return 'report';
+  if (outcome === 'confirm') return 'confirm';
+  return 'error';
+}
+
 export function replyFromStored({ rawReply, definition, outcome, clarification }) {
-  let parsed = null;
-  try { parsed = rawReply ? JSON.parse(rawReply) : null; } catch { parsed = null; }
-  if (parsed?.kind === 'clarify') {
-    return { kind: 'clarify', question: parsed.question ?? clarification ?? '', options: Array.isArray(parsed.options) ? parsed.options : [], raw: rawReply, timing: null };
-  }
-  if (parsed?.kind === 'decline' || outcome === 'declined') {
-    return { kind: 'decline', reason: parsed?.reason ?? clarification ?? '', raw: rawReply, timing: null };
-  }
-  if (definition || parsed?.kind === 'report') {
-    return {
-      kind: 'report', spec: definition ?? parsed?.spec ?? null,
-      assumptions: Array.isArray(parsed?.assumptions) ? parsed.assumptions : [],
-      raw: rawReply, timing: null, resumed: true,
-    };
-  }
-  if (outcome === 'confirm') {
-    return { kind: 'confirm', confirm: { message: clarification ?? 'A name needed confirming.', choices: [] }, spec: definition ?? null, raw: rawReply, timing: null };
-  }
-  const message = outcome === 'timeout' ? 'That took too long, so it was stopped.' : 'This turn could not be turned into a report.';
-  return { kind: 'error', message, errors: [], timing: null };
+  const turn = { parsed: parseStoredReply(rawReply), rawReply, definition, outcome, clarification };
+  return REBUILD[storedKind(turn)](turn);
 }
 
 // The builder's current definition (possibly edited by hand) is the latest

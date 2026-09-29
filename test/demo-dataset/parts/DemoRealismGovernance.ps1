@@ -239,78 +239,130 @@ function Add-DemoRealismFunctionRoles {
     including the ones who approved access their own report had not used in half a
     year, which is the finding that makes an attestation report worth reading.
 #>
+# The two campaigns: one closed two months ago, one still running.
+$script:RealismCampaigns = @(
+    @{ Key = 'q2'; Name = 'Toegangsreview Q2'; Status = 'Completed';  Start = 150; End = 60
+       Roles = @('appbeheer', 'controller', 'platform'); Limit = 90 }
+    @{ Key = 'q3'; Name = 'Toegangsreview Q3'; Status = 'InProgress'; Start = 20;  End = -10
+       Roles = @('servicedesk', 'accountmgr', 'dept-Finance', 'dept-IT-Support'); Limit = 120 }
+)
+
+<#
+.SYNOPSIS
+    What one reviewer did with one holder's access.
+.DESCRIPTION
+    One deterministic roll decides all three answers together, because they are
+    correlated in life: the system recommends removing access it has not seen used,
+    the reviewer usually agrees, and sometimes approves it anyway. An unfinished
+    campaign also has undecided rows — which is exactly what a manager who ignored
+    three reminders leaves behind, and what an attestation report has to show.
+#>
+function Get-DemoRealismVerdict {
+    param(
+        [Parameter(Mandatory)][string]$Seed,
+        [Parameter(Mandatory)][string]$Status
+    )
+    $roll = Get-DemoIndex -Seed $Seed -Modulo 100
+    $decision = if ($Status -eq 'InProgress' -and $roll -lt 35) { 'NotReviewed' }
+                elseif ($roll -lt 78) { 'Approve' }
+                else { 'Deny' }
+    $recommendation = if ($roll -ge 78) { 'Deny' } elseif ($roll -lt 60) { 'Approve' } else { 'NoInfoAvailable' }
+    $why = switch ($decision) {
+        'Approve' { 'Nodig voor de huidige functie' }
+        'Deny'    { 'Niet meer nodig — medewerker werkt niet meer met deze applicatie' }
+        default   { '' }
+    }
+    return @{ Decision = $decision; Recommendation = $recommendation; Why = $why }
+}
+
+# Who reviews a holder's access: their own manager, which is how these are routed.
+# The chief executive of the standard dataset catches whatever has nobody above it.
+function Get-DemoRealismReviewer {
+    param(
+        [Parameter(Mandatory)]$State,
+        $Person
+    )
+    if ($Person -and $Person.Manager) {
+        $name = if ($State.EmployeesById.Contains($Person.Manager)) { $State.EmployeesById[$Person.Manager].name }
+                else { (Get-DemoRealismPersonName -State $State -EmployeeId $Person.Manager) }
+        return @{ Id = (Get-DemoPrincipalId $Person.Manager); Name = $name }
+    }
+    return @{ Id = (Get-DemoPrincipalId 'E0001'); Name = 'Anna Bakker' }
+}
+
+# The display name of a realism employee id, for the reviewer line.
+function Get-DemoRealismPersonName {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)][string]$EmployeeId
+    )
+    $match = @($State.Realism.People | Where-Object { $_.id -eq $EmployeeId })
+    if ($match.Count) { return $match[0].name }
+    return ''
+}
+
+# One decision row, in the shape Entra's access reviews produce.
+function New-DemoRealismDecision {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)]$Campaign,
+        [Parameter(Mandatory)]$Role,
+        [Parameter(Mandatory)][string]$HolderId,
+        [Parameter(Mandatory)]$Holder,
+        [Parameter(Mandatory)][string]$RoleKey
+    )
+    $verdict = Get-DemoRealismVerdict -Seed "cert-$($Campaign.Key)-$RoleKey-$HolderId" -Status $Campaign.Status
+    $reviewer = Get-DemoRealismReviewer -State $State -Person $Holder
+    $measuredAt = $State.Realism.MeasuredAt
+
+    $record = @{
+        id                          = (New-DemoGuid "cert-realism-$($Campaign.Key)-$RoleKey-$HolderId")
+        resourceId                  = $Role.id
+        principalId                 = $HolderId
+        principalDisplayName        = if ($Holder) { $Holder.Name } else { '' }
+        reviewedResourceId          = $Role.id
+        reviewedResourceDisplayName = $Role.name
+        decision                    = $verdict.Decision
+        recommendation              = $verdict.Recommendation
+        justification               = $verdict.Why
+        reviewedBy                  = $reviewer.Id
+        reviewedByDisplayName       = $reviewer.Name
+        reviewDefinitionId          = (New-DemoGuid "review-def-$($Campaign.Key)")
+        reviewInstanceId            = (New-DemoGuid "review-inst-$($Campaign.Key)")
+        reviewInstanceStatus        = $Campaign.Status
+        reviewInstanceStartDateTime = $measuredAt.AddDays(-1 * $Campaign.Start).ToString('o')
+        reviewInstanceEndDateTime   = $measuredAt.AddDays(-1 * $Campaign.End).ToString('o')
+        systemId                    = $State.SystemIds['iga']
+        extendedAttributes          = @{ campaign = $Campaign.Name }
+    }
+    # An undecided row has no decision date, which is what makes it findable.
+    if ($verdict.Decision -ne 'NotReviewed') {
+        $record['reviewedDateTime'] = $measuredAt.AddDays(
+            -1 * ($Campaign.End + (Get-DemoIndex -Seed "certwhen-$($Campaign.Key)-$HolderId" -Modulo 20))).ToString('o')
+    }
+    return $record
+}
+
 function Add-DemoRealismAttestation {
     param([Parameter(Mandatory)]$State)
 
-    $sysIga = $State.SystemIds['iga']
-    $measuredAt = $State.Realism.MeasuredAt
-    $managerOf = @{}
+    # holder principal id -> the person, so a reviewer can be found without
+    # searching the roster for every row.
+    $holders = @{}
     foreach ($person in $State.Realism.People) {
-        $managerOf[(Get-DemoPrincipalId $person.id)] = @{
-            Manager = $person.manager; Name = $person.name
-        }
+        $holders[(Get-DemoPrincipalId $person.id)] = @{ Manager = $person.manager; Name = $person.name }
     }
 
-    $campaigns = @(
-        @{ Key = 'q2'; Name = 'Toegangsreview Q2'; Status = 'Completed';  Start = 150; End = 60;  Roles = @('appbeheer', 'controller', 'platform'); Limit = 90 }
-        @{ Key = 'q3'; Name = 'Toegangsreview Q3'; Status = 'InProgress'; Start = 20;  End = -10; Roles = @('servicedesk', 'accountmgr', 'dept-Finance', 'dept-IT-Support'); Limit = 120 }
-    )
-
-    foreach ($campaign in $campaigns) {
-        $definitionId = New-DemoGuid "review-def-$($campaign.Key)"
-        $instanceId = New-DemoGuid "review-inst-$($campaign.Key)"
+    foreach ($campaign in $script:RealismCampaigns) {
         $written = 0
-
         foreach ($roleKey in $campaign.Roles) {
             if (-not $State.Realism.RoleHolders.ContainsKey($roleKey)) { continue }
             $role = $State.Realism.Roles[$roleKey]
             foreach ($holderId in $State.Realism.RoleHolders[$roleKey]) {
                 if ($written -ge $campaign.Limit) { break }
                 $written++
-
-                # An unfinished campaign has undecided rows in it; a finished one
-                # does not. "NotReviewed" is exactly what a manager who ignored
-                # three reminders leaves behind.
-                $roll = Get-DemoIndex -Seed "cert-$($campaign.Key)-$roleKey-$holderId" -Modulo 100
-                $decision = if ($campaign.Status -eq 'InProgress' -and $roll -lt 35) { 'NotReviewed' }
-                            elseif ($roll -lt 78) { 'Approve' } else { 'Deny' }
-                $recommendation = if ($roll -ge 78) { 'Deny' } elseif ($roll -lt 60) { 'Approve' } else { 'NoInfoAvailable' }
-                $why = switch ($decision) {
-                    'Approve'     { 'Nodig voor de huidige functie' }
-                    'Deny'        { 'Niet meer nodig — medewerker werkt niet meer met deze applicatie' }
-                    default       { '' }
-                }
-
-                $manager = $managerOf[$holderId]
-                $reviewerId = if ($manager -and $manager.Manager) { Get-DemoPrincipalId $manager.Manager } else { Get-DemoPrincipalId 'E0001' }
-                $reviewerName = if ($manager -and $manager.Manager -and $State.EmployeesById.Contains($manager.Manager)) {
-                    $State.EmployeesById[$manager.Manager].name
-                } else { 'Anna Bakker' }
-
-                $record = @{
-                    id                          = (New-DemoGuid "cert-realism-$($campaign.Key)-$roleKey-$holderId")
-                    resourceId                  = $role.id
-                    principalId                 = $holderId
-                    principalDisplayName        = if ($manager) { $manager.Name } else { '' }
-                    reviewedResourceId          = $role.id
-                    reviewedResourceDisplayName = $role.name
-                    decision                    = $decision
-                    recommendation              = $recommendation
-                    justification               = $why
-                    reviewedBy                  = $reviewerId
-                    reviewedByDisplayName        = $reviewerName
-                    reviewDefinitionId           = $definitionId
-                    reviewInstanceId             = $instanceId
-                    reviewInstanceStatus         = $campaign.Status
-                    reviewInstanceStartDateTime  = $measuredAt.AddDays(-1 * $campaign.Start).ToString('o')
-                    reviewInstanceEndDateTime    = $measuredAt.AddDays(-1 * $campaign.End).ToString('o')
-                    systemId                     = $sysIga
-                    extendedAttributes           = @{ campaign = $campaign.Name }
-                }
-                if ($decision -ne 'NotReviewed') {
-                    $record['reviewedDateTime'] = $measuredAt.AddDays(-1 * ($campaign.End + (Get-DemoIndex -Seed "certwhen-$($campaign.Key)-$holderId" -Modulo 20))).ToString('o')
-                }
-                $State.Certifications.Add($record)
+                $decisionArgs = @{ State = $State; Campaign = $campaign; Role = $role; HolderId = $holderId; Holder = $holders[$holderId]; RoleKey = $roleKey }
+                $State.Certifications.Add((New-DemoRealismDecision @decisionArgs))
             }
         }
     }
