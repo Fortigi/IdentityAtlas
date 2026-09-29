@@ -1,5 +1,15 @@
 ## Changes in this PR
 
+- Added an **Application Access Review** report: pick one or more logical applications and get one row per entitlement, split into what the application owner has to decide on (requestable, not granted by a business role), what is information only, and what a business role already manages.
+- Each row carries the certification frequency and entitlement owner exactly as the source stores them, whether the entitlement is requestable, which business role(s) grant it, and how many people hold it directly versus through a role — the split that tells an owner whether an entitlement is reviewable at all.
+- An entitlement with no certification frequency now reads "Not set" rather than a blank cell, and the report warns when the same frequency is stored under near-duplicate spellings instead of quietly merging them.
+- The report summarises the application in five figures: unique users with access, entitlements in scope, distinct entitlement owners, the share of entitlements a role already manages, and the share per certification frequency.
+- The application's own description, owner, abbreviation, CMDB reference, connection type, onboarding sector and application manager travel on every row, so the downloaded CSV stands on its own.
+- Report tables are now paged, so a report with tens of thousands of rows opens instead of freezing the browser. Downloads are unaffected and still contain every row.
+- The IdentityIQ-shaped test fixture now matches what production catalogues actually look like: almost no entitlement has a certification frequency set, and the ones that do use a vocabulary with real-world inconsistencies.
+
+## Changes in this PR
+
 - Library updates now reach the maintained release line on their own. Dependabot checks the release branch daily for updates to the packages and base images that actually ship, and those updates merge themselves once the tests pass — so a release built from that line carries current libraries without anyone shepherding updates onto it.
 - Only production dependencies and container base images are updated on the release line; build- and test-only tooling is left alone, since none of it is present in what customers run.
 - Major version updates are never merged unattended. They still get raised, with a note explaining that a person needs to decide whether the change belongs on a stable line.
