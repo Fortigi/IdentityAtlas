@@ -21,7 +21,9 @@
     "tools/crawlers/mssql/SqlCrawler.Transform.ps1",
     "tools/crawlers/mssql/SqlCrawler.Phases.ps1",
     "tools/crawlers/mssql/SqlCrawler.Contexts.ps1",
+    "tools/crawlers/mssql/SqlCrawler.Systems.ps1",
     "tools/crawlers/mssql/SqlCrawler.Verify.ps1",
+    "tools/crawlers/mssql/SqlCrawler.Ownership.ps1",
     "tools/crawlers/shared/Assert-FGPublicUrl.ps1",
     "tools/crawlers/shared/Get-CrawlerSystemName.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AppRoles.ps1",
@@ -135,7 +137,11 @@
     "tools/crawlers/midpoint/MidpointCrawler.Phases.ps1",
     "tools/crawlers/scim/ScimCrawler.Transform.ps1",
     "tools/crawlers/scim/ScimCrawler.Functions.ps1",
-    "tools/crawlers/scim/ScimCrawler.Phases.ps1"
+    "tools/crawlers/scim/ScimCrawler.Phases.ps1",
+    "tools/crawlers/shared/Invoke-CrawlerIngestStage.ps1",
+    "tools/crawlers/mssql/SqlCrawler.Sweep.ps1",
+    "tools/crawlers/shared/Invoke-CrawlerDeltaToken.ps1",
+    "tools/crawlers/mssql/SqlCrawler.Delta.ps1"
   ],
   "tests": {
     "tools/crawlers/shared/Invoke-CrawlerIngestStream.ps1": [
@@ -150,11 +156,17 @@
     "tools/crawlers/mssql/SqlCrawler.Phases.ps1": [
       "test/unit/SqlCrawlerPhases.Tests.ps1"
     ],
+    "tools/crawlers/mssql/SqlCrawler.Systems.ps1": [
+      "test/unit/SqlCrawlerSystems.Tests.ps1"
+    ],
     "tools/crawlers/mssql/SqlCrawler.Contexts.ps1": [
       "test/unit/SqlCrawlerContexts.Tests.ps1"
     ],
     "tools/crawlers/mssql/SqlCrawler.Verify.ps1": [
       "test/unit/SqlCrawlerVerify.Tests.ps1"
+    ],
+    "tools/crawlers/mssql/SqlCrawler.Ownership.ps1": [
+      "test/unit/SqlCrawlerOwnership.Tests.ps1"
     ],
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": [
       "test/unit/EntraIDCrawlerTransform.Tests.ps1"
@@ -525,11 +537,24 @@
     ],
     "tools/crawlers/shared/Get-NestedGroupUserSet.ps1": [
       "test/unit/GetNestedGroupUserSet.Tests.ps1"
+    ],
+    "tools/crawlers/shared/Invoke-CrawlerIngestStage.ps1": [
+      "test/unit/CrawlerIngestStage.Tests.ps1"
+    ],
+    "tools/crawlers/mssql/SqlCrawler.Sweep.ps1": [
+      "test/unit/SqlCrawlerDelta.Tests.ps1"
+    ],
+    "tools/crawlers/shared/Invoke-CrawlerDeltaToken.ps1": [
+      "test/unit/CrawlerDeltaToken.Tests.ps1"
+    ],
+    "tools/crawlers/mssql/SqlCrawler.Delta.ps1": [
+      "test/unit/SqlCrawlerDelta.Tests.ps1"
     ]
   },
   "_exclusionsComment": "Eligible files deliberately NOT mutation-tested. Each key is a repo-relative path; the value is the reason. The scope-completeness guard (test/unit/PSMutationScope.Tests.ps1, #684) fails an eligible file that is in neither `mutate` nor here, so anything listed is a written decision rather than an oversight. NOTE: this map covers tools/crawlers/. The other two PowerShell roots — tools/powershell-sdk/ and tools/riskscoring/ — are eligible too, and the ones not yet triaged are grandfathered in .ci/psmutant-scope-baseline.json, a list that may only shrink (102 at introduction, 88 after the helpers layer was measured). A new file in those roots still has to land in `mutate` or `exclusions` here; it cannot join the backlog silently. First finding out of that backlog: the SDK is NOT untested code — tools/powershell-sdk/ + tools/riskscoring/ sit at 95.7% line coverage — it was code with no mutation evidence at all, and the helpers layer scored 85.5% (94/110) the first time it was measured.",
   "_exclusions": {
     "tools/powershell-sdk/graph/Get-FGAccessTokenInteractive.ps1": "MEASURED: produces ZERO mutants, because no suite reaches it -- it is the only file in tools/powershell-sdk/ with no test coverage at all, so coveredLinesOnly filters every candidate out and mutating it would report a vacuous 100%. That is not an oversight to fix with a mock: it is the OAuth device-code flow. It prints a code for a human to type into a browser and then polls Microsoft in a `while (IsNullOrEmpty($TokenRequest.access_token))` loop until they finish. There is no headless path through it, and a test that mocked the poll would assert only that the mock was called. Revisit if the flow is ever split so the response-shaping half can be exercised without the wait.",
+    "tools/crawlers/mssql/SqlCrawler.Load.ps1": "MEASURED: produces ZERO mutants (Total=0 with the four enabled operators, before any coverage filtering), so mutating it would report a vacuous 100%. It is the crawler's dot-source list and nothing else: a foreach over nine literal paths, each dot-sourced. There is no comparison, boolean literal, number or negation in it for BinaryOperator/BooleanLiteral/NumberLiteral/NegationRemoval to act on, and no behaviour to assert beyond 'the functions are now defined' — which every SqlCrawler*.Tests.ps1 file asserts implicitly by calling them, and which fails loudly (\"The term 'X' is not recognized\") rather than silently when the list is wrong. Revisit if the loader ever gains a condition, e.g. loading a file only for some configuration.",
     "tools/crawlers/omada/Get-OmadaHelpers.ps1": "Produces ZERO mutants under the enabled operator set, so mutating it would report a vacuous 100%. It is five reference-value fallback chains (`if ($Ref.Value) { return [string]$Ref.Value }` repeated) with no arithmetic, no numeric/boolean literals and no negations for BinaryOperator/BooleanLiteral/NumberLiteral/NegationRemoval to bite on — the precedence order itself is only reachable by a statement-deletion or condition-forcing operator PSMutant does not currently offer. Revisit if such an operator is added; its behaviour is covered by OmadaCrawlerFunctions.Tests.ps1 in the meantime.",
     "tools/crawlers/entra-id/EntraIDCrawler.Orchestration.ps1": "MEASURED: produces ZERO mutants under the enabled operator set, so mutating it would report a vacuous 100% — same category as Get-OmadaHelpers.ps1. It is 61 lines: one function whose body is five `if ($SyncX) { ... }` phase guards. Those guards ARE decisions, but they are bare boolean variable checks with no comparison operators, numeric/boolean literals or negations for BinaryOperator/BooleanLiteral/NumberLiteral/NegationRemoval to act on. (An earlier version of this entry said it 'owns no decision logic of its own' and deferred it alongside the Phases layer. That was reasoned, not measured, and it overstated: the guards are decisions, they are simply not mutatable by these operators. Which phases run on a given config is worth a behavioural test in EntraIDCrawlerPhases.Tests.ps1 regardless of what mutation testing can see.)",
     "tools/riskscoring/Export-FGRiskClassifiers.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",

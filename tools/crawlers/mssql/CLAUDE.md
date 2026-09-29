@@ -16,9 +16,15 @@ is baked in — SailPoint IdentityIQ ships as a worked example, not as special-c
 | `SqlCrawler.Functions.ps1` | Config resolution, connection-string builder, the streaming query runner (`Invoke-SqlQueryStream`) with `@Offset`/`@PageSize` paging, value conversion |
 | `SqlCrawler.Transform.ps1` | **Pure** row → ingest-record shapers, one per target, plus the column-contract resolver (`Resolve-SqlColumnMap`) |
 | `SqlCrawler.Verify.ps1` | End-of-run verification. Per statement: rows read against the source's own `COUNT_BIG(*)` (catches a read that stopped early). Per reconcile scope: the distinct keys read (principals, resources, relationships) or the source's distinct pairs (assignments, from the same query) against `POST /ingest/count`. Throws on any mismatch, and on more rows than distinct keys |
-| `SqlCrawler.Contexts.ps1` | The `contexts` / `context-members` targets: the catalogue, the ONE normalisation of a context reference (`ConvertTo-SqlContextName`, invariant culture), name → key resolution, and the fold / unresolved report |
+| `SqlCrawler.Systems.ps1` | The `systems` target and per-row routing: the system catalogue, the registration record (and the `(systemType, tenantId)` key that makes a re-run find the same row), the per-statement route mode, and the cross-system id-collision check |
+| `SqlCrawler.Ownership.ps1` | The `ownership` flag on a `resources` slot: the shared owner resolver (account key, then employee number), the ownership resource / `HasOwnership` link / `Direct` owner assignment it emits, their three reconcile scopes, and the per-statement owner tally |
+| `SqlCrawler.Contexts.ps1` | The `contexts` / `context-members` targets: the catalogue, name → key resolution (through the crawler's one name fold, `ConvertTo-SqlNameKey` in the Transform file), and the fold / unresolved report |
 | `SqlCrawler.Phases.ps1` | Per-slot sync phases: open the ingest streams, run the query, shape + stream every row, then the per-scope reconcile |
+| `SqlCrawler.Delta.ps1` | The per-statement **watermark**: the token key (slot name + hash of the SQL), what `@Since` binds to, following the column while rows stream, and where the mark lands (largest value read − overlap, never backwards) |
+| `SqlCrawler.Sweep.ps1` | The **key sweep**: read a statement's complete key set, stage it, and remove what the source no longer has. Due-based, staged per system, finalized with the share ceiling |
 | `../shared/Invoke-CrawlerIngestStream.ps1` | Shared streaming ingest: chunked delta upserts + end-of-run `POST /ingest/reconcile`. Written for this crawler; any large-set crawler can use it |
+| `../shared/Invoke-CrawlerIngestStage.ps1` | Shared staged-load client (`POST /ingest/stages`): open, stream, finalize. The sweep's anti-join delete is one finalize on it |
+| `../shared/Invoke-CrawlerDeltaToken.ps1` | The one client for `/crawlers/delta-tokens`. Graph's delta tokens and this crawler's watermarks share the table, so they share the endpoint-key rules |
 | `CrawlerMeta.js`, `ConfigWizard.jsx`, `Summary.jsx`, `sqlPresets.js`, `wizardLogic.js` | UI: type-picker entry, 4-step wizard (Connection → Credentials → Queries → Schedule), config card, the IdentityIQ example query set, pure wizard logic |
 | `Test-SqlCrawler.ps1` | CI integration test: runs the phases against the live Ingest API with the SQL boundary stubbed (no SQL Server in CI) |
 | `test/unit/SqlCrawler*.Tests.ps1`, `test/unit/CrawlerIngestStream.Tests.ps1` | Pester unit tests |
@@ -41,9 +47,55 @@ So this crawler never holds a result set in memory and never opens a session:
    worker and web container cannot matter). The API soft-deletes every row in that system + scope
    whose `updatedAt` is older — exactly the rows this run did not touch.
 
-A delta run (`_syncMode: 'delta'`) does steps 1–2 only. A run that fails part-way never reaches
-step 3, so a partial read can never delete anything (same fail-safe as `Test-PhaseInputsComplete`
-in midPoint).
+A run that fails part-way never reaches step 3, so a partial read can never delete anything
+(same fail-safe as `Test-PhaseInputsComplete` in midPoint).
+
+**Completeness, not run mode, decides whether a scope is reconciled.** The reconcile removes
+what a run did not touch, which is only a *removal* when everything still in the source WAS
+touched — true of any statement that read its whole table, whatever the run calls itself. So a
+delta run keeps the small scopes exact, and the scope of a **windowed** statement (one that
+binds `@Since`) is never reconciled: there, an untouched row is simply one that did not change.
+`_syncMode: 'full'` means "ignore every stored watermark", which makes every slot complete
+again.
+
+## Reading only what changed
+
+`SqlCrawler.Delta.ps1` + `SqlCrawler.Sweep.ps1`; the design and what it rests on are in
+[docs/architecture/sql-connector-delta.md](../../../docs/architecture/sql-connector-delta.md).
+A refresh has two halves and they need different mechanisms:
+
+| Half | Mechanism | Slot field |
+|---|---|---|
+| Additions and changes | a per-statement **watermark** on a `modified`-like column | `watermarkColumn` + `@Since` in the SQL |
+| Removals | a periodic **key sweep**: the complete key set, anti-joined in PostgreSQL | `sweep` (assignments only) |
+
+Three properties are the point, and each is load-bearing:
+
+- The token key is `sql:<slot name>:<hash of the SQL text>` (`Get-SqlWatermarkKey`). **Editing a
+  statement changes its key**, so the edited query starts from zero instead of silently
+  skipping the rows its new shape would have returned.
+- The mark is written **only after the run verified** (`Save-SqlWatermarks`, called from
+  `Start-SqlCrawler.ps1` after `Test-SqlRunCounts`). An unverified run re-reads its window;
+  upserts are idempotent, so that costs time, never correctness.
+- The stored value is the largest value READ minus `watermarkOverlapSeconds` (default 900), and
+  never moves backwards. Several application servers write the source and their clocks drift.
+
+`@Since` binds as `SqlDbType.BigInt`: the source's `created`/`modified` are `numeric(19,0)`
+epoch **milliseconds** written by the application (assumption A1, confirmed against
+production). A watermark column whose value does not parse as a `long` is reported and its
+token is NOT stored, so the statement keeps reading in full rather than advancing a mark it
+cannot compare.
+
+The sweep runs after every slot has streamed (so the only difference left between source and
+database is what is gone), at most every `sweepIntervalHours`, and its finalize carries
+`maxDeleteShare` — past 5% of a scope the API writes nothing and answers 409. Deleting is the
+one operation here with no undo, and a source read mid-aggregation is indistinguishable from a
+mass revocation.
+
+`Get-SqlSweepEligibility` refuses a sweep when the run routes into several systems but did not
+read its resources in full: a swept pair follows its resource's system, and without every
+resource id it would be staged into the crawler's own system — after which the finalize would
+remove the routed systems' entire scope.
 
 Identities and IdentityMembers have no `systemId` column, so — like midPoint and CSV — they are
 upsert-only and never reconciled.
@@ -67,10 +119,11 @@ binary columns are skipped.
 
 | Target | Required columns | Recognised optional columns | Emits |
 |---|---|---|---|
+| `systems` | `displayName` (falls back to `name`) | `id` (the key later statements route by; else the folded name), `description`, `systemType`, `tenantId`, `enabled` | one **System** per technical connector in the source, registered as a delta. See "One system per connector" |
 | `identities` | `id`, `displayName` (falls back to `name`, `userId`, then `id`) | `email`, `givenName`, `surname`, `department`, `jobTitle`, `companyName`, `employeeId`, `city`, `country`, `officeLocation`, `managerExternalId` (or `managerId`), `principalType`, `enabled` / `active` (or the inverse `inactive` / `disabled`) | one **Identity**, one **Principal** with the same id (the person's account in this system), and the **IdentityMember** link between them |
 | `principals` | `id`, `displayName` (same fallbacks) | as above, plus `identityId` (also emits an IdentityMember link) | one **Principal** |
 | `identity-members` | `identityId`, `principalId` | `isPrimary`, `accountType` | one **IdentityMember** |
-| `resources` | `id`, `displayName` (falls back to `name`) | `description`, `enabled` | one **Resource**; `resourceType` comes from the slot; `governanceResource` is set when it is `BusinessRole` |
+| `resources` | `id`, `displayName` (falls back to `name`) | `description`, `enabled`, `ownerId` (aux) | one **Resource**; `resourceType` comes from the slot; `governanceResource` is set when it is `BusinessRole`. With `ownership: true` also one **ResourceOwnership** resource, a **HasOwnership** relationship and a **Direct** assignment per resolved owner — see "Owners" |
 | `assignments` | `resourceId`, `principalId` (alias `identityId`, because an `identities` row's account shares its id) | — | one **ResourceAssignment**; `assignmentType`, `governed`, `resourceType` come from the slot |
 | `relationships` | `parentId`, `childId` | — | one **ResourceRelationship**; `relationshipType` from the slot |
 | `contexts` | `displayName` (falls back to `name`) | `id` (the key; else the normalised name), `description`, `ownerUserId` | one **Context**, buffered and sent as one full sync; `contextType` / `targetType` from the slot |
@@ -116,19 +169,102 @@ Without it, a row missing a required contract column is skipped, and a statement
 every row is skipped logs a warning naming the target's required columns.
 
 Ids are the source's own keys: every record carries them as `externalId`, and the Ingest API
-derives the UUID primary key deterministically in the `sql-<systemId>` namespace, so re-runs
-update the same rows and cross-references (`resourceExternalId`, `principalExternalId`, …)
-resolve without the crawler ever knowing a UUID.
+derives the UUID primary key deterministically in the `sql-<the crawler's own systemId>`
+namespace, so re-runs update the same rows and cross-references (`resourceExternalId`,
+`principalExternalId`, …) resolve without the crawler ever knowing a UUID.
+
+## One system per connector
+
+`SqlCrawler.Systems.ps1`. A `systems` statement creates one Identity Atlas system per
+technical connector in the source (`spt_application` in IdentityIQ); `principals`,
+`resources`, `assignments` and `relationships` then carry `systemId` (the source's own key
+for the connector) or `systemName`, and each row is sent in a batch addressed to that
+system. The route mode is decided **once per statement** — at 40 M rows a per-row decision
+is minutes of re-deriving a constant — and an assignment with no routing column follows
+its resource, a relationship its parent, so the largest statement in the source needs no
+extra join. Both routing columns are `aux` in the contract: consumed AND kept in
+`extendedAttributes`.
+
+### One namespace per run — the part that is easy to get wrong
+
+**The id namespace is the run's, not the system's.** `IdPrefix` is `sql-<the crawler's own
+system id>` for every batch, whatever system the batch is addressed to.
+
+Deterministic ids are `MD5("<namespace>:<externalId>")`, and the API resolves a
+cross-entity reference in the namespace of the **batch carrying it**
+(`recoverSystemPrefix` in `app/api/src/routes/ingest/helpers.js`). The customer's people
+live in the directory system and their entitlements in the connector systems, so every
+grant spans two. Namespaced per system, the grant's `principalExternalId` would hash in
+the assignment batch's namespace and match no principal — and nothing would say so:
+`ResourceAssignments` has no foreign key on `principalId` or `resourceId`, so the row
+inserts happily, points at nothing, and never appears in the matrix.
+
+Two paired tests pin this. `test/unit/SqlCrawlerSystems.Tests.ps1` → *"joins a principal in
+one system to an entitlement in another"* asserts the three batches share one namespace;
+`app/api/src/ingest/normalization.test.js` → *"cross-system references"* asserts what that
+buys and what a per-system namespace would cost. Both were checked against the mutation
+(`-IdPrefix "sql-$SystemId"`); the first fails, so it is a real assertion.
+
+Because the namespace is the run's, `sql-<own system id>` is byte-for-byte the value a
+single-system run has always used: **no existing installation's ids move.**
+
+The price is that external ids must be unique across every system of a run. `Add-SqlKnownKey`
+records every id two systems claim and `Get-SqlIdCollisionVerdict` fails the run naming
+them — the same treatment the existing "more rows than distinct ids" check gives the same
+defect one level up.
+
+### Reconcile and verification with routing
+
+- The **reconcile** is per `(system, endpoint, scope)` and is registered when a stream for
+  that system actually opens, so a run never reconciles a system it did not write to.
+- An **expectation** is per `(endpoint, scope)` and holds the set of systems it was written
+  to; `Measure-SqlScopeRows` sums `POST /ingest/count` over exactly those. The source's own
+  counts are per statement, never per system, so summing is the only honest comparison.
+- A row naming a system no statement created is kept in the crawler's own system, counted
+  as `Misrouted`, reported by name, and fails the run past the same 5% share
+  `Get-SqlReadVerdict` already uses for unplaced rows.
 
 Slot values are **constants per statement** on purpose: `resourceType`, `assignmentType`,
 `governed` and `relationshipType` are also the full-sync reconcile scope, so a per-row override
 would make one statement's reconcile delete another's rows. Two statements with the same target
 and scope are fine — the reconcile runs once per scope after both have streamed.
 
+## Owners
+
+`SqlCrawler.Ownership.ps1`. A `resources` slot with `ownership: true` turns its `ownerId`
+column into the model's existing ownership shape — a `ResourceOwnership` resource named
+after the owned one, a `HasOwnership` relationship to it, and a `Direct` assignment for the
+owner — instead of leaving an identifier in `extendedAttributes` (`ownerId` is `aux`, so it
+stays there as well). Three decisions worth knowing before changing anything here:
+
+- **One ownership resourceType, not one per owned kind.** The Entra crawler can afford
+  `GroupOwnership` / `ServicePrincipalOwnership` / `ApplicationOwnership` because it knows
+  all three at compile time. Here the owned type is whatever the operator's slot says, so a
+  `<that>Ownership` family would be unbounded and the consumers that filter on ownership
+  (`app/api/src/lib/ownershipTypes.js`, read by the risk engine and the report catalogue)
+  could not enumerate it. The owned type travels on
+  `extendedAttributes.ownedResourceType` instead.
+- **Opt-in per statement.** Three rows per owned resource is ~1.45 M rows on a production
+  IdentityIQ catalogue (measured: `docs/sync/mssql.md` → "What owners cost"). The shipped
+  presets turn it on for business roles and leave it off — with the column already
+  selected — for entitlements.
+- **An unresolvable owner is counted, never charged to the unplaced bound.** The owner
+  counters are separate from `Skipped` / `Dangling` on purpose: those feed
+  `Get-SqlReadVerdict`'s 5% rule, which fails a job. An entitlement whose owner cannot be
+  found is a perfectly placed entitlement, so an owner column that resolves for nothing
+  must report loudly and load everything.
+
+`Resolve-SqlPrincipalRef` is the one owner resolver — account key first, then employee
+number — shared with `Resolve-SqlContextOwner`, so a context's owner and a resource's owner
+can never disagree about how a source names a person. They differ only in what failure
+means: a Context keeps the raw string in its `ownerUserId` column, while a resource emits
+nothing (an ownership row with no owner assignment would be an empty matrix row).
+
 ## Slot ordering
 
 Slots run grouped by target in dependency order regardless of the order they are configured in:
-`identities` → `principals` → `resources` → `contexts` → `identity-members` → `context-members` → `assignments` → `relationships`.
+`systems` → `identities` → `principals` → `resources` → `contexts` → `identity-members` → `context-members` → `assignments` → `relationships`.
+`systems` is first because everything after it may name one of the systems it creates.
 The crawler remembers every resource and principal id it emitted; an assignment or relationship
 that names an id it has not seen is skipped and counted (logged as `dangling`), never sent.
 

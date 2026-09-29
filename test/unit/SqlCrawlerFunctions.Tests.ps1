@@ -80,10 +80,13 @@ BeforeAll {
         [System.Collections.IEnumerator]GetEnumerator() { return [FakeReaderEnumerator]::new($this) }
         [void]Dispose() { $this.Disposed = $true }
     }
-    class FakeParam { [string]$Name; [object]$Value; FakeParam([string]$n) { $this.Name = $n } }
+    # The TYPE is recorded, not just the value: @Since carries epoch milliseconds,
+    # which overflow an Int 24 days after 1970, so binding it as anything but
+    # BigInt is a failure that would only show against a real server.
+    class FakeParam { [string]$Name; [object]$Value; [object]$Type; FakeParam([string]$n, [object]$t) { $this.Name = $n; $this.Type = $t } }
     class FakeParams {
         [System.Collections.Generic.List[object]]$Items = [System.Collections.Generic.List[object]]::new()
-        [object]Add([string]$name, [object]$type) { $p = [FakeParam]::new($name); $this.Items.Add($p); return $p }
+        [object]Add([string]$name, [object]$type) { $p = [FakeParam]::new($name, $type); $this.Items.Add($p); return $p }
         [object]Get([string]$name) { return ($this.Items | Where-Object { $_.Name -eq $name } | Select-Object -First 1) }
     }
     class FakeCommand {
@@ -196,6 +199,82 @@ Describe 'Resolve-SqlQuerySlot' {
     }
 }
 
+Describe 'Test-SqlDeltaQuery' {
+    It 'is true only when the statement binds @Since (any case, whole word)' {
+        Test-SqlDeltaQuery -Sql 'SELECT 1 WHERE modified >= @Since' | Should -BeTrue
+        Test-SqlDeltaQuery -Sql 'select 1 where modified >= @since' | Should -BeTrue
+        Test-SqlDeltaQuery -Sql 'SELECT @SinceDays FROM t' | Should -BeFalse
+        Test-SqlDeltaQuery -Sql 'SELECT 1' | Should -BeFalse
+        Test-SqlDeltaQuery -Sql '' | Should -BeFalse
+    }
+}
+
+# @Since and watermarkColumn are two halves of one thing. Either alone is a
+# delta that does not work, and neither failure announces itself at run time:
+# one reads the same window for ever, the other never narrows at all.
+Describe 'Resolve-SqlQuerySlot — watermarks and the sweep' {
+    It 'keeps a watermark column on a statement that binds @Since' {
+        $s = Resolve-SqlQuerySlot -Slot @{ name = 'G'; target = 'assignments'; resourceType = 'Entitlement'
+                                           sql = 'SELECT a, modified FROM g WHERE modified >= @Since'; watermarkColumn = ' modified ' }
+        $s.watermarkColumn | Should -Be 'modified'
+        $s.sweep | Should -BeFalse
+    }
+
+    It 'rejects each half without the other' {
+        { Resolve-SqlQuerySlot -Slot @{ name = 'G'; target = 'resources'; resourceType = 'E'; sql = 'SELECT 1'; watermarkColumn = 'modified' } } |
+            Should -Throw '*needs the statement to bind @Since*'
+        { Resolve-SqlQuerySlot -Slot @{ name = 'G'; target = 'resources'; resourceType = 'E'; sql = 'SELECT 1 WHERE m >= @Since' } } |
+            Should -Throw '*names no watermarkColumn*'
+    }
+
+    # A buffered target is sent whole, as one full sync: a window presented as the
+    # complete set would delete every row the statement did not return.
+    It 'refuses a watermark on a target that is sent as one full sync' {
+        foreach ($t in @('systems', 'contexts', 'context-members')) {
+            $slot = @{ name = 'C'; target = $t; sql = 'SELECT 1 WHERE m >= @Since'; watermarkColumn = 'modified'; contextType = 'Application' }
+            { Resolve-SqlQuerySlot -Slot $slot } | Should -Throw "*cannot read a window*"
+        }
+    }
+
+    It 'allows a sweep only on a windowed assignments statement' {
+        $ok = Resolve-SqlQuerySlot -Slot @{ name = 'G'; target = 'assignments'; resourceType = 'Entitlement'
+                                            sql = 'SELECT a, modified FROM g WHERE modified >= @Since'; watermarkColumn = 'modified'; sweep = $true }
+        $ok.sweep | Should -BeTrue
+        { Resolve-SqlQuerySlot -Slot @{ name = 'R'; target = 'resources'; resourceType = 'E'
+                                        sql = 'SELECT a, modified FROM r WHERE modified >= @Since'; watermarkColumn = 'modified'; sweep = $true } } |
+            Should -Throw '*only supported on an assignments query*'
+        # Read in full already: the timestamp reconcile removes what is gone, so a
+        # sweep would be a second complete read for nothing.
+        { Resolve-SqlQuerySlot -Slot @{ name = 'G'; target = 'assignments'; resourceType = 'E'; sql = 'SELECT 1'; sweep = $true } } |
+            Should -Throw '*bind @Since, or turn the sweep off*'
+    }
+}
+
+Describe 'Get-SqlSweepShare' {
+    It 'defaults to 5% and keeps a share inside (0, 1]' {
+        Get-SqlSweepShare -Value $null -Override $false | Should -Be 0.05
+        Get-SqlSweepShare -Value 0.2 -Override $false | Should -Be 0.2
+        Get-SqlSweepShare -Value 1 -Override $false | Should -Be 1
+    }
+
+    It 'falls back to the default for anything that is not a share' {
+        # 5 would mean 500%, i.e. no guard at all — the one outcome the setting exists to avoid.
+        foreach ($v in @(0, -0.1, 5, 'half', '')) { Get-SqlSweepShare -Value $v -Override $false | Should -Be 0.05 }
+    }
+
+    It 'reads a decimal the invariant way, so a comma locale cannot turn 0.05 into 5' {
+        $prev = [System.Threading.Thread]::CurrentThread.CurrentCulture
+        try {
+            [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::new('nl-NL')
+            Get-SqlSweepShare -Value '0.05' -Override $false | Should -Be 0.05
+        } finally { [System.Threading.Thread]::CurrentThread.CurrentCulture = $prev }
+    }
+
+    It 'an explicit override removes the ceiling entirely' {
+        Get-SqlSweepShare -Value 0.05 -Override $true | Should -Be 1
+    }
+}
+
 Describe 'Resolve-SqlConfig' {
     It 'applies every default and reads the dispatcher keys' {
         $cfg = Resolve-SqlConfig -ConfigPath (New-ConfigFile -Cfg (Merge-Cfg -Base $script:BaseCfg -Over @{ _syncMode = 'delta'; _configName = 'IIQ prod' }))
@@ -210,6 +289,21 @@ Describe 'Resolve-SqlConfig' {
         $cfg.syncMode | Should -Be 'delta'
         $cfg.configName | Should -Be 'IIQ prod'
         $cfg.queries.Count | Should -Be 1
+        # The delta defaults: 15 minutes of overlap (clock drift plus the longest
+        # write transaction), a nightly sweep, and a 5% ceiling on what it removes.
+        $cfg.watermarkOverlapSeconds | Should -Be 900
+        $cfg.sweepIntervalHours | Should -Be 24
+        $cfg.sweepMaxDeleteShare | Should -Be 0.05
+    }
+
+    It 'honours the delta settings, and sweepOverride lifts the ceiling for one run' {
+        $c = Merge-Cfg -Base $script:BaseCfg -Over @{ watermarkOverlapSeconds = 0; sweepIntervalHours = 0; sweepMaxDeleteShare = 0.5 }
+        $cfg = Resolve-SqlConfig -ConfigPath (New-ConfigFile -Cfg $c)
+        $cfg.watermarkOverlapSeconds | Should -Be 0     # 0 is a legitimate choice, not "unset"
+        $cfg.sweepIntervalHours | Should -Be 0          # sweeping off
+        $cfg.sweepMaxDeleteShare | Should -Be 0.5
+        $over = Resolve-SqlConfig -ConfigPath (New-ConfigFile -Cfg (Merge-Cfg -Base $script:BaseCfg -Over @{ sweepMaxDeleteShare = 0.05; sweepOverride = $true }))
+        $over.sweepMaxDeleteShare | Should -Be 1
     }
 
     It 'honours explicit values, treats commandTimeout 0 as unlimited, and anything else as full sync' {
@@ -338,6 +432,38 @@ Describe 'Invoke-SqlQueryStream' {
         $conn.ReadCommands[0].Parameters.Items.Count | Should -Be 0
         $conn.ReadCommands[0].Disposed | Should -BeTrue
         $conn.Readers[0].Disposed | Should -BeTrue
+    }
+
+    It 'binds @Since as a BIGINT, and only when the caller gave one' {
+        $conn = [FakeConnection]::new(@('id', 'n'), $script:Rows)
+        Invoke-SqlQueryStream -Connection $conn -Sql 'SELECT id, n FROM t WHERE n >= @Since' -OnRow { } -Since ([long]1758700000000) | Out-Null
+        $p = $conn.ReadCommands[0].Parameters.Get('@Since')
+        $p | Should -Not -BeNullOrEmpty
+        # Epoch milliseconds are ~1.7e12: an Int parameter overflows and the
+        # statement would either fail or read from a meaningless mark.
+        $p.Type | Should -Be ([System.Data.SqlDbType]::BigInt)
+        [long]$p.Value | Should -Be 1758700000000
+
+        $plain = [FakeConnection]::new(@('id', 'n'), $script:Rows)
+        Invoke-SqlQueryStream -Connection $plain -Sql 'SELECT id, n FROM t' -OnRow { } | Out-Null
+        $plain.ReadCommands[0].Parameters.Get('@Since') | Should -BeNullOrEmpty
+    }
+
+    It 'binds a zero @Since — the beginning of time, not "no window"' {
+        # A first run, an edited statement and a forced full sync all read
+        # everything, and they do it by binding 0, not by dropping the parameter
+        # the statement references (which would be a syntax error).
+        $conn = [FakeConnection]::new(@('id', 'n'), $script:Rows)
+        Invoke-SqlQueryStream -Connection $conn -Sql 'SELECT id, n FROM t WHERE n >= @Since' -OnRow { } -Since ([long]0) | Out-Null
+        [long]$conn.ReadCommands[0].Parameters.Get('@Since').Value | Should -Be 0
+    }
+
+    It 'binds @Since on EVERY page of a paged statement, not only the first' {
+        $conn = [FakeConnection]::new(@('id', 'n'), $script:Rows)
+        Invoke-SqlQueryStream -Connection $conn -Sql 'SELECT id FROM t WHERE n >= @Since ORDER BY n OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY' `
+            -OnRow { } -Paged $true -PageSize 3 -Since ([long]99) | Out-Null
+        $conn.ReadCommands.Count | Should -Be 3
+        foreach ($c in $conn.ReadCommands) { [long]$c.Parameters.Get('@Since').Value | Should -Be 99 }
     }
 
     It 'pages with @Offset/@PageSize until a short page, covering every row exactly once' {

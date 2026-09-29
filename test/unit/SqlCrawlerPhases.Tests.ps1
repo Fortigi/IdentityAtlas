@@ -21,14 +21,7 @@ BeforeAll {
     $script:ApiBaseUrl = 'http://localhost:3001/api'
     $script:ApiKey     = 'fgc_test'
     $script:JobId      = 0
-    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngest.ps1')
-    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngestStream.ps1')
-    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Get-CrawlerSystemName.ps1')
-    . (Join-Path $sqlDir 'SqlCrawler.Functions.ps1')
-    . (Join-Path $sqlDir 'SqlCrawler.Transform.ps1')
-    . (Join-Path $sqlDir 'SqlCrawler.Contexts.ps1')
-    . (Join-Path $sqlDir 'SqlCrawler.Phases.ps1')
-    . (Join-Path $sqlDir 'SqlCrawler.Verify.ps1')
+    . (Join-Path $sqlDir 'SqlCrawler.Load.ps1')
 
     function Reset-SqlTestState {
         $script:sent = [System.Collections.Generic.List[object]]::new()
@@ -163,13 +156,18 @@ Describe 'Add-SqlReconcileScope' {
 Describe 'New-SqlSlotStreams' {
     BeforeEach { Reset-SqlTestState }
 
-    It 'an identities slot opens identity, principal and member streams, and registers ONLY principals for reconcile' {
+    It 'an identities slot opens identity, principal and member streams, and reconciles ONLY principals' {
         $state = New-TestState -Slots @()
         $streams = New-SqlSlotStreams -Slot (New-Slot 'i' 'identities') -State $state
         @($streams.Keys | Sort-Object) | Should -Be @('identity', 'member', 'principal')
         $streams.principal.Scope.principalType | Should -Be 'User'
         # Identities / IdentityMembers are cross-system tables: never reconciled.
-        @($state.Scopes.Endpoint) | Should -Be @('ingest/principals')
+        $streams.principal.Reconcile | Should -BeTrue
+        $streams.identity.Reconcile   | Should -BeFalse
+        $streams.member.Reconcile     | Should -BeFalse
+        # The scope itself is registered when a row opens the stream, not before:
+        # a statement that returns nothing must not reconcile anything away.
+        $state.Scopes.Count | Should -Be 0
     }
 
     It 'an assignments slot scopes its stream by every reconcile axis and keys dedup on both ends' {
@@ -181,7 +179,7 @@ Describe 'New-SqlSlotStreams' {
         $sc.resourceType | Should -Be 'BusinessRole'
         $sc.governed | Should -BeTrue
         $streams.assignment.KeyFields | Should -Be @('resourceExternalId', 'principalExternalId')
-        @($state.Scopes.Endpoint) | Should -Be @('ingest/resource-assignments')
+        $streams.assignment.Reconcile | Should -BeTrue
     }
 
     It 'a resources slot scopes on its resourceType, and a relationships slot on its relationshipType' {
@@ -192,7 +190,9 @@ Describe 'New-SqlSlotStreams' {
 
     It 'an identity-members slot opens only the member stream and registers no reconcile scope' {
         $state = New-TestState -Slots @()
-        @((New-SqlSlotStreams -Slot (New-Slot 'm' 'identity-members') -State $state).Keys) | Should -Be @('member')
+        $streams = New-SqlSlotStreams -Slot (New-Slot 'm' 'identity-members') -State $state
+        @($streams.Keys) | Should -Be @('member')
+        $streams.member.Reconcile | Should -BeFalse
         $state.Scopes.Count | Should -Be 0
     }
 }
@@ -230,7 +230,7 @@ Describe 'Invoke-SqlSlot — identities' {
         $members = Get-SentRecords 'ingest/identity-members'
         @($members.identityExternalId) | Should -Be @('i1', 'i2')
         @($members.principalExternalId) | Should -Be @('i1', 'i2')
-        @($state.KnownPrincipals) | Should -Be @('i1', 'i2')
+        @($state.KnownPrincipals.Keys) | Should -Be @('i1', 'i2')
     }
 
     It 'counts a row with no id as skipped and sends nothing for it' {
@@ -359,9 +359,29 @@ Describe 'Invoke-SqlReconcile' {
         }
     }
 
-    It 'a DELTA run reconciles nothing at all' {
+    # Completeness, not run mode. The reconcile removes what the run did not
+    # touch, which is a removal only when everything still in the source WAS
+    # touched — true of a statement read in full, whatever the run calls itself.
+    It 'a DELTA run still reconciles a scope whose statements read their complete set' {
         $state = New-TestState -Slots @() -SyncMode 'delta'
         Add-SqlReconcileScope -State $state -Endpoint 'ingest/resources' -Scope @{ resourceType = 'Entitlement' }
+        Invoke-SqlReconcile -State $state | Should -Be 2
+        @(Get-Sent 'ingest/reconcile').Count | Should -Be 1
+    }
+
+    It 'never reconciles a scope a WINDOWED statement fed — an untouched row there just did not change' {
+        $state = New-TestState -Slots @() -SyncMode 'delta'
+        Add-SqlReconcileScope -State $state -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' } -Complete $false
+        Invoke-SqlReconcile -State $state | Should -Be 0
+        Should -Invoke Invoke-IngestAPI -Exactly 0
+    }
+
+    It 'one windowed statement makes the whole scope unreconcilable, however many complete ones share it' {
+        $state = New-TestState -Slots @()
+        Add-SqlReconcileScope -State $state -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' } -Complete $true
+        Add-SqlReconcileScope -State $state -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' } -Complete $false
+        Add-SqlReconcileScope -State $state -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' } -Complete $true
+        @($state.Scopes).Count | Should -Be 1
         Invoke-SqlReconcile -State $state | Should -Be 0
         Should -Invoke Invoke-IngestAPI -Exactly 0
     }

@@ -32,6 +32,7 @@ BeforeAll {
     # Entra's transform is split across files (file-length ratchet) — ConvertTo-*
     # shapers call helpers in Functions.ps1 / AppOwners.ps1, so dot-source the full
     # set exactly as EntraIDCrawlerTransform.Tests.ps1 does.
+    . (Join-Path $crawlers 'shared' 'Invoke-CrawlerDeltaToken.ps1')
     . (Join-Path $crawlers 'entra-id' 'EntraIDCrawler.Functions.ps1')
     . (Join-Path $crawlers 'entra-id' 'EntraIDCrawler.Transform.ps1')
     . (Join-Path $crawlers 'entra-id' 'EntraIDCrawler.AppRoles.ps1')

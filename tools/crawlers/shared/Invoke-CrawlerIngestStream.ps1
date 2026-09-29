@@ -38,14 +38,55 @@
 
 # The API container's clock, for a timestamp reconcile. Falls back to the local
 # UTC clock only when talking to an API that predates the field.
+#
+# NOT `[string]$who.serverTime`. Invoke-RestMethod parses an ISO-8601 string in a
+# JSON body into a [datetime] IN LOCAL TIME, and [string] on a datetime formats it
+# with the CURRENT CULTURE — so the exact instant the API sent, say
+# "2026-09-28T13:51:49.472Z", came back as "09/28/2026 13:51:49": no offset, and
+# no milliseconds.
+#
+# WAS HISTORICAL DATA DAMAGED BY THIS? No. Every crawler that streams (the SQL
+# connector and CSV) sent that truncated value as the `before` of its reconcile,
+# and has done since the helper was written — but the truncation moves `before`
+# EARLIER, by under a second, never later. The reconcile deletes
+# `updatedAt < before`, so an earlier bound matches a strictly SMALLER set: it
+# under-deletes and can never reach a row the run just wrote. The worst case is a
+# row that left the source, whose last write landed in the same second the
+# previous run started, surviving one extra run. On a first import, zero effect.
+#
+# The lost OFFSET is the half that could have hurt, and only under a
+# misconfiguration: both shipped images run UTC with TZ unset (and the worker's
+# PowerShell culture is the image's en-US, so the rendering is stable whatever the
+# host is), which leaves the two halves agreeing. Set TZ on the worker alone and
+# the value shifts by a whole offset — behind the API it still under-deletes;
+# ahead of it the API refuses a future `before` outright, EXCEPT on a run longer
+# than the offset, where rows written early in the run would be reconciled away.
+# Normalising to an unambiguous UTC round-trip removes that path entirely.
+#
+# What made it visible: a full sync touches every row, so a bound a fraction of a
+# second early changes nothing it counts. A DELTA verifies a window, and two runs
+# a fraction of a second apart then count each other's rows — a delta that wrote
+# one row verified as 48 and failed the job.
 function Get-CrawlerServerTime {
     [CmdletBinding()]
     [OutputType([string])]
     param()
     $who = Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/whoami" -Headers @{ Authorization = "Bearer $ApiKey" } -TimeoutSec 30
-    if ($who.serverTime) { return [string]$who.serverTime }
+    if ($who.serverTime) { return ConvertTo-CrawlerIsoTime -Value $who.serverTime }
     Write-Host "  whoami carries no serverTime — falling back to the worker clock for the reconcile" -ForegroundColor Yellow
     return [DateTime]::UtcNow.ToString('o')
+}
+
+# Whatever a JSON field carrying an instant deserialised into → an unambiguous
+# round-trip UTC string. A [datetime] is normalised to UTC; anything else is
+# passed through as the API spelled it.
+function ConvertTo-CrawlerIsoTime {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([AllowNull()] $Value)
+    if ($Value -is [datetime])       { return ([datetime]$Value).ToUniversalTime().ToString('o') }
+    if ($Value -is [DateTimeOffset]) { return ([DateTimeOffset]$Value).UtcDateTime.ToString('o') }
+    return [string]$Value
 }
 
 function New-CrawlerIngestStream {

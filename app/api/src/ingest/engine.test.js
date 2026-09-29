@@ -7,7 +7,7 @@
 // way, so these tests assert against `reconcileSql`.
 
 import { describe, it, expect } from 'vitest';
-import { scopedDelete, reconcileBounds, reconcileAllowed, buildUpdateSet } from './engine.js';
+import { scopedDelete, scopeLiveCount, reconcileBounds, reconcileAllowed, buildUpdateSet } from './engine.js';
 
 // A fake pg client. Records every query() call and returns an empty result.
 // The CREATE INDEX / ANALYZE preamble and the reconcile statement flow through here.
@@ -284,5 +284,57 @@ describe('buildUpdateSet', () => {
   it('defaults to full-sync semantics and no preserved columns', () => {
     expect(buildUpdateSet(cols, 'Principals')).toBe(
       '"systemId" = EXCLUDED."systemId", "displayName" = EXCLUDED."displayName"');
+  });
+});
+
+// ── scopeLiveCount — the denominator a staged sweep's delete guard measures against ──
+//
+// The guard is a ratio, and a ratio only means anything when both halves count the
+// same population. So this counts exactly what scopedDelete is allowed to touch,
+// minus the "and the source no longer has it" half — same bounds, same
+// preservation clauses, same soft-delete exclusion.
+
+describe('scopeLiveCount', () => {
+  const countSql = (client) => client.calls.map(c => c.sql).find(s => /^\s*SELECT count\(\*\)/.test(s)) || '';
+
+  it('counts the scope the delete would draw from: system, scope and the delete filter', async () => {
+    const client = fakeClient();
+    const cols = new Set(['resourceId', 'principalId', 'assignmentType', 'systemId', 'deletedAt']);
+    await scopeLiveCount(client, 'ResourceAssignments', 7, { assignmentType: 'Direct' }, 'systemId', cols,
+      '"principalId" IS NOT NULL');
+    const sql = countSql(client);
+    expect(sql).toContain('FROM "ResourceAssignments" t');
+    expect(sql).toContain('t."systemId" = $1');
+    expect(sql).toContain('t."assignmentType" = $2');
+    expect(sql).toContain('("principalId" IS NOT NULL)');
+    // A tombstoned row is already gone: counting it would make every sweep's
+    // share look smaller than it is, which is the one direction that matters.
+    expect(sql).toContain('t."deletedAt" IS NULL');
+    expect(client.calls[0].params).toEqual([7, 'Direct']);
+  });
+
+  it('excludes the rows a reconcile may not touch, exactly as the delete does', async () => {
+    const client = fakeClient();
+    const cols = new Set(['identityId', 'principalId', 'systemId', 'linkConfidence', 'analystOverride']);
+    await scopeLiveCount(client, 'IdentityMembers', 7, {}, 'systemId', cols);
+    const sql = countSql(client);
+    expect(sql).toContain('"linkConfidence" IS NULL');
+    expect(sql).toContain('"analystOverride" IS NULL');
+    // Not a soft-delete table — nothing to exclude on deletedAt.
+    expect(sql).not.toContain('deletedAt');
+  });
+
+  it('answers null where a reconcile would be refused as unbounded — there is nothing to guard', async () => {
+    const client = fakeClient();
+    await expect(scopeLiveCount(client, 'Systems', null, {}, 'systemId', new Set(['systemType', 'tenantId'])))
+      .resolves.toBeNull();
+    expect(client.calls).toHaveLength(0);
+  });
+
+  it("returns the count as a number, not the driver's string", async () => {
+    const client = fakeClient();
+    client.query = async (sql, params) => { client.calls.push({ sql, params }); return { rows: [{ n: '41000000' }] }; };
+    await expect(scopeLiveCount(client, 'Resources', 7, {}, 'systemId', new Set(['id', 'systemId', 'deletedAt'])))
+      .resolves.toBe(41000000);
   });
 });

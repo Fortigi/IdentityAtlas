@@ -139,7 +139,7 @@ describe('finalize and abort', () => {
     const res = await request(app).post('/ingest/stages/s1/finalize').send({ deleteMissing: 'yes' });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ path: 'merge', inserted: 1, deleted: 2 });
-    expect(m.finalize.mock.calls[0][1]).toEqual({ deleteMissing: false });
+    expect(m.finalize.mock.calls[0][1]).toEqual({ deleteMissing: false, maxDeleteShare: 0 });
     expect(m.syncLog.mock.calls[0][1]).toBe('API-stage-resource-assignments-merge');
   });
 
@@ -159,8 +159,29 @@ describe('finalize and abort', () => {
     expect(res.status).toBe(200);
     expect(res.body.results.map(r => [r.stageId, r.path])).toEqual([['s1', 'empty-table'], ['s2', 'empty-table']]);
     expect(m.finalizeMany.mock.calls[0][0].map(s => s.id)).toEqual(['s1', 's2']);
-    expect(m.finalizeMany.mock.calls[0][1]).toEqual({ deleteMissing: true });
+    expect(m.finalizeMany.mock.calls[0][1]).toEqual({ deleteMissing: true, maxDeleteShare: 0 });
     expect(m.syncLog).toHaveBeenCalledTimes(2);
+  });
+
+  // The ceiling a key sweep sets on what its finalize may remove.
+  it('passes a delete-share ceiling through, and refuses one that is not a share', async () => {
+    await open();
+    await request(app).post('/ingest/stages/s1/finalize').send({ deleteMissing: true, maxDeleteShare: 0.05 });
+    expect(m.finalize.mock.calls[0][1]).toEqual({ deleteMissing: true, maxDeleteShare: 0.05 });
+    for (const bad of [0, -0.1, 5, 'half', null]) {
+      const res = await request(app).post('/ingest/stages/s1/finalize').send({ deleteMissing: true, maxDeleteShare: bad });
+      // null means "no ceiling", the same as leaving it out; the rest are errors.
+      expect(res.status).toBe(bad === null ? 200 : 400);
+    }
+  });
+
+  it('surfaces the refusal as 409 rather than a server error', async () => {
+    await open();
+    const err = Object.assign(new (await import('../../ingest/stages.js')).StageError(409, 'would remove 60 of 100 rows'), {});
+    m.finalize.mockRejectedValueOnce(err);
+    const res = await request(app).post('/ingest/stages/s1/finalize').send({ deleteMissing: true, maxDeleteShare: 0.05 });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/would remove 60 of 100 rows/);
   });
 
   it('grouped finalize refuses a bad list and a stage of another crawler', async () => {

@@ -21,12 +21,24 @@
 
 // ─── Shared statements ───────────────────────────────────────────────────────
 
+// `ma.application` is aliased systemId, which is what routes each entitlement
+// into the system the "Technical applications" query created for its connector.
+// It is still kept as an attribute (a routing column is consumed AND kept), so
+// nothing that used to be visible disappears.
+//
+// `ma.owner` is aliased ownerId, the column the entitlements slot's `ownership`
+// flag reads. The flag is OFF in both presets: ownership is measured at 60% of
+// entitlements on the IdentityIQ-shaped fixture, so on a production catalogue of
+// 805,497 it is roughly 1.45 million extra rows across three tables — worth
+// having, but a decision to take deliberately rather than inherit. Tick "Owners
+// from ownerId" on the Entitlements query to turn it on; the raw ownerId and
+// ownerName stay in extendedAttributes either way.
 const ENTITLEMENT_COLUMNS = `    ma.id,
     COALESCE(NULLIF(ma.displayable_name, ''), ma.value) AS displayName,
     ma.value             AS entitlementValue,
     ma.attribute         AS attributeName,
     ma.type              AS entitlementType,
-    ma.application       AS applicationId,
+    ma.application       AS systemId,
     app.name             AS applicationName,
     ma.owner             AS ownerId,
     owner.display_name   AS ownerName,
@@ -51,6 +63,13 @@ LEFT JOIN spt_identity owner  ON owner.id = ma.owner`;
 // a role never shows unless it is stored that way. Two statements, two reconcile
 // scopes, so one can never remove the other's rows. The same person can hold the
 // same entitlement both ways, and both rows are kept.
+// The one statement in an IdentityIQ source that a full read cannot be casual
+// about, so it is also the one that reads a WINDOW: it binds @Since against the
+// grant's own timestamp and names that column as its watermark. A watermark
+// cannot see a removal — a deleted row does not bump its own timestamp — so the
+// same slot enables the periodic key sweep, which reads the complete key set
+// and removes what is gone. Everything else in this preset reads in full and is
+// reconciled on completeness instead (docs/architecture/sql-connector-delta.md).
 function entitlementGrants(byRole) {
   return {
     name: byRole ? 'Entitlement grants via a role' : 'Entitlement grants',
@@ -58,27 +77,73 @@ function entitlementGrants(byRole) {
     resourceType: 'Entitlement',
     assignmentType: byRole ? 'Indirect' : 'Direct',
     governed: false,
+    watermarkColumn: 'modified',
+    sweep: true,
     sql: `-- Usually the largest table by far (tens of millions of rows). Rows stream
 -- straight through, so no paging is needed. The join is on application +
 -- attribute + value, which is unique per entitlement; joining on value alone
 -- fans out wherever two attributes share a value.
+--
+-- @Since is epoch MILLISECONDS: created/modified are numeric(19,0) written by
+-- the application, not datetimes written by the database. A first run, an edited
+-- statement and a forced full sync all bind zero, which reads everything.
+-- COALESCE because modified is NULL on a row that was never updated.
 SELECT
     ie.identity_id AS principalId,
-    ma.id          AS resourceId
+    ma.id          AS resourceId,
+    COALESCE(ie.modified, ie.created) AS modified
 FROM spt_identity_entitlement ie
 INNER JOIN spt_managed_attribute ma
     ON  ma.application = ie.application
     AND ma.attribute   = ie.name
     AND ma.value       = ie.value
 WHERE ie.type = 'Entitlement'
+  AND COALESCE(ie.modified, ie.created) >= @Since
   AND ${byRole ? 'ie.granted_by_role = 1' : '(ie.granted_by_role = 0 OR ie.granted_by_role IS NULL)'}`,
   };
 }
 
+// IdentityIQ is itself an aggregator: spt_application is one row per connected
+// system. Loading all of it as one flat Identity Atlas system loses the thing an
+// analyst asks first — which application an entitlement belongs to — so this
+// query creates one system per connector and every later statement routes to it
+// by aliasing its application column `systemId`.
+//
+// The identities query deliberately does NOT route: IdentityIQ's people are the
+// directory, they live in the crawler's own system, and every grant therefore
+// spans two systems. That works because ids are namespaced per RUN, not per
+// system (tools/crawlers/mssql/SqlCrawler.Systems.ps1).
+const TECHNICAL_APPLICATIONS = {
+  name: 'Technical applications',
+  target: 'systems',
+  sql: `-- One Identity Atlas system per IdentityIQ application. The id is what the
+-- entitlement and account queries route by, so it must be the same column they
+-- alias as systemId (spt_managed_attribute.application, spt_link.application).
+SELECT
+    a.id,
+    a.name          AS displayName,
+    a.type          AS applicationType,
+    a.connector,
+    a.authoritative,
+    a.owner         AS ownerId,
+    i.display_name  AS ownerName,
+    a.created,
+    a.modified
+FROM spt_application a
+LEFT JOIN spt_identity i ON i.id = a.owner`,
+};
+
+// `ownership: true` turns `b.owner` into a real owner: an ownership resource
+// named after the role, a HasOwnership link to it, and a Direct assignment for
+// the owner. On by default here because every role in IdentityIQ has an owner
+// and there are thousands of roles, not hundreds of thousands — three extra
+// rows each is nothing. The entitlements query leaves it OFF for exactly the
+// opposite reason; see the comment there.
 const BUSINESS_ROLES = {
   name: 'Business roles',
   target: 'resources',
   resourceType: 'BusinessRole',
+  ownership: true,
   sql: `SELECT
     b.id,
     COALESCE(NULLIF(b.display_name, ''), b.name) AS displayName,
@@ -133,6 +198,7 @@ LEFT JOIN spt_managed_attribute ma
 // One row per identity, loaded as a principal: IdentityIQ keeps the person and
 // the account in the same row, and assignments hang off principals.
 export const IDENTITYIQ_PRESET = [
+  TECHNICAL_APPLICATIONS,
   {
     name: 'Identities',
     target: 'principals',
@@ -178,6 +244,7 @@ export const APPLICATION_KEY = 'LogicalApplication';
 const APPLICATION_XPATH = `(/Attributes/Map/entry[@key="${APPLICATION_KEY}"]/@value)[1]`;
 
 export const IDENTITYIQ_ORG_PRESET = [
+  TECHNICAL_APPLICATIONS,
   {
     name: 'Identities',
     target: 'principals',
@@ -273,7 +340,7 @@ FROM spt_managed_attribute ma`,
 ];
 
 export const PRESETS = [
-  { id: 'identityiq', label: 'SailPoint IdentityIQ', description: 'Identities, entitlements, business roles, their assignments (direct and via a role) and role composition from the stock spt_* columns', queries: IDENTITYIQ_PRESET },
+  { id: 'identityiq', label: 'SailPoint IdentityIQ', description: 'One system per technical application, plus identities, entitlements, business roles, their assignments (direct and via a role) and role composition from the stock spt_* columns', queries: IDENTITYIQ_PRESET },
   { id: 'identityiq-org', label: 'SailPoint IdentityIQ with organisation extensions', description: 'As above, plus typical identity extension columns and the logical applications kept in XML, as Contexts. Rename the extension columns and the catalogue names to your deployment\'s', queries: IDENTITYIQ_ORG_PRESET },
 ];
 

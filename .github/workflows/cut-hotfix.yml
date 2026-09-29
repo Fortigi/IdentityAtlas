@@ -82,11 +82,10 @@ jobs:
 
       - name: Generate release notes
         run: |
-          # Compare against the previous tag in the same major.minor series
-          # (e.g. v5.7.2 when cutting v5.7.3), not the globally latest stable.
-          BASE_MINOR=$(echo "${{ github.event.inputs.version }}" | cut -d. -f1,2)
-          PREV_TAG=$(git tag --list "v${BASE_MINOR}.*" --sort=-version:refname \
-            | grep -v beta | grep -v rc | grep -v alpha | grep -v "^${TAG}$" | head -1)
+          # The stable release this one follows. Shared by both cut workflows so
+          # the two cannot drift apart again — see the script for why the
+          # "globally latest tag" and "same series only" rules were each wrong.
+          PREV_TAG=$(bash .github/scripts/release_prev_tag.sh "$TAG")
 
           # Primary source: unmerged changes/*.md fragments on this hotfix branch.
           # bump-version hasn't run yet so fragments aren't in CHANGES.md.
@@ -112,6 +111,7 @@ jobs:
             [ -n "$PREV_TAG" ] && printf '\n**Full Changelog:** https://github.com/${{ github.repository }}/compare/%s...%s\n' \
               "$PREV_TAG" "$TAG"
           } > release-notes.md
+          echo "PREV_TAG=${PREV_TAG}" >> "$GITHUB_ENV"
           echo "--- release-notes.md raw preview ---"
           cat release-notes.md
 
@@ -143,6 +143,22 @@ jobs:
       - name: Warn if release notes weren't polished
         if: steps.polish.outcome == 'failure'
         run: echo "::warning::Release notes polishing failed (model call rejected/unavailable) — shipping the raw changelog bullets instead. Check CLAUDE_CODE_OAUTH_TOKEN entitlements/subscription status."
+
+      # Dependency deltas cannot reach release-notes.md through the changelog:
+      # the PR Hygiene gate's CODE pattern does not cover package-lock.json, so
+      # Dependabot PRs merge without a changes/*.md fragment, and the polish step
+      # above is told to drop tooling bullets with no user-visible effect — which
+      # is how a library bump reads. A library-only patch release would ship
+      # notes with nothing under "## Changes", which is the release where an
+      # operator most needs to see which version moved.
+      #
+      # Appended AFTER polishing on purpose: the model cannot drop or reword a
+      # section it never sees, so the shipped-dependency list is exact.
+      - name: Append dependency updates
+        run: |
+          python3 tools/release-notes/dependency-delta.py "${PREV_TAG}" "${TAG}" >> release-notes.md
+          echo "--- release-notes.md final ---"
+          cat release-notes.md
 
       - name: Create GitHub release with portable ZIP
         env:

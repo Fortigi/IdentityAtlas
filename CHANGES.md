@@ -1,5 +1,43 @@
 ## Changes in this PR
 
+- Release notes now list the dependency updates a release actually ships: a "Dependency updates" section naming each package that moved, what it moved from and to, and any change to the container base images. Previously a release made up only of library upgrades produced notes with nothing in them, which was exactly the release where operators most needed to see which versions changed.
+- The section reports only what reaches the published image — the API's installed production packages, the libraries bundled into the UI, and the pinned base images — so build- and test-only tooling no longer crowds out the updates that matter.
+- Fixed the release a set of notes is compared against. Patch releases cut from a maintained release line were compared against the newest release overall, so a patch could be described as removing everything a later version had added; a release that was the first of its series could lose its change list and changelog link entirely. Both release workflows now determine this the same way.
+- Added documentation covering how a release's notes are assembled, and corrected the branching guide, which stated that releases can only be cut from the tip of the main branch.
+- No change to behaviour from the lockfile-reading split; it is the same parsing in three smaller pieces.
+
+## Changes in this PR
+
+- The SQL connector can now refresh incrementally instead of re-reading its whole source. A query opts in by naming the column it advances on (e.g. `modified`) and referencing `@Since` in its SQL; the crawler then reads only the rows that changed since the last successful run. The shipped IdentityIQ example does this for the two entitlement-grant queries, which are the ones large enough for a full read to be an overnight job.
+- Removals are found by a periodic **key sweep**: the query's complete set of ids is read and anything Identity Atlas still holds but the source no longer has is removed. It runs at most once every `sweepIntervalHours` (a day by default), so a removal shows within one interval while routine refreshes stay small.
+- A sweep refuses to remove more than 5% of a scope in one go, and writes nothing when it would — a source read while it is being re-aggregated looks exactly like a mass revocation. `sweepOverride` lets a genuinely large removal through for one run.
+- A query's position is remembered only after the run has been verified end to end, and the stored position is keyed on the text of the query — so editing a query makes the next run read everything again rather than silently skipping the rows its new shape would have returned.
+- Each incremental read goes back a short overlap (15 minutes by default, `watermarkOverlapSeconds`) so rows written by a source whose servers disagree slightly about the time are not stepped over.
+- Stale rows are now removed on the basis of what a query actually read rather than on whether the run was labelled "full": a query that reads its whole table keeps its data exact on every run, incremental ones included. Previously an incremental run removed nothing at all.
+- The Queries step of the SQL wizard gained a **Watermark column** field and, for assignment queries, a **Key sweep** toggle, and reports the combinations that cannot work (a watermark column with no `@Since`, or the other way round).
+- The IdentityIQ-shaped test fixture gained a mutation script, so an incremental refresh can be rehearsed against a source that actually changed.
+
+## Changes in this PR
+
+- SQL connector: the owner a query selects can now become a real owner you can click, instead of an identifier shown as text. Alias the column `ownerId` and tick "Owners from ownerId" on the query, and each resource gets an owner entry linked to it — the same way group owners already work, so the owner shows on the resource, gets its own matrix row, and counts as control rather than as access.
+- The owner may be written as an account id or as an employee number; both are matched against the accounts the same run loaded. An owner matching nobody is reported with the values and how many resources carry each, and no owner is ever invented — the raw value stays where it always was.
+- Owner links are off unless a query asks for them: they add three rows per resource that has an owner, which is around 1.45 million rows on a catalogue of 800,000 entitlements. The shipped SailPoint IdentityIQ examples turn them on for business roles and leave them off for entitlements, with the column already selected so it is one checkbox to change.
+- Fixed: owners of enterprise applications and app registrations were being counted as ordinary members, inflating the member count of what they own and their holder's risk score. Every kind of owner is now excluded from member counts, as group owners already were.
+- Fixed: a SQL query loading people could fail near the end of a first run with a database error about identity members, because the last partial batch of a query was sent in an order that linked people to records that had not been written yet.
+
+## Changes in this PR
+
+- The SQL Database connector can now create one Identity Atlas system per technical connector in the source, instead of loading everything into a single flat system. Add a query with the new **Systems** target (for SailPoint IdentityIQ, one row per `spt_application`) and the shipped IdentityIQ examples now include it.
+- Resources, principals, assignments and relationships can say which of those systems they belong to, with a `systemId` (the source's own key for the connector) or `systemName` column — the same idea as the CSV import's Systems file and SystemName column. Both columns are still shown as attributes on the detail page.
+- An assignment goes to its resource's system and a relationship to its parent's, so the grant table — usually the largest in the source — needs no extra join to be routed.
+- A grant can span two systems: a person in the directory holding an entitlement in a connector's system is stored and shown correctly.
+- A row naming a system that no Systems query created is kept, loaded into the crawler's own system, and reported by name with a count, rather than disappearing into it silently. Past 5% of a query's rows the job fails, because at that point the two queries disagree about which connectors exist.
+- A full sync now reconciles each system separately, so a routed system's removed rows are cleaned up and a system that received nothing this run is left untouched.
+- The job fails, naming the ids, if two systems claim the same external id — those rows would otherwise overwrite each other.
+- Existing SQL crawler configurations are unaffected: without a Systems query nothing routes, and every id stays exactly as it was.
+
+## Changes in this PR
+
 - The owner of a context is now shown as a person rather than an internal id, on both the context detail header and the contexts page, and clicking it opens that account. An owner that matches no account still shows the value the source gave, so a missing owner is visible instead of silently blank.
 - The SQL Database crawler now resolves an owner the source names by employee number to the matching account, so owners from an IdentityIQ application catalogue resolve to real people. Owners that match nobody are kept exactly as the source spells them and counted in the job log.
 - Logical applications imported from a SQL catalogue now appear as a tree under one root ("Logical Applications") instead of as a flat list of hundreds of top-level entries. The root name is configurable per contexts query in the crawler wizard.

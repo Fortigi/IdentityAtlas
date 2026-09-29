@@ -227,6 +227,29 @@ Describe 'Get-CrawlerServerTime' {
         Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Uri -eq 'http://localhost:3001/api/crawlers/whoami' -and $Headers.Authorization -eq 'Bearer fgc_test' }
     }
 
+    # What the mock above returns is a STRING, and Invoke-RestMethod does not:
+    # it parses an ISO-8601 field into a [datetime] in LOCAL time. `[string]` on
+    # that formats it with the current culture — "09/28/2026 13:51:49" — losing
+    # the offset and the milliseconds. A full sync never noticed, because it
+    # touches every row and a slightly early `before` changes nothing; a delta
+    # verifies a WINDOW, and two runs a fraction of a second apart then count
+    # each other's rows. Measured: a delta that wrote one row verified as 48.
+    It 'keeps the exact instant when whoami deserialised into a datetime' {
+        $exact = [datetime]::new(2026, 9, 25, 9, 0, 0, 472, [DateTimeKind]::Utc)
+        Mock Invoke-RestMethod { [pscustomobject]@{ id = 1; serverTime = $exact.ToLocalTime() } }
+        $t = Get-CrawlerServerTime
+        $t | Should -Match 'Z$'                       # unambiguous, not a local rendering
+        $t | Should -Match '\.4720000'                # the milliseconds survived
+        [datetime]::Parse($t, $null, [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor
+            [System.Globalization.DateTimeStyles]::AssumeUniversal) | Should -Be $exact
+    }
+
+    It 'normalises a DateTimeOffset the same way' {
+        $off = [DateTimeOffset]::new(2026, 9, 25, 11, 0, 0, 472, [timespan]::FromHours(2))
+        Mock Invoke-RestMethod { [pscustomobject]@{ id = 1; serverTime = $off } }
+        Get-CrawlerServerTime | Should -Be '2026-09-25T09:00:00.4720000Z'
+    }
+
     It 'falls back to the local UTC clock (ISO round-trip format) when the API has no serverTime' {
         Mock Invoke-RestMethod { [pscustomobject]@{ id = 1 } }
         $before = [DateTime]::UtcNow.AddSeconds(-1)

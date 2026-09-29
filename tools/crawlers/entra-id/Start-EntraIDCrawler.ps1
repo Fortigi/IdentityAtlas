@@ -113,6 +113,7 @@ $ErrorActionPreference = 'Stop'
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
+. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerDeltaToken.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Functions.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Transform.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.DeltaSelect.ps1')

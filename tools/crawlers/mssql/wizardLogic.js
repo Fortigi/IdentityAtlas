@@ -10,12 +10,13 @@ import { presetQueries } from './sqlPresets.js';
 // The targets a statement's rows can become, with the one-line column
 // contract the Queries step shows under the SQL. Full table: CLAUDE.md here.
 export const TARGETS = [
+  { id: 'systems',          label: 'Systems',          contract: 'displayName (+ id as the key later queries route by, description, systemType, tenantId, enabled); one Identity Atlas system per technical connector in the source' },
   { id: 'identities',       label: 'Identities',       contract: 'id, displayName (+ email, givenName, surname, department, jobTitle, companyName, employeeId, principalType, enabled …)' },
-  { id: 'principals',       label: 'Principals',       contract: 'id, displayName (+ identityId, email, givenName, surname, principalType, enabled …)' },
+  { id: 'principals',       label: 'Principals',       contract: 'id, displayName (+ identityId, email, givenName, surname, principalType, enabled, systemId or systemName …)' },
   { id: 'identity-members', label: 'Identity members', contract: 'identityId, principalId (+ isPrimary, accountType)' },
-  { id: 'resources',        label: 'Resources',        contract: 'id, displayName (+ description, enabled); resourceType is the slot value' },
-  { id: 'assignments',      label: 'Assignments',      contract: 'resourceId, principalId; resourceType, assignmentType and governed are the slot values' },
-  { id: 'relationships',    label: 'Relationships',    contract: 'parentId, childId; relationshipType is the slot value' },
+  { id: 'resources',        label: 'Resources',        contract: 'id, displayName (+ description, enabled, ownerId, systemId or systemName to route the row to one of the Systems query\'s systems); resourceType is the slot value' },
+  { id: 'assignments',      label: 'Assignments',      contract: 'resourceId, principalId (the row follows its resource\'s system unless it names systemId or systemName); resourceType, assignmentType and governed are the slot values' },
+  { id: 'relationships',    label: 'Relationships',    contract: 'parentId, childId (the row follows its parent\'s system unless it names systemId or systemName); relationshipType is the slot value' },
   { id: 'contexts',         label: 'Contexts',         contract: 'displayName (+ id as a stable key, description, ownerUserId); contextType and targetType are the slot values' },
   { id: 'context-members',  label: 'Context members',  contract: 'memberId and contextId or contextName (matched to the Contexts query by name, ignoring case and surrounding spaces)' },
 ];
@@ -28,13 +29,19 @@ export const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', '
 // Which slot-level constants each target uses. A field a target does not use is
 // left out of the saved slot entirely, so the crawler never sees a stray
 // relationshipType on an assignments slot.
+// `watermarkColumn` is offered on the STREAMED targets only. The buffered ones
+// (systems, contexts, context-members) are sent whole as one full sync, so a
+// statement that read a window would present its window as the complete set and
+// the sync would delete everything it did not return. Resolve-SqlQuerySlot
+// refuses that combination too — this just never offers it.
 const SLOT_FIELDS_BY_TARGET = {
-  identities: ['principalType'],
-  principals: ['principalType'],
-  'identity-members': [],
-  resources: ['resourceType'],
-  assignments: ['resourceType', 'assignmentType', 'governed'],
-  relationships: ['relationshipType'],
+  systems: ['systemType'],
+  identities: ['principalType', 'watermarkColumn'],
+  principals: ['principalType', 'watermarkColumn'],
+  'identity-members': ['watermarkColumn'],
+  resources: ['resourceType', 'ownership', 'watermarkColumn'],
+  assignments: ['resourceType', 'assignmentType', 'governed', 'watermarkColumn', 'sweep'],
+  relationships: ['relationshipType', 'watermarkColumn'],
   contexts: ['contextType', 'targetType', 'rootDisplayName'],
   'context-members': ['memberType'],
 };
@@ -57,14 +64,22 @@ const PERSON_OPTIONAL = [
   'companyName', 'employeeId', 'principalType', 'enabled', 'active', 'inactive', 'disabled',
 ];
 
+// Which system a row belongs to, by the source's own key for the connector or
+// by its name. Only meaningful alongside a Systems query; see
+// tools/crawlers/mssql/SqlCrawler.Systems.ps1.
+const ROUTING_OPTIONAL = ['systemId', 'systemName'];
+
 export const CONTRACT_COLUMNS = {
+  systems:            { required: ['displayName'],                   optional: ['id', 'name', 'description', 'systemType', 'tenantId', 'enabled', 'active', 'inactive', 'disabled'] },
   identities:         { required: ['id', 'displayName'],             optional: PERSON_OPTIONAL },
-  principals:         { required: ['id', 'displayName'],             optional: [...PERSON_OPTIONAL, 'identityId'] },
+  principals:         { required: ['id', 'displayName'],             optional: [...PERSON_OPTIONAL, 'identityId', ...ROUTING_OPTIONAL] },
   'identity-members': { required: ['identityId', 'principalId'],     optional: ['isPrimary', 'accountType'] },
-  resources:          { required: ['id', 'displayName'],             optional: ['name', 'description', 'enabled'] },
+  // ownerId is only turned into an owner link when the slot's `ownership` flag
+  // says so; without it the column is an ordinary attribute, as it always was.
+  resources:          { required: ['id', 'displayName'],             optional: ['name', 'description', 'enabled', 'ownerId', ...ROUTING_OPTIONAL] },
   // An identities row's account shares its id, so identityId is accepted where principalId is.
-  assignments:        { required: ['resourceId', 'principalId'],     optional: ['identityId'] },
-  relationships:      { required: ['parentId', 'childId'],           optional: [] },
+  assignments:        { required: ['resourceId', 'principalId'],     optional: ['identityId', ...ROUTING_OPTIONAL] },
+  relationships:      { required: ['parentId', 'childId'],           optional: ROUTING_OPTIONAL },
   contexts:           { required: ['displayName'],                   optional: ['id', 'name', 'description', 'ownerUserId'] },
   // One of contextId / contextName is needed; the crawler skips a row with neither.
   'context-members':  { required: ['memberId'],                      optional: ['contextId', 'contextName'] },
@@ -88,8 +103,9 @@ export function contractColumnOptions(target) {
 // ─── Slot state ──────────────────────────────────────────────────────────────
 
 const SLOT_DEFAULTS = {
-  resourceType: '', assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User',
-  contextType: '', targetType: 'Resource', memberType: 'Resource', rootDisplayName: '',
+  resourceType: '', ownership: false, assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User',
+  systemType: '', contextType: '', targetType: 'Resource', memberType: 'Resource', rootDisplayName: '',
+  watermarkColumn: '', sweep: false,
 };
 
 // A blank editor slot. Every field is bound (the editor switches which ones it
@@ -220,6 +236,23 @@ function validateSlot(slot, index) {
   if (NEEDS_RESOURCE_TYPE.has(slot.target) && blank(slot.resourceType)) errors.push(`${label}: resource type is required for ${slot.target}`);
   if (slot.target === 'contexts' && blank(slot.contextType)) errors.push(`${label}: context type is required for contexts`);
   for (const error of validateColumnMap(slot.columnMap, slot.target)) errors.push(`${label}: ${error}`);
+  for (const error of validateWatermark(slot)) errors.push(`${label}: ${error}`);
+  return errors;
+}
+
+// Mirrors Get-SqlWatermarkColumn. @Since and watermarkColumn are two halves of
+// one thing: a statement that binds @Since with nothing to advance on reads the
+// same window for ever, and a named column with no @Since promises a delta the
+// run never does. A sweep-enabled statement with neither is the same mistake
+// from the other end — it would read its whole key set every run for nothing.
+function validateWatermark(slot) {
+  const sql = String(slot.sql ?? '');
+  const binds = /@Since\b/.test(sql);
+  const column = !blank(slot.watermarkColumn);
+  const errors = [];
+  if (column && !binds) errors.push('watermark column needs the SQL to bind @Since (e.g. AND modified >= @Since)');
+  if (binds && !column) errors.push('the SQL binds @Since but names no watermark column, so its watermark could never move');
+  if (slot.sweep === true && !binds) errors.push('a key sweep only makes sense for a query that reads a window — bind @Since, or turn the sweep off');
   return errors;
 }
 
@@ -271,14 +304,18 @@ const toInt = (value, fallback) => {
 
 const SLOT_FIELD_VALUES = {
   resourceType:     s => (s.resourceType || '').trim(),
+  ownership:        s => s.ownership === true,
   assignmentType:   s => s.assignmentType || 'Direct',
   governed:         s => s.governed === true,
   relationshipType: s => s.relationshipType || 'Contains',
   principalType:    s => s.principalType || 'User',
+  systemType:       s => (s.systemType || '').trim(),
   contextType:      s => (s.contextType || '').trim(),
   targetType:       s => s.targetType || 'Resource',
   memberType:       s => s.memberType || 'Resource',
   rootDisplayName:  s => (s.rootDisplayName || '').trim(),
+  watermarkColumn:  s => (s.watermarkColumn || '').trim(),
+  sweep:            s => s.sweep === true,
 };
 
 // One editor slot → one crawler.json `queries[]` entry: trimmed, typed, and

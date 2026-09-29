@@ -25,6 +25,7 @@ const engine = vi.hoisted(() => ({
   resolveActiveColumns: vi.fn(),
   discoverColumns: vi.fn(),
   scopedDelete: vi.fn(async () => 3),
+  scopeLiveCount: vi.fn(async () => 100),
   markGovernanceMemberships: vi.fn(async () => {}),
 }));
 vi.mock('./engine.js', () => ({ ...engine, SOFT_DELETE_TABLES: new Set(['ResourceAssignments']) }));
@@ -47,6 +48,8 @@ beforeEach(() => {
   engine.resolveActiveColumns.mockResolvedValue(cols('resourceId', 'principalId', 'assignmentType', 'governed', 'systemId', 'resourceType'));
   engine.discoverColumns.mockResolvedValue(cols('resourceId', 'principalId', 'assignmentType', 'governed', 'systemId', 'resourceType', 'deletedAt', 'updatedAt'));
   engine.scopedDelete.mockClear();
+  engine.scopeLiveCount.mockClear();
+  engine.scopeLiveCount.mockResolvedValue(100);
 });
 
 describe('stage lifecycle', () => {
@@ -257,12 +260,96 @@ describe('finalize — the merge path', () => {
     expect(sqls.some(s => /^\s*(INSERT INTO "ResourceAssignments"|UPDATE)/.test(s))).toBe(false);
   });
 
+  // The test above mocks the column discovery down to the key columns alone,
+  // which no real request produces: the rows endpoint stamps systemId on every
+  // normalized record, so a sweep's stage always carries it — and so does an
+  // ordinary load of a scope whose rows have no optional attributes set. The two
+  // are the same shape and want opposite things, so the caller declares which.
+  it('a declared key sweep inserts and updates nothing, even carrying systemId', async () => {
+    engine.resolveActiveColumns.mockResolvedValue(cols(...RA_KEYS, 'systemId'));
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: true }] })]);
+    const st = open({ keysOnly: true });
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st, { deleteMissing: true });
+    expect(r).toMatchObject({ path: 'merge', inserted: 0, updated: 0, deleted: 3 });
+    // Never the index-dropping bulk path either: a sweep has nothing to bulk-load.
+    expect(sqls.some(s => /LOCK TABLE/.test(s))).toBe(false);
+    expect(sqls.some(s => /^\s*(INSERT INTO "ResourceAssignments"|UPDATE)/.test(s))).toBe(false);
+  });
+
+  // The other half of the same distinction, and the regression that proved the
+  // shape cannot be inferred: a stage carrying the key columns and systemId and
+  // NOTHING else is a perfectly ordinary load when the caller did not say sweep.
+  it('the same shape WITHOUT the declaration is an ordinary load and still inserts', async () => {
+    engine.resolveActiveColumns.mockResolvedValue(cols(...RA_KEYS, 'systemId'));
+    handlers.push([/^\s*INSERT INTO "ResourceAssignments"/, () => ({ rowCount: 1 })]);
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st, { deleteMissing: true });
+    expect(r).toMatchObject({ path: 'merge', inserted: 1, deleted: 3 });
+    expect(sqls.some(s => /^\s*INSERT INTO "ResourceAssignments"/.test(s))).toBe(true);
+  });
+
   it('an empty stage is a no-op and still cleans up', async () => {
     const st = open();
     const r = await S.finalizeStage(st, { deleteMissing: true });
     expect(r).toEqual({ path: 'empty-stage', inserted: 0, updated: 0, deleted: 0, rows: 0 });
     expect(engine.scopedDelete).not.toHaveBeenCalled();
     expect(S._stagesForTest().has(st.id)).toBe(false);
+  });
+});
+
+// The share ceiling on a finalize that deletes. A key sweep reads the source's
+// whole key set, so a source caught mid-aggregation — rows deleted and about to
+// be re-inserted — presents as "almost everything is gone". Deleting is the one
+// operation here with no undo, so the finalize measures what it would remove and
+// refuses rather than apologises.
+describe('finalize — the delete-share ceiling', () => {
+  const sweep = async (opts) => {
+    engine.resolveActiveColumns.mockResolvedValue(cols(...RA_KEYS, 'systemId'));
+    const st = open({ keysOnly: true });
+    await S.appendToStage(st, [rec]);
+    return S.finalizeStage(st, opts);
+  };
+
+  it('allows a removal inside the share and reports it', async () => {
+    engine.scopedDelete.mockResolvedValueOnce(4);       // 4 of 100 = 4%
+    await expect(sweep({ deleteMissing: true, maxDeleteShare: 0.05 })).resolves.toMatchObject({ deleted: 4 });
+  });
+
+  it('refuses a removal past the share, and the transaction is what makes it safe', async () => {
+    engine.scopedDelete.mockResolvedValueOnce(6);       // 6 of 100 = 6%
+    await expect(sweep({ deleteMissing: true, maxDeleteShare: 0.05 }))
+      .rejects.toMatchObject({ status: 409, deleted: 6, scopeRows: 100, maxShare: 0.05 });
+    // The count is taken BEFORE the delete, inside the same transaction: a
+    // denominator read afterwards would already have the deleted rows missing
+    // and every sweep would look like it removed a smaller share than it did.
+    const countAt = engine.scopeLiveCount.mock.invocationCallOrder[0];
+    const deleteAt = engine.scopedDelete.mock.invocationCallOrder[0];
+    expect(countAt).toBeLessThan(deleteAt);
+  });
+
+  it('names the counts, so an operator can tell a real removal from a half-read source', async () => {
+    engine.scopedDelete.mockResolvedValueOnce(60);
+    await expect(sweep({ deleteMissing: true, maxDeleteShare: 0.05 }))
+      .rejects.toThrow(/60 of 100 rows .*60\.0%.*more than the 5\.0% allowed/);
+  });
+
+  it('an explicit override lets the same removal through', async () => {
+    engine.scopedDelete.mockResolvedValueOnce(60);
+    await expect(sweep({ deleteMissing: true, maxDeleteShare: 1 })).resolves.toMatchObject({ deleted: 60 });
+  });
+
+  it('without a ceiling nothing is counted — the default path pays nothing for the guard', async () => {
+    engine.scopedDelete.mockResolvedValueOnce(99);
+    await expect(sweep({ deleteMissing: true })).resolves.toMatchObject({ deleted: 99 });
+    expect(engine.scopeLiveCount).not.toHaveBeenCalled();
+  });
+
+  it('an empty scope cannot be a share of anything, so it is let through', async () => {
+    engine.scopeLiveCount.mockResolvedValueOnce(0);
+    engine.scopedDelete.mockResolvedValueOnce(0);
+    await expect(sweep({ deleteMissing: true, maxDeleteShare: 0.05 })).resolves.toMatchObject({ deleted: 0 });
   });
 });
 

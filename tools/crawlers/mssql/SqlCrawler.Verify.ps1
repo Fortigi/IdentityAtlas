@@ -38,17 +38,30 @@ $script:SqlKeyedEndpoints = @('ingest/principals', 'ingest/resources', 'ingest/r
 # The expectation for one (endpoint, scope), created once however many slots feed it.
 function Get-SqlExpectation {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] [string]$Key, [Parameter(Mandatory)] [string]$Endpoint, [hashtable]$Scope = @{})
+    param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] [string]$Key, [Parameter(Mandatory)] [string]$Endpoint, [hashtable]$Scope = @{}, [switch]$Keyed)
     if (-not $State.Expect.ContainsKey($Key)) {
         # Assigned, not `KeySet = if (…) { [HashSet]::new() }`: an if-expression
         # enumerates its output, and an EMPTY set enumerates to nothing — $null.
+        #
+        # -Keyed forces a key set on an endpoint that normally has none. An
+        # assignment scope is unkeyed because it can hold tens of millions of
+        # rows and its expectation comes from the source's own distinct-pair
+        # count instead — but an OWNER assignment has no statement of its own to
+        # count, one per owned resource at most, so it is both affordable to
+        # remember and unverifiable any other way. Without this it would expect
+        # zero and fail every run that emitted one.
         $keySet = $null
-        if ($Endpoint -in $script:SqlKeyedEndpoints) { $keySet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal) }
+        if ($Keyed -or $Endpoint -in $script:SqlKeyedEndpoints) { $keySet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal) }
         $State.Expect[$Key] = @{
             # NOT "Keys": on a hashtable, .Keys is the dictionary's own key collection.
             Endpoint = $Endpoint; Scope = $Scope; Slots = 0
             Rows = [long]0
             KeySet = $keySet
+            # The systems this scope was written to. The source's own counts are
+            # per statement, never per system, so the database side has to be
+            # summed over exactly the systems the run fed — one of them alone
+            # would read as a shortfall the moment anything is routed.
+            Systems = [System.Collections.Generic.HashSet[int]]::new()
             SourceDistinct = $null; Dangling = [long]0; Unverifiable = $null
         }
     }
@@ -83,16 +96,20 @@ function Get-SqlSourceCountSql {
 
 function Measure-SqlSource {
     [CmdletBinding()]
-    param([AllowNull()] $Connection, [Parameter(Mandatory)] [hashtable]$Slot, [AllowNull()] [hashtable]$Map, [int]$CommandTimeout = 600)
+    param([AllowNull()] $Connection, [Parameter(Mandatory)] [hashtable]$Slot, [AllowNull()] [hashtable]$Map,
+          [int]$CommandTimeout = 600, [AllowNull()] $Since = $null)
     if ($Slot.paged) { return @{ rows = $null; pairs = $null; reason = 'the statement pages with @Offset' } }
     if ($null -eq $Connection) { return @{ rows = $null; pairs = $null; reason = 'there is no source connection' } }
     # A count that cannot run leaves the slot unverified; it never fails the load.
     # The reader stays inside this function: see "NEVER PASS THE READER".
     $cmd = $null; $reader = $null
     try {
-        $cmd = $Connection.CreateCommand()
-        $cmd.CommandText = Get-SqlSourceCountSql -Slot $Slot -Map $Map
-        $cmd.CommandTimeout = $CommandTimeout
+        # The window the count asks about must be the window the read asked
+        # about: a windowed statement counted with @Since unbound is a syntax
+        # error, and counted from zero is the whole table against a window's
+        # rows — a verification that fails every delta run.
+        $cmd = New-SqlCommand -Connection $Connection -Sql (Get-SqlSourceCountSql -Slot $Slot -Map $Map) `
+            -CommandTimeout $CommandTimeout -Since $Since
         $reader = $cmd.ExecuteReader()
         [void]$reader.Read()
         $pairs = $reader.GetValue(1)
@@ -110,8 +127,10 @@ function Measure-SqlSource {
 function Add-SqlReadCheck {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$Ctx, [AllowNull()] $Connection, [long]$Rows = 0)
-    $m = Measure-SqlSource -Connection $Connection -Slot $Ctx.Slot -Map $Ctx.Map -CommandTimeout $Ctx.State.CommandTimeout
-    $Ctx.State.Reads.Add(@{ Slot = $Ctx.Slot.name; Read = $Rows; Source = $m.rows; Reason = $m.reason; Unplaced = [long]($Ctx.Dangling + $Ctx.Skipped) })
+    $since = if ($Ctx.Delta) { $Ctx.Delta.Since } else { $null }
+    $m = Measure-SqlSource -Connection $Connection -Slot $Ctx.Slot -Map $Ctx.Map -CommandTimeout $Ctx.State.CommandTimeout -Since $since
+    $Ctx.State.Reads.Add(@{ Slot = $Ctx.Slot.name; Read = $Rows; Source = $m.rows; Reason = $m.reason
+                            Unplaced = [long]($Ctx.Dangling + $Ctx.Skipped); Misrouted = [long]$Ctx.Misrouted })
     if ($null -ne $m.rows) {
         $pairs = if ($null -ne $m.pairs) { ", $($m.pairs.ToString('N0')) distinct (principal, resource) pairs" }
         Write-Host "  source returns $($m.rows.ToString('N0')) rows$pairs" -ForegroundColor DarkGray
@@ -178,6 +197,13 @@ function Get-SqlScopeVerdict {
 # loaded 454 of 805,497 rows, every grant for the rest dangled, and the run passed,
 # because a dangling row used to be a footnote and made the assignment count an
 # unbounded "range". This bound is what makes that range an assertion.
+#
+# A row naming a system no `systems` statement created is held to the same
+# bound. It is never dropped — the row lands in the crawler's own system, which
+# is what the CSV crawler does — but it IS wrong, and above a rounding error it
+# means the systems statement and this one disagree about which connectors
+# exist. The CSV crawler's silent version of this was a reported defect; the
+# quiet fallback plus a warning is the floor, and this is the ceiling.
 $script:SqlMaxUnplacedShare = 0.05
 
 function Get-SqlReadVerdict {
@@ -187,6 +213,11 @@ function Get-SqlReadVerdict {
     if ($Read.Read -gt 0 -and $unplaced / $Read.Read -gt $script:SqlMaxUnplacedShare) {
         return @{ ok = $false
                   reason = "$($unplaced.ToString('N0')) of the $($Read.Read.ToString('N0')) rows read ($([Math]::Round(100 * $unplaced / $Read.Read, 1))%) could not be placed: they name a resource or principal this run did not load, or lack a required column. The statements disagree about what exists, e.g. one filters rows another does not" }
+    }
+    $misrouted = [long]$Read.Misrouted
+    if ($Read.Read -gt 0 -and $misrouted / $Read.Read -gt $script:SqlMaxUnplacedShare) {
+        return @{ ok = $false
+                  reason = "$($misrouted.ToString('N0')) of the $($Read.Read.ToString('N0')) rows read ($([Math]::Round(100 * $misrouted / $Read.Read, 1))%) name a system no 'systems' statement created, and were loaded into the crawler's own system instead. Either the systems statement is filtered more narrowly than this one, or the two name a connector differently" }
     }
     if ($null -eq $Read.Source) { return @{ ok = $true; reason = "not verified: $($Read.Reason)" } }
     if ($Read.Read -eq $Read.Source) { return @{ ok = $true; reason = $null } }
@@ -199,7 +230,46 @@ function Format-SqlScopeLabel {
     [OutputType([string])]
     param([Parameter(Mandatory)] $Expectation)
     $scope = ($Expectation.Scope.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ', '
-    return "$($Expectation.Endpoint -replace '^ingest/', '')$(if ($scope) { " ($scope)" })"
+    $n = if ($Expectation.Systems) { $Expectation.Systems.Count } else { 0 }
+    $across = if ($n -gt 1) { " ×$n systems" } else { '' }
+    return "$($Expectation.Endpoint -replace '^ingest/', '')$(if ($scope) { " ($scope)" })$across"
+}
+
+# What the database holds for one expectation: its rows in every system the run
+# wrote this scope to, counted since the run's own start.
+#
+# -Before overrides that start. A key sweep read the source's COMPLETE key set,
+# so after it the scope's TOTAL is comparable, not just the part this run
+# touched; passing a date before any row is how that total is asked for.
+function Measure-SqlScopeRows {
+    [CmdletBinding()]
+    [OutputType([long])]
+    param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] $Expectation, [string]$Before = '')
+    $entity = $Expectation.Endpoint -replace '^ingest/', ''
+    $since  = if ($Before) { $Before } else { $State.ServerTime }
+    $systems = @($Expectation.Systems)
+    if ($systems.Count -eq 0) { $systems = @($State.SystemId) }
+    [long]$total = 0
+    foreach ($sid in $systems) {
+        $r = Invoke-IngestAPI -Endpoint 'ingest/count' -Body @{ entity = $entity; systemId = $sid; scope = $Expectation.Scope; before = $since }
+        $total += [long]$r.count
+    }
+    return $total
+}
+
+# Before any row this product has ever written — "count the whole scope".
+$script:SqlBeginningOfTime = '1970-01-01T00:00:00.000Z'
+
+# An external id that two systems both claimed. Both hash to one row in the
+# run's single id namespace, so one silently replaced the other — the same loss
+# as two source rows sharing an id, one level up. Returns a verdict or $null.
+function Get-SqlIdCollisionVerdict {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable]$Catalog)
+    if ($Catalog.CollisionRows -le 0) { return $null }
+    $sample = @($Catalog.Collisions.GetEnumerator() | ForEach-Object { "'$($_.Key)' in systems $($_.Value)" }) -join '; '
+    return @{ ok = $false; expected = [long]0; atlas = [long]$Catalog.CollisionRows
+              reason = "$($Catalog.CollisionRows.ToString('N0')) external id(s) were claimed by more than one system. Ids are unique per RUN, not per system, so these rows overwrite each other and one of the two is lost: $sample" }
 }
 
 # One line of the verification table, printed and returned as a result row.
@@ -221,7 +291,7 @@ function Write-SqlVerdictLine {
 function Test-SqlRunCounts {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$State)
-    if ($State.Expect.Count -eq 0 -and $State.Reads.Count -eq 0) { return @() }
+    if ($State.Expect.Count -eq 0 -and $State.Reads.Count -eq 0 -and -not $State.Sweeps) { return @() }
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Verifying: source against database..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Verifying counts' -Pct 93
     $results = [System.Collections.Generic.List[object]]::new()
@@ -229,10 +299,15 @@ function Test-SqlRunCounts {
         $results.Add((Write-SqlVerdictLine -Label "read: $($read.Slot)" -Verdict (Get-SqlReadVerdict -Read $read) -Expected $read.Source -Actual $read.Read -Measured 'read'))
     }
     foreach ($e in $State.Expect.Values) {
-        $entity = $e.Endpoint -replace '^ingest/', ''
-        $r = Invoke-IngestAPI -Endpoint 'ingest/count' -Body @{ entity = $entity; systemId = $State.SystemId; scope = $e.Scope; before = $State.ServerTime }
-        $v = Get-SqlScopeVerdict -Expectation $e -Atlas ([long]$r.count)
+        $v = Get-SqlScopeVerdict -Expectation $e -Atlas (Measure-SqlScopeRows -State $State -Expectation $e)
         $results.Add((Write-SqlVerdictLine -Label (Format-SqlScopeLabel -Expectation $e) -Verdict $v -Expected $v.expected -Actual $v.atlas))
+    }
+    # A swept scope is the one place a TOTAL can be asserted rather than just
+    # the part this run touched — the sweep read the source's whole key set.
+    if ($State.Sweeps) { foreach ($r in (Test-SqlSweepTotals -State $State)) { $results.Add($r) } }
+    $collision = Get-SqlIdCollisionVerdict -Catalog $State.Systems
+    if ($collision) {
+        $results.Add((Write-SqlVerdictLine -Label 'external ids unique across systems' -Verdict $collision -Expected 0 -Actual $collision.atlas -Measured 'collisions'))
     }
     $results = $results.ToArray()
     $State.Verification = $results

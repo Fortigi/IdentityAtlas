@@ -23,6 +23,7 @@ turns into:
 
 | Target | Identity Atlas |
 |---|---|
+| `systems` | One **System** per technical connector in the source. Later statements send their rows to these instead of to the crawler's own system. See [One system per connector](#one-system-per-connector) |
 | `identities` | One **Identity** (the person), one **Principal** with the same id (the person's account in this system) and the **IdentityMember** link between them |
 | `principals` | One **Principal**; with an `identityId` column, also the **IdentityMember** link to that identity |
 | `identity-members` | One **IdentityMember** (links an existing identity to an existing principal) |
@@ -47,12 +48,13 @@ the rest of the columns come along for free.
 
 | Target | Required columns | Recognised optional columns |
 |---|---|---|
+| `systems` | `displayName` (falls back to `name`) | `id` (the key later statements route by; without it the normalised name is the key), `description`, `systemType`, `tenantId`, `enabled` / `active` (or the inverse) |
 | `identities` | `id`, `displayName` (falls back to `name`, then `userId`, then `id`) | `email`, `givenName`, `surname`, `department`, `jobTitle`, `companyName`, `employeeId`, `principalType`, `enabled` / `active` (or the inverse `inactive` / `disabled`) |
-| `principals` | `id`, `displayName` (same fallbacks) | as above, plus `identityId` (also emits an IdentityMember link) |
+| `principals` | `id`, `displayName` (same fallbacks) | as above, plus `identityId` (also emits an IdentityMember link), `systemId` / `systemName` |
 | `identity-members` | `identityId`, `principalId` | `isPrimary`, `accountType` |
-| `resources` | `id`, `displayName` (falls back to `name`) | `description`, `enabled` |
-| `assignments` | `resourceId`, `principalId` (alias `identityId`, because an `identities` row's account shares its id) | — |
-| `relationships` | `parentId`, `childId` | — |
+| `resources` | `id`, `displayName` (falls back to `name`) | `description`, `enabled`, `ownerId` (only turned into an owner link when the slot sets [`ownership`](#owners-who-controls-this-resource)), `systemId` / `systemName` |
+| `assignments` | `resourceId`, `principalId` (alias `identityId`, because an `identities` row's account shares its id) | `systemId` / `systemName` |
+| `relationships` | `parentId`, `childId` | `systemId` / `systemName` |
 | `contexts` | `displayName` (falls back to `name`) | `id` (a stable key; without it the normalised name is the key), `description`, `ownerUserId` (an account key or an employee number — the crawler resolves either) |
 | `context-members` | `memberId`, and `contextId` or `contextName` | — |
 
@@ -74,6 +76,88 @@ A row that is missing a required column is skipped and counted; the job log tell
 many rows a statement dropped and why (see [Troubleshooting](#troubleshooting)). If *every*
 row of a statement is skipped, the log warns and names the required columns for that
 statement's target.
+
+### One system per connector
+
+Some sources are themselves aggregators. A SailPoint IdentityIQ database has one
+`spt_application` row per connected system, and every entitlement in it belongs to one of
+them. Loaded as a single flat Identity Atlas system, the first question an analyst asks —
+*which application is this entitlement in?* — has no answer.
+
+A `systems` statement creates one Identity Atlas system per connector, and the other
+statements say which one each row belongs to:
+
+```json
+{ "name": "Technical applications", "target": "systems",
+  "sql": "SELECT a.id, a.name AS displayName, a.type AS applicationType, a.connector FROM spt_application a" }
+
+{ "name": "Entitlements", "target": "resources", "resourceType": "Entitlement",
+  "sql": "SELECT ma.id, ma.displayable_name AS displayName, ma.application AS systemId FROM spt_managed_attribute ma" }
+```
+
+**Routing columns.** On `principals`, `resources`, `assignments` and `relationships`:
+
+| Column | What it holds |
+|---|---|
+| `systemId` | The **source's own key** for the connector — the value that matches a `systems` row's `id`. Not an Identity Atlas id, which a query cannot know. |
+| `systemName` | The connector's name, matched to a `systems` row's `displayName` ignoring case and surrounding spaces. |
+
+`systemId` wins when a row carries both. A row carrying neither stays in the crawler's own
+system — which is how a directory statement keeps its accounts where they belong. Both
+columns are *also* kept in `extendedAttributes`, so nothing that used to be visible on the
+detail page disappears when you start routing.
+
+**An assignment follows its resource, and a relationship its parent.** Neither needs a
+routing column of its own: a grant belongs to whatever grants it. This matters because the
+grant table is usually the largest in the source — tens of millions of rows — and adding a
+join to it to carry a column the crawler can already work out would be the most expensive
+change in the run.
+
+**Identities, identity members and contexts are never routed.** Those tables have no
+`systemId` column at all: an identity is a person, not an account in a system, and a
+context (a logical application) deliberately spans connectors.
+
+#### Ids are unique per run, not per system
+
+Identity Atlas keys are derived from the source's own ids inside one namespace **per
+crawler run**. That is what lets a grant join a principal in the directory system to an
+entitlement in a connector system: both halves are derived the same way, whichever system
+each row was stored in.
+
+The consequence is that **an external id must identify one thing across the whole run**. If
+two connectors both used the entitlement id `GRP-1`, the two rows would derive the same
+Identity Atlas id and one would silently replace the other. IdentityIQ ids are globally
+unique, so this holds there. The crawler does not assume it: it records every id that two
+systems claim and **fails the run** naming them, in the same verification table as the
+other count checks.
+
+#### What routing does not change
+
+Nothing about an existing configuration. Without a `systems` statement there is no routing:
+a `systemId` column is just another attribute, every row goes to the crawler's own system,
+and the ids a run generates are exactly the ones it generated before. Adding a `systems`
+statement to a configuration that has been running does **not** rewrite the ids of anything
+already loaded either — it moves rows to their new systems and leaves their ids alone.
+
+#### When a row names a system that does not exist
+
+The row is kept, loaded into the crawler's own system, and counted. The job log names the
+system references it could not place and how many rows named each. Above 5% of a
+statement's rows the job **fails**: at that point the `systems` statement and that one
+plainly disagree about which connectors exist — usually because one is filtered more
+narrowly than the other.
+
+#### Full syncs with routing
+
+A full sync reconciles **per system**: one pass per system a statement actually wrote to.
+A system that was registered but received no rows this run is left alone rather than
+emptied, and a routed system's stale rows are removed rather than being left behind
+forever. A connector that disappears from the source keeps its (now empty) system; systems
+are never deleted by a sync.
+
+**The crawler's API key must not be restricted to a fixed list of systems.** Such a key
+cannot write to a system it has just created, and the ingest refuses the batch. The
+built-in worker key is unrestricted, so a crawler run from the UI is fine.
 
 ### Contexts from a catalogue
 
@@ -117,6 +201,86 @@ load such a catalogue as Contexts and place each member in its context.
 The **SailPoint IdentityIQ with organisation extensions** preset shows the pattern end to
 end, including the `CROSS APPLY … nodes()` that turns one catalogue record into one row
 per application.
+
+### Owners: who controls this resource
+
+Most sources record an owner on an entitlement, a role or an application, as a column
+holding an identifier. Selected as an ordinary column it lands in `extendedAttributes`,
+which means the resource's page shows a string like `0ae16562ed5bff…` where a person
+belongs.
+
+Alias that column **`ownerId`** and tick **Owners from ownerId** on the statement
+(`"ownership": true`) and the crawler makes it a real link instead:
+
+```
+Resources(<your resourceType>)          the resource the statement loaded
+  └─ ResourceRelationships(HasOwnership)
+       └─ Resources(ResourceOwnership)  named after the resource it belongs to
+            └─ ResourceAssignments(Direct)   ← the owner
+```
+
+That is the same shape Identity Atlas already uses for the owners of an Entra group, so
+everything that reads ownership reads this for free: the owner appears as a clickable
+account on the resource, the matrix gets an ownership **row** for the resource (a normal
+**D** badge — [Owner rows are their own resource](../architecture/matrix.md#owner-rows-are-their-own-resource)),
+the risk engine counts the owner as control rather than as access, and a report can ask
+"which entitlements have no owner".
+
+A few things worth knowing:
+
+- **The owner value may be an account key or an employee number.** The crawler tries the
+  account's own key first, then the employee number, against the accounts *this run* has
+  already read — never in SQL, so one statement works for both. (IdentityIQ's entitlements
+  name the owner by identity id; its logical-application catalogue names the same people by
+  employee number.)
+- **An owner matching no account produces nothing, and says so.** The job log names the
+  values and how many resources carry each. No owner is invented, and no ownership row is
+  created with nobody on it. The raw `ownerId` — and whatever `ownerName` your statement
+  selected next to it — stay in `extendedAttributes` either way, so nothing is lost.
+- **An owner statement needs an accounts statement.** Without a `principals` or
+  `identities` statement in the same run there is nothing to match against; the log says
+  so rather than reporting every owner as wrong.
+- **It is a resources-statement flag.** The owner of an *assignment* is not a concept;
+  ownership belongs to the thing owned.
+- **A repeat run changes nothing.** The ownership resource's id is derived from the owned
+  resource's, so a second run upserts the same rows. The reconcile of the owner rows is
+  its own scope (`ResourceOwnership` / `HasOwnership`), so it can never touch the resources
+  themselves, the grants, or another statement's rows.
+
+#### What owners cost
+
+Three rows per resource that has an owner: an ownership resource, a relationship and an
+assignment. That is small per resource and large in aggregate, which is why it is off
+unless the statement asks.
+
+Measured on the IdentityIQ-shaped fixture at 10% scale (`tools/iiq-fixture/`), counted in
+PostgreSQL after the run:
+
+| | Entitlements | Business roles |
+|---|---:|---:|
+| Resources loaded | 80,000 | 1,000 |
+| …of which carry an owner | 48,033 (60%) | 1,000 (100%) |
+| Extra rows (resource + link + assignment) | **144,099** | **3,000** |
+
+Scaled to a production catalogue of **805,497** entitlements at the same 60% share, that is
+roughly **1.45 million extra rows**. In a load that already carries 40 million assignment
+rows it is about 3.5% more rows overall — but it is **+60% on the `Resources` table**, and
+those rows appear on the matrix's resource axis and in the resource list. Neither number is
+a reason not to do it; both are reasons to decide it rather than inherit it.
+
+The shipped IdentityIQ presets therefore turn owners **on for business roles** (thousands
+of rows, every one with an owner) and leave them **off for entitlements**, with the
+`ownerId` column already selected so switching them on is one checkbox.
+
+> The 60% share is the fixture's parameter (`ownedShare`), chosen to be realistic rather
+> than measured against a production catalogue. Run the statement below against your own
+> source before you switch it on:
+>
+> ```sql
+> SELECT COUNT_BIG(*) AS total,
+>        SUM(CASE WHEN owner IS NOT NULL THEN 1 ELSE 0 END) AS with_owner
+> FROM spt_managed_attribute;
+> ```
 
 ### Using a query you already have
 
@@ -345,6 +509,10 @@ file has the shape shown under [Configuration](#configuration); on the command l
 | `systemName` | No | the crawler's name | Override for the Identity Atlas system name — see [System naming](#system-naming) |
 | `batchSize` | No | `5000` | Records per ingest call (100–50 000). Rows stream from SQL Server and are flushed every batch, so memory stays flat however large the result set |
 | `pageSize` | No | `10000` | Value bound to `@PageSize` for a query that pages with `@Offset` / `@PageSize` (100–1 000 000) |
+| `watermarkOverlapSeconds` | No | `900` | How far back of its last position each incremental read goes, to cover clock drift between the source's application servers and transactions that commit late (0–604 800) — see [Reading only what changed](#reading-only-what-changed) |
+| `sweepIntervalHours` | No | `24` | How often a query with **Key sweep** on reads its complete key set to find what the source no longer has. A removal shows within one interval. `0` disables the sweep (0–8760) |
+| `sweepMaxDeleteShare` | No | `0.05` | The largest share of a scope a sweep may remove before it refuses and writes nothing |
+| `sweepOverride` | No | `false` | Let a sweep remove any share of a scope, for the one run where a large removal is known to be real |
 | `queries` | Yes | — | The statements to run, one per object type (at least one) — see below |
 
 ### Query slots (`queries[]`)
@@ -353,10 +521,13 @@ file has the shape shown under [Configuration](#configuration); on the command l
 |---|---|---|---|
 | `name` | Yes | — | Label shown in the job log |
 | `target` | Yes | — | Which Identity Atlas object type the rows become: `identities`, `principals`, `identity-members`, `resources`, `assignments`, `relationships`, `contexts` or `context-members` |
-| `sql` | Yes | — | A `SELECT` statement. Reference `@Offset` and `@PageSize` to have the crawler page through it |
+| `sql` | Yes | — | A `SELECT` statement. Reference `@Offset` and `@PageSize` to have the crawler page through it; reference `@Since` (with `watermarkColumn`) to have it read only what changed |
+| `watermarkColumn` | No | — | The returned column whose largest value this run remembers, so the next run binds `@Since` to it, e.g. `modified`. The statement must reference `@Since`. Empty means read in full every run — see [Reading only what changed](#reading-only-what-changed) |
+| `sweep` | `assignments` | `false` | Periodically read this statement's complete key set and remove the assignments the source no longer has. A windowed assignments query needs this, because a watermark cannot see a removal |
 | `columnMap` | No | — | Object of `{ "<source column>": "<contract column>" }` mapping the names this statement's `SELECT` actually returns onto the contract names, so an existing query can run unedited — see [Using a query you already have](#using-a-query-you-already-have) |
 | `enabled` | No | `true` | Set to `false` to keep a slot in the config without running it |
 | `resourceType` | `resources`, `assignments` | — | The `resourceType` every row gets, e.g. `Entitlement`, `BusinessRole` |
+| `ownership` | `resources` | `false` | Turn the statement's `ownerId` column into a real owner you can click, instead of leaving it as an attribute. Costs three extra rows per resource that has an owner — see [Owners](#owners-who-controls-this-resource) |
 | `assignmentType` | `assignments` | `Direct` | How the principal holds the resource: `Direct`, `Indirect` or `Eligible` |
 | `governed` | `assignments` | `false` | The assignment is governed (a business-role membership rather than a raw entitlement) |
 | `relationshipType` | `relationships` | `Contains` | Parent → child link type: `Contains` or `GrantsAccessTo` |
@@ -385,8 +556,10 @@ same server) can still be one scope.
 Slots run grouped by target in dependency order, **regardless of the order you configure
 them in**:
 
-`identities` → `principals` → `resources` → `identity-members` → `assignments` → `relationships`
+`systems` → `identities` → `principals` → `resources` → `contexts` → `identity-members` →
+`context-members` → `assignments` → `relationships`
 
+`systems` runs first because everything after it may name one of the systems it creates.
 The crawler remembers every resource id and principal id it emitted during the run. An
 assignment or relationship that names an id it has not seen is **skipped and counted** —
 logged as `dangling` — and never sent. So an assignment statement can only join to
@@ -402,6 +575,11 @@ several SQL crawlers side by side stay distinguishable. Fill in the optional **S
 name** field (`systemName`) only to label the system as something other than the crawler;
 it is an override and always wins. This works the same way as for the other pull crawlers —
 see [System naming on the SCIM page](scim.md#system-naming) for the full explanation.
+
+A `systems` statement adds further systems beside this one, named by the source (see
+[One system per connector](#one-system-per-connector)). The crawler's own system is still
+registered and still holds everything that is not routed elsewhere — the identities, and
+anything a row does not place.
 
 ### Example
 
@@ -559,6 +737,13 @@ FROM spt_bundle b
 LEFT JOIN spt_identity i ON i.id = b.owner
 ```
 
+The preset ships this statement with **Owners from ownerId** ticked
+(`"ownership": true`), so `b.owner` becomes an owner you can click rather than a hex
+string — see [Owners](#owners-who-controls-this-resource). The entitlements statement
+above selects `ma.owner AS ownerId` in the same way but leaves the box unticked, because
+there are two to three orders of magnitude more entitlements than roles; tick it when you
+want entitlement owners and have read [what it costs](#what-owners-cost).
+
 ### Entitlement assignments
 
 Target `assignments`, `resourceType` `Entitlement`, `assignmentType` `Direct`,
@@ -637,17 +822,120 @@ FROM spt_bundle_children bc
 
 ## Scheduling and sync mode
 
-Schedules work exactly as they do for every pull crawler. A **full** sync streams every
-statement and then reconciles (below). A **delta** sync streams every statement and
-upserts what it finds, but skips the reconcile, so nothing is ever deleted by a delta run.
-There is no change feed to read — a delta run re-reads the statements in full — so the
-difference is purely whether removed rows are cleaned up. A common pattern is a nightly
-full sync; use delta runs only when you want to refresh attributes between full syncs
-without paying for the reconcile.
+Schedules work exactly as they do for every pull crawler. By default every statement is
+read in full on every run, and every scope the run wrote to is then reconciled (below) —
+whether the run is labelled full or delta. **What decides whether stale rows are removed
+is not the run's label but whether the statement read the source's complete set.**
+
+A **full** run always reads everything: it ignores any stored position, which is what
+"Force full sync next run" is for.
+
+To make routine refreshes cheap, give the large statements a position to read from —
+[Reading only what changed](#reading-only-what-changed), below.
 
 After each run the `buildContexts` post-sync hook rebuilds the generated contexts
 (departments, org chart, clusters) so the imported data is visible in the matrix straight
 away.
+
+---
+
+## Reading only what changed
+
+A full read of an identity-governance database at production size — 180 000 identities,
+800 000 entitlements, 40 million grants — takes hours and tens of gigabytes of scratch
+space. That is fine for a first load and wrong for a refresh you want to run hourly.
+
+A refresh has two halves, and they need different mechanisms.
+
+### Additions and changes: a watermark
+
+Give the statement a **watermark column** and reference `@Since` in its SQL. The crawler
+remembers the largest value that column returned, and binds it to `@Since` next run:
+
+```sql
+SELECT
+    ie.identity_id AS principalId,
+    ma.id          AS resourceId,
+    COALESCE(ie.modified, ie.created) AS modified   -- the watermark column
+FROM spt_identity_entitlement ie
+INNER JOIN spt_managed_attribute ma
+    ON  ma.application = ie.application
+    AND ma.attribute   = ie.name
+    AND ma.value       = ie.value
+WHERE ie.type = 'Entitlement'
+  AND COALESCE(ie.modified, ie.created) >= @Since
+```
+
+with `"watermarkColumn": "modified"` on the slot (the **Watermark column** field in the
+wizard). Both halves are required: a watermark column without `@Since`, or `@Since`
+without a watermark column, is refused when the configuration is saved.
+
+Four things worth knowing:
+
+- **`@Since` is a `bigint` holding epoch milliseconds**, because that is how IdentityIQ's
+  `created` / `modified` are stored (`numeric(19,0)`, written by the application). A first
+  run, an edited statement and a forced full sync all bind **zero**, which reads
+  everything.
+- **Editing the statement resets it.** The stored position is keyed on a hash of the SQL
+  text, so a changed query starts from zero instead of silently skipping the rows its new
+  shape would have returned.
+- **It is stored only after the run has been verified** end to end. A failed or unverified
+  run re-reads the same window; every ingest is an upsert, so a re-read costs time, never
+  correctness.
+- **Each run goes back a little further than the last one reached** —
+  `watermarkOverlapSeconds`, 15 minutes by default. Several application servers write an
+  IdentityIQ database, their clocks drift, and a long transaction can commit rows stamped
+  earlier than rows a previous run already read. Re-reading a few minutes is cheap;
+  stepping over a row is silent.
+
+A statement **without** a watermark column reads in full every run. That is the right
+answer for anything small — the catalogue, the roles, the role assignments — and it is
+what keeps their scopes exact without any of the machinery below.
+
+### Removals: a key sweep
+
+A watermark can never find a removal: a row deleted at the source does not bump its own
+timestamp on the way out. Neither can the reconcile, which removes what a run did not
+touch — and a windowed run touches almost nothing, so **the scope of a windowed statement
+is never reconciled**.
+
+Turn on **Key sweep** on the assignment slot instead. Periodically — at most once every
+`sweepIntervalHours`, a day by default — the crawler re-runs that statement with `@Since`
+bound to zero, asks only for the pair of ids, and removes every assignment in that scope
+that the source no longer has. A removal therefore shows within one sweep interval while
+the hourly refreshes stay small.
+
+!!! warning "A sweep refuses to remove more than 5% of a scope"
+    A source read while it is being re-aggregated — rows deleted and about to be
+    re-inserted — looks exactly like a mass revocation, and a delete has no undo. Past
+    `sweepMaxDeleteShare` (0.05) the job fails with the counts and **nothing is written**.
+    If the removal is real, set `sweepOverride` for that one run.
+
+    Schedule sweeps **outside** your aggregation window.
+
+### Putting it together
+
+A workable shape for an IdentityIQ estate:
+
+| Statement | Watermark | Sweep | Why |
+|---|---|---|---|
+| Technical applications, identities, entitlements, business roles, role assignments, role composition | — | — | Small enough to read in full; their scopes stay exact through the ordinary reconcile |
+| Entitlement grants (direct and via a role) | `modified` | on | Tens of millions of rows; the one place a full read is an overnight job |
+
+Run it as often as you like; the sweep paces itself.
+
+### What it does not do
+
+- There is **no change feed**. The crawler asks your statement for a window; if your
+  source does not stamp every update, the window misses those rows. Drop the watermark
+  column for that statement and it reads in full again.
+- A **buffered** target — `systems`, `contexts`, `context-members` — is sent whole as one
+  full sync and cannot read a window. The configuration refuses the combination.
+- Reading from an **Azure SQL read-only replica** (`ApplicationIntent=ReadOnly`) is
+  attractive for the sweep, but a replica lags the primary and a position taken there can
+  move past rows the primary already committed. If you use one, widen
+  `watermarkOverlapSeconds` beyond the worst replica lag — or point the delta at the
+  primary. Decide it deliberately.
 
 ---
 
@@ -702,7 +990,10 @@ sees them again, purged after the retention window. See
   in this version; identities, accounts, resources, assignments and relationships do.
 - **Cross-statement references only.** An assignment or relationship must name ids that
   another statement in the same run produced — it cannot point at a resource imported by a
-  different crawler.
+  different crawler. Across the systems *this* crawler creates, references work normally.
+- **External ids must be unique across the whole run**, not merely within a system — see
+  [Ids are unique per run](#ids-are-unique-per-run-not-per-system). Two systems claiming
+  one id fails the run.
 
 ---
 
@@ -720,5 +1011,9 @@ sees them again, purged after the retention window. See
 | The job fails with *columnMap entry '…' must map to a column name* | That `columnMap` entry's value is not a column name (it is a number, a boolean, an object or `null`). Every entry must read `"<source column>": "<contract column>"`, with both sides plain strings. |
 | Attributes I expected are missing from `extendedAttributes` | Binary columns are skipped, and a column whose name matches a contract column — or that a `columnMap` entry points at one — is stored as that field instead. Rename the column in the `SELECT` (or select it twice under two names) if you want both. |
 | The system shows up under the wrong name | The system is named after the crawler unless `systemName` is set — see [System naming](#system-naming). |
+| The log reports rows that *name a system no `systems` statement created* | The value in the row's `systemId` / `systemName` column matches no row the `systems` statement returned. Usually the two statements are filtered differently (the systems statement excludes inactive applications, say) or one names the connector by id and the other by name. The rows are kept in the crawler's own system; past 5% of a statement the job fails. |
+| The job fails with *external id(s) were claimed by more than one system* | Two connectors use the same key for different objects. Ids are unique per run (see [why](#ids-are-unique-per-run-not-per-system)), so the two rows would collapse into one. Make the id unique — prefix it with the application id in the `SELECT`, for instance — or do not route those statements. |
+| The job fails with *Registered N system(s) but the API returned M id(s)* | A registration record could not be found again after the upsert. Check that every `systems` row has a non-empty `displayName`. |
+| Assignments vanish after routing | Almost certainly not this crawler: it derives ids in one namespace per run precisely so that a grant can span two systems. Check the `dangling` count first — a grant naming an entitlement no statement loaded is held back, whatever system it would have gone to. |
 | Rows I removed from the source are still in Identity Atlas | Only a **full** sync reconciles; a delta run never deletes. Also check that the run completed cleanly — a failed run skips the reconcile. |
 | **SQL Database** is not visible in **Add Crawler** | The `CRAWLER_MANIFESTS_DIR` environment variable on the web container must point to the folder containing the crawler manifests. See [Docker setup](../architecture/docker-setup.md). |

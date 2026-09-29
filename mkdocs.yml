@@ -169,7 +169,7 @@ nav:
       - Test Coverage: reference/coverage.md
       - Under the hood:
           - Crawler Architecture: architecture/crawler-architecture.md
-          - SQL Connector Delta Loading (design): architecture/sql-connector-delta.md
+          - SQL Connector Delta Loading: architecture/sql-connector-delta.md
           - Reports: architecture/reports.md
           - Custom Reports Internals: architecture/custom-reports.md
           - Context Assistant Internals: architecture/context-assistant.md
@@ -197,6 +197,7 @@ nav:
           - CI Scope Testing: architecture/ci-scope-testing.md
           - Release & Branching Strategy: architecture/branching-strategy.md
           - Maintaining a Release Line: process/maintaining-a-release-line.md
+          - How a Release's Notes Are Assembled: process/release-notes.md
           - Definition of Ready: process/definition-of-ready.md
           - DoR state machine & operating procedure: process/dor-state-machine.md
           - Operationalising the DoR: process/operationalization.md

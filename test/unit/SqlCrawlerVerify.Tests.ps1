@@ -24,12 +24,7 @@
 BeforeAll {
     $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
     $script:ApiBaseUrl = 'http://localhost:3001/api'; $script:ApiKey = 'fgc_test'; $script:JobId = 0
-    foreach ($f in @(
-        @('shared', 'Invoke-CrawlerIngest.ps1'), @('shared', 'Invoke-CrawlerIngestStream.ps1'),
-        @('mssql', 'SqlCrawler.Functions.ps1'), @('mssql', 'SqlCrawler.Transform.ps1'), @('mssql', 'SqlCrawler.Contexts.ps1'),
-        @('mssql', 'SqlCrawler.Phases.ps1'), @('mssql', 'SqlCrawler.Verify.ps1'))) {
-        . (Join-Path $root 'tools' 'crawlers' $f[0] $f[1])
-    }
+    . (Join-Path $root 'tools' 'crawlers' 'mssql' 'SqlCrawler.Load.ps1')
     function New-State { New-SqlRunState -SystemId 5 -ServerTime '2026-09-26T08:00:00.000Z' -Slots @() -BatchSize 1000 }
     function New-Keyed([long]$Rows, [int]$Distinct) {
         $e = Get-SqlExpectation -State (New-State) -Key 'k' -Endpoint 'ingest/principals' -Scope @{ principalType = 'User' }
@@ -332,9 +327,53 @@ Describe 'Add-SqlReadCheck — unplaced rows' {
     It 'records dangling plus skipped rows with the read' {
         Mock Measure-SqlSource { @{ rows = [long]10; pairs = $null; reason = $null } }
         $state = New-State
-        $ctx = @{ Slot = @{ name = 'Composition'; target = 'relationships'; paged = $false; sql = 'S' }; Map = @{}; State = $state; Dangling = 3; Skipped = 2 }
+        $ctx = @{ Slot = @{ name = 'Composition'; target = 'relationships'; paged = $false; sql = 'S' }; Map = @{}; State = $state; Dangling = 3; Skipped = 2; Misrouted = 0 }
         Add-SqlReadCheck -Ctx $ctx -Connection 'c' -Rows 10
         $state.Reads[0].Unplaced | Should -Be 5
         (Get-SqlReadVerdict -Read $state.Reads[0]).ok | Should -BeFalse
+    }
+
+    It 'records misrouted rows separately from unplaced ones' {
+        # They are different findings: an unplaced row names an object the run
+        # did not load, a misrouted one names a SYSTEM it did not create. Adding
+        # them together would let 3% of each pass while 6% of the rows are wrong.
+        Mock Measure-SqlSource { @{ rows = [long]100; pairs = $null; reason = $null } }
+        $state = New-State
+        $ctx = @{ Slot = @{ name = 'Entitlements'; target = 'resources'; paged = $false; sql = 'S' }; Map = @{}; State = $state; Dangling = 0; Skipped = 0; Misrouted = 40 }
+        Add-SqlReadCheck -Ctx $ctx -Connection 'c' -Rows 100
+        $state.Reads[0].Unplaced | Should -Be 0
+        $state.Reads[0].Misrouted | Should -Be 40
+        (Get-SqlReadVerdict -Read $state.Reads[0]).ok | Should -BeFalse
+    }
+}
+
+# A scope the run wrote to several systems: the source's counts are per
+# statement, so the database side has to be summed over exactly those systems.
+Describe 'Measure-SqlScopeRows' {
+    It 'counts every system the scope was written to and adds them up' {
+        $script:asked = [System.Collections.Generic.List[object]]::new()
+        Mock Invoke-IngestAPI { $script:asked.Add($Body); @{ count = 100 * $Body.systemId } }
+        $state = New-State
+        $e = Get-SqlExpectation -State $state -Key 'r' -Endpoint 'ingest/resources' -Scope @{ resourceType = 'Entitlement' }
+        [void]$e.Systems.Add(11); [void]$e.Systems.Add(12)
+        Measure-SqlScopeRows -State $state -Expectation $e | Should -Be 2300
+        @($script:asked.systemId | Sort-Object) | Should -Be @(11, 12)
+        @($script:asked.entity | Select-Object -Unique) | Should -Be @('resources')
+    }
+
+    It 'falls back to the crawler own system when nothing routed' {
+        Mock Invoke-IngestAPI { @{ count = 7 } }
+        $state = New-State
+        $e = Get-SqlExpectation -State $state -Key 'r' -Endpoint 'ingest/resources' -Scope @{}
+        Measure-SqlScopeRows -State $state -Expectation $e | Should -Be 7
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.systemId -eq 5 }
+    }
+
+    It 'names the systems in the scope label only when there is more than one' {
+        $one = Get-SqlExpectation -State (New-State) -Key 'a' -Endpoint 'ingest/resources' -Scope @{ resourceType = 'Entitlement' }
+        [void]$one.Systems.Add(11)
+        Format-SqlScopeLabel -Expectation $one | Should -Be 'resources (resourceType=Entitlement)'
+        [void]$one.Systems.Add(12)
+        Format-SqlScopeLabel -Expectation $one | Should -Be 'resources (resourceType=Entitlement) ×2 systems'
     }
 }

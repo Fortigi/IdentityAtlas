@@ -17,6 +17,7 @@
     "src/accountlinking/orphanQuery.js",
     "src/lib/dateOnly.js",
     "src/lib/httpJson.js",
+    "src/lib/ownershipTypes.js",
     "src/lib/lastSignInFilter.js",
     "src/lib/principalActivity.js",
     "src/nlreports/compare.js",

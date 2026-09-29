@@ -38,16 +38,15 @@
 
 $script:SqlContextSampleSize = 10
 
-# The one normalisation of a context reference. Trim, then fold case with the
-# INVARIANT culture: ToLower() follows the current culture, and under a Turkish
-# locale "I" folds to a dotless "ı" while "i" stays "i" — two machines would then
-# disagree about whether two application names are the same.
+# The normalisation of a context reference is the crawler's one name-folding
+# rule, ConvertTo-SqlNameKey in SqlCrawler.Transform.ps1 — shared with the system
+# catalogue so the two can never disagree about whether two names are the same.
+# This name is kept as the context-side spelling used throughout this file.
 function ConvertTo-SqlContextName {
     [CmdletBinding()]
     [OutputType([string])]
     param([AllowNull()] [AllowEmptyString()] [string]$Name)
-    if ($null -eq $Name) { return '' }
-    return $Name.Trim().ToLowerInvariant()
+    return ConvertTo-SqlNameKey $Name
 }
 
 function New-SqlContextCatalog {
@@ -77,16 +76,19 @@ function New-SqlContextCatalog {
 
 # A catalogue's owner reference -> the account key that owner is stored under.
 #
-# The catalogue and the directory do not have to agree on how a person is named.
-# IdentityIQ's application catalogue names the owner by employee number, while
-# every account is keyed on the identity id — so the owner the UI showed resolved
-# to nobody, on data that was otherwise correct. The translation happens here,
-# against the accounts this run has already read, and never in SQL: the same
-# statement has to work when the owner is already an account key.
+# The matching itself is Resolve-SqlPrincipalRef in SqlCrawler.Ownership.ps1 —
+# one resolver, shared with the resource-owner links, so the two can never
+# disagree about how a source names a person. (IdentityIQ's application
+# catalogue names the owner by employee number while every account is keyed on
+# the identity id, which is why a translation is needed at all; its entitlements
+# name the identity id directly, and the same resolver handles both.)
 #
-# An owner that matches nothing is returned UNCHANGED and counted. Dropping it
-# would hide an owner the source does have; inventing one would be worse than
-# either.
+# What is specific here is the FAILURE: an owner that matches nothing is
+# returned UNCHANGED and counted, because a Context's ownerUserId is a plain
+# string column and keeping the source's own value is better than showing
+# nothing. A resource owner has no such place to land — an ownership resource
+# with no owner assignment would be an empty row — so that path emits nothing
+# instead. Both count and report it; neither invents an owner.
 function Resolve-SqlContextOwner {
     [CmdletBinding()]
     [OutputType([string])]
@@ -97,13 +99,13 @@ function Resolve-SqlContextOwner {
     )
     $value = if ($null -eq $Owner) { '' } else { $Owner.Trim() }
     if (-not $value) { return '' }
+    $ref = Resolve-SqlPrincipalRef -State $State -Value $value
     # No accounts in this run: nothing to resolve against, so the owner is
     # passed through and NOT counted as unresolved — that number has to mean
     # "the source names an owner we cannot find", not "we did not look".
-    if ($null -eq $State -or -not $State.HasPrincipals) { return $value }
-    if ($State.KnownPrincipals.Contains($value)) { $Catalog.OwnerDirect++; return $value }
-    $mapped = $null
-    if ($State.PrincipalsByEmployeeId.TryGetValue($value, [ref]$mapped)) { $Catalog.OwnerMapped++; return $mapped }
+    if ($ref.How -eq 'nolookup') { return $value }
+    if ($ref.How -eq 'direct') { $Catalog.OwnerDirect++; return $ref.Key }
+    if ($ref.How -eq 'employeeId') { $Catalog.OwnerMapped++; return $ref.Key }
     $Catalog.OwnerUnresolved[$value] = 1 + ($Catalog.OwnerUnresolved[$value] ?? 0)
     return $value
 }
@@ -192,7 +194,7 @@ function Add-SqlContextMemberRow {
     # without a logical application): skipped, not "unresolved".
     if (-not $member -or -not ($contextId.Trim() -or $contextName.Trim())) { $Ctx.Skipped++; return }
     $st = $Ctx.State
-    if ($st.HasResources -and $Ctx.Slot.memberType -eq 'Resource' -and -not $st.KnownResources.Contains($member)) { $Ctx.Dangling++; return }
+    if ($st.HasResources -and $Ctx.Slot.memberType -eq 'Resource' -and -not $st.KnownResources.ContainsKey($member)) { $Ctx.Dangling++; return }
     $catalog = $st.Contexts
     $key = Resolve-SqlContextReference -Catalog $catalog -ContextId $contextId -ContextName $contextName
     if (-not $key) { $Ctx.Unresolved++; return }

@@ -25,6 +25,7 @@ BeforeAll {
     $script:entraDir = Join-Path $script:repoRoot 'tools' 'crawlers' 'entra-id'
 
     # Get-UserAttrValue (used by ConvertTo-EntraPrincipalRecord for custom attrs).
+    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerDeltaToken.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.Functions.ps1')
     # The unit under test.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Transform.ps1')

@@ -18,11 +18,7 @@
 BeforeAll {
     $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
     $script:ApiBaseUrl = 'http://localhost:3001/api'; $script:ApiKey = 'fgc_test'; $script:JobId = 0
-    foreach ($f in @(
-        @('shared', 'Invoke-CrawlerIngest.ps1'), @('shared', 'Invoke-CrawlerIngestStream.ps1'), @('shared', 'Get-CrawlerSystemName.ps1'),
-        @('mssql', 'SqlCrawler.Functions.ps1'), @('mssql', 'SqlCrawler.Transform.ps1'), @('mssql', 'SqlCrawler.Contexts.ps1'), @('mssql', 'SqlCrawler.Phases.ps1'), @('mssql', 'SqlCrawler.Verify.ps1'))) {
-        . (Join-Path $root 'tools' 'crawlers' $f[0] $f[1])
-    }
+    . (Join-Path $root 'tools' 'crawlers' 'mssql' 'SqlCrawler.Load.ps1')
 
     # A normalised slot, the way Resolve-SqlQuerySlot returns it.
     function Get-Slot([string]$Target, [hashtable]$Over = @{}) {
@@ -42,7 +38,7 @@ BeforeAll {
     }
     function New-State([string]$Mode = 'full', [string[]]$Resources = @()) {
         $s = New-SqlRunState -SystemId 9 -ServerTime '2026-09-26T00:00:00Z' -Slots @() -BatchSize 1000 -SyncMode $Mode
-        foreach ($r in $Resources) { [void]$s.KnownResources.Add($r) }
+        foreach ($r in $Resources) { Add-SqlKnownKey -Known $s.KnownResources -Key $r -SystemId 9 -Catalog $s.Systems }
         $s.HasResources = $Resources.Count -gt 0
         return $s
     }
@@ -50,7 +46,7 @@ BeforeAll {
     # keyed on the directory's id, indexed by employee number.
     function Add-KnownPrincipal([hashtable]$State, [string]$Key, [string]$EmployeeId) {
         $State.HasPrincipals = $true
-        [void]$State.KnownPrincipals.Add($Key)
+        Add-SqlKnownKey -Known $State.KnownPrincipals -Key $Key -SystemId 9 -Catalog $State.Systems
         Register-SqlPrincipalAlias -Record ([ordered]@{ externalId = $Key; employeeId = $EmployeeId }) -State $State
     }
     # The catalogue used throughout: one entry keyed by a CMDB reference, one keyed

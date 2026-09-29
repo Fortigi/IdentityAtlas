@@ -212,8 +212,8 @@ batch by batch:
 |---|---|
 | `POST /ingest/stages` `{ entity, systemId, scope?, idGeneration?, idPrefix? }` | opens a stage → `{ stageId }` |
 | `POST /ingest/stages/{id}/rows` `{ records }` | appends a batch; records get the same defaults, validation, id normalization and per-system boundary as `/ingest/{entity}` |
-| `POST /ingest/stages/finalize` `{ stageIds, deleteMissing? }` | applies a run's stages together |
-| `POST /ingest/stages/{id}/finalize` `{ deleteMissing? }` | applies one stage |
+| `POST /ingest/stages/finalize` `{ stageIds, deleteMissing?, maxDeleteShare? }` | applies a run's stages together |
+| `POST /ingest/stages/{id}/finalize` `{ deleteMissing?, maxDeleteShare? }` | applies one stage |
 | `DELETE /ingest/stages/{id}` | abandons a stage — nothing was written |
 
 Entities: `resource-assignments`, `principals`, `resources`,
@@ -230,8 +230,18 @@ takes one of two paths and reports it (`path` in the result, and the sync log):
   system+scope's rows that are not in the stage (tombstoned on soft-delete tables).
   A tombstoned row that is back is revived.
 
-A stage may carry only its key columns — a key sweep: finalize then only removes
-what is missing.
+A stage may carry only its key columns — a **key sweep**: finalize then inserts and
+updates nothing and only removes what is missing. (`systemId` is stamped on every
+staged row from the stage itself, so it does not count as content; a stage whose
+records carried nothing but keys is still a sweep.)
+
+**`maxDeleteShare`** caps that removal. With it, finalize measures what the
+anti-join would remove against the scope's live rows — both inside the one
+transaction — and above the share answers **409 and writes nothing at all**
+(the delete is rolled back, so the count is exact rather than an estimate). It
+exists because a source read while it is being re-aggregated is
+indistinguishable from a mass revocation, and a delete has no undo. Leave it out
+for no ceiling, which is what every caller before the SQL connector's sweep does.
 
 **Staged load or timestamp reconcile?** It is a size trade-off, not a verdict on
 either. The timestamp reconcile needs every row the source still has to be touched

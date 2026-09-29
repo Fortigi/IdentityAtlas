@@ -26,8 +26,8 @@ function EnumSelect({ label, value, options, onChange }) {
 }
 
 // The slot-level constants crawler.json defines per target (resourceType,
-// assignmentType, governed, relationshipType, principalType, contextType,
-// targetType, memberType). Only the ones the
+// assignmentType, governed, relationshipType, principalType, systemType,
+// contextType, targetType, memberType). Only the ones the
 // current target uses are shown — the others are dropped on save anyway.
 function SlotFields({ slot, update }) {
   const fields = slotFieldsFor(slot.target);
@@ -40,6 +40,13 @@ function SlotFields({ slot, update }) {
           <input value={slot.resourceType} onChange={e => update('resourceType', e.target.value)}
             placeholder="Entitlement" className={'w-full ' + SMALL_CLS} />
         </div>
+      )}
+      {fields.includes('ownership') && (
+        <label className={CHECK_CLS + ' pt-5'}
+          title="Turn the statement's ownerId column into an owner you can click: an ownership resource named after each resource, linked to it, with the owner assigned to it. Adds three rows per resource that has an owner — see the SQL connector docs for what that costs at scale.">
+          <input type="checkbox" checked={slot.ownership === true} onChange={e => update('ownership', e.target.checked)} />
+          Owners from ownerId
+        </label>
       )}
       {fields.includes('assignmentType') && (
         <EnumSelect label="Assignment type" value={slot.assignmentType} options={ASSIGNMENT_TYPES} onChange={v => update('assignmentType', v)} />
@@ -55,6 +62,13 @@ function SlotFields({ slot, update }) {
       )}
       {fields.includes('principalType') && (
         <EnumSelect label="Default principal type" value={slot.principalType} options={PRINCIPAL_TYPES} onChange={v => update('principalType', v)} />
+      )}
+      {fields.includes('systemType') && (
+        <div>
+          <label className={LABEL_CLS} title="The system type every system this query creates gets, unless the row carries a systemType column of its own. Leave it blank for SQL.">Default system type</label>
+          <input value={slot.systemType} onChange={e => update('systemType', e.target.value)}
+            placeholder="SQL" className={'w-full ' + SMALL_CLS} />
+        </div>
       )}
       {fields.includes('contextType') && (
         <div>
@@ -75,6 +89,20 @@ function SlotFields({ slot, update }) {
       )}
       {fields.includes('memberType') && (
         <EnumSelect label="Member type" value={slot.memberType} options={CONTEXT_TARGET_TYPES} onChange={v => update('memberType', v)} />
+      )}
+      {fields.includes('watermarkColumn') && (
+        <div>
+          <label className={LABEL_CLS} title="The returned column whose largest value this run remembers, so the next run binds @Since to it and reads only rows that moved. The SQL must reference @Since. Leave it blank to read the whole statement every run.">Watermark column</label>
+          <input value={slot.watermarkColumn || ''} onChange={e => update('watermarkColumn', e.target.value)}
+            placeholder="modified" className={'w-full ' + SMALL_CLS} />
+        </div>
+      )}
+      {fields.includes('sweep') && (
+        <label className={CHECK_CLS + ' pt-5'}
+          title="A watermark cannot see a removal: a deleted row does not bump its own timestamp. With this on, the crawler periodically reads this statement's complete key set and removes the assignments the source no longer has.">
+          <input type="checkbox" checked={slot.sweep === true} onChange={e => update('sweep', e.target.checked)} />
+          Key sweep
+        </label>
       )}
     </div>
   );

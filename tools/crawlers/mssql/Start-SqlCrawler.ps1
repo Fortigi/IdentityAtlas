@@ -6,6 +6,9 @@
 .DESCRIPTION
     Each configured statement has a target that says what its rows become:
 
+      systems           → one Identity Atlas System per technical connector in the
+                          source; later statements route their rows to these by a
+                          systemId (the source's own key) or systemName column
       identities        → Identities + a Principal per row + the IdentityMember link
       principals        → Principals (+ IdentityMember when the row names an identityId)
       identity-members  → IdentityMembers
@@ -44,14 +47,7 @@ Param(
 $ErrorActionPreference = 'Stop'
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
-. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
-. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngestStream.ps1')
-. (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Functions.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Transform.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Contexts.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Phases.ps1')
-. (Join-Path $PSScriptRoot 'SqlCrawler.Verify.ps1')
+. (Join-Path $PSScriptRoot 'SqlCrawler.Load.ps1')
 
 $Cfg = Resolve-SqlConfig -ConfigPath $ConfigPath
 #endregion Configuration
@@ -66,7 +62,9 @@ Write-Host "Queries:   $(@($Cfg.queries | Where-Object { $_.enabled }).Count) en
 Update-CrawlerProgress -Step 'Registering system' -Pct 2
 $reg   = Register-SqlSystem -Cfg $Cfg
 $State = New-SqlRunState -SystemId $reg.systemId -ServerTime $reg.serverTime -Slots $Cfg.queries `
-    -BatchSize $Cfg.batchSize -PageSize $Cfg.pageSize -CommandTimeout $Cfg.commandTimeout -SyncMode $Cfg.syncMode
+    -BatchSize $Cfg.batchSize -PageSize $Cfg.pageSize -CommandTimeout $Cfg.commandTimeout -SyncMode $Cfg.syncMode `
+    -SystemType 'SQL' -Tenant $reg.tenantId -OverlapSeconds $Cfg.watermarkOverlapSeconds `
+    -SweepIntervalHours $Cfg.sweepIntervalHours -SweepMaxDeleteShare $Cfg.sweepMaxDeleteShare
 
 Update-CrawlerProgress -Step 'Connecting to SQL Server' -Pct 5
 $Connection = Connect-SqlSource -Cfg $Cfg
@@ -77,6 +75,10 @@ try {
     for ($i = 0; $i -lt $slots.Count; $i++) {
         Invoke-SqlSlot -Slot $slots[$i] -Connection $Connection -State $State -Pct (10 + [int](75 * $i / $slots.Count)) | Out-Null
     }
+    # Additions and changes are in; the only difference left between source and
+    # database is what the source no longer has. The sweep needs the connection,
+    # so it runs before it is disposed.
+    Invoke-SqlSweep -State $State -Connection $Connection -Slots $slots | Out-Null
 } finally {
     $Connection.Dispose()
 }
@@ -84,5 +86,9 @@ try {
 Invoke-SqlReconcile -State $State | Out-Null
 # Source against database, per scope. Throws — failing the job — on any mismatch.
 Test-SqlRunCounts -State $State | Out-Null
+# Only now, with the run proven: an unverified run must re-read its window and
+# re-sweep rather than step over rows it never loaded.
+Save-SqlWatermarks -State $State | Out-Null
+Save-SqlSweepMarks -State $State | Out-Null
 Complete-SqlRun -State $State -SyncStart $syncStart
 #endregion Main

@@ -20,8 +20,9 @@ describe('newQuerySlot', () => {
   it('defaults to an enabled identities slot with every slot constant bound', () => {
     expect(newQuerySlot()).toEqual({
       name: '', target: 'identities', sql: '', enabled: true, columnMap: [],
-      resourceType: '', assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User',
-      contextType: '', targetType: 'Resource', memberType: 'Resource', rootDisplayName: '',
+      resourceType: '', ownership: false, assignmentType: 'Direct', governed: false, relationshipType: 'Contains', principalType: 'User',
+      systemType: '', contextType: '', targetType: 'Resource', memberType: 'Resource', rootDisplayName: '',
+      watermarkColumn: '', sweep: false,
     });
   });
 
@@ -32,12 +33,13 @@ describe('newQuerySlot', () => {
 
 describe('slotFieldsFor', () => {
   it('lists exactly the crawler.json slot constants each target uses', () => {
-    expect(slotFieldsFor('identities')).toEqual(['principalType']);
-    expect(slotFieldsFor('principals')).toEqual(['principalType']);
-    expect(slotFieldsFor('identity-members')).toEqual([]);
-    expect(slotFieldsFor('resources')).toEqual(['resourceType']);
-    expect(slotFieldsFor('assignments')).toEqual(['resourceType', 'assignmentType', 'governed']);
-    expect(slotFieldsFor('relationships')).toEqual(['relationshipType']);
+    expect(slotFieldsFor('systems')).toEqual(['systemType']);
+    expect(slotFieldsFor('identities')).toEqual(['principalType', 'watermarkColumn']);
+    expect(slotFieldsFor('principals')).toEqual(['principalType', 'watermarkColumn']);
+    expect(slotFieldsFor('identity-members')).toEqual(['watermarkColumn']);
+    expect(slotFieldsFor('resources')).toEqual(['resourceType', 'ownership', 'watermarkColumn']);
+    expect(slotFieldsFor('assignments')).toEqual(['resourceType', 'assignmentType', 'governed', 'watermarkColumn', 'sweep']);
+    expect(slotFieldsFor('relationships')).toEqual(['relationshipType', 'watermarkColumn']);
     expect(slotFieldsFor('contexts')).toEqual(['contextType', 'targetType', 'rootDisplayName']);
     expect(slotFieldsFor('context-members')).toEqual(['memberType']);
   });
@@ -76,8 +78,10 @@ describe('appendPresetSlots', () => {
   it('loads the preset into an empty list', () => {
     const out = appendPresetSlots([], 'identityiq');
     expect(out).toHaveLength(IDENTITYIQ_PRESET.length);
-    expect(out[0]).toMatchObject({ name: 'Identities', target: 'principals', enabled: true, resourceType: '' });
-    expect(out[5]).toMatchObject({ name: 'Role assignments', target: 'assignments', resourceType: 'BusinessRole', governed: true });
+    // The systems query comes first: everything after it routes to what it creates.
+    expect(out[0]).toMatchObject({ name: 'Technical applications', target: 'systems', enabled: true });
+    expect(out[1]).toMatchObject({ name: 'Identities', target: 'principals', enabled: true, resourceType: '' });
+    expect(out[6]).toMatchObject({ name: 'Role assignments', target: 'assignments', resourceType: 'BusinessRole', governed: true });
   });
 
   it('appends after existing slots without touching them', () => {
@@ -193,6 +197,14 @@ describe('validateQueries / canSubmitQueries', () => {
     expect(validateQueries([slot({ target: 'identity-members' })])).toEqual([]);
   });
 
+  it('accepts a systems slot, which needs nothing but a name and a statement', () => {
+    expect(TARGET_IDS).toContain('systems');
+    expect(validateQueries([slot({ target: 'systems' })])).toEqual([]);
+    // Several are fine: they merge into one catalogue, unlike contexts, whose
+    // full sync means a second query would delete the first one's rows.
+    expect(validateQueries([slot({ name: 'A', target: 'systems' }), slot({ name: 'B', target: 'systems' })])).toEqual([]);
+  });
+
   it('still validates a disabled slot, because it is saved and the schema requires its fields', () => {
     expect(validateQueries([slot(), slot({ name: '', enabled: false })])).toEqual(['Query 2: name is required']);
   });
@@ -237,22 +249,34 @@ describe('buildQuerySlot', () => {
 
   it('an assignments slot carries resourceType, assignmentType and governed — and no relationshipType or principalType', () => {
     const out = buildQuerySlot(slot({ target: 'assignments', resourceType: ' BusinessRole ', assignmentType: 'Indirect', governed: true }));
-    expect(out).toEqual({ name: 'Q', target: 'assignments', sql: 'SELECT 1', enabled: true, resourceType: 'BusinessRole', assignmentType: 'Indirect', governed: true });
+    expect(out).toEqual({ name: 'Q', target: 'assignments', sql: 'SELECT 1', enabled: true, resourceType: 'BusinessRole', assignmentType: 'Indirect', governed: true, watermarkColumn: '', sweep: false });
   });
 
   it('a relationships slot carries only relationshipType', () => {
     const out = buildQuerySlot(slot({ target: 'relationships', relationshipType: 'GrantsAccessTo', resourceType: 'X', governed: true }));
-    expect(out).toEqual({ name: 'Q', target: 'relationships', sql: 'SELECT 1', enabled: true, relationshipType: 'GrantsAccessTo' });
+    expect(out).toEqual({ name: 'Q', target: 'relationships', sql: 'SELECT 1', enabled: true, relationshipType: 'GrantsAccessTo', watermarkColumn: '' });
   });
 
   it('an identities / principals slot carries only principalType; identity-members carries nothing extra', () => {
-    expect(buildQuerySlot(slot({ principalType: 'ServicePrincipal' }))).toEqual({ name: 'Q', target: 'identities', sql: 'SELECT 1', enabled: true, principalType: 'ServicePrincipal' });
+    expect(buildQuerySlot(slot({ principalType: 'ServicePrincipal' }))).toEqual({ name: 'Q', target: 'identities', sql: 'SELECT 1', enabled: true, principalType: 'ServicePrincipal', watermarkColumn: '' });
     expect(buildQuerySlot(slot({ target: 'principals' })).principalType).toBe('User');
-    expect(buildQuerySlot(slot({ target: 'identity-members' }))).toEqual({ name: 'Q', target: 'identity-members', sql: 'SELECT 1', enabled: true });
+    expect(buildQuerySlot(slot({ target: 'identity-members' }))).toEqual({ name: 'Q', target: 'identity-members', sql: 'SELECT 1', enabled: true, watermarkColumn: '' });
   });
 
-  it('a resources slot carries only resourceType', () => {
-    expect(buildQuerySlot(slot({ target: 'resources', resourceType: 'Entitlement' }))).toEqual({ name: 'Q', target: 'resources', sql: 'SELECT 1', enabled: true, resourceType: 'Entitlement' });
+  it('a resources slot carries resourceType and the ownership flag, which defaults to off', () => {
+    expect(buildQuerySlot(slot({ target: 'resources', resourceType: 'Entitlement' }))).toEqual({ name: 'Q', target: 'resources', sql: 'SELECT 1', enabled: true, resourceType: 'Entitlement', ownership: false, watermarkColumn: '' });
+    expect(buildQuerySlot(slot({ target: 'resources', resourceType: 'Entitlement', ownership: true })).ownership).toBe(true);
+    // Anything other than a real true is off: owner links cost three rows per
+    // owned resource, so a stray truthy value must not turn them on.
+    expect(buildQuerySlot(slot({ target: 'resources', resourceType: 'Entitlement', ownership: 'yes' })).ownership).toBe(false);
+    // …and it is a resources-slot field only.
+    expect(buildQuerySlot(slot({ target: 'assignments', resourceType: 'X', ownership: true })).ownership).toBeUndefined();
+  });
+
+  it('a systems slot carries only systemType, trimmed, and blank means the crawler own type', () => {
+    expect(buildQuerySlot(slot({ target: 'systems', systemType: ' IdentityIQ ', resourceType: 'X', governed: true })))
+      .toEqual({ name: 'Q', target: 'systems', sql: 'SELECT 1', enabled: true, systemType: 'IdentityIQ' });
+    expect(buildQuerySlot(slot({ target: 'systems' })).systemType).toBe('');
   });
 
   it('falls back to the crawler.json defaults for a blank enum and writes governed as a strict boolean', () => {
@@ -275,7 +299,7 @@ describe('buildSqlConfigPayload', () => {
     expect(buildSqlConfigPayload(base)).toEqual({
       server: 'sql01.corp.local', database: 'identityiq', encrypt: true, trustServerCertificate: false,
       connectTimeoutSeconds: 30, commandTimeoutSeconds: 600, batchSize: 5000, pageSize: 10000,
-      queries: [{ name: 'Users', target: 'identities', sql: 'SELECT 1', enabled: true, principalType: 'User' }],
+      queries: [{ name: 'Users', target: 'identities', sql: 'SELECT 1', enabled: true, principalType: 'User', watermarkColumn: '' }],
     });
   });
 
@@ -316,9 +340,9 @@ describe('buildSqlConfigPayload', () => {
 
   it('maps every slot through buildQuerySlot, so an assignments slot has no relationshipType', () => {
     const out = buildSqlConfigPayload({ ...base, queries: [slot({ name: 'A', target: 'assignments', resourceType: 'Entitlement' }), slot({ name: 'R', target: 'relationships' })] });
-    expect(out.queries[0]).toEqual({ name: 'A', target: 'assignments', sql: 'SELECT 1', enabled: true, resourceType: 'Entitlement', assignmentType: 'Direct', governed: false });
+    expect(out.queries[0]).toEqual({ name: 'A', target: 'assignments', sql: 'SELECT 1', enabled: true, resourceType: 'Entitlement', assignmentType: 'Direct', governed: false, watermarkColumn: '', sweep: false });
     expect(out.queries[0]).not.toHaveProperty('relationshipType');
-    expect(out.queries[1]).toEqual({ name: 'R', target: 'relationships', sql: 'SELECT 1', enabled: true, relationshipType: 'Contains' });
+    expect(out.queries[1]).toEqual({ name: 'R', target: 'relationships', sql: 'SELECT 1', enabled: true, relationshipType: 'Contains', watermarkColumn: '' });
   });
 
   it('never emits a credential field — those come from buildCredentialFields', () => {
@@ -343,10 +367,24 @@ describe('CONTRACT_COLUMNS / contractColumnsFor / contractColumnOptions', () => 
   it('mirrors the column-contract table per target, required columns first', () => {
     expect(CONTRACT_COLUMNS.identities.required).toEqual(['id', 'displayName']);
     expect(CONTRACT_COLUMNS.resources.required).toEqual(['id', 'displayName']);
-    expect(contractColumnOptions('resources')).toEqual(['id', 'displayName', 'name', 'description', 'enabled']);
+    expect(contractColumnOptions('resources')).toEqual(['id', 'displayName', 'name', 'description', 'enabled', 'ownerId', 'systemId', 'systemName']);
     expect(contractColumnOptions('identity-members')).toEqual(['identityId', 'principalId', 'isPrimary', 'accountType']);
-    expect(contractColumnOptions('assignments')).toEqual(['resourceId', 'principalId', 'identityId']);
-    expect(contractColumnsFor('relationships')).toEqual({ required: ['parentId', 'childId'], optional: [] });
+    expect(contractColumnOptions('assignments')).toEqual(['resourceId', 'principalId', 'identityId', 'systemId', 'systemName']);
+    expect(contractColumnsFor('relationships')).toEqual({ required: ['parentId', 'childId'], optional: ['systemId', 'systemName'] });
+    expect(contractColumnsFor('systems').required).toEqual(['displayName']);
+  });
+
+  it('offers the routing columns only where a row can carry a system of its own', () => {
+    // Identities and identity members are cross-system tables with no systemId
+    // column at all, so offering one would promise something the model cannot keep.
+    for (const target of ['principals', 'resources', 'assignments', 'relationships']) {
+      expect(contractColumnOptions(target)).toContain('systemId');
+      expect(contractColumnOptions(target)).toContain('systemName');
+    }
+    for (const target of ['identities', 'identity-members', 'contexts', 'context-members']) {
+      expect(contractColumnOptions(target)).not.toContain('systemId');
+      expect(contractColumnOptions(target)).not.toContain('systemName');
+    }
   });
 
   it('offers the person attributes on identities and principals, with identityId only on principals', () => {
@@ -496,6 +534,36 @@ describe('validateQueries — column mapping', () => {
   });
 });
 
+// Mirrors Get-SqlWatermarkColumn in SqlCrawler.Functions.ps1. Both halves are
+// needed or the delta is a lie in one direction or the other, and the wizard is
+// where an operator finds that out rather than in a job log.
+describe('validateQueries — watermarks and the key sweep', () => {
+  const windowed = 'SELECT id, modified FROM t WHERE modified >= @Since';
+
+  it('accepts a statement that binds @Since and names the column it advances on', () => {
+    expect(validateQueries([slot({ sql: windowed, watermarkColumn: 'modified' })])).toEqual([]);
+  });
+
+  it('refuses a watermark column with no @Since — it would promise a delta the run never does', () => {
+    expect(validateQueries([slot({ name: 'Users', sql: 'SELECT id FROM t', watermarkColumn: 'modified' })]))
+      .toEqual(['Users: watermark column needs the SQL to bind @Since (e.g. AND modified >= @Since)']);
+  });
+
+  it('refuses @Since with no watermark column — it would read the same window for ever', () => {
+    expect(validateQueries([slot({ name: 'Users', sql: windowed })]))
+      .toEqual(['Users: the SQL binds @Since but names no watermark column, so its watermark could never move']);
+  });
+
+  it('refuses a sweep on a statement read in full: the reconcile already removes what is gone', () => {
+    expect(validateQueries([slot({ name: 'Grants', target: 'assignments', resourceType: 'Entitlement', sql: 'SELECT 1', sweep: true })]))
+      .toEqual(['Grants: a key sweep only makes sense for a query that reads a window — bind @Since, or turn the sweep off']);
+  });
+
+  it('accepts a windowed assignments statement with the sweep on — the shape the preset ships', () => {
+    expect(validateQueries([slot({ target: 'assignments', resourceType: 'Entitlement', sql: windowed, watermarkColumn: 'modified', sweep: true })])).toEqual([]);
+  });
+});
+
 describe('toSlotState / seedWizardState — column mapping', () => {
   const storedSlot = {
     name: 'Entitlements', target: 'resources', sql: 'SELECT 1', resourceType: 'Entitlement',
@@ -610,6 +678,50 @@ describe('IdentityIQ presets match the real schema', () => {
 
   it('still reports the managed-attribute type as a column', () => {
     for (const q of statements.filter(s => s.name === 'Entitlements')) expect(q.sql).toMatch(/ma\.type\s+AS entitlementType/);
+  });
+
+  it('selects the owner as ownerId on every statement that could carry one', () => {
+    // `ownership` reads the ownerId contract column, so an owner the SQL
+    // aliases anything else is invisible however the flag is set.
+    for (const q of statements.filter(s => ['Entitlements', 'Business roles'].includes(s.name))) {
+      expect(q.sql, `${q.preset} / ${q.name}`).toMatch(/\bowner\s+AS ownerId/);
+    }
+  });
+
+  it('turns owner links on for business roles and leaves them off for entitlements', () => {
+    // Deliberate and measured, not an oversight: the fixture carries an owner on
+    // 60% of entitlements, so at the production catalogue size (805,497) the
+    // entitlement statement alone would add ~1.45M rows across three tables.
+    // Roles are three orders of magnitude smaller. docs/sync/mssql.md →
+    // "What owners cost".
+    for (const q of statements.filter(s => s.name === 'Business roles')) expect(q.ownership).toBe(true);
+    for (const q of statements.filter(s => s.name === 'Entitlements')) expect(q.ownership).toBeFalsy();
+    // Nothing else claims ownership — it is a resources-slot flag.
+    for (const q of statements.filter(s => s.target !== 'resources')) expect(q.ownership).toBeUndefined();
+  });
+
+  // The grant statements are the only ones large enough for a full read to be an
+  // event rather than an operation, so they are the only ones that read a window
+  // — and therefore the only ones that need a sweep to see a removal at all.
+  it('reads the grant statements as a window, and only those', () => {
+    const windowed = statements.filter(q => /@Since\b/.test(q.sql));
+    expect(windowed.map(q => q.name)).toEqual(
+      PRESETS.flatMap(() => ['Entitlement grants', 'Entitlement grants via a role']));
+    for (const q of windowed) {
+      expect(q.watermarkColumn, `${q.preset} / ${q.name}`).toBe('modified');
+      expect(q.sweep, `${q.preset} / ${q.name}`).toBe(true);
+      // NULL on a row never updated, so the mark and the filter both COALESCE —
+      // and they must agree, or the rows read are not the rows measured.
+      expect(q.sql).toMatch(/COALESCE\(ie\.modified, ie\.created\) AS modified/);
+      expect(q.sql).toMatch(/COALESCE\(ie\.modified, ie\.created\) >= @Since/);
+    }
+  });
+
+  it('leaves every other statement reading in full, so its scope stays reconcilable', () => {
+    for (const q of statements.filter(s => !/@Since\b/.test(s.sql))) {
+      expect(q.watermarkColumn ?? '', `${q.preset} / ${q.name}`).toBe('');
+      expect(q.sweep ?? false, `${q.preset} / ${q.name}`).toBe(false);
+    }
   });
 
   it('resolves role composition to entitlement ids by application + attribute + value, keeping unmatched rows', () => {
