@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Renamed the "Access Packages" category in the relationship graph on identity, user and account detail pages to "Business Roles" — the same wording the resource graph already used. The graph shows governance data from every connected system (Entra access packages, Omada business roles, SailPoint access profiles), so it no longer uses one vendor's name for it. Breadcrumbs above the list under the graph follow the new wording.
+- Removed the leftover "access package" synonym from the matrix legend, which now says "governed by a business role" in line with the rest of the legend.
+- Added a guard so a source-specific vendor word (Entra, Omada or SailPoint vocabulary) can no longer be introduced as a category name in the relationship graph.
+
+## Changes in this PR
+
 - Reports can now be downloaded as **Excel**, alongside CSV and JSON. The sheet opens with the report's name, when it was run, and every summary and warning the report produced — then the table below, with the header row frozen and a filter on it.
 - A report's summaries used to be visible only on screen and were lost on download. They now travel in the Excel file, so a review pack you send to someone else still says what it was measured from. CSV and JSON downloads are unchanged.
 - An Excel export of a report that stopped at its row cap says so in the sheet, in red, above the table — a partial answer no longer reads as the whole one.
