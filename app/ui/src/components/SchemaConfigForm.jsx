@@ -9,6 +9,8 @@
 // Extracted from PluginsPage.jsx when the parameterised reports needed it; a
 // third caller should use it too rather than growing a second one.
 
+import EntityLookup from '@ui/components/inputs/EntityLookup';
+
 const INPUT_CLASS = 'w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 '
   + 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100';
 
@@ -17,6 +19,23 @@ const INPUT_CLASS = 'w-full text-sm px-2 py-1.5 rounded border border-gray-300 d
  * that need a single field outside a full form.
  */
 export function FieldInput({ prop, value, onChange, id }) {
+  // `x-lookup` names a server-side lookup source, so a parameter that means an
+  // ENTITY is picked from a list instead of typed from memory — and what gets
+  // stored is that entity's id rather than a name that may match three of them.
+  // Checked first: it is a statement about what the value MEANS, which outranks
+  // the `type` that says how it is carried. Same annotation style as
+  // `x-attributeSource` in the context-plugin schemas.
+  if (prop['x-lookup']) {
+    return (
+      <EntityLookup
+        source={prop['x-lookup']}
+        value={Array.isArray(value) ? value : (value ? [value] : [])}
+        onChange={(next) => onChange(next.length ? next : undefined)}
+        inputId={id}
+        placeholder={prop['x-lookupPlaceholder'] || 'Start typing…'}
+      />
+    );
+  }
   if (Array.isArray(prop.enum)) {
     return (
       <select id={id} className={INPUT_CLASS} value={value ?? ''}

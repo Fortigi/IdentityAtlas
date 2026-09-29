@@ -25,6 +25,7 @@ export default defineConfig({
   test: {
     include: [
       'src/components/ReportsPage.mount.test.jsx',
+      'src/components/inputs/EntityLookup.mount.test.jsx',
       'src/components/reports/ListReportRenderer.mount.test.jsx',
       'src/components/reports/ReportViewPage.mount.test.jsx',
       'src/components/reports/formRenderers.test.js',

@@ -5,7 +5,7 @@
 // caller owning the values.
 
 import { describe, it, expect, vi } from 'vitest';
-import { renderWithProviders, screen, fireEvent } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, screen, fireEvent, makeAuthFetch } from '@ui/test-utils/renderWithProviders';
 import SchemaConfigForm, { FieldInput } from '@ui/components/SchemaConfigForm';
 
 const SCHEMA = {
@@ -166,5 +166,60 @@ describe('FieldInput', () => {
     const input = screen.getByRole('textbox');
     expect(input).toHaveAttribute('id', 'free');
     expect(input).toHaveValue('abc');
+  });
+
+  it('renders an x-lookup property as a picker, not as a comma-separated text box', () => {
+    // `x-lookup` says what the value MEANS, which outranks the `type` that says
+    // how it is carried — so it has to be checked before the array branch or an
+    // entity parameter silently stays a free-text field.
+    renderWithProviders(
+      <FieldInput
+        id="apps"
+        prop={{ type: 'array', title: 'Applications', 'x-lookup': 'logical-applications' }}
+        value={[]}
+        onChange={() => {}}
+      />,
+      { auth: { authFetch: makeAuthFetch({ '/api/lookups/': { source: 'x', q: '', data: [] } }) } },
+    );
+    const input = screen.getByRole('combobox');
+    expect(input).toHaveAttribute('id', 'apps');
+    expect(input).toHaveAttribute('placeholder', 'Start typing…');
+  });
+
+  it('takes the placeholder from the schema when it gives one', () => {
+    renderWithProviders(
+      <FieldInput
+        id="apps"
+        prop={{ type: 'array', 'x-lookup': 'things', 'x-lookupPlaceholder': 'Search applications…' }}
+        value={[]}
+        onChange={() => {}}
+      />,
+      { auth: { authFetch: makeAuthFetch({ '/api/lookups/': { source: 'x', q: '', data: [] } }) } },
+    );
+    expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', 'Search applications…');
+  });
+
+  it('clears the parameter rather than sending an empty list when the last chip goes', async () => {
+    // paramsQueryString drops undefined; an empty array would be sent as an
+    // empty value and the report would run with a blank parameter instead of none.
+    const onChange = vi.fn();
+    const authFetch = makeAuthFetch({
+      '/api/lookups/': { source: 'x', q: '', data: [{ value: 'a1', label: 'Alpha' }] },
+    });
+    renderWithProviders(
+      <FieldInput id="apps" prop={{ 'x-lookup': 'things' }} value={['a1']} onChange={onChange} />,
+      { auth: { authFetch } },
+    );
+    fireEvent.click(await screen.findByRole('button', { name: /^Remove / }));
+    expect(onChange).toHaveBeenCalledWith(undefined);
+  });
+
+  it('tolerates a scalar where the picker expects a list', () => {
+    // A hand-written URL carries one value, not an array.
+    renderWithProviders(
+      <FieldInput id="apps" prop={{ 'x-lookup': 'things' }} value="a1" onChange={() => {}} />,
+      { auth: { authFetch: makeAuthFetch({ '/api/lookups/': { source: 'x', q: '', data: [] } }) } },
+    );
+    expect(screen.getByText('a1')).toBeInTheDocument();
   });
 });
