@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- SQL Database crawler: a run no longer fails because most rows of a context-membership statement name no context. Entitlements that belong to no logical application are normal, and they are now counted and reported on their own ("633,012 naming no context") instead of being lumped in with rows that were skipped for missing a required column — which could push a healthy run past the 5% limit on rows that could not be placed and, with it, stop every statement's delta watermark from being saved.
+- The job log no longer describes those rows as skipped, and no longer warns that "every row was skipped" when a statement's rows simply carry no optional reference.
+- Unchanged: a row missing the required member id, a row naming a resource the run did not load, and a row naming a context the catalogue does not have are all still reported exactly as before.
+
+## Changes in this PR
+
 - Renamed the "Access Packages" category in the relationship graph on identity, user and account detail pages to "Business Roles" — the same wording the resource graph already used. The graph shows governance data from every connected system (Entra access packages, Omada business roles, SailPoint access profiles), so it no longer uses one vendor's name for it. Breadcrumbs above the list under the graph follow the new wording.
 - Removed the leftover "access package" synonym from the matrix legend, which now says "governed by a business role" in line with the rest of the legend.
 - Added a guard so a source-specific vendor word (Entra, Omada or SailPoint vocabulary) can no longer be introduced as a category name in the relationship graph.
