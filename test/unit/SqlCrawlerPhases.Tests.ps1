@@ -202,6 +202,28 @@ Describe 'New-SqlSlotStreams' {
 # / required columns)" was wrong for 633,012 rows of one real run that simply
 # belonged to no logical application, and reading as an error is what kept the
 # defect invisible until the 5% bound failed the job.
+Describe 'Which streams send several batches at once' {
+    It 'pipelines assignment and relationship streams through the run''s sender, and nothing else' {
+        $slots = @((New-Slot 'I' 'identities'), (New-Slot 'G' 'assignments'), (New-Slot 'C' 'relationships'))
+        $state = New-SqlRunState -SystemId 7 -ServerTime '2026-09-25T09:00:00.000Z' -Slots $slots -IngestConcurrency 3
+        $state.Sender.MaxInFlight | Should -Be 3
+        $ids = @{ State = $state; Streams = (New-SqlSlotStreams -Slot $slots[0] -State $state) }
+        # Identity links have a foreign key on the identity: they must never
+        # commit ahead of the batch that creates it.
+        (Get-SqlSlotStream -Ctx $ids -Role 'member' -SystemId 7).Sender | Should -BeNullOrEmpty
+        (Get-SqlSlotStream -Ctx $ids -Role 'principal' -SystemId 7).Sender | Should -BeNullOrEmpty
+        $grants = @{ State = $state; Streams = (New-SqlSlotStreams -Slot $slots[1] -State $state) }
+        (Get-SqlSlotStream -Ctx $grants -Role 'assignment' -SystemId 9).Sender | Should -Be $state.Sender
+        $edges = @{ State = $state; Streams = (New-SqlSlotStreams -Slot $slots[2] -State $state) }
+        (Get-SqlSlotStream -Ctx $edges -Role 'relationship' -SystemId 7).Sender | Should -Be $state.Sender
+    }
+
+    It 'has no sender at all when one batch at a time was asked for' {
+        (New-SqlRunState -SystemId 7 -ServerTime 'x' -Slots @() -IngestConcurrency 1).Sender | Should -BeNullOrEmpty
+        (New-SqlRunState -SystemId 7 -ServerTime 'x' -Slots @()).Sender | Should -BeNullOrEmpty
+    }
+}
+
 Describe 'Write-SqlSlotSummary' {
     BeforeAll {
         # Declared here, not at Describe scope: a helper outside BeforeAll is

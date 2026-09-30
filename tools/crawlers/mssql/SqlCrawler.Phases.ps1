@@ -60,7 +60,8 @@ function New-SqlRunState {
         [string]$Tenant = '',
         [int]$OverlapSeconds = 900,
         [int]$SweepIntervalHours = 24,
-        [double]$SweepMaxDeleteShare = 0.05
+        [double]$SweepMaxDeleteShare = 0.05,
+        [int]$IngestConcurrency = 1
     )
     $targets = @($Slots | Where-Object { $_.enabled } | ForEach-Object { $_.target })
     return @{
@@ -114,6 +115,9 @@ function New-SqlRunState {
         Sweeps          = [System.Collections.Generic.List[hashtable]]::new()
         Verification    = $null
         ContextReport   = $null
+        # Several batches in flight for the streams that may commit in any
+        # order (Get-SqlSlotStream). $null = one at a time.
+        Sender          = $(if ($IngestConcurrency -gt 1) { New-CrawlerIngestSender -MaxInFlight $IngestConcurrency })
         Totals          = [ordered]@{}
     }
 }
@@ -174,6 +178,15 @@ function New-SqlStreamSpec {
               Streams = [System.Collections.Generic.Dictionary[int, object]]::new() }
 }
 
+# The endpoints whose batches may be in flight together and commit in any order.
+# An assignment or a relationship references its two ends by deterministic id,
+# and neither table has a foreign key, so no batch of them depends on another.
+# NOT identity-members: IdentityMembers.identityId has a real foreign key, and a
+# link racing ahead of the batch that creates its identity fails the job (see
+# $script:SqlStreamFlushOrder). Everything else keeps its order because it is
+# small and gains nothing.
+$script:SqlPipelinedEndpoints = @('ingest/resource-assignments', 'ingest/resource-relationships')
+
 # The stream one role uses for one system, opened the first time that system
 # appears. Registering the reconcile scope here — rather than when the slot
 # starts — is what stops a run reconciling a system it never wrote a row to.
@@ -184,8 +197,9 @@ function Get-SqlSlotStream {
     $stream = $null
     if ($spec.Streams.TryGetValue($SystemId, [ref]$stream)) { return $stream }
     $state = $Ctx.State
+    $sender = if ($spec.Endpoint -in $script:SqlPipelinedEndpoints) { $state.Sender } else { $null }
     $stream = New-CrawlerIngestStream -Endpoint $spec.Endpoint -SystemId $SystemId -IdPrefix $state.IdPrefix `
-        -Scope $spec.Scope -BatchSize $state.BatchSize -KeyFields $spec.KeyFields
+        -Scope $spec.Scope -BatchSize $state.BatchSize -KeyFields $spec.KeyFields -Sender $sender
     if ($spec.Reconcile) {
         Add-SqlReconcileScope -State $state -Endpoint $spec.Endpoint -Scope $spec.Scope -SystemId $SystemId -Complete $spec.Complete
         [void]$spec.Expect.Systems.Add($SystemId)

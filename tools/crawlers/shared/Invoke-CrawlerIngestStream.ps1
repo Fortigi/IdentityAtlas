@@ -97,9 +97,14 @@ function New-CrawlerIngestStream {
         [Parameter(Mandatory)] [string]$IdPrefix,
         [hashtable]$Scope = @{},
         [int]$BatchSize = 5000,
-        [string[]]$KeyFields = @('externalId')
+        [string[]]$KeyFields = @('externalId'),
+        # A sender (Invoke-CrawlerIngestPipeline.ps1) to POST through, several
+        # batches in flight at once. Only for batches that may commit in any
+        # order. Without one, every batch is sent and waited for in turn.
+        $Sender = $null
     )
     return [pscustomobject]@{
+        Sender    = $Sender
         Endpoint  = $Endpoint
         Entity    = ($Endpoint -replace '^ingest/', '')
         SystemId  = $SystemId
@@ -167,15 +172,43 @@ function Send-CrawlerIngestStreamBatch {
         scope        = $Stream.Scope
         idGeneration = 'deterministic'
         idPrefix     = "$($Stream.IdPrefix)-$($Stream.Entity)"
-        records      = ConvertTo-JsonArray @($batch)
+        # A copy (one native call, not one Add per record): the buffer is
+        # cleared below, and a List always serialises as a JSON array.
+        records      = [System.Collections.Generic.List[object]]::new($batch)
     }
-    $r = Invoke-IngestAPI -Endpoint $Stream.Endpoint -Body $body -Timing $Stream.Timing
+    if ($Stream.Sender) { Submit-CrawlerIngestStreamBody -Stream $Stream -Body $body }
+    else {
+        $r = Invoke-IngestAPI -Endpoint $Stream.Endpoint -Body $body -Timing $Stream.Timing
+        Add-CrawlerIngestStreamResult -Response $r -Stream $Stream
+    }
     $Stream.Batches++
     $Stream.Sent     += $batch.Count
-    $Stream.Inserted += [int]($r.inserted ?? 0)
-    $Stream.Updated  += [int]($r.updated ?? 0)
     $Stream.Buffer.Clear()
     Write-Host "  $($Stream.Endpoint): batch $($Stream.Batches) sent ($($Stream.Sent.ToString('N0')) records so far)" -ForegroundColor DarkGray
+}
+
+# What the API said it did with one batch, added to its stream's totals. Called
+# when the response arrives, which through a sender is later than the send.
+function Add-CrawlerIngestStreamResult {
+    [CmdletBinding()]
+    param([AllowNull()] $Response, [Parameter(Mandatory)] $Stream)
+    $Stream.Inserted += [int]($Response.inserted ?? 0)
+    $Stream.Updated  += [int]($Response.updated ?? 0)
+}
+
+# Serialise a batch and queue it on the stream's sender. JSON time and the time
+# spent blocked waiting for a free slot are the stream's, as on the direct path;
+# the time the API spends on a batch while the crawler works on is nobody's wait.
+function Submit-CrawlerIngestStreamBody {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Stream, [Parameter(Mandatory)] [hashtable]$Body)
+    $t0 = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    $json = $Body | ConvertTo-Json -Depth 20 -Compress
+    $t1 = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    Submit-CrawlerIngestRequest -Sender $Stream.Sender -Endpoint $Stream.Endpoint -Json $json -State $Stream `
+        -OnResponse { param($Response, $Target) Add-CrawlerIngestStreamResult -Response $Response -Stream $Target }
+    $Stream.Timing.SerializeTicks += $t1 - $t0
+    $Stream.Timing.SendTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t1
 }
 
 function Add-CrawlerIngestStreamRecord {
@@ -212,6 +245,13 @@ function Complete-CrawlerIngestStream {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $Stream)
     if ($Stream.Buffer.Count -gt 0) { Send-CrawlerIngestStreamBatch -Stream $Stream }
+    # Every batch of the stream must have committed before its totals mean
+    # anything — and before a reconcile or a count may look at the table.
+    if ($Stream.Sender) {
+        $t0 = [System.Diagnostics.Stopwatch]::GetTimestamp()
+        Wait-CrawlerIngestSender -Sender $Stream.Sender
+        $Stream.Timing.SendTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t0
+    }
     Write-Host "  $($Stream.Endpoint): $($Stream.Sent.ToString('N0')) records in $($Stream.Batches) batch(es) — $($Stream.Inserted.ToString('N0')) inserted, $($Stream.Updated.ToString('N0')) updated$(if ($Stream.Deduped) { ", $($Stream.Deduped.ToString('N0')) duplicates collapsed" })" -ForegroundColor Green
     return @{ records = $Stream.Records; sent = $Stream.Sent; batches = $Stream.Batches; inserted = $Stream.Inserted; updated = $Stream.Updated; deduped = $Stream.Deduped
               serializeTicks = $Stream.Timing.SerializeTicks; sendTicks = $Stream.Timing.SendTicks }

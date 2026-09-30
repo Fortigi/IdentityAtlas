@@ -28,6 +28,7 @@ $script:SqlSharedDir  = Join-Path (Split-Path $PSScriptRoot -Parent) 'shared'
 foreach ($f in @(
     (Join-Path $script:SqlSharedDir 'Invoke-CrawlerIngest.ps1')
     (Join-Path $script:SqlSharedDir 'Invoke-CrawlerIngestStream.ps1')
+    (Join-Path $script:SqlSharedDir 'Invoke-CrawlerIngestPipeline.ps1')
     (Join-Path $script:SqlSharedDir 'Invoke-CrawlerIngestStage.ps1')
     (Join-Path $script:SqlSharedDir 'Invoke-CrawlerDeltaToken.ps1')
     (Join-Path $script:SqlSharedDir 'Get-CrawlerSystemName.ps1')

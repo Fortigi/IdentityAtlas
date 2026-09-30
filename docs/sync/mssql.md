@@ -453,7 +453,7 @@ same split for every statement, with its rows per second:
 | source read | SQL Server running the statement and sending its rows | the query or the network to the database server |
 | shaping | the crawler turning each row into a record: column mapping, routing, dangling checks | the crawler's own per-row work |
 | JSON | turning each batch into the request body | — (normally small) |
-| API | waiting for Identity Atlas to store each batch, retries included | the database behind Identity Atlas |
+| API | waiting for Identity Atlas to store each batch, retries included. Assignment and relationship batches are sent several at a time (`ingestConcurrency`), so for those it is only the time the crawler had to stop and wait | the database behind Identity Atlas |
 | source counts | the before/after counts the [verification](#verification-source-against-database) takes | the statement is expensive to count; it runs twice more |
 
 ### Paging with `@Offset` / `@PageSize`
@@ -570,6 +570,7 @@ file has the shape shown under [Configuration](#configuration); on the command l
 | `commandTimeoutSeconds` | No | `600` | Seconds to wait for each query, `0` = no limit (0–86400). Applies per network read, so a streaming query is not cut off as a whole |
 | `systemName` | No | the crawler's name | Override for the Identity Atlas system name — see [System naming](#system-naming) |
 | `batchSize` | No | `5000` | Records per ingest call (100–50 000). Rows stream from SQL Server and are flushed every batch, so memory stays flat however large the result set |
+| `ingestConcurrency` | No | `3` | How many assignment and relationship batches may be on their way to Identity Atlas at once while the crawler reads and prepares the next ones (1–8). `1` sends one batch at a time and waits for each |
 | `pageSize` | No | `10000` | Value bound to `@PageSize` for a query that pages with `@Offset` / `@PageSize` (100–1 000 000) |
 | `watermarkOverlapSeconds` | No | `900` | How far back of its last position each incremental read goes, to cover clock drift between the source's application servers and transactions that commit late (0–604 800) — see [Reading only what changed](#reading-only-what-changed) |
 | `sweepIntervalHours` | No | `24` | How often a query with **Key sweep** on reads its complete key set to find what the source no longer has. A removal shows within one interval. `0` disables the sweep (0–8760) |

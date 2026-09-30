@@ -245,6 +245,11 @@ function Resolve-SqlConfig {
         connectTimeout         = Get-SqlConfigInt -Value $raw['connectTimeoutSeconds'] -Default 30
         commandTimeout         = Get-SqlConfigInt -Value $raw['commandTimeoutSeconds'] -Default 600 -Minimum 0
         batchSize              = Get-SqlConfigInt -Value $raw['batchSize'] -Default 5000 -Minimum 100
+        # How many assignment/relationship batches may be on their way to the API
+        # at once while the crawler reads and shapes the next. 1 = strictly one
+        # at a time, as before. Capped: beyond a few, the database is the limit
+        # and more in flight only holds more memory.
+        ingestConcurrency      = [Math]::Min(8, (Get-SqlConfigInt -Value $raw['ingestConcurrency'] -Default 3))
         pageSize               = Get-SqlConfigInt -Value $raw['pageSize'] -Default 10000 -Minimum 100
         # How far back of the last watermark each delta re-reads. Several
         # application servers write the source, their clocks drift, and a long

@@ -332,6 +332,13 @@ Describe 'Resolve-SqlConfig' {
         $cfg.port | Should -Be 0
     }
 
+    It 'keeps three ingest batches in flight by default, honours 1, and caps the setting at 8' {
+        (Resolve-SqlConfig -ConfigPath (New-ConfigFile -Cfg $script:BaseCfg)).ingestConcurrency | Should -Be 3
+        (Resolve-SqlConfig -ConfigPath (New-ConfigFile -Cfg (Merge-Cfg -Base $script:BaseCfg -Over @{ ingestConcurrency = 1 }))).ingestConcurrency | Should -Be 1
+        (Resolve-SqlConfig -ConfigPath (New-ConfigFile -Cfg (Merge-Cfg -Base $script:BaseCfg -Over @{ ingestConcurrency = 50 }))).ingestConcurrency | Should -Be 8
+        (Resolve-SqlConfig -ConfigPath (New-ConfigFile -Cfg (Merge-Cfg -Base $script:BaseCfg -Over @{ ingestConcurrency = 0 }))).ingestConcurrency | Should -Be 3
+    }
+
     It 'fails on a missing connection field, naming it' {
         foreach ($k in 'server', 'database', 'username', 'password') {
             $c = $script:BaseCfg.Clone(); $c.Remove($k)
