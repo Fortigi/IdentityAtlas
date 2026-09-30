@@ -13,6 +13,7 @@ import { injectJobSecret, deleteJobSecrets } from '../../secrets/crawlerSecrets.
 import { runPostCrawlJobs } from '../../postCrawlJobs.js';
 import { crawlerHasPermission, crawlerHasSystemAccess } from '../../middleware/crawlerAuth.js';
 import { recordComponentVersion } from '../../updates/componentVersions.js';
+import { CLAIM_NEXT_JOB_SQL } from '../../lib/crawlerJobQueue.js';
 import { useSql, generateApiKey, hashKey } from './shared.js';
 
 const selfServiceCrawlersRouter = Router();
@@ -159,23 +160,10 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/claim', requireWorkerCrawler, asy
   if (workerVersion) recordComponentVersion('worker', workerVersion).catch(() => {});
 
   try {
-    // Atomic claim using FOR UPDATE SKIP LOCKED — postgres-native pattern that
-    // lets multiple workers (if we ever scale out) safely contend for the next
-    // queued job without double-pickup.
-    const r = await db.query(`
-      WITH next_job AS (
-        SELECT id FROM "CrawlerJobs"
-         WHERE "status" = 'queued'
-         ORDER BY "createdAt" ASC
-         LIMIT 1
-         FOR UPDATE SKIP LOCKED
-      )
-      UPDATE "CrawlerJobs" cj
-         SET "status" = 'running', "startedAt" = (now() AT TIME ZONE 'utc')
-        FROM next_job
-       WHERE cj.id = next_job.id
-       RETURNING cj.id, cj."jobType", cj."config", cj."configId"
-    `);
+    // Atomic claim (FOR UPDATE SKIP LOCKED) of the oldest queued job whose
+    // crawler configuration has nothing running — one configuration runs one job
+    // at a time (lib/crawlerJobQueue.js).
+    const r = await db.query(CLAIM_NEXT_JOB_SQL);
     if (r.rows.length === 0) {
       return res.json({ job: null });
     }

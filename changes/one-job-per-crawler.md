@@ -1,0 +1,2 @@
+- A crawler now runs only one job at a time: a scheduled run is skipped while a previous run of the same crawler is still queued or running, and "Run now" explains which job is in the way instead of starting a second one beside it
+- Fixed a scheduled delta starting alongside a long full import of the same crawler, which doubled the load and could make both runs fail
