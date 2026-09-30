@@ -17,6 +17,8 @@
 // matched minute) in memory. On container restart the in-memory cache resets, but
 // a second safety net checks CrawlerJobs for any job from the same config in the
 // last 55 minutes — if one exists, the scheduler skips to prevent duplicates.
+// Separately, a schedule never queues beside a job of the same config that is
+// still queued or running, however old (lib/crawlerJobQueue.js).
 //
 // Why server-side and not in the worker:
 //   - The web container already runs setInterval loops (history prune). Same
@@ -28,6 +30,7 @@
 import * as db from './db/connection.js';
 import { storeJobCredentials, OTHER_SECRET_FIELDS } from './secrets/crawlerSecrets.js';
 import { VALID_JOB_TYPES } from './routes/jobs.js';
+import { findActiveConfigJob } from './lib/crawlerJobQueue.js';
 import { stampConfigName } from './lib/jobConfig.js';
 import { validateStoredCrawlerConfig } from './crawlerManifests.js';
 import { parseJsonbColumn } from './lib/jsonb.js';
@@ -229,8 +232,8 @@ async function captureDashboardSnapshotIfMissing() {
 
 // Fire one schedule if it's due this minute and hasn't already fired. Handles
 // the in-memory and cross-restart double-fire guards and swallows queue errors
-// so one bad config can't abort the whole tick.
-async function fireScheduleIfDue(configRow, scheduleIndex, schedule, now, minuteKey) {
+// so one bad config can't abort the whole tick. Exported for unit tests.
+export async function fireScheduleIfDue(configRow, scheduleIndex, schedule, now, minuteKey) {
   if (!scheduleMatches(schedule, now)) return;
 
   const key = `crawler:${configRow.id}:${scheduleIndex}`;
@@ -238,6 +241,16 @@ async function fireScheduleIfDue(configRow, scheduleIndex, schedule, now, minute
 
   // Cross-restart safety: check DB for recent job from this config
   if (await recentlyQueuedJobExists(configRow.id, configRow.crawlerType)) {
+    lastFired.set(key, minuteKey);
+    return;
+  }
+
+  // One job per configuration: a run that is still going (a full load can take
+  // most of a day) makes this occurrence a skip, not a second run beside it.
+  // The next occurrence of the schedule tries again.
+  const busy = await findActiveConfigJob(db.query, configRow.id);
+  if (busy) {
+    console.log(`Scheduler: skipped config ${configRow.id} (${configRow.displayName}) — job ${busy.id} is still ${busy.status}`);
     lastFired.set(key, minuteKey);
     return;
   }

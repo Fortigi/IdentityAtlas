@@ -322,3 +322,74 @@ describe('queueScheduledJob', () => {
     expect(updateCall[1]).toContain(7); // config id
   });
 });
+
+// ─── fireScheduleIfDue — one job per crawler configuration ─────────────────
+//
+// The field failure: a full load started at 12:18 was still running when the
+// 6 am delta fired. recentlyQueuedJobExists only looks back 55 minutes, so the
+// delta was queued beside it and both ran at once.
+describe('fireScheduleIfDue — a configuration that is still busy', () => {
+  beforeEach(() => vi.resetModules());
+
+  const configRow = {
+    id: 7, crawlerType: 'csv', displayName: 'SailPoint SQL', nextRunMode: null,
+    config: { csvFolder: '/data', schedules: [{ enabled: true, frequency: 'daily', hour: 6, minute: 0 }] },
+  };
+  const SIX_AM = new Date('2026-09-30T06:00:00Z');
+
+  // queryOne answers the 55-minute look-back (nothing recent) and the insert;
+  // query answers the busy check and the lastRunAt update.
+  function busyDb(activeRows) {
+    return {
+      queryOne: vi.fn(async (sql) => (/INSERT INTO "CrawlerJobs"/.test(sql) ? { id: 99 } : null)),
+      query: vi.fn(async (sql) => ({ rows: /"configId" = \$1 AND status IN \('queued', 'running'\)/.test(sql) ? activeRows : [] })),
+    };
+  }
+  const queued = (db) => db.queryOne.mock.calls.some(c => /INSERT INTO "CrawlerJobs"/.test(c[0]));
+
+  it('skips the occurrence while an older job of the same configuration is still running, and says why', async () => {
+    const db = busyDb([{ id: 12, status: 'running' }]);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const { fireScheduleIfDue } = await loadScheduler(db);
+    await fireScheduleIfDue(configRow, 0, configRow.config.schedules[0], SIX_AM, 'k1');
+    expect(queued(db)).toBe(false);
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/skipped config 7 \(SailPoint SQL\) — job 12 is still running/));
+    log.mockRestore();
+  });
+
+  it('skips while one is only queued as well', async () => {
+    const db = busyDb([{ id: 13, status: 'queued' }]);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const { fireScheduleIfDue } = await loadScheduler(db);
+    await fireScheduleIfDue(configRow, 0, configRow.config.schedules[0], SIX_AM, 'k1');
+    expect(queued(db)).toBe(false);
+    log.mockRestore();
+  });
+
+  it('asks about this configuration, not about the crawler type', async () => {
+    const db = busyDb([]);
+    const { fireScheduleIfDue } = await loadScheduler(db);
+    await fireScheduleIfDue(configRow, 0, configRow.config.schedules[0], SIX_AM, 'k1');
+    const busyCall = db.query.mock.calls.find(c => /"configId" = \$1 AND status IN \('queued', 'running'\)/.test(c[0]));
+    expect(busyCall[1]).toEqual([7]);
+  });
+
+  it('queues as before when the configuration is idle', async () => {
+    const db = busyDb([]);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const { fireScheduleIfDue } = await loadScheduler(db);
+    await fireScheduleIfDue(configRow, 0, configRow.config.schedules[0], SIX_AM, 'k1');
+    expect(queued(db)).toBe(true);
+    log.mockRestore();
+  });
+
+  it('does not ask again in the same minute once it has skipped', async () => {
+    const db = busyDb([{ id: 12, status: 'running' }]);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const { fireScheduleIfDue } = await loadScheduler(db);
+    await fireScheduleIfDue(configRow, 0, configRow.config.schedules[0], SIX_AM, 'k1');
+    await fireScheduleIfDue(configRow, 0, configRow.config.schedules[0], SIX_AM, 'k1');
+    expect(db.query.mock.calls.filter(c => /"configId" = \$1 AND status IN \('queued', 'running'\)/.test(c[0]))).toHaveLength(1);
+    log.mockRestore();
+  });
+});

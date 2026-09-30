@@ -27,6 +27,10 @@ const { mockPool, mockDbQuery } = vi.hoisted(() => {
   // rows whether the test staged .rows or (legacy) .recordset — one mockDbQuery
   // spy backs the whole native jobs surface (#663).
   const run = async (...a) => {
+    // The one-job-per-configuration check (lib/crawlerJobQueue.js): every
+    // configuration here is idle. Answered without consuming a staged result, so
+    // each test's mockResolvedValueOnce sequence stays the handler's own.
+    if (/"configId" = \$1 AND status IN \('queued', 'running'\)/.test(a[0])) return { rows: [], recordset: [], rowCount: 0, rowsAffected: [0] };
     const r = await mockDbQuery(...a);
     if (r == null) return r;
     const rows = r.rows ?? r.recordset ?? [];
