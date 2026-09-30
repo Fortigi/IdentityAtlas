@@ -1,0 +1,2 @@
+- The security policy now says to use the support mailbox when GitHub does not offer private vulnerability reporting, and explains how a security fix reaches the current release.
+- The contributor guide now lists every check a pull request must pass before it can be merged.
