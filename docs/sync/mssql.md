@@ -425,8 +425,9 @@ An entitlement-assignment table can hold **tens of millions of rows** — 40 M i
 number in an IdentityIQ estate. The crawler is designed so that this is a normal run, not
 a special case:
 
-1. Rows stream out of a forward-only reader and are shaped one at a time. Nothing is
-   collected into a list first, so memory stays flat however large the result set.
+1. Rows stream out of a forward-only reader and are shaped as they arrive — assignment
+   rows 5 000 at a time, everything else one at a time. Nothing beyond that is collected
+   first, so memory stays flat however large the result set.
 2. Every `batchSize` records (default 5 000) are sent to Identity Atlas as one
    **independent upsert**. Each batch commits on its own; if the same key turns up again
    in a later batch it is simply updated, never rejected.

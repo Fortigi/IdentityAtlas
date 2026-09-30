@@ -21,6 +21,7 @@ BeforeAll {
     $script:ApiKey     = 'fgc_test'
     $script:JobId      = 0
     . (Join-Path $script:repoRoot 'tools' 'crawlers' 'mssql' 'SqlCrawler.Load.ps1')
+    . (Join-Path $PSScriptRoot 'SqlCrawlerReplay.ps1')
     $script:F = [System.Diagnostics.Stopwatch]::Frequency
 }
 
@@ -120,7 +121,7 @@ Describe 'Invoke-SqlSlot records where its time went' {
         # The reader reports 2 s of source time; each batch 1 s of API wait and
         # 0.25 s of JSON. Fixed amounts, so the slot's figures are checkable.
         Mock Invoke-SqlQueryStream {
-            foreach ($r in $script:rows) { & $OnRow $r }
+            Invoke-SqlTestReplay -Rows @($script:rows) -OnRow $OnRow -OnBatch $OnBatch
             $Timing.ReadTicks += 2 * $script:F
             [long]$script:rows.Count
         }

@@ -433,6 +433,19 @@ function New-SqlRowCallback {
     return { param($Row) Add-SqlStreamedRow -Row $Row }
 }
 
+# How a slot's rows reach its handler, as the parameters to splat into
+# Invoke-SqlQueryStream. An assignments statement — tens of millions of rows in a
+# governance source — is shaped a batch at a time (SqlCrawler.Batch.ps1); every
+# other target keeps the per-row callback, where its row counts make the
+# difference immaterial and the per-row handlers carry far more logic.
+function Get-SqlSlotCallback {
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param([Parameter(Mandatory)] [hashtable]$Ctx)
+    if ($Ctx.Slot.target -eq 'assignments') { return @{ OnBatch = (New-SqlBatchCallback -Ctx $Ctx) } }
+    return @{ OnRow = (New-SqlRowCallback -Ctx $Ctx -Handler (Get-SqlRowHandler -Target $Ctx.Slot.target)) }
+}
+
 # The order a slot's streams must be flushed in: a role is listed AFTER
 # everything its records point at. An unlisted role flushes last, in whatever
 # order the hashtable gives.
@@ -558,7 +571,8 @@ function Invoke-SqlSlot {
     $t = [System.Diagnostics.Stopwatch]::GetTimestamp()
     $ctx.SourceBefore = Get-SqlSourceRowsBefore -Ctx $ctx -Connection $Connection
     $ctx.Timing.CountTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t
-    $rows = Invoke-SqlQueryStream -Connection $Connection -Sql $Slot.sql -OnRow (New-SqlRowCallback -Ctx $ctx -Handler (Get-SqlRowHandler -Target $Slot.target)) `
+    $callback = Get-SqlSlotCallback -Ctx $ctx
+    $rows = Invoke-SqlQueryStream -Connection $Connection -Sql $Slot.sql @callback `
         -CommandTimeout $State.CommandTimeout -Paged $Slot.paged -PageSize $State.PageSize -Since $(if ($delta) { $delta.Since } else { $null }) -Timing $ctx.Timing
     $sent = Complete-SqlSlotStreams -Ctx $ctx
     if ($Slot.target -in $script:SqlBufferedTargets) { $sent += Send-SqlSlotBuffer -Slot $Slot -State $State }

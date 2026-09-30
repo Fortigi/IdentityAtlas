@@ -25,6 +25,7 @@ BeforeAll {
     $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
     $script:ApiBaseUrl = 'http://localhost:3001/api'; $script:ApiKey = 'fgc_test'; $script:JobId = 0
     . (Join-Path $root 'tools' 'crawlers' 'mssql' 'SqlCrawler.Load.ps1')
+    . (Join-Path $PSScriptRoot 'SqlCrawlerReplay.ps1')
     function New-State { New-SqlRunState -SystemId 5 -ServerTime '2026-09-26T08:00:00.000Z' -Slots @() -BatchSize 1000 }
     function New-Keyed([long]$Rows, [int]$Distinct, [string]$Endpoint = 'ingest/principals') {
         $e = Get-SqlExpectation -State (New-State) -Key 'k' -Endpoint $Endpoint -Scope @{ principalType = 'User' }
@@ -445,7 +446,7 @@ Describe 'expectations while streaming' {
         $script:replay = @(
             ([ordered]@{ id = 'a'; display_name = 'A1' }), ([ordered]@{ id = 'a'; display_name = 'A2' }),
             ([ordered]@{ id = 'b'; display_name = 'B' }))
-        Mock Invoke-SqlQueryStream { foreach ($r in $script:replay) { & $OnRow $r }; [long]3 }
+        Mock Invoke-SqlQueryStream { Invoke-SqlTestReplay -Rows @($script:replay) -OnRow $OnRow -OnBatch $OnBatch; [long]3 }
         $state = New-State
         Invoke-SqlSlot -Slot @{ name = 'P'; target = 'principals'; principalType = 'User'; sql = 'S'; paged = $false } -Connection 'c' -State $state | Out-Null
         $e = $state.Expect['ingest/principals|principalType=User']
@@ -468,7 +469,7 @@ Describe 'expectations while streaming' {
             ([ordered]@{ parentId = 'role1'; childId = 'ent1' }),
             ([ordered]@{ parentId = 'role1'; childId = 'ent1' }),
             ([ordered]@{ parentId = 'role1'; childId = 'ent2' }))
-        Mock Invoke-SqlQueryStream { foreach ($r in $script:replay) { & $OnRow $r }; [long]3 }
+        Mock Invoke-SqlQueryStream { Invoke-SqlTestReplay -Rows @($script:replay) -OnRow $OnRow -OnBatch $OnBatch; [long]3 }
         $state = New-State
         Invoke-SqlSlot -Slot @{ name = 'Composition'; target = 'relationships'; relationshipType = 'Contains'; sql = 'S'; paged = $false } -Connection 'c' -State $state | Out-Null
         $e = $state.Expect['ingest/resource-relationships|relationshipType=Contains']
@@ -482,7 +483,7 @@ Describe 'expectations while streaming' {
     It 'an assignment slot takes the source distinct pairs and its dangling rows from the one measurement' {
         Mock Measure-SqlSource { @{ rows = [long]9; pairs = [long]7; reason = $null } }
         $script:replay = @(([ordered]@{ principalId = 'p1'; resourceId = 'r1' }), ([ordered]@{ principalId = 'p1'; resourceId = 'r1' }))
-        Mock Invoke-SqlQueryStream { foreach ($r in $script:replay) { & $OnRow $r }; [long]2 }
+        Mock Invoke-SqlQueryStream { Invoke-SqlTestReplay -Rows @($script:replay) -OnRow $OnRow -OnBatch $OnBatch; [long]2 }
         $state = New-State
         $slot = @{ name = 'G'; target = 'assignments'; resourceType = 'Entitlement'; assignmentType = 'Direct'; governed = $false; sql = 'S'; paged = $false }
         Invoke-SqlSlot -Slot $slot -Connection 'c' -State $state | Out-Null
@@ -510,7 +511,7 @@ Describe 'expectations while streaming' {
 
     It 'an assignment read the source could not count leaves the scope unverified with the reason' {
         Mock Measure-SqlSource { @{ rows = $null; pairs = $null; reason = 'the statement pages with @Offset' } }
-        Mock Invoke-SqlQueryStream { & $OnRow ([ordered]@{ principalId = 'p1'; resourceId = 'r1' }); [long]1 }
+        Mock Invoke-SqlQueryStream { Invoke-SqlTestReplay -Rows @([ordered]@{ principalId = 'p1'; resourceId = 'r1' }) -OnRow $OnRow -OnBatch $OnBatch; [long]1 }
         $state = New-State
         Invoke-SqlSlot -Slot @{ name = 'G'; target = 'assignments'; resourceType = 'Entitlement'; assignmentType = 'Direct'; governed = $false; sql = 'S'; paged = $true } -Connection 'c' -State $state | Out-Null
         $state.Expect.Values[0].Unverifiable | Should -Be 'the statement pages with @Offset'

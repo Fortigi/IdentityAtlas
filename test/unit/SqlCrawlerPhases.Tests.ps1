@@ -22,6 +22,7 @@ BeforeAll {
     $script:ApiKey     = 'fgc_test'
     $script:JobId      = 0
     . (Join-Path $sqlDir 'SqlCrawler.Load.ps1')
+    . (Join-Path $PSScriptRoot 'SqlCrawlerReplay.ps1')
 
     function Reset-SqlTestState {
         $script:sent = [System.Collections.Generic.List[object]]::new()
@@ -34,7 +35,7 @@ BeforeAll {
     }
     # Replays $script:rowsToReplay through the phase's own callback.
     $script:StreamMock = {
-        foreach ($r in $script:rowsToReplay) { & $OnRow $r }
+        Invoke-SqlTestReplay -Rows @($script:rowsToReplay) -OnRow $OnRow -OnBatch $OnBatch
         [long]@($script:rowsToReplay).Count
     }
     function New-TestRow { param([hashtable]$Cells) $o = [ordered]@{}; foreach ($k in $Cells.Keys) { $o[$k] = $Cells[$k] }; return $o }

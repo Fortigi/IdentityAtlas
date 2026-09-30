@@ -38,6 +38,7 @@ foreach ($f in @(
     (Join-Path $script:SqlCrawlerDir 'SqlCrawler.Systems.ps1')
     (Join-Path $script:SqlCrawlerDir 'SqlCrawler.Contexts.ps1')
     (Join-Path $script:SqlCrawlerDir 'SqlCrawler.Phases.ps1')
+    (Join-Path $script:SqlCrawlerDir 'SqlCrawler.Batch.ps1')
     (Join-Path $script:SqlCrawlerDir 'SqlCrawler.Timing.ps1')
     (Join-Path $script:SqlCrawlerDir 'SqlCrawler.Verify.ps1')
     (Join-Path $script:SqlCrawlerDir 'SqlCrawler.Sweep.ps1')

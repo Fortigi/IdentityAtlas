@@ -27,6 +27,7 @@ BeforeAll {
     $script:ApiKey     = 'fgc_test'
     $script:JobId      = 0
     . (Join-Path $sqlDir 'SqlCrawler.Load.ps1')
+    . (Join-Path $PSScriptRoot 'SqlCrawlerReplay.ps1')
 
     # Ingest double. Every registration record is handed the next system id from
     # 11 up, so a routed batch's systemId is a value only registration could have
@@ -47,7 +48,7 @@ BeforeAll {
     # Replays the rows registered for the slot currently streaming.
     $script:StreamMock = {
         $rows = @($script:rowsBySlot[$script:currentSlot])
-        foreach ($r in $rows) { & $OnRow $r }
+        Invoke-SqlTestReplay -Rows @($rows) -OnRow $OnRow -OnBatch $OnBatch
         [long]$rows.Count
     }
 
