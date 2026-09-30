@@ -29,8 +29,10 @@ Anthropic Claude, OpenAI, and Azure OpenAI. Keys are stored encrypted
 
 ### How do I try it?
 
-Run the Docker stack (`docker compose -f docker-compose.prod.yml up -d`), open
-`http://localhost:3001`, and click **Load Demo Data** — no tenant needed. Or use the
+Run the Docker stack — three commands in the [Quick Start](../quickstart.md):
+download the compose file, generate a database password into `.env`, and
+`docker compose -f docker-compose.prod.yml up -d`. Then open
+`http://localhost:3001` and click **Load Demo Data** — no tenant needed. Or use the
 one-click **Deploy to Azure** button to put it in your own subscription. There's
 also a portable Windows launcher for locked-down laptops (no install, no admin).
 

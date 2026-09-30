@@ -310,6 +310,10 @@ Then: **Actions → Cut Hotfix** with branch name and new version (e.g. `5.2.1`)
 
 ```bash
 curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
+# The prod compose refuses to start without POSTGRES_PASSWORD — generate one once
+[ -f .env ] || echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env
 docker compose -f docker-compose.prod.yml up -d --pull always
 # Open http://localhost:3001 → Admin → Crawlers → Add Crawler
 ```
+
+The same commands appear in `README.md`, `site/index.html`, `docs/quickstart.md` and `docs/architecture/docker-setup.md`; `app/api/src/docs/installPath.guard.test.js` fails when one of them stops setting the password. Change them together.
