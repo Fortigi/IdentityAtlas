@@ -6,7 +6,7 @@ Test quality across the project's automated suites — line/branch/method covera
 
 | Suite | Line | Branch | Method | Cyclomatic | Cognitive | Mutation | Lines covered |
 |-------|------|--------|--------|------------|-----------|----------|---------------|
-| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 93.0% | 85.2% | 90.1% | 3.5 / 20 | 2.0 / 15 | 86.0% | 12,981 / 13,944 |
+| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 93.0% | 85.2% | 90.1% | 3.5 / 20 | 2.0 / 15 | 86.0% | 12,982 / 13,945 |
 | [UI (React / Vitest)](../coverage/ui/index.html) | 86.3% | 76.8% | 76.6% | 2.8 / 28 | 1.1 / 15 | 69.5% | 8,169 / 9,458 |
 | [PowerShell (Pester)](../coverage/powershell/index.html) | 92.2% | — | 97.3% | 3.8 / 15 | 3.9 / 15 | 100.0% | 7,774 / 8,431 |
 
@@ -18,7 +18,7 @@ Every figure above is scoped to what its tool actually measured. The notes below
 
 ### API (Node / Vitest — unit + contract)
 
-- **Mutation is scoped.** Mutation testing covers 90 file(s) of 294 — 30% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 18 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
+- **Mutation is scoped.** Mutation testing covers 91 file(s) of 295 — 30% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 18 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
 - **method coverage (90.1%) sits below line coverage (93.0%)** — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.
 
 ### UI (React / Vitest)
@@ -40,4 +40,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-09-29 19:02 UTC from commit `c733fb7f`._
+_Generated 2026-09-30 09:02 UTC from commit `8289bf9a`._
