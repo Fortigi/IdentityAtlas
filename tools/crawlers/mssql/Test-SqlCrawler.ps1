@@ -58,7 +58,8 @@ $script:RowsBySlot = @{}
 $script:SinceBySlot = @{}
 function Invoke-SqlQueryStream {
     [CmdletBinding()]
-    param($Connection, [string]$Sql, [scriptblock]$OnRow, [int]$CommandTimeout = 600, [bool]$Paged = $false, [int]$PageSize = 10000, $Since = $null)
+    param($Connection, [string]$Sql, [scriptblock]$OnRow, [int]$CommandTimeout = 600, [bool]$Paged = $false, [int]$PageSize = 10000, $Since = $null,
+          [hashtable]$Timing)
     $script:SinceBySlot[$Sql] = $Since
     # A windowed statement replays only the rows past the mark it was given, the
     # way the source's own WHERE clause would. The key sweep wraps a statement in
