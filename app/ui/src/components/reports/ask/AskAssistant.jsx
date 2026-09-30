@@ -51,12 +51,17 @@ function Examples({ busy, onAsk }) {
  * @param {object}   props
  * @param {object}   [props.currentSpec]  the definition in the builder right now
  * @param {Function} props.onReport       (reply, question) → called with a model report reply
+ * @param {object}   [props.conversation] a useAskConversation() the page owns — the Ask tab
+ *                                        does, so its history sidebar can load one into it.
+ *                                        Without it the assistant keeps its own, as the
+ *                                        report builder always has.
  */
-export default function AskAssistant({ currentSpec, onReport }) {
+export default function AskAssistant({ currentSpec, onReport, conversation }) {
   const { authFetch } = useAuth();
   const { data: status, loading: statusLoading } = useFetch('/api/nl-reports/status', { authFetch });
   const warm = useModelWarmup(status, authFetch);
-  const convo = useAskConversation({ authFetch, currentSpec, onReport });
+  const own = useAskConversation({ authFetch, currentSpec, onReport });
+  const convo = conversation ?? own;
   const { input, setInput, turns, busy, error, ask, confirmChoice } = convo;
   const loading = isWarmLoading(warm);
   const elapsed = useElapsed(busy || loading);

@@ -319,3 +319,51 @@ describe('formerly authentication-only reads now carry a permission gate', () =>
     expect(res.status).toBe(403);
   });
 });
+
+describe('asking a question and building a report are separate rights', () => {
+  // The whole point of data.read.reports existing alongside data.write.reports:
+  // a pilot manager should be able to ask the model a question without also
+  // being able to create and delete the saved reports every analyst sees. The
+  // matrix above proves each permission gates its ONE representative route;
+  // this proves the split holds across the routes the Ask page actually calls.
+  process.env.FEATURE_CUSTOM_REPORTS = 'true';
+
+  const ASKING = [
+    { method: 'POST', path: '/api/nl-reports/interpret', body: { question: 'who owns Finance?' } },
+    { method: 'POST', path: '/api/nl-reports/run', body: { spec: { entity: 'group', conditions: [] } } },
+    { method: 'GET', path: '/api/nl-reports/status' },
+  ];
+  const BUILDING = [
+    { method: 'POST', path: '/api/nl-reports/saved', body: { name: 'x' } },
+    { method: 'DELETE', path: '/api/nl-reports/saved/00000000-0000-0000-0000-000000000000' },
+  ];
+
+  for (const ep of ASKING) {
+    it(`${ep.method} ${ep.path} is allowed by asking alone`, async () => {
+      const res = await call(app, ep, bearer(['data.read.reports']));
+      expect(res.status).not.toBe(403);
+    });
+
+    it(`${ep.method} ${ep.path} is refused to someone who may only BUILD`, async () => {
+      // The discriminating half. Building does not imply asking — if it did,
+      // the read permission would be decorative.
+      const res = await call(app, ep, bearer(['data.write.reports']));
+      expect(res.status).toBe(403);
+    });
+  }
+
+  for (const ep of BUILDING) {
+    it(`${ep.method} ${ep.path} is still refused to someone who may only ASK`, async () => {
+      // The other direction, which is the one that protects the saved reports.
+      const res = await call(app, ep, bearer(['data.read.reports']));
+      expect(res.status).toBe(403);
+    });
+  }
+
+  it('warming the model stays with the analysts who were already allowed to spend it', async () => {
+    // One model server, one slot, shared by everyone. Warming it is a
+    // resource action, so it did not move with the read routes.
+    expect((await call(app, { method: 'POST', path: '/api/nl-reports/warm' }, bearer(['data.read.reports']))).status).toBe(403);
+    expect((await call(app, { method: 'POST', path: '/api/nl-reports/warm' }, bearer(['data.write.reports']))).status).not.toBe(403);
+  });
+});

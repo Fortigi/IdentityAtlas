@@ -36,6 +36,23 @@ function New-DemoGuid {
     finally { $md5.Dispose() }
 }
 
+# A deterministic small integer from a seed string — this generator's stand-in for
+# a random number. Same seed, same value, on every machine and every run, which is
+# what lets a slice spread attributes (sign-in staleness, group sizes, who moved
+# department) over hundreds of records without making the dataset unreproducible.
+function Get-DemoIndex {
+    param(
+        [Parameter(Mandatory)][string]$Seed,
+        [Parameter(Mandatory)][ValidateRange(1, [int]::MaxValue)][int]$Modulo
+    )
+    $md5 = [System.Security.Cryptography.MD5]::Create()
+    try {
+        $bytes = $md5.ComputeHash([System.Text.Encoding]::UTF8.GetBytes("fortigi-demo-index:$Seed"))
+        return [int]([BitConverter]::ToUInt32($bytes, 0) % [uint32]$Modulo)
+    }
+    finally { $md5.Dispose() }
+}
+
 # The accumulator. Every part dot-sourced after this one appends into it; the
 # orchestrator reads it back out to assemble demo-company.json.
 function New-DemoState {

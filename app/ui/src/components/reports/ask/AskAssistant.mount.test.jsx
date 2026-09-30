@@ -88,10 +88,18 @@ function renderAsk({
   return { ...rendered, onReport };
 }
 
-// The JSON bodies actually posted to one endpoint, in order.
+// The JSON bodies actually posted to one endpoint, in order — without the
+// conversation id, which every /interpret carries since the conversation store
+// and is asserted on its own below. Leaving it in would make every exact-body
+// assertion in this file repeat the same expect.any(String).
 const bodiesFor = (authFetch, path) => authFetch.mock.calls
   .filter(([url]) => String(url).includes(path))
-  .map(([, opts]) => JSON.parse(opts.body));
+  .map(([, opts]) => { const { conversationId, ...body } = JSON.parse(opts.body); return body; });
+
+/** The conversation ids /interpret was sent, in order. */
+const threadsFor = (authFetch) => authFetch.mock.calls
+  .filter(([url]) => String(url).includes('/nl-reports/interpret'))
+  .map(([, opts]) => JSON.parse(opts.body).conversationId);
 
 const questionBox = (name = /Describe the report you want/) => screen.getByRole('textbox', { name });
 
@@ -179,7 +187,7 @@ describe('AskAssistant', () => {
     await userEvent.type(await screen.findByRole('textbox', { name: /Describe the report you want/ }), '  guest accounts without a manager  ');
     await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
 
-    await waitFor(() => expect(onReport).toHaveBeenCalledWith(REPORT_REPLY, 'guest accounts without a manager'));
+    await waitFor(() => expect(onReport).toHaveBeenCalledWith(REPORT_REPLY, 'guest accounts without a manager', expect.any(String)));
     expect(onReport).toHaveBeenCalledTimes(1);
     // The stub matches URLs by substring, so pin the exact endpoint and verb here.
     expect(authFetch).toHaveBeenCalledWith('/api/nl-reports/interpret', expect.objectContaining({ method: 'POST' }));
@@ -230,7 +238,7 @@ describe('AskAssistant', () => {
         { role: 'assistant', content: CLARIFY_REPLY.raw },
       ],
     }));
-    await waitFor(() => expect(onReport).toHaveBeenCalledWith(REPORT_REPLY, 'No manager set'));
+    await waitFor(() => expect(onReport).toHaveBeenCalledWith(REPORT_REPLY, 'No manager set', expect.any(String)));
   });
 
   it('lets the model decide, sending that as the answer rather than an empty one', async () => {
@@ -266,7 +274,7 @@ describe('AskAssistant', () => {
       kind: 'report',
       spec: RESOLVED_SPEC,
       explanation: 'Users in business role Fortigi - Algemeen - Maten',
-    }, 'members of algemene maten'));
+    }, 'members of algemene maten', expect.any(String)));
     expect(screen.getByText('Using “Fortigi - Algemeen - Maten”.')).toBeInTheDocument();
     // One model round-trip for the whole exchange.
     expect(bodiesFor(authFetch, '/nl-reports/interpret')).toHaveLength(1);
@@ -289,7 +297,7 @@ describe('AskAssistant', () => {
     await userEvent.type(questionBox(), 'all guest accounts');
     await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
 
-    await waitFor(() => expect(onReport).toHaveBeenCalledWith(REPORT_REPLY, 'all guest accounts'));
+    await waitFor(() => expect(onReport).toHaveBeenCalledWith(REPORT_REPLY, 'all guest accounts', expect.any(String)));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
@@ -332,5 +340,35 @@ describe('AskAssistant', () => {
     await waitFor(() => expect(bodiesFor(authFetch, '/nl-reports/interpret')).toEqual([
       { question: 'disabled users\nstill in a group', history: [] },
     ]));
+  });
+});
+
+describe('the conversation thread', () => {
+  it('sends one conversation id with every question, so the store can thread them', async () => {
+    const { authFetch } = renderAsk({ interpret: thenReport(CLARIFY_REPLY) });
+    await userEvent.type(await screen.findByRole('textbox'), 'accounts without a manager');
+    await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'No manager set' }));
+
+    await waitFor(() => expect(threadsFor(authFetch)).toHaveLength(2));
+    const [first, second] = threadsFor(authFetch);
+    expect(first).toMatch(/^[A-Za-z0-9:_-]{1,100}$/);
+    expect(second).toBe(first);
+  });
+});
+
+describe('AskAssistant — a question the assistant declines', () => {
+  it('shows the one-sentence reason and hands nothing to the builder', async () => {
+    const authFetch = makeAuthFetch((url) => {
+      if (String(url).includes('/nl-reports/status')) return jsonResponse({ available: true, model: 'm', warm: 'ready' });
+      if (String(url).includes('/nl-reports/interpret')) return jsonResponse({ kind: 'decline', reason: 'I only build reports on the directory.', raw: '{}' });
+      return jsonResponse({});
+    });
+    const onReport = vi.fn();
+    renderWithProviders(<AskAssistant onReport={onReport} />, { auth: { authFetch } });
+    const box = await screen.findByRole('textbox');
+    await userEvent.type(box, 'Is Trump the president of the United States?{enter}');
+    expect(await screen.findByText('I only build reports on the directory.')).toBeInTheDocument();
+    expect(onReport).not.toHaveBeenCalled();
   });
 });

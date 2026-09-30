@@ -58,6 +58,12 @@ function fieldPredicate(field, expr, op, value, ctx) {
       return field.type === 'text'
         ? `(${expr} IS NULL OR lower(${expr}) <> lower(${ctx.param(value)}))`
         : `(${expr} IS NULL OR ${expr} <> ${ctx.param(value)}${cast})`;
+    // Lowercased on both sides, exactly like eq: a list must match the same
+    // rows that the same values would match one at a time. The whole list is
+    // ONE parameter — a list built per question would otherwise push a
+    // different number of placeholders into the SQL text on every call.
+    case 'in':
+      return `lower(${expr}) = ANY(${ctx.param(value.map(v => String(v).toLowerCase()))})`;
     // ESCAPE '\\' + the shared like* helpers: a value containing % or _ matches
     // literally (routes/likeAudit.test.js enforces this across src/).
     case 'contains': return `${expr} ILIKE ${ctx.param(likeContains(value))} ESCAPE '\\'`;
@@ -116,6 +122,48 @@ function columnSql(entityName, colDef, alias, ctx) {
   return `(SELECT string_agg(DISTINCT ${inner}."displayName", ', ' ORDER BY ${inner}."displayName") FROM ${from} WHERE ${where})`;
 }
 
+/** Suffix of the companion column carrying a name list's ids. Not a real column. */
+export const LINKS_SUFFIX = '__links';
+
+/** The detail-page kind a name-list column's records belong to, or null. */
+export function linkKind(entityName, colDef) {
+  if (colDef.kind !== 'manyNames') return null;
+  const rel = ENTITIES[entityName].relations[colDef.relation];
+  return ENTITIES[rel.target].detailKind ?? null;
+}
+
+/**
+ * The records behind a name-list column, as `{id, name}` pairs.
+ *
+ * A `manyNames` column renders as "ASML, AlisQI, Bestuur, …": one string built
+ * by string_agg, with every id discarded. That reads fine and is useless for
+ * anything else. A chat card could only link the whole run of names to the
+ * ROW's own record — so a list of 27 groups became 27 names all pointing at the
+ * account that owns them — and a follow-up question about "these groups" had no
+ * ids to refer to, because the answer never contained any.
+ *
+ * Selecting the pairs alongside the string fixes both at the source. The
+ * visible column value is unchanged byte for byte, so every existing consumer
+ * carries on reading the same string; the pairs ride in a separate column that
+ * only callers who know about it look at.
+ *
+ * DISTINCT is done in an inner SELECT rather than inside jsonb_agg, because
+ * `jsonb_agg(DISTINCT x ORDER BY y)` requires the sort key to match the DISTINCT
+ * expression — and here they differ deliberately: distinct by (id, name), so
+ * two groups that share a name both survive, ordered by name so the list reads
+ * in the same order as the string beside it.
+ */
+function linkColumnSql(entityName, colDef, alias, ctx) {
+  if (!linkKind(entityName, colDef)) return null;
+  const rel = ENTITIES[entityName].relations[colDef.relation];
+  const inner = ctx.alias();
+  const { from, where } = rel.from(alias, inner, ctx.alias);
+  const pairs = ctx.alias();
+  return `(SELECT jsonb_agg(jsonb_build_object('id', ${pairs}."id", 'name', ${pairs}."name") ORDER BY ${pairs}."name")
+   FROM (SELECT DISTINCT ${inner}."id" AS "id", ${inner}."displayName" AS "name"
+           FROM ${from} WHERE ${where}) ${pairs})`;
+}
+
 /** The catalog type of a column, so the route can format values. */
 export function columnType(entityName, colDef, extFields) {
   const entity = ENTITIES[entityName];
@@ -139,22 +187,36 @@ const direction = (d) => (d === 'desc' ? 'DESC' : 'ASC');
 // analyst readable.
 const MAX_ALIAS_BYTES = 63;
 const aliasFor = (key, i) => (Buffer.byteLength(key, 'utf8') <= MAX_ALIAS_BYTES ? key : `c${i}`);
+// The companion column that carries a name list's ids (see linkColumnSql) is
+// aliased on the same rule, with the suffix counted in: a key that fits on its
+// own can still overrun once "__links" is appended.
+const linksAliasFor = (key, i) => (
+  Buffer.byteLength(`${key}${LINKS_SUFFIX}`, 'utf8') <= MAX_ALIAS_BYTES ? `${key}${LINKS_SUFFIX}` : `c${i}${LINKS_SUFFIX}`
+);
 
 /** One row per record: its id (for the detail link) and the picked columns. */
 function rowSelect(spec, root, ctx) {
   const columns = spec.columns
     .map(ref => resolveColumn(spec.entity, ref, ctx.extFields))
-    .map((cd, i) => ({ ...cd, alias: aliasFor(cd.key, i) }));
+    .map((cd, i) => ({ ...cd, alias: aliasFor(cd.key, i), linksAlias: linksAliasFor(cd.key, i) }));
   const select = [`${root}."id" AS "__id"`]
     .concat(columns.map(cd => `${columnSql(spec.entity, cd, root, ctx)} AS "${cd.alias}"`));
+  for (const cd of columns) {
+    const pairs = linkColumnSql(spec.entity, cd, root, ctx);
+    if (pairs) select.push(`${pairs} AS "${cd.linksAlias}"`);
+  }
   return { select, columns, groupClause: '' };
 }
 
 
 function rowOrder(spec, root, ctx) {
-  if (spec.sort) {
-    const field = fieldsOf(spec.entity, ctx.extFields)[spec.sort.field];
-    return `${fieldExpr(field, root, ctx)} ${direction(spec.sort.direction)} NULLS LAST, ${root}."id"`;
+  // An entity may declare the order its rows are only useful in. `change` does:
+  // a list of events sorted by name tells you nothing, and the newest change is
+  // the entire point of asking. The request's own sort still wins.
+  const sort = spec.sort ?? ENTITIES[spec.entity].defaultSort;
+  if (sort) {
+    const field = fieldsOf(spec.entity, ctx.extFields)[sort.field];
+    return `${fieldExpr(field, root, ctx)} ${direction(sort.direction)} NULLS LAST, ${root}."id"`;
   }
   // A comparison report lists the closest matches first.
   const similarity = ctx.firstCompare
@@ -234,6 +296,10 @@ export function compileSpec(spec, extFields) {
       alias: cd.alias,
       label: cd.kind === 'compare' ? compareColumnLabel(cd.sub, ctx.firstCompare) : cd.label,
       type: columnType(spec.entity, cd, extFields),
+      // Only a name-list column carries these. Every other column — a field, a
+      // count, a grouped value — keeps the four-key shape the rest of the
+      // pipeline (and its tests) know, rather than two keys that say "none".
+      ...(linkKind(spec.entity, cd) ? { linkKind: linkKind(spec.entity, cd), linksAlias: cd.linksAlias } : {}),
     })),
 
   };

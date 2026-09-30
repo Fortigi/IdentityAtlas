@@ -29,6 +29,15 @@ export const GATED_ENDPOINTS = {
   'admin.crawlers':        { method: 'GET',  path: '/api/admin/crawlers' },
   'admin.systems':         { method: 'PUT',  path: '/api/systems/1', body: {} },
   'data.write.reports':    { method: 'POST', path: '/api/nl-reports/saved' },
+  // Asking, as opposed to building. It gates every route that only asks —
+  // /api/nl-reports/interpret, run, resolve, status, catalog, lookup and the
+  // caller's own conversations. The representative is the conversations list
+  // because it answers from the database alone: /status and /interpret reach
+  // for the model server, which in a unit test means waiting for a name that
+  // does not resolve. That the split between asking and building holds across
+  // all of them, in both directions, is asserted separately in
+  // permissionMatrix.test.js.
+  'data.read.reports':     { method: 'GET',  path: '/api/nl-reports/conversations' },
   'data.write.contexts':   { method: 'POST', path: '/api/context-assistant/evaluate', body: { recipe: {} } },
   'admin.llm':             { method: 'GET',  path: '/api/admin/llm/config' },
   'admin.context-plugins': { method: 'GET',  path: '/api/context-plugins' },

@@ -46,6 +46,7 @@ export default function Turn({ turn, onAnswer, onConfirm, busy, isLast }) {
         : <p>{r.confirm.message}</p>)}
       {r.kind === 'chosen' && <p>Using “{r.name}”.</p>}
       {r.kind === 'report' && <ReportReply reply={r} />}
+      {r.kind === 'decline' && <p>{r.reason || 'That is outside what this assistant does.'}</p>}
       {r.kind === 'error' && <p className="text-red-700 dark:text-red-300">{r.message}{r.errors?.length ? ` (${r.errors.join('; ')})` : ''}</p>}
       <p className={MUTED}>{formatTiming(r.timing)}</p>
     </TurnBubble>

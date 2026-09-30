@@ -874,7 +874,7 @@ paths:
         The entities, fields, relations, operators and pickable columns a report definition may
         use, with the known values of enumerated fields. Alongside the fields every deployment has,
         this includes the `extendedAttributes` keys discovered in this deployment's own data, named
-        `ext.<rawKey>` and marked `discovered`. Requires `data.write.reports`; answers 404 while the
+        `ext.<rawKey>` and marked `discovered`. Requires `data.read.reports`; answers 404 while the
         `customReports` feature is off.
 
       security:
@@ -974,7 +974,7 @@ paths:
       operationId: lookupCustomReportNames
       description: >
         Fuzzy name search used by the builder's reference picker. A search text shorter than 2
-        or longer than 100 characters returns an empty list. Requires `data.write.reports`;
+        or longer than 100 characters returns an empty list. Requires `data.read.reports`;
         answers 404 while the `customReports` feature is off.
       security:
         - EntraIdBearer: []
@@ -1025,7 +1025,7 @@ paths:
       description: >
         Whether the local model server is reachable and serves the configured model. Never fails
         on an unreachable server — it reports `available: false` with a reason instead. Requires
-        `data.write.reports`; answers 404 while the `customReports` feature is off.
+        `data.read.reports`; answers 404 while the `customReports` feature is off.
       security:
         - EntraIdBearer: []
       responses:
@@ -1105,7 +1105,7 @@ paths:
         Sends a plain-language question (plus earlier conversation turns) to the local model and
         returns a validated report definition (`report`), a definition whose named objects need
         confirming (`confirm`), a clarifying question (`clarify`), or `error` when the model's
-        answer could not be used. Requires `data.write.reports`; answers 404 while the
+        answer could not be used. Requires `data.read.reports`; answers 404 while the
         `customReports` feature is off.
       security:
         - EntraIdBearer: []
@@ -1138,6 +1138,12 @@ paths:
                   type: string
                   pattern: '^[A-Za-z0-9._:/-]{1,100}$'
                   description: Evaluation override of the configured model; the UI never sends it.
+                conversationId:
+                  type: string
+                  pattern: '^[A-Za-z0-9:_-]{1,100}$'
+                  description: >
+                    Client-generated key shared by every turn of one chat, so the conversation
+                    store can thread them. Optional.
       responses:
         '200':
           description: The model's interpretation
@@ -1181,6 +1187,15 @@ paths:
                   raw:
                     type: string
                     description: The model's raw reply.
+                  context:
+                    type: string
+                    description: What was put in front of the question for the model on this turn.
+                  logId:
+                    type: string
+                    format: uuid
+                    description: >
+                      The conversation-store row this turn wrote. Pass it to /nl-reports/run so
+                      the row is completed with what the definition returned.
                   timing:
                     type: object
                     additionalProperties: true
@@ -1211,7 +1226,7 @@ paths:
       description: >
         Validates a report definition, applies the analyst's answer to a "did you mean"
         confirmation (when `choice` is given), and looks up the objects it names again. No model
-        is involved. Requires `data.write.reports`; answers 404 while the `customReports` feature
+        is involved. Requires `data.read.reports`; answers 404 while the `customReports` feature
         is off.
       security:
         - EntraIdBearer: []
@@ -1276,7 +1291,7 @@ paths:
         Validates and runs a report definition in a read-only transaction with a statement
         timeout. A definition that is invalid, or names an object that still needs confirming,
         answers 400 with the errors, the confirmation and the validated definition. Requires
-        `data.write.reports`; answers 404 while the `customReports` feature is off.
+        `data.read.reports`; answers 404 while the `customReports` feature is off.
       security:
         - EntraIdBearer: []
       requestBody:
@@ -1289,6 +1304,13 @@ paths:
               properties:
                 spec:
                   $ref: '#/components/schemas/ReportDefinition'
+                logId:
+                  type: string
+                  format: uuid
+                  description: >
+                    The row /nl-reports/interpret wrote for this definition. When given, and only
+                    when the definition run is exactly the one logged, the row is completed with
+                    the row count, column names and query time. Optional.
       responses:
         '200':
           description: Report rows
@@ -1400,7 +1422,7 @@ paths:
       operationId: getSavedCustomReport
       description: >
         One saved report with its definition, for editing in the builder. Requires
-        `data.write.reports`; answers 404 while the `customReports` feature is off.
+        `data.read.reports`; answers 404 while the `customReports` feature is off.
       security:
         - EntraIdBearer: []
       responses:
@@ -1554,6 +1576,91 @@ paths:
           $ref: '#/components/responses/ModelServerFailed'
 
   # ─── Context Assistant (experimental) ──────────────────────────
+  /nl-reports/conversations:
+    get:
+      tags: [Custom Reports]
+      summary: Earlier conversations of the signed-in person
+      operationId: listCustomReportConversations
+      description: >
+        The Ask tab's history: this person's earlier conversations, newest first, one line each.
+        Scoped to the caller; with nobody signed in the list is empty. Requires
+        `data.read.reports`; answers 404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Conversations, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        conversationId: { type: string }
+                        firstQuestion: { type: string }
+                        startedAt: { type: string, format: date-time }
+                        lastAt: { type: string, format: date-time }
+                        turns: { type: integer }
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+
+  /nl-reports/conversations/{id}:
+    get:
+      tags: [Custom Reports]
+      summary: The turns of one earlier conversation
+      operationId: getCustomReportConversation
+      description: >
+        Everything said in one conversation, in order, with the model's raw replies — what the
+        Ask tab needs to pick the conversation back up. A conversation that is not the caller's
+        answers 404 exactly like one that does not exist. Requires `data.read.reports`; answers
+        404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9:_-]{1,100}$' }
+      responses:
+        '200':
+          description: The conversation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversationId: { type: string }
+                  turns:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        question: { type: string }
+                        definition:
+                          $ref: '#/components/schemas/ReportDefinition'
+                        outcome: { type: string }
+                        clarification: { type: string, nullable: true }
+                        rawReply: { type: string, nullable: true }
+                        rowCount: { type: integer, nullable: true }
+                        createdAt: { type: string, format: date-time }
+        '400':
+          description: The id is not a plain key
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          description: No such conversation for this caller, or the feature is off
+
   /context-assistant/options:
     get:
       tags: [Context Assistant]
@@ -2231,6 +2338,19 @@ components:
           items:
             type: string
           example: [csv, json]
+        pivots:
+          type: array
+          description: >
+            Pivot tables the `xlsx` download opens with, each on its own tab over the report's
+            rows. Every field is a column key; values are summed. Empty for most reports.
+          items:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string, description: "Tab name." }
+              rows: { type: array, items: { type: string }, description: "Row fields, outermost first." }
+              filters: { type: array, items: { type: string }, description: "Filter fields." }
+              values: { type: array, items: { type: string }, description: "Summed fields." }
         source:
           type: string
           enum: [builtin, custom]

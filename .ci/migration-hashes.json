@@ -79,6 +79,11 @@
     "073_history_skip_initial_load.sql": "6ac704b9619d9317e6eda200332331868284e5548502b4c5b7f1d1a7d8f9986a",
     "074_systems_tenantless_key.sql": "1b636462b0d9ff25449ea58e3a61dbad78d2dd8d2464de697d9066b0386ca171",
     "075_principal_manager_index.sql": "786544823b6585943f8ddccea92ea8ac139efca7927fc3f085cd1dac307d3962",
-    "076_principal_external_id_index.sql": "c3c9bfa2453461172ded80d535d4eb36ab34ac59efeccc38cad8b36a0661ed30"
+    "076_principal_external_id_index.sql": "c3c9bfa2453461172ded80d535d4eb36ab34ac59efeccc38cad8b36a0661ed30",
+    "077_bot_conversations.sql": "8a58b8aae4ea0e77b98e565ae4f2630904ad2a10e1d39e8c4bcdefdbec4c4a09",
+    "078_assignment_changes_view.sql": "af7f5142b3b33feec4b82366dd74381c4be86d3557e5ba8e93fcfd519b5fe89d",
+    "079_conversation_store.sql": "eab8ee5dfeecf4d43dd5a4f75e365f264b5d2327ede0e82c385bc44fbec7c27d",
+    "080_declined_outcome.sql": "c80a67664fa1cd07924d9beb15a377f347388b7d04267d8a3e92d0b4109a0f77",
+    "081_first_reply.sql": "ba7cc81930baed65438a02eba9372c9afe06b5e76c90ebcbd96a7d19de811e64"
   }
 }

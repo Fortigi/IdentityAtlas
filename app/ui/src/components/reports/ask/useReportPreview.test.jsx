@@ -57,3 +57,32 @@ describe('useReportPreview', () => {
     expect(hook.result.current).toMatchObject({ runError: 'Lookup unavailable', running: false });
   });
 });
+
+describe('the conversation-store row', () => {
+  it('sends the log id to /run when given one, and nothing about it otherwise', async () => {
+    const seen = [];
+    const { hook } = setup((url, opts) => {
+      seen.push(JSON.parse(opts.body));
+      return jsonResponse({ spec: NORMALISED, total: 0 });
+    });
+    await act(() => hook.result.current.run(SENT, '3f1c2a9e-6b1d-4c2e-9a7b-1234567890ab'));
+    await act(() => hook.result.current.run(SENT));
+
+    expect(seen[0].logId).toBe('3f1c2a9e-6b1d-4c2e-9a7b-1234567890ab');
+    expect(seen[1]).not.toHaveProperty('logId');
+  });
+});
+
+describe('starting over', () => {
+  it('clears the definition, the result and a pending choice together', async () => {
+    // The Ask tab calls this when a conversation starts over or another one is
+    // opened. A result left on screen from the previous chat would read as
+    // this one's answer.
+    const { hook } = setup({ '/run': { spec: NORMALISED, total: 3 } });
+    await act(() => hook.result.current.run(SENT));
+    expect(hook.result.current.result.total).toBe(3);
+
+    act(() => hook.result.current.reset());
+    expect(hook.result.current).toMatchObject({ spec: null, dirty: false, result: null, runError: null, confirm: null });
+  });
+});

@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
-import { mountRouter } from '../../test-utils/routeTestKit.js';
+import { mountRouter, mountRouterAs } from '../../test-utils/routeTestKit.js';
 
 vi.mock('../db/connection.js');
-vi.mock('../nlreports/service.js', () => ({
+vi.mock('../nlreports/service.js', async (importOriginal) => ({
+  // The REAL applyResolveChoice. The "run and resolve" tests below assert what
+  // happens when an analyst answers a "did you mean" — which is this function's
+  // behaviour, so a vi.fn() here would make them assert the stub instead. Only
+  // the parts that reach the model or the database are replaced.
+  applyResolveChoice: (await importOriginal()).applyResolveChoice,
   interpret: vi.fn(),
   runSpec: vi.fn(),
   loadValues: vi.fn(async () => ({ principalType: ['User'] })),
@@ -27,7 +32,11 @@ vi.mock('../nlreports/references.js', async (importOriginal) => ({
   normalizeName: (await importOriginal()).normalizeName,
   applyChoice: vi.fn(() => true),
   resolveNamedObjects: vi.fn(async () => ({ confirm: null })),
-  searchNames: vi.fn(async () => [{ id: 'r1', name: 'Fortigi - Algemeen - Maten', type: 'BusinessRole' }]),
+  searchNames: vi.fn(async () => [{ id: 'r1', name: 'ACME - Algemeen - Partners', type: 'BusinessRole' }]),
+}));
+vi.mock('../nlreports/caller.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  resolveCaller: vi.fn(async () => null),
 }));
 vi.mock('../nlreports/savedReports.js', () => ({
   prepareSavedReport: vi.fn(),
@@ -42,6 +51,9 @@ import { modelState } from '../nlreports/llm.js';
 import { applyChoice, resolveNamedObjects } from '../nlreports/references.js';
 import { createSavedReport, deleteSavedReport, prepareSavedReport } from '../nlreports/savedReports.js';
 import { loadExtFields } from '../nlreports/extFields.js';
+import { query } from '../db/connection.js';
+import { resolveCaller } from '../nlreports/caller.js';
+import { clearPending } from '../nlreports/state.js';
 import router, { parseInterpretRequest } from './nlReports.js';
 import { MAX_CONDITIONS } from '../nlreports/spec.js';
 
@@ -125,7 +137,11 @@ describe('interpret', () => {
     expect(res.status).toBe(200);
     expect(interpret).toHaveBeenCalledWith({
       question: 'all guests', history: [{ role: 'assistant', content: '{}' }], model: 'test-model',
+      // Nobody is signed in on this app: no caller context, nothing to substitute,
+      // and no earlier answer in this chat to refine.
+      context: '', substitutions: expect.any(Map), previousSpec: null,
     });
+    expect(interpret.mock.calls[0][0].substitutions.size).toBe(0);
   });
 
   it('accepts a conversation right at the size limit', async () => {
@@ -189,7 +205,9 @@ describe('interpret — audit trail', () => {
     // Exactly two audit lines — the injected text stays inside the first one.
     expect(auditLines(log)).toHaveLength(2);
     expect(all.split('\n').filter(l => l.includes('user=admin'))).toHaveLength(1);
-    expect(auditLines(log)[0]).toMatch(/question="all guestsnl-reports interpret: user=admin outcome=report end"$/);
+    // The question is followed only by a fixed `caller=` marker, never by
+    // anything else the caller wrote.
+    expect(auditLines(log)[0]).toMatch(/question="all guestsnl-reports interpret: user=admin outcome=report end" caller=-$/);
     log.mockRestore();
   });
 
@@ -380,5 +398,299 @@ describe('the catalog', () => {
     expect(res.status).toBe(200);
     expect(res.body.entities.user.fields.every(f => !f.discovered)).toBe(true);
     expect(res.body.entities.user.groupableFields.length).toBeGreaterThan(0);
+  });
+});
+
+describe('the conversation store, from the web', () => {
+  // /interpret writes the same row the Teams bot does; /run completes it. The
+  // database is the automocked connection, so what is asserted is the SQL
+  // that was sent and the id that came back, not a stored row.
+  const insertSql = () => query.mock.calls.map(c => c[0]).find(s => /INSERT INTO "BotConversations"/.test(s));
+  const insertParams = () => query.mock.calls.find(c => /INSERT INTO "BotConversations"/.test(c[0]))[1];
+  const updateCall = () => query.mock.calls.find(c => /UPDATE "BotConversations"/.test(c[0]));
+
+  it('records a question with its context, raw reply and thread, and hands back the row id', async () => {
+    interpret.mockResolvedValue({
+      kind: 'report', spec: SPEC, raw: '{"kind":"report"}', context: 'values block', repaired: false, model: 'm', timing: { totalMs: 5 },
+    });
+    const res = await api().post('/api/nl-reports/interpret').send({ question: 'all guests', conversationId: 'chat-1' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.logId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(insertSql()).toBeTruthy();
+    const p = insertParams();
+    expect(p).toContain('web');
+    expect(p).toContain('chat-1');
+    expect(p).toContain('{"kind":"report"}');
+    expect(p).toContain('values block');
+    expect(p).toContain('interpreted');
+    expect(p).toContain(res.body.logId);
+  });
+
+  it('files a clarifying question and a confirmation under their own outcomes', async () => {
+    interpret.mockResolvedValue({ kind: 'clarify', question: 'Which Finance?', raw: 'r' });
+    await api().post('/api/nl-reports/interpret').send({ question: 'finance' });
+    expect(insertParams()).toContain('clarified');
+    expect(insertParams()).toContain('Which Finance?');
+
+    query.mockClear();
+    interpret.mockResolvedValue({ kind: 'confirm', spec: SPEC, confirm: { message: 'Did you mean Finance?' }, raw: 'r' });
+    await api().post('/api/nl-reports/interpret').send({ question: 'fin' });
+    expect(insertParams()).toContain('confirm');
+    expect(insertParams()).toContain('Did you mean Finance?');
+  });
+
+  it('records a question the model never answered as failed, with the error', async () => {
+    interpret.mockRejectedValue(new Error('connect ECONNREFUSED'));
+    const res = await api().post('/api/nl-reports/interpret').send({ question: 'all guests' });
+    expect(res.status).toBe(502);
+    expect(insertParams()).toContain('failed');
+    expect(insertParams().join(' ')).toContain('ECONNREFUSED');
+  });
+
+  it('refuses a conversation id that is not a plain key', async () => {
+    const res = await api().post('/api/nl-reports/interpret').send({ question: 'x', conversationId: 'a b' });
+    expect(res.status).toBe(400);
+    expect(query.mock.calls.some(c => /INSERT INTO "BotConversations"/.test(c[0]))).toBe(false);
+  });
+
+  it('completes the row when /run is given its id, and leaves the store alone when it is not', async () => {
+    runSpec.mockResolvedValue({ ok: true, spec: SPEC, rows: [{}, {}], columns: [{ key: 'displayName' }], truncated: false, elapsedMs: 12 });
+    query.mockResolvedValue({ rowCount: 1 });
+
+    await api().post('/api/nl-reports/run').send({ spec: SPEC });
+    expect(updateCall()).toBeUndefined();
+
+    const logId = '3f1c2a9e-6b1d-4c2e-9a7b-1234567890ab';
+    await api().post('/api/nl-reports/run').send({ spec: SPEC, logId });
+    const [, params] = updateCall();
+    expect(params[0]).toBe(logId);
+    expect(params).toContain(2);
+    expect(params).toContain(12);
+  });
+
+  it('refuses a log id that is not a uuid before running anything', async () => {
+    const res = await api().post('/api/nl-reports/run').send({ spec: SPEC, logId: 'nope' });
+    expect(res.status).toBe(400);
+    expect(runSpec).not.toHaveBeenCalled();
+  });
+});
+
+describe('who is asking, on the web', () => {
+  // The Ask tab shipped without a caller: "welke groepen heb ik" was a question
+  // about nobody. The route now resolves the signed-in user the same way the
+  // bot does and hands the pipeline both the context and the @me substitution.
+  const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'kees@example.com' }));
+
+  it('resolves "@me" to the caller before RUNNING too, and to nothing for an unknown caller', async () => {
+    // A saved "my groups" report is about whoever opens it.
+    runSpec.mockResolvedValue({ ok: true, spec: SPEC, rows: [], columns: [], truncated: false });
+    resolveCaller.mockResolvedValueOnce({ principalId: OID, displayName: 'Kees' });
+    await request(signedIn).post('/api/nl-reports/run').send({ spec: SPEC });
+    expect(runSpec.mock.calls.at(-1)[1].get('@me')).toBe(OID);
+
+    resolveCaller.mockResolvedValueOnce(null);
+    await request(signedIn).post('/api/nl-reports/run').send({ spec: SPEC });
+    expect(runSpec.mock.calls.at(-1)[1].size).toBe(0);
+  });
+
+  it('tells the pipeline who is asking, and what @me stands for', async () => {
+    resolveCaller.mockResolvedValueOnce({ principalId: OID, displayName: 'Kees van den Berg' });
+    interpret.mockResolvedValue({ kind: 'report', spec: SPEC, raw: 'r' });
+
+    await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'van welke groepen ben ik owner?' });
+
+    const call = interpret.mock.calls[0][0];
+    expect(call.context).toContain('Kees van den Berg');
+    expect(call.context).toContain(OID);
+    expect(call.substitutions.get('@me')).toBe(OID);
+    // The caller's own name is context, never part of the question the
+    // name-matcher reads.
+    expect(call.question).toBe('van welke groepen ben ik owner?');
+  });
+
+  it('records the resolved account on the conversation row', async () => {
+    resolveCaller.mockResolvedValueOnce({ principalId: OID, displayName: 'Kees' });
+    interpret.mockResolvedValue({ kind: 'report', spec: SPEC, raw: 'r' });
+    await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'x' });
+    const params = query.mock.calls.find(c => /INSERT INTO "BotConversations"/.test(c[0]))[1];
+    expect(params).toContain(OID);
+  });
+
+  it('carries on without a caller when the directory does not know the signed-in user', async () => {
+    resolveCaller.mockResolvedValueOnce(null);
+    interpret.mockResolvedValue({ kind: 'report', spec: SPEC, raw: 'r' });
+    await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'all guests' });
+    const call = interpret.mock.calls[0][0];
+    expect(call.context).toBe('');
+    expect(call.substitutions.size).toBe(0);
+  });
+
+  it('and without one when nobody is signed in at all', async () => {
+    interpret.mockResolvedValue({ kind: 'report', spec: SPEC, raw: 'r' });
+    await api().post('/api/nl-reports/interpret').send({ question: 'all guests' });
+    expect(resolveCaller).not.toHaveBeenCalled();
+    expect(interpret.mock.calls[0][0].substitutions.size).toBe(0);
+  });
+
+  it('does not let a failed lookup cost the question', async () => {
+    resolveCaller.mockRejectedValueOnce(new Error('db down'));
+    interpret.mockResolvedValue({ kind: 'report', spec: SPEC, raw: 'r' });
+    const res = await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'all guests' });
+    expect(res.status).toBe(200);
+  });
+});
+
+describe('earlier conversations', () => {
+  const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const signedIn = mountRouterAs(router, () => ({ oid: OID }));
+  const ROWS = [
+    { id: '11111111-1111-1111-1111-111111111111', question: 'van welke groepen ben ik owner?', definition: SPEC, outcome: 'answered', rawReply: '{"kind":"report"}', createdAt: '2026-09-23T09:00:00Z' },
+  ];
+
+  it('lists nothing for nobody, without asking the database', async () => {
+    const res = await api().get('/api/nl-reports/conversations');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ conversations: [] });
+    expect(query.mock.calls.some(c => /GROUP BY "conversationId"/.test(c[0]))).toBe(false);
+  });
+
+  it('lists the signed-in person\u2019s own conversations', async () => {
+    query.mockResolvedValue({ rows: [{ conversationId: 'c-1', firstQuestion: 'q', turns: 1 }] });
+    const res = await request(signedIn).get('/api/nl-reports/conversations?limit=5');
+    expect(res.status).toBe(200);
+    expect(res.body.conversations).toHaveLength(1);
+    const [, params] = query.mock.calls.find(c => /GROUP BY "conversationId"/.test(c[0]));
+    expect(params).toEqual([OID, 'web', 5]);
+  });
+
+  it('returns the turns of one conversation, in order, with what resuming needs', async () => {
+    query.mockResolvedValue({ rows: ROWS });
+    const res = await request(signedIn).get('/api/nl-reports/conversations/c-1');
+    expect(res.status).toBe(200);
+    expect(res.body.conversationId).toBe('c-1');
+    expect(res.body.turns[0]).toMatchObject({ question: 'van welke groepen ben ik owner?', rawReply: '{"kind":"report"}' });
+    const [, params] = query.mock.calls.find(c => /"conversationId" = \$2/.test(c[0]));
+    expect(params).toEqual([OID, 'c-1']);
+  });
+
+  it('answers 404 for a conversation that is not this person\u2019s, and for one that does not exist', async () => {
+    query.mockResolvedValue({ rows: [] });
+    expect((await request(signedIn).get('/api/nl-reports/conversations/c-9')).status).toBe(404);
+    expect((await api().get('/api/nl-reports/conversations/c-1')).status).toBe(404);
+  });
+
+  it('refuses an id that is not a plain key before touching the database', async () => {
+    const res = await request(signedIn).get('/api/nl-reports/conversations/' + encodeURIComponent('a b'));
+    expect(res.status).toBe(400);
+    expect(query).not.toHaveBeenCalled();
+  });
+});
+
+describe('follow-up questions on the web', () => {
+  // "Van welke groepen ben ik owner?" then "zijn er updates geweest aan deze
+  // groepen?" — the second is about the 29 groups the first put on screen. The
+  // Teams bot has done this bookkeeping since day one; the Ask tab sent the
+  // chat history and hoped. Now /run remembers what it showed, per chat and
+  // per caller, and /interpret narrows the next question to it.
+  const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'kees@example.com' }));
+  const otherUser = mountRouterAs(router, () => ({ oid: 'ffffffff-0000-0000-0000-000000000000', email: 'x@example.com' }));
+  const GROUPS = { entity: 'group', match: 'all', conditions: [], columns: ['displayName'], limit: 1000 };
+  const shown = {
+    ok: true, spec: GROUPS, truncated: false, columns: [{ key: 'displayName' }],
+    rows: [{ displayName: 'A', _entity: { kind: 'resource', id: 'g1' } }, { displayName: 'B', _entity: { kind: 'resource', id: 'g2' } }],
+  };
+
+  beforeEach(() => { clearPending(); });
+
+  it('narrows "these groups" to the records the previous answer showed, for the same caller only', async () => {
+    runSpec.mockResolvedValue(shown);
+    await request(signedIn).post('/api/nl-reports/run').send({ spec: GROUPS, conversationId: 'chat-1' });
+
+    interpret.mockResolvedValue({ kind: 'report', spec: GROUPS, raw: 'r', substituted: [] });
+    const res = await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'welke van deze groepen zijn openbaar?', conversationId: 'chat-1' });
+
+    const call = interpret.mock.calls.at(-1)[0];
+    expect(call.context).toMatch(/previous answer in this chat listed 2 groups/);
+    expect(call.substitutions.get('@previous')).toEqual(['g1', 'g2']);
+    expect(res.body.followedUp).toBe(true);
+    expect(res.body.spec.conditions).toEqual([{ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] }]);
+    expect(res.body.explanation.lines.map(l => l.text).join(' ')).toMatch(/ID/);
+
+    // Another signed-in user with the same client-generated chat id inherits nothing.
+    interpret.mockClear();
+    await request(otherUser).post('/api/nl-reports/interpret').send({ question: 'welke van deze groepen zijn openbaar?', conversationId: 'chat-1' });
+    expect(interpret.mock.calls.at(-1)[0].substitutions.has('@previous')).toBe(false);
+  });
+
+  it('leaves a question that stands on its own alone, and a chat without a run', async () => {
+    runSpec.mockResolvedValue(shown);
+    await request(signedIn).post('/api/nl-reports/run').send({ spec: GROUPS, conversationId: 'chat-2' });
+    interpret.mockResolvedValue({ kind: 'report', spec: GROUPS, raw: 'r', substituted: [] });
+
+    const alone = await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'welke groepen zijn openbaar?', conversationId: 'chat-2' });
+    expect(alone.body.followedUp).toBe(false);
+    expect(alone.body.spec.conditions).toEqual([]);
+
+    const fresh = await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'welke van deze groepen zijn openbaar?', conversationId: 'chat-3' });
+    expect(fresh.body.followedUp).toBe(false);
+    expect(interpret.mock.calls.at(-1)[0].context).not.toMatch(/previous answer/);
+  });
+
+  it('refuses a malformed chat id on /run before running anything', async () => {
+    const res = await request(signedIn).post('/api/nl-reports/run').send({ spec: GROUPS, conversationId: 'not ok!' });
+    expect(res.status).toBe(400);
+    expect(runSpec).not.toHaveBeenCalled();
+  });
+});
+
+describe('a declined question, on the web', () => {
+  it('is handed back as its own kind and filed as declined, with the reason where a clarification would go', async () => {
+    interpret.mockResolvedValue({ kind: 'decline', reason: 'I only build reports on the directory.', raw: '{"kind":"decline"}' });
+    const res = await api().post('/api/nl-reports/interpret').send({ question: 'Is Trump the president of the United States?' });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ kind: 'decline', reason: 'I only build reports on the directory.' });
+    const insert = query.mock.calls.find(c => /INSERT INTO "BotConversations"/.test(String(c[0])));
+    expect(insert, 'the question was recorded').toBeTruthy();
+    expect(insert[1]).toContain('declined');
+    expect(insert[1]).toContain('I only build reports on the directory.');
+  });
+});
+
+describe('a refinement on the web gets the previous definition', () => {
+  it('hands /interpret the definition the previous run in this chat produced', async () => {
+    const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'kees@example.com' }));
+    const spec = { entity: 'group', match: 'all', conditions: [], columns: ['displayName'], limit: 1000 };
+    runSpec.mockResolvedValue({ ok: true, spec, truncated: false, columns: [{ key: 'displayName' }],
+      rows: [{ displayName: 'A', _entity: { kind: 'resource', id: 'g1' } }, { displayName: 'B', _entity: { kind: 'resource', id: 'g2' } }] });
+    await request(signedIn).post('/api/nl-reports/run').send({ spec, conversationId: 'chat-9' });
+    interpret.mockResolvedValue({ kind: 'report', spec, raw: 'r', substituted: [] });
+    await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'alleen de openbare', conversationId: 'chat-9' });
+    expect(interpret.mock.calls.at(-1)[0].previousSpec).toEqual(spec);
+  });
+});
+
+describe('a chat keeps "these groups" across an answer that carries nothing', () => {
+  it('still narrows the third question to the groups after a changes answer in between', async () => {
+    const OID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const signedIn = mountRouterAs(router, () => ({ oid: OID, email: 'kees@example.com' }));
+    const groups = { entity: 'group', match: 'all', conditions: [], columns: ['displayName'], limit: 1000 };
+    const changes = { entity: 'change', match: 'all', conditions: [], columns: ['changedAt'], limit: 1000 };
+    runSpec.mockResolvedValueOnce({ ok: true, spec: groups, truncated: false, columns: [{ key: 'displayName' }],
+      rows: [{ displayName: 'A', _entity: { kind: 'resource', id: 'g1' } }, { displayName: 'B', _entity: { kind: 'resource', id: 'g2' } }] });
+    await request(signedIn).post('/api/nl-reports/run').send({ spec: groups, conversationId: 'chat-3' });
+    runSpec.mockResolvedValueOnce({ ok: true, spec: changes, truncated: false, columns: [{ key: 'changedAt' }],
+      rows: [{ changedAt: '2026-09-01', _entity: { kind: null, id: 'c1' } }] });
+    await request(signedIn).post('/api/nl-reports/run').send({ spec: changes, conversationId: 'chat-3' });
+
+    interpret.mockResolvedValue({ kind: 'report', spec: groups, raw: 'r', substituted: [] });
+    const res = await request(signedIn).post('/api/nl-reports/interpret').send({ question: 'wie zijn de leden van deze groepen?', conversationId: 'chat-3' });
+    expect(res.body.followedUp).toBe(true);
+    expect(res.body.spec.conditions.at(-1)).toEqual({ type: 'field', field: 'id', op: 'in', value: ['g1', 'g2'] });
+    // And the definition the refinement rule sees is the latest one.
+    expect(interpret.mock.calls.at(-1)[0].previousSpec).toEqual(changes);
   });
 });

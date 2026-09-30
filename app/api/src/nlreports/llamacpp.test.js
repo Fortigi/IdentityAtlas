@@ -52,7 +52,7 @@ describe('llama.cpp client', () => {
     const { chat } = await client();
     const r = await chat({ messages: [{ role: 'user', content: 'q' }], schema: { type: 'object' } });
     expect(calls[0].body).toEqual({
-      messages: [{ role: 'user', content: 'q' }], temperature: 0, max_tokens: 1200, cache_prompt: true,
+      messages: [{ role: 'user', content: 'q' }], temperature: 0, max_tokens: 450, cache_prompt: true,
       response_format: { type: 'json_schema', json_schema: { schema: { type: 'object' } } },
     });
     expect(r).toEqual({
@@ -134,5 +134,60 @@ describe('llama.cpp client', () => {
     const { chat, listModels } = await client();
     await expect(chat({ messages: [] })).rejects.toThrow('LLM server returned 500: context size exceeded');
     await expect(listModels()).rejects.toThrow('reports no model');
+  });
+});
+
+describe('llama.cpp client — the deployment prefix behind the system prompt', () => {
+  it('restores the prefix file straight away when it exists', async () => {
+    routes['POST /slots/0?action=restore'] = () => [200, { n_restored: 5200 }];
+    const { warm, cacheFileName } = await client();
+    const r = await warm('ignored', 'SYSTEM PROMPT', 'Values that exist: a | b');
+    expect(r).toMatchObject({ restored: true });
+    expect(calls.filter(c => c.url.includes('restore'))).toHaveLength(1);
+    expect(calls.at(-1).body.filename).toBe(cacheFileName(
+      ['qwen3-4b-instruct', '/models/model.gguf', 'Q4_K_M', 'b10975', '{{ jinja }}'].join('\u0000'),
+      'SYSTEM PROMPT\n\nValues that exist: a | b',
+    ));
+  });
+
+  it('derives the prefix file from the system file: restore it, read the prefix on top, save', async () => {
+    // The whole point: the prefix costs a few hundred tokens, never the
+    // whole prompt again.
+    let n = 0;
+    routes['POST /slots/0?action=restore'] = () => [n++ === 0 ? 400 : 200, {}];
+    routes['POST /slots/0?action=save'] = () => [200, { n_saved: 5200 }];
+    const { warm } = await client();
+    const r = await warm('ignored', 'SYSTEM PROMPT', 'Values that exist: a | b');
+    expect(r).toMatchObject({ restored: false, prepared: 'prefix' });
+    const seq = calls.map(c => `${c.method} ${c.url}`).slice(2);
+    expect(seq).toEqual(['POST /slots/0?action=restore', 'POST /slots/0?action=restore', 'POST /v1/chat/completions', 'POST /slots/0?action=save']);
+    expect(calls[4].body.messages[1].content).toBe('Values that exist: a | b\n\nRequest: ready?');
+    expect(calls[5].body.filename).toBe(calls[2].body.filename); // saved under the prefix file's name
+  });
+
+  it('reads the whole prompt only when neither file exists, and then both are saved', async () => {
+    routes['POST /slots/0?action=restore'] = () => [400, {}];
+    routes['POST /slots/0?action=save'] = () => [200, {}];
+    const { warm } = await client();
+    const r = await warm('ignored', 'SYSTEM PROMPT', 'Values that exist: a | b');
+    expect(r).toMatchObject({ restored: false, prepared: 'system' });
+    const seq = calls.map(c => `${c.method} ${c.url}`).slice(2);
+    expect(seq).toEqual([
+      'POST /slots/0?action=restore', 'POST /slots/0?action=restore',
+      'POST /v1/chat/completions', 'POST /slots/0?action=save',
+      'POST /v1/chat/completions', 'POST /slots/0?action=save',
+    ]);
+    expect(calls[4].body.messages[1].content).toBe('ready?');
+    expect(calls[6].body.messages[1].content).toBe('Values that exist: a | b\n\nRequest: ready?');
+    expect(calls[5].body.filename).not.toBe(calls[7].body.filename);
+  });
+});
+
+describe('llama.cpp client — the reply cap', () => {
+  it('asks for at most 450 tokens: a longer reply is a loop, not a definition', async () => {
+    const { chat, MAX_REPLY_TOKENS } = await client();
+    await chat({ messages: [{ role: 'user', content: 'q' }] });
+    expect(MAX_REPLY_TOKENS).toBe(450);
+    expect(calls.find(c => c.url.endsWith('/v1/chat/completions')).body.max_tokens).toBe(450);
   });
 });
