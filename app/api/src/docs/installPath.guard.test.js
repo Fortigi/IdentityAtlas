@@ -39,11 +39,23 @@ function markdownBlocks(text) {
   return blocks;
 }
 
+/** Text content of an HTML fragment: everything outside `<…>` tags. */
+function textOutsideTags(html) {
+  let out = '';
+  let inTag = false;
+  for (const ch of html) {
+    if (ch === '<') inTag = true;
+    else if (ch === '>' && inTag) inTag = false;
+    else if (!inTag) out += ch;
+  }
+  return out;
+}
+
 /** <pre> blocks of an HTML page, as the text a visitor would copy. */
 function htmlBlocks(text) {
   const entities = { '&gt;': '>', '&lt;': '<', '&quot;': '"', '&#39;': "'", '&amp;': '&' };
   return [...text.matchAll(/<pre[^>]*>([\s\S]*?)<\/pre>/g)].map(([, inner]) =>
-    inner.replace(/<[^>]+>/g, '').replace(/&(gt|lt|quot|#39|amp);/g, (e) => entities[e]));
+    textOutsideTags(inner).replace(/&(gt|lt|quot|#39|amp);/g, (e) => entities[e]));
 }
 
 /** The comment header of a YAML file, uncommented — it carries a quick start too. */
@@ -153,6 +165,13 @@ describe('installProblems', () => {
     const clobber = 'echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env';
     expect(installProblems([download, clobber, up].join('\n')))
       .toEqual(['overwrites an existing .env, which changes the password of a database that already exists']);
+  });
+});
+
+describe('htmlBlocks', () => {
+  it('returns the copied text of a <pre>: tags dropped, entities decoded', () => {
+    const html = '<p>x</p><pre><code id="s"><span class="a">echo</span> "a" &gt; .env &amp;&amp; b</code></pre>';
+    expect(htmlBlocks(html)).toEqual(['echo "a" > .env && b']);
   });
 });
 
