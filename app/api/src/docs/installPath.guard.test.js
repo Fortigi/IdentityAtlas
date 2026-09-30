@@ -234,8 +234,10 @@ describe('landing page authentication claim', () => {
     // on from the first deploy. If this default ever flips, revisit the wording.
     expect(read(COMPOSE)).toContain('AUTH_ENABLED: "${AUTH_ENABLED:-false}"');
 
-    const paragraphs = [...read('site/index.html').matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)].map(([, inner]) => inner);
+    // `<p>` or `<p attr…>` only — a bare `<p[^>]*>` also matches `<path …>` in the icons.
+    const paragraphs = [...read('site/index.html').matchAll(/<p(?:>|\s[^>]*>)([\s\S]*?)<\/p>/g)].map(([, inner]) => inner);
     const claims = paragraphs.filter((p) => /SSO is enforced|enforces Entra SSO|anonymous access/i.test(p));
+    // Two today: the "Deploy to Azure" card and the trust item.
     expect(claims.length).toBeGreaterThanOrEqual(2);
     for (const claim of claims) expect(claim).toContain('Azure');
   });
