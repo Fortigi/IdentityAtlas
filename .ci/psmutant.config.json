@@ -25,6 +25,7 @@
     "tools/crawlers/mssql/SqlCrawler.Verify.ps1",
     "tools/crawlers/mssql/SqlCrawler.Ownership.ps1",
     "tools/crawlers/mssql/SqlCrawler.Timing.ps1",
+    "tools/crawlers/mssql/SqlCrawler.Batch.ps1",
     "tools/crawlers/shared/Assert-FGPublicUrl.ps1",
     "tools/crawlers/shared/Get-CrawlerSystemName.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AppRoles.ps1",
@@ -171,6 +172,9 @@
     ],
     "tools/crawlers/mssql/SqlCrawler.Timing.ps1": [
       "test/unit/SqlCrawlerTiming.Tests.ps1"
+    ],
+    "tools/crawlers/mssql/SqlCrawler.Batch.ps1": [
+      "test/unit/SqlCrawlerBatch.Tests.ps1"
     ],
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": [
       "test/unit/EntraIDCrawlerTransform.Tests.ps1"
