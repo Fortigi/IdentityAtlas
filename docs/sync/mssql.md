@@ -443,8 +443,8 @@ Every statement ends with a line that splits its time five ways, and the run end
 same split for every statement, with its rows per second:
 
 ```
-  3,200,285 rows read in 742s
-  time: source read 9.1s · shaping 452.7s · JSON 14.2s · API 259.8s · source counts 6.4s
+  3,199,887 rows read in 253s across 40 systems
+  time: source read 5.2s · shaping 22.9s · JSON 10.3s · API 205.1s · source counts 8.9s
 ```
 
 | Part | What it is | If it dominates |
