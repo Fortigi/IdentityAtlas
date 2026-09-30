@@ -474,6 +474,8 @@ function Complete-SqlSlotStreams {
     foreach ($role in (Get-SqlFlushOrder -Roles @($Ctx.Streams.Keys))) {
         foreach ($s in $Ctx.Streams[$role].Streams.Values) { $sent += (Complete-CrawlerIngestStream -Stream $s).sent }
     }
+    # After the final flushes, so the last partial batch's time is counted too.
+    if ($Ctx.Timing) { Add-SqlStreamTiming -Timing $Ctx.Timing -Streams $Ctx.Streams }
     return $sent
 }
 
@@ -548,18 +550,27 @@ function Invoke-SqlSlot {
               # different question from the one the read answered.
               SourceBefore = $null
               # This statement's own owner tally, folded into the run's at the end.
-              Ownership = (New-SqlOwnershipTally) }
+              Ownership = (New-SqlOwnershipTally)
+              # Where this statement's time went (SqlCrawler.Timing.ps1).
+              Timing = (New-SqlTiming) }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     # Inside the stopwatch: the counts are part of what this statement costs.
+    $t = [System.Diagnostics.Stopwatch]::GetTimestamp()
     $ctx.SourceBefore = Get-SqlSourceRowsBefore -Ctx $ctx -Connection $Connection
+    $ctx.Timing.CountTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t
     $rows = Invoke-SqlQueryStream -Connection $Connection -Sql $Slot.sql -OnRow (New-SqlRowCallback -Ctx $ctx -Handler (Get-SqlRowHandler -Target $Slot.target)) `
-        -CommandTimeout $State.CommandTimeout -Paged $Slot.paged -PageSize $State.PageSize -Since $(if ($delta) { $delta.Since } else { $null })
+        -CommandTimeout $State.CommandTimeout -Paged $Slot.paged -PageSize $State.PageSize -Since $(if ($delta) { $delta.Since } else { $null }) -Timing $ctx.Timing
     $sent = Complete-SqlSlotStreams -Ctx $ctx
     if ($Slot.target -in $script:SqlBufferedTargets) { $sent += Send-SqlSlotBuffer -Slot $Slot -State $State }
+    $t = [System.Diagnostics.Stopwatch]::GetTimestamp()
     Add-SqlReadCheck -Ctx $ctx -Connection $Connection -Rows $rows
+    $ctx.Timing.CountTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t
     $sw.Stop()
+    $ctx.Timing.TotalTicks = $sw.ElapsedTicks
+    $timing = Get-SqlTimingBreakdown -Timing $ctx.Timing
     $systems = Get-SqlSlotSystemCount -Ctx $ctx
     Write-SqlSlotSummary -Ctx $ctx -Rows $rows -Seconds $sw.Elapsed.TotalSeconds -Systems $systems
+    Write-Host "  $(Format-SqlTimingLine -Breakdown $timing)" -ForegroundColor DarkGray
     $ownership = $null
     if ($Slot.ownership) {
         $ownership = Get-SqlOwnershipReport -Tally $ctx.Ownership
@@ -569,7 +580,7 @@ function Invoke-SqlSlot {
     $State.Totals[$Slot.name] = @{ target = $Slot.target; rows = $rows; sent = $sent; skipped = $ctx.Skipped
                                    unreferenced = $ctx.Unreferenced
                                    dangling = $ctx.Dangling; unresolved = $ctx.Unresolved; misrouted = $ctx.Misrouted
-                                   systems = $systems; complete = $complete; ownership = $ownership }
+                                   systems = $systems; complete = $complete; ownership = $ownership; timing = $timing }
     return $State.Totals[$Slot.name]
 }
 
@@ -657,6 +668,7 @@ function Complete-SqlRun {
     foreach ($e in $State.Totals.GetEnumerator()) {
         Write-Host ("  {0,-32} {1,12:N0} rows  {2,12:N0} sent" -f $e.Key, $e.Value.rows, $e.Value.sent) -ForegroundColor Gray
     }
+    Write-SqlRunTiming -Totals $State.Totals | Out-Null
     try {
         Invoke-IngestAPI -Endpoint 'ingest/sync-log' -Body @{ syncType = 'SQL-Crawl'; startTime = $SyncStart.ToString('o'); endTime = (Get-Date).ToString('o'); status = 'Success'; systemId = $State.SystemId } | Out-Null
     } catch { Write-Host "  sync-log write failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow }

@@ -437,6 +437,24 @@ a special case:
 
 A run that fails part-way never reaches step 3, so a partial read can never delete anything.
 
+### Where a slow run spends its time
+
+Every statement ends with a line that splits its time five ways, and the run ends with the
+same split for every statement, with its rows per second:
+
+```
+  3,200,285 rows read in 742s
+  time: source read 9.1s · shaping 452.7s · JSON 14.2s · API 259.8s · source counts 6.4s
+```
+
+| Part | What it is | If it dominates |
+|---|---|---|
+| source read | SQL Server running the statement and sending its rows | the query or the network to the database server |
+| shaping | the crawler turning each row into a record: column mapping, routing, dangling checks | the crawler's own per-row work |
+| JSON | turning each batch into the request body | — (normally small) |
+| API | waiting for Identity Atlas to store each batch, retries included | the database behind Identity Atlas |
+| source counts | the before/after counts the [verification](#verification-source-against-database) takes | the statement is expensive to count; it runs twice more |
+
 ### Paging with `@Offset` / `@PageSize`
 
 By default a statement runs **once** and streams to the end. That is usually the fastest

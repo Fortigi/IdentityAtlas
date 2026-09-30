@@ -426,10 +426,18 @@ function Assert-SqlReadCompleted {
 
 # Run one page (or the whole statement) and hand every row to -OnRow. Returns the
 # number of rows read.
+#
+# -Timing (optional) gets the Stopwatch ticks spent waiting on the SOURCE added to
+# its ReadTicks: executing the statement, and every Read() + GetValues(). What the
+# callback does with a row is deliberately outside that window, so a slow run's
+# log can say whether the time went to SQL Server or to the crawler. Two clock
+# reads per row, well under a microsecond each — cheap next to the row itself.
 function Invoke-SqlReaderPage {
     [CmdletBinding()]
     [OutputType([int])]
-    param([Parameter(Mandatory)] $Command, [Parameter(Mandatory)] [scriptblock]$OnRow)
+    param([Parameter(Mandatory)] $Command, [Parameter(Mandatory)] [scriptblock]$OnRow, [hashtable]$Timing)
+    if (-not $Timing) { $Timing = @{ ReadTicks = [long]0 } }
+    $t0 = [System.Diagnostics.Stopwatch]::GetTimestamp()
     # Default, NOT SequentialAccess. SequentialAccess looks like the right choice
     # for a streaming reader, but it forbids revisiting a column once the row has
     # moved past it — and that includes going back to ordinal 0 for the NEXT row's
@@ -452,9 +460,13 @@ function Invoke-SqlReaderPage {
         $values = [object[]]::new($width)
         while ($reader.Read()) {
             [void]$reader.GetValues($values)
+            $Timing.ReadTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t0
             & $OnRow (ConvertTo-SqlRow -Values $values -Columns $columns)
             $n++
+            $t0 = [System.Diagnostics.Stopwatch]::GetTimestamp()
         }
+        # The final Read() that found no more rows is source time too.
+        $Timing.ReadTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t0
     } finally { $reader.Dispose() }
     # The reader is closed before probing, so the probe reuses the connection
     # rather than competing with an open result set for it.
@@ -478,13 +490,15 @@ function Invoke-SqlQueryStream {
         # The watermark to bind to @Since, or $null for a statement that does
         # not read a window. 0 is "the beginning of time": a first run, an
         # edited statement or a forced full sync, all of which read everything.
-        [AllowNull()] $Since = $null
+        [AllowNull()] $Since = $null,
+        # Accumulates ReadTicks: see Invoke-SqlReaderPage.
+        [hashtable]$Timing
     )
     [long]$total = 0
     $offset = 0
     do {
         $cmd = New-SqlCommand -Connection $Connection -Sql $Sql -CommandTimeout $CommandTimeout -Paged $Paged -Offset $offset -PageSize $PageSize -Since $Since
-        try { $n = Invoke-SqlReaderPage -Command $cmd -OnRow $OnRow }
+        try { $n = Invoke-SqlReaderPage -Command $cmd -OnRow $OnRow -Timing $Timing }
         finally { $cmd.Dispose() }
         $total += $n
         $offset += $PageSize

@@ -114,6 +114,9 @@ function New-CrawlerIngestStream {
         Batches   = 0
         Inserted  = 0
         Updated   = 0
+        # Stopwatch ticks spent serialising batches and waiting for the API —
+        # see Invoke-IngestAPI -Timing.
+        Timing    = @{ SerializeTicks = [long]0; SendTicks = [long]0 }
     }
 }
 
@@ -166,7 +169,7 @@ function Send-CrawlerIngestStreamBatch {
         idPrefix     = "$($Stream.IdPrefix)-$($Stream.Entity)"
         records      = ConvertTo-JsonArray @($batch)
     }
-    $r = Invoke-IngestAPI -Endpoint $Stream.Endpoint -Body $body
+    $r = Invoke-IngestAPI -Endpoint $Stream.Endpoint -Body $body -Timing $Stream.Timing
     $Stream.Batches++
     $Stream.Sent     += $batch.Count
     $Stream.Inserted += [int]($r.inserted ?? 0)
@@ -210,7 +213,8 @@ function Complete-CrawlerIngestStream {
     param([Parameter(Mandatory)] $Stream)
     if ($Stream.Buffer.Count -gt 0) { Send-CrawlerIngestStreamBatch -Stream $Stream }
     Write-Host "  $($Stream.Endpoint): $($Stream.Sent.ToString('N0')) records in $($Stream.Batches) batch(es) — $($Stream.Inserted.ToString('N0')) inserted, $($Stream.Updated.ToString('N0')) updated$(if ($Stream.Deduped) { ", $($Stream.Deduped.ToString('N0')) duplicates collapsed" })" -ForegroundColor Green
-    return @{ records = $Stream.Records; sent = $Stream.Sent; batches = $Stream.Batches; inserted = $Stream.Inserted; updated = $Stream.Updated; deduped = $Stream.Deduped }
+    return @{ records = $Stream.Records; sent = $Stream.Sent; batches = $Stream.Batches; inserted = $Stream.Inserted; updated = $Stream.Updated; deduped = $Stream.Deduped
+              serializeTicks = $Stream.Timing.SerializeTicks; sendTicks = $Stream.Timing.SendTicks }
 }
 
 # The full-sync delete for a streamed run. Returns the number of rows reconciled.
