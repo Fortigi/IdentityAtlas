@@ -176,4 +176,6 @@ Browse locally in the [`docs/`](docs/) folder.
 ## Contributing / License
 
 Identity Atlas is open source under the [MIT License](LICENSE).
-Contributions are welcome — see the [GitHub repository](https://github.com/Fortigi/IdentityAtlas) to open issues or pull requests.
+
+- **Contributing:** contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to report a bug, set up a local environment, run the checks and open a pull request.
+- **Security:** please report vulnerabilities privately, not in a public issue. [SECURITY.md](SECURITY.md) explains how, and lists the supported versions and the published security assessments.
