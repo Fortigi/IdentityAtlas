@@ -50,10 +50,10 @@ Describe 'Submit-CrawlerIngestRequest — the window' {
 
     It 'keeps at most MaxInFlight outstanding, collecting the OLDEST before starting another' {
         $s = New-CrawlerIngestSender -MaxInFlight 2
-        1..3 | ForEach-Object { Submit-CrawlerIngestRequest -Sender $s -Endpoint 'ingest/x' -Json "{""n"":$_}" -OnResponse $script:onResponse -State "b$_" }
+        1..3 | ForEach-Object { Submit-CrawlerIngestRequest -IngestSender $s -Endpoint 'ingest/x' -Json "{""n"":$_}" -OnResponse $script:onResponse -State "b$_" }
         @($script:events) | Should -Be @('start 1', 'start 2', 'done 1 for b1', 'start 3')
         $s.Pending.Count | Should -Be 2
-        Wait-CrawlerIngestSender -Sender $s
+        Wait-CrawlerIngestSender -IngestSender $s
         @($script:events) | Should -Be @('start 1', 'start 2', 'done 1 for b1', 'start 3', 'done 2 for b2', 'done 3 for b3')
         $s.Pending.Count | Should -Be 0
         $s.Sent | Should -Be 3
@@ -61,7 +61,7 @@ Describe 'Submit-CrawlerIngestRequest — the window' {
 
     It 'with a window of one waits for every batch before the next — the old behaviour' {
         $s = New-CrawlerIngestSender -MaxInFlight 1
-        1..2 | ForEach-Object { Submit-CrawlerIngestRequest -Sender $s -Endpoint 'ingest/x' -Json "{""n"":$_}" -OnResponse $script:onResponse -State "b$_" }
+        1..2 | ForEach-Object { Submit-CrawlerIngestRequest -IngestSender $s -Endpoint 'ingest/x' -Json "{""n"":$_}" -OnResponse $script:onResponse -State "b$_" }
         @($script:events) | Should -Be @('start 1', 'done 1 for b1', 'start 2')
     }
 
@@ -81,8 +81,8 @@ Describe 'Receive-CrawlerIngestResponse — judging an answer' {
     It 'fails the job on an error that is not transient, naming the status and the API''s message, and hands nothing on' {
         Mock Start-CrawlerIngestRequest { New-Answered -Status 400 -Body '{"error":"records must be an array"}' }
         $s = New-CrawlerIngestSender -MaxInFlight 4
-        Submit-CrawlerIngestRequest -Sender $s -Endpoint 'ingest/resource-assignments' -Json '{}' -OnResponse $script:cb
-        { Wait-CrawlerIngestSender -Sender $s } | Should -Throw '*ingest/resource-assignments returned HTTP 400*records must be an array*'
+        Submit-CrawlerIngestRequest -IngestSender $s -Endpoint 'ingest/resource-assignments' -Json '{}' -OnResponse $script:cb
+        { Wait-CrawlerIngestSender -IngestSender $s } | Should -Throw '*ingest/resource-assignments returned HTTP 400*records must be an array*'
         $script:got.Count | Should -Be 0
     }
 
@@ -90,8 +90,8 @@ Describe 'Receive-CrawlerIngestResponse — judging an answer' {
         Mock Start-CrawlerIngestRequest { New-Answered -Status 503 -Body 'busy' }
         Mock Invoke-RestMethod { [pscustomobject]@{ inserted = 5 } }
         $s = New-CrawlerIngestSender -MaxInFlight 4
-        Submit-CrawlerIngestRequest -Sender $s -Endpoint 'ingest/resource-assignments' -Json '{"records":[1]}' -OnResponse $script:cb
-        Wait-CrawlerIngestSender -Sender $s
+        Submit-CrawlerIngestRequest -IngestSender $s -Endpoint 'ingest/resource-assignments' -Json '{"records":[1]}' -OnResponse $script:cb
+        Wait-CrawlerIngestSender -IngestSender $s
         $script:got[0].inserted | Should -Be 5
         $s.Retried | Should -Be 1
         Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
@@ -103,8 +103,8 @@ Describe 'Receive-CrawlerIngestResponse — judging an answer' {
         Mock Start-CrawlerIngestRequest { New-Unanswered -Message 'Connection refused' }
         Mock Invoke-RestMethod { [pscustomobject]@{ inserted = 1 } }
         $s = New-CrawlerIngestSender
-        Submit-CrawlerIngestRequest -Sender $s -Endpoint 'ingest/x' -Json '{}' -OnResponse $script:cb
-        Wait-CrawlerIngestSender -Sender $s
+        Submit-CrawlerIngestRequest -IngestSender $s -Endpoint 'ingest/x' -Json '{}' -OnResponse $script:cb
+        Wait-CrawlerIngestSender -IngestSender $s
         $script:got[0].inserted | Should -Be 1
         Should -Invoke Invoke-RestMethod -Exactly 1
     }
@@ -113,8 +113,8 @@ Describe 'Receive-CrawlerIngestResponse — judging an answer' {
         Mock Start-CrawlerIngestRequest { New-Answered -Status 502 -Body 'gateway' }
         Mock Invoke-RestMethod { throw [System.Exception]::new('still down') }
         $s = New-CrawlerIngestSender
-        Submit-CrawlerIngestRequest -Sender $s -Endpoint 'ingest/x' -Json '{}' -OnResponse $script:cb
-        { Wait-CrawlerIngestSender -Sender $s } | Should -Throw '*still down*'
+        Submit-CrawlerIngestRequest -IngestSender $s -Endpoint 'ingest/x' -Json '{}' -OnResponse $script:cb
+        { Wait-CrawlerIngestSender -IngestSender $s } | Should -Throw '*still down*'
         Should -Invoke Invoke-RestMethod -Exactly 5
         $script:got.Count | Should -Be 0
     }
@@ -123,14 +123,14 @@ Describe 'Receive-CrawlerIngestResponse — judging an answer' {
         Mock Start-CrawlerIngestRequest { New-Answered -Status 204 -Body '' }
         $s = New-CrawlerIngestSender
         $script:called = 0
-        Submit-CrawlerIngestRequest -Sender $s -Endpoint 'ingest/x' -Json '{}' -OnResponse { param($Response) $script:called++; if ($null -ne $Response) { throw 'expected no body' } }
-        Wait-CrawlerIngestSender -Sender $s
+        Submit-CrawlerIngestRequest -IngestSender $s -Endpoint 'ingest/x' -Json '{}' -OnResponse { param($Response) $script:called++; if ($null -ne $Response) { throw 'expected no body' } }
+        Wait-CrawlerIngestSender -IngestSender $s
         $script:called | Should -Be 1
     }
 
     It 'does nothing when nothing is outstanding' {
         $s = New-CrawlerIngestSender
-        { Receive-CrawlerIngestResponse -Sender $s } | Should -Not -Throw
+        { Receive-CrawlerIngestResponse -IngestSender $s } | Should -Not -Throw
     }
 }
 
@@ -146,15 +146,15 @@ Describe 'A stream sending through a sender' {
     }
 
     It 'sends the same bodies as the direct path, and its totals count every answer once the stream completes' {
-        $sender = New-CrawlerIngestSender -MaxInFlight 3
+        $ingestSender = New-CrawlerIngestSender -MaxInFlight 3
         $s = New-CrawlerIngestStream -Endpoint 'ingest/resource-assignments' -SystemId 12 -IdPrefix 'sql-1' -BatchSize 2 `
-            -Scope @{ assignmentType = 'Direct' } -KeyFields @('resourceExternalId', 'principalExternalId') -Sender $sender
+            -Scope @{ assignmentType = 'Direct' } -KeyFields @('resourceExternalId', 'principalExternalId') -IngestSender $ingestSender
         1..5 | ForEach-Object { Add-CrawlerIngestStreamRecord -Stream $s -Record ([ordered]@{ resourceExternalId = "r$_"; principalExternalId = 'p' }) }
         # Two full batches are on their way; none has been waited for yet.
-        $sender.Pending.Count | Should -Be 2
+        $ingestSender.Pending.Count | Should -Be 2
         $s.Inserted | Should -Be 0
         $t = Complete-CrawlerIngestStream -Stream $s
-        $sender.Pending.Count | Should -Be 0
+        $ingestSender.Pending.Count | Should -Be 0
         $t.batches | Should -Be 3
         $t.inserted | Should -Be 5
         $t.updated | Should -Be 3
@@ -170,7 +170,7 @@ Describe 'A stream sending through a sender' {
     }
 
     It 'a single-record batch still goes out as a JSON array' {
-        $s = New-CrawlerIngestStream -Endpoint 'ingest/x' -SystemId 1 -IdPrefix 'sql-1' -Sender (New-CrawlerIngestSender)
+        $s = New-CrawlerIngestStream -Endpoint 'ingest/x' -SystemId 1 -IdPrefix 'sql-1' -IngestSender (New-CrawlerIngestSender)
         Add-CrawlerIngestStreamRecord -Stream $s -Record @{ externalId = 'only' }
         Complete-CrawlerIngestStream -Stream $s | Out-Null
         @($script:bodies[0].records).Count | Should -Be 1

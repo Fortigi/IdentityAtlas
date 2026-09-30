@@ -51,11 +51,11 @@ function New-CrawlerIngestSender {
 # the tests replace it.
 function Start-CrawlerIngestRequest {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] $Sender, [Parameter(Mandatory)] [string]$Endpoint, [Parameter(Mandatory)] [string]$Json)
+    param([Parameter(Mandatory)] $IngestSender, [Parameter(Mandatory)] [string]$Endpoint, [Parameter(Mandatory)] [string]$Json)
     $req = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Post, "$ApiBaseUrl/$Endpoint")
     $req.Headers.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::new('Bearer', $ApiKey)
     $req.Content = [System.Net.Http.StringContent]::new($Json, [System.Text.Encoding]::UTF8, 'application/json')
-    return $Sender.Client.SendAsync($req)
+    return $IngestSender.Client.SendAsync($req)
 }
 
 # Queue one serialised batch. When the window is full the oldest response is
@@ -65,12 +65,12 @@ function Start-CrawlerIngestRequest {
 # caller has returned.
 function Submit-CrawlerIngestRequest {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] $Sender, [Parameter(Mandatory)] [string]$Endpoint, [Parameter(Mandatory)] [string]$Json,
+    param([Parameter(Mandatory)] $IngestSender, [Parameter(Mandatory)] [string]$Endpoint, [Parameter(Mandatory)] [string]$Json,
           [scriptblock]$OnResponse, $State)
-    while ($Sender.Pending.Count -ge $Sender.MaxInFlight) { Receive-CrawlerIngestResponse -Sender $Sender }
-    $task = Start-CrawlerIngestRequest -Sender $Sender -Endpoint $Endpoint -Json $Json
-    $Sender.Pending.Enqueue(@{ Task = $task; Endpoint = $Endpoint; Json = $Json; OnResponse = $OnResponse; State = $State })
-    $Sender.Sent++
+    while ($IngestSender.Pending.Count -ge $IngestSender.MaxInFlight) { Receive-CrawlerIngestResponse -IngestSender $IngestSender }
+    $task = Start-CrawlerIngestRequest -IngestSender $IngestSender -Endpoint $Endpoint -Json $Json
+    $IngestSender.Pending.Enqueue(@{ Task = $task; Endpoint = $Endpoint; Json = $Json; OnResponse = $OnResponse; State = $State })
+    $IngestSender.Sent++
 }
 
 # Collect the oldest outstanding response: wait for it, judge it, hand the parsed
@@ -78,9 +78,9 @@ function Submit-CrawlerIngestRequest {
 # transient, or one that is still failing after the in-line retries.
 function Receive-CrawlerIngestResponse {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] $Sender)
-    if ($Sender.Pending.Count -eq 0) { return }
-    $p = $Sender.Pending.Dequeue()
+    param([Parameter(Mandatory)] $IngestSender)
+    if ($IngestSender.Pending.Count -eq 0) { return }
+    $p = $IngestSender.Pending.Dequeue()
     $answer = Get-CrawlerIngestAnswer -Task $p.Task
     if (-not $answer.Ok) {
         if (-not (Test-TransientHttpStatus $answer.Status)) {
@@ -89,7 +89,7 @@ function Receive-CrawlerIngestResponse {
         }
         $reason = if ($answer.Status) { "HTTP $($answer.Status)" } else { $answer.Body }
         Write-Host "  Transient failure on $($p.Endpoint) ($reason) — retrying in line" -ForegroundColor Yellow
-        $Sender.Retried++
+        $IngestSender.Retried++
         $headers = @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
         $answer = @{ Ok = $true; Response = (Invoke-FGIngestPost -Endpoint $p.Endpoint -Headers $headers -Json $p.Json) }
     }
@@ -123,8 +123,8 @@ function Get-CrawlerIngestAnswer {
 # every batch committed: the end of a statement, the reconcile, the counts.
 function Wait-CrawlerIngestSender {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] $Sender)
-    while ($Sender.Pending.Count -gt 0) { Receive-CrawlerIngestResponse -Sender $Sender }
+    param([Parameter(Mandatory)] $IngestSender)
+    while ($IngestSender.Pending.Count -gt 0) { Receive-CrawlerIngestResponse -IngestSender $IngestSender }
 }
 
 #endregion Functions

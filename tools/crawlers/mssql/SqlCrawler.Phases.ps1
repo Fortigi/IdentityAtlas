@@ -197,9 +197,9 @@ function Get-SqlSlotStream {
     $stream = $null
     if ($spec.Streams.TryGetValue($SystemId, [ref]$stream)) { return $stream }
     $state = $Ctx.State
-    $sender = if ($spec.Endpoint -in $script:SqlPipelinedEndpoints) { $state.Sender } else { $null }
+    $ingestSender = if ($spec.Endpoint -in $script:SqlPipelinedEndpoints) { $state.Sender } else { $null }
     $stream = New-CrawlerIngestStream -Endpoint $spec.Endpoint -SystemId $SystemId -IdPrefix $state.IdPrefix `
-        -Scope $spec.Scope -BatchSize $state.BatchSize -KeyFields $spec.KeyFields -Sender $sender
+        -Scope $spec.Scope -BatchSize $state.BatchSize -KeyFields $spec.KeyFields -IngestSender $ingestSender
     if ($spec.Reconcile) {
         Add-SqlReconcileScope -State $state -Endpoint $spec.Endpoint -Scope $spec.Scope -SystemId $SystemId -Complete $spec.Complete
         [void]$spec.Expect.Systems.Add($SystemId)

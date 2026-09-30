@@ -101,10 +101,10 @@ function New-CrawlerIngestStream {
         # A sender (Invoke-CrawlerIngestPipeline.ps1) to POST through, several
         # batches in flight at once. Only for batches that may commit in any
         # order. Without one, every batch is sent and waited for in turn.
-        $Sender = $null
+        $IngestSender = $null
     )
     return [pscustomobject]@{
-        Sender    = $Sender
+        Sender    = $IngestSender
         Endpoint  = $Endpoint
         Entity    = ($Endpoint -replace '^ingest/', '')
         SystemId  = $SystemId
@@ -205,7 +205,7 @@ function Submit-CrawlerIngestStreamBody {
     $t0 = [System.Diagnostics.Stopwatch]::GetTimestamp()
     $json = $Body | ConvertTo-Json -Depth 20 -Compress
     $t1 = [System.Diagnostics.Stopwatch]::GetTimestamp()
-    Submit-CrawlerIngestRequest -Sender $Stream.Sender -Endpoint $Stream.Endpoint -Json $json -State $Stream `
+    Submit-CrawlerIngestRequest -IngestSender $Stream.Sender -Endpoint $Stream.Endpoint -Json $json -State $Stream `
         -OnResponse { param($Response, $Target) Add-CrawlerIngestStreamResult -Response $Response -Stream $Target }
     $Stream.Timing.SerializeTicks += $t1 - $t0
     $Stream.Timing.SendTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t1
@@ -249,7 +249,7 @@ function Complete-CrawlerIngestStream {
     # anything — and before a reconcile or a count may look at the table.
     if ($Stream.Sender) {
         $t0 = [System.Diagnostics.Stopwatch]::GetTimestamp()
-        Wait-CrawlerIngestSender -Sender $Stream.Sender
+        Wait-CrawlerIngestSender -IngestSender $Stream.Sender
         $Stream.Timing.SendTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t0
     }
     Write-Host "  $($Stream.Endpoint): $($Stream.Sent.ToString('N0')) records in $($Stream.Batches) batch(es) — $($Stream.Inserted.ToString('N0')) inserted, $($Stream.Updated.ToString('N0')) updated$(if ($Stream.Deduped) { ", $($Stream.Deduped.ToString('N0')) duplicates collapsed" })" -ForegroundColor Green
