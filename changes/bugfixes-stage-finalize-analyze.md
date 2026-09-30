@@ -1,0 +1,1 @@
+- After a staged import applies its rows, Identity Atlas now refreshes the database's statistics for that table straight away, so the matrix refresh that follows a large first load no longer runs many times slower than it should (measured: 353 s instead of 17 s after 4.1 million assignments).
