@@ -24,7 +24,8 @@
     "src/middleware/requestOriginGuard.js",
     "src/middleware/rateLimitKeys.js",
     "src/middleware/crawlerAuthFailureLimiter.js",
-    "src/auth/resolveMe.js"
+    "src/auth/resolveMe.js",
+    "src/lib/oneLineForLog.js"
   ],
   "thresholds": {
     "high": 90,

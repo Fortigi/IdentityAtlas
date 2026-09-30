@@ -1,0 +1,2 @@
+- Hardened the API logs: ingest warnings and errors that can include crawler-supplied text are now always written as a single line, so a crafted value cannot fake extra log entries
+- Updated bundled third-party libraries (undici, brace-expansion, ip-address, fast-uri) to releases that fix published security advisories
