@@ -4,6 +4,10 @@
 
 Permissions are scattered across identity systems, directories, and SaaS platforms. Identity Atlas syncs them all into a unified PostgreSQL model with trigger-based audit history, surfaces access gaps and risks through a visual role mining UI, and adds LLM-assisted identity risk scoring — without sending sensitive identity data to any external service. Source systems include Entra ID, Omada, SailPoint, SAP/Pathlock, SharePoint, Azure RBAC, Azure DevOps, or any system that can produce a CSV export.
 
+![The Identity Atlas permission matrix: resources as rows, users grouped by department as columns, and a badge in each cell showing whether the access is direct, indirect or eligible](docs/assets/screenshots/matrix.png)
+
+*The permission matrix, shown on the synthetic demo dataset. **[Try the live demo](https://demo1.identityatlas.io)** — no login, nothing to install.*
+
 ## Quick Start
 
 **Prerequisites:** Docker and Docker Compose. See [Sizing](docs/architecture/docker-setup.md#sizing) for RAM/disk guidance — 4 GB suffices for a demo or a small tenant, but tenants above ~2k principals with activity sync enabled should plan for 12 GB or more.
@@ -156,7 +160,7 @@ See [tools/powershell-sdk/](tools/powershell-sdk/) for the Graph API wrapper fun
 
 ## Documentation
 
-Full docs at **[https://fortigi.github.io/IdentityAtlas](https://fortigi.github.io/IdentityAtlas)** (available once GitHub Pages is enabled).
+Full docs at **[https://fortigi.github.io/IdentityAtlas](https://fortigi.github.io/IdentityAtlas)**.
 Browse locally in the [`docs/`](docs/) folder.
 
 | Section | Link |

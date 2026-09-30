@@ -1,0 +1,3 @@
+- Added product screenshots to the documentation: the permission matrix (flat and folded by department), the dashboard, a user detail tab, a business role detail tab, the Contexts tab and the Add Crawler type picker, all captured from the public demo's synthetic dataset
+- The README now opens with a screenshot of the permission matrix and links to the live demo
+- Fixed the README's stale note that the documentation site was not yet published

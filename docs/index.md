@@ -10,6 +10,11 @@ You have probably just come from [identityatlas.io](https://identityatlas.io), w
 
 **Identity Atlas pulls authorization data out of every system you have, puts it into one model, and lets you ask questions no single system can answer.** It is MIT-licensed, self-hosted, and your identity data never leaves your environment.
 
+<figure markdown="span">
+  ![The permission matrix: resources as rows, users grouped by department as columns, and a badge in each cell showing whether the access is direct, indirect or eligible](assets/screenshots/matrix.png)
+  <figcaption>The permission matrix — who holds what, and how they got it. Shown on the synthetic demo dataset.</figcaption>
+</figure>
+
 Everything below is arranged easiest-first. You are not expected to read all of it — but each path is in order, and the first page of each assumes nothing.
 
 ---
