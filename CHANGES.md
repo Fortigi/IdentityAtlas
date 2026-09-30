@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- A crawler now runs only one job at a time: a scheduled run is skipped while a previous run of the same crawler is still queued or running, and "Run now" explains which job is in the way instead of starting a second one beside it
+- Fixed a scheduled delta starting alongside a long full import of the same crawler, which doubled the load and could make both runs fail
+- Updated bundled third-party libraries (undici, brace-expansion, ip-address, fast-uri) to releases that fix published security advisories
+
+## Changes in this PR
+
 - After a staged import applies its rows, Identity Atlas now refreshes the database's statistics for that table straight away, so the matrix refresh that follows a large first load no longer runs many times slower than it should (measured: 353 s instead of 17 s after 4.1 million assignments).
 
 ## Changes in this PR
