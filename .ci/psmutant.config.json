@@ -17,6 +17,7 @@
     "tools/crawlers/shared/Get-CapabilityId.ps1",
     "tools/crawlers/shared/Invoke-CrawlerIngest.ps1",
     "tools/crawlers/shared/Invoke-CrawlerIngestStream.ps1",
+    "tools/crawlers/shared/Invoke-CrawlerIngestPipeline.ps1",
     "tools/crawlers/mssql/SqlCrawler.Functions.ps1",
     "tools/crawlers/mssql/SqlCrawler.Transform.ps1",
     "tools/crawlers/mssql/SqlCrawler.Phases.ps1",
@@ -148,6 +149,9 @@
   "tests": {
     "tools/crawlers/shared/Invoke-CrawlerIngestStream.ps1": [
       "test/unit/CrawlerIngestStream.Tests.ps1"
+    ],
+    "tools/crawlers/shared/Invoke-CrawlerIngestPipeline.ps1": [
+      "test/unit/CrawlerIngestPipeline.Tests.ps1"
     ],
     "tools/crawlers/mssql/SqlCrawler.Functions.ps1": [
       "test/unit/SqlCrawlerFunctions.Tests.ps1"
