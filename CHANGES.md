@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- After a staged import applies its rows, Identity Atlas now refreshes the database's statistics for that table straight away, so the matrix refresh that follows a large first load no longer runs many times slower than it should (measured: 353 s instead of 17 s after 4.1 million assignments).
+
+## Changes in this PR
+
 - The SQL Server crawler prepares assignment rows (the entitlement and role grants, usually tens of millions of rows) about ten times faster, so a large full import is no longer held back by the crawler's own per-row work. What is imported is unchanged.
 - The SQL Server crawler keeps reading from the source while Identity Atlas stores the assignment and relationship batches it already sent — by default three at a time, set with the new `ingestConcurrency` setting (1 restores one batch at a time). A large import no longer waits for the database after every batch.
 - The SQL Server crawler's job log now shows where each statement's time went — reading the source, shaping rows, building the request, waiting for Identity Atlas, and the verification counts — and ends with one table of all statements and their rows per second, so a slow import can be traced to the database server, the crawler or Identity Atlas.
