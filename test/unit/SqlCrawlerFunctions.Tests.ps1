@@ -61,9 +61,13 @@ BeforeAll {
     class FakeReader : System.Collections.IEnumerable {
         [string[]]$Columns; [object[]]$Rows; [int]$Pos = -1; [bool]$Disposed = $false; [int]$FieldCount
         [bool]$Sequential = $false; [int]$MinOrdinal = 0
+        [int]$ReadDelayMs = 0   # a slow source, for the read-timing test
         FakeReader([string[]]$c, [object[]]$r) { $this.Columns = $c; $this.Rows = $r; $this.FieldCount = $c.Length }
         [string]GetName([int]$i) { return $this.Columns[$i] }
-        [bool]Read() { $this.Pos++; $this.MinOrdinal = 0; return $this.Pos -lt $this.Rows.Count }
+        [bool]Read() {
+            if ($this.ReadDelayMs -gt 0) { [System.Threading.Thread]::Sleep($this.ReadDelayMs) }
+            $this.Pos++; $this.MinOrdinal = 0; return $this.Pos -lt $this.Rows.Count
+        }
         [object]GetValue([int]$i) {
             if ($this.Pos -lt 0 -or $this.Pos -ge $this.Rows.Count) { throw 'Invalid attempt to read when no data is present.' }
             if ($this.Sequential -and $i -lt $this.MinOrdinal) {
@@ -111,6 +115,7 @@ BeforeAll {
     class FakeConnection {
         [string[]]$Columns; [object[]]$AllRows
         [bool]$Healthy = $true   # set false to simulate a connection cut mid-stream
+        [int]$ReadDelayMs = 0    # handed to every reader it opens
         [System.Collections.Generic.List[object]]$Commands = [System.Collections.Generic.List[object]]::new()
         [System.Collections.Generic.List[object]]$Readers  = [System.Collections.Generic.List[object]]::new()
         [System.Collections.Generic.List[object]]$ReadCommands = [System.Collections.Generic.List[object]]::new()
@@ -121,7 +126,7 @@ BeforeAll {
             $rows = $this.AllRows
             $off = $cmd.Parameters.Get('@Offset'); $size = $cmd.Parameters.Get('@PageSize')
             if ($off) { $rows = @($rows | Select-Object -Skip ([int]$off.Value) -First ([int]$size.Value)) }
-            $r = [FakeReader]::new($this.Columns, $rows); $this.Readers.Add($r); return $r
+            $r = [FakeReader]::new($this.Columns, $rows); $r.ReadDelayMs = $this.ReadDelayMs; $this.Readers.Add($r); return $r
         }
     }
 }
@@ -325,6 +330,13 @@ Describe 'Resolve-SqlConfig' {
         $cfg.batchSize | Should -Be 5000
         $cfg.pageSize | Should -Be 10000
         $cfg.port | Should -Be 0
+    }
+
+    It 'keeps three ingest batches in flight by default, honours 1, and caps the setting at 8' {
+        (Resolve-SqlConfig -ConfigPath (New-ConfigFile -Cfg $script:BaseCfg)).ingestConcurrency | Should -Be 3
+        (Resolve-SqlConfig -ConfigPath (New-ConfigFile -Cfg (Merge-Cfg -Base $script:BaseCfg -Over @{ ingestConcurrency = 1 }))).ingestConcurrency | Should -Be 1
+        (Resolve-SqlConfig -ConfigPath (New-ConfigFile -Cfg (Merge-Cfg -Base $script:BaseCfg -Over @{ ingestConcurrency = 50 }))).ingestConcurrency | Should -Be 8
+        (Resolve-SqlConfig -ConfigPath (New-ConfigFile -Cfg (Merge-Cfg -Base $script:BaseCfg -Over @{ ingestConcurrency = 0 }))).ingestConcurrency | Should -Be 3
     }
 
     It 'fails on a missing connection field, naming it' {
@@ -550,6 +562,29 @@ Describe 'Invoke-SqlQueryStream' {
         $calls = 0
         Invoke-SqlQueryStream -Connection $conn -Sql 'x' -OnRow { $calls++ } | Should -Be 0
         $calls | Should -Be 0
+    }
+
+    # The split the job log reports: time waiting on the SOURCE, apart from what
+    # the crawler then does with each row. Six Read() calls at 50 ms (five rows and
+    # the one that finds no more) are ~0.3 s; five callbacks at 100 ms are 0.5 s.
+    # Timing the callback as well would put the figure at 0.8 s or more.
+    It 'adds the time spent in the reader to -Timing, and not the time spent in the callback' {
+        $conn = [FakeConnection]::new(@('id', 'n'), @($script:Rows | Select-Object -First 5))
+        $conn.ReadDelayMs = 50
+        $t = @{ ReadTicks = [long]0 }
+        Invoke-SqlQueryStream -Connection $conn -Sql 'x' -OnRow { Start-Sleep -Milliseconds 100 } -Timing $t | Should -Be 5
+        $sec = $t.ReadTicks / [System.Diagnostics.Stopwatch]::Frequency
+        $sec | Should -BeGreaterOrEqual 0.28
+        $sec | Should -BeLessThan 0.7
+    }
+
+    It 'accumulates over the pages of a paged statement' {
+        $conn = [FakeConnection]::new(@('id', 'n'), $script:Rows)
+        $conn.ReadDelayMs = 20
+        $t = @{ ReadTicks = [long]0 }
+        # 3 pages: 3+1, 3+1 and 1+1 Read() calls = 10 x 20 ms.
+        Invoke-SqlQueryStream -Connection $conn -Sql 'x' -OnRow { } -Paged $true -PageSize 3 -Timing $t | Should -Be 7
+        ($t.ReadTicks / [System.Diagnostics.Stopwatch]::Frequency) | Should -BeGreaterOrEqual 0.19
     }
 
     It 'disposes the reader and command when the callback throws, and propagates the error' {

@@ -60,7 +60,11 @@ function New-SqlRunState {
         [string]$Tenant = '',
         [int]$OverlapSeconds = 900,
         [int]$SweepIntervalHours = 24,
-        [double]$SweepMaxDeleteShare = 0.05
+        [double]$SweepMaxDeleteShare = 0.05,
+        [int]$IngestConcurrency = 1,
+        # Load a full sync's complete assignment scopes through stages
+        # (SqlCrawler.Staging.ps1). The crawler turns it on from its config.
+        [bool]$StagedFullLoad = $false
     )
     $targets = @($Slots | Where-Object { $_.enabled } | ForEach-Object { $_.target })
     return @{
@@ -114,6 +118,14 @@ function New-SqlRunState {
         Sweeps          = [System.Collections.Generic.List[hashtable]]::new()
         Verification    = $null
         ContextReport   = $null
+        # Several batches in flight for the streams that may commit in any
+        # order (Get-SqlSlotStream). $null = one at a time.
+        Sender          = $(if ($IngestConcurrency -gt 1) { New-CrawlerIngestSender -MaxInFlight $IngestConcurrency })
+        # A full sync loads its complete assignment scopes through stages, one
+        # per (system, scope), applied together at the end (SqlCrawler.Staging.ps1).
+        StageFullLoads  = ($StagedFullLoad -and $SyncMode -eq 'full')
+        Stages          = @{}
+        StagedSeconds   = 0
         Totals          = [ordered]@{}
     }
 }
@@ -161,6 +173,7 @@ function New-SqlStreamSpec {
     param([hashtable]$State, [string]$Endpoint, [hashtable]$Scope = @{}, [string[]]$KeyFields = @('externalId'),
           [switch]$Reconcile, [switch]$Keyed, [bool]$Complete = $true)
     $expect = $null
+    $staged = Test-SqlStagedSpec -State $State -Endpoint $Endpoint -Reconcile ([bool]$Reconcile) -Complete $Complete
     if ($Reconcile) {
         # Every reconciled scope is also verified at the end of the run. The
         # expectation spans the scope's SYSTEMS (the reconcile does not): the
@@ -168,11 +181,23 @@ function New-SqlStreamSpec {
         # honest comparison sums the database's rows over the systems fed.
         $expect = Get-SqlExpectation -State $State -Key (Get-SqlScopeKey -Endpoint $Endpoint -Scope $Scope) -Endpoint $Endpoint -Scope $Scope -Keyed:$Keyed
         $expect.Slots++
+        # A staged scope holds exactly its stage after the finalize, and an
+        # unchanged row is not touched — so it is counted whole, not by touch.
+        if ($staged) { $expect.Whole = $true }
     }
     return @{ Endpoint = $Endpoint; Scope = $Scope; KeyFields = $KeyFields; Reconcile = [bool]$Reconcile
-              Complete = $Complete; Expect = $expect
+              Complete = $Complete; Expect = $expect; Staged = $staged
               Streams = [System.Collections.Generic.Dictionary[int, object]]::new() }
 }
+
+# The endpoints whose batches may be in flight together and commit in any order.
+# An assignment or a relationship references its two ends by deterministic id,
+# and neither table has a foreign key, so no batch of them depends on another.
+# NOT identity-members: IdentityMembers.identityId has a real foreign key, and a
+# link racing ahead of the batch that creates its identity fails the job (see
+# $script:SqlStreamFlushOrder). Everything else keeps its order because it is
+# small and gains nothing.
+$script:SqlPipelinedEndpoints = @('ingest/resource-assignments', 'ingest/resource-relationships')
 
 # The stream one role uses for one system, opened the first time that system
 # appears. Registering the reconcile scope here — rather than when the slot
@@ -184,10 +209,14 @@ function Get-SqlSlotStream {
     $stream = $null
     if ($spec.Streams.TryGetValue($SystemId, [ref]$stream)) { return $stream }
     $state = $Ctx.State
+    $ingestSender = if ($spec.Endpoint -in $script:SqlPipelinedEndpoints) { $state.Sender } else { $null }
+    # A staged scope's finalize removes what the source no longer has, so it
+    # registers no timestamp reconcile of its own.
+    $stageId = if ($spec.Staged) { (Get-SqlStage -State $state -Spec $spec -SystemId $SystemId).StageId } else { '' }
     $stream = New-CrawlerIngestStream -Endpoint $spec.Endpoint -SystemId $SystemId -IdPrefix $state.IdPrefix `
-        -Scope $spec.Scope -BatchSize $state.BatchSize -KeyFields $spec.KeyFields
+        -Scope $spec.Scope -BatchSize $state.BatchSize -KeyFields $spec.KeyFields -IngestSender $ingestSender -StageId $stageId
     if ($spec.Reconcile) {
-        Add-SqlReconcileScope -State $state -Endpoint $spec.Endpoint -Scope $spec.Scope -SystemId $SystemId -Complete $spec.Complete
+        if (-not $spec.Staged) { Add-SqlReconcileScope -State $state -Endpoint $spec.Endpoint -Scope $spec.Scope -SystemId $SystemId -Complete $spec.Complete }
         [void]$spec.Expect.Systems.Add($SystemId)
     }
     $spec.Streams[$SystemId] = $stream
@@ -433,6 +462,19 @@ function New-SqlRowCallback {
     return { param($Row) Add-SqlStreamedRow -Row $Row }
 }
 
+# How a slot's rows reach its handler, as the parameters to splat into
+# Invoke-SqlQueryStream. An assignments statement — tens of millions of rows in a
+# governance source — is shaped a batch at a time (SqlCrawler.Batch.ps1); every
+# other target keeps the per-row callback, where its row counts make the
+# difference immaterial and the per-row handlers carry far more logic.
+function Get-SqlSlotCallback {
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param([Parameter(Mandatory)] [hashtable]$Ctx)
+    if ($Ctx.Slot.target -eq 'assignments') { return @{ OnBatch = (New-SqlBatchCallback -Ctx $Ctx) } }
+    return @{ OnRow = (New-SqlRowCallback -Ctx $Ctx -Handler (Get-SqlRowHandler -Target $Ctx.Slot.target)) }
+}
+
 # The order a slot's streams must be flushed in: a role is listed AFTER
 # everything its records point at. An unlisted role flushes last, in whatever
 # order the hashtable gives.
@@ -474,6 +516,8 @@ function Complete-SqlSlotStreams {
     foreach ($role in (Get-SqlFlushOrder -Roles @($Ctx.Streams.Keys))) {
         foreach ($s in $Ctx.Streams[$role].Streams.Values) { $sent += (Complete-CrawlerIngestStream -Stream $s).sent }
     }
+    # After the final flushes, so the last partial batch's time is counted too.
+    if ($Ctx.Timing) { Add-SqlStreamTiming -Timing $Ctx.Timing -Streams $Ctx.Streams }
     return $sent
 }
 
@@ -548,18 +592,28 @@ function Invoke-SqlSlot {
               # different question from the one the read answered.
               SourceBefore = $null
               # This statement's own owner tally, folded into the run's at the end.
-              Ownership = (New-SqlOwnershipTally) }
+              Ownership = (New-SqlOwnershipTally)
+              # Where this statement's time went (SqlCrawler.Timing.ps1).
+              Timing = (New-SqlTiming) }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     # Inside the stopwatch: the counts are part of what this statement costs.
+    $t = [System.Diagnostics.Stopwatch]::GetTimestamp()
     $ctx.SourceBefore = Get-SqlSourceRowsBefore -Ctx $ctx -Connection $Connection
-    $rows = Invoke-SqlQueryStream -Connection $Connection -Sql $Slot.sql -OnRow (New-SqlRowCallback -Ctx $ctx -Handler (Get-SqlRowHandler -Target $Slot.target)) `
-        -CommandTimeout $State.CommandTimeout -Paged $Slot.paged -PageSize $State.PageSize -Since $(if ($delta) { $delta.Since } else { $null })
+    $ctx.Timing.CountTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t
+    $callback = Get-SqlSlotCallback -Ctx $ctx
+    $rows = Invoke-SqlQueryStream -Connection $Connection -Sql $Slot.sql @callback `
+        -CommandTimeout $State.CommandTimeout -Paged $Slot.paged -PageSize $State.PageSize -Since $(if ($delta) { $delta.Since } else { $null }) -Timing $ctx.Timing
     $sent = Complete-SqlSlotStreams -Ctx $ctx
     if ($Slot.target -in $script:SqlBufferedTargets) { $sent += Send-SqlSlotBuffer -Slot $Slot -State $State }
+    $t = [System.Diagnostics.Stopwatch]::GetTimestamp()
     Add-SqlReadCheck -Ctx $ctx -Connection $Connection -Rows $rows
+    $ctx.Timing.CountTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t
     $sw.Stop()
+    $ctx.Timing.TotalTicks = $sw.ElapsedTicks
+    $timing = Get-SqlTimingBreakdown -Timing $ctx.Timing
     $systems = Get-SqlSlotSystemCount -Ctx $ctx
     Write-SqlSlotSummary -Ctx $ctx -Rows $rows -Seconds $sw.Elapsed.TotalSeconds -Systems $systems
+    Write-Host "  $(Format-SqlTimingLine -Breakdown $timing)" -ForegroundColor DarkGray
     $ownership = $null
     if ($Slot.ownership) {
         $ownership = Get-SqlOwnershipReport -Tally $ctx.Ownership
@@ -569,7 +623,7 @@ function Invoke-SqlSlot {
     $State.Totals[$Slot.name] = @{ target = $Slot.target; rows = $rows; sent = $sent; skipped = $ctx.Skipped
                                    unreferenced = $ctx.Unreferenced
                                    dangling = $ctx.Dangling; unresolved = $ctx.Unresolved; misrouted = $ctx.Misrouted
-                                   systems = $systems; complete = $complete; ownership = $ownership }
+                                   systems = $systems; complete = $complete; ownership = $ownership; timing = $timing }
     return $State.Totals[$Slot.name]
 }
 
@@ -657,6 +711,7 @@ function Complete-SqlRun {
     foreach ($e in $State.Totals.GetEnumerator()) {
         Write-Host ("  {0,-32} {1,12:N0} rows  {2,12:N0} sent" -f $e.Key, $e.Value.rows, $e.Value.sent) -ForegroundColor Gray
     }
+    Write-SqlRunTiming -Totals $State.Totals | Out-Null
     try {
         Invoke-IngestAPI -Endpoint 'ingest/sync-log' -Body @{ syncType = 'SQL-Crawl'; startTime = $SyncStart.ToString('o'); endTime = (Get-Date).ToString('o'); status = 'Success'; systemId = $State.SystemId } | Out-Null
     } catch { Write-Host "  sync-log write failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow }

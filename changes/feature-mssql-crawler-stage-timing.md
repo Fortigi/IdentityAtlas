@@ -1,0 +1,1 @@
+- The SQL Server crawler's job log now shows where each statement's time went — reading the source, shaping rows, building the request, waiting for Identity Atlas, and the verification counts — and ends with one table of all statements and their rows per second, so a slow import can be traced to the database server, the crawler or Identity Atlas.

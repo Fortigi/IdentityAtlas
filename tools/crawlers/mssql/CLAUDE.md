@@ -20,6 +20,9 @@ is baked in — SailPoint IdentityIQ ships as a worked example, not as special-c
 | `SqlCrawler.Ownership.ps1` | The `ownership` flag on a `resources` slot: the shared owner resolver (account key, then employee number), the ownership resource / `HasOwnership` link / `Direct` owner assignment it emits, their three reconcile scopes, and the per-statement owner tally |
 | `SqlCrawler.Contexts.ps1` | The `contexts` / `context-members` targets: the catalogue, name → key resolution (through the crawler's one name fold, `ConvertTo-SqlNameKey` in the Transform file), and the fold / unresolved report |
 | `SqlCrawler.Phases.ps1` | Per-slot sync phases: open the ingest streams, run the query, shape + stream every row, then the per-scope reconcile |
+| `SqlCrawler.Batch.ps1` | The `assignments` hot path: the reader hands over 5,000 raw rows at a time (`Invoke-SqlReaderPage -OnBatch`) and each function makes one pass over the batch — same records, counters and watermark as the per-row handler, ~10× cheaper. Read its header before touching a loop there: in PowerShell a generic-collection method call costs ~10 µs and an indexer well under 1, so the loops use operators only |
+| `SqlCrawler.Staging.ps1` | The staged full load: in a full sync every complete `resource-assignments` scope streams into one stage per (system, scope) — shared by every statement feeding it — and `Complete-SqlStagedLoads` finalizes them all with `deleteMissing` before the reconcile. A staged scope registers no timestamp reconcile and is verified by its whole live count (`Expect.Whole`) |
+| `SqlCrawler.Timing.ps1` | Where a statement's time went — source read (`Invoke-SqlReaderPage -Timing`), JSON and API wait (`Invoke-IngestAPI -Timing`, per stream), source counts, and shaping as the remainder — printed per statement and as one table at the end of the run |
 | `SqlCrawler.Delta.ps1` | The per-statement **watermark**: the token key (slot name + hash of the SQL), what `@Since` binds to, following the column while rows stream, and where the mark lands (largest value read − overlap, never backwards) |
 | `SqlCrawler.Sweep.ps1` | The **key sweep**: read a statement's complete key set, stage it, and remove what the source no longer has. Due-based, staged per system, finalized with the share ceiling |
 | `../shared/Invoke-CrawlerIngestStream.ps1` | Shared streaming ingest: chunked delta upserts + end-of-run `POST /ingest/reconcile`. Written for this crawler; any large-set crawler can use it |
@@ -38,7 +41,9 @@ whole payload in one upsert at `end`, and fails that upsert on any duplicate key
 
 So this crawler never holds a result set in memory and never opens a session:
 
-1. Rows stream out of a forward-only `SqlDataReader` and are shaped one at a time.
+1. Rows stream out of a forward-only `SqlDataReader` and are shaped one at a time — or, for
+   the `assignments` target, 5,000 at a time (`SqlCrawler.Batch.ps1`); still one batch of
+   memory, never the result set.
 2. Every `batchSize` records are POSTed as an independent **delta** upsert (`syncMode: 'delta'`,
    deterministic ids). Each chunk commits on its own; a cross-chunk duplicate is just an update.
 3. When every slot has run cleanly and the job is a **full** sync, the crawler calls

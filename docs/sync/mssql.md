@@ -425,8 +425,9 @@ An entitlement-assignment table can hold **tens of millions of rows** — 40 M i
 number in an IdentityIQ estate. The crawler is designed so that this is a normal run, not
 a special case:
 
-1. Rows stream out of a forward-only reader and are shaped one at a time. Nothing is
-   collected into a list first, so memory stays flat however large the result set.
+1. Rows stream out of a forward-only reader and are shaped as they arrive — assignment
+   rows 5 000 at a time, everything else one at a time. Nothing beyond that is collected
+   first, so memory stays flat however large the result set.
 2. Every `batchSize` records (default 5 000) are sent to Identity Atlas as one
    **independent upsert**. Each batch commits on its own; if the same key turns up again
    in a later batch it is simply updated, never rejected.
@@ -436,6 +437,35 @@ a special case:
    at job start — are soft-deleted. See [What a full sync deletes](#what-a-full-sync-deletes).
 
 A run that fails part-way never reaches step 3, so a partial read can never delete anything.
+
+**Assignments in a full sync are staged.** In a full sync (and with `stagedFullLoad` on, the
+default), the assignment batches do not go into the table one by one: they are collected
+in a *stage* per system and scope and applied together at the end of the run. That one
+step inserts what is new, updates only what changed and removes what the source no longer
+has, so it replaces the reconcile for those scopes. An unchanged re-import therefore
+rewrites nothing, and a first load into an empty table is indexed once instead of batch by
+batch. Two consequences: the assignments of a full sync appear all at once near the end of
+the job, and a full sync that fails before that step leaves the assignments exactly as they
+were. The job log shows the step as `Applying N staged scope(s)` with what it inserted,
+updated and removed. Delta runs are not staged.
+
+### Where a slow run spends its time
+
+Every statement ends with a line that splits its time five ways, and the run ends with the
+same split for every statement, with its rows per second:
+
+```
+  3,199,887 rows read in 253s across 40 systems
+  time: source read 5.2s · shaping 22.9s · JSON 10.3s · API 205.1s · source counts 8.9s
+```
+
+| Part | What it is | If it dominates |
+|---|---|---|
+| source read | SQL Server running the statement and sending its rows | the query or the network to the database server |
+| shaping | the crawler turning each row into a record: column mapping, routing, dangling checks | the crawler's own per-row work |
+| JSON | turning each batch into the request body | — (normally small) |
+| API | waiting for Identity Atlas to store each batch, retries included. Assignment and relationship batches are sent several at a time (`ingestConcurrency`), so for those it is only the time the crawler had to stop and wait | the database behind Identity Atlas |
+| source counts | the before/after counts the [verification](#verification-source-against-database) takes | the statement is expensive to count; it runs twice more |
 
 ### Paging with `@Offset` / `@PageSize`
 
@@ -551,6 +581,8 @@ file has the shape shown under [Configuration](#configuration); on the command l
 | `commandTimeoutSeconds` | No | `600` | Seconds to wait for each query, `0` = no limit (0–86400). Applies per network read, so a streaming query is not cut off as a whole |
 | `systemName` | No | the crawler's name | Override for the Identity Atlas system name — see [System naming](#system-naming) |
 | `batchSize` | No | `5000` | Records per ingest call (100–50 000). Rows stream from SQL Server and are flushed every batch, so memory stays flat however large the result set |
+| `stagedFullLoad` | No | `true` | In a full sync, load each assignment scope through a staged load and apply it in one step — see [Very large tables](#very-large-tables). `false` streams every batch straight into the table |
+| `ingestConcurrency` | No | `3` | How many assignment and relationship batches may be on their way to Identity Atlas at once while the crawler reads and prepares the next ones (1–8). `1` sends one batch at a time and waits for each |
 | `pageSize` | No | `10000` | Value bound to `@PageSize` for a query that pages with `@Offset` / `@PageSize` (100–1 000 000) |
 | `watermarkOverlapSeconds` | No | `900` | How far back of its last position each incremental read goes, to cover clock drift between the source's application servers and transactions that commit late (0–604 800) — see [Reading only what changed](#reading-only-what-changed) |
 | `sweepIntervalHours` | No | `24` | How often a query with **Key sweep** on reads its complete key set to find what the source no longer has. A removal shows within one interval. `0` disables the sweep (0–8760) |

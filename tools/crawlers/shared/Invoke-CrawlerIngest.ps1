@@ -89,15 +89,39 @@ function Write-FGIngestFailure {
     }
 }
 
+# -Timing, when given, is a hashtable with SerializeTicks and SendTicks (Stopwatch
+# ticks) that this call adds to: the time spent turning the body into JSON, and
+# the time spent waiting for the API — retries and their back-off included,
+# because that is time the crawler really waited. A streamed crawler sums these
+# per statement so its log says where a slow run spent its time.
 function Invoke-IngestAPI {
     [CmdletBinding()]
     param(
         [string]$Endpoint,
-        [hashtable]$Body
+        [hashtable]$Body,
+        [hashtable]$Timing,
+        # Seconds one attempt may take. 300 fits every batch; a stage finalize
+        # that applies tens of millions of rows needs far longer.
+        [int]$TimeoutSec = 300
     )
 
+    $t0          = [System.Diagnostics.Stopwatch]::GetTimestamp()
     $headers     = @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
     $json        = $Body | ConvertTo-Json -Depth 20 -Compress
+    $t1          = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    try { return Invoke-FGIngestPost -Endpoint $Endpoint -Headers $headers -Json $json -TimeoutSec $TimeoutSec }
+    finally {
+        if ($Timing) {
+            $Timing.SerializeTicks += $t1 - $t0
+            $Timing.SendTicks      += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t1
+        }
+    }
+}
+
+# The POST with retry and exponential backoff, for an already-serialised body.
+function Invoke-FGIngestPost {
+    [CmdletBinding()]
+    param([string]$Endpoint, [hashtable]$Headers, [string]$Json, [int]$TimeoutSec = 300)
     $uri         = "$ApiBaseUrl/$Endpoint"
     $maxAttempts = 5
     $attempt     = 0
@@ -105,7 +129,7 @@ function Invoke-IngestAPI {
     while ($true) {
         $attempt++
         try {
-            $response = Invoke-RestMethod -Uri $uri -Method Post -Headers $headers -Body $json -TimeoutSec 300
+            $response = Invoke-RestMethod -Uri $uri -Method Post -Headers $Headers -Body $Json -TimeoutSec $TimeoutSec
             if ($attempt -gt 1) { Write-Host "  Recovered on attempt $attempt" -ForegroundColor Green }
             return $response
         } catch {
@@ -118,7 +142,7 @@ function Invoke-IngestAPI {
                 continue
             }
 
-            Write-FGIngestFailure -Endpoint $Endpoint -StatusCode $statusCode -Attempt $attempt -Json $json -ResponseBody $errorInfo.ResponseBody -ErrorRecord $_
+            Write-FGIngestFailure -Endpoint $Endpoint -StatusCode $statusCode -Attempt $attempt -Json $Json -ResponseBody $errorInfo.ResponseBody -ErrorRecord $_
             throw
         }
     }

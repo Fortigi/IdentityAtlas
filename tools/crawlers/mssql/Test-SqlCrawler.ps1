@@ -33,6 +33,9 @@ $JobId = 0
 $script:failures = 0
 
 . (Join-Path $PSScriptRoot 'SqlCrawler.Load.ps1')
+# Replays canned rows through the per-row or the batched callback, whichever a
+# statement was given (the stub of Invoke-SqlQueryStream below).
+. (Join-Path $PSScriptRoot '..' '..' '..' 'test' 'unit' 'SqlCrawlerReplay.ps1')
 
 function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
@@ -58,7 +61,8 @@ $script:RowsBySlot = @{}
 $script:SinceBySlot = @{}
 function Invoke-SqlQueryStream {
     [CmdletBinding()]
-    param($Connection, [string]$Sql, [scriptblock]$OnRow, [int]$CommandTimeout = 600, [bool]$Paged = $false, [int]$PageSize = 10000, $Since = $null)
+    param($Connection, [string]$Sql, [scriptblock]$OnRow, [int]$CommandTimeout = 600, [bool]$Paged = $false, [int]$PageSize = 10000, $Since = $null,
+          [hashtable]$Timing, [scriptblock]$OnBatch)
     $script:SinceBySlot[$Sql] = $Since
     # A windowed statement replays only the rows past the mark it was given, the
     # way the source's own WHERE clause would. The key sweep wraps a statement in
@@ -69,7 +73,7 @@ function Invoke-SqlQueryStream {
     if ($null -ne $Since -and [long]$Since -gt 0) {
         $rows = @($rows | Where-Object { $null -eq $_['modified'] -or [long]$_['modified'] -ge [long]$Since })
     }
-    foreach ($r in $rows) { & $OnRow $r }
+    Invoke-SqlTestReplay -Rows $rows -OnRow $OnRow -OnBatch $OnBatch
     return [long]$rows.Count
 }
 

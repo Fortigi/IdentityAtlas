@@ -245,6 +245,14 @@ function Resolve-SqlConfig {
         connectTimeout         = Get-SqlConfigInt -Value $raw['connectTimeoutSeconds'] -Default 30
         commandTimeout         = Get-SqlConfigInt -Value $raw['commandTimeoutSeconds'] -Default 600 -Minimum 0
         batchSize              = Get-SqlConfigInt -Value $raw['batchSize'] -Default 5000 -Minimum 100
+        # How many assignment/relationship batches may be on their way to the API
+        # at once while the crawler reads and shapes the next. 1 = strictly one
+        # at a time, as before. Capped: beyond a few, the database is the limit
+        # and more in flight only holds more memory.
+        ingestConcurrency      = [Math]::Min(8, (Get-SqlConfigInt -Value $raw['ingestConcurrency'] -Default 3))
+        # A full sync loads its assignment scopes through the API's staged load
+        # (SqlCrawler.Staging.ps1). Off only when set to false.
+        stagedFullLoad         = -not ($null -ne $raw['stagedFullLoad'] -and -not [bool]$raw['stagedFullLoad'])
         pageSize               = Get-SqlConfigInt -Value $raw['pageSize'] -Default 10000 -Minimum 100
         # How far back of the last watermark each delta re-reads. Several
         # application servers write the source, their clocks drift, and a long
@@ -426,10 +434,25 @@ function Assert-SqlReadCompleted {
 
 # Run one page (or the whole statement) and hand every row to -OnRow. Returns the
 # number of rows read.
+#
+# -Timing (optional) gets the Stopwatch ticks spent waiting on the SOURCE added to
+# its ReadTicks: executing the statement, and every Read() + GetValues(). What the
+# callback does with a row is deliberately outside that window, so a slow run's
+# log can say whether the time went to SQL Server or to the crawler. Two clock
+# reads per row, well under a microsecond each — cheap next to the row itself.
+#
+# -OnBatch instead of -OnRow hands the rows over -BatchRows at a time, as the
+# column names plus an array of the rows' RAW value arrays (fresh arrays, nothing
+# converted — the caller converts the cells it uses). One callback per batch
+# instead of one per row: in PowerShell the call itself costs more than reading
+# the row (see SqlCrawler.Batch.ps1). Reader time is then taken per batch.
 function Invoke-SqlReaderPage {
     [CmdletBinding()]
     [OutputType([int])]
-    param([Parameter(Mandatory)] $Command, [Parameter(Mandatory)] [scriptblock]$OnRow)
+    param([Parameter(Mandatory)] $Command, [scriptblock]$OnRow, [hashtable]$Timing,
+          [scriptblock]$OnBatch, [int]$BatchRows = 5000)
+    if (-not $Timing) { $Timing = @{ ReadTicks = [long]0 } }
+    $t0 = [System.Diagnostics.Stopwatch]::GetTimestamp()
     # Default, NOT SequentialAccess. SequentialAccess looks like the right choice
     # for a streaming reader, but it forbids revisiting a column once the row has
     # moved past it — and that includes going back to ordinal 0 for the NEXT row's
@@ -449,12 +472,42 @@ function Invoke-SqlReaderPage {
         $width   = $reader.FieldCount
         $columns = [string[]]::new($width)
         for ($i = 0; $i -lt $width; $i++) { $columns[$i] = $reader.GetName($i) }
+        if ($OnBatch) {
+            # An array filled by index, not a List: in PowerShell List.Add is a
+            # method call (~10 µs), an index assignment is an operator (~0.2 µs).
+            $batch = [object[]]::new($BatchRows)
+            $k = 0
+            while ($reader.Read()) {
+                $row = [object[]]::new($width)
+                [void]$reader.GetValues($row)
+                $batch[$k++] = $row
+                if ($k -lt $BatchRows) { continue }
+                $Timing.ReadTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t0
+                & $OnBatch $columns $batch
+                $n += $k
+                $batch = [object[]]::new($BatchRows)
+                $k = 0
+                $t0 = [System.Diagnostics.Stopwatch]::GetTimestamp()
+            }
+            $Timing.ReadTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t0
+            if ($k -gt 0) {
+                $last = [object[]]::new($k)
+                [Array]::Copy($batch, $last, $k)
+                & $OnBatch $columns $last
+                $n += $k
+            }
+            $t0 = [System.Diagnostics.Stopwatch]::GetTimestamp()
+        }
         $values = [object[]]::new($width)
-        while ($reader.Read()) {
+        while (-not $OnBatch -and $reader.Read()) {
             [void]$reader.GetValues($values)
+            $Timing.ReadTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t0
             & $OnRow (ConvertTo-SqlRow -Values $values -Columns $columns)
             $n++
+            $t0 = [System.Diagnostics.Stopwatch]::GetTimestamp()
         }
+        # The final Read() that found no more rows is source time too.
+        $Timing.ReadTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t0
     } finally { $reader.Dispose() }
     # The reader is closed before probing, so the probe reuses the connection
     # rather than competing with an open result set for it.
@@ -471,20 +524,26 @@ function Invoke-SqlQueryStream {
     param(
         [Parameter(Mandatory)] $Connection,
         [Parameter(Mandatory)] [string]$Sql,
-        [Parameter(Mandatory)] [scriptblock]$OnRow,
+        # One of the two: a callback per row (a converted, ordered row), or per
+        # batch of raw rows (see Invoke-SqlReaderPage).
+        [scriptblock]$OnRow,
+        [scriptblock]$OnBatch,
         [int]$CommandTimeout = 600,
         [bool]$Paged = $false,
         [int]$PageSize = 10000,
         # The watermark to bind to @Since, or $null for a statement that does
         # not read a window. 0 is "the beginning of time": a first run, an
         # edited statement or a forced full sync, all of which read everything.
-        [AllowNull()] $Since = $null
+        [AllowNull()] $Since = $null,
+        # Accumulates ReadTicks: see Invoke-SqlReaderPage.
+        [hashtable]$Timing
     )
+    if ([bool]$OnRow -eq [bool]$OnBatch) { throw 'Invoke-SqlQueryStream needs exactly one of -OnRow and -OnBatch' }
     [long]$total = 0
     $offset = 0
     do {
         $cmd = New-SqlCommand -Connection $Connection -Sql $Sql -CommandTimeout $CommandTimeout -Paged $Paged -Offset $offset -PageSize $PageSize -Since $Since
-        try { $n = Invoke-SqlReaderPage -Command $cmd -OnRow $OnRow }
+        try { $n = Invoke-SqlReaderPage -Command $cmd -OnRow $OnRow -OnBatch $OnBatch -Timing $Timing }
         finally { $cmd.Dispose() }
         $total += $n
         $offset += $PageSize

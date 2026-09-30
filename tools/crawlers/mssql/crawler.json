@@ -76,6 +76,18 @@
         "default": 5000,
         "description": "Records per ingest call. Rows stream from SQL Server and are flushed every batch, so memory stays flat however large the result set."
       },
+      "stagedFullLoad": {
+        "type": "boolean",
+        "default": true,
+        "description": "In a full sync, load each assignment scope through a staged load and apply it in one step: unchanged rows are not rewritten and a first load is indexed once. Off streams every batch straight into the table, as before."
+      },
+      "ingestConcurrency": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 8,
+        "default": 3,
+        "description": "How many assignment and relationship batches may be on their way to Identity Atlas at once while the crawler reads the next ones. 1 sends one batch at a time."
+      },
       "pageSize": {
         "type": "integer",
         "minimum": 100,

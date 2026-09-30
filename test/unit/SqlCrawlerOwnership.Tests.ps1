@@ -33,6 +33,7 @@ BeforeAll {
     $sqlDir = Join-Path $script:repoRoot 'tools' 'crawlers' 'mssql'
     $script:ApiBaseUrl = 'http://localhost:3001/api'; $script:ApiKey = 'fgc_test'; $script:JobId = 0
     . (Join-Path $sqlDir 'SqlCrawler.Load.ps1')
+    . (Join-Path $PSScriptRoot 'SqlCrawlerReplay.ps1')
 
     function Reset-SqlTestState {
         $script:sent = [System.Collections.Generic.List[object]]::new()
@@ -43,7 +44,7 @@ BeforeAll {
         @{ inserted = @($Body.records).Count; updated = 0; deleted = 0; systemIds = @(7) }
     }
     $script:StreamMock = {
-        foreach ($r in $script:rowsToReplay) { & $OnRow $r }
+        Invoke-SqlTestReplay -Rows @($script:rowsToReplay) -OnRow $OnRow -OnBatch $OnBatch
         [long]@($script:rowsToReplay).Count
     }
     function New-TestRow { param([hashtable]$Cells) $o = [ordered]@{}; foreach ($k in $Cells.Keys) { $o[$k] = $Cells[$k] }; return $o }

@@ -64,7 +64,8 @@ $reg   = Register-SqlSystem -Cfg $Cfg
 $State = New-SqlRunState -SystemId $reg.systemId -ServerTime $reg.serverTime -Slots $Cfg.queries `
     -BatchSize $Cfg.batchSize -PageSize $Cfg.pageSize -CommandTimeout $Cfg.commandTimeout -SyncMode $Cfg.syncMode `
     -SystemType 'SQL' -Tenant $reg.tenantId -OverlapSeconds $Cfg.watermarkOverlapSeconds `
-    -SweepIntervalHours $Cfg.sweepIntervalHours -SweepMaxDeleteShare $Cfg.sweepMaxDeleteShare
+    -SweepIntervalHours $Cfg.sweepIntervalHours -SweepMaxDeleteShare $Cfg.sweepMaxDeleteShare `
+    -IngestConcurrency $Cfg.ingestConcurrency -StagedFullLoad $Cfg.stagedFullLoad
 
 Update-CrawlerProgress -Step 'Connecting to SQL Server' -Pct 5
 $Connection = Connect-SqlSource -Cfg $Cfg
@@ -84,6 +85,9 @@ try {
         $Connection.Dispose()
     }
 
+    # A full sync's assignment scopes were streamed into stages; apply them all
+    # at once — which also removes what the source no longer has.
+    Complete-SqlStagedLoads -State $State | Out-Null
     Invoke-SqlReconcile -State $State | Out-Null
     # Source against database, per scope. Throws — failing the job — on any mismatch.
     Test-SqlRunCounts -State $State | Out-Null

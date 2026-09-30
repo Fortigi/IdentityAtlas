@@ -57,6 +57,11 @@ BeforeAll {
         if ($script:throwOn -eq 'slot') { throw 'the reader died mid-stream' }
     }
     function Invoke-SqlSweep     { param($State, $Connection, $Slots) $script:calls.Add('sweep') }
+    function Complete-SqlStagedLoads {
+        param($State)
+        $script:calls.Add('finalize')
+        if ($script:throwOn -eq 'finalize') { throw 'the stage finalize failed' }
+    }
     function Invoke-SqlReconcile { param($State) $script:calls.Add('reconcile') }
     function Test-SqlRunCounts {
         param($State)
@@ -93,7 +98,7 @@ Describe 'Start-SqlCrawler end-of-run ordering — structure' {
     It 'guards the read, the reconcile and the verification — not just the verification' {
         # A crawl that throws for any other reason has still committed its rows.
         $body = $script:guards[0].Body.Extent.Text
-        foreach ($call in 'Invoke-SqlSlot', 'Invoke-SqlSweep', 'Invoke-SqlReconcile', 'Test-SqlRunCounts') {
+        foreach ($call in 'Invoke-SqlSlot', 'Invoke-SqlSweep', 'Complete-SqlStagedLoads', 'Invoke-SqlReconcile', 'Test-SqlRunCounts') {
             $body | Should -Match ([regex]::Escape($call))
         }
     }
@@ -110,7 +115,7 @@ Describe 'Start-SqlCrawler end-of-run ordering — structure' {
 Describe 'Start-SqlCrawler end-of-run ordering — behaviour' {
     It 'a clean run verifies, saves both marks, and refreshes once' {
         (Invoke-EntryPointTail) | Should -BeNullOrEmpty
-        $script:calls | Should -Be @('slot', 'sweep', 'dispose', 'reconcile', 'verify', 'watermarks', 'sweepmarks', 'refresh')
+        $script:calls | Should -Be @('slot', 'sweep', 'dispose', 'finalize', 'reconcile', 'verify', 'watermarks', 'sweepmarks', 'refresh')
     }
 
     It 'a FAILED verification still refreshes the views' {
@@ -129,7 +134,16 @@ Describe 'Start-SqlCrawler end-of-run ordering — behaviour' {
         # rows this one never loaded and they would be invisible for good.
         $script:calls | Should -Not -Contain 'watermarks'
         $script:calls | Should -Not -Contain 'sweepmarks'
-        $script:calls | Should -Be @('slot', 'sweep', 'dispose', 'reconcile', 'verify', 'refresh')
+        $script:calls | Should -Be @('slot', 'sweep', 'dispose', 'finalize', 'reconcile', 'verify', 'refresh')
+    }
+
+    # A staged scope is only APPLIED by the finalize. If it fails, the scopes it
+    # carried were never written — so there is nothing to reconcile against and
+    # nothing a verification could pass, and no mark may move.
+    It 'a failed finalize stops the run before the reconcile and the marks, and still refreshes' {
+        $escaped = Invoke-EntryPointTail -ThrowOn 'finalize'
+        "$escaped" | Should -Match 'stage finalize failed'
+        $script:calls | Should -Be @('slot', 'sweep', 'dispose', 'finalize', 'refresh')
     }
 
     It 'a read that dies mid-stream still refreshes, and never reaches the verdict' {

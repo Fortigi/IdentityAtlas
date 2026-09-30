@@ -32,6 +32,7 @@ BeforeAll {
     $script:ApiKey     = 'fgc_test'
     $script:JobId      = 0
     . (Join-Path $sqlDir 'SqlCrawler.Load.ps1')
+    . (Join-Path $PSScriptRoot 'SqlCrawlerReplay.ps1')
 
     function New-TestRow { param([hashtable]$Cells) $o = [ordered]@{}; foreach ($k in $Cells.Keys) { $o[$k] = $Cells[$k] }; return $o }
 
@@ -378,7 +379,7 @@ Describe 'Invoke-SqlSlot with a watermark' {
         Mock Get-SqlSourceRowsBefore { }
         Mock Invoke-SqlQueryStream {
             $script:boundSince = $Since
-            foreach ($r in $script:rowsToReplay) { & $OnRow $r }
+            Invoke-SqlTestReplay -Rows @($script:rowsToReplay) -OnRow $OnRow -OnBatch $OnBatch
             [long]@($script:rowsToReplay).Count
         }
         Mock Get-CrawlerDeltaTokenRow { @{ token = '1758700000000'; lastSyncAt = '2026-09-24T09:00:00Z' } }
@@ -549,7 +550,7 @@ Describe 'Invoke-SqlSweep' {
         Mock Invoke-SqlQueryStream {
             $script:sweepSql = $Sql
             $script:sweepSince = $Since
-            foreach ($r in $script:rowsToReplay) { & $OnRow $r }
+            Invoke-SqlTestReplay -Rows @($script:rowsToReplay) -OnRow $OnRow -OnBatch $OnBatch
             [long]@($script:rowsToReplay).Count
         }
         Mock Invoke-IngestAPI {
