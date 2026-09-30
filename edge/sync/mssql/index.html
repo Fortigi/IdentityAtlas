@@ -2382,6 +2382,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#where-a-slow-run-spends-its-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where a slow run spends its time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#paging-with-offset-pagesize" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5886,6 +5897,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#where-a-slow-run-spends-its-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where a slow run spends its time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#paging-with-offset-pagesize" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6839,8 +6861,9 @@ The two things that follow a run are therefore split deliberately:</p>
 number in an IdentityIQ estate. The crawler is designed so that this is a normal run, not
 a special case:</p>
 <ol>
-<li>Rows stream out of a forward-only reader and are shaped one at a time. Nothing is
-   collected into a list first, so memory stays flat however large the result set.</li>
+<li>Rows stream out of a forward-only reader and are shaped as they arrive — assignment
+   rows 5 000 at a time, everything else one at a time. Nothing beyond that is collected
+   first, so memory stays flat however large the result set.</li>
 <li>Every <code>batchSize</code> records (default 5 000) are sent to Identity Atlas as one
    <strong>independent upsert</strong>. Each batch commits on its own; if the same key turns up again
    in a later batch it is simply updated, never rejected.</li>
@@ -6850,6 +6873,58 @@ a special case:</p>
    at job start — are soft-deleted. See <a href="#what-a-full-sync-deletes">What a full sync deletes</a>.</li>
 </ol>
 <p>A run that fails part-way never reaches step 3, so a partial read can never delete anything.</p>
+<p><strong>Assignments in a full sync are staged.</strong> In a full sync (and with <code>stagedFullLoad</code> on, the
+default), the assignment batches do not go into the table one by one: they are collected
+in a <em>stage</em> per system and scope and applied together at the end of the run. That one
+step inserts what is new, updates only what changed and removes what the source no longer
+has, so it replaces the reconcile for those scopes. An unchanged re-import therefore
+rewrites nothing, and a first load into an empty table is indexed once instead of batch by
+batch. Two consequences: the assignments of a full sync appear all at once near the end of
+the job, and a full sync that fails before that step leaves the assignments exactly as they
+were. The job log shows the step as <code>Applying N staged scope(s)</code> with what it inserted,
+updated and removed. Delta runs are not staged.</p>
+<h3 id="where-a-slow-run-spends-its-time">Where a slow run spends its time<a class="headerlink" href="#where-a-slow-run-spends-its-time" title="Permanent link">&para;</a></h3>
+<p>Every statement ends with a line that splits its time five ways, and the run ends with the
+same split for every statement, with its rows per second:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>  3,199,887 rows read in 253s across 40 systems
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>  time: source read 5.2s · shaping 22.9s · JSON 10.3s · API 205.1s · source counts 8.9s
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>What it is</th>
+<th>If it dominates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>source read</td>
+<td>SQL Server running the statement and sending its rows</td>
+<td>the query or the network to the database server</td>
+</tr>
+<tr>
+<td>shaping</td>
+<td>the crawler turning each row into a record: column mapping, routing, dangling checks</td>
+<td>the crawler's own per-row work</td>
+</tr>
+<tr>
+<td>JSON</td>
+<td>turning each batch into the request body</td>
+<td>— (normally small)</td>
+</tr>
+<tr>
+<td>API</td>
+<td>waiting for Identity Atlas to store each batch, retries included. Assignment and relationship batches are sent several at a time (<code>ingestConcurrency</code>), so for those it is only the time the crawler had to stop and wait</td>
+<td>the database behind Identity Atlas</td>
+</tr>
+<tr>
+<td>source counts</td>
+<td>the before/after counts the <a href="#verification-source-against-database">verification</a> takes</td>
+<td>the statement is expensive to count; it runs twice more</td>
+</tr>
+</tbody>
+</table>
 <h3 id="paging-with-offset-pagesize">Paging with <code>@Offset</code> / <code>@PageSize</code><a class="headerlink" href="#paging-with-offset-pagesize" title="Permanent link">&para;</a></h3>
 <p>By default a statement runs <strong>once</strong> and streams to the end. That is usually the fastest
 option for a very large set, because <code>OFFSET … FETCH</code> makes SQL Server re-scan the skipped
@@ -6859,17 +6934,17 @@ a bounded, ordered page at a time, reference the parameters <code>@Offset</code>
 the statement. The crawler binds them (<code>@PageSize</code> from the <code>pageSize</code> setting, default
 10 000), runs the statement, and re-runs it with a growing offset until a page comes back
 short. The rows of every page still stream.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">SELECT</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span><span class="n">ie</span><span class="p">.</span><span class="n">identity_id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span><span class="w">          </span><span class="k">AS</span><span class="w"> </span><span class="n">resourceId</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity_entitlement</span><span class="w"> </span><span class="n">ie</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="k">INNER</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_managed_attribute</span><span class="w"> </span><span class="n">ma</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="k">ON</span><span class="w">  </span><span class="n">ma</span><span class="p">.</span><span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">application</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">attribute</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">name</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">value</span>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="k">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Entitlement'</span>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">identity_id</span><span class="p">,</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="k">OFFSET</span><span class="w"> </span><span class="o">@</span><span class="k">Offset</span><span class="w"> </span><span class="k">ROWS</span><span class="w"> </span><span class="k">FETCH</span><span class="w"> </span><span class="k">NEXT</span><span class="w"> </span><span class="o">@</span><span class="n">PageSize</span><span class="w"> </span><span class="k">ROWS</span><span class="w"> </span><span class="k">ONLY</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">SELECT</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="n">ie</span><span class="p">.</span><span class="n">identity_id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span><span class="w">          </span><span class="k">AS</span><span class="w"> </span><span class="n">resourceId</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity_entitlement</span><span class="w"> </span><span class="n">ie</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="k">INNER</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_managed_attribute</span><span class="w"> </span><span class="n">ma</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">    </span><span class="k">ON</span><span class="w">  </span><span class="n">ma</span><span class="p">.</span><span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">application</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">attribute</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">name</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">value</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="k">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Entitlement'</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">identity_id</span><span class="p">,</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="k">OFFSET</span><span class="w"> </span><span class="o">@</span><span class="k">Offset</span><span class="w"> </span><span class="k">ROWS</span><span class="w"> </span><span class="k">FETCH</span><span class="w"> </span><span class="k">NEXT</span><span class="w"> </span><span class="o">@</span><span class="n">PageSize</span><span class="w"> </span><span class="k">ROWS</span><span class="w"> </span><span class="k">ONLY</span>
 </code></pre></div>
 <p>The <code>ORDER BY</code> is mandatory for <code>OFFSET … FETCH</code> and must be <strong>stable</strong> (a unique key or
 combination), otherwise rows can be skipped or repeated between pages. Prefer plain
@@ -6925,11 +7000,11 @@ stops sending rows for that long — a blocked query, a lock wait, a stalled joi
 <p>There is no <strong>Test connection</strong> button: the first job run is the connection test, and a
 login, certificate or network problem shows up as the failure reason in the job log.</p>
 <h3 id="via-the-command-line">Via the command line<a class="headerlink" href="#via-the-command-line" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">crawlers</span><span class="p">\</span><span class="n">sql</span><span class="p">\</span><span class="nb">Start-SqlCrawler</span><span class="p">.</span><span class="n">ps1</span> <span class="p">`</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">-ApiBaseUrl</span> <span class="s2">"http://localhost:3001/api"</span> <span class="p">`</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">-ApiKey</span> <span class="s2">"fgc_abc123..."</span> <span class="p">`</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">-JobId</span> <span class="n">0</span> <span class="p">`</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">-ConfigPath</span> <span class="s2">".\myconfig.json"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">crawlers</span><span class="p">\</span><span class="n">sql</span><span class="p">\</span><span class="nb">Start-SqlCrawler</span><span class="p">.</span><span class="n">ps1</span> <span class="p">`</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">-ApiBaseUrl</span> <span class="s2">"http://localhost:3001/api"</span> <span class="p">`</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">-ApiKey</span> <span class="s2">"fgc_abc123..."</span> <span class="p">`</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="n">-JobId</span> <span class="n">0</span> <span class="p">`</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="n">-ConfigPath</span> <span class="s2">".\myconfig.json"</span>
 </code></pre></div>
 <p>The <code>ApiKey</code> is the worker API key shown on the <strong>Admin → Settings</strong> page. The config
 file has the shape shown under <a href="#configuration">Configuration</a>; on the command line the
@@ -7012,6 +7087,18 @@ file has the shape shown under <a href="#configuration">Configuration</a>; on th
 <td>No</td>
 <td><code>5000</code></td>
 <td>Records per ingest call (100–50 000). Rows stream from SQL Server and are flushed every batch, so memory stays flat however large the result set</td>
+</tr>
+<tr>
+<td><code>stagedFullLoad</code></td>
+<td>No</td>
+<td><code>true</code></td>
+<td>In a full sync, load each assignment scope through a staged load and apply it in one step — see <a href="#very-large-tables">Very large tables</a>. <code>false</code> streams every batch straight into the table</td>
+</tr>
+<tr>
+<td><code>ingestConcurrency</code></td>
+<td>No</td>
+<td><code>3</code></td>
+<td>How many assignment and relationship batches may be on their way to Identity Atlas at once while the crawler reads and prepares the next ones (1–8). <code>1</code> sends one batch at a time and waits for each</td>
 </tr>
 <tr>
 <td><code>pageSize</code></td>
@@ -7201,49 +7288,49 @@ see <a href="../scim/#system-naming">System naming on the SCIM page</a> for the 
 registered and still holds everything that is not routed elsewhere — the identities, and
 anything a row does not place.</p>
 <h3 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">"server"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sql-iiq.corp.example.com"</span><span class="p">,</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="mi">1433</span><span class="p">,</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="nt">"database"</span><span class="p">:</span><span class="w"> </span><span class="s2">"identityiq"</span><span class="p">,</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span><span class="nt">"username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ia_reader"</span><span class="p">,</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">  </span><span class="nt">"password"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">  </span><span class="nt">"encrypt"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span><span class="nt">"trustServerCertificate"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">  </span><span class="nt">"connectTimeoutSeconds"</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">  </span><span class="nt">"commandTimeoutSeconds"</span><span class="p">:</span><span class="w"> </span><span class="mi">600</span><span class="p">,</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span><span class="nt">"systemName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"IdentityIQ"</span><span class="p">,</span>
-<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span><span class="nt">"batchSize"</span><span class="p">:</span><span class="w"> </span><span class="mi">5000</span><span class="p">,</span>
-<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">  </span><span class="nt">"pageSize"</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="p">,</span>
-<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">  </span><span class="nt">"queries"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Identities"</span><span class="p">,</span>
-<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="w">      </span><span class="nt">"target"</span><span class="p">:</span><span class="w"> </span><span class="s2">"identities"</span><span class="p">,</span>
-<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="w">      </span><span class="nt">"principalType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"User"</span><span class="p">,</span>
-<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="w">      </span><span class="nt">"sql"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SELECT i.id, i.display_name AS displayName, i.name AS userId, i.email, i.inactive FROM spt_identity i WHERE i.is_workgroup = 0"</span>
-<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="w">    </span><span class="p">},</span>
-<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Entitlements"</span><span class="p">,</span>
-<a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="w">      </span><span class="nt">"target"</span><span class="p">:</span><span class="w"> </span><span class="s2">"resources"</span><span class="p">,</span>
-<a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a><span class="w">      </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Entitlement"</span><span class="p">,</span>
-<a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a><span class="w">      </span><span class="nt">"sql"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SELECT ma.id, COALESCE(NULLIF(ma.displayable_name, ''), ma.value) AS displayName, ma.attribute AS attributeName FROM spt_managed_attribute ma"</span>
-<a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a><span class="w">    </span><span class="p">},</span>
-<a id="__codelineno-9-27" name="__codelineno-9-27" href="#__codelineno-9-27"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Entitlement assignments"</span><span class="p">,</span>
-<a id="__codelineno-9-29" name="__codelineno-9-29" href="#__codelineno-9-29"></a><span class="w">      </span><span class="nt">"target"</span><span class="p">:</span><span class="w"> </span><span class="s2">"assignments"</span><span class="p">,</span>
-<a id="__codelineno-9-30" name="__codelineno-9-30" href="#__codelineno-9-30"></a><span class="w">      </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Entitlement"</span><span class="p">,</span>
-<a id="__codelineno-9-31" name="__codelineno-9-31" href="#__codelineno-9-31"></a><span class="w">      </span><span class="nt">"assignmentType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Direct"</span><span class="p">,</span>
-<a id="__codelineno-9-32" name="__codelineno-9-32" href="#__codelineno-9-32"></a><span class="w">      </span><span class="nt">"governed"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-9-33" name="__codelineno-9-33" href="#__codelineno-9-33"></a><span class="w">      </span><span class="nt">"sql"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SELECT ie.identity_id AS principalId, ma.id AS resourceId FROM spt_identity_entitlement ie INNER JOIN spt_managed_attribute ma ON ma.application = ie.application AND ma.attribute = ie.name AND ma.value = ie.value WHERE ie.type = 'Entitlement'"</span>
-<a id="__codelineno-9-34" name="__codelineno-9-34" href="#__codelineno-9-34"></a><span class="w">    </span><span class="p">},</span>
-<a id="__codelineno-9-35" name="__codelineno-9-35" href="#__codelineno-9-35"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-9-36" name="__codelineno-9-36" href="#__codelineno-9-36"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Role hierarchy"</span><span class="p">,</span>
-<a id="__codelineno-9-37" name="__codelineno-9-37" href="#__codelineno-9-37"></a><span class="w">      </span><span class="nt">"target"</span><span class="p">:</span><span class="w"> </span><span class="s2">"relationships"</span><span class="p">,</span>
-<a id="__codelineno-9-38" name="__codelineno-9-38" href="#__codelineno-9-38"></a><span class="w">      </span><span class="nt">"relationshipType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Contains"</span><span class="p">,</span>
-<a id="__codelineno-9-39" name="__codelineno-9-39" href="#__codelineno-9-39"></a><span class="w">      </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-9-40" name="__codelineno-9-40" href="#__codelineno-9-40"></a><span class="w">      </span><span class="nt">"sql"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SELECT bc.bundle AS parentId, bc.child AS childId FROM spt_bundle_children bc"</span>
-<a id="__codelineno-9-41" name="__codelineno-9-41" href="#__codelineno-9-41"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-9-42" name="__codelineno-9-42" href="#__codelineno-9-42"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-9-43" name="__codelineno-9-43" href="#__codelineno-9-43"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">"server"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sql-iiq.corp.example.com"</span><span class="p">,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="mi">1433</span><span class="p">,</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">"database"</span><span class="p">:</span><span class="w"> </span><span class="s2">"identityiq"</span><span class="p">,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="nt">"username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ia_reader"</span><span class="p">,</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">  </span><span class="nt">"password"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">  </span><span class="nt">"encrypt"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">  </span><span class="nt">"trustServerCertificate"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">  </span><span class="nt">"connectTimeoutSeconds"</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">  </span><span class="nt">"commandTimeoutSeconds"</span><span class="p">:</span><span class="w"> </span><span class="mi">600</span><span class="p">,</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">  </span><span class="nt">"systemName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"IdentityIQ"</span><span class="p">,</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="w">  </span><span class="nt">"batchSize"</span><span class="p">:</span><span class="w"> </span><span class="mi">5000</span><span class="p">,</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="w">  </span><span class="nt">"pageSize"</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="p">,</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="w">  </span><span class="nt">"queries"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Identities"</span><span class="p">,</span>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="w">      </span><span class="nt">"target"</span><span class="p">:</span><span class="w"> </span><span class="s2">"identities"</span><span class="p">,</span>
+<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a><span class="w">      </span><span class="nt">"principalType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"User"</span><span class="p">,</span>
+<a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a><span class="w">      </span><span class="nt">"sql"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SELECT i.id, i.display_name AS displayName, i.name AS userId, i.email, i.inactive FROM spt_identity i WHERE i.is_workgroup = 0"</span>
+<a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Entitlements"</span><span class="p">,</span>
+<a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a><span class="w">      </span><span class="nt">"target"</span><span class="p">:</span><span class="w"> </span><span class="s2">"resources"</span><span class="p">,</span>
+<a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a><span class="w">      </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Entitlement"</span><span class="p">,</span>
+<a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a><span class="w">      </span><span class="nt">"sql"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SELECT ma.id, COALESCE(NULLIF(ma.displayable_name, ''), ma.value) AS displayName, ma.attribute AS attributeName FROM spt_managed_attribute ma"</span>
+<a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-10-28" name="__codelineno-10-28" href="#__codelineno-10-28"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Entitlement assignments"</span><span class="p">,</span>
+<a id="__codelineno-10-29" name="__codelineno-10-29" href="#__codelineno-10-29"></a><span class="w">      </span><span class="nt">"target"</span><span class="p">:</span><span class="w"> </span><span class="s2">"assignments"</span><span class="p">,</span>
+<a id="__codelineno-10-30" name="__codelineno-10-30" href="#__codelineno-10-30"></a><span class="w">      </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Entitlement"</span><span class="p">,</span>
+<a id="__codelineno-10-31" name="__codelineno-10-31" href="#__codelineno-10-31"></a><span class="w">      </span><span class="nt">"assignmentType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Direct"</span><span class="p">,</span>
+<a id="__codelineno-10-32" name="__codelineno-10-32" href="#__codelineno-10-32"></a><span class="w">      </span><span class="nt">"governed"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-10-33" name="__codelineno-10-33" href="#__codelineno-10-33"></a><span class="w">      </span><span class="nt">"sql"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SELECT ie.identity_id AS principalId, ma.id AS resourceId FROM spt_identity_entitlement ie INNER JOIN spt_managed_attribute ma ON ma.application = ie.application AND ma.attribute = ie.name AND ma.value = ie.value WHERE ie.type = 'Entitlement'"</span>
+<a id="__codelineno-10-34" name="__codelineno-10-34" href="#__codelineno-10-34"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-10-35" name="__codelineno-10-35" href="#__codelineno-10-35"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-10-36" name="__codelineno-10-36" href="#__codelineno-10-36"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Role hierarchy"</span><span class="p">,</span>
+<a id="__codelineno-10-37" name="__codelineno-10-37" href="#__codelineno-10-37"></a><span class="w">      </span><span class="nt">"target"</span><span class="p">:</span><span class="w"> </span><span class="s2">"relationships"</span><span class="p">,</span>
+<a id="__codelineno-10-38" name="__codelineno-10-38" href="#__codelineno-10-38"></a><span class="w">      </span><span class="nt">"relationshipType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Contains"</span><span class="p">,</span>
+<a id="__codelineno-10-39" name="__codelineno-10-39" href="#__codelineno-10-39"></a><span class="w">      </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-10-40" name="__codelineno-10-40" href="#__codelineno-10-40"></a><span class="w">      </span><span class="nt">"sql"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SELECT bc.bundle AS parentId, bc.child AS childId FROM spt_bundle_children bc"</span>
+<a id="__codelineno-10-41" name="__codelineno-10-41" href="#__codelineno-10-41"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-10-42" name="__codelineno-10-42" href="#__codelineno-10-42"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-10-43" name="__codelineno-10-43" href="#__codelineno-10-43"></a><span class="p">}</span>
 </code></pre></div>
 <hr />
 <h2 id="worked-example-sailpoint-identityiq">Worked example: SailPoint IdentityIQ<a class="headerlink" href="#worked-example-sailpoint-identityiq" title="Permanent link">&para;</a></h2>
@@ -7270,45 +7357,45 @@ Order does not matter: a manager further down the result set links just the same
 naming itself is dropped; a manager your <code>WHERE</code> clause excluded (a workgroup, a leaver)
 leaves the field empty and is counted in the job's warnings rather than stored as a link
 to nobody.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">SELECT</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">display_name</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">displayName</span><span class="p">,</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">name</span><span class="w">         </span><span class="k">AS</span><span class="w"> </span><span class="n">userId</span><span class="p">,</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">firstname</span><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">givenName</span><span class="p">,</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">lastname</span><span class="w">     </span><span class="k">AS</span><span class="w"> </span><span class="n">surname</span><span class="p">,</span>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">email</span><span class="p">,</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">manager</span><span class="w">      </span><span class="k">AS</span><span class="w"> </span><span class="n">managerId</span><span class="p">,</span>
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">inactive</span><span class="p">,</span>
-<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">created</span><span class="p">,</span>
-<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">modified</span>
-<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="w">    </span><span class="c1">-- Extended identity attributes are customer-specific columns on spt_identity.</span>
-<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="w">    </span><span class="c1">-- Add them here; they are stored under their own name, e.g.</span>
-<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="w">    </span><span class="c1">--   , i.jobtitle AS jobTitle, i.departmentnumber AS department, i.companyname AS companyName</span>
-<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity</span><span class="w"> </span><span class="n">i</span>
-<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">i</span><span class="p">.</span><span class="n">is_workgroup</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">SELECT</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">display_name</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">displayName</span><span class="p">,</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">name</span><span class="w">         </span><span class="k">AS</span><span class="w"> </span><span class="n">userId</span><span class="p">,</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">firstname</span><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">givenName</span><span class="p">,</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">lastname</span><span class="w">     </span><span class="k">AS</span><span class="w"> </span><span class="n">surname</span><span class="p">,</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">email</span><span class="p">,</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">manager</span><span class="w">      </span><span class="k">AS</span><span class="w"> </span><span class="n">managerId</span><span class="p">,</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">inactive</span><span class="p">,</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">created</span><span class="p">,</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">modified</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="w">    </span><span class="c1">-- Extended identity attributes are customer-specific columns on spt_identity.</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="w">    </span><span class="c1">-- Add them here; they are stored under their own name, e.g.</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="w">    </span><span class="c1">--   , i.jobtitle AS jobTitle, i.departmentnumber AS department, i.companyname AS companyName</span>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity</span><span class="w"> </span><span class="n">i</span>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">i</span><span class="p">.</span><span class="n">is_workgroup</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span>
 </code></pre></div>
 <h3 id="entitlements">Entitlements<a class="headerlink" href="#entitlements" title="Permanent link">&para;</a></h3>
 <p>Target <code>resources</code>, <code>resourceType</code> <code>Entitlement</code>. Each managed attribute of type
 <code>Entitlement</code> (an AD group, an application role, a permission value) becomes a Resource;
 the owning application and owner identity ride along as extended attributes.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">SELECT</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="k">COALESCE</span><span class="p">(</span><span class="k">NULLIF</span><span class="p">(</span><span class="n">ma</span><span class="p">.</span><span class="n">displayable_name</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">),</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">displayName</span><span class="p">,</span>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="w">             </span><span class="k">AS</span><span class="w"> </span><span class="n">entitlementValue</span><span class="p">,</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">attribute</span><span class="w">         </span><span class="k">AS</span><span class="w"> </span><span class="n">attributeName</span><span class="p">,</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="k">type</span><span class="w">              </span><span class="k">AS</span><span class="w"> </span><span class="n">entitlementType</span><span class="p">,</span>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">    </span><span class="n">app</span><span class="p">.</span><span class="n">id</span><span class="w">               </span><span class="k">AS</span><span class="w"> </span><span class="n">applicationId</span><span class="p">,</span>
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">    </span><span class="n">app</span><span class="p">.</span><span class="n">name</span><span class="w">             </span><span class="k">AS</span><span class="w"> </span><span class="n">applicationName</span><span class="p">,</span>
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">    </span><span class="k">owner</span><span class="p">.</span><span class="n">id</span><span class="w">             </span><span class="k">AS</span><span class="w"> </span><span class="n">ownerId</span><span class="p">,</span>
-<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="w">    </span><span class="k">owner</span><span class="p">.</span><span class="n">display_name</span><span class="w">   </span><span class="k">AS</span><span class="w"> </span><span class="n">ownerName</span><span class="p">,</span>
-<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">requestable</span><span class="p">,</span>
-<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">aggregated</span><span class="p">,</span>
-<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">uncorrelated</span><span class="p">,</span>
-<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">created</span><span class="p">,</span>
-<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">modified</span>
-<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_managed_attribute</span><span class="w"> </span><span class="n">ma</span>
-<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_application</span><span class="w"> </span><span class="n">app</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">app</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">application</span>
-<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_identity</span><span class="w"> </span><span class="k">owner</span><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="k">owner</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="k">owner</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">SELECT</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span><span class="k">COALESCE</span><span class="p">(</span><span class="k">NULLIF</span><span class="p">(</span><span class="n">ma</span><span class="p">.</span><span class="n">displayable_name</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">),</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">displayName</span><span class="p">,</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="w">             </span><span class="k">AS</span><span class="w"> </span><span class="n">entitlementValue</span><span class="p">,</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">attribute</span><span class="w">         </span><span class="k">AS</span><span class="w"> </span><span class="n">attributeName</span><span class="p">,</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="k">type</span><span class="w">              </span><span class="k">AS</span><span class="w"> </span><span class="n">entitlementType</span><span class="p">,</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">    </span><span class="n">app</span><span class="p">.</span><span class="n">id</span><span class="w">               </span><span class="k">AS</span><span class="w"> </span><span class="n">applicationId</span><span class="p">,</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">    </span><span class="n">app</span><span class="p">.</span><span class="n">name</span><span class="w">             </span><span class="k">AS</span><span class="w"> </span><span class="n">applicationName</span><span class="p">,</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">    </span><span class="k">owner</span><span class="p">.</span><span class="n">id</span><span class="w">             </span><span class="k">AS</span><span class="w"> </span><span class="n">ownerId</span><span class="p">,</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">    </span><span class="k">owner</span><span class="p">.</span><span class="n">display_name</span><span class="w">   </span><span class="k">AS</span><span class="w"> </span><span class="n">ownerName</span><span class="p">,</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">requestable</span><span class="p">,</span>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">aggregated</span><span class="p">,</span>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">uncorrelated</span><span class="p">,</span>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">created</span><span class="p">,</span>
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">modified</span>
+<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_managed_attribute</span><span class="w"> </span><span class="n">ma</span>
+<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_application</span><span class="w"> </span><span class="n">app</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">app</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">application</span>
+<a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_identity</span><span class="w"> </span><span class="k">owner</span><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="k">owner</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="k">owner</span>
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">Do not filter on <code>ma.type</code></p>
@@ -7324,18 +7411,18 @@ cannot be placed (see <a href="#verification-source-against-database">Verificati
 <p>Target <code>resources</code>, <code>resourceType</code> <code>BusinessRole</code>. Every bundle (business, IT and
 organizational roles alike — filter on <code>b.type</code> if you want only some) becomes a
 governance resource.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">SELECT</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">    </span><span class="n">b</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span><span class="k">COALESCE</span><span class="p">(</span><span class="k">NULLIF</span><span class="p">(</span><span class="n">b</span><span class="p">.</span><span class="n">display_name</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">),</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="n">name</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">displayName</span><span class="p">,</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">    </span><span class="n">b</span><span class="p">.</span><span class="n">name</span><span class="w">          </span><span class="k">AS</span><span class="w"> </span><span class="n">roleName</span><span class="p">,</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">    </span><span class="n">b</span><span class="p">.</span><span class="k">type</span><span class="w">          </span><span class="k">AS</span><span class="w"> </span><span class="n">roleType</span><span class="p">,</span>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">    </span><span class="n">b</span><span class="p">.</span><span class="n">disabled</span><span class="p">,</span>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">    </span><span class="n">b</span><span class="p">.</span><span class="k">owner</span><span class="w">         </span><span class="k">AS</span><span class="w"> </span><span class="n">ownerId</span><span class="p">,</span>
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">display_name</span><span class="w">  </span><span class="k">AS</span><span class="w"> </span><span class="n">ownerName</span><span class="p">,</span>
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">    </span><span class="n">b</span><span class="p">.</span><span class="n">created</span><span class="p">,</span>
-<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">    </span><span class="n">b</span><span class="p">.</span><span class="n">modified</span>
-<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_bundle</span><span class="w"> </span><span class="n">b</span>
-<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_identity</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">i</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="k">owner</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="k">SELECT</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">    </span><span class="n">b</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span><span class="k">COALESCE</span><span class="p">(</span><span class="k">NULLIF</span><span class="p">(</span><span class="n">b</span><span class="p">.</span><span class="n">display_name</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">),</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="n">name</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">displayName</span><span class="p">,</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">    </span><span class="n">b</span><span class="p">.</span><span class="n">name</span><span class="w">          </span><span class="k">AS</span><span class="w"> </span><span class="n">roleName</span><span class="p">,</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">    </span><span class="n">b</span><span class="p">.</span><span class="k">type</span><span class="w">          </span><span class="k">AS</span><span class="w"> </span><span class="n">roleType</span><span class="p">,</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">    </span><span class="n">b</span><span class="p">.</span><span class="n">disabled</span><span class="p">,</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">    </span><span class="n">b</span><span class="p">.</span><span class="k">owner</span><span class="w">         </span><span class="k">AS</span><span class="w"> </span><span class="n">ownerId</span><span class="p">,</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">    </span><span class="n">i</span><span class="p">.</span><span class="n">display_name</span><span class="w">  </span><span class="k">AS</span><span class="w"> </span><span class="n">ownerName</span><span class="p">,</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="w">    </span><span class="n">b</span><span class="p">.</span><span class="n">created</span><span class="p">,</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="w">    </span><span class="n">b</span><span class="p">.</span><span class="n">modified</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_bundle</span><span class="w"> </span><span class="n">b</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_identity</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">i</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="k">owner</span>
 </code></pre></div>
 <p>The preset ships this statement with <strong>Owners from ownerId</strong> ticked
 (<code>"ownership": true</code>), so <code>b.owner</code> becomes an owner you can click rather than a hex
@@ -7347,29 +7434,29 @@ want entitlement owners and have read <a href="#what-owners-cost">what it costs<
 <p>Target <code>assignments</code>, <code>resourceType</code> <code>Entitlement</code>, <code>assignmentType</code> <code>Direct</code>,
 <code>governed</code> <code>false</code>. This is the identity ↔ entitlement table and usually the largest one
 in the database; it streams without paging.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1">-- This is usually the largest table (tens of millions of rows). The rows stream</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="c1">-- straight through, so no paging is needed; add</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="c1">--   ORDER BY ie.identity_id, ma.id OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c1">-- only if your server cuts long-running statements off.</span>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="k">SELECT</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">    </span><span class="n">ie</span><span class="p">.</span><span class="n">identity_id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span><span class="w">          </span><span class="k">AS</span><span class="w"> </span><span class="n">resourceId</span>
-<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity_entitlement</span><span class="w"> </span><span class="n">ie</span>
-<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="k">INNER</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_managed_attribute</span><span class="w"> </span><span class="n">ma</span>
-<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="w">    </span><span class="k">ON</span><span class="w">  </span><span class="n">ma</span><span class="p">.</span><span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">application</span>
-<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">attribute</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">name</span>
-<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">value</span>
-<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="k">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Entitlement'</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1">-- This is usually the largest table (tens of millions of rows). The rows stream</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="c1">-- straight through, so no paging is needed; add</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="c1">--   ORDER BY ie.identity_id, ma.id OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1">-- only if your server cuts long-running statements off.</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="k">SELECT</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">    </span><span class="n">ie</span><span class="p">.</span><span class="n">identity_id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span><span class="w">          </span><span class="k">AS</span><span class="w"> </span><span class="n">resourceId</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity_entitlement</span><span class="w"> </span><span class="n">ie</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="k">INNER</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_managed_attribute</span><span class="w"> </span><span class="n">ma</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="w">    </span><span class="k">ON</span><span class="w">  </span><span class="n">ma</span><span class="p">.</span><span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">application</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">attribute</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">name</span>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">value</span>
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="k">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Entitlement'</span>
 </code></pre></div>
 <h3 id="role-assignments">Role assignments<a class="headerlink" href="#role-assignments" title="Permanent link">&para;</a></h3>
 <p>Target <code>assignments</code>, <code>resourceType</code> <code>BusinessRole</code>, <code>assignmentType</code> <code>Direct</code>,
 <code>governed</code> <code>true</code>. The identity's assigned roles become governed memberships of the
 business-role resources.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="k">SELECT</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">    </span><span class="n">identity_id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">    </span><span class="n">bundle</span><span class="w">      </span><span class="k">AS</span><span class="w"> </span><span class="n">resourceId</span><span class="p">,</span>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">    </span><span class="n">idx</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity_assigned_roles</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="k">SELECT</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">    </span><span class="n">identity_id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="n">bundle</span><span class="w">      </span><span class="k">AS</span><span class="w"> </span><span class="n">resourceId</span><span class="p">,</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">    </span><span class="n">idx</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity_assigned_roles</span>
 </code></pre></div>
 <h3 id="role-composition">Role composition<a class="headerlink" href="#role-composition" title="Permanent link">&para;</a></h3>
 <p>Target <code>relationships</code>, <code>relationshipType</code> <code>Contains</code>. Links a bundle to each entitlement
@@ -7377,28 +7464,28 @@ it grants, so a business role shows which entitlements it contains. Each relatio
 the entitlement by <code>source_application</code> + <code>attribute</code> + <code>value</code>, the same three columns a
 grant joins on. <code>source_profile_id</code> is a <em>profile</em> id and <code>display_value</code> a name, so neither
 resolves to an entitlement.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="k">SELECT</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">    </span><span class="n">bpr</span><span class="p">.</span><span class="n">bundle_id</span><span class="w">         </span><span class="k">AS</span><span class="w"> </span><span class="n">parentId</span><span class="p">,</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span><span class="w">                 </span><span class="k">AS</span><span class="w"> </span><span class="n">childId</span><span class="p">,</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">    </span><span class="n">bpr</span><span class="p">.</span><span class="n">attribute</span><span class="w">         </span><span class="k">AS</span><span class="w"> </span><span class="n">entitlementAttribute</span><span class="p">,</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">    </span><span class="n">bpr</span><span class="p">.</span><span class="n">value</span><span class="w">             </span><span class="k">AS</span><span class="w"> </span><span class="n">entitlementValue</span><span class="p">,</span>
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">    </span><span class="n">bpr</span><span class="p">.</span><span class="n">display_value</span><span class="w">     </span><span class="k">AS</span><span class="w"> </span><span class="n">entitlementName</span>
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_bundle_profile_relation</span><span class="w"> </span><span class="n">bpr</span>
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_managed_attribute</span><span class="w"> </span><span class="n">ma</span>
-<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="w">    </span><span class="k">ON</span><span class="w">  </span><span class="n">ma</span><span class="p">.</span><span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bpr</span><span class="p">.</span><span class="n">source_application</span>
-<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">attribute</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">bpr</span><span class="p">.</span><span class="n">attribute</span>
-<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="n">bpr</span><span class="p">.</span><span class="n">value</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="k">SELECT</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">    </span><span class="n">bpr</span><span class="p">.</span><span class="n">bundle_id</span><span class="w">         </span><span class="k">AS</span><span class="w"> </span><span class="n">parentId</span><span class="p">,</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span><span class="w">                 </span><span class="k">AS</span><span class="w"> </span><span class="n">childId</span><span class="p">,</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">    </span><span class="n">bpr</span><span class="p">.</span><span class="n">attribute</span><span class="w">         </span><span class="k">AS</span><span class="w"> </span><span class="n">entitlementAttribute</span><span class="p">,</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">    </span><span class="n">bpr</span><span class="p">.</span><span class="n">value</span><span class="w">             </span><span class="k">AS</span><span class="w"> </span><span class="n">entitlementValue</span><span class="p">,</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">    </span><span class="n">bpr</span><span class="p">.</span><span class="n">display_value</span><span class="w">     </span><span class="k">AS</span><span class="w"> </span><span class="n">entitlementName</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_bundle_profile_relation</span><span class="w"> </span><span class="n">bpr</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_managed_attribute</span><span class="w"> </span><span class="n">ma</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="w">    </span><span class="k">ON</span><span class="w">  </span><span class="n">ma</span><span class="p">.</span><span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bpr</span><span class="p">.</span><span class="n">source_application</span>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">attribute</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">bpr</span><span class="p">.</span><span class="n">attribute</span>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="n">bpr</span><span class="p">.</span><span class="n">value</span>
 </code></pre></div>
 <p>The <code>LEFT JOIN</code> is deliberate. A relation that matches no entitlement arrives without a
 <code>childId</code> and is counted as skipped, instead of disappearing inside an inner join.</p>
 <h3 id="role-hierarchy">Role hierarchy<a class="headerlink" href="#role-hierarchy" title="Permanent link">&para;</a></h3>
 <p>Target <code>relationships</code>, <code>relationshipType</code> <code>Contains</code>. Parent bundle → child bundle, so
 nested roles keep their hierarchy.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="k">SELECT</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">    </span><span class="n">bc</span><span class="p">.</span><span class="n">bundle</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">parentId</span><span class="p">,</span>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span><span class="n">bc</span><span class="p">.</span><span class="n">child</span><span class="w">  </span><span class="k">AS</span><span class="w"> </span><span class="n">childId</span><span class="p">,</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">    </span><span class="n">bc</span><span class="p">.</span><span class="n">idx</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_bundle_children</span><span class="w"> </span><span class="n">bc</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="k">SELECT</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">    </span><span class="n">bc</span><span class="p">.</span><span class="n">bundle</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">parentId</span><span class="p">,</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">    </span><span class="n">bc</span><span class="p">.</span><span class="n">child</span><span class="w">  </span><span class="k">AS</span><span class="w"> </span><span class="n">childId</span><span class="p">,</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">    </span><span class="n">bc</span><span class="p">.</span><span class="n">idx</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_bundle_children</span><span class="w"> </span><span class="n">bc</span>
 </code></pre></div>
 <hr />
 <h2 id="scheduling-and-sync-mode">Scheduling and sync mode<a class="headerlink" href="#scheduling-and-sync-mode" title="Permanent link">&para;</a></h2>
@@ -7422,17 +7509,17 @@ space. That is fine for a first load and wrong for a refresh you want to run hou
 <h3 id="additions-and-changes-a-watermark">Additions and changes: a watermark<a class="headerlink" href="#additions-and-changes-a-watermark" title="Permanent link">&para;</a></h3>
 <p>Give the statement a <strong>watermark column</strong> and reference <code>@Since</code> in its SQL. The crawler
 remembers the largest value that column returned, and binds it to <code>@Since</code> next run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="k">SELECT</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">    </span><span class="n">ie</span><span class="p">.</span><span class="n">identity_id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span><span class="w">          </span><span class="k">AS</span><span class="w"> </span><span class="n">resourceId</span><span class="p">,</span>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">    </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">ie</span><span class="p">.</span><span class="n">modified</span><span class="p">,</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">created</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">modified</span><span class="w">   </span><span class="c1">-- the watermark column</span>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity_entitlement</span><span class="w"> </span><span class="n">ie</span>
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="k">INNER</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_managed_attribute</span><span class="w"> </span><span class="n">ma</span>
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">    </span><span class="k">ON</span><span class="w">  </span><span class="n">ma</span><span class="p">.</span><span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">application</span>
-<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">attribute</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">name</span>
-<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">value</span>
-<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="k">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Entitlement'</span>
-<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">ie</span><span class="p">.</span><span class="n">modified</span><span class="p">,</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">created</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="o">@</span><span class="n">Since</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="k">SELECT</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">    </span><span class="n">ie</span><span class="p">.</span><span class="n">identity_id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">    </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span><span class="w">          </span><span class="k">AS</span><span class="w"> </span><span class="n">resourceId</span><span class="p">,</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">    </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">ie</span><span class="p">.</span><span class="n">modified</span><span class="p">,</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">created</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">modified</span><span class="w">   </span><span class="c1">-- the watermark column</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity_entitlement</span><span class="w"> </span><span class="n">ie</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="k">INNER</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_managed_attribute</span><span class="w"> </span><span class="n">ma</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="w">    </span><span class="k">ON</span><span class="w">  </span><span class="n">ma</span><span class="p">.</span><span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">application</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">attribute</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">name</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">value</span>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="k">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Entitlement'</span>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">ie</span><span class="p">.</span><span class="n">modified</span><span class="p">,</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">created</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="o">@</span><span class="n">Since</span>
 </code></pre></div>
 <p>with <code>"watermarkColumn": "modified"</code> on the slot (the <strong>Watermark column</strong> field in the
 wizard). Both halves are required: a watermark column without <code>@Since</code>, or <code>@Since</code>
