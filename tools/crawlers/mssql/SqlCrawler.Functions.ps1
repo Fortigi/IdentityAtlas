@@ -250,6 +250,9 @@ function Resolve-SqlConfig {
         # at a time, as before. Capped: beyond a few, the database is the limit
         # and more in flight only holds more memory.
         ingestConcurrency      = [Math]::Min(8, (Get-SqlConfigInt -Value $raw['ingestConcurrency'] -Default 3))
+        # A full sync loads its assignment scopes through the API's staged load
+        # (SqlCrawler.Staging.ps1). Off only when set to false.
+        stagedFullLoad         = -not ($null -ne $raw['stagedFullLoad'] -and -not [bool]$raw['stagedFullLoad'])
         pageSize               = Get-SqlConfigInt -Value $raw['pageSize'] -Default 10000 -Minimum 100
         # How far back of the last watermark each delta re-reads. Several
         # application servers write the source, their clocks drift, and a long

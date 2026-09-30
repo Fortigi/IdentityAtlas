@@ -101,10 +101,15 @@ function New-CrawlerIngestStream {
         # A sender (Invoke-CrawlerIngestPipeline.ps1) to POST through, several
         # batches in flight at once. Only for batches that may commit in any
         # order. Without one, every batch is sent and waited for in turn.
-        $IngestSender = $null
+        $IngestSender = $null,
+        # Send into this stage (Invoke-CrawlerIngestStage.ps1) instead of
+        # upserting: the batches land in POST /ingest/stages/<id>/rows and
+        # nothing reaches the table until the stage is finalized.
+        [string]$StageId = ''
     )
     return [pscustomobject]@{
         Sender    = $IngestSender
+        StageId   = $StageId
         Endpoint  = $Endpoint
         Entity    = ($Endpoint -replace '^ingest/', '')
         SystemId  = $SystemId
@@ -176,9 +181,21 @@ function Send-CrawlerIngestStreamBatch {
         # cleared below, and a List always serialises as a JSON array.
         records      = [System.Collections.Generic.List[object]]::new($batch)
     }
-    if ($Stream.Sender) { Submit-CrawlerIngestStreamBody -Stream $Stream -Body $body }
+    $endpoint = $Stream.Endpoint
+    if ($Stream.StageId) {
+        # A stage takes records only: its system, scope and ids were fixed
+        # when it was opened.
+        $body = @{ records = $body.records }
+        $endpoint = "ingest/stages/$($Stream.StageId)/rows"
+    }
+    if ($Stream.Sender) {
+        Submit-CrawlerIngestStreamBody -Stream $Stream -Body $body -Endpoint $endpoint
+        # A stage's table is created by its FIRST batch, so that one must land
+        # before a second may race it.
+        if ($Stream.StageId -and $Stream.Batches -eq 0) { Wait-CrawlerIngestSender -IngestSender $Stream.Sender }
+    }
     else {
-        $r = Invoke-IngestAPI -Endpoint $Stream.Endpoint -Body $body -Timing $Stream.Timing
+        $r = Invoke-IngestAPI -Endpoint $endpoint -Body $body -Timing $Stream.Timing
         Add-CrawlerIngestStreamResult -Response $r -Stream $Stream
     }
     $Stream.Batches++
@@ -201,11 +218,11 @@ function Add-CrawlerIngestStreamResult {
 # the time the API spends on a batch while the crawler works on is nobody's wait.
 function Submit-CrawlerIngestStreamBody {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] $Stream, [Parameter(Mandatory)] [hashtable]$Body)
+    param([Parameter(Mandatory)] $Stream, [Parameter(Mandatory)] [hashtable]$Body, [string]$Endpoint = $Stream.Endpoint)
     $t0 = [System.Diagnostics.Stopwatch]::GetTimestamp()
     $json = $Body | ConvertTo-Json -Depth 20 -Compress
     $t1 = [System.Diagnostics.Stopwatch]::GetTimestamp()
-    Submit-CrawlerIngestRequest -IngestSender $Stream.Sender -Endpoint $Stream.Endpoint -Json $json -State $Stream `
+    Submit-CrawlerIngestRequest -IngestSender $Stream.Sender -Endpoint $Endpoint -Json $json -State $Stream `
         -OnResponse { param($Response, $Target) Add-CrawlerIngestStreamResult -Response $Response -Stream $Target }
     $Stream.Timing.SerializeTicks += $t1 - $t0
     $Stream.Timing.SendTicks += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t1

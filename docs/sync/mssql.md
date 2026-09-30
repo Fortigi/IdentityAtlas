@@ -438,6 +438,17 @@ a special case:
 
 A run that fails part-way never reaches step 3, so a partial read can never delete anything.
 
+**Assignments in a full sync are staged.** In a full sync (and with `stagedFullLoad` on, the
+default), the assignment batches do not go into the table one by one: they are collected
+in a *stage* per system and scope and applied together at the end of the run. That one
+step inserts what is new, updates only what changed and removes what the source no longer
+has, so it replaces the reconcile for those scopes. An unchanged re-import therefore
+rewrites nothing, and a first load into an empty table is indexed once instead of batch by
+batch. Two consequences: the assignments of a full sync appear all at once near the end of
+the job, and a full sync that fails before that step leaves the assignments exactly as they
+were. The job log shows the step as `Applying N staged scope(s)` with what it inserted,
+updated and removed. Delta runs are not staged.
+
 ### Where a slow run spends its time
 
 Every statement ends with a line that splits its time five ways, and the run ends with the
@@ -570,6 +581,7 @@ file has the shape shown under [Configuration](#configuration); on the command l
 | `commandTimeoutSeconds` | No | `600` | Seconds to wait for each query, `0` = no limit (0–86400). Applies per network read, so a streaming query is not cut off as a whole |
 | `systemName` | No | the crawler's name | Override for the Identity Atlas system name — see [System naming](#system-naming) |
 | `batchSize` | No | `5000` | Records per ingest call (100–50 000). Rows stream from SQL Server and are flushed every batch, so memory stays flat however large the result set |
+| `stagedFullLoad` | No | `true` | In a full sync, load each assignment scope through a staged load and apply it in one step — see [Very large tables](#very-large-tables). `false` streams every batch straight into the table |
 | `ingestConcurrency` | No | `3` | How many assignment and relationship batches may be on their way to Identity Atlas at once while the crawler reads and prepares the next ones (1–8). `1` sends one batch at a time and waits for each |
 | `pageSize` | No | `10000` | Value bound to `@PageSize` for a query that pages with `@Offset` / `@PageSize` (100–1 000 000) |
 | `watermarkOverlapSeconds` | No | `900` | How far back of its last position each incremental read goes, to cover clock drift between the source's application servers and transactions that commit late (0–604 800) — see [Reading only what changed](#reading-only-what-changed) |

@@ -199,6 +199,17 @@ Describe 'Add-CrawlerIngestStreamRecords (a whole collection per call)' {
     }
 }
 
+Describe 'A stream into a stage, without a sender' {
+    It 'posts records only to the stage''s rows endpoint' {
+        Reset-Sent; Mock Invoke-IngestAPI $script:CaptureMock
+        $s = New-CrawlerIngestStream -Endpoint 'ingest/resource-assignments' -SystemId 7 -IdPrefix 'sql-7' -BatchSize 2 -StageId 'st1'
+        1..3 | ForEach-Object { Add-CrawlerIngestStreamRecord -Stream $s -Record @{ externalId = "r$_" } }
+        (Complete-CrawlerIngestStream -Stream $s).sent | Should -Be 3
+        @($script:sent | ForEach-Object Endpoint) | Should -Be @('ingest/stages/st1/rows', 'ingest/stages/st1/rows')
+        @($script:sent[0].Body.Keys) | Should -Be @('records')
+    }
+}
+
 Describe 'Stream timing' {
     It 'gives every batch its own stream''s timing and reports each stream''s totals on completion' {
         # Each call adds fixed amounts to whatever Timing it is handed. Two streams

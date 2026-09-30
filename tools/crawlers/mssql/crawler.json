@@ -76,6 +76,11 @@
         "default": 5000,
         "description": "Records per ingest call. Rows stream from SQL Server and are flushed every batch, so memory stays flat however large the result set."
       },
+      "stagedFullLoad": {
+        "type": "boolean",
+        "default": true,
+        "description": "In a full sync, load each assignment scope through a staged load and apply it in one step: unchanged rows are not rewritten and a first load is indexed once. Off streams every batch straight into the table, as before."
+      },
       "ingestConcurrency": {
         "type": "integer",
         "minimum": 1,

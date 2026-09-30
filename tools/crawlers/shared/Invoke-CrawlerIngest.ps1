@@ -99,14 +99,17 @@ function Invoke-IngestAPI {
     param(
         [string]$Endpoint,
         [hashtable]$Body,
-        [hashtable]$Timing
+        [hashtable]$Timing,
+        # Seconds one attempt may take. 300 fits every batch; a stage finalize
+        # that applies tens of millions of rows needs far longer.
+        [int]$TimeoutSec = 300
     )
 
     $t0          = [System.Diagnostics.Stopwatch]::GetTimestamp()
     $headers     = @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
     $json        = $Body | ConvertTo-Json -Depth 20 -Compress
     $t1          = [System.Diagnostics.Stopwatch]::GetTimestamp()
-    try { return Invoke-FGIngestPost -Endpoint $Endpoint -Headers $headers -Json $json }
+    try { return Invoke-FGIngestPost -Endpoint $Endpoint -Headers $headers -Json $json -TimeoutSec $TimeoutSec }
     finally {
         if ($Timing) {
             $Timing.SerializeTicks += $t1 - $t0
@@ -118,7 +121,7 @@ function Invoke-IngestAPI {
 # The POST with retry and exponential backoff, for an already-serialised body.
 function Invoke-FGIngestPost {
     [CmdletBinding()]
-    param([string]$Endpoint, [hashtable]$Headers, [string]$Json)
+    param([string]$Endpoint, [hashtable]$Headers, [string]$Json, [int]$TimeoutSec = 300)
     $uri         = "$ApiBaseUrl/$Endpoint"
     $maxAttempts = 5
     $attempt     = 0
@@ -126,7 +129,7 @@ function Invoke-FGIngestPost {
     while ($true) {
         $attempt++
         try {
-            $response = Invoke-RestMethod -Uri $uri -Method Post -Headers $Headers -Body $Json -TimeoutSec 300
+            $response = Invoke-RestMethod -Uri $uri -Method Post -Headers $Headers -Body $Json -TimeoutSec $TimeoutSec
             if ($attempt -gt 1) { Write-Host "  Recovered on attempt $attempt" -ForegroundColor Green }
             return $response
         } catch {

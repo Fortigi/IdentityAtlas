@@ -428,7 +428,8 @@ function Measure-SqlScopeRows {
     [OutputType([long])]
     param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] $Expectation, [string]$Before = '')
     $entity = $Expectation.Endpoint -replace '^ingest/', ''
-    $since  = if ($Before) { $Before } else { $State.ServerTime }
+    # A staged scope is counted whole (SqlCrawler.Staging.ps1).
+    $since  = if ($Before) { $Before } elseif ($Expectation.Whole) { $script:SqlBeginningOfTime } else { $State.ServerTime }
     $systems = @($Expectation.Systems)
     if ($systems.Count -eq 0) { $systems = @($State.SystemId) }
     [long]$total = 0

@@ -169,6 +169,21 @@ Describe 'A stream sending through a sender' {
         @($script:bodies | ForEach-Object { $_.records } | ForEach-Object resourceExternalId) | Should -Be @('r1', 'r2', 'r3', 'r4', 'r5')
     }
 
+    It 'into a stage: records only, to the stage''s rows endpoint, and the FIRST batch lands before a second is sent' {
+        # The first append creates the stage's table; two racing would both try.
+        $script:urls = [System.Collections.Generic.List[string]]::new()
+        Mock Start-CrawlerIngestRequest { $script:urls.Add($Endpoint); $script:bodies.Add(($Json | ConvertFrom-Json)); New-Answered -Status 200 -Body '{"rows":2}' }
+        $ingestSender = New-CrawlerIngestSender -MaxInFlight 3
+        $s = New-CrawlerIngestStream -Endpoint 'ingest/resource-assignments' -SystemId 12 -IdPrefix 'sql-1' -BatchSize 2 -IngestSender $ingestSender -StageId 'abc'
+        1..2 | ForEach-Object { Add-CrawlerIngestStreamRecord -Stream $s -Record @{ externalId = "e$_" } }
+        $ingestSender.Pending.Count | Should -Be 0
+        3..4 | ForEach-Object { Add-CrawlerIngestStreamRecord -Stream $s -Record @{ externalId = "e$_" } }
+        $ingestSender.Pending.Count | Should -Be 1
+        Complete-CrawlerIngestStream -Stream $s | Out-Null
+        @($script:urls) | Should -Be @('ingest/stages/abc/rows', 'ingest/stages/abc/rows')
+        @($script:bodies[0].PSObject.Properties.Name) | Should -Be @('records')
+    }
+
     It 'a single-record batch still goes out as a JSON array' {
         $s = New-CrawlerIngestStream -Endpoint 'ingest/x' -SystemId 1 -IdPrefix 'sql-1' -IngestSender (New-CrawlerIngestSender)
         Add-CrawlerIngestStreamRecord -Stream $s -Record @{ externalId = 'only' }

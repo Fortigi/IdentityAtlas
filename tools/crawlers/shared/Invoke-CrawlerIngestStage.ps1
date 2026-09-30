@@ -104,12 +104,16 @@ function Invoke-CrawlerIngestStageFinalize {
     param(
         [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]]$Stages,
         [switch]$DeleteMissing,
-        [double]$MaxDeleteShare = 0
+        [double]$MaxDeleteShare = 0,
+        # Applying a full load of tens of millions of rows takes minutes to tens
+        # of minutes; the batch default of 300 s would abandon it and retry into
+        # a stage that no longer exists.
+        [int]$TimeoutSec = 14400
     )
     if ($Stages.Count -eq 0) { return @() }
     $body = @{ stageIds = @($Stages | ForEach-Object { $_.StageId }); deleteMissing = [bool]$DeleteMissing }
     if ($MaxDeleteShare -gt 0) { $body['maxDeleteShare'] = $MaxDeleteShare }
-    $r = Invoke-IngestAPI -Endpoint 'ingest/stages/finalize' -Body $body
+    $r = Invoke-IngestAPI -Endpoint 'ingest/stages/finalize' -Body $body -TimeoutSec $TimeoutSec
     return @($r.results)
 }
 
