@@ -1,1 +1,0 @@
-- A full sync of the SQL Server crawler now loads its assignments through a staged load and applies them in one step at the end of the run: re-importing unchanged data rewrites nothing, a first load is indexed once instead of batch by batch, and a full sync that fails part-way leaves the existing assignments untouched. Set `stagedFullLoad` to false to stream as before.

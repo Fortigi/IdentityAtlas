@@ -1,1 +1,0 @@
-- The SQL Server crawler prepares assignment rows (the entitlement and role grants, usually tens of millions of rows) about ten times faster, so a large full import is no longer held back by the crawler's own per-row work. What is imported is unchanged.

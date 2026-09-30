@@ -1,1 +1,0 @@
-- The SQL Server crawler keeps reading from the source while Identity Atlas stores the assignment and relationship batches it already sent — by default three at a time, set with the new `ingestConcurrency` setting (1 restores one batch at a time). A large import no longer waits for the database after every batch.
