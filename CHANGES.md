@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Hardened the API logs: ingest warnings and errors that can include crawler-supplied text are now always written as a single line, so a crafted value cannot fake extra log entries
+- Updated bundled third-party libraries (undici, brace-expansion, ip-address, fast-uri) to releases that fix published security advisories
+
+## Changes in this PR
+
 - Plain-language questions are understood a great deal better. Two weeks of testing against 89 real analyst questions in Dutch and English went from 28 of 58 right to 67 of 72, and almost all of that came from correcting the model's one-reading mistakes in code instead of asking it again — so answers also got faster.
 - Asking a question and building saved reports are now separate rights. Someone with the new "Ask questions in plain language" permission can ask and read answers without being able to create or delete the saved reports every analyst sees; building does not imply asking either. The seed RoleMiner role carries both, so nothing anyone could do before changes.
 - You can now ask what CHANGED, not only what is true today: "zijn er recent leden aan deze groepen toegevoegd of verwijderd?" or "which groups was Jan added to in the last 90 days?". Membership history became something a question can reach.
