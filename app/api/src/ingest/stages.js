@@ -204,11 +204,26 @@ async function applyStages(loaded, deleteMissing, maxDeleteShare) {
     await loadIntoEmptyTable(client, loaded, results);
     return true;
   });
-  if (bulked) return results;
-  for (const st of loaded) {
-    results.set(st.id, await db.tx(client => mergeStage(client, st, deleteMissing, maxDeleteShare)));
+  if (!bulked) {
+    for (const st of loaded) {
+      results.set(st.id, await db.tx(client => mergeStage(client, st, deleteMissing, maxDeleteShare)));
+    }
   }
+  await analyzeIfChanged(loaded[0].tableName, results);
   return results;
+}
+
+// A finalize can write millions of rows in one statement, and the planner only
+// learns that when autovacuum next analyzes the table — minutes later. Whatever
+// runs first plans against the old statistics: after a staged first load of 4.1M
+// assignments the matrix-view refresh that follows took 353 s instead of 17 s,
+// and autoanalyze landed a minute into it. So the finalize analyzes the table it
+// changed before it returns. It samples a fixed number of rows, so it costs
+// seconds even at tens of millions; a finalize that wrote nothing (an unchanged
+// re-import, a sweep that found nothing gone) skips it and stays write-free.
+async function analyzeIfChanged(tableName, results) {
+  const changed = [...results.values()].some(r => (r.inserted || 0) + (r.updated || 0) + (r.deleted || 0) > 0);
+  if (changed) await db.query(`ANALYZE "${tableName}"`);
 }
 
 // A membership of a governance resource is governed by definition. The engine and

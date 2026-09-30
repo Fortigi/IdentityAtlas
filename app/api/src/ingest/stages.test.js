@@ -130,6 +130,19 @@ describe('finalize — the empty-table path', () => {
     expect(sqls.at(-1)).toBe(`DROP TABLE IF EXISTS "${st.stageTable}"`);
   });
 
+  it('analyzes the table it just loaded, after the indexes are back and before it returns', async () => {
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: true }] })]);
+    handlers.push([/FROM pg_indexes/, () => ({ rows: [{ indexname: 'ix_a', indexdef: 'CREATE INDEX ix_a ON public."ResourceAssignments" USING btree ("resourceId")' }] })]);
+    handlers.push([/^\s*INSERT INTO "ResourceAssignments"/, () => ({ rowCount: 2 })]);
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    await S.finalizeStage(st, { deleteMissing: true });
+    const at = (re) => sqls.findIndex(s => re.test(s));
+    expect(sqls.filter(s => s === 'ANALYZE "ResourceAssignments"')).toHaveLength(1);
+    expect(at(/^ANALYZE "ResourceAssignments"$/)).toBeGreaterThan(at(/CREATE INDEX ix_a/));
+    expect(at(/^ANALYZE "ResourceAssignments"$/)).toBeLessThan(sqls.indexOf(`DROP TABLE IF EXISTS "${st.stageTable}"`));
+  });
+
   it('falls back to a merge when the table is not empty — releasing the lock first', async () => {
     handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: false }] })]);
     const st = open();
@@ -288,6 +301,28 @@ describe('finalize — the merge path', () => {
     const r = await S.finalizeStage(st, { deleteMissing: true });
     expect(r).toMatchObject({ path: 'merge', inserted: 1, deleted: 3 });
     expect(sqls.some(s => /^\s*INSERT INTO "ResourceAssignments"/.test(s))).toBe(true);
+  });
+
+  it('analyzes the table once after a merge that changed rows — whether by insert, update or delete', async () => {
+    handlers.push([/^\s*INSERT INTO "ResourceAssignments"/, () => ({ rowCount: 0 })]);
+    handlers.push([/^\s*UPDATE "ResourceAssignments" t SET/, () => ({ rowCount: 0 })]);
+    const [a, b] = [open(), open()];
+    await S.appendToStage(a, [rec]);
+    await S.appendToStage(b, [rec]);
+    // Two stages, each deleting 3 (the engine mock): one ANALYZE for the call, not one per stage.
+    await S.finalizeStages([a, b], { deleteMissing: true });
+    expect(sqls.filter(s => s === 'ANALYZE "ResourceAssignments"')).toHaveLength(1);
+  });
+
+  it('an unchanged re-import stays write-free: nothing inserted, updated or removed means no ANALYZE', async () => {
+    handlers.push([/^\s*INSERT INTO "ResourceAssignments"/, () => ({ rowCount: 0 })]);
+    handlers.push([/^\s*UPDATE "ResourceAssignments" t SET/, () => ({ rowCount: 0 })]);
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st);   // no deleteMissing → deleted 0
+    expect(r).toMatchObject({ inserted: 0, updated: 0, deleted: 0 });
+    // (the stage table itself is analyzed before the merge; the TARGET is not)
+    expect(sqls.some(s => s === 'ANALYZE "ResourceAssignments"')).toBe(false);
   });
 
   it('an empty stage is a no-op and still cleans up', async () => {
