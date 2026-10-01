@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Added product screenshots to the documentation: the permission matrix (flat and folded by department), the dashboard, a user detail tab, a business role detail tab, the Contexts tab and the Add Crawler type picker, all captured from the public demo's synthetic dataset
+- The README now opens with a screenshot of the permission matrix and links to the live demo
+- Fixed the README's stale note that the documentation site was not yet published
+
+## Changes in this PR
+
 - Added a security policy (`SECURITY.md`): how to report a vulnerability privately, what to include, which versions receive security fixes, where the published security assessments are, and the settings a security team should check before a networked deployment.
 - Added a contributor guide (`CONTRIBUTING.md`): the tools and versions needed, the exact command for each check, the branch and pull request rules, what is different for a pull request from a fork, and what happens to an issue after it is filed.
 - The README and the "Contribute a change" documentation page now link to both files.
