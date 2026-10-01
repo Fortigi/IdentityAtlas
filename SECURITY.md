@@ -13,7 +13,8 @@ automated triage pipeline.
    **Security** tab and choose **Report a vulnerability**, or go straight to
    <https://github.com/Fortigi/IdentityAtlas/security/advisories/new>.
    The report is visible only to you and the maintainers.
-2. **Fallback:** if you cannot use GitHub, write to
+2. **Fallback:** if you cannot use GitHub, or the **Report a vulnerability** button is
+   not offered, write to
    [support@identityatlas.io](mailto:support@identityatlas.io) with "Security" in the
    subject. This is a general support mailbox, so say only that you have a security
    report to make; we will agree with you how to send the details.
@@ -45,8 +46,8 @@ prefer otherwise. There is no paid bug bounty.
 | Pre-releases | `:beta` | No |
 | Older release lines | pinned older tags | No. Upgrade to the current release. |
 
-Security fixes are made on `main` and reach `:latest` with the next release, so a fix
-can be in `:edge` before it is in `:latest`. Updates to production dependencies are
+A security fix is made on `main` first and then applied to the current release line,
+which ships it as a patch release, so a fix can be in `:edge` before it is in `:latest`. Updates to production dependencies are
 checked for daily on the release branch and ship with its next patch release
 (see [Maintaining a release line](docs/process/maintaining-a-release-line.md)).
 To check whether the version you run contains a given fix, compare it with the

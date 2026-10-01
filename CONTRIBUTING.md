@@ -130,9 +130,9 @@ changed; [CI pipeline](docs/contributing/ci-pipeline.md) lists them.
    `setup/IdentityAtlas.psd1`; both are generated when the pull request merges.
 5. Open the pull request into `main` and describe what changed and why.
 
-A pull request needs the checks `CI Passed` and `Integration CI Passed` and one
-approving review from a maintainer. It is then squash-merged, so you do not need to
-tidy your commit history.
+A pull request needs the checks `CI Passed`, `Integration CI Passed` and `PR Summary`,
+clean code scanning, and one approving review from a maintainer. It is then
+squash-merged, so you do not need to tidy your commit history.
 
 ### Pull requests from a fork
 
