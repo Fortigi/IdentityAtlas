@@ -1,7 +1,7 @@
 # ─── Cut a Pre-Release (Beta / RC / Alpha) ────────────────────────────────────
 # Manually triggered. Tags a chosen ref with vX.Y.Z-beta.N (or -rc.N /
-# -alpha.N), builds the portable Windows ZIP, creates a GitHub pre-release with
-# the ZIP attached, and lets docker-publish push :beta + :X.Y.Z-beta.N.
+# -alpha.N), builds the two portable Windows ZIPs, creates a GitHub pre-release
+# with both attached, and lets docker-publish push :beta + :X.Y.Z-beta.N.
 #
 # :latest is never touched — users on docker-compose.prod.yml are unaffected.
 #
@@ -77,9 +77,11 @@ jobs:
         run: npm install --prefer-offline
         working-directory: app/desktop
 
-      - name: Build portable Windows ZIP
-        run: npm run build:node-launcher
-        working-directory: app/api
+      # Two ZIPs: the default (PGlite, signed node.exe only) and -postgres
+      # (embedded PostgreSQL for large data sets, unsigned binaries). One shared
+      # script so cut-release / cut-beta / cut-hotfix cannot drift apart.
+      - name: Build portable Windows ZIPs
+        run: bash .github/scripts/build_portable_zips.sh
 
       - name: Generate release notes
         run: |
@@ -151,12 +153,20 @@ jobs:
         if: steps.polish.outcome == 'failure'
         run: echo "::warning::Release notes polishing failed (model call rejected/unavailable) — shipping the raw changelog bullets instead. Check CLAUDE_CODE_OAUTH_TOKEN entitlements/subscription status."
 
-      - name: Create GitHub pre-release with portable ZIP
+      # Appended after polishing so the model cannot drop or reword it.
+      - name: Append download guide
+        run: |
+          cat tools/release-notes/portable-downloads.md >> release-notes.md
+          echo "--- release-notes.md final ---"
+          cat release-notes.md
+
+      - name: Create GitHub pre-release with portable ZIPs
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
           gh release create "$TAG" \
-            app/api/dist-node-launcher/IdentityAtlas-portable.zip \
+            app/api/dist-node-launcher/release/IdentityAtlas-portable.zip \
+            app/api/dist-node-launcher/release/IdentityAtlas-portable-postgres.zip \
             --title "$TAG" \
             --notes-file release-notes.md \
             --prerelease

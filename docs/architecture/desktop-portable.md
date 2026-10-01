@@ -4,6 +4,17 @@ Identity Atlas can run as a standalone portable ZIP on Windows — no Docker, no
 
 This deployment mode is designed for environments where Docker and WSL are blocked by security policy.
 
+## Which ZIP to download
+
+Every [GitHub release](https://github.com/Fortigi/IdentityAtlas/releases) ships two portable ZIPs. They contain the same app; the second one adds a PostgreSQL server.
+
+| Download | Database | Pick it when |
+|---|---|---|
+| `IdentityAtlas-portable.zip` | PGlite, inside the app | **The default.** Small and medium tenants, and any machine whose application control trusts signed publishers: `node.exe`, the only executable in the zip, is signed by the OpenJS Foundation. |
+| `IdentityAtlas-portable-postgres.zip` | A real PostgreSQL 16 server | **Large data sets** that PGlite cannot hold (it is capped at 4 GB; see [Real PostgreSQL mode](#real-postgresql-mode)). Start it with `-Database Postgres`. The PostgreSQL binaries are **not code-signed**, so WDAC needs hash or path rules for them, and they need the Microsoft Visual C++ runtime (`VCRUNTIME140.dll`), which the zip does not contain. |
+
+`Start-IdentityAtlas.ps1 -Database Postgres` on the default ZIP fails with "no postgres binaries found": that ZIP has no `postgres\` folder.
+
 ---
 
 ## How It Works
@@ -43,7 +54,7 @@ IdentityAtlas-portable.zip (extracted)
 
 Database files are stored in `pgdata\` under the data directory (see [Data Location](#data-location)) and persist across restarts.
 
-A package built with `--with-postgres` also carries a real PostgreSQL server and runs that instead — see [Real PostgreSQL mode](#real-postgresql-mode).
+`IdentityAtlas-portable-postgres.zip` (built with `--with-postgres`) also carries a real PostgreSQL server and runs that instead — see [Real PostgreSQL mode](#real-postgresql-mode).
 
 ---
 
@@ -60,7 +71,7 @@ No Docker. No WSL. No administrator rights.
 
 ### Starting the App
 
-1. Download `IdentityAtlas-portable.zip` from the [GitHub Releases page](https://github.com/Fortigi/IdentityAtlas/releases)
+1. Download `IdentityAtlas-portable.zip` (or `IdentityAtlas-portable-postgres.zip` for a large data set; see [Which ZIP to download](#which-zip-to-download)) from the [GitHub Releases page](https://github.com/Fortigi/IdentityAtlas/releases)
 2. Extract the zip to a folder of your choice (e.g. `C:\Users\YourName\IdentityAtlas\`)
 3. Open PowerShell 7 and run:
    ```powershell
@@ -136,7 +147,7 @@ The PGlite rows do not apply in [real PostgreSQL mode](#real-postgresql-mode), w
 
 PGlite has a hard ceiling that no setting moves. It is PostgreSQL compiled to 32-bit WebAssembly inside `node.exe`, so it can never address more than 4 GB. Its buffer pool is fixed at 128 MB and `work_mem` at 4 MB, and `ALTER SYSTEM` is accepted but ignored after a restart. It is also single-threaded. A tenant of 200k users, 800k entitlements and tens of millions of assignments (15–25 GB of tables and indexes) cannot fit.
 
-A package built with `--with-postgres` therefore carries a real PostgreSQL 16 server in `postgres\`, unpacked from the official Windows binaries zip. `Start-IdentityAtlas.ps1` then runs **two processes**, both as the current user, with no installation and no administrator rights:
+`IdentityAtlas-portable-postgres.zip` (a package built with `--with-postgres`) therefore carries a real PostgreSQL 16 server in `postgres\`, unpacked from the official Windows binaries zip. `Start-IdentityAtlas.ps1` then runs **two processes**, both as the current user, with no installation and no administrator rights:
 
 1. **PostgreSQL**, started with `pg_ctl` from `postgres\bin`, listening on `127.0.0.1:5433`.
 2. **`node.exe bootstrap.mjs`**, given `POSTGRES_HOST`/`POSTGRES_PORT`/… instead of starting PGlite. `DESKTOP_MODE` is left off, so migrations install `pg_trgm` for real and matview refreshes use `CONCURRENTLY`. The API is still pinned to `127.0.0.1`.
@@ -259,14 +270,25 @@ npm run build:node-launcher:postgres
 node ../desktop/scripts/build-node-launcher.mjs --skip-ui-build --with-postgres
 ```
 
-This downloads EDB's PostgreSQL Windows binaries zip. The version and SHA-256 are pinned in `app/desktop/scripts/postgres-bundle.mjs`, and every build checks the hash. The zip is cached in `dist-node-launcher/` and only the subset the server needs is copied into `postgres\`. Binaries are never downloaded at run time, so the package works offline. Release builds do not use the flag.
+This downloads EDB's PostgreSQL Windows binaries zip. The version and SHA-256 are pinned in `app/desktop/scripts/postgres-bundle.mjs`, and every build checks the hash. The zip is cached in `dist-node-launcher/` and only the subset the server needs is copied into `postgres\`. Binaries are never downloaded at run time, so the package works offline.
+
+#### Release builds
+
+`cut-release.yml`, `cut-beta.yml` and `cut-hotfix.yml` build both ZIPs through one shared script, [`.github/scripts/build_portable_zips.sh`](https://github.com/Fortigi/IdentityAtlas/blob/main/.github/scripts/build_portable_zips.sh), which writes them to `app/api/dist-node-launcher/release/`:
+
+1. `npm run build:node-launcher`, then moves the zip to `release/IdentityAtlas-portable.zip`. The move matters: every build deletes and rewrites `dist-node-launcher/IdentityAtlas-portable.zip`, so the second build would otherwise destroy the first's output.
+2. `build-node-launcher.mjs --skip-ui-build --with-postgres` (reusing the UI the first build produced), then moves the zip to `release/IdentityAtlas-portable-postgres.zip`.
+3. Checks that the default zip has no `postgres/bin/postgres.exe` and the PostgreSQL zip does.
+
+Both are attached to the GitHub release, and the release notes end with a short guide to which one to download. `app/desktop/portableReleaseAssets.guard.test.js` fails if any of the three workflows stops attaching either ZIP.
 
 #### Build Output
 
 ```
 app/api/dist-node-launcher/
-  IdentityAtlas-portable.zip   ← portable ZIP (~50 MB)
+  IdentityAtlas-portable.zip   ← portable ZIP (~50 MB; ~80 MB with --with-postgres)
   stage/                       ← unpacked contents (can run directly for dev)
+  release/                     ← only from build_portable_zips.sh: both release ZIPs
 ```
 
 ---

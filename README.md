@@ -89,10 +89,19 @@ cd IdentityAtlas/azure
 
 For environments where Docker and WSL are blocked by security policy — no installation, no administrator rights required.
 
-Download `IdentityAtlas-portable.zip` from the [Releases page](https://github.com/Fortigi/IdentityAtlas/releases), extract, and run:
+Every [release](https://github.com/Fortigi/IdentityAtlas/releases) ships two ZIPs:
+
+| Download | Use it when |
+|---|---|
+| `IdentityAtlas-portable.zip` | **Default.** Runs on PGlite inside the app. `node.exe`, its only executable, is code-signed. |
+| `IdentityAtlas-portable-postgres.zip` | **Large data sets** that outgrow PGlite. Embeds a real PostgreSQL 16 server; start with `-Database Postgres`. The PostgreSQL binaries are **not code-signed** (WDAC needs hash or path rules for them) and need the Visual C++ runtime (`VCRUNTIME140.dll`). |
+
+Extract the one you picked and run:
 
 ```powershell
 pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1
+# PostgreSQL ZIP:
+pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1 -Database Postgres
 ```
 
 Then open `http://localhost:3001`. To load the bundled demo dataset:
@@ -102,7 +111,7 @@ Then open `http://localhost:3001`. To load the bundled demo dataset:
     -ApiKey (Get-Content "$env:APPDATA\IdentityAtlas\.builtin-worker-key")
 ```
 
-The launcher bundles the official signed `node.exe` from nodejs.org (OpenJS Foundation certificate), so it works on locked-down corporate laptops with WDAC / application-control policies. Uses [PGlite](https://pglite.dev) (WebAssembly PostgreSQL) running in-process — no subprocess is spawned, no executable is extracted to disk at runtime.
+The launcher bundles the official signed `node.exe` from nodejs.org (OpenJS Foundation certificate), so the default ZIP works on locked-down corporate laptops with WDAC / application-control policies. It uses [PGlite](https://pglite.dev) (WebAssembly PostgreSQL) running in-process — no subprocess is spawned, no executable is extracted to disk at runtime.
 
 Requires PowerShell 7 (`pwsh.exe`): `winget install Microsoft.PowerShell`
 
