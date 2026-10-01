@@ -103,7 +103,7 @@ describe.each(WORKFLOWS)('%s ships both portable ZIPs', (file) => {
 
   it('appends the download guide after polishing and before publishing', () => {
     const polish = stepIndex(/uses: anthropics\/claude-code-action/);
-    const append = stepIndex(new RegExp(`cat ${DOWNLOADS.replace(/\./g, '\\.')} >> release-notes\\.md`));
+    const append = all.findIndex((s) => s.includes(`cat ${DOWNLOADS} >> release-notes.md`));
     const publish = stepIndex(/gh release create/);
     expect(polish).toBeGreaterThanOrEqual(0);
     // After the model step: it is told to drop "tooling" text and could lose this.
