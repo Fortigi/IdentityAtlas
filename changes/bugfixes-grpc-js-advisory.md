@@ -1,0 +1,1 @@
+- Updated a development dependency (the gRPC client used by the test tooling) to fix published security advisories in gRPC certificate handling and error reporting
