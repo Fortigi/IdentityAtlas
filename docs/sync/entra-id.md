@@ -29,6 +29,11 @@ Navigate to **Admin → Crawlers** and configure an Entra ID crawler. The wizard
 4. Configure optional identity filters and custom attributes
 5. Set a schedule (or run immediately)
 
+<figure markdown="span">
+  ![The Admin page on the Crawlers sub-tab, with the Add Crawler type picker listing every crawler type, including Microsoft Graph](../assets/screenshots/crawlers.png)
+  <figcaption>Admin → Crawlers → <strong>Add Crawler</strong>. Pick <strong>Microsoft Graph</strong> for Entra ID.</figcaption>
+</figure>
+
 ### Via the command line
 
 ```powershell

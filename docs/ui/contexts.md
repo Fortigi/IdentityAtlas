@@ -11,6 +11,11 @@ outcome: You can build a context, run a plugin, and scope the matrix to the resu
 
 The **Contexts** tab is where you group the people, accounts, resources, and systems in your data into named, hierarchical trees — then use those groupings to slice the Matrix. It replaces the old Org Chart tab and the Risk-Scoring Clusters page: manager hierarchies and resource clusters are now just two of the trees you can build here.
 
+<figure markdown="span">
+  ![The Contexts tab: a list of context trees on the left, filterable by target, variant and system, and the selected department tree on the right with member counts per department and team](../assets/screenshots/contexts.png)
+  <figcaption>The Contexts tab: every tree on the left, the selected tree — here a synced department hierarchy — on the right.</figcaption>
+</figure>
+
 !!! info "Where the architecture lives"
     This page is the task-oriented guide. For the data model and plugin framework, see [Context Redesign](../architecture/context-redesign.md) and [Context Redesign — UI](../architecture/context-redesign-ui.md).
 

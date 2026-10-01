@@ -15,6 +15,11 @@ The Role Mining UI is a web application that visualizes your synced permission d
 
 **URL after starting the stack:** `http://localhost:3001` (or whatever host you map port 3001 to).
 
+<figure markdown="span">
+  ![The Matrix tab: resources as rows, users grouped by department as columns, with Direct, Indirect and Eligible badges in the cells](../assets/screenshots/matrix.png)
+  <figcaption>The Matrix — the core view. Every screenshot in this documentation shows the synthetic demo dataset, which you can explore in the <a href="https://demo1.identityatlas.io">live demo</a>.</figcaption>
+</figure>
+
 ---
 
 ## Pages
@@ -49,6 +54,11 @@ The **Admin** page groups all administrative surfaces. Each sub-tab is permissio
 | **Data** | Export / import curated data and clean the database |
 | **Updates** | Automatic updates and version history |
 | **About** | License, version, and software bill of materials |
+
+<figure markdown="span">
+  ![The Admin page on the Crawlers sub-tab, with the Add Crawler type picker listing Azure Resource Manager, CSV Import, Custom Connector, Demo Data, Microsoft Graph, midPoint, SQL Database and Omada IGA](../assets/screenshots/crawlers.png)
+  <figcaption>Admin → Crawlers, with the <strong>Add Crawler</strong> type picker open.</figcaption>
+</figure>
 
 ---
 
@@ -109,6 +119,11 @@ A **live summary** at the bottom shows counts as you tweak — subjects matched 
 
 Instead of a per-subject grid, the columns can be **rolled up** by an attribute (e.g. department) or by a **Manager Hierarchy** context tree. A rolled-up cell shows a count (or percentage) of the subjects in that group who hold the resource. Roll-ups are aggregated on the server, so they load at any size. A **Content** step lets you choose what the roll-up shows: resources + business-role columns, resources only, or business roles only. You can also fold individual attribute groups into a single count column right in the matrix.
 
+<figure markdown="span">
+  ![The matrix with every department folded into a single count column, next to one coloured column per business role](../assets/screenshots/matrix-rollup.png)
+  <figcaption>The same matrix with every department folded into a count column, next to the business-role columns.</figcaption>
+</figure>
+
 #### Saved Matrices
 
 A fully-scoped matrix (filter + orientation + governed-state toggle) can be saved by name. Saved matrices are **org-wide** — any user can load, rename, or delete any saved matrix — and are managed from the **Saved matrices** dropdown at the top of the wizard.
@@ -139,6 +154,13 @@ Browse all synced principals (accounts) with pagination, search, tagging, and at
 - **Search** by display name or UPN
 - **Filter** by any attribute column or tag
 - **Tag management:** assign/remove tags (Tag Contexts — see [Tagging System](#tagging-system)) from selected users, bulk-tag by filter
+
+Clicking a name opens that account in its own detail tab, with **Attributes**, **Relationships** and **Timeline** views.
+
+<figure markdown="span">
+  ![A user detail tab on the Relationships view: a graph linking the user to their manager, identity, contexts, business roles and direct, indirect and eligible access, above a table of the ten direct assignments](../assets/screenshots/user-detail.png)
+  <figcaption>A user's detail tab — the Relationships view, with the direct assignments fanned out.</figcaption>
+</figure>
 
 ---
 
@@ -204,6 +226,11 @@ Browse all business roles from any IGA platform (Entra Access Packages, Omada Bu
 ### Business Role Detail Page
 
 Clicking any business role name opens a detail tab. Multiple detail tabs can be open simultaneously; each has a close button. The URL hash (`#business-role:<id>`) is bookmarkable.
+
+<figure markdown="span">
+  ![A business role detail tab on the Relationships view: a graph linking the role to its catalog, its assignments and the four resources it grants, above a table of those resources](../assets/screenshots/business-role.png)
+  <figcaption>A business role's detail tab — the Relationships view, showing the resources the role grants.</figcaption>
+</figure>
 
 The detail tab contains collapsible sections:
 
@@ -291,6 +318,11 @@ Editing the config and starting runs requires the `admin.crawlers` permission. S
 Contexts are the unified data surface that replaced the former Org Chart, tag, and cluster tabs. A Context is a named grouping of Identities, Resources, Principals, or Systems, in one of three variants — **synced** (from a source system), **generated** (emitted by a context-algorithm plugin), or **manual** (curated by hand). Manager-hierarchy trees (the old Org Chart), resource clusters, tags, and business processes are all generated Contexts produced by plugins that register at startup.
 
 Contexts are also first-class building blocks for Matrix scoping: any Context can be used as an include/exclude condition in the Filter Wizard.
+
+<figure markdown="span">
+  ![The Contexts tab: a list of context trees on the left and the selected department tree on the right, with member counts per department and team](../assets/screenshots/contexts.png)
+  <figcaption>The Contexts tab, with a synced department tree selected.</figcaption>
+</figure>
 
 See [Contexts](contexts.md) for the full guide.
 

@@ -16,6 +16,11 @@ features are configured, and where to go next. It has two tabs: **Overview**
 (described here) and **Trends** (daily time-series charts, covered in
 [Dashboard Trends](../architecture/dashboard-trends.md)).
 
+<figure markdown="span">
+  ![The Dashboard Overview tab: a graph of entity counts on the left, the Loaded data cards on the right, and the Risk Scoring, Certifications and Crawlers status cards below](../assets/screenshots/dashboard.png)
+  <figcaption>The Dashboard's Overview tab, shown on the synthetic demo dataset.</figcaption>
+</figure>
+
 ---
 
 ## Reading the Overview
