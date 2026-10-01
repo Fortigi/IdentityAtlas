@@ -10,16 +10,16 @@ outcome: Identity Atlas is running on your machine with the demo data loaded.
     This is a *Start here* page — it assumes nothing. New to Identity Atlas?
     [The words you need first](start/glossary.md) is the eight minutes that make everything else readable.
 
-Identity Atlas runs as a Docker stack — no Azure subscription, no git clone required. All you need is Docker and a one-line `.env` that sets a database password.
+Identity Atlas runs as a Docker stack — no Azure subscription, no git clone required. All you need is Docker and a one-line `.env` that sets a database password; the commands below generate it for you.
 
 === "Linux / macOS"
 
     ```bash
-    # Download the compose file and the env template
+    # Download the compose file
     curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
-    curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
-    cp .env.example .env
-    # Edit .env and set a strong POSTGRES_PASSWORD — the prod compose refuses to start without it
+
+    # Create .env with a generated database password (skipped when .env already exists)
+    [ -f .env ] || echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env
 
     # Start everything (--pull always forces Docker to fetch the newest
     # :latest image from ghcr.io instead of reusing a cached copy)
@@ -29,11 +29,15 @@ Identity Atlas runs as a Docker stack — no Azure subscription, no git clone re
 === "Windows (PowerShell)"
 
     ```powershell
-    # Download the compose file and the env template
+    # Download the compose file
     Invoke-WebRequest -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml -OutFile docker-compose.prod.yml
-    Invoke-WebRequest -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example -OutFile .env.example
-    Copy-Item .env.example .env
-    # Edit .env and set a strong POSTGRES_PASSWORD — the prod compose refuses to start without it
+
+    # Create .env with a generated database password (skipped when .env already exists)
+    if (-not (Test-Path .env)) {
+        $bytes = [byte[]]::new(24)
+        [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+        "POSTGRES_PASSWORD=$(-join ($bytes | ForEach-Object { $_.ToString('x2') }))" | Set-Content .env -Encoding ascii
+    }
 
     # Start everything (--pull always forces Docker to fetch the newest
     # :latest image from ghcr.io instead of reusing a cached copy)
@@ -42,9 +46,32 @@ Identity Atlas runs as a Docker stack — no Azure subscription, no git clone re
 
 !!! warning "`POSTGRES_PASSWORD` is required"
     The production compose file ships no default database password and refuses to
-    start until you set a strong, unique `POSTGRES_PASSWORD` in `.env` (or pass it
-    inline). Copying `.env.example` alone isn't enough — it leaves the value blank.
-    See [Docker Setup](architecture/docker-setup.md) for the full list of variables.
+    start until `.env` (or your shell) sets a non-empty `POSTGRES_PASSWORD`. The
+    commands above write a random one; nothing else in `.env` is required.
+
+    The password is only generated when there is no `.env` yet, so running the
+    commands again is safe. Keep the file: the database keeps the password it was
+    first created with, and a different value in `.env` would lock the app out of
+    its own database. If you already have a `.env` without a password, add a
+    `POSTGRES_PASSWORD=<strong value>` line to it instead.
+
+!!! note "Before you put real data in it"
+    This stack is set up for evaluation. Two things to settle first:
+
+    - **Sign-in is off.** The Docker stack starts in open mode
+      (`AUTH_ENABLED=false`): anyone who can reach port 3001 has full access.
+      [Set up authentication](admin/authentication.md) before you share it.
+    - **Know where the vault key is.** Stored crawler and LLM credentials are
+      encrypted with a master key. With `IDENTITY_ATLAS_MASTER_KEY` unset, the
+      web container generates one on first start and keeps it in the `web_keys`
+      Docker volume. Without that key the stored credentials cannot be
+      decrypted, so either back the volume up, or set
+      `IDENTITY_ATLAS_MASTER_KEY` in `.env` before the first start to a value
+      you keep yourself (32 random bytes, base64-encoded:
+      `openssl rand -base64 32`).
+
+    [Docker Setup](architecture/docker-setup.md#environment-variables) lists
+    every variable.
 
 !!! tip "Why `--pull always`?"
     Without `--pull always`, `docker compose up` only pulls an image if it isn't already cached locally. If you ran Identity Atlas before, Docker will happily reuse yesterday's `:latest` — even though a newer `:latest` may be on ghcr.io. Adding `--pull always` forces a registry check on every start. Requires Docker Compose v2.22 or later; on older versions, run `docker compose pull` first and then `up -d`.

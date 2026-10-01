@@ -13,16 +13,13 @@ Permissions are scattered across identity systems, directories, and SaaS platfor
 **Prerequisites:** Docker and Docker Compose. See [Sizing](docs/architecture/docker-setup.md#sizing) for RAM/disk guidance — 4 GB suffices for a demo or a small tenant, but tenants above ~2k principals with activity sync enabled should plan for 12 GB or more.
 
 ```bash
-# 1. Download the compose file and environment template
+# 1. Download the compose file
 curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
-curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
 
-# 2. Create your .env file
-cp .env.example .env
-# For a quick local evaluation the defaults are fine.
-# For any networked or production deployment, open .env and set:
-#   POSTGRES_PASSWORD=<strong-password>
-#   IDENTITY_ATLAS_MASTER_KEY=<random-32-char-string>
+# 2. Create .env with a generated database password. The compose file ships no
+#    default password and refuses to start without one. (Skipped when .env
+#    already exists: the database keeps the password it was first created with.)
+[ -f .env ] || echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env
 
 # 3. Start the stack (first run: ~2 min to pull images; --pull always ensures
 #    Docker fetches the newest :latest instead of reusing a cached copy)
@@ -33,7 +30,11 @@ docker compose -f docker-compose.prod.yml up -d --pull always
 #    click "Add Crawler" to connect your Entra ID tenant.
 ```
 
+On Windows, use the PowerShell version of these commands in the [Quick Start guide](docs/quickstart.md).
+
 The in-browser crawler wizard walks you through credentials, permission validation, object type selection, and scheduling — no PowerShell or command-line setup required.
+
+> **Before you put real data in it:** the Docker stack starts without sign-in (`AUTH_ENABLED=false`), so anyone who can reach port 3001 has full access — see [Authentication](docs/admin/authentication.md) to require Entra ID login. The key that encrypts stored credentials is generated on first start and kept in the `web_keys` Docker volume: back that volume up, or set `IDENTITY_ATLAS_MASTER_KEY` in `.env` before the first start to a value you keep yourself (32 random bytes, base64-encoded: `openssl rand -base64 32`). All settings are listed in [Docker Setup](docs/architecture/docker-setup.md#environment-variables).
 
 > **Image channels:** The default pulls the latest stable release (`:latest`). To run the development build instead, set `IMAGE_TAG=edge` in your `.env`. See [Docker Setup](docs/architecture/docker-setup.md) for details.
 

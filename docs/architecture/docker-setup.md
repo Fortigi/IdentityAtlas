@@ -11,12 +11,11 @@ The fastest way to try Identity Atlas — pulls pre-built images, no source code
 === "Linux / macOS"
 
     ```bash
-    # 1. Download the compose file and environment template
+    # 1. Download the compose file
     curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
-    curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
 
-    # 2. Create your .env file
-    cp .env.example .env
+    # 2. Create .env with a generated database password (skipped when .env already exists)
+    [ -f .env ] || echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env
 
     # 3. Start everything (--pull always fetches the newest :latest from the registry)
     docker compose -f docker-compose.prod.yml up -d --pull always
@@ -28,16 +27,17 @@ The fastest way to try Identity Atlas — pulls pre-built images, no source code
 === "Windows (PowerShell)"
 
     ```powershell
-    # 1. Download the compose file and environment template
+    # 1. Download the compose file
     Invoke-WebRequest `
         -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml `
         -OutFile docker-compose.prod.yml
-    Invoke-WebRequest `
-        -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example `
-        -OutFile .env.example
 
-    # 2. Create your .env file
-    Copy-Item .env.example .env
+    # 2. Create .env with a generated database password (skipped when .env already exists)
+    if (-not (Test-Path .env)) {
+        $bytes = [byte[]]::new(24)
+        [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+        "POSTGRES_PASSWORD=$(-join ($bytes | ForEach-Object { $_.ToString('x2') }))" | Set-Content .env -Encoding ascii
+    }
 
     # 3. Start everything (--pull always fetches the newest :latest from the registry)
     docker compose -f docker-compose.prod.yml up -d --pull always
@@ -52,14 +52,18 @@ To connect your own Entra ID tenant, click **"Connect Entra ID"** on the Crawler
 
 ### The .env File
 
-`docker-compose.prod.yml` reads all configuration from a `.env` file in the same directory. The template has safe defaults for local evaluation — for anything networked or production, set these two variables:
+`docker-compose.prod.yml` reads its configuration from a `.env` file in the same directory. Only one variable is required; every other setting has a default.
 
 | Variable | Default | What to do |
 |---|---|---|
-| `POSTGRES_PASSWORD` | `identity_atlas_local` | **Change this** for any non-local deployment |
-| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Set an explicit value so you can back it up; if left blank the web container generates one and saves it to the web-only `web_keys` volume |
+| `POSTGRES_PASSWORD` | *(none — required)* | The compose file ships no default password and refuses to start while this is unset or empty. Step 2 above writes a random one. |
+| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Optional. If left unset, the web container generates a key on first start and saves it to the web-only `web_keys` volume — back that volume up. For a real deployment, set an explicit value before the first start so you hold the key yourself: 32 random bytes, base64-encoded (`openssl rand -base64 32`). |
 
-Full variable reference: [Environment Variables](#environment-variables).
+Step 2 only creates `.env` when it does not exist yet, so the commands are safe to run again. Keep the file: the database keeps the password it was first created with, so a different value in `.env` later locks the web container out of its own database. If you already have a `.env` without a password, add a `POSTGRES_PASSWORD=<strong value>` line to it.
+
+The stack starts without sign-in (`AUTH_ENABLED=false`), which suits a local evaluation. Before you share it, see [Setting up authentication](../admin/authentication.md).
+
+Full variable reference: [Environment Variables](#environment-variables). A commented template with every variable is at [`setup/config/.env.example`](https://github.com/Fortigi/IdentityAtlas/blob/main/setup/config/.env.example).
 
 ### Image Channels
 
@@ -422,7 +426,7 @@ Both compose files (`docker-compose.yml` and `docker-compose.prod.yml`) read fro
 
 | Variable | Default | Description |
 |---|---|---|
-| `POSTGRES_PASSWORD` | `identity_atlas_local` | PostgreSQL password. Safe for local evaluation; **change for any networked deployment**. |
+| `POSTGRES_PASSWORD` | *(none in `docker-compose.prod.yml`)* | PostgreSQL password. **Required** by `docker-compose.prod.yml`, which refuses to start while it is unset or empty. Only the developer compose file (`docker-compose.yml`, built from source) falls back to `identity_atlas_local`. The database keeps the password it was first created with, so do not change the value afterwards without also changing it in PostgreSQL. |
 | `POSTGRES_USER` | `identity_atlas` | PostgreSQL username. Rarely needs changing. |
 | `POSTGRES_DB` | `identity_atlas` | Database name. Rarely needs changing. |
 
@@ -430,7 +434,7 @@ Both compose files (`docker-compose.yml` and `docker-compose.prod.yml`) read fro
 
 | Variable | Default | Description |
 |---|---|---|
-| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Master key for the AES-256-GCM secrets vault (LLM API keys, scraper credentials). If left blank, the web container generates a key on first start and persists it to the web-only `web_keys` volume (`docker-compose.prod.yml` v4+; older compose files use the `job_data` volume). **Set an explicit value for production** so the key can be backed up alongside other root secrets. |
+| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Master key for the AES-256-GCM secrets vault (LLM API keys, scraper credentials). If left blank, the web container generates a key on first start and persists it to the web-only `web_keys` volume (`docker-compose.prod.yml` v4+; older compose files use the `job_data` volume). **Set an explicit value for production** so the key can be backed up alongside other root secrets: 32 random bytes, base64-encoded (`openssl rand -base64 32`). Set it before the first start: a different key cannot decrypt secrets that are already stored, so changing it later means following [Master key rotation](llm-and-risk-scoring.md#master-key-rotation). |
 | `IDENTITY_ATLAS_MASTER_KEY_FILE` | — | Path to a file holding the master key (for Docker/Compose secrets). Used when `IDENTITY_ATLAS_MASTER_KEY` is empty. `POSTGRES_PASSWORD_FILE` and `DATABASE_URL_FILE` work the same way. |
 | `IDENTITY_ATLAS_KEY_DIR` | *(unset)* | Directory for the auto-generated master key. The compose files set it to `/data/keys` (a web-only volume). Only set it when that path is a persistent volume. |
 | `POSTGRES_MEM_LIMIT` / `WEB_MEM_LIMIT` / `WORKER_MEM_LIMIT` | `8g` | Container memory limits in `docker-compose.prod.yml`. |

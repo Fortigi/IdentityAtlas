@@ -473,6 +473,9 @@
 <pre><code id="snippet"><span class="tok-c"># Download the Compose file</span>
 <span class="tok-cmd">curl</span> <span class="tok-flag">-O</span> https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
 
+<span class="tok-c"># Generate a database password (required; kept if .env already exists)</span>
+[ <span class="tok-flag">-f</span> .env ] || <span class="tok-cmd">echo</span> "POSTGRES_PASSWORD=$(openssl rand -hex 24)" &gt; .env
+
 <span class="tok-c"># Start Identity Atlas</span>
 <span class="tok-cmd">docker</span> compose <span class="tok-flag">-f</span> docker-compose.prod.yml up <span class="tok-flag">-d</span> <span class="tok-flag">--pull</span> always
 
@@ -481,7 +484,7 @@
         </div>
 
         <p style="margin-top:24px; color:var(--fg-muted);">
-          Need more detailed deployment guidance?
+          On Windows PowerShell, or need more detailed deployment guidance?
           <a href="https://fortigi.github.io/IdentityAtlas" target="_blank" rel="noopener"><strong>Read the deployment documentation ↗</strong></a>
         </p>
       </div>
@@ -518,8 +521,8 @@
             <p>LLM keys and crawler credentials are protected with AES-256-GCM envelope encryption using a master key you control.</p>
           </div>
           <div class="trust-item reveal">
-            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.4 7.7 8 10 4.6-2.3 8-5 8-10V6l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg>Authentication enabled from the first deployment</div>
-            <p>Entra SSO is enforced from the start, and anonymous access is disabled.</p>
+            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.4 7.7 8 10 4.6-2.3 8-5 8-10V6l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg>Authentication enabled from the first Azure deployment</div>
+            <p>The Azure deployment enforces Entra SSO from the start, with anonymous access disabled. The Docker evaluation stack starts without sign-in, so turn on Entra SSO before you share it.</p>
           </div>
           <div class="trust-item reveal">
             <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Extensive quality assurance</div>
