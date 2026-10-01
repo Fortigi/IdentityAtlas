@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- The security policy now says to use the support mailbox when GitHub does not offer private vulnerability reporting, and explains how a security fix reaches the current release.
+- The contributor guide now lists every check a pull request must pass before it can be merged.
+
+## Changes in this PR
+
 - Fixed the first-time Docker install: the quick start commands on the website, in the README and in the documentation now generate a database password into `.env` before starting the stack. Previously they left it empty, and the stack refused to start.
 - The website, README, Quick Start and Docker Setup pages now give the same install steps, with a PowerShell version for Windows. Running the steps again keeps the existing password.
 - Corrected the documentation that listed a default database password for the production stack: there is none, and setting one is required.
