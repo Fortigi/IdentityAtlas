@@ -13,10 +13,10 @@
         <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/sync/building-a-crawler/">
       
       
-        <link rel="prev" href="../../architecture/omada-crawler-datamodel/">
+        <link rel="prev" href="../../ui/local-dev/">
       
       
-        <link rel="next" href="../custom-connector/">
+        <link rel="next" href="../../contributing/writing-tests-that-assert/">
       
       
         
@@ -44,12 +44,6 @@
       
     
     
-      
-        
-        
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
-        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
       
     
     
@@ -243,17 +237,15 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../../quickstart/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../start/glossary/" class="md-tabs__link">
           
   
   
-  Guide
+  Start here
 
         </a>
       </li>
@@ -276,11 +268,61 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../risk-scoring/overview/" class="md-tabs__link">
+        <a href="../../concepts/data-model/" class="md-tabs__link">
           
   
   
-  Concepts
+  Learn
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../ui/overview/" class="md-tabs__link">
+          
+  
+  
+  Use
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/docker-setup/" class="md-tabs__link">
+          
+  
+  
+  Set up & run
 
         </a>
       </li>
@@ -325,6 +367,8 @@
   
   
   
+    
+  
   
     
     
@@ -332,11 +376,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../marketing/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../contributing/report-an-issue/" class="md-tabs__link">
           
   
   
@@ -432,38 +478,33 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
             
   
   
   <span class="md-ellipsis">
     
   
-    Guide
+    Start here
   
 
     
@@ -474,16 +515,44 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Guide
+    Start here
   
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../start/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The words you need first
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -499,7 +568,35 @@
   <span class="md-ellipsis">
     
   
-    Quick Start
+    Get it running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../start/first-15-minutes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your first 15 minutes
   
 
     
@@ -526,29 +623,24 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_4" >
         
           
-          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
             
   
   
   <span class="md-ellipsis">
     
   
-    Concepts
+    Capture the Flag
   
 
     
@@ -559,12 +651,187 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_2">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Concepts
+    Capture the Flag
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demo/before-you-play/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Before you play
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demo/capture-the-flag/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The twelve flags
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The model
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    The model
   
 
           </label>
@@ -612,7 +879,7 @@
   <span class="md-ellipsis">
     
   
-    Governance Model
+    Governance & Business Roles
   
 
     
@@ -633,14 +900,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../concepts/risk-scoring-model/" class="md-nav__link">
+      <a href="../../architecture/account-linking/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Risk Scoring Model
+    One Person, Many Accounts
   
 
     
@@ -666,38 +933,33 @@
                 
   
   
-    
   
   
-  
     
     
     
     
       
       
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
         
           
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_3" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
             
   
   
   <span class="md-ellipsis">
     
   
-    Data Sources
+    Risk scoring
   
 
     
@@ -708,12 +970,986 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Data Sources
+    Risk scoring
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/risk-scoring-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What a Risk Score Means
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How Scoring Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/classifiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classifiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/ai-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Agents & Non-Human Identities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Use
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The app at a glance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The matrix
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    The matrix
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reading the Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/matrix-scope-statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scope Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/sharing-a-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sharing a Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/custom-reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Reports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/context-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building a Context by Describing It
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/entity-detail-pages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entity Detail Pages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get data out
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get data out
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/excel-powerquery-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Export (Power Query)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/excel-template-authoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Template Authoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Set up & run
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Set up & run
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Deploy
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/docker-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/azure-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/azure-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/desktop-portable/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portable Windows Launcher
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/scaling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scaling & Load Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/scale-rehearsal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scale Rehearsal: 41 M Assignments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connect your systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Connect your systems
   
 
           </label>
@@ -782,14 +2018,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../csv-import/" class="md-nav__link">
+      <a href="../omada/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    CSV Import
+    Omada IGA
   
 
     
@@ -810,14 +2046,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/csv-import-schema/" class="md-nav__link">
+      <a href="../../architecture/omada-crawler-datamodel/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    CSV Schema Reference
+    Omada Data Model Reference
   
 
     
@@ -894,14 +2130,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../omada/" class="md-nav__link">
+      <a href="../mssql/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Omada IGA
+    SQL Server
   
 
     
@@ -922,14 +2158,1502 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/omada-crawler-datamodel/" class="md-nav__link">
+      <a href="../scim/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Omada Data Model Reference
+    SCIM 2.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../csv-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Administer
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/auto-updates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Automatic Updates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operations/nightly-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nightly Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    HTTP API
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    HTTP API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix & Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entity Detail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/governance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance & Business Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/risk-scores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/ingest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingest API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/experimental-features/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/report-generator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report Generator (local LLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ask-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ask Assistant — how it thinks and is tested
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions & Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sql-views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/csv-import-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Schema Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sbom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Software Bill of Materials
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/coverage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Coverage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_11" id="__nav_6_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Under the hood
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Under the hood
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/crawler-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crawler Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/sql-connector-delta/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Connector Delta Loading
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/custom-reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Reports Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Assistant Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/audit-history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/soft-delete/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soft-Delete & Tombstones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/effective-access-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/resource-cluster-algorithm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resource Cluster Algorithm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Engine Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/plugin-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Plugin Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/llm-and-risk-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM & Risk Scoring Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/resource-assignments-identity-support/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assignments & Identity Support
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/dashboard-trends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard Trends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/demo-dataset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo Dataset (contains CTF spoilers)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_1" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_7_1" id="__nav_7_1_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_1_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_7_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/local-dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Development
   
 
     
@@ -1092,6 +3816,28 @@
     <span class="md-ellipsis">
       
         Minimal Entry Point
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#naming-the-system-you-register" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Naming the system you register
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-your-source-reads-a-directory-you-dont-own" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When your source reads a directory you don't own
       
     </span>
   </a>
@@ -1263,200 +4009,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../custom-connector/" class="md-nav__link">
+      <a href="../../contributing/writing-tests-that-assert/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Custom Connector (Push API)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-          
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Try It
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_4">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Try It
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../demo/capture-the-flag/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Capture the Flag
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-          
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Using Identity Atlas
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_5">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Using Identity Atlas
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../ui/overview/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Role Mining UI
+    Writing Tests That Assert
   
 
     
@@ -1477,14 +4037,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ui/dashboard/" class="md-nav__link">
+      <a href="../../contributing/style-guide/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Dashboard
+    UI Style Guide
   
 
     
@@ -1505,14 +4065,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ui/contexts/" class="md-nav__link">
+      <a href="../../contributing/ci-pipeline/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Contexts
+    CI Pipeline
   
 
     
@@ -1533,507 +4093,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ui/effective-access/" class="md-nav__link">
+      <a href="../../architecture/ci-scope-testing/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Effective Access (Who Can Access X)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../ui/local-dev/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Local Development
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../admin/excel-powerquery-export/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Excel Export (Power Query)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../admin/excel-template-authoring/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Excel Template Authoring
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Concepts
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Concepts
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_1" >
-        
-          
-          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Risk Scoring
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_1">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Risk Scoring
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../risk-scoring/overview/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overview
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../risk-scoring/classifiers/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Classifiers
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../risk-scoring/ai-agents/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    AI Agents
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../risk-scoring/design/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Engine Design
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../risk-scoring/plugin-architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Plugin Architecture
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../architecture/resource-cluster-algorithm/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Resource Cluster Algorithm
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
-        
-          
-          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Architecture
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_2">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Architecture
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../architecture/docker-setup/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Docker Setup
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../architecture/desktop-portable/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Portable Windows Launcher
+    CI Scope Testing
   
 
     
@@ -2082,14 +4149,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/ingest-api/" class="md-nav__link">
+      <a href="../../process/maintaining-a-release-line/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Ingest API
+    Maintaining a Release Line
   
 
     
@@ -2110,14 +4177,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/audit-history/" class="md-nav__link">
+      <a href="../../process/release-notes/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Audit History
+    How a Release's Notes Are Assembled
   
 
     
@@ -2138,14 +4205,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/soft-delete/" class="md-nav__link">
+      <a href="../../process/definition-of-ready/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Soft-Delete & Tombstones
+    Definition of Ready
   
 
     
@@ -2166,14 +4233,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/matrix-scope-statistics/" class="md-nav__link">
+      <a href="../../process/dor-state-machine/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Matrix Scope Statistics
+    DoR state machine & operating procedure
   
 
     
@@ -2194,14 +4261,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/llm-and-risk-scoring/" class="md-nav__link">
+      <a href="../../process/operationalization/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    LLM & Risk Scoring Internals
+    Operationalising the DoR
   
 
     
@@ -2222,14 +4289,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/crawler-architecture/" class="md-nav__link">
+      <a href="../../process/dor-sidekick-setup/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Crawler Architecture
+    DoR sidekick setup
   
 
     
@@ -2250,14 +4317,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/account-linking/" class="md-nav__link">
+      <a href="../../process/epic-layer/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Account Linking
+    The epic layer
   
 
     
@@ -2278,14 +4345,70 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/effective-access-engine/" class="md-nav__link">
+      <a href="../../process/autonomy-roadmap/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Effective Access Engine
+    Autonomy roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/epic-layer-session-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session log — epic layer (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/autonomous-bug-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Autonomous bug pipeline (partly built)
   
 
     
@@ -2320,26 +4443,27 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_2" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7_2" id="__nav_7_2_label" tabindex="">
             
   
   
   <span class="md-ellipsis">
     
   
-    Operations
+    Design archive
   
 
     
@@ -2350,12 +4474,12 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_2">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Operations
+    Design archive
   
 
           </label>
@@ -2368,14 +4492,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../admin/authentication/" class="md-nav__link">
+      <a href="../../architecture/design-archive/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Authentication & SSO
+    About the archive
   
 
     
@@ -2396,14 +4520,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../admin/data-tab/" class="md-nav__link">
+      <a href="../../architecture/context-redesign/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Data & Maintenance
+    Context Redesign
   
 
     
@@ -2424,14 +4548,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../admin/auto-updates/" class="md-nav__link">
+      <a href="../../architecture/context-redesign-plan/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Automatic Updates
+    Context Redesign — Plan
   
 
     
@@ -2452,14 +4576,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/azure-deployment-walkthrough/" class="md-nav__link">
+      <a href="../../architecture/context-redesign-ui/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Azure Deployment
+    Context Redesign — UI
   
 
     
@@ -2480,14 +4604,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/azure-deployment/" class="md-nav__link">
+      <a href="../../architecture/assignment-model-redesign/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Azure Deployment Reference
+    Assignment Model Redesign
   
 
     
@@ -2508,14 +4632,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/scaling/" class="md-nav__link">
+      <a href="../../architecture/identitytype-design/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Scaling & Load Testing
+    IdentityType Design
   
 
     
@@ -2536,14 +4660,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/demo-dataset/" class="md-nav__link">
+      <a href="../../architecture/risk-scoring-plugins/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Demo Dataset
+    Risk Scoring Plugins (proposal)
   
 
     
@@ -2564,42 +4688,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../operations/nightly-review/" class="md-nav__link">
+      <a href="../../architecture/rule-mining-discussion/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Nightly Review
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/troubleshooting/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Troubleshooting
+    Rule Mining Discussion
   
 
     
@@ -2621,67 +4717,6 @@
 
               
             
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Reference
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Reference
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
               
                 
   
@@ -2695,26 +4730,27 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_1" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_3" >
         
           
-          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7_3" id="__nav_7_3_label" tabindex="">
             
   
   
   <span class="md-ellipsis">
     
   
-    API
+    Quality & audits
   
 
     
@@ -2725,12 +4761,12 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_1">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_3">
             <span class="md-nav__icon md-icon"></span>
             
   
-    API
+    Quality & audits
   
 
           </label>
@@ -2743,14 +4779,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/" class="md-nav__link">
+      <a href="../../docs-gap-audit/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Overview
+    Documentation Gap Audit
   
 
     
@@ -2771,14 +4807,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/matrix/" class="md-nav__link">
+      <a href="../../docs-remediation-plan/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Matrix & Permissions
+    Documentation Remediation Plan
   
 
     
@@ -2799,14 +4835,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/entities/" class="md-nav__link">
+      <a href="../../maintenance-backlog/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Entity Detail
+    Maintenance Backlog
   
 
     
@@ -2827,14 +4863,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/governance/" class="md-nav__link">
+      <a href="../../ux/assessment/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Governance & Business Roles
+    User Experience Assessment
   
 
     
@@ -2855,14 +4891,126 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/risk-scores/" class="md-nav__link">
+      <a href="../../security/assessment/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Risk Scores
+    Security Assessment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/assessment-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Assessment (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/maintenance-audit-2026-06/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Audit (June 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/architecture-guidance-review-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Guidance Review (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/decision-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Decision Principles
   
 
     
@@ -2890,227 +5038,27 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../reference/config/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Configuration
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/permissions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Permissions & Roles
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/sql-views/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Database Views
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/sbom/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Software Bill of Materials
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/coverage/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Test Coverage
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
     
     
     
     
       
       
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Project
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Project
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_1" >
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_4" >
         
           
-          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7_4" id="__nav_7_4_label" tabindex="">
             
   
   
@@ -3128,8 +5076,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_1">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3455,416 +5403,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Contributing
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_4">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Contributing
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../contributing/report-an-issue/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Report a Bug or Request a Feature
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../contributing/contribute/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Contribute a Change
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../contributing/ci-pipeline/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CI Pipeline
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../contributing/style-guide/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    UI Style Guide
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../architecture/ci-scope-testing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CI Scope Testing
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    User Experience
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_5">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    User Experience
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../ux/assessment/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Assessment & Remediation
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_6" >
-        
-          
-          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Security
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_6">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Security
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../security/assessment/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Assessment & Remediation
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../security/maintenance-audit-2026-06/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Maintenance Audit (June 2026)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -3981,6 +5519,28 @@
     <span class="md-ellipsis">
       
         Minimal Entry Point
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#naming-the-system-you-register" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Naming the system you register
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-your-source-reads-a-directory-you-dont-own" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When your source reads a directory you don't own
       
     </span>
   </a>
@@ -4178,15 +5738,23 @@
   
     
     
+      
+  
+  
+    
+    
       <li class="md-path__item">
-        <a href="../../quickstart/" class="md-path__link">
+        <a href="../../contributing/report-an-issue/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Guide
+    Project
   </span>
 
         </a>
       </li>
+    
+  
+
     
   
 
@@ -4197,10 +5765,10 @@
     
     
       <li class="md-path__item">
-        <a href="../entra-id/" class="md-path__link">
+        <a href="../../contributing/report-an-issue/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Data Sources
+    Contributing
   </span>
 
         </a>
@@ -4248,17 +5816,17 @@
 <hr />
 <h2 id="the-manifest-crawlerjson">The Manifest (<code>crawler.json</code>)<a class="headerlink" href="#the-manifest-crawlerjson" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;my-source&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;displayName&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;My Source System&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">&quot;entryPoint&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Start-MySourceCrawler.ps1&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">&quot;dependsOn&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">&quot;postSyncHooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;buildContexts&quot;</span><span class="p">],</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">&quot;configSchema&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;object&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;apiUrl&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;apiKey&quot;</span><span class="p">],</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="nt">&quot;properties&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">      </span><span class="nt">&quot;apiUrl&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;minLength&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Base URL of the source API&quot;</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">      </span><span class="nt">&quot;apiKey&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;API key for authentication&quot;</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"my-source"</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">"displayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"My Source System"</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">"entryPoint"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Start-MySourceCrawler.ps1"</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">"dependsOn"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">"postSyncHooks"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"buildContexts"</span><span class="p">],</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">"configSchema"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"object"</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="nt">"required"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"apiUrl"</span><span class="p">,</span><span class="w"> </span><span class="s2">"apiKey"</span><span class="p">],</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="nt">"properties"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">      </span><span class="nt">"apiUrl"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string"</span><span class="p">,</span><span class="w"> </span><span class="nt">"minLength"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Base URL of the source API"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">      </span><span class="nt">"apiKey"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string"</span><span class="p">,</span><span class="w"> </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"API key for authentication"</span><span class="w"> </span><span class="p">}</span>
 <a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="p">}</span>
 <a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">  </span><span class="p">}</span>
 <a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="p">}</span>
@@ -4374,28 +5942,93 @@
 <a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="p">[</span><span class="k">Parameter</span><span class="p">(</span><span class="k">Mandatory</span><span class="p">)]</span> <span class="no">[string]</span><span class="nv">$ConfigPath</span>
 <a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">)</span>
 <a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="nv">$ErrorActionPreference</span> <span class="p">=</span> <span class="s1">&#39;Stop&#39;</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="nv">$ErrorActionPreference</span> <span class="p">=</span> <span class="s1">'Stop'</span>
 <a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="nv">$Cfg</span> <span class="p">=</span> <span class="nb">Get-Content</span> <span class="nv">$ConfigPath</span> <span class="n">-Raw</span> <span class="p">|</span> <span class="nb">ConvertFrom-Json</span>
 <a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>
 <a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="c"># Dot-source the shared ingest helpers. They read $ApiBaseUrl, $ApiKey, and $JobId</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="c"># from this scope at call time, so there&#39;s no need to hand-roll progress reporting or</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="c"># from this scope at call time, so there's no need to hand-roll progress reporting or</span>
 <a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="c"># the ingest POST — use Update-CrawlerProgress and Invoke-CrawlerIngestBatch instead.</span>
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="p">.</span> <span class="p">(</span><span class="nb">Join-Path</span> <span class="nv">$PSScriptRoot</span> <span class="s1">&#39;..&#39;</span> <span class="s1">&#39;shared&#39;</span> <span class="s1">&#39;Invoke-CrawlerIngest.ps1&#39;</span><span class="p">)</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="p">.</span> <span class="p">(</span><span class="nb">Join-Path</span> <span class="nv">$PSScriptRoot</span> <span class="s1">'..'</span> <span class="s1">'shared'</span> <span class="s1">'Invoke-CrawlerIngest.ps1'</span><span class="p">)</span>
 <a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>
-<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="nb">Update-CrawlerProgress</span> <span class="n">-Step</span> <span class="s1">&#39;Fetching data&#39;</span> <span class="n">-Pct</span> <span class="n">10</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="nb">Update-CrawlerProgress</span> <span class="n">-Step</span> <span class="s1">'Fetching data'</span> <span class="n">-Pct</span> <span class="n">10</span>
 <a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>
 <a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="c"># Fetch from source system</span>
-<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="nv">$items</span> <span class="p">=</span> <span class="nb">Invoke-RestMethod</span> <span class="n">-Uri</span> <span class="s2">&quot;</span><span class="p">$(</span><span class="nv">$Cfg</span><span class="p">.</span><span class="n">apiUrl</span><span class="p">)</span><span class="s2">/items&quot;</span> <span class="n">-Headers</span> <span class="p">@{</span> <span class="s1">&#39;X-Api-Key&#39;</span> <span class="p">=</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">apiKey</span> <span class="p">}</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="nv">$items</span> <span class="p">=</span> <span class="nb">Invoke-RestMethod</span> <span class="n">-Uri</span> <span class="s2">"</span><span class="p">$(</span><span class="nv">$Cfg</span><span class="p">.</span><span class="n">apiUrl</span><span class="p">)</span><span class="s2">/items"</span> <span class="n">-Headers</span> <span class="p">@{</span> <span class="s1">'X-Api-Key'</span> <span class="p">=</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">apiKey</span> <span class="p">}</span>
 <a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>
-<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="nb">Update-CrawlerProgress</span> <span class="n">-Step</span> <span class="s1">&#39;Pushing to Identity Atlas&#39;</span> <span class="n">-Pct</span> <span class="n">50</span>
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="nb">Update-CrawlerProgress</span> <span class="n">-Step</span> <span class="s1">'Pushing to Identity Atlas'</span> <span class="n">-Pct</span> <span class="n">50</span>
 <a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a>
 <a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="c"># Push to the Identity Atlas ingest API. Invoke-CrawlerIngestBatch handles chunking,</span>
 <a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a><span class="c"># retries with backoff, delta tombstones, and empty-batch scoped deletes for you.</span>
-<a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a><span class="nb">Invoke-CrawlerIngestBatch</span> <span class="n">-Endpoint</span> <span class="s1">&#39;ingest/principals&#39;</span> <span class="n">-SystemId</span> <span class="n">1</span> <span class="p">`</span>
+<a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a><span class="nb">Invoke-CrawlerIngestBatch</span> <span class="n">-Endpoint</span> <span class="s1">'ingest/principals'</span> <span class="n">-SystemId</span> <span class="n">1</span> <span class="p">`</span>
 <a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a>    <span class="n">-SyncMode</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">_syncMode</span> <span class="n">-Records</span> <span class="nv">$items</span>
 <a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a>
-<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a><span class="nb">Update-CrawlerProgress</span> <span class="n">-Step</span> <span class="s1">&#39;Complete&#39;</span> <span class="n">-Pct</span> <span class="n">100</span>
+<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a><span class="nb">Update-CrawlerProgress</span> <span class="n">-Step</span> <span class="s1">'Complete'</span> <span class="n">-Pct</span> <span class="n">100</span>
 </code></pre></div>
+<hr />
+<h2 id="naming-the-system-you-register">Naming the system you register<a class="headerlink" href="#naming-the-system-you-register" title="Permanent link">&para;</a></h2>
+<p>A pull crawler registers one Identity Atlas <strong>System</strong> for the endpoint it connects to. That row's
+display name is what an operator reads on the Systems page, in the matrix and in every system
+filter, so it follows the <strong>crawler's own name</strong> — never the crawler type. Two crawlers of one type
+are otherwise indistinguishable, and renaming a crawler would rename nothing.</p>
+<p>The name arrives as <code>_configName</code> (the dispatcher stamps <code>CrawlerConfigs.displayName</code> onto the job
+config). Don't re-derive the precedence — use the shared helper:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">.</span> <span class="p">(</span><span class="nb">Join-Path</span> <span class="nv">$PSScriptRoot</span> <span class="s1">'..'</span> <span class="s1">'shared'</span> <span class="s1">'Get-CrawlerSystemName.ps1'</span><span class="p">)</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="nv">$displayName</span> <span class="p">=</span> <span class="nb">Get-CrawlerSystemName</span> <span class="p">`</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">-TypeDefault</span> <span class="s2">"My Source (</span><span class="p">$(</span><span class="nv">$Cfg</span><span class="p">.</span><span class="n">baseUrl</span><span class="p">)</span><span class="s2">)"</span> <span class="p">`</span>   <span class="c"># only used when the run carries no crawler name</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">-ConfigName</span>  <span class="p">(</span><span class="no">[string]</span><span class="nv">$Cfg</span><span class="p">.</span><span class="n">_configName</span><span class="p">)</span> <span class="p">`</span>      <span class="c"># the crawler's own name — wins by default</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">-SystemName</span>  <span class="p">(</span><span class="no">[string]</span><span class="nv">$Cfg</span><span class="p">.</span><span class="n">systemName</span><span class="p">)</span>         <span class="c"># optional wizard override — wins over both</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="nb">Invoke-IngestAPI</span> <span class="n">-Endpoint</span> <span class="s1">'ingest/systems'</span> <span class="n">-Body</span> <span class="p">@{</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    <span class="n">syncMode</span> <span class="p">=</span> <span class="s1">'delta'</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>    <span class="n">records</span>  <span class="p">=</span> <span class="p">@(@{</span> <span class="n">systemType</span> <span class="p">=</span> <span class="s1">'MySource'</span><span class="p">;</span> <span class="n">displayName</span> <span class="p">=</span> <span class="nv">$displayName</span><span class="p">;</span> <span class="n">tenantId</span> <span class="p">=</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">baseUrl</span><span class="p">;</span> <span class="n">enabled</span> <span class="p">=</span> <span class="nv">$true</span><span class="p">;</span> <span class="n">syncEnabled</span> <span class="p">=</span> <span class="nv">$true</span> <span class="p">})</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="p">}</span>
+</code></pre></div>
+<p>Two rules the helper encodes for you:</p>
+<ul>
+<li>A stored <code>systemName</code> that is an <strong>exact copy of your type default</strong> counts as not set. An older
+  wizard that wrote its default into the field whenever the operator left it blank would otherwise
+  shadow the crawler's name on every run, forever.</li>
+<li><strong>Only your own endpoint/tenant row follows the crawler name.</strong> Systems you discover <em>through</em>
+  the source (Omada's connected systems, midPoint's resources) keep the name their source gives
+  them — renaming those after the crawler would make every account's origin unreadable.</li>
+</ul>
+<p>Systems merge on <code>(systemType, tenantId)</code>, so keep those two fields stable: the name is a payload
+column, and an existing row is <em>renamed</em> rather than duplicated.</p>
+<hr />
+<h2 id="when-your-source-reads-a-directory-you-dont-own">When your source reads a directory you don't own<a class="headerlink" href="#when-your-source-reads-a-directory-you-dont-own" title="Permanent link">&para;</a></h2>
+<p>Some sources don't have accounts of their own — they grant access to accounts that live somewhere
+else. Azure RM is the clearest case: every role assignment names an Entra ID objectId, so the Azure
+RM crawler and the Entra ID crawler are looking at <em>the same</em> account, not at two accounts that
+happen to correlate.</p>
+<p><code>Principals</code> is keyed on that objectId, so both crawlers write the <strong>same row</strong>. Whoever writes it
+last stamps their <code>systemId</code> on it — and before this was modelled, the two crawlers flipped every
+shared principal back and forth on every run: a fake "changed" event per run on the user's Timeline,
+an orphan check that stopped recognising its own users, and rows that escaped the directory's
+full-sync reconcile.</p>
+<p>A system says where its principals come from with <strong><code>Systems.directorySystemId</code></strong>. The API sets it
+automatically for a system whose <code>tenantId</code> matches exactly one <code>EntraID</code> system, so an Azure-plane
+crawler gets it without doing anything. What the link changes:</p>
+<ul>
+<li><strong>The ingest protects ownership.</strong> A system with a <code>directorySystemId</code> may <em>fill</em> a NULL
+  <code>systemId</code> on a <code>Principals</code> / <code>Resources</code> row, but never replace one. The directory has no link
+  of its own and can therefore always claim a row back — which is what makes an "Azure RM ran
+  first" tenant converge once the directory crawler runs, rather than freezing ownership on
+  whichever crawler happened to be first.</li>
+<li><strong><code>/ingest/principals-presence</code> answers against that directory.</strong> Send your own <code>systemId</code>
+  alongside <code>tenantId</code> and the API resolves the link for you.</li>
+</ul>
+<p>Two rules for a crawler in this position:</p>
+<ol>
+<li><strong>Don't write a principal the directory already has.</strong> Call <code>/ingest/principals-presence</code> first
+   and send stubs only for the objectIds it does <em>not</em> know — those are genuinely yours (a deleted
+   service principal with a dangling assignment exists nowhere else). For everything else, just
+   reference the objectId from your assignments, the way Azure RM has always handled groups.</li>
+<li><strong>Assert only what your source actually knows.</strong> A stub carries the objectId and nothing more.
+   A delta upsert COALESCEs any non-NULL value you send over the stored one, so a field you filled
+   in "to be safe" silently overwrites the directory's — <code>accountEnabled = $true</code> on an Azure RM
+   stub used to re-enable every disabled user with an Azure role, once per run.</li>
+</ol>
 <hr />
 <h2 id="the-ingest-api">The Ingest API<a class="headerlink" href="#the-ingest-api" title="Permanent link">&para;</a></h2>
 <p><code>/ingest/principals</code> above is one of many ingest endpoints — the full, authoritative reference is the live OpenAPI spec the running app already serves:</p>
@@ -4408,49 +6041,49 @@
 <h2 id="building-on-the-odata-base-layer">Building on the OData Base Layer<a class="headerlink" href="#building-on-the-odata-base-layer" title="Permanent link">&para;</a></h2>
 <p>If your source exposes an OData 4.0 API, declare <code>"dependsOn": ["odata"]</code> in the manifest. The dispatcher will dot-source the OData library before your entry point runs, making <code>Connect-ODataAPI</code>, <code>Invoke-ODataPagedRequest</code>, <code>Invoke-ODataGetRequest</code>, and <code>Get-ODataAuthRoot</code> available without any imports.</p>
 <p><strong><code>crawler.json</code>:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;my-odata-source&quot;</span><span class="p">,</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;displayName&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;My OData Source&quot;</span><span class="p">,</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">&quot;entryPoint&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Start-MyODataCrawler.ps1&quot;</span><span class="p">,</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">&quot;dependsOn&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;odata&quot;</span><span class="p">],</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">&quot;postSyncHooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;buildContexts&quot;</span><span class="p">],</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="nt">&quot;configSchema&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;object&quot;</span><span class="p">,</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;baseUrl&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;authMethod&quot;</span><span class="p">],</span>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">    </span><span class="nt">&quot;properties&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">      </span><span class="nt">&quot;baseUrl&quot;</span><span class="p">:</span><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">      </span><span class="nt">&quot;authMethod&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;enum&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;ApiToken&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;BasicAuth&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;OAuth2CC&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;OAuth2ROPC&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;CookieString&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;FormCookie&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">      </span><span class="nt">&quot;apiToken&quot;</span><span class="p">:</span><span class="w">   </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">    </span><span class="p">},</span>
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">    </span><span class="nt">&quot;allOf&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;if&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;properties&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;authMethod&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;const&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ApiToken&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="w">        </span><span class="nt">&quot;then&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;apiToken&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="w">    </span><span class="p">]</span>
-<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"my-odata-source"</span><span class="p">,</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">"displayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"My OData Source"</span><span class="p">,</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">"entryPoint"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Start-MyODataCrawler.ps1"</span><span class="p">,</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nt">"dependsOn"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"odata"</span><span class="p">],</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">  </span><span class="nt">"postSyncHooks"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"buildContexts"</span><span class="p">],</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span><span class="nt">"configSchema"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"object"</span><span class="p">,</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">    </span><span class="nt">"required"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"baseUrl"</span><span class="p">,</span><span class="w"> </span><span class="s2">"authMethod"</span><span class="p">],</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">    </span><span class="nt">"properties"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">      </span><span class="nt">"baseUrl"</span><span class="p">:</span><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">      </span><span class="nt">"authMethod"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"enum"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"ApiToken"</span><span class="p">,</span><span class="w"> </span><span class="s2">"BasicAuth"</span><span class="p">,</span><span class="w"> </span><span class="s2">"OAuth2CC"</span><span class="p">,</span><span class="w"> </span><span class="s2">"OAuth2ROPC"</span><span class="p">,</span><span class="w"> </span><span class="s2">"CookieString"</span><span class="p">,</span><span class="w"> </span><span class="s2">"FormCookie"</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">      </span><span class="nt">"apiToken"</span><span class="p">:</span><span class="w">   </span><span class="p">{</span><span class="w"> </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string"</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="w">    </span><span class="nt">"allOf"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">"if"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"properties"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"authMethod"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"const"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ApiToken"</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="w">        </span><span class="nt">"then"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"required"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"apiToken"</span><span class="p">]</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="w">    </span><span class="p">]</span>
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="p">}</span>
 </code></pre></div></p>
 <p><strong><code>Start-MyODataCrawler.ps1</code>:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">[</span><span class="k">CmdletBinding</span><span class="p">()]</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">Param</span><span class="p">(</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="p">[</span><span class="k">Parameter</span><span class="p">(</span><span class="k">Mandatory</span><span class="p">)]</span> <span class="no">[string]</span><span class="nv">$ApiBaseUrl</span><span class="p">,</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="p">[</span><span class="k">Parameter</span><span class="p">(</span><span class="k">Mandatory</span><span class="p">)]</span> <span class="no">[string]</span><span class="nv">$ApiKey</span><span class="p">,</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="p">[</span><span class="k">Parameter</span><span class="p">(</span><span class="k">Mandatory</span><span class="p">)]</span> <span class="no">[int]</span><span class="nv">$JobId</span><span class="p">,</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="p">[</span><span class="k">Parameter</span><span class="p">(</span><span class="k">Mandatory</span><span class="p">)]</span> <span class="no">[string]</span><span class="nv">$ConfigPath</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="p">)</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="nv">$ErrorActionPreference</span> <span class="p">=</span> <span class="s1">&#39;Stop&#39;</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="nv">$Cfg</span> <span class="p">=</span> <span class="nb">Get-Content</span> <span class="nv">$ConfigPath</span> <span class="n">-Raw</span> <span class="p">|</span> <span class="nb">ConvertFrom-Json</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="c"># Connect-ODataAPI is available because &quot;dependsOn&quot;: [&quot;odata&quot;] caused the dispatcher</span>
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="c"># to dot-source the odata library before this script ran.</span>
-<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="nb">Connect-ODataAPI</span> <span class="n">-BaseUrl</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">baseUrl</span> <span class="n">-AuthMethod</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">authMethod</span> <span class="n">-ApiToken</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">apiToken</span>
-<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>
-<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="nv">$items</span> <span class="p">=</span> <span class="nb">Invoke-ODataPagedRequest</span> <span class="n">-Path</span> <span class="s1">&#39;/Users&#39;</span> <span class="n">-QueryParams</span> <span class="p">@{</span> <span class="s1">&#39;$filter&#39;</span> <span class="p">=</span> <span class="s1">&#39;Active eq true&#39;</span> <span class="p">}</span>
-<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>
-<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="c"># Push to Identity Atlas ingest API ...</span>
-<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a><span class="nv">$headers</span> <span class="p">=</span> <span class="p">@{</span> <span class="n">Authorization</span> <span class="p">=</span> <span class="s2">&quot;Bearer $ApiKey&quot;</span><span class="p">;</span> <span class="s1">&#39;Content-Type&#39;</span> <span class="p">=</span> <span class="s1">&#39;application/json&#39;</span> <span class="p">}</span>
-<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="nv">$body</span> <span class="p">=</span> <span class="p">@{</span> <span class="n">records</span> <span class="p">=</span> <span class="nv">$items</span><span class="p">;</span> <span class="n">syncMode</span> <span class="p">=</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">_syncMode</span><span class="p">;</span> <span class="n">systemId</span> <span class="p">=</span> <span class="n">1</span> <span class="p">}</span> <span class="p">|</span> <span class="nb">ConvertTo-Json</span> <span class="n">-Depth</span> <span class="n">10</span>
-<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a><span class="nb">Invoke-RestMethod</span> <span class="n">-Uri</span> <span class="s2">&quot;$ApiBaseUrl/ingest/principals&quot;</span> <span class="n">-Method</span> <span class="n">Post</span> <span class="n">-Headers</span> <span class="nv">$headers</span> <span class="n">-Body</span> <span class="nv">$body</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">[</span><span class="k">CmdletBinding</span><span class="p">()]</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="k">Param</span><span class="p">(</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="p">[</span><span class="k">Parameter</span><span class="p">(</span><span class="k">Mandatory</span><span class="p">)]</span> <span class="no">[string]</span><span class="nv">$ApiBaseUrl</span><span class="p">,</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="p">[</span><span class="k">Parameter</span><span class="p">(</span><span class="k">Mandatory</span><span class="p">)]</span> <span class="no">[string]</span><span class="nv">$ApiKey</span><span class="p">,</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="p">[</span><span class="k">Parameter</span><span class="p">(</span><span class="k">Mandatory</span><span class="p">)]</span> <span class="no">[int]</span><span class="nv">$JobId</span><span class="p">,</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="p">[</span><span class="k">Parameter</span><span class="p">(</span><span class="k">Mandatory</span><span class="p">)]</span> <span class="no">[string]</span><span class="nv">$ConfigPath</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="p">)</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="nv">$ErrorActionPreference</span> <span class="p">=</span> <span class="s1">'Stop'</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="nv">$Cfg</span> <span class="p">=</span> <span class="nb">Get-Content</span> <span class="nv">$ConfigPath</span> <span class="n">-Raw</span> <span class="p">|</span> <span class="nb">ConvertFrom-Json</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="c"># Connect-ODataAPI is available because "dependsOn": ["odata"] caused the dispatcher</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c"># to dot-source the odata library before this script ran.</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="nb">Connect-ODataAPI</span> <span class="n">-BaseUrl</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">baseUrl</span> <span class="n">-AuthMethod</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">authMethod</span> <span class="n">-ApiToken</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">apiToken</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="nv">$items</span> <span class="p">=</span> <span class="nb">Invoke-ODataPagedRequest</span> <span class="n">-Path</span> <span class="s1">'/Users'</span> <span class="n">-QueryParams</span> <span class="p">@{</span> <span class="s1">'$filter'</span> <span class="p">=</span> <span class="s1">'Active eq true'</span> <span class="p">}</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="c"># Push to Identity Atlas ingest API ...</span>
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="nv">$headers</span> <span class="p">=</span> <span class="p">@{</span> <span class="n">Authorization</span> <span class="p">=</span> <span class="s2">"Bearer $ApiKey"</span><span class="p">;</span> <span class="s1">'Content-Type'</span> <span class="p">=</span> <span class="s1">'application/json'</span> <span class="p">}</span>
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="nv">$body</span> <span class="p">=</span> <span class="p">@{</span> <span class="n">records</span> <span class="p">=</span> <span class="nv">$items</span><span class="p">;</span> <span class="n">syncMode</span> <span class="p">=</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">_syncMode</span><span class="p">;</span> <span class="n">systemId</span> <span class="p">=</span> <span class="n">1</span> <span class="p">}</span> <span class="p">|</span> <span class="nb">ConvertTo-Json</span> <span class="n">-Depth</span> <span class="n">10</span>
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="nb">Invoke-RestMethod</span> <span class="n">-Uri</span> <span class="s2">"$ApiBaseUrl/ingest/principals"</span> <span class="n">-Method</span> <span class="n">Post</span> <span class="n">-Headers</span> <span class="nv">$headers</span> <span class="n">-Body</span> <span class="nv">$body</span>
 </code></pre></div></p>
 <blockquote>
 <p><strong>Note:</strong> Never run the <code>odata</code> type as a job — its entry point throws by design. Use it only as a <code>dependsOn</code> base.</p>
@@ -4476,8 +6109,8 @@ not O(declared × descendants).</p>
 <li><strong>Capability-resources</strong> — one <code>Resources</code> row per <em>declared</em> <code>(capability, node)</code> only.
    Put <code>capabilityId</code> and <code>targetNodeId</code> in <code>extendedAttributes</code>, and use the <strong>deterministic
    id</strong> so a synthesized inherited row and your stored row collapse into one:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">.</span> <span class="p">(</span><span class="nb">Join-Path</span> <span class="nv">$PSScriptRoot</span> <span class="s1">&#39;..&#39;</span> <span class="s1">&#39;shared&#39;</span> <span class="s1">&#39;Get-CapabilityId.ps1&#39;</span><span class="p">)</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nv">$id</span> <span class="p">=</span> <span class="nb">Get-CapabilityId</span> <span class="n">-TargetNodeId</span> <span class="nv">$scopeId</span> <span class="n">-CapabilityId</span> <span class="nv">$roleDefId</span>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">.</span> <span class="p">(</span><span class="nb">Join-Path</span> <span class="nv">$PSScriptRoot</span> <span class="s1">'..'</span> <span class="s1">'shared'</span> <span class="s1">'Get-CapabilityId.ps1'</span><span class="p">)</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nv">$id</span> <span class="p">=</span> <span class="nb">Get-CapabilityId</span> <span class="n">-TargetNodeId</span> <span class="nv">$scopeId</span> <span class="n">-CapabilityId</span> <span class="nv">$roleDefId</span>
 </code></pre></div></li>
 <li><strong>Grants</strong> — <code>ingest/resource-assignments</code> to the capability-resource, with <code>effect</code>
    (<code>allow</code> / <code>deny</code> / <code>eligible</code>, default <code>allow</code>) and <code>propagationScope</code>
@@ -4499,60 +6132,82 @@ source-specific resolution policy — that path lands in engine phase P3.</p>
 <p><strong>This step isn't optional once your crawler is past the prototype stage.</strong> Without a <code>CrawlerMeta.js</code>, the <code>crawler-manifest</code> CI check (<code>pr.yml</code>) fails the PR — it requires every crawler type to have one, with no exception for new types (only a fixed legacy list of crawlers still mid-migration is exempt).</p>
 </blockquote>
 <h3 id="crawlermetajs-required-for-the-type-picker"><code>CrawlerMeta.js</code> — required for the type picker<a class="headerlink" href="#crawlermetajs-required-for-the-type-picker" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;my-source&#39;</span><span class="p">,</span><span class="w">           </span><span class="c1">// must match crawler.json&#39;s &quot;type&quot; and the folder name</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;My Source System&#39;</span><span class="p">,</span><span class="w">  </span><span class="c1">// shown in the &quot;Add Crawler&quot; type picker</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nx">description</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;One-line description shown below the name in the picker&#39;</span><span class="p">,</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="p">};</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="s1">'my-source'</span><span class="p">,</span><span class="w">           </span><span class="c1">// must match crawler.json's "type" and the folder name</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'My Source System'</span><span class="p">,</span><span class="w">  </span><span class="c1">// shown in the "Add Crawler" type picker</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="nx">description</span><span class="o">:</span><span class="w"> </span><span class="s1">'One-line description shown below the name in the picker'</span><span class="p">,</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="p">};</span>
 </code></pre></div>
 <h3 id="configwizardjsx-optional-step-by-step-config-form"><code>ConfigWizard.jsx</code> — optional step-by-step config form<a class="headerlink" href="#configwizardjsx-optional-step-by-step-config-form" title="Permanent link">&para;</a></h3>
 <p>If omitted, the UI falls back to a generic JSON config editor — fine for a quick prototype, but a real wizard is what operators actually expect. The component receives a fixed 5-prop contract:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">useState</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;react&#39;</span><span class="p">;</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="c1">// Import shared form components via the @ui/ alias (resolved by app/ui/vite.config.js) —</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1">// never a &#39;../../../app/ui/src/...&#39; relative traversal:</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">import</span><span class="w"> </span><span class="nx">ScheduleEditor</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@ui/components/ScheduleEditor&#39;</span><span class="p">;</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">MyConfigWizard</span><span class="p">({</span><span class="w"> </span><span class="nx">onComplete</span><span class="p">,</span><span class="w"> </span><span class="nx">onCancel</span><span class="p">,</span><span class="w"> </span><span class="nx">initialConfig</span><span class="p">,</span><span class="w"> </span><span class="nx">isEdit</span><span class="p">,</span><span class="w"> </span><span class="nx">authFetch</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">  </span><span class="c1">// onComplete() — call with no arguments when done; the wizard saves its</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span><span class="c1">//                own config via authFetch before calling this (POST to</span>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">  </span><span class="c1">//                create, PATCH .../crawler-configs/:id to update)</span>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">  </span><span class="c1">// onCancel()    — call when the user cancels</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span><span class="c1">// initialConfig — the existing config object when isEdit=true</span>
-<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span><span class="c1">// isEdit        — true when editing an existing crawler</span>
-<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">  </span><span class="c1">// authFetch     — authenticated fetch helper (same signature as window.fetch)</span>
-<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">baseUrl</span><span class="p">,</span><span class="w"> </span><span class="nx">setBaseUrl</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="nx">initialConfig</span><span class="o">?</span><span class="p">.</span><span class="nx">baseUrl</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">);</span>
-<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">  </span><span class="c1">// ... render form fields, call authFetch(...) on save, then onComplete() ...</span>
-<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">useState</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'react'</span><span class="p">;</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="c1">// Import shared form components via the @ui/ alias (resolved by app/ui/vite.config.js) —</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1">// never a '../../../app/ui/src/...' relative traversal:</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="k">import</span><span class="w"> </span><span class="nx">ScheduleEditor</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'@ui/components/ScheduleEditor'</span><span class="p">;</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">MyConfigWizard</span><span class="p">({</span><span class="w"> </span><span class="nx">onComplete</span><span class="p">,</span><span class="w"> </span><span class="nx">onCancel</span><span class="p">,</span><span class="w"> </span><span class="nx">initialConfig</span><span class="p">,</span><span class="w"> </span><span class="nx">isEdit</span><span class="p">,</span><span class="w"> </span><span class="nx">authFetch</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">  </span><span class="c1">// onComplete() — call with no arguments when done; the wizard saves its</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">  </span><span class="c1">//                own config via authFetch before calling this (POST to</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">  </span><span class="c1">//                create, PATCH .../crawler-configs/:id to update)</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">  </span><span class="c1">// onCancel()    — call when the user cancels</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">  </span><span class="c1">// initialConfig — the existing config object when isEdit=true</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="w">  </span><span class="c1">// isEdit        — true when editing an existing crawler</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="w">  </span><span class="c1">// authFetch     — authenticated fetch helper (same signature as window.fetch)</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">baseUrl</span><span class="p">,</span><span class="w"> </span><span class="nx">setBaseUrl</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="nx">initialConfig</span><span class="o">?</span><span class="p">.</span><span class="nx">baseUrl</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">''</span><span class="p">);</span>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="w">  </span><span class="c1">// ... render form fields, call authFetch(...) on save, then onComplete() ...</span>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="p">}</span>
 </code></pre></div>
 <p>The wizard <strong>owns saving its own config</strong> — <code>CrawlersPage.jsx</code> never builds the request body for a migrated crawler. See <code>tools/crawlers/omada/ConfigWizard.jsx</code> or <code>tools/crawlers/midpoint/ConfigWizard.jsx</code> for full multi-step examples (connection → credentials → sync options → schedule), including the credential-field round-tripping rule: only send a secret field when it's non-blank, so leaving it blank on edit means "keep the stored value."</p>
 <h3 id="summaryjsx-optional-config-card-summary-panel"><code>Summary.jsx</code> — optional config-card summary panel<a class="headerlink" href="#summaryjsx-optional-config-card-summary-panel" title="Permanent link">&para;</a></h3>
 <p>Renders crawler-specific details (e.g. base URL, sync options) inside the card on the "Configured Crawlers" list:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">Summary</span><span class="p">({</span><span class="w"> </span><span class="nx">cfg</span><span class="p">,</span><span class="w"> </span><span class="nx">config</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="c1">// cfg    — config.config, the crawler&#39;s own config blob — what most summaries need</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="c1">// config — the full config row, for the rare case something outside .config is needed</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">&lt;</span><span class="nt">div</span><span class="w"> </span><span class="na">className</span><span class="o">=</span><span class="s">&quot;text-sm text-gray-600 dark:text-gray-400&quot;</span><span class="p">&gt;{</span><span class="nx">cfg</span><span class="p">.</span><span class="nx">baseUrl</span><span class="p">}&lt;/</span><span class="nt">div</span><span class="p">&gt;;</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">Summary</span><span class="p">({</span><span class="w"> </span><span class="nx">cfg</span><span class="p">,</span><span class="w"> </span><span class="nx">config</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="c1">// cfg    — config.config, the crawler's own config blob — what most summaries need</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="c1">// config — the full config row, for the rare case something outside .config is needed</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">&lt;</span><span class="nt">div</span><span class="w"> </span><span class="na">className</span><span class="o">=</span><span class="s">"text-sm text-gray-600 dark:text-gray-400"</span><span class="p">&gt;{</span><span class="nx">cfg</span><span class="p">.</span><span class="nx">baseUrl</span><span class="p">}&lt;/</span><span class="nt">div</span><span class="p">&gt;;</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="p">}</span>
 </code></pre></div>
 <p>Don't render <code>lastRunAt</code>/<code>lastRunStatus</code> — the card already shows those generically for every crawler type below the summary panel.</p>
 <h3 id="discoverjs-optional-live-discovery-endpoint"><code>discover.js</code> — optional live-discovery endpoint<a class="headerlink" href="#discoverjs-optional-live-discovery-endpoint" title="Permanent link">&para;</a></h3>
 <p>If your wizard needs to validate credentials or populate a dropdown from the live source system (entity sets, role archetypes, available attributes, …), drop a <code>discover.js</code> and the API exposes <code>POST /api/admin/crawlers/&lt;type&gt;/discover</code> automatically — no route changes needed:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">handler</span><span class="p">(</span><span class="nx">req</span><span class="p">,</span><span class="w"> </span><span class="nx">res</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">db</span><span class="p">,</span><span class="w"> </span><span class="nx">getConfigSecret</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="c1">// req.body — whatever the wizard sent (credentials, or { configId } in edit</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="c1">//            mode when the user hasn&#39;t re-entered a secret)</span>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">  </span><span class="c1">// getConfigSecret(configId) — resolves a vaulted secret in edit mode; never</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">  </span><span class="c1">//            trust req.body.clientSecret alone, it&#39;s stripped from storage</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">  </span><span class="c1">//            on every save (see app/api/CLAUDE.md re: secrets/vault.js)</span>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">  </span><span class="c1">// db — the pg pool (via getPool())</span>
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">  </span><span class="nx">res</span><span class="p">.</span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="cm">/* whatever your wizard expects back */</span><span class="w"> </span><span class="p">});</span>
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">handler</span><span class="p">(</span><span class="nx">req</span><span class="p">,</span><span class="w"> </span><span class="nx">res</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">db</span><span class="p">,</span><span class="w"> </span><span class="nx">getConfigSecret</span><span class="p">,</span><span class="w"> </span><span class="nx">getConfigCredentials</span><span class="p">,</span><span class="w"> </span><span class="nx">assertConnectorUrl</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="c1">// req.body — whatever the wizard sent (credentials, or { configId } in edit</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="c1">//            mode when the user hasn't re-entered a secret)</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span><span class="c1">// getConfigSecret(configId) — resolves a vaulted clientSecret in edit mode</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span><span class="c1">// getConfigCredentials(configId) — resolves every vaulted credential field</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span><span class="c1">//            (clientSecret, password, apiToken, cookieString). All of them</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">  </span><span class="c1">//            are stripped from storage on every save (see app/api/CLAUDE.md</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">  </span><span class="c1">//            re: secrets/vault.js), so never expect them in the stored config</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">  </span><span class="c1">// db — the pg pool (via getPool())</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">  </span><span class="c1">// assertConnectorUrl(url, config, label) — the SSRF guard. Call it on every</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="w">  </span><span class="c1">//            URL you are about to send a credential to, BEFORE fetching; it</span>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="w">  </span><span class="c1">//            throws an operator-facing message and honours the config's</span>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="w">  </span><span class="c1">//            allowPrivateNetwork / allowInsecureHttp opt-ins</span>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="w">  </span><span class="nx">res</span><span class="p">.</span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="cm">/* whatever your wizard expects back */</span><span class="w"> </span><span class="p">});</span>
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="p">}</span>
 </code></pre></div>
+<p><strong>Outbound requests from a crawler must be guarded.</strong> A config's URLs are admin-supplied, and
+the crawler sends a credential to them, so:</p>
+<ul>
+<li>List every credential-bearing URL field in <code>crawler.json</code> as <code>"urlFields": ["baseUrl", "tokenEndpoint"]</code>.
+  The API then refuses a save or a job whose URLs are plain <code>http</code> or resolve to a private or
+  metadata address, unless the config sets <code>allowPrivateNetwork</code> / <code>allowInsecureHttp</code>. Declare
+  those two booleans in your <code>configSchema</code> and offer them in the wizard with the shared
+  <code>NetworkAccessOptions</code> + <code>useNetworkAccess</code> (<code>app/ui/src/components/crawler/</code>).</li>
+<li>In <code>discover.js</code>, call <code>assertConnectorUrl</code> before fetching, and use <code>timedFetch</code> /
+  <code>buildAuthHeader</code> from <code>tools/crawlers/shared/discoverAuth.js</code> — <code>timedFetch</code> never follows a
+  redirect, and <code>buildAuthHeader</code> vets the OAuth2 token endpoint before posting the secret.</li>
+<li>In PowerShell, call <code>Assert-FGPublicUrl</code> (<code>tools/crawlers/shared/Assert-FGPublicUrl.ps1</code>) in
+  your <code>Connect-*</code> function and before posting to a token endpoint, and
+  <code>Assert-FGSameHostLink</code> on any server-supplied pagination link. Read the opt-ins with
+  <code>Get-FGUrlPolicyParam -Cfg $Cfg</code>.</li>
+</ul>
 <p>See <code>tools/crawlers/omada/discover.js</code> and <code>tools/crawlers/midpoint/discover.js</code> for real examples, and <code>tools/crawlers/omada/discover.test.js</code> for how to test one (mock <code>fetch</code> + <code>getConfigSecret</code>, no HTTP server needed — co-located with the handler, not under <code>app/api/src/routes/</code>; the API's <code>vitest.config.js</code> is what picks it up).</p>
 <h3 id="file-uploads-only-if-operators-need-to-attach-files">File uploads — only if operators need to attach files<a class="headerlink" href="#file-uploads-only-if-operators-need-to-attach-files" title="Permanent link">&para;</a></h3>
 <p>CSV-style crawlers that need the operator to upload data files (rather than pull from a live API) set two manifest fields and drop template files:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="p">{</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">&quot;supportsFileUploads&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="nt">&quot;uploadFileExtensions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;.csv&quot;</span><span class="p">]</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="p">{</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">"supportsFileUploads"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">"uploadFileExtensions"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">".csv"</span><span class="p">]</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="p">}</span>
 </code></pre></div>
 <p>This unlocks the generic <code>GET/POST /api/admin/crawler-configs/:configId/files</code> + <code>DELETE .../files/:filename</code> routes — files land in <code>/data/uploads/&lt;type&gt;-{configId}/</code>, a Docker volume shared with the worker. Drop empty, header-only template files in <code>tools/crawlers/&lt;type&gt;/schema/*.csv</code> and they're served generically too, via <code>GET /api/admin/crawlers/&lt;type&gt;/upload-schema</code>. See <code>tools/crawlers/CLAUDE.md</code> → "File uploads" for the full contract and the optional <code>&lt;type&gt;-slots.json</code> label/required-annotation file.</p>
 <h3 id="testing-the-ui-side-files">Testing the UI-side files<a class="headerlink" href="#testing-the-ui-side-files" title="Permanent link">&para;</a></h3>
@@ -4661,7 +6316,7 @@ source-specific resolution policy — that path lands in engine phase P3.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.path", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>

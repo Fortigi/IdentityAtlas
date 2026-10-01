@@ -1,0 +1,6469 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Universal authorization intelligence — sync, analyze, and govern permissions from any identity system">
+      
+      
+      
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/reference/report-generator/">
+      
+      
+        <link rel="prev" href="../experimental-features/">
+      
+      
+        <link rel="next" href="../ask-assistant/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Report Generator (local LLM) - Identity Atlas</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#report-generator-local-llm" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Identity Atlas" class="md-header__button md-logo" aria-label="Identity Atlas" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Identity Atlas
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Report Generator (local LLM)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Fortigi/IdentityAtlas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Fortigi/IdentityAtlas
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../start/glossary/" class="md-tabs__link">
+          
+  
+  
+  Start here
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/data-model/" class="md-tabs__link">
+          
+  
+  
+  Learn
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../ui/overview/" class="md-tabs__link">
+          
+  
+  
+  Use
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/docker-setup/" class="md-tabs__link">
+          
+  
+  
+  Set up & run
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../api/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/report-an-issue/" class="md-tabs__link">
+          
+  
+  
+  Project
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Identity Atlas" class="md-nav__button md-logo" aria-label="Identity Atlas" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    Identity Atlas
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Fortigi/IdentityAtlas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Fortigi/IdentityAtlas
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start here
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Start here
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../start/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The words you need first
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get it running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../start/first-15-minutes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your first 15 minutes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capture the Flag
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Capture the Flag
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demo/before-you-play/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Before you play
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demo/capture-the-flag/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The twelve flags
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The model
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    The model
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/governance-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance & Business Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    One Person, Many Accounts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk scoring
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Risk scoring
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/risk-scoring-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What a Risk Score Means
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How Scoring Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/classifiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classifiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/ai-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Agents & Non-Human Identities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Use
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The app at a glance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The matrix
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    The matrix
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reading the Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/matrix-scope-statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scope Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/sharing-a-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sharing a Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/custom-reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Reports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/context-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building a Context by Describing It
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/entity-detail-pages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entity Detail Pages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get data out
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get data out
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/excel-powerquery-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Export (Power Query)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/excel-template-authoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Template Authoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Set up & run
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Set up & run
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Deploy
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/docker-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/azure-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/azure-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/desktop-portable/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portable Windows Launcher
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/scaling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scaling & Load Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/scale-rehearsal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scale Rehearsal: 41 M Assignments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connect your systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Connect your systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/entra-id/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entra ID
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/azure-rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Resource Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/omada/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada IGA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/omada-crawler-datamodel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada Data Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/midpoint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    midPoint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/midpoint-crawler-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    midPoint Configuration Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/mssql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/scim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCIM 2.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/csv-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Administer
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/auto-updates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Automatic Updates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operations/nightly-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nightly Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    HTTP API
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    HTTP API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix & Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entity Detail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/governance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance & Business Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/risk-scores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/ingest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingest API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experimental-features/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report Generator (local LLM)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report Generator (local LLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-this-exists" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this exists
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#models-we-evaluated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Models we evaluated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#larger-models-on-more-cpu-24-september-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Larger models on more CPU (24 September 2026)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-mistakes-look-like" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the mistakes look like
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#who-can-ask-and-where" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Who can ask, and where
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#privacy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Privacy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sizing-and-consumption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sizing and consumption
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sizing and consumption">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-the-cold-start-was-made-survivable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the cold start was made survivable
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deploying-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deploying it
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deploying it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#docker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#azure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Azure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#updating-an-existing-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Updating an existing installation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security notes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security notes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#if-you-deploy-it-on-azure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        If you deploy it on Azure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#measuring-it-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measuring it yourself
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ask-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ask Assistant — how it thinks and is tested
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions & Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sql-views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/csv-import-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Schema Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sbom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Software Bill of Materials
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../coverage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Coverage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_11" id="__nav_6_11_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Under the hood
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Under the hood
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/crawler-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crawler Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/sql-connector-delta/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Connector Delta Loading
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/custom-reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Reports Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Assistant Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/audit-history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/soft-delete/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soft-Delete & Tombstones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/effective-access-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/resource-cluster-algorithm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resource Cluster Algorithm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Engine Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/plugin-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Plugin Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/llm-and-risk-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM & Risk Scoring Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/resource-assignments-identity-support/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assignments & Identity Support
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/dashboard-trends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard Trends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/demo-dataset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo Dataset (contains CTF spoilers)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_1" id="__nav_7_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/local-dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/building-a-crawler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building a Crawler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/writing-tests-that-assert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Tests That Assert
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/ci-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/ci-scope-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Scope Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/branching-strategy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release & Branching Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/maintaining-a-release-line/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintaining a Release Line
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How a Release's Notes Are Assembled
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/definition-of-ready/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Definition of Ready
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/dor-state-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DoR state machine & operating procedure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/operationalization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operationalising the DoR
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/dor-sidekick-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DoR sidekick setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/epic-layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The epic layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/autonomy-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Autonomy roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/epic-layer-session-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session log — epic layer (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/autonomous-bug-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Autonomous bug pipeline (partly built)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_2" id="__nav_7_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design archive
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design archive
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/design-archive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About the archive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-redesign/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Redesign
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-redesign-plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Redesign — Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-redesign-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Redesign — UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/assignment-model-redesign/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assignment Model Redesign
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/identitytype-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IdentityType Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/risk-scoring-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Plugins (proposal)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/rule-mining-discussion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rule Mining Discussion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_3" id="__nav_7_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality & audits
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Quality & audits
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs-gap-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Gap Audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs-remediation-plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Remediation Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../maintenance-backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Backlog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ux/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Experience Assessment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Assessment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/assessment-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Assessment (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/maintenance-audit-2026-06/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Audit (June 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/architecture-guidance-review-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Guidance Review (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/decision-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Decision Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_4" id="__nav_7_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Marketing & Press Kit
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Marketing & Press Kit
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/product-brief/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Product Brief
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/key-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Key Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/features/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/use-cases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use Cases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/proof-points/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Proof Points
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/competitive-landscape/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Where Identity Atlas Fits
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/boilerplate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Boilerplate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About Identity Atlas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-this-exists" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this exists
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#models-we-evaluated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Models we evaluated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#larger-models-on-more-cpu-24-september-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Larger models on more CPU (24 September 2026)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-mistakes-look-like" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the mistakes look like
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#who-can-ask-and-where" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Who can ask, and where
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#privacy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Privacy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sizing-and-consumption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sizing and consumption
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sizing and consumption">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-the-cold-start-was-made-survivable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the cold start was made survivable
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deploying-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deploying it
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deploying it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#docker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#azure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Azure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#updating-an-existing-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Updating an existing installation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security notes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security notes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#if-you-deploy-it-on-azure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        If you deploy it on Azure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#measuring-it-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measuring it yourself
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../../api/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Reference
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="report-generator-local-llm">Report Generator (local LLM)<a class="headerlink" href="#report-generator-local-llm" title="Permanent link">&para;</a></h1>
+<div class="admonition warning">
+<p class="admonition-title">Docker is measured; Azure is not</p>
+<p>Everything measured on this page was measured on <strong>Docker</strong> (one 2-vCPU VM). The Azure templates
+compile and are wired up, but the report generator <strong>has not yet been deployed to Azure</strong>:
+scale-to-zero, the prompt cache on Azure Files, the request time limits described under
+<a href="#azure">Azure</a> and both network modes are unproven there. Deploy it on Azure only to try it out.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Experimental, and optional</p>
+<p>The report generator is an extra container you choose to deploy. Without it, custom reports are
+still built by hand — see <a href="../../ui/custom-reports/">Custom Reports</a>. The feature as a whole is off
+until an operator enables it under <strong>Admin → Experimental</strong>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">The table predates the <code>change</code> entity, grouping and the chat; both sets were re-run on 23 September 2026</p>
+<p>The table below was measured against a system prompt without the <code>change</code> entity and
+without counting per value. On 23 September 2026, on a 2-CPU host with real directory data
+and the corrections described under <a href="#what-the-mistakes-look-like">What the mistakes look like</a>:</p>
+<ul>
+<li><strong>held-out set: 15/17</strong> (13/15 with a non-empty answer), median 74 s, p90 109 s, one
+  question over the 5-minute limit (a subset comparison that failed after two rounds);</li>
+<li><strong>conversation set (<code>chat.json</code>, 58 graded answers): 58/58</strong> — the questions people typed
+  when asking in plain language, in Dutch and English, 10 follow-ups in the same conversation,
+  10 out-of-scope requests declined, 8 questions about data we do not have asked back or
+  declined, 2 about a person who does not exist asked back, 2 genuinely ambiguous ones asked
+  back, 2 counts kept; median 75 s, p90 168 s, slowest 293 s, none over 5 minutes. The
+  number is the sum of one full run (51/58) and a re-run of the seven rows whose fixes
+  landed during it, on the same build.</li>
+</ul>
+<p>The chat's first run that day scored 28/58 with a median of 77 s and two answers over the
+limit; everything between those two numbers is in the list below, none of it a change of
+model. The latency figures further down are from the tuning host.</p>
+</div>
+<h2 id="why-this-exists">Why this exists<a class="headerlink" href="#why-this-exists" title="Permanent link">&para;</a></h2>
+<p>Every customer asks the same kind of question about their own environment: <em>guest accounts without a
+manager</em>, <em>groups nobody owns</em>, <em>accounts that still sit in a licence group</em>. Each answer is a
+different query. Shipping a built-in report for every one of them does not scale, and teaching
+analysts a query builder covers only the people willing to learn it.</p>
+<p>So the analyst describes the report and Identity Atlas builds it — but <strong>the model never writes the
+query</strong>. It fills in a <strong>report definition</strong>: which kind of record, which conditions, which columns.
+Identity Atlas validates that definition against its own catalog and compiles it to read-only SQL.</p>
+<p>That split is the whole design, and it is what makes the feature defensible:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Because the model only fills in a definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>The model never sees your data</strong></td>
+<td>It gets the question, the list of fields it may use, and the type names that exist (e.g. <code>Guest</code>, <code>ServicePrincipal</code>). No rows, ever.</td>
+</tr>
+<tr>
+<td><strong>It cannot do damage</strong></td>
+<td>Unknown fields, unknown operators and unknown values are rejected. The query is parameterised, runs in a read-only transaction with a statement timeout, and touches only the tables the catalog names.</td>
+</tr>
+<tr>
+<td><strong>You can check it</strong></td>
+<td>The definition is shown back as editable criteria plus a plain-language sentence generated from what will actually run.</td>
+</tr>
+<tr>
+<td><strong>It is repeatable</strong></td>
+<td>A saved report is a definition, not a captured answer. It runs again after the next crawl and gives today's answer.</td>
+</tr>
+<tr>
+<td><strong>It works without the model</strong></td>
+<td>The same definitions can be built by hand, which is what every deployment without the extra container does.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-model">The model<a class="headerlink" href="#the-model" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Model</td>
+<td><strong>Qwen3-4B-Instruct-2507</strong>, 4-bit quantised (<code>Q4_K_M</code>), ~2.5 GB</td>
+</tr>
+<tr>
+<td>Licence</td>
+<td><strong>Apache 2.0</strong> — commercial use permitted. The licence text ships inside the image at <code>/models/MODEL-LICENSE.txt</code>, with an attribution notice. llama.cpp (MIT) ships its licence next to it</td>
+</tr>
+<tr>
+<td>Source</td>
+<td>Pinned URL <strong>and SHA-256</strong> in <code>setup/docker/Dockerfile.report-generator</code>; the build fails if the file does not match</td>
+</tr>
+<tr>
+<td>Runtime</td>
+<td><code>llama.cpp</code> server, CPU only. No GPU, no external API, no telemetry</td>
+</tr>
+<tr>
+<td>Chosen by</td>
+<td>The release. There is no model picker: <strong>Admin → LLM</strong> shows which model this version ships and whether it is answering</td>
+</tr>
+</tbody>
+</table>
+<p>The model is part of the release so that a given Identity Atlas version always behaves the same way
+and we can state what it was measured at. Changing the model is a new release.</p>
+<h3 id="models-we-evaluated">Models we evaluated<a class="headerlink" href="#models-we-evaluated" title="Permanent link">&para;</a></h3>
+<p>Measured against a set of real analyst questions on a real tenant (Fortigi: ~1,150 accounts, 158
+groups, 10 business roles), plus a <strong>held-out</strong> set written before tuning and never used to improve
+prompts. A question counts as correct only when the generated report returns <strong>exactly</strong> the same rows
+as a hand-written reference definition.</p>
+<p>Only the first row was measured on the setup that ships (llama.cpp, the final prompt, the bounded
+grammar); its raw results are kept with the evaluation tools. The other rows were measured earlier, on
+a different model runtime (Ollama) and an earlier version of the prompt, so read them as the reason each
+model was dropped, not as a like-for-like ranking.</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Licence</th>
+<th>Tuning set</th>
+<th>Held-out set</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Qwen3-4B-Instruct-2507 (shipped)</strong></td>
+<td>Apache 2.0</td>
+<td><strong>34/42 (81%)</strong></td>
+<td><strong>14/17 (82%)</strong></td>
+<td>Best of every model tested, commercial use allowed</td>
+</tr>
+<tr>
+<td>Qwen2.5-Coder 3B</td>
+<td>⛔ Qwen Research (non-commercial)</td>
+<td>28/32 (88%) at the time</td>
+<td>9/14 (64%)</td>
+<td>Strongest early candidate; <strong>cannot be shipped</strong></td>
+</tr>
+<tr>
+<td>Qwen2.5-Coder 1.5B</td>
+<td>Apache 2.0</td>
+<td>21/36 (58%)</td>
+<td>8/14 (57%)</td>
+<td>Runs on 1 CPU / 2 GB, but clearly weaker</td>
+</tr>
+<tr>
+<td>Qwen2.5-Coder 0.5B</td>
+<td>Apache 2.0</td>
+<td>7/32 (22%)</td>
+<td>5/14 (36%)</td>
+<td>Unusable: copies the examples</td>
+</tr>
+<tr>
+<td>Phi-4-mini (3.8B)</td>
+<td>MIT</td>
+<td>11/32 (34%)</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td>Gemma 3 4B</td>
+<td>Gemma terms</td>
+<td>run abandoned</td>
+<td>—</td>
+<td>~80 s per question: its attention design defeated prompt caching</td>
+</tr>
+<tr>
+<td>Qwen2.5-Coder 7B</td>
+<td>Apache 2.0</td>
+<td>spot checks only</td>
+<td>—</td>
+<td>Too slow on 2 CPUs for the benefit</td>
+</tr>
+</tbody>
+</table>
+<p>The sets grew during development (32 → 42 tuning, 14 → 17 held-out), so the percentages above are
+comparable within a row, not exactly across rows. The shipped model's figures are the full sets,
+measured on the release image as it ships — llama.cpp, the saved prompt cache, and the bounded output
+grammar described below. Before the sign-in fields were added, the same setup scored 34/39 and 14/17; the
+larger prompt answers the new sign-in questions but moved two unrelated answers (33/41 and 13/17), and each
+prompt variant tried since traded one question for another. Looking up the names a question mentions
+(see <a href="#privacy">Privacy</a>) won one held-out question back without losing a tuning question; the tuning
+set's organisation question (42nd) was added with it and measured on its own. A run is repeatable — the
+same prompt gives the same answers — so these differences are real, not noise; the sets are just too
+small to tune further without fitting them. A few questions have an empty correct answer, which a wrong
+definition can also produce; counting only questions with a non-empty answer, the shipped model scores
+33/41 and 12/15. Re-run any time with <code>tools/nl-reports/eval.mjs</code> —
+see <a href="#measuring-it-yourself">Measuring it yourself</a>.</p>
+<p>The held-out run of 23 September 2026 (final build) missed two: a subset comparison ("business roles
+whose members are all in group X"), which remains the weakest kind of question, and one over-specified
+name filter (name <strong>and</strong> description must contain "License", one group differs). The conversation set
+missed nothing on that build; the categories it grades — scope, unknown data, a person who does not
+exist, an ambiguous question, follow-ups — are the ones a chat gets wrong in ways a report page never
+shows, and each has its own row in <code>tools/nl-reports/chat.json</code>.</p>
+<h3 id="larger-models-on-more-cpu-24-september-2026">Larger models on more CPU (24 September 2026)<a class="headerlink" href="#larger-models-on-more-cpu-24-september-2026" title="Permanent link">&para;</a></h3>
+<p>The question behind this run: is the 4B model the ceiling, or does a bigger model on a bigger
+CPU budget answer more questions right? Measured on a fresh install in Azure (one
+<code>Standard_E8bds_v5</code> VM — 8 vCPU, 64 GB, Docker, the same compose files a customer gets), with a
+copy of the same tenant, the same prompt and the same two sets: the held-out set (17 questions) and
+the conversation set (72 graded turns: 64 questions in Dutch and English, 12 follow-ups, and the
+scope / unknown-data / unknown-person / ambiguous rows). Every model runs through the same
+pipeline, so the corrections it makes on the model's behalf count for all of them. The VM's cores are
+about 1.3× faster than the reference host's (median 58 s against 74 s for the same run), so read the
+times relative to each other.</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>RAM for the model server</th>
+<th>Threads</th>
+<th>Held-out</th>
+<th>Conversation set</th>
+<th>NL / EN</th>
+<th>Follow-ups</th>
+<th>Median</th>
+<th>p90</th>
+<th>Slowest</th>
+<th>Over 5 min</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Qwen3-4B-Instruct-2507 (shipped)</td>
+<td>4 GB</td>
+<td>2</td>
+<td>14/17</td>
+<td>67/72</td>
+<td>35/36 · 32/36</td>
+<td>11/12</td>
+<td>68 s</td>
+<td>143 s</td>
+<td>352 s</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Qwen3-8B (thinking off)</td>
+<td>10 GB</td>
+<td>4</td>
+<td>13/17</td>
+<td>63/72</td>
+<td>32/36 · 31/36</td>
+<td>10/12</td>
+<td>45 s</td>
+<td>102 s</td>
+<td>250 s</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Qwen3-14B (thinking off)</td>
+<td>22 GB</td>
+<td>8</td>
+<td>14/17</td>
+<td>64/72</td>
+<td>31/36 · 33/36</td>
+<td>11/12</td>
+<td>53 s</td>
+<td>102 s</td>
+<td>160 s</td>
+<td>0</td>
+</tr>
+<tr>
+<td><strong>Qwen3-30B-A3B-Instruct-2507</strong></td>
+<td>24 GB</td>
+<td>8</td>
+<td><strong>16/17</strong></td>
+<td><strong>69/72</strong></td>
+<td>34/36 · 35/36</td>
+<td><strong>12/12</strong></td>
+<td><strong>34 s</strong></td>
+<td><strong>80 s</strong></td>
+<td>191 s</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Gemma 3 12B</td>
+<td>20 GB</td>
+<td>8</td>
+<td>abandoned</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>~355 s</td>
+<td>—</td>
+<td>—</td>
+<td>every question</td>
+</tr>
+<tr>
+<td>Qwen3-4B-Instruct-2507, more threads</td>
+<td>4 GB</td>
+<td>8</td>
+<td>14/17</td>
+<td>68/72</td>
+<td>35/36 · 33/36</td>
+<td>11/12</td>
+<td>32 s</td>
+<td>72 s</td>
+<td>113 s</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<p>What the table says:</p>
+<ul>
+<li><strong>The 30B-A3B model is the one that helps.</strong> It is a mixture-of-experts model: 30B parameters on
+  disk, 3B active per token, so it <em>reads</em> like a big model and <em>writes</em> at the speed of a small
+  one — the fastest tier here and the most accurate, with every follow-up right and both languages
+  level. Its three misses on the conversation set are two readings of "the groups of Anna's direct
+  reports" (a relation inside a relation, which the definition language cannot express) and one
+  "access packages" question answered as every resource — corrected by a pipeline rule since. What it
+  needs: about 24 GB of memory for the model server (the 18.6 GB model file plus the context; measured 14 GB resident with the rest in the page cache) and 8 CPU threads; at 2 threads it would be
+  about four times slower.</li>
+<li><strong>8B and 14B do not help.</strong> They are the older hybrid generation (April 2025) run with thinking
+  off, because thinking tokens at CPU speed would blow the time limit; in that mode they are no more
+  accurate than the 4B Instruct-2507 and make different mistakes (dropping the person from a change
+  question, leaving out a principal type). More threads make them faster, not better.</li>
+<li><strong>Gemma 3 does not work with this design at all</strong>: llama.cpp cannot reuse the saved prompt cache
+  for its sliding-window attention, so every question re-reads the whole prompt — about six minutes
+  each, the same finding as with Gemma 3 4B earlier.</li>
+<li><strong>The 4B is not far behind.</strong> Its misses are model wobble: the same question passes on one run and
+  fails on the next (13 to 15 of 17 across runs today; the conversation set gave 66, 67 and 68 of 72 on three runs), an invented condition, a name filter also
+  applied to the description. That is what the correction rules in the pipeline exist for, and it is
+  why the 30B's cleaner first attempts show up more in the follow-ups and in the repair count (five
+  repair rounds in 72 turns against eight) than in the raw score.</li>
+</ul>
+<p>The "License" question every model misses (name <strong>and</strong> description must contain the word — one group
+differs) and the subset comparison remain the two standing misses of the held-out set.</p>
+<p>To run the same matrix: build the images with the other models' URL and checksum
+(<code>setup/docker/Dockerfile.report-generator</code> takes them as build arguments), set
+<code>REPORT_GENERATOR_CPUS</code> / <code>REPORT_GENERATOR_MEMORY</code>, and run <code>tools/nl-reports/eval.mjs</code> for
+<code>holdout.json</code> and <code>chat.json</code> — see <a href="#measuring-it-yourself">Measuring it yourself</a>.</p>
+<h3 id="what-the-mistakes-look-like">What the mistakes look like<a class="headerlink" href="#what-the-mistakes-look-like" title="Permanent link">&para;</a></h3>
+<p>About one question in seven comes back wrong, so the point is not perfection but <strong>visible</strong>
+mistakes. Typical failures, all of which show up in the plain-language reading:</p>
+<ul>
+<li>a condition dropped ("groups mostly like Sales, <strong>not in a business role</strong>" lost the second half);</li>
+<li>the wrong relation ("contains all members of business role X" read as "is part of business role X");</li>
+<li>a guess instead of a question: "everyone with admin rights" came back as one kind of admin. It asked
+  on <strong>neither</strong> of the two deliberately ambiguous questions.</li>
+</ul>
+<p><strong>Comparisons are the weakest kind of question: 3 of 6 correct</strong> across both sets. The one this feature
+was demonstrated with ("groups with the same members as business role <em>ACME - Algemeen - Partners</em>,
+not part of it") is among the three that pass. For a comparison that matters, build it with
+<strong>+ compare with…</strong> in the editor — once built, a comparison is exact; only the translation from
+words is uncertain.</p>
+<p>Several failure modes are handled in code rather than left to the model. Two of them were once
+handed back to the model to fix and are now corrected on the spot — at about a token a second on
+the CPU box a correction round costs one to three minutes, and the model's correction was not
+reliably better (asked to fix "added AND removed" it dropped "removed" and the 90-day window
+with it). Every correction made this way is stated in the report's assumptions.</p>
+<ul>
+<li><strong>A mistake with one sensible reading is corrected without asking</strong> — "action is Added AND
+  action is Removed" becomes <em>either</em>; "owner count above zero" beside "has no owner" loses
+  the count; "within the last 90 days" beside "more than 180 days ago" keeps the recent bound;
+  and a count-per-value grouping the question never asked for is removed ("which groups was he
+  added to" once came back as the number 5). A mistake with two readings ("empty and not
+  empty") is still put to the model.</li>
+<li><strong>The person asking is put where they belong</strong> — "van welke groepen ben ik eigenaar" whose
+  definition names nobody gets the caller added (into an empty owners/members relation, or on
+  the account itself); "which groups am I in" with the caller's id written inside the group
+  condition is moved to the account; "groups I have that bram does not" with bram on both
+  sides puts the caller on the side the question mentions first. Only when the definition names
+  somebody else is the model asked once to add the caller.</li>
+<li><strong>Follow-up bookkeeping is corrected, not trusted</strong> — the ids of "these groups" written on the
+  members relation, on a user report's own id, or on a change's account are moved to where that
+  kind of record is reached; "id is [a list]" is read as "one of"; a name written as an id is a
+  name.</li>
+<li><strong>A kind of thing is not a name</strong> — "in an access package" written as a comparison with a
+  reference named "access package", or as a resource type on a group or its members, is the
+  business-role relation; the column a question asks to see (members, owners, groups, access
+  packages, manager) is added when the definition left it out.</li>
+<li><strong>An invented condition goes, an asked-for one does not</strong> — a condition validation rejects is
+  checked against the question: one nothing in the question asks for ("accountCount &gt; 0" inside
+  members) is dropped with a note; one the question did ask for ("MFA") goes to the correction
+  round, and a definition without it is never run.</li>
+<li><strong>A loop stops early</strong> — the reply grammar allows eight conditions per list (the largest
+  measured answer needs four) and 450 tokens; a model repeating one condition ran 13 minutes to
+  the old cap. Repeated conditions collapse to one.</li>
+<li><strong>A correction may only fix what it was told</strong> — every correction round (invalid definition,
+  "or", a name not used, the caller missing) compares the corrected definition with the original
+  leaf by leaf; one that lost a condition it was not told about is refused and the original
+  stands. The "or" correction once added "added or removed" and dropped the 90-day window,
+  turning 2 rows into 149.</li>
+<li><strong>A first name is one person</strong> — "bram" written as a name-contains filter is looked up
+  before the report runs: one match is pinned to that person (the reading says who), several
+  are offered as a choice, none asks for the exact name. On a small directory the substring
+  happened to be right; on a large one it counts every Bram.</li>
+<li>
+<p><strong>Out of scope is declined, not guessed</strong> — a request that is not about the data (general
+  knowledge, small talk, writing) or that asks to change access is answered with one sentence
+  and no report, in every front end, and filed as <code>declined</code> rather than as a failure.</p>
+</li>
+<li>
+<p><strong>"or" read as "and"</strong> — if the question contains <em>or</em> but the definition has no any-group, the
+  generator asks the model once to correct it, and keeps the original if the correction is no better.</p>
+</li>
+<li><strong>Invented values</strong> — a definition with an unknown field, operator or type value is rejected, the
+  validator's own message is handed back to the model, and it gets one attempt to fix it. If the
+  corrected definition is still invalid, the analyst gets an error — never a report quietly built from
+  the conditions that did validate.</li>
+<li><strong>Repeating itself</strong> — at temperature 0 a small model that starts repeating does not stop. Every list
+  and every piece of free text in the reply has a hard length in the output grammar, so a loop ends
+  where validation would have cut it anyway. Before that limit existed, one question listed the same ten
+  columns until the token cap: 570 seconds and a reply that was no longer JSON. It now answers in 46.</li>
+</ul>
+<p>For the chat on top of this — the flow of one question, the prompt verbatim, what is answered and what is refused, the corrections made on the model's behalf and the conversation-set results — see <a href="../ask-assistant/">The Ask assistant</a>.</p>
+<h2 id="who-can-ask-and-where">Who can ask, and where<a class="headerlink" href="#who-can-ask-and-where" title="Permanent link">&para;</a></h2>
+<p>The same model answers questions in three places, and they are gated by <strong>two</strong> different
+permissions on purpose.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Permission</th>
+<th>What it is for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Ask</strong> tab</td>
+<td><code>data.read.reports</code></td>
+<td>Type a question, read an answer. No definition editor, no saving. It knows who is asking, so "my groups" and "mijn medewerkers" mean you.</td>
+</tr>
+</tbody>
+</table>
+<p>| <strong>Custom reports</strong> builder | <code>data.write.reports</code> | Build, edit, save and delete report definitions everyone sees. |</p>
+<p>Asking and building are separate rights and neither implies the other. A pilot manager who
+should be able to find out who has access to what does not thereby get to delete the saved
+reports an analyst depends on; an analyst holds both, so nothing they could do before
+changes. Warming the model stays with <code>data.write.reports</code> — one model server, one slot,
+shared by everyone, so spending its CPU is not a read action.</p>
+<p>Every question asked in plain language is kept in the conversation store for the store's retention
+period (90 days by default, <code>NL_REPORTS_LOG_RETENTION_DAYS</code>), per person: the question, what the
+model was told, what it replied, the definition that ran and how the answer ended. That log is what
+makes a wrong answer diagnosable after the fact, and what the evaluation reads. <strong>Result rows are
+never stored</strong> — only the definition that produced them, so re-running a conversation re-runs the
+query rather than replaying stale data. Nobody sees anyone else's conversations.</p>
+<p>Asking is gated by <code>data.read.reports</code> and the <strong>custom reports</strong> feature flag, so a deployment
+that has not switched the feature on has no plain-language endpoints at all.</p>
+<h2 id="privacy">Privacy<a class="headerlink" href="#privacy" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Nothing leaves the deployment.</strong> The model runs in a container next to Identity Atlas. There is no
+  cloud model, no API key to a provider, and no telemetry in this path.</li>
+<li><strong>The model receives</strong>: the analyst's question, the catalog (entity, field and relation names with
+  their descriptions), the type values that exist in this deployment (account types, resource types,
+  system names), while refining the current report definition, for a name the question
+  mentions — <strong>which fields that name occurs in</strong> — and, for an attribute the question names, <strong>the
+  name of that attribute</strong>.</li>
+<li>
+<p><strong>Attribute names, never attribute values.</strong> A deployment's own <code>extendedAttributes</code> keys
+  (<code>sfDepartmentID</code>, an OU path) are not in the catalog: they differ per tenant, and there can be
+  hundreds. When a question names one, the API matches it against the keys discovered in the data and
+  tells the model the field name to use — <code>"sfDepartmentID" is the field ext.sfDepartmentID</code>. No
+  value of that attribute is looked up, sent, or counted. An attribute the question does not name is
+  not sent at all: it goes with the question, so the system prompt itself never changes between
+  questions and the saved prompt cache keeps working (see below).</p>
+</li>
+<li>
+<p><strong>That last one is the only thing looked up in the data for the model, and it is deliberately
+  narrow.</strong> When a question names something ("guest accounts from Contoso"), the API checks, per name,
+  whether it occurs as a whole word in a fixed set of text fields (name, email, company, department, job
+  title, description) and in system names. The model is told the field names only —
+  <code>"Contoso": user.companyName, user.email</code> — never a row, a value from the row, or a count. It
+  learns that a word the analyst typed exists in the data, which the analyst already implied by asking.
+  Without it, the model guessed where an organisation name lives and filtered on an unrelated system.</p>
+</li>
+<li><strong>The model never receives</strong>: rows, query results, counts, or any value it did not get from the
+  analyst. Name lookups ("did you mean…") are done by the database, not by the model.</li>
+<li><strong>Names do reach it in one way, and it is worth being exact about it.</strong> Whatever the analyst types is
+  sent as typed, names included. And once an analyst confirms a "did you mean", the confirmed record's
+  name is written into the definition — so if they then refine the report in words, that definition,
+  with that name, goes back to the model. Nothing leaves the deployment either way; it is the model
+  inside it that sees the name.</li>
+<li><strong>On Docker</strong> the container has no published port, sits on an internal network shared only with the
+  web container, and has no route to the internet. It does not need one: the model is inside the image.</li>
+<li><strong>On Azure</strong> the Container App has public ingress, protected by a per-deployment API key (generated
+  by the template, never entered by hand). In the default public network mode it is also narrowed to
+  the web app's outbound addresses; in the private network mode it is protected by the key alone (see
+  below). It holds no data and no credentials.</li>
+<li><strong>Audit</strong>: every question is logged by the API twice — on arrival, with the user who asked, the model
+  and the question; and when it is answered, with the outcome (report, clarification, "did you mean",
+  error, or failed) and how long it took. The reply itself is not logged. Saved reports record who
+  created and last changed them.</li>
+<li><strong>The audit line contains the question as typed</strong>, which means it can contain a name an analyst
+  typed ("groups like Jan de Vries"). That is deliberate — an audit trail of "someone asked
+  something" is not worth keeping — but it is worth knowing when deciding how long to keep container
+  logs. No query <em>result</em> is ever logged.</li>
+</ul>
+<h2 id="sizing-and-consumption">Sizing and consumption<a class="headerlink" href="#sizing-and-consumption" title="Permanent link">&para;</a></h2>
+<p>Measured on a 2-vCPU VM (shared Proxmox host, Intel Core Ultra 5), with the shipped model:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU</td>
+<td><strong>2</strong>. Only 2 CPUs were measured; answer time scales roughly with CPUs, so fewer is slower</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td><strong>3.2 GB</strong> in use and not reclaimable after all 56 questions; 3.65 GB peak including file cache. Limit <strong>4 GiB</strong> on both Docker and Azure — the five heaviest questions were re-run at exactly 4 GiB with identical results and no out-of-memory kill. Lower is not measured</td>
+</tr>
+<tr>
+<td>Disk</td>
+<td>2.76 GB image + 561 MB prompt cache</td>
+</tr>
+<tr>
+<td>Restart → first answer</td>
+<td><strong>76 s</strong> measured for "guest accounts without a manager, or whose manager is disabled": prompt cache restored in 0.1 s, 203 of 4,000 prompt tokens actually read, the rest is the answer being written. On Azure add the container start</td>
+</tr>
+<tr>
+<td>Question once warm</td>
+<td>median <strong>49 s</strong>, p90 <strong>107 s</strong>, slowest <strong>156 s</strong> over the tuning set (held-out: median 48 s, p90 78 s). The slow ones are the questions that needed a correction round</td>
+</tr>
+<tr>
+<td>One-time preparation</td>
+<td>193–205 s measured, in the background, after an install or update</td>
+</tr>
+<tr>
+<td>Idle</td>
+<td><strong>10.6 MB</strong> once the model is unloaded — after 15 minutes unused by default. While it is loaded and idle: no CPU, ~3 GB</td>
+</tr>
+<tr>
+<td>Unloaded → ready</td>
+<td><strong>3.0 s</strong> with the model file in the disk cache, <strong>15.6 s</strong> straight from disk. The builder shows "loading the model into memory" with a timer meanwhile, and the first question afterwards is as fast as ever (76 s measured, same prompt cache)</td>
+</tr>
+</tbody>
+</table>
+<p>Nearly all of an answer's time is the model <em>writing</em> the definition, at about 2.5 tokens a second on
+2 CPUs; an average reply is ~105 tokens. More CPUs is what makes answers faster — more memory does
+not.</p>
+<p><strong>It only costs while it is used</strong> in the sense that matters for each platform:</p>
+<ul>
+<li><strong>Docker</strong>: the model is <strong>loaded only while it is used</strong>. Opening the report builder loads it (3–16 s);
+  after <code>REPORT_GENERATOR_IDLE_SECONDS</code> without a question (900 by default) it is unloaded and the
+  container drops to ~10 MB. A host running the generator therefore needs the 4 GB only while
+  someone is building reports. Set the idle time to <code>0</code> to keep the model loaded all the time.</li>
+<li><strong>Azure</strong>: the Container App <strong>scales to zero</strong>. Azure bills per second of activity, so an idle
+  generator costs nothing beyond its share of the file share holding the prompt cache. At list prices,
+  2 vCPU + 4 GiB active costs in the order of tens of euro cents an hour, and Container Apps' monthly
+  free grant covers light use — an estimate from list prices, not a measured bill; check current
+  pricing. The trade-off is a slower first question after idle, because the container has to start
+  (a 2.76 GB image pull included).</li>
+</ul>
+<h3 id="how-the-cold-start-was-made-survivable">How the cold start was made survivable<a class="headerlink" href="#how-the-cold-start-was-made-survivable" title="Permanent link">&para;</a></h3>
+<p>The expensive part is not loading the model, it is the model <em>reading its instructions</em> (~4,000
+tokens) — minutes on a small CPU. Three things fix that:</p>
+<ol>
+<li><strong>The instructions are the same for every deployment of a release.</strong> Everything deployment-specific
+   (your account types, resource types and system names) is sent with the question instead of being
+   baked into them.</li>
+<li><strong>The processed instructions are saved to disk</strong> (llama.cpp slot cache) and restored in ~0.1 s on
+   every later start. That is measured on local disk; on Azure the 561 MB file lives on an Azure Files
+   share, whose restore time has not been measured.
+   A second file holds the instructions <strong>plus this deployment's value lists</strong> — the first thing in
+   every user message — derived from the first file in seconds (restore it, read a few hundred
+   tokens, save). Questions start from that one, so the server reads only what follows the lists:
+   the caller, the name hints, the question. When the lists change, the next warm-up writes a fresh
+   file; until then the server reuses what still matches, which is the instructions.</li>
+<li><strong>Preparation runs in the background</strong> at API startup, and the builder says "preparing" instead of
+   blocking. <code>node tools/nl-reports/prepare-prompt-cache.mjs</code> does it on demand and verifies a restore
+   actually works.</li>
+</ol>
+<p>Measured on the same hardware: 266 seconds for the first answer without a restored cache, 76 seconds
+with one.</p>
+<p>One detail made the difference between this working and not: <strong>the prompt cache is re-checked before
+every question, never remembered.</strong> The model server restarts on its own — Azure scales it to zero
+between questions — and comes back empty. An earlier version remembered that it had warmed up, never
+restored after such a restart, and answered the next question in 266 seconds.</p>
+<h2 id="deploying-it">Deploying it<a class="headerlink" href="#deploying-it" title="Permanent link">&para;</a></h2>
+<h3 id="docker">Docker<a class="headerlink" href="#docker" title="Permanent link">&para;</a></h3>
+<p>The model server is an opt-in profile in <code>docker-compose.prod.yml</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># in .env</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">COMPOSE_PROFILES</span><span class="o">=</span>report-generator
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nv">FEATURE_CUSTOM_REPORTS</span><span class="o">=</span><span class="nb">true</span><span class="w">        </span><span class="c1"># or switch it on in Admin → Experimental</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>--pull<span class="w"> </span>always
+</code></pre></div>
+<p>Optional knobs (defaults shown): <code>REPORT_GENERATOR_CPUS=2</code>, <code>REPORT_GENERATOR_MEMORY=4g</code>,
+<code>REPORT_GENERATOR_IDLE_SECONDS=900</code> (seconds unused before the model is unloaded; <code>0</code> = always loaded).</p>
+<p>How the model is loaded on demand: a small supervisor is the container's main process. It starts the
+model server (reachable only from inside the container) when a request needs it, passes every request
+through unchanged, and stops it when idle. It needs no extra privileges — it never touches Docker — and it
+checks the API key before it starts anything.</p>
+<p>Leave <code>COMPOSE_PROFILES</code> unset and nothing extra is pulled or started; the builder then reports the
+generator as unavailable and the definition editor still works.</p>
+<p><strong>Behind a reverse proxy</strong>, raise its read timeout for <code>/api/nl-reports/interpret</code>. A question is one
+HTTP request that is answered when the model is done — a median of 49 s and up to several minutes — and
+common defaults (nginx <code>proxy_read_timeout</code> 60 s) cut half of them off. The API itself waits up to
+15 minutes (<code>NL_REPORTS_LLM_TIMEOUT_MS</code>).</p>
+<h3 id="azure">Azure<a class="headerlink" href="#azure" title="Permanent link">&para;</a></h3>
+<p>The report generator is an <strong>opt-in Container App</strong>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">./</span><span class="n">azure</span><span class="p">/</span><span class="n">deploy</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-ResourceGroup</span> <span class="n">my-rg</span> <span class="n">-DeployReportGenerator</span>
+</code></pre></div>
+<p>or set <code>deployReportGenerator=true</code> when deploying <code>azure/main.bicep</code> / the Deploy-to-Azure template.
+The template then:</p>
+<ul>
+<li>creates the Container App with <strong>minReplicas 0</strong> (scale to zero) and 2 vCPU / 4 GiB;</li>
+<li>generates an API key per deployment and gives it to both sides — llama.cpp refuses every request
+  without it;</li>
+<li>mounts an Azure Files share for the prompt cache, so a scaled-to-zero app restarts fast;</li>
+<li>sets <code>FEATURE_CUSTOM_REPORTS=true</code> on the web app, because a deployment that paid for the container
+  wants the feature.</li>
+</ul>
+<p>Everything else (App Service, Postgres, worker) is unchanged. Leaving the switch off deploys exactly
+what it does today.</p>
+<p><strong>Known limits on Azure, not yet measured there:</strong></p>
+<ul>
+<li><strong>Request time limits.</strong> A question is one blocking HTTP request, and Azure closes those: App Service
+  at about 230 seconds for the browser's request, Container Apps ingress at 240 seconds for the web
+  app's call to the generator. Measured on Docker, a warm question takes 49 s at the median and 165 s at
+  the slowest, so most fit; but the one-time prompt-cache preparation took 193–205 s, close to the
+  240 s limit, and Azure's vCPUs may be slower. If preparation is cut off, the cache is never saved and
+  every question stays slow. Making questions asynchronous (submit, then poll) would remove this limit
+  and is the fix if a deployment hits it.</li>
+<li><strong>Private network mode is not supported for the generator yet.</strong> In that mode the web app routes all
+  outbound traffic through the VNet without a NAT gateway, and whether it can then reach the
+  generator's public address at all is untested. Deploy the generator only in the default public
+  network mode until it can be made reachable from inside the VNet.</li>
+</ul>
+<h3 id="updating-an-existing-installation">Updating an existing installation<a class="headerlink" href="#updating-an-existing-installation" title="Permanent link">&para;</a></h3>
+<p>Custom reports arrive with a normal update; <strong>the generator does not install itself.</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>What the operator does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Docker</strong></td>
+<td>Re-download <code>docker-compose.prod.yml</code> (it gained the service, the internal network and the new env vars), then set <code>COMPOSE_PROFILES=report-generator</code> and pull. Without the new compose file the app updates as usual and the generator is simply absent.</td>
+</tr>
+<tr>
+<td><strong>Docker, auto-update</strong></td>
+<td>The <a href="../../admin/auto-updates/">auto-update agent</a> updates the services in <code>IA_SERVICES</code> (<code>web worker</code> by default). Add <code>report-generator</code> there so the model image follows the channel too.</td>
+</tr>
+<tr>
+<td><strong>Azure</strong></td>
+<td>Re-run the deployment with <code>deployReportGenerator=true</code>. Existing resources are updated in place.</td>
+</tr>
+<tr>
+<td><strong>Azure, auto-update</strong></td>
+<td>Set <code>IA_REPORT_GENERATOR_APP=&lt;prefix&gt;-report-generator</code> for the Azure update agent, next to <code>IA_WORKER_APP</code>, so the model image follows the channel. Without it the generator keeps the previous release's model — it still works, but it is no longer the combination that was measured.</td>
+</tr>
+<tr>
+<td><strong>Desktop (portable)</strong></td>
+<td>Not supported — the portable launcher runs no extra containers. The definition editor works.</td>
+</tr>
+</tbody>
+</table>
+<p>In all cases the feature stays <strong>off</strong> until someone enables it in Admin → Experimental, and the first
+warm-up after the update rebuilds the prompt cache in the background (a few minutes, once). An install
+that does nothing keeps working exactly as before: a new, empty table is added, and nothing tries to
+reach a model server while the feature is off.</p>
+<p><strong>Grant the permission.</strong> The <strong>Build custom reports</strong> permission (<code>data.write.reports</code>) is in the
+built-in RoleMiner role, but only a deployment still on the default role mapping gets it from there. If
+you have customised your role mapping, add the permission to the roles that should build reports under
+Admin → Roles.</p>
+<h2 id="security-notes">Security notes<a class="headerlink" href="#security-notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li>The API surface answers <strong>404</strong> while the feature is off and <strong>403</strong> without the
+  <code>data.write.reports</code> permission (checked first, so nobody learns which installs have the feature).</li>
+<li>Model output is treated as untrusted input: it is validated against the catalog before anything
+  runs, and never interpolated into SQL.</li>
+<li>Reports execute in a <code>READ ONLY</code> transaction with a statement timeout and a row cap.</li>
+<li>The model server accepts no input except from the web container (Docker: internal network; Azure:
+  API key) and cannot reach the database.</li>
+<li><strong>Outbound internet access differs per platform.</strong> On Docker it has none (an <code>internal</code> network). On
+  Azure it has unrestricted outbound access, like any Container App without a VNet and egress rules.
+  llama.cpp makes no outbound calls and the model is inside the image, so nothing is sent — but on
+  Azure that rests on the software, not on the network.</li>
+<li><strong>One question at a time per analyst</strong>, and a conversation is capped at 10,000 characters. The model
+  server works on one question at a time, so without these one person (or a script) could hold it for
+  everyone. Anyone with <code>data.write.reports</code> can still keep it busy; grant that permission accordingly.</li>
+<li><strong>The generated SQL is shown to the analyst</strong> in the builder, so table and column names are visible to
+  anyone who can build reports. They are the same names documented for the data model.</li>
+<li>Questions are logged; report definitions are stored with their author.</li>
+<li>The model server's monitoring endpoint is switched off (<code>--no-slots</code>). It would otherwise let any
+  caller read the prompt currently being processed.</li>
+<li>The container runs as an unprivileged user (uid 1000), not root.</li>
+</ul>
+<h3 id="if-you-deploy-it-on-azure">If you deploy it on Azure<a class="headerlink" href="#if-you-deploy-it-on-azure" title="Permanent link">&para;</a></h3>
+<p>Two details are worth knowing, because getting them wrong is silent:</p>
+<ul>
+<li><strong>The API key is the control.</strong> llama.cpp reads it from <code>LLAMA_API_KEY</code> and <em>only</em> that name — the
+  <code>LLAMA_ARG_</code> prefix that every other option uses is ignored for this one, and a server started
+  without a key answers everyone. The template sets the right name from a secret and a guard test
+  keeps it that way; do not hand-edit it.</li>
+<li><strong>Ingress is narrowed on the second run.</strong> <code>deploy.ps1 -DeployReportGenerator</code> adds the web app's
+  outbound addresses to the ingress allow-list, but those addresses only exist once the web app does,
+  so the <em>first</em> deployment is protected by the key alone. Re-run the script (or pass
+  <code>reportGeneratorAllowedCallerIps</code>) to add the allow-list. Those are shared Azure addresses, so treat
+  it as defence in depth rather than a boundary.</li>
+<li><strong>In the private network mode the allow-list is not applied.</strong> There the web app sends all outbound
+  traffic through the VNet, so its calls do not come from the addresses on the list and the list would
+  lock it out. The generator is protected by its API key alone. It still has public ingress in that
+  mode — making it reachable only from inside the VNet is not done yet.</li>
+</ul>
+<h2 id="measuring-it-yourself">Measuring it yourself<a class="headerlink" href="#measuring-it-yourself" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># the expected answers are still right for your data</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--check
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># accuracy + latency, per model</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--models<span class="w"> </span>qwen3:4b-instruct-2507-q4_K_M
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--models<span class="w"> </span>qwen3:4b-instruct-2507-q4_K_M<span class="w"> </span>--file<span class="w"> </span>tools/nl-reports/holdout.json
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1"># against a stack with sign-in on: a bearer for a signed-in analyst, or a command that mints one</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--check<span class="w"> </span>--base<span class="w"> </span>https://&lt;host&gt;<span class="w"> </span>--token-cmd<span class="w"> </span><span class="s2">"az account get-access-token --resource api://&lt;web app id&gt; --query accessToken -o tsv"</span>
+</code></pre></div>
+<p>Questions live in <code>tools/nl-reports/questions.json</code> (used while tuning), <code>holdout.json</code> (kept
+untouched, so the number means something) and <code>chat.json</code> (the questions people typed into the
+in plain language, in Dutch and English, with follow-ups asked in the same conversation; "my" means
+whoever runs it, so it needs a signed-in stack). Each question carries a hand-written reference
+definition; a model's answer counts only if it returns the same rows.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Created by <a href="https://www.fortigi.nl">Maatschap Fortigi</a>
+
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/Fortigi/IdentityAtlas" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/wimvdheijkant/" target="_blank" rel="noopener" title="Wim van den Heijkant" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.fortigi.nl" target="_blank" rel="noopener" title="Fortigi" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M351.9 280H161c2.9 64.5 17.2 123.9 37.5 167.4 11.4 24.5 23.7 41.8 35.1 52.4 11.2 10.5 18.9 12.2 22.9 12.2s11.7-1.7 22.9-12.2c11.4-10.6 23.7-28 35.1-52.4 20.3-43.5 34.6-102.9 37.5-167.4zm-191-48h190.9c-2.8-64.5-17.1-123.9-37.4-167.4-11.4-24.4-23.7-41.8-35.1-52.4C268.1 1.7 260.4 0 256.4 0s-11.7 1.7-22.9 12.2c-11.4 10.6-23.7 28-35.1 52.4-20.3 43.5-34.6 102.9-37.5 167.4m-48 0c3.5-85.6 25.6-165.1 57.9-217.3C78.7 47.3 10.9 131.2 1.5 232zM1.5 280c9.4 100.8 77.2 184.7 169.3 217.3-32.3-52.2-54.4-131.7-57.9-217.3zm398.4 0c-3.5 85.6-25.6 165.1-57.9 217.3 92.1-32.7 159.9-116.5 169.3-217.3zm111.4-48C501.9 131.2 434.1 47.3 342 14.7c32.3 52.2 54.4 131.7 57.9 217.3z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.path", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

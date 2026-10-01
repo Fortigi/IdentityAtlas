@@ -13,10 +13,10 @@
         <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/demo-dataset/">
       
       
-        <link rel="prev" href="../scaling/">
+        <link rel="prev" href="../dashboard-trends/">
       
       
-        <link rel="next" href="../../operations/nightly-review/">
+        <link rel="next" href="../../contributing/report-an-issue/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Demo Dataset - Identity Atlas</title>
+        <title>Demo Dataset (contains CTF spoilers) - Identity Atlas</title>
       
     
     
@@ -44,12 +44,6 @@
       
     
     
-      
-        
-        
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
-        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
       
     
     
@@ -119,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Demo Dataset
+              Demo Dataset (contains CTF spoilers)
             
           </span>
         </div>
@@ -247,14 +241,94 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../quickstart/" class="md-tabs__link">
+        <a href="../../start/glossary/" class="md-tabs__link">
           
   
   
-  Guide
+  Start here
 
         </a>
       </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/data-model/" class="md-tabs__link">
+          
+  
+  
+  Learn
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../ui/overview/" class="md-tabs__link">
+          
+  
+  
+  Use
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../docker-setup/" class="md-tabs__link">
+          
+  
+  
+  Set up & run
+
+        </a>
+      </li>
+    
+  
+
     
   
 
@@ -278,36 +352,6 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../../risk-scoring/overview/" class="md-tabs__link">
-          
-  
-  
-  Concepts
-
-        </a>
-      </li>
-    
-  
-
-    
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
         <a href="../../api/" class="md-tabs__link">
           
   
@@ -338,7 +382,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../marketing/" class="md-tabs__link">
+        <a href="../../contributing/report-an-issue/" class="md-tabs__link">
           
   
   
@@ -450,9 +494,7 @@
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
         
           
           <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
@@ -462,7 +504,7 @@
   <span class="md-ellipsis">
     
   
-    Guide
+    Start here
   
 
     
@@ -478,11 +520,39 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Guide
+    Start here
   
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../start/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The words you need first
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -498,7 +568,35 @@
   <span class="md-ellipsis">
     
   
-    Quick Start
+    Get it running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../start/first-15-minutes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your first 15 minutes
   
 
     
@@ -532,19 +630,17 @@
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_4" >
         
           
-          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
             
   
   
   <span class="md-ellipsis">
     
   
-    Concepts
+    Capture the Flag
   
 
     
@@ -555,12 +651,187 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_2">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Concepts
+    Capture the Flag
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demo/before-you-play/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Before you play
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demo/capture-the-flag/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The twelve flags
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The model
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    The model
   
 
           </label>
@@ -608,7 +879,7 @@
   <span class="md-ellipsis">
     
   
-    Governance Model
+    Governance & Business Roles
   
 
     
@@ -621,6 +892,94 @@
   
 
               
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    One Person, Many Accounts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk scoring
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Risk scoring
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
             
               
                 
@@ -636,7 +995,91 @@
   <span class="md-ellipsis">
     
   
-    Risk Scoring Model
+    What a Risk Score Means
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How Scoring Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/classifiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classifiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/ai-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Agents & Non-Human Identities
   
 
     
@@ -658,350 +1101,15 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Data Sources
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Data Sources
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/entra-id/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Entra ID
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/azure-rm/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Azure Resource Manager
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/csv-import/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CSV Import
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../csv-import-schema/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CSV Schema Reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/midpoint/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    midPoint
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/midpoint-crawler-configuration/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    midPoint Configuration Reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/omada/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Omada IGA
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../omada-crawler-datamodel/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Omada Data Model Reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/building-a-crawler/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Building a Crawler
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/custom-connector/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Custom Connector (Push API)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
     </li>
   
 
-              
-            
-              
-                
+    
+      
+      
   
   
   
@@ -1020,19 +1128,17 @@
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
-          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
             
   
   
   <span class="md-ellipsis">
     
   
-    Try It
+    Use
   
 
     
@@ -1043,102 +1149,12 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_4">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Try It
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../demo/capture-the-flag/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Capture the Flag
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Using Identity Atlas
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_5">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Using Identity Atlas
+    Use
   
 
           </label>
@@ -1158,7 +1174,7 @@
   <span class="md-ellipsis">
     
   
-    Role Mining UI
+    The app at a glance
   
 
     
@@ -1187,6 +1203,178 @@
     
   
     Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The matrix
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    The matrix
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reading the Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../matrix-scope-statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scope Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/sharing-a-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sharing a Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/custom-reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Reports
   
 
     
@@ -1235,6 +1423,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/context-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building a Context by Describing It
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/effective-access/" class="md-nav__link">
         
   
@@ -1263,14 +1479,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ui/local-dev/" class="md-nav__link">
+      <a href="../entity-detail-pages/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Local Development
+    Entity Detail Pages
   
 
     
@@ -1283,6 +1499,58 @@
   
 
               
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get data out
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get data out
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
             
               
                 
@@ -1359,38 +1627,33 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
             
   
   
   <span class="md-ellipsis">
     
   
-    Concepts
+    Set up & run
   
 
     
@@ -1401,12 +1664,12 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Concepts
+    Set up & run
   
 
           </label>
@@ -1425,29 +1688,24 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_1" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" >
         
           
-          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
             
   
   
   <span class="md-ellipsis">
     
   
-    Risk Scoring
+    Deploy
   
 
     
@@ -1458,245 +1716,12 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_1">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Risk Scoring
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../risk-scoring/overview/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overview
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../risk-scoring/classifiers/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Classifiers
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../risk-scoring/ai-agents/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    AI Agents
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../risk-scoring/design/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Engine Design
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../risk-scoring/plugin-architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Plugin Architecture
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../resource-cluster-algorithm/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Resource Cluster Algorithm
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-          
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
-        
-          
-          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Architecture
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_2">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Architecture
+    Deploy
   
 
           </label>
@@ -1717,6 +1742,62 @@
     
   
     Docker Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../azure-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../azure-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Reference
   
 
     
@@ -1765,14 +1846,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../branching-strategy/" class="md-nav__link">
+      <a href="../scaling/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Release & Branching Strategy
+    Scaling & Load Testing
   
 
     
@@ -1793,210 +1874,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../ingest-api/" class="md-nav__link">
+      <a href="../scale-rehearsal/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Ingest API
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../audit-history/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Audit History
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../soft-delete/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Soft-Delete & Tombstones
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../matrix-scope-statistics/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Matrix Scope Statistics
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../llm-and-risk-scoring/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    LLM & Risk Scoring Internals
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../crawler-architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Crawler Architecture
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../account-linking/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Account Linking
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../effective-access-engine/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Effective Access Engine
+    Scale Rehearsal: 41 M Assignments
   
 
     
@@ -2022,38 +1907,33 @@
                 
   
   
-    
   
   
-  
     
     
     
     
       
       
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
         
           
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
             
   
   
   <span class="md-ellipsis">
     
   
-    Operations
+    Connect your systems
   
 
     
@@ -2064,12 +1944,352 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Operations
+    Connect your systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/entra-id/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entra ID
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/azure-rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Resource Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/omada/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada IGA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../omada-crawler-datamodel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada Data Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/midpoint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    midPoint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/midpoint-crawler-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    midPoint Configuration Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/mssql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/scim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCIM 2.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/csv-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Administer
   
 
           </label>
@@ -2166,14 +2386,197 @@
   
   
     <li class="md-nav__item">
-      <a href="../azure-deployment-walkthrough/" class="md-nav__link">
+      <a href="../../operations/nightly-review/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Azure Deployment
+    Nightly Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    HTTP API
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    HTTP API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
   
 
     
@@ -2194,14 +2597,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../azure-deployment/" class="md-nav__link">
+      <a href="../../api/matrix/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Azure Deployment Reference
+    Matrix & Permissions
   
 
     
@@ -2222,14 +2625,807 @@
   
   
     <li class="md-nav__item">
-      <a href="../scaling/" class="md-nav__link">
+      <a href="../../api/entities/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Scaling & Load Testing
+    Entity Detail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/governance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance & Business Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/risk-scores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ingest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingest API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/experimental-features/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/report-generator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report Generator (local LLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ask-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ask Assistant — how it thinks and is tested
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions & Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sql-views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../csv-import-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Schema Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sbom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Software Bill of Materials
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/coverage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Coverage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_11" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6_11" id="__nav_6_11_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Under the hood
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_11_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Under the hood
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crawler-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crawler Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sql-connector-delta/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Connector Delta Loading
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Reports Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Assistant Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../audit-history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../soft-delete/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soft-Delete & Tombstones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../effective-access-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../resource-cluster-algorithm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resource Cluster Algorithm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Engine Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/plugin-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Plugin Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm-and-risk-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM & Risk Scoring Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../resource-assignments-identity-support/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assignments & Identity Support
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dashboard-trends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard Trends
   
 
     
@@ -2266,7 +3462,7 @@
   <span class="md-ellipsis">
     
   
-    Demo Dataset
+    Demo Dataset (contains CTF spoilers)
   
 
     
@@ -2284,7 +3480,7 @@
   <span class="md-ellipsis">
     
   
-    Demo Dataset
+    Demo Dataset (contains CTF spoilers)
   
 
     
@@ -2317,6 +3513,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="How it&#39;s generated">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-volume-slice-opt-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The volume slice (opt-in)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2437,6 +3650,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-realism-slice-opt-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The realism slice (opt-in)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#capture-the-flag-scenarios" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2475,6 +3699,39 @@
     <span class="md-ellipsis">
       
         Role-derived access is materialised
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fewer-and-more-than-the-role-assigns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fewer and more than the role assigns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#held-outside-the-role-that-grants-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Held outside the role that grants it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-resource-two-business-roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One resource, two business roles
       
     </span>
   </a>
@@ -2639,62 +3896,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../operations/nightly-review/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Nightly Review
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/troubleshooting/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Troubleshooting
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -2730,415 +3931,10 @@
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Reference
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Reference
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_1" >
-        
-          
-          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    API
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_1">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    API
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overview
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/matrix/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Matrix & Permissions
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/entities/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Entity Detail
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/governance/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Governance & Business Roles
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/risk-scores/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Risk Scores
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/config/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Configuration
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/permissions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Permissions & Roles
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/sql-views/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Database Views
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/sbom/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Software Bill of Materials
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/coverage/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Test Coverage
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
             
   
   
@@ -3156,8 +3952,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3187,12 +3983,1198 @@
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_1" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_1" >
         
           
-          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7_1" id="__nav_7_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/local-dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/building-a-crawler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building a Crawler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/writing-tests-that-assert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Tests That Assert
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/ci-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ci-scope-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Scope Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../branching-strategy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release & Branching Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/maintaining-a-release-line/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintaining a Release Line
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How a Release's Notes Are Assembled
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/definition-of-ready/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Definition of Ready
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/dor-state-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DoR state machine & operating procedure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/operationalization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operationalising the DoR
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/dor-sidekick-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DoR sidekick setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/epic-layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The epic layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/autonomy-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Autonomy roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/epic-layer-session-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session log — epic layer (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/autonomous-bug-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Autonomous bug pipeline (partly built)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_2" id="__nav_7_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design archive
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design archive
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-archive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About the archive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-redesign/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Redesign
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-redesign-plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Redesign — Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-redesign-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Redesign — UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../assignment-model-redesign/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assignment Model Redesign
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../identitytype-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IdentityType Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../risk-scoring-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Plugins (proposal)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rule-mining-discussion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rule Mining Discussion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_3" id="__nav_7_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality & audits
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Quality & audits
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs-gap-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Gap Audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs-remediation-plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Remediation Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../maintenance-backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Backlog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ux/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Experience Assessment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Assessment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/assessment-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Assessment (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/maintenance-audit-2026-06/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Audit (June 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture-guidance-review-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Guidance Review (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Decision Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_4" id="__nav_7_4_label" tabindex="0">
             
   
   
@@ -3210,8 +5192,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_1">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3537,416 +5519,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Contributing
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_4">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Contributing
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../contributing/report-an-issue/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Report a Bug or Request a Feature
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../contributing/contribute/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Contribute a Change
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../contributing/ci-pipeline/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CI Pipeline
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../contributing/style-guide/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    UI Style Guide
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../ci-scope-testing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CI Scope Testing
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    User Experience
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_5">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    User Experience
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../ux/assessment/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Assessment & Remediation
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_6" >
-        
-          
-          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Security
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_6">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Security
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../security/assessment/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Assessment & Remediation
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../security/maintenance-audit-2026-06/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Maintenance Audit (June 2026)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -3988,6 +5560,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="How it&#39;s generated">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-volume-slice-opt-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The volume slice (opt-in)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -4108,6 +5697,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-realism-slice-opt-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The realism slice (opt-in)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#capture-the-flag-scenarios" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4146,6 +5746,39 @@
     <span class="md-ellipsis">
       
         Role-derived access is materialised
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fewer-and-more-than-the-role-assigns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fewer and more than the role assigns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#held-outside-the-role-that-grants-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Held outside the role that grants it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-resource-two-business-roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One resource, two business roles
       
     </span>
   </a>
@@ -4349,10 +5982,10 @@
     
     
       <li class="md-path__item">
-        <a href="../../risk-scoring/overview/" class="md-path__link">
+        <a href="../../api/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Concepts
+    Reference
   </span>
 
         </a>
@@ -4370,10 +6003,10 @@
     
     
       <li class="md-path__item">
-        <a href="../../admin/authentication/" class="md-path__link">
+        <a href="../crawler-architecture/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Operations
+    Under the hood
   </span>
 
         </a>
@@ -4433,6 +6066,14 @@
 <td>The Sales role-mining scenario (flags 1–7)</td>
 </tr>
 <tr>
+<td><code>DemoRoleDrift.ps1</code></td>
+<td>Role holders with fewer / more access than their business role assigns</td>
+</tr>
+<tr>
+<td><code>DemoSharedGrants.ps1</code></td>
+<td>The overlap between two business roles — one group and one app role granted by both</td>
+</tr>
+<tr>
 <td><code>DemoConsent.ps1</code></td>
 <td>OAuth consent + shadow IT (flags 11–12)</td>
 </tr>
@@ -4444,12 +6085,25 @@
 <td><code>DemoAzure.ps1</code></td>
 <td>The AzureRM system (flag 10)</td>
 </tr>
+<tr>
+<td><code>DemoVolume.ps1</code></td>
+<td><strong>Opt-in</strong> high-cardinality slice — see <a href="#the-volume-slice-opt-in">The volume slice</a></td>
+</tr>
 </tbody>
 </table>
 <p>GUIDs are a pure function of a seed string (<code>New-DemoGuid</code>), so any part can reference another part's record without an ordering contract, and the whole dataset is byte-stable across runs.</p>
 <blockquote>
 <p><strong><code>demo-company.json</code> is a build artifact, not a source file.</strong> It is gitignored — always regenerate rather than relying on a copy on disk.</p>
 </blockquote>
+<h3 id="the-volume-slice-opt-in">The volume slice (opt-in)<a class="headerlink" href="#the-volume-slice-opt-in" title="Permanent link">&para;</a></h3>
+<p>Everything described on the rest of this page is the standard dataset: 46 resources, hand-reasoned, pinned to exact counts by <code>Verify-DemoDataset.ps1</code>. <code>DemoVolume.ps1</code> is the one part that is <strong>not</strong> generated by default. It runs only with <code>Generate-DemoDataset.ps1 -IncludeVolume</code>, and appends:</p>
+<ul>
+<li>~520 Entra groups <code>SG-Vol-0001</code>…, each with its own description, one <code>Direct</code> assignment each (rotating over the provisioned employees, so each is a real matrix row);</li>
+<li>one sentinel group <strong><code>SG-Zzz-Cap-Probe</code></strong>, description <code>Zzz - beyond the preloaded 500 (#928 probe)</code> — chosen to sort alphabetically last.</li>
+</ul>
+<p>That takes the dataset past <strong>500 distinct <code>Resources.description</code> values</strong>, which is the threshold above which filter and attribute dropdowns serve a <em>page</em> of values and flag the column as truncated. Below it, that behaviour is invisible, so an environment loaded from the standard dataset cannot demonstrate or verify it — see <a href="../matrix/#attribute-values--paged-discovery-not-a-silent-cap">Matrix → Attribute values</a> for the walkthrough this slice enables.</p>
+<p>Turn it on per environment from <strong>Admin → Crawlers → Demo Dataset → "Also load high-cardinality test data"</strong> (the crawler's <code>includeVolumeData</code> config key). To take it back off, clean the database and re-run with the box unticked — a plain re-run only soft-deletes the extra groups, and attribute-value discovery reads the whole table, so their descriptions would linger in the filter dropdowns.</p>
+<p>Because it is appended last and only on request, the CTF answers, the exact row counts, the Pester suite and the E2E suite are all unaffected; <code>test/unit/DemoDataset.Tests.ps1</code> asserts that explicitly.</p>
 <hr />
 <h2 id="the-company-fortigi-demo-corp">The Company: Fortigi Demo Corp<a class="headerlink" href="#the-company-fortigi-demo-corp" title="Permanent link">&para;</a></h2>
 <p>A mid-size technology consultancy with 26 employees across 6 departments. Small enough to reason about, large enough to exercise all features.</p>
@@ -4728,6 +6382,12 @@
 <td>Sales role — Contains SG-Sales + SG-CRM-Users</td>
 </tr>
 <tr>
+<td>BR-Service-Desk</td>
+<td>BusinessRole</td>
+<td>IGA</td>
+<td>Service desk role — Contains the two service desk groups as a membership, SG-Servicedesk-Admin as <em>eligibility only</em>, and the Ticketing-Agent app role it shares with BR-IT-Operations. The role-drift scenario hangs off it</td>
+</tr>
+<tr>
 <td>SG-Engineering</td>
 <td>GroupOwnership</td>
 <td>EntraID</td>
@@ -4768,6 +6428,42 @@
 <td>Group</td>
 <td>EntraID</td>
 <td>Sensitive cross-department finance access — the over-privileged trap (flag 7)</td>
+</tr>
+<tr>
+<td>SG-Servicedesk-Tools</td>
+<td>Group</td>
+<td>EntraID</td>
+<td>Granted <strong>by</strong> BR-Service-Desk as a membership</td>
+</tr>
+<tr>
+<td>SG-Servicedesk-KB</td>
+<td>Group</td>
+<td>EntraID</td>
+<td>Granted <strong>by</strong> BR-Service-Desk as a membership — the one two holders never got (fewer than the role assigns)</td>
+</tr>
+<tr>
+<td>SG-Servicedesk-Admin</td>
+<td>Group</td>
+<td>EntraID</td>
+<td>Granted <strong>by</strong> BR-Service-Desk as <em>eligibility</em>; one holder has it as a standing membership (more than the role assigns)</td>
+</tr>
+<tr>
+<td>BR-IT-Operations</td>
+<td>BusinessRole</td>
+<td>IGA</td>
+<td>IT operations role — overlaps BR-Service-Desk on two resources. The shared-grant scenario hangs off it</td>
+</tr>
+<tr>
+<td>Ticketing-Agent</td>
+<td>AppRole</td>
+<td>EntraID</td>
+<td>Granted <strong>by</strong> BR-Service-Desk <em>and</em> BR-IT-Operations — the app role in two business roles</td>
+</tr>
+<tr>
+<td>SG-Monitoring-Tools</td>
+<td>Group</td>
+<td>EntraID</td>
+<td>Granted <strong>by</strong> BR-IT-Operations alone, so folding that role still takes a row away</td>
 </tr>
 <tr>
 <td>FileSync Pro</td>
@@ -4858,7 +6554,7 @@
 <td>E0029, E0030 (SysAdmins)</td>
 <td>SG-VPN-Access</td>
 <td>Direct</td>
-<td></td>
+<td>Held <strong>without</strong> BR-Engineering-Tools behind it — see <a href="#held-outside-the-role-that-grants-it">Held outside the role that grants it</a></td>
 </tr>
 <tr>
 <td>E0002 (CTO)</td>
@@ -4895,6 +6591,12 @@
 <td>BR-Engineering-Tools</td>
 <td>Direct (<code>governed=true</code>)</td>
 <td>Via business role</td>
+</tr>
+<tr>
+<td>Everyone holding BR-Engineering-Tools (8)</td>
+<td>SG-VPN-Access</td>
+<td>Indirect</td>
+<td>The materialised role-derived access. Without it the role's <code>Contains</code> edge reads as eight provisioning gaps on a group the role does hand them</td>
 </tr>
 <tr>
 <td>E0029 (SysAdmin)</td>
@@ -4956,6 +6658,60 @@
 <td>Direct</td>
 <td>Flag 10. E0029 spans both regions on purpose</td>
 </tr>
+<tr>
+<td>E0014, E0029, E0030, E0034</td>
+<td>BR-Service-Desk</td>
+<td>Direct (<code>governed=true</code>)</td>
+<td>The role-drift cast — see <a href="#fewer-and-more-than-the-role-assigns">Fewer and more than the role assigns</a></td>
+</tr>
+<tr>
+<td>E0014, E0029</td>
+<td>SG-Servicedesk-Tools, SG-Servicedesk-KB (Indirect) + SG-Servicedesk-Admin (Eligible)</td>
+<td>Indirect / Eligible</td>
+<td>Exactly what the role assigns — the control</td>
+</tr>
+<tr>
+<td>E0034 (Tom Bakker)</td>
+<td>SG-Servicedesk-Tools only</td>
+<td>Indirect</td>
+<td><strong>Fewer</strong> than the role assigns: never provisioned into the KB or the admin eligibility</td>
+</tr>
+<tr>
+<td>E0030 (Wendy Xu)</td>
+<td>SG-Servicedesk-Tools (Indirect), SG-Servicedesk-Admin (<strong>Direct</strong>)</td>
+<td>Indirect / Direct</td>
+<td>Both directions at once: no KB (<strong>fewer</strong>) and a standing membership where the role only grants eligibility (<strong>more</strong>)</td>
+</tr>
+<tr>
+<td>E0024 (Lars Muller)</td>
+<td>SG-Servicedesk-Tools</td>
+<td>Direct</td>
+<td>Holds one of the role's resources without holding the role — access the role does not account for</td>
+</tr>
+<tr>
+<td>E0010, E0029, E0030</td>
+<td>BR-IT-Operations</td>
+<td>Direct (<code>governed=true</code>)</td>
+<td>The shared-grant cast — E0010 holds this role only, E0029/E0030 hold both roles. See <a href="#one-resource-two-business-roles">One resource, two business roles</a></td>
+</tr>
+<tr>
+<td>E0010, E0029, E0030</td>
+<td>SG-Monitoring-Tools</td>
+<td>Indirect</td>
+<td>What only BR-IT-Operations grants</td>
+</tr>
+<tr>
+<td>E0010, E0014, E0029, E0030</td>
+<td>Ticketing-Agent</td>
+<td>Indirect</td>
+<td>The shared app role. E0034 is left out — one more thing his role assigns that he never got</td>
+</tr>
+<tr>
+<td>E0010</td>
+<td>SG-Servicedesk-Tools</td>
+<td>Indirect</td>
+<td>The shared group. E0029/E0030 already hold it through BR-Service-Desk — a second role covering a membership adds coverage, <strong>not</strong> a second assignment</td>
+</tr>
 </tbody>
 </table>
 <h3 id="resource-relationships">Resource Relationships<a class="headerlink" href="#resource-relationships" title="Permanent link">&para;</a></h3>
@@ -4991,7 +6747,7 @@
 <td>BR-Engineering-Tools</td>
 <td>SG-VPN-Access</td>
 <td>Contains</td>
-<td></td>
+<td>Materialised as <code>Indirect</code> for every role holder; the two SysAdmins hold the same group <em>directly</em>, outside the role</td>
 </tr>
 <tr>
 <td>BR-Finance-Systems</td>
@@ -5028,6 +6784,48 @@
 <td>SG-CRM-Users</td>
 <td>Contains</td>
 <td>Business role grants CRM — this edge is flag 4's answer</td>
+</tr>
+<tr>
+<td>BR-Service-Desk</td>
+<td>SG-Servicedesk-Tools</td>
+<td>Contains (<code>roleName='Member'</code>)</td>
+<td>A standing membership</td>
+</tr>
+<tr>
+<td>BR-Service-Desk</td>
+<td>SG-Servicedesk-KB</td>
+<td>Contains (<code>roleName='Member'</code>)</td>
+<td>A standing membership</td>
+</tr>
+<tr>
+<td>BR-Service-Desk</td>
+<td>SG-Servicedesk-Admin</td>
+<td>Contains (<code>roleName='Eligible Member'</code>)</td>
+<td>Just-in-time only — <code>roleName</code> is what makes a standing membership on it read as <em>more than the role assigns</em></td>
+</tr>
+<tr>
+<td>BR-Service-Desk</td>
+<td>Ticketing-Agent</td>
+<td>Contains (<code>roleName='Member'</code>)</td>
+<td>The app role it shares with BR-IT-Operations</td>
+</tr>
+<tr>
+<td>BR-IT-Operations</td>
+<td>Ticketing-Agent</td>
+<td>Contains (<code>roleName='Member'</code>)</td>
+<td>The second grant of the same app role</td>
+</tr>
+<tr>
+<td>BR-IT-Operations</td>
+<td>SG-Servicedesk-Tools</td>
+<td>Contains (<code>roleName='Member'</code>)</td>
+<td>The second grant of the same group</td>
+</tr>
+<tr>
+<td>BR-IT-Operations</td>
+<td>SG-Monitoring-Tools</td>
+<td>Contains (<code>roleName='Member'</code>)</td>
+<td>Granted by this role alone</td>
 </tr>
 <tr>
 <td>FileSync Pro</td>
@@ -5084,7 +6882,7 @@
 <tbody>
 <tr>
 <td>Catalog: "Employee Access"</td>
-<td>Contains BR-Employee-Base, BR-Engineering-Tools, BR-Finance-Systems, BR-Sales</td>
+<td>Contains BR-Employee-Base, BR-Engineering-Tools, BR-Finance-Systems, BR-Sales, BR-Service-Desk, BR-IT-Operations</td>
 </tr>
 <tr>
 <td>Catalog: "Privileged Access"</td>
@@ -5154,6 +6952,93 @@
 </table>
 <p><strong>SAP accounts carry no department and no friendly name</strong> — just an SAP user id like <code>CDIJKSTRA</code>. That is what a real ERP account list looks like, and it is what makes flag 8 hard from a raw export: the only route from an SAP account to a department is through the identity. Ten employees have one, skewed Finance 4 / Sales 3 / Operations 2 / Engineering 1.</p>
 <hr />
+<h2 id="the-realism-slice-opt-in">The realism slice (opt-in)<a class="headerlink" href="#the-realism-slice-opt-in" title="Permanent link">&para;</a></h2>
+<p><code>Generate-DemoDataset.ps1 -IncludeRealism</code>, or the <strong>Include the realism slice</strong> tick on the demo
+crawler (<code>includeRealismData</code>). Off by default.</p>
+<p><strong>Why it exists.</strong> Everything above is a 26-person company in which every record tells one story.
+That is what makes it a good fixture and a bad measuring stick: most questions an analyst asks have
+zero or one possible answer on it, no first name occurs twice, nobody ever changed jobs, and no
+group has ever lost a member. A custom report or a chat answer can be wrong and still score a pass.
+The realism slice grows a second, messier company on top of the first so that questions have answers
+of several sizes and a wrong reading produces a visibly wrong row count. It is the environment the
+report generator and the Ask assistant are measured in — see
+<a href="../../reference/report-generator/">The report generator</a>.</p>
+<p><strong>What it adds</strong> (counts are from the generator, which is deterministic):</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>People</td>
+<td>~600 staff over ten departments and ~55 teams, plus 40 guests from three partner companies, 30 leavers and a dozen non-human accounts</td>
+</tr>
+<tr>
+<td>Accounts per person</td>
+<td>one to three: an Entra account, often an on-premises AD account, sometimes a CRM account, occasionally a separate admin account — all linked into one identity</td>
+</tr>
+<tr>
+<td>Systems</td>
+<td>two more that keep their own accounts (on-premises AD, a CRM), beside Azure which keeps none and grants access to Entra principals</td>
+</tr>
+<tr>
+<td>Groups</td>
+<td>~180 in naming families (<code>License-*</code>, <code>SG-&lt;dept&gt;-*</code>, <code>SG-&lt;team&gt;-*</code>, <code>APP-*</code>, <code>PRJ-*</code>, <code>DL-*</code>, Teams groups), with security / mail-enabled flags, owners on about a quarter, six empty ones and one holding the whole company</td>
+</tr>
+<tr>
+<td>Nesting</td>
+<td>all three kinds: a group inside a group (indirect memberships), Azure scope inheritance (a role on a resource group reaching everything inside it), and a business role synchronising groups and application roles to its holders</td>
+</tr>
+<tr>
+<td>Roles</td>
+<td>15 Entra directory roles (three held by nobody), 26 business roles granting groups <strong>and</strong> application roles, ~40 eligible (PIM) assignments</td>
+</tr>
+<tr>
+<td>Governance</td>
+<td>governed assignments with a deliberate provisioning gap, and two attestation campaigns — one closed, one running — with recommendations, decisions and undecided rows</td>
+</tr>
+<tr>
+<td>History</td>
+<td><code>Simulate-AccessChanges.sql</code> spreads the grants over six months, removes about one membership in sixteen on project, application and distribution groups, and brings a few back</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What makes it realistic rather than merely large</strong> — each of these is a property a question depends
+on, and each is absent from the standard slice:</p>
+<ul>
+<li><strong>Job titles do not predict access.</strong> Half the titles are generic (<code>Medewerker</code>, <code>Specialist</code>,
+  <code>Consultant</code>); people on one team hold nearly the same things whatever their title, and two people
+  with the same title on different teams hold very different things. One member of a team in five
+  holds something nobody else on the team has, so the clusters are not perfect.</li>
+<li><strong>Careers leave residue.</strong> About 150 people moved department at some point and kept one to three
+  groups of the department they left. Their account says Finance and their access says Engineering.</li>
+<li><strong>Projects outlive themselves.</strong> Ten of the 24 project groups finished, some years ago, and every
+  member still holds them.</li>
+<li><strong>Leavers.</strong> Half the disabled accounts still hold everything they held on their last day.</li>
+<li><strong>Names collide.</strong> 31 people share one first name and 15 full names occur more than once, so
+  pinning a name to a person genuinely needs asking — while the pool is walked without repeats so
+  duplicates stay the exception rather than the rule.</li>
+<li><strong>Sign-ins spread</strong> from today to over a year ago, including accounts that never signed in (a row
+  with no timestamp) and accounts with no row at all. Those are different facts and the reports tell
+  them apart.</li>
+</ul>
+<p><strong>What it deliberately does NOT do.</strong> It never touches anything above it: the same ids, the same
+ordering, the same 26-person company. Generating without the switch produces the standard dataset
+byte for byte, which is what <code>test/unit/DemoRealism.Tests.ps1</code> asserts first, because
+<code>Verify-DemoDataset.ps1</code>'s exact row counts, the Capture-the-Flag answers and the E2E suite all pin
+those numbers. With the slice on, those exact-count checks no longer apply.</p>
+<p><strong>Two things it made visible in the standard slice</strong>, left alone so the pinned counts hold:</p>
+<ol>
+<li>The two standard guests are <code>principalType = 'ExternalUser'</code>. Entra models a B2B guest as a
+   <code>User</code> with <code>userType = 'Guest'</code>, which is also how the report catalog's <code>user</code> entity finds one
+   — so a guest question over the standard data comes back empty however right the pipeline is. The
+   realism slice's guests are modelled the Entra way.</li>
+<li>The standard groups set neither <code>securityEnabled</code> nor <code>mailEnabled</code>, so "mail-enabled groups that
+   are not security groups" cannot be answered over them at all.</li>
+</ol>
 <h2 id="capture-the-flag-scenarios">Capture-the-Flag scenarios<a class="headerlink" href="#capture-the-flag-scenarios" title="Permanent link">&para;</a></h2>
 <p>The dataset carries the twelve CTF scenarios from <a href="https://github.com/Fortigi/IdentityAtlas/issues/705">issue #705</a>. The design principle: <strong>every flag must be hard from a raw export and easy in Identity Atlas.</strong> Answers are asserted in two places, so a dataset change can never silently move one:</p>
 <ul>
@@ -5292,44 +7177,181 @@
 <h3 id="role-derived-access-is-materialised">Role-derived access is materialised<a class="headerlink" href="#role-derived-access-is-materialised" title="Permanent link">&para;</a></h3>
 <p>Holding <code>BR-Sales</code> does <strong>not</strong> by itself give anyone <code>SG-CRM-Users</code>. The matrix matview (migration 049) derives <em>managed-by-role</em> from <code>Contains</code> + holding the role, but only for cells that already exist; a <code>Contains</code> child with no effective assignment renders as a provisioning <strong>gap</strong>, not as access.</p>
 <p>So role-derived access is emitted as explicit <code>Indirect</code> assignments <strong>and</strong> a <code>Contains</code> edge. The assignment is the access; the edge is the <em>why</em>. Drop either and flag 4 has no answer. See <code>docs/architecture/matrix.md</code>.</p>
+<h3 id="fewer-and-more-than-the-role-assigns">Fewer and more than the role assigns<a class="headerlink" href="#fewer-and-more-than-the-role-assigns" title="Permanent link">&para;</a></h3>
+<p>Matching access is the easy case. <code>DemoRoleDrift.ps1</code> supplies the two that a
+role-mining review actually hunts for, on one business role —
+<strong>BR-Service-Desk</strong>, which grants <code>SG-Servicedesk-Tools</code> and
+<code>SG-Servicedesk-KB</code> as memberships and <code>SG-Servicedesk-Admin</code> as <em>eligibility
+only</em> (<code>roleName='Eligible Member'</code> on the <code>Contains</code> edge). The fourth thing it
+grants — the <code>Ticketing-Agent</code> app role — belongs to the
+<a href="#one-resource-two-business-roles">shared-grant scenario</a> below:</p>
+<table>
+<thead>
+<tr>
+<th>Person</th>
+<th>What they have</th>
+<th>What the matrix shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ursula Visser (E0014), Victor Wang (E0029)</td>
+<td>All three, exactly as assigned</td>
+<td>Nothing — the control, so the deviations don't read as the norm</td>
+</tr>
+<tr>
+<td>Tom Bakker (E0034)</td>
+<td>Tools only</td>
+<td><strong>Fewer</strong>: two of the three groups the role assigns him are missing — as is the Ticketing-Agent app role it shares with BR-IT-Operations</td>
+</tr>
+<tr>
+<td>Wendy Xu (E0030)</td>
+<td>Tools, plus Admin as a <em>standing</em> membership; no KB</td>
+<td><strong>Fewer and more at once</strong> — the case the folded role row has to summarise in both directions</td>
+</tr>
+<tr>
+<td>Lars Muller (E0024)</td>
+<td>Tools, without holding the role</td>
+<td>Access no business role of his accounts for — the red "held outside business-role governance" mark on that cell, and part of the role's red count once it is folded</td>
+</tr>
+</tbody>
+</table>
+<p>Under-provisioning is modelled by <em>leaving an assignment out</em>: a <code>Contains</code>
+child with no effective assignment is what the grid reads as fewer. Over-
+provisioning needs the <code>roleName</code> on the edge — without it every child reads as
+"standing membership expected" and holding one permanently is exactly right.
+See <a href="../matrix/"><code>matrix.md</code></a> → "Fewer and more than the role assigns" for how
+each is rendered.</p>
+<h3 id="held-outside-the-role-that-grants-it">Held outside the role that grants it<a class="headerlink" href="#held-outside-the-role-that-grants-it" title="Permanent link">&para;</a></h3>
+<p>The third thing the matrix says about a resource a business role hands out:
+someone holds it who the role does <strong>not</strong> hand it to. <code>SG-VPN-Access</code> carries
+that case, and both halves of it are load-bearing.</p>
+<p>The two SysAdmins are deliberately <em>not</em> people without governance — they hold
+<code>BR-Employee-Base</code>, <code>BR-Service-Desk</code> and <code>BR-IT-Operations</code>. None of those
+grants <code>SG-VPN-Access</code>; only <code>BR-Engineering-Tools</code> does. That is the whole point
+of the case, and why the marker's tooltip reports what it evaluated — <em>no
+business role assigns this resource to this subject</em>, and <code>BR-Engineering-Tools</code>
+"carries no assignment of it for this subject" — rather than asserting that they
+do not hold that role. The claim the tooltip used to make about role membership
+was both unchecked and, for anyone who does hold the granting role while its
+grant is missing from their assignments, wrong (requestor feedback on #370).</p>
+<table>
+<thead>
+<tr>
+<th>Who</th>
+<th>What they have</th>
+<th>What the matrix shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The 8 BR-Engineering-Tools holders</td>
+<td>The VPN group, <code>Indirect</code>, through the role</td>
+<td>Governed access, in the role's colour — no marker</td>
+</tr>
+<tr>
+<td>Victor Wang (E0029), Wendy Xu (E0030)</td>
+<td>The VPN group, <code>Direct</code>, without the role</td>
+<td>A red count on those two cells: a membership no business role assigns them — not <code>BR-Engineering-Tools</code>, which grants the group, and not one of the three roles they do hold</td>
+</tr>
+</tbody>
+</table>
+<p>Drop the <code>Indirect</code> rows and every engineer turns into a provisioning gap on a
+group their role really does grant — eight bogus gaps that bury the two
+deliberate ones (<code>BR-Employee-Base</code> → <code>FortigiGraph-App</code>, and the role drift
+above). Give the SysAdmins the role and the "held outside the role" example
+disappears instead. <code>Verify-DemoDataset.ps1</code> and <code>test/unit/DemoDataset.Tests.ps1</code>
+guard both halves.</p>
+<p>See <a href="../matrix/"><code>matrix.md</code></a> → "Fewer and more than the role assigns" for how it
+is rendered, folded and unfolded.</p>
+<h3 id="one-resource-two-business-roles">One resource, two business roles<a class="headerlink" href="#one-resource-two-business-roles" title="Permanent link">&para;</a></h3>
+<p>Real catalogues overlap — the same group or application role is handed out by
+more than one business role. <code>DemoSharedGrants.ps1</code> builds that overlap between
+<strong>BR-Service-Desk</strong> and a second role, <strong>BR-IT-Operations</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Resource</th>
+<th>Granted by</th>
+<th>Why it is there</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SG-Servicedesk-Tools</code> (Group)</td>
+<td>BR-Service-Desk <strong>+</strong> BR-IT-Operations</td>
+<td>The group in two roles</td>
+</tr>
+<tr>
+<td><code>Ticketing-Agent</code> (AppRole)</td>
+<td>BR-Service-Desk <strong>+</strong> BR-IT-Operations</td>
+<td>The application role in two roles</td>
+</tr>
+<tr>
+<td><code>SG-Monitoring-Tools</code> (Group)</td>
+<td>BR-IT-Operations only</td>
+<td>So the two roles' blocks are not identical</td>
+</tr>
+</tbody>
+</table>
+<p>The holders make the overlap non-trivial: Victor Wang (E0029) and Wendy Xu
+(E0030) hold <strong>both</strong> roles, while Fatih Gunay (E0010) holds BR-IT-Operations
+only — so the shared rows cannot be attributed to the service desk alone.</p>
+<p>Two properties of the data are the point, and
+<code>Verify-DemoDataset.ps1</code> guards both:</p>
+<ul>
+<li><strong>A membership covered by two roles is one assignment.</strong> Victor's
+  <code>SG-Servicedesk-Tools</code> row is emitted once; the second role adds a second
+  <code>Contains</code> edge, i.e. coverage, not a second grant. That is why
+  <code>DemoSharedGrants.ps1</code> skips the memberships <code>DemoRoleDrift.ps1</code> already
+  emitted.</li>
+<li><strong>Each role also grants something exclusively</strong>, so "fold one role" and "fold
+  both" are visibly different states.</li>
+</ul>
+<p>The grid draws the two shared resources <strong>under both roles</strong> — one row in each
+role's block, each carrying the <code>BR</code> chip that points at the other role — so the
+overlap is visible without hunting for it, and folding one role removes only its
+own copies.</p>
+<p>See <a href="../matrix/"><code>matrix.md</code></a> → "One resource, several business roles" for what
+the grid does with it.</p>
 <hr />
 <h2 id="dataset-format">Dataset Format<a class="headerlink" href="#dataset-format" title="Permanent link">&para;</a></h2>
 <p>The dataset is a single JSON file that maps directly to the Ingest API endpoints. The nightly test script reads it and POSTs each section to the appropriate endpoint.</p>
 <p><strong>File:</strong> <code>test/demo-dataset/demo-company.json</code></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;metadata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">&quot;company&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Fortigi Demo Corp&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Synthetic dataset for E2E testing and the public demo (issue #705)&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nt">&quot;systemKeys&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;entra&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;systemType&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EntraID&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;tenantId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;demo-tenant-001&quot;</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">"metadata"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">"company"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Fortigi Demo Corp"</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2.0"</span><span class="p">,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Synthetic dataset for E2E testing and the public demo (issue #705)"</span><span class="p">,</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nt">"systemKeys"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"entra"</span><span class="p">,</span><span class="w"> </span><span class="nt">"systemType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EntraID"</span><span class="p">,</span><span class="w"> </span><span class="nt">"tenantId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"demo-tenant-001"</span><span class="w"> </span><span class="p">}</span>
 <a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="p">],</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">    </span><span class="nt">&quot;entityCounts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">      </span><span class="nt">&quot;systems&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">      </span><span class="nt">&quot;principals&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">45</span><span class="p">,</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">      </span><span class="nt">&quot;resources&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">39</span><span class="p">,</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">      </span><span class="nt">&quot;resourceAssignments&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">143</span><span class="p">,</span>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">      </span><span class="nt">&quot;resourceRelationships&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span>
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">      </span><span class="nt">&quot;identities&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">27</span><span class="p">,</span>
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">      </span><span class="nt">&quot;identityMembers&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">38</span><span class="p">,</span>
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">      </span><span class="nt">&quot;contexts&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">9</span><span class="p">,</span>
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="w">      </span><span class="nt">&quot;contextMembers&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">35</span><span class="p">,</span>
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="w">      </span><span class="nt">&quot;governanceCatalogs&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="w">      </span><span class="nt">&quot;assignmentPolicies&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
-<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="w">      </span><span class="nt">&quot;certificationDecisions&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">    </span><span class="nt">"entityCounts"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">      </span><span class="nt">"systems"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">      </span><span class="nt">"principals"</span><span class="p">:</span><span class="w"> </span><span class="mi">45</span><span class="p">,</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">      </span><span class="nt">"resources"</span><span class="p">:</span><span class="w"> </span><span class="mi">46</span><span class="p">,</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">      </span><span class="nt">"resourceAssignments"</span><span class="p">:</span><span class="w"> </span><span class="mi">176</span><span class="p">,</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">      </span><span class="nt">"resourceRelationships"</span><span class="p">:</span><span class="w"> </span><span class="mi">27</span><span class="p">,</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">      </span><span class="nt">"identities"</span><span class="p">:</span><span class="w"> </span><span class="mi">27</span><span class="p">,</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">      </span><span class="nt">"identityMembers"</span><span class="p">:</span><span class="w"> </span><span class="mi">38</span><span class="p">,</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">      </span><span class="nt">"contexts"</span><span class="p">:</span><span class="w"> </span><span class="mi">9</span><span class="p">,</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="w">      </span><span class="nt">"contextMembers"</span><span class="p">:</span><span class="w"> </span><span class="mi">35</span><span class="p">,</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="w">      </span><span class="nt">"governanceCatalogs"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="w">      </span><span class="nt">"assignmentPolicies"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="w">      </span><span class="nt">"certificationDecisions"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span>
 <a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="w">    </span><span class="p">}</span>
 <a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="w">  </span><span class="p">},</span>
-<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a><span class="w">  </span><span class="nt">&quot;systems&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
-<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a><span class="w">  </span><span class="nt">&quot;principals&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
-<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a><span class="w">  </span><span class="nt">&quot;resources&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
-<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a><span class="w">  </span><span class="nt">&quot;resourceAssignments&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
-<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a><span class="w">  </span><span class="nt">&quot;resourceRelationships&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
-<a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a><span class="w">  </span><span class="nt">&quot;identities&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
-<a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a><span class="w">  </span><span class="nt">&quot;identityMembers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
-<a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a><span class="w">  </span><span class="nt">&quot;contexts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
-<a id="__codelineno-2-32" name="__codelineno-2-32" href="#__codelineno-2-32"></a><span class="w">  </span><span class="nt">&quot;governanceCatalogs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
-<a id="__codelineno-2-33" name="__codelineno-2-33" href="#__codelineno-2-33"></a><span class="w">  </span><span class="nt">&quot;assignmentPolicies&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
-<a id="__codelineno-2-34" name="__codelineno-2-34" href="#__codelineno-2-34"></a><span class="w">  </span><span class="nt">&quot;certificationDecisions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">]</span>
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a><span class="w">  </span><span class="nt">"systems"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a><span class="w">  </span><span class="nt">"principals"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a><span class="w">  </span><span class="nt">"resources"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a><span class="w">  </span><span class="nt">"resourceAssignments"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a><span class="w">  </span><span class="nt">"resourceRelationships"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a><span class="w">  </span><span class="nt">"identities"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a><span class="w">  </span><span class="nt">"identityMembers"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a><span class="w">  </span><span class="nt">"contexts"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-32" name="__codelineno-2-32" href="#__codelineno-2-32"></a><span class="w">  </span><span class="nt">"governanceCatalogs"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-33" name="__codelineno-2-33" href="#__codelineno-2-33"></a><span class="w">  </span><span class="nt">"assignmentPolicies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-34" name="__codelineno-2-34" href="#__codelineno-2-34"></a><span class="w">  </span><span class="nt">"certificationDecisions"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">]</span>
 <a id="__codelineno-2-35" name="__codelineno-2-35" href="#__codelineno-2-35"></a><span class="p">}</span>
 </code></pre></div>
 <hr />
@@ -5358,18 +7380,18 @@
 </tr>
 <tr>
 <td>Resources</td>
-<td>39</td>
-<td>Entra 10 + group-ownership 3 + business roles 5 + Sales 4 + consent 4 + SAP 4 + Azure 9</td>
+<td>46</td>
+<td>Entra 10 + group-ownership 3 + business roles 7 + Sales 4 + role drift 3 + shared grants 2 + consent 4 + SAP 4 + Azure 9</td>
 </tr>
 <tr>
 <td>ResourceAssignments</td>
-<td>143</td>
-<td><code>Direct</code> + <code>Indirect</code> (role-derived) + 1 <code>Eligible</code>; the <code>governed=true</code> ones are the business-role memberships</td>
+<td>176</td>
+<td><code>Direct</code> + <code>Indirect</code> (role-derived) + <code>Eligible</code>; the <code>governed=true</code> ones are the business-role memberships</td>
 </tr>
 <tr>
 <td>ResourceRelationships</td>
-<td>20</td>
-<td>14 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope</td>
+<td>27</td>
+<td>21 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope</td>
 </tr>
 <tr>
 <td>Identities</td>
@@ -5556,6 +7578,22 @@
 <td>Every <code>DelegatedPermission</code>'s <code>clientSpId</code> resolves to a Principal</td>
 <td>True</td>
 </tr>
+<tr>
+<td>BR-Service-Desk grants 4 resources, one of them <code>Eligible Member</code> only</td>
+<td>True</td>
+</tr>
+<tr>
+<td><code>SG-Servicedesk-Tools</code> (Group) and <code>Ticketing-Agent</code> (AppRole) each have 2 <code>Contains</code> parents</td>
+<td>True</td>
+</tr>
+<tr>
+<td>A membership covered by two roles is stored once, not twice</td>
+<td>True</td>
+</tr>
+<tr>
+<td>One BR-IT-Operations holder (E0010) does not hold BR-Service-Desk</td>
+<td>True</td>
+</tr>
 </tbody>
 </table>
 <h3 id="ui-verification-playwright">UI Verification (Playwright)<a class="headerlink" href="#ui-verification-playwright" title="Permanent link">&para;</a></h3>
@@ -5568,11 +7606,11 @@
 </thead>
 <tbody>
 <tr>
-<td>Resources page shows 34 resources (excluding BusinessRoles)</td>
+<td>Resources page shows 39 resources (excluding BusinessRoles)</td>
 <td>Count rows, filter by non-BusinessRole</td>
 </tr>
 <tr>
-<td>Business Roles page shows 5 business roles</td>
+<td>Business Roles page shows 7 business roles</td>
 <td>Count rows</td>
 </tr>
 <tr>
@@ -5740,7 +7778,7 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.path", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
