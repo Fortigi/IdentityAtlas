@@ -1,5 +1,14 @@
 ## Changes in this PR
 
+- Fixed the first-time Docker install: the quick start commands on the website, in the README and in the documentation now generate a database password into `.env` before starting the stack. Previously they left it empty, and the stack refused to start.
+- The website, README, Quick Start and Docker Setup pages now give the same install steps, with a PowerShell version for Windows. Running the steps again keeps the existing password.
+- Corrected the documentation that listed a default database password for the production stack: there is none, and setting one is required.
+- Corrected the advice on the secrets master key: it must be 32 random bytes in base64 (`openssl rand -base64 32`), not any 32-character string, and it is generated and kept in the `web_keys` volume when you do not set one.
+- The website no longer says sign-in is enforced from the first deployment for every install: that applies to the Azure deployment. The Docker evaluation stack starts without sign-in, and the install pages now say so.
+- The error shown when the database password is missing now says where to set it.
+
+## Changes in this PR
+
 - Added product screenshots to the documentation: the permission matrix (flat and folded by department), the dashboard, a user detail tab, a business role detail tab, the Contexts tab and the Add Crawler type picker, all captured from the public demo's synthetic dataset
 - The README now opens with a screenshot of the permission matrix and links to the live demo
 - Fixed the README's stale note that the documentation site was not yet published
