@@ -5948,6 +5948,11 @@
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>The Role Mining UI is a web application that visualizes your synced permission data. It is the primary way most users interact with Identity Atlas data. Built with React, Vite, Tailwind CSS, and TanStack Table v8, the UI runs in the Docker stack alongside the API (the <code>web</code> container) and is optionally protected by Entra ID authentication.</p>
 <p><strong>URL after starting the stack:</strong> <code>http://localhost:3001</code> (or whatever host you map port 3001 to).</p>
+<figure>
+  <img alt="The Matrix tab: resources as rows, users grouped by department as columns, with Direct, Indirect and Eligible badges in the cells" src="../../assets/screenshots/matrix.png" />
+<br />
+<figcaption>The Matrix — the core view. Every screenshot in this documentation shows the synthetic demo dataset, which you can explore in the <a href="https://demo1.identityatlas.io">live demo</a>.</figcaption>
+</figure>
 <hr />
 <h2 id="pages">Pages<a class="headerlink" href="#pages" title="Permanent link">&para;</a></h2>
 <p>The app opens to the <strong>Dashboard</strong> landing page — not the Matrix. From there the navigation bar has two groups of tabs:</p>
@@ -6014,6 +6019,11 @@
 </tr>
 </tbody>
 </table>
+<figure>
+  <img alt="The Admin page on the Crawlers sub-tab, with the Add Crawler type picker listing Azure Resource Manager, CSV Import, Custom Connector, Demo Data, Microsoft Graph, midPoint, SQL Database and Omada IGA" src="../../assets/screenshots/crawlers.png" />
+<br />
+<figcaption>Admin → Crawlers, with the <strong>Add Crawler</strong> type picker open.</figcaption>
+</figure>
 <hr />
 <h3 id="matrix-view">Matrix View<a class="headerlink" href="#matrix-view" title="Permanent link">&para;</a></h3>
 <p>The core visualization — an interactive resource × subject permission matrix.</p>
@@ -6091,6 +6101,11 @@
 <p>A <strong>live summary</strong> at the bottom shows counts as you tweak — subjects matched / total, resources matched / total, and the resulting assignment count — with warnings when a matrix grows large and a hard block on an oversized flat (per-subject) grid.</p>
 <h4 id="roll-up-by-attribute">Roll-up by Attribute<a class="headerlink" href="#roll-up-by-attribute" title="Permanent link">&para;</a></h4>
 <p>Instead of a per-subject grid, the columns can be <strong>rolled up</strong> by an attribute (e.g. department) or by a <strong>Manager Hierarchy</strong> context tree. A rolled-up cell shows a count (or percentage) of the subjects in that group who hold the resource. Roll-ups are aggregated on the server, so they load at any size. A <strong>Content</strong> step lets you choose what the roll-up shows: resources + business-role columns, resources only, or business roles only. You can also fold individual attribute groups into a single count column right in the matrix.</p>
+<figure>
+  <img alt="The matrix with every department folded into a single count column, next to one coloured column per business role" src="../../assets/screenshots/matrix-rollup.png" />
+<br />
+<figcaption>The same matrix with every department folded into a count column, next to the business-role columns.</figcaption>
+</figure>
 <h4 id="saved-matrices">Saved Matrices<a class="headerlink" href="#saved-matrices" title="Permanent link">&para;</a></h4>
 <p>A fully-scoped matrix (filter + orientation + governed-state toggle) can be saved by name. Saved matrices are <strong>org-wide</strong> — any user can load, rename, or delete any saved matrix — and are managed from the <strong>Saved matrices</strong> dropdown at the top of the wizard.</p>
 <h4 id="orientation-toggle">Orientation Toggle<a class="headerlink" href="#orientation-toggle" title="Permanent link">&para;</a></h4>
@@ -6113,6 +6128,12 @@
 <li><strong>Filter</strong> by any attribute column or tag</li>
 <li><strong>Tag management:</strong> assign/remove tags (Tag Contexts — see <a href="#tagging-system">Tagging System</a>) from selected users, bulk-tag by filter</li>
 </ul>
+<p>Clicking a name opens that account in its own detail tab, with <strong>Attributes</strong>, <strong>Relationships</strong> and <strong>Timeline</strong> views.</p>
+<figure>
+  <img alt="A user detail tab on the Relationships view: a graph linking the user to their manager, identity, contexts, business roles and direct, indirect and eligible access, above a table of the ten direct assignments" src="../../assets/screenshots/user-detail.png" />
+<br />
+<figcaption>A user's detail tab — the Relationships view, with the direct assignments fanned out.</figcaption>
+</figure>
 <hr />
 <h3 id="resources-page">Resources Page<a class="headerlink" href="#resources-page" title="Permanent link">&para;</a></h3>
 <p>Browse all synced resources (groups, directory roles, app roles, etc.) with pagination.</p>
@@ -6165,6 +6186,11 @@ accounts that have been removed (soft-deleted) are not counted.</p>
 <hr />
 <h3 id="business-role-detail-page">Business Role Detail Page<a class="headerlink" href="#business-role-detail-page" title="Permanent link">&para;</a></h3>
 <p>Clicking any business role name opens a detail tab. Multiple detail tabs can be open simultaneously; each has a close button. The URL hash (<code>#business-role:&lt;id&gt;</code>) is bookmarkable.</p>
+<figure>
+  <img alt="A business role detail tab on the Relationships view: a graph linking the role to its catalog, its assignments and the four resources it grants, above a table of those resources" src="../../assets/screenshots/business-role.png" />
+<br />
+<figcaption>A business role's detail tab — the Relationships view, showing the resources the role grants.</figcaption>
+</figure>
 <p>The detail tab contains collapsible sections:</p>
 <table>
 <thead>
@@ -6307,6 +6333,11 @@ accounts that have been removed (soft-deleted) are not counted.</p>
 <h3 id="contexts">Contexts<a class="headerlink" href="#contexts" title="Permanent link">&para;</a></h3>
 <p>Contexts are the unified data surface that replaced the former Org Chart, tag, and cluster tabs. A Context is a named grouping of Identities, Resources, Principals, or Systems, in one of three variants — <strong>synced</strong> (from a source system), <strong>generated</strong> (emitted by a context-algorithm plugin), or <strong>manual</strong> (curated by hand). Manager-hierarchy trees (the old Org Chart), resource clusters, tags, and business processes are all generated Contexts produced by plugins that register at startup.</p>
 <p>Contexts are also first-class building blocks for Matrix scoping: any Context can be used as an include/exclude condition in the Filter Wizard.</p>
+<figure>
+  <img alt="The Contexts tab: a list of context trees on the left and the selected department tree on the right, with member counts per department and team" src="../../assets/screenshots/contexts.png" />
+<br />
+<figcaption>The Contexts tab, with a synced department tree selected.</figcaption>
+</figure>
 <p>See <a href="../contexts/">Contexts</a> for the full guide.</p>
 <hr />
 <h3 id="performance-admin-sub-tab">Performance <em>(Admin sub-tab)</em><a class="headerlink" href="#performance-admin-sub-tab" title="Permanent link">&para;</a></h3>
