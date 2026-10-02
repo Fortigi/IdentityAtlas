@@ -62,17 +62,29 @@ describe('extFieldsFor', () => {
 describe('loadExtFields', () => {
   it('reads each table once and gives both entities that share it the same fields', async () => {
     discoverExtendedAttrKeys.mockImplementation(async (table) => ({
-      Principals: ['sfDepartmentID'], Resources: ['fgGroupDN'], Identities: [],
+      Principals: ['sfDepartmentID'], Resources: ['fgGroupDN'], Identities: [], Contexts: ['cmdbReference'],
     })[table]);
 
     const fields = await loadExtFields();
 
-    expect(discoverExtendedAttrKeys.mock.calls.map(c => c[0])).toEqual(['Principals', 'Resources', 'Identities']);
+    expect(discoverExtendedAttrKeys.mock.calls.map(c => c[0])).toEqual(['Principals', 'Resources', 'Identities', 'Contexts']);
     expect(Object.keys(fields.user)).toEqual(['ext.sfDepartmentID']);
     expect(Object.keys(fields.account)).toEqual(['ext.sfDepartmentID']);
     expect(Object.keys(fields.group)).toEqual(['ext.fgGroupDN']);
     expect(Object.keys(fields.resource)).toEqual(['ext.fgGroupDN']);
     expect(fields.identity).toEqual({});
+    // What a source stamps on its contexts is reportable too, under the same rule.
+    expect(Object.keys(fields.context)).toEqual(['ext.cmdbReference']);
+    expect(fields.context['ext.cmdbReference'].sql('c0')).toBe(`c0."extendedAttributes"->>'cmdbReference'`);
+  });
+
+  it('labels a context attribute from the context target', async () => {
+    discoverExtendedAttrKeys.mockResolvedValue([RAW]);
+    getAttributeLabels.mockImplementation(async (target) => (target === 'context' ? LABELS : {}));
+
+    const fields = await loadExtFields();
+    expect(fields.context[`ext.${RAW}`].label).toBe('sfDepartmentID');
+    expect(fields.user[`ext.${RAW}`].label).toBe(RAW);
   });
 
   it('labels a principal attribute from the principal target', async () => {
@@ -103,11 +115,11 @@ describe('loadExtFields', () => {
     discoverExtendedAttrKeys.mockResolvedValue(['sfDepartmentID']);
     await loadExtFields();
     await loadExtFields();
-    expect(discoverExtendedAttrKeys).toHaveBeenCalledTimes(3); // one per table, once
+    expect(discoverExtendedAttrKeys).toHaveBeenCalledTimes(4); // one per table, once
 
     clearExtFieldsCache();
     await loadExtFields();
-    expect(discoverExtendedAttrKeys).toHaveBeenCalledTimes(6);
+    expect(discoverExtendedAttrKeys).toHaveBeenCalledTimes(8);
   });
 });
 
