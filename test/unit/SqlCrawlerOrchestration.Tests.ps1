@@ -58,9 +58,12 @@ BeforeAll {
     }
     function Invoke-SqlSweep     { param($State, $Connection, $Slots) $script:calls.Add('sweep') }
     function Complete-SqlStagedLoads {
-        param($State)
-        $script:calls.Add('finalize')
-        if ($script:throwOn -eq 'finalize') { throw 'the stage finalize failed' }
+        param($State, [switch]$Windowed)
+        # Two calls: the windows before the sweep, the complete scopes after the
+        # source connection is closed.
+        $name = if ($Windowed) { 'windows' } else { 'finalize' }
+        $script:calls.Add($name)
+        if ($script:throwOn -eq $name) { throw "the stage $name failed" }
     }
     function Invoke-SqlReconcile { param($State) $script:calls.Add('reconcile') }
     function Test-SqlRunCounts {
@@ -115,7 +118,7 @@ Describe 'Start-SqlCrawler end-of-run ordering — structure' {
 Describe 'Start-SqlCrawler end-of-run ordering — behaviour' {
     It 'a clean run verifies, saves both marks, and refreshes once' {
         (Invoke-EntryPointTail) | Should -BeNullOrEmpty
-        $script:calls | Should -Be @('slot', 'sweep', 'dispose', 'finalize', 'reconcile', 'verify', 'watermarks', 'sweepmarks', 'refresh')
+        $script:calls | Should -Be @('slot', 'windows', 'sweep', 'dispose', 'finalize', 'reconcile', 'verify', 'watermarks', 'sweepmarks', 'refresh')
     }
 
     It 'a FAILED verification still refreshes the views' {
@@ -134,7 +137,7 @@ Describe 'Start-SqlCrawler end-of-run ordering — behaviour' {
         # rows this one never loaded and they would be invisible for good.
         $script:calls | Should -Not -Contain 'watermarks'
         $script:calls | Should -Not -Contain 'sweepmarks'
-        $script:calls | Should -Be @('slot', 'sweep', 'dispose', 'finalize', 'reconcile', 'verify', 'refresh')
+        $script:calls | Should -Be @('slot', 'windows', 'sweep', 'dispose', 'finalize', 'reconcile', 'verify', 'refresh')
     }
 
     # A staged scope is only APPLIED by the finalize. If it fails, the scopes it
@@ -143,7 +146,17 @@ Describe 'Start-SqlCrawler end-of-run ordering — behaviour' {
     It 'a failed finalize stops the run before the reconcile and the marks, and still refreshes' {
         $escaped = Invoke-EntryPointTail -ThrowOn 'finalize'
         "$escaped" | Should -Match 'stage finalize failed'
-        $script:calls | Should -Be @('slot', 'sweep', 'dispose', 'finalize', 'refresh')
+        $script:calls | Should -Be @('slot', 'windows', 'sweep', 'dispose', 'finalize', 'refresh')
+    }
+
+    # The sweep asserts a scope's total against the key set it read, which only
+    # holds once this run's additions are in the table — so the windows go first.
+    # And if they cannot be applied, the sweep must not run: it would remove
+    # nothing wrong, but the run is already lost and its marks must not move.
+    It 'a failed window finalize stops the run before the sweep, closes the connection, and still refreshes' {
+        $escaped = Invoke-EntryPointTail -ThrowOn 'windows'
+        "$escaped" | Should -Match 'stage windows failed'
+        $script:calls | Should -Be @('slot', 'windows', 'dispose', 'refresh')
     }
 
     It 'a read that dies mid-stream still refreshes, and never reaches the verdict' {

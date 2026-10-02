@@ -121,9 +121,9 @@ function New-SqlRunState {
         # Several batches in flight for the streams that may commit in any
         # order (Get-SqlSlotStream). $null = one at a time.
         Sender          = $(if ($IngestConcurrency -gt 1) { New-CrawlerIngestSender -MaxInFlight $IngestConcurrency })
-        # A full sync loads its complete assignment scopes through stages, one
-        # per (system, scope), applied together at the end (SqlCrawler.Staging.ps1).
-        StageFullLoads  = ($StagedFullLoad -and $SyncMode -eq 'full')
+        # Assignment scopes load through stages, one per (system, scope), in a
+        # full sync and a delta run alike (SqlCrawler.Staging.ps1).
+        StageLoads      = [bool]$StagedFullLoad
         Stages          = @{}
         StagedSeconds   = 0
         Totals          = [ordered]@{}
@@ -173,7 +173,7 @@ function New-SqlStreamSpec {
     param([hashtable]$State, [string]$Endpoint, [hashtable]$Scope = @{}, [string[]]$KeyFields = @('externalId'),
           [switch]$Reconcile, [switch]$Keyed, [bool]$Complete = $true)
     $expect = $null
-    $staged = Test-SqlStagedSpec -State $State -Endpoint $Endpoint -Reconcile ([bool]$Reconcile) -Complete $Complete
+    $staged = Test-SqlStagedSpec -State $State -Endpoint $Endpoint -Reconcile ([bool]$Reconcile)
     if ($Reconcile) {
         # Every reconciled scope is also verified at the end of the run. The
         # expectation spans the scope's SYSTEMS (the reconcile does not): the
@@ -181,9 +181,15 @@ function New-SqlStreamSpec {
         # honest comparison sums the database's rows over the systems fed.
         $expect = Get-SqlExpectation -State $State -Key (Get-SqlScopeKey -Endpoint $Endpoint -Scope $Scope) -Endpoint $Endpoint -Scope $Scope -Keyed:$Keyed
         $expect.Slots++
-        # A staged scope holds exactly its stage after the finalize, and an
-        # unchanged row is not touched — so it is counted whole, not by touch.
-        if ($staged) { $expect.Whole = $true }
+        # A staged scope read in full holds exactly its stage after the
+        # finalize, and an unchanged row is not touched — so it is counted
+        # whole, not by touch. One windowed statement among those feeding it
+        # and the scope is a window for the rest of the run: nothing may be
+        # removed from it, and its total says nothing about what was read.
+        if ($staged) {
+            if (-not $Complete) { $expect.Windowed = $true }
+            $expect.Whole = -not $expect.Windowed
+        }
     }
     return @{ Endpoint = $Endpoint; Scope = $Scope; KeyFields = $KeyFields; Reconcile = [bool]$Reconcile
               Complete = $Complete; Expect = $expect; Staged = $staged
@@ -210,8 +216,9 @@ function Get-SqlSlotStream {
     if ($spec.Streams.TryGetValue($SystemId, [ref]$stream)) { return $stream }
     $state = $Ctx.State
     $ingestSender = if ($spec.Endpoint -in $script:SqlPipelinedEndpoints) { $state.Sender } else { $null }
-    # A staged scope's finalize removes what the source no longer has, so it
-    # registers no timestamp reconcile of its own.
+    # A staged scope registers no timestamp reconcile: read in full, its
+    # finalize removes what the source no longer has; read as a window, it was
+    # never reconcilable.
     $stageId = if ($spec.Staged) { (Get-SqlStage -State $state -Spec $spec -SystemId $SystemId).StageId } else { '' }
     $stream = New-CrawlerIngestStream -Endpoint $spec.Endpoint -SystemId $SystemId -IdPrefix $state.IdPrefix `
         -Scope $spec.Scope -BatchSize $state.BatchSize -KeyFields $spec.KeyFields -IngestSender $ingestSender -StageId $stageId

@@ -79,7 +79,7 @@
       "stagedFullLoad": {
         "type": "boolean",
         "default": true,
-        "description": "In a full sync, load each assignment scope through a staged load and apply it in one step: unchanged rows are not rewritten and a first load is indexed once. Off streams every batch straight into the table, as before."
+        "description": "Load each assignment scope through a staged load and apply it in one step, in a full sync and a delta run alike: unchanged rows are not rewritten and a first load is indexed once. Off streams every batch straight into the table, as before."
       },
       "ingestConcurrency": {
         "type": "integer",
