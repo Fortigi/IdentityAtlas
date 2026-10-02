@@ -1,8 +1,8 @@
 // Contract test — the stored context assignment counts against real PostgreSQL.
 //
 // The unit test can only look at the statement's text. This is where the
-// statement runs: three CTE passes over Contexts, ContextMembers, Resources and
-// ResourceAssignments, written back with one UPDATE. Every number below is a
+// statements run: two passes over Contexts, ContextMembers, Resources and
+// ResourceAssignments staged in temporary tables, written back with one UPDATE. Every number below is a
 // different number, so a swapped column, a missed de-duplication or a counted
 // soft-delete shows up as a wrong value rather than a coincidence.
 //
@@ -114,7 +114,7 @@ describe('context assignment counts (contract)', () => {
   });
 
   it('count assignments per kind and holders once, skipping what is deleted or not a resource', async () => {
-    const result = await refreshContextAssignmentCounts(pool);
+    const result = await refreshContextAssignmentCounts();
     expect(result.updated).toBeGreaterThanOrEqual(3);
 
     expect(await stored(id.busy)).toEqual({
@@ -142,13 +142,13 @@ describe('context assignment counts (contract)', () => {
 
   it('write nothing, and no audit row, when nothing changed', async () => {
     const before = await historyRows();
-    await refreshContextAssignmentCounts(pool);
+    await refreshContextAssignmentCounts();
     expect(await historyRows()).toBe(before);
   });
 
   it('follow the data on the next refresh', async () => {
     await assignment(id.entIdle, id.cy, 'Indirect');
-    await refreshContextAssignmentCounts(pool);
+    await refreshContextAssignmentCounts();
     expect(await stored(id.idle)).toMatchObject({ indirectAssignmentCount: 1, directAssignmentCount: 0, holderCount: 1 });
     // The other context is untouched by it.
     expect((await stored(id.busy)).holderCount).toBe(3);
