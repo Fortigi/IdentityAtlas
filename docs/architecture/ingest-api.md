@@ -221,7 +221,10 @@ Entities: `resource-assignments`, `principals`, `resources`,
 takes one of two paths and reports it (`path` in the result, and the sync log).
 Every result also carries `rows` (records received) and `distinct` (distinct keys
 among them): after a finalize with `deleteMissing`, `distinct` is exactly what the
-scope holds, which is what a caller should verify against. The paths:
+scope holds, which is what a caller should verify against. A finalize *without*
+`deleteMissing` applies a window rather than a complete set, so the scope's total
+says nothing about it; its result carries `present` instead, the number of those
+distinct keys that are live in the table afterwards. The paths:
 
 - **`empty-table`** — the target table holds no rows at all (a first load on a new
   installation). Its non-constraint indexes are dropped, every stage is inserted

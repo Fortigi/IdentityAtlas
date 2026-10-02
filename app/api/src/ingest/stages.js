@@ -36,7 +36,8 @@
 // ordinary load of a scope with no optional attributes look identical.) `maxDeleteShare`
 // caps that removal at a share of the scope's live rows and refuses the whole finalize
 // (409, nothing written) above it. Every result carries `distinct`, the number of
-// distinct keys the stage held (see distinctKeyCount). Stages live in memory; an API restart abandons them
+// distinct keys the stage held (see distinctKeyCount); a finalize WITHOUT deleteMissing
+// also carries `present`, how many of those are live in the table afterwards. Stages live in memory; an API restart abandons them
 // (their tables are dropped at startup) and the caller starts over.
 
 import crypto from 'crypto';
@@ -202,7 +203,7 @@ async function applyStages(loaded, deleteMissing, maxDeleteShare) {
   const bulked = canBulk && await db.tx(async (client) => {
     for (const st of loaded) await client.query(`ANALYZE "${st.stageTable}"`);
     if (!(await lockEmptyTable(client, loaded[0].tableName))) return false;
-    await loadIntoEmptyTable(client, loaded, results);
+    await loadIntoEmptyTable(client, loaded, results, deleteMissing);
     return true;
   });
   if (!bulked) {
@@ -253,7 +254,22 @@ async function mergeStage(client, stage, deleteMissing, maxDeleteShare = 0) {
   if (scopeRows !== null && scopeRows > 0 && deleted > scopeRows * maxDeleteShare) {
     throw new DeleteShareExceeded(stage, deleted, scopeRows, maxDeleteShare);
   }
-  return { path: 'merge', inserted, updated, deleted, rows: stage.rows, distinct };
+  // A stage applied WITHOUT deleteMissing is a window, not the complete set: the
+  // scope keeps every row the window did not mention, so its total proves nothing
+  // about this stage. What can be proven is that every key the stage held is now
+  // live in the table — counted here, inside the transaction that wrote them.
+  const present = deleteMissing || keysOnly ? null : await presentKeyCount(client, stage);
+  return { path: 'merge', inserted, updated, deleted, rows: stage.rows, distinct, ...(present === null ? {} : { present }) };
+}
+
+// How many of the stage's distinct keys are live rows of the target.
+async function presentKeyCount(client, stage) {
+  const keys = stage.keyColumns.map(k => `"${k}"`).join(', ');
+  const live = SOFT_DELETE_TABLES.has(stage.tableName) ? ' AND t."deletedAt" IS NULL' : '';
+  const { rows } = await client.query(`
+    SELECT count(*) AS n FROM (SELECT DISTINCT ${keys} FROM "${stage.stageTable}") s
+     WHERE EXISTS (SELECT 1 FROM "${stage.tableName}" t WHERE ${keyMatch(stage)}${targetFilter(stage)}${live})`);
+  return Number(rows[0]?.n ?? 0);
 }
 
 // How many DISTINCT keys the stage holds — what the scope holds once a finalize
@@ -308,7 +324,7 @@ function withSystem(stage, cols, selectCols) {
   return { cols: `${cols}, "systemId"`, selectCols: `${selectCols}, ${Number(stage.systemId)}` };
 }
 
-async function loadIntoEmptyTable(client, loaded, results) {
+async function loadIntoEmptyTable(client, loaded, results, deleteMissing = false) {
   const tableName = loaded[0].tableName;
   const { rows: idx } = await client.query(
     `SELECT i.indexname, i.indexdef FROM pg_indexes i
@@ -326,7 +342,9 @@ async function loadIntoEmptyTable(client, loaded, results) {
       `INSERT INTO "${tableName}" (${cols}) SELECT ${selectCols} FROM (${d.sql}) s`);
     // The insert IS one row per distinct key, so its count is the distinct count.
     const inserted = res.rowCount || 0;
-    results.set(stage.id, { path: 'empty-table', inserted, updated: 0, deleted: 0, rows: stage.rows, distinct: inserted });
+    results.set(stage.id, { path: 'empty-table', inserted, updated: 0, deleted: 0, rows: stage.rows, distinct: inserted,
+      // Into an empty table every distinct key was just inserted, so all of them are present.
+      ...(deleteMissing ? {} : { present: inserted }) });
   }
   for (const { indexdef } of idx) await client.query(indexdef);
 }

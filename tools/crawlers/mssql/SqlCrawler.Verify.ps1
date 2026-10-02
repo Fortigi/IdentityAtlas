@@ -133,6 +133,10 @@ function Get-SqlExpectation {
             # the finalize reported them (Set-SqlStagedExpectations). When set,
             # it replaces the source's count as what the database is held to.
             Applied = $null
+            # A staged scope that some statement read a WINDOW of: nothing is
+            # removed from it, and it is held to Present — how many of the
+            # Applied assignments the finalize found live in the table.
+            Windowed = $false; Present = $null
         }
     }
     return $State.Expect[$Key]
@@ -318,8 +322,11 @@ function Get-SqlStagedScopeVerdict {
     $e = $Expectation
     $applied = [long]$e.Applied
     if ($Atlas -ne $applied) {
-        return @{ ok = $false; expected = $applied; atlas = $Atlas
-                  reason = "the staged load applied $($applied.ToString('N0')) distinct assignments and the scope holds $($Atlas.ToString('N0'))" }
+        # A window: $Atlas is how many of its assignments are live in the table,
+        # not the scope's total (Measure-SqlScopeRows).
+        $reason = if ($e.Windowed) { "the window held $($applied.ToString('N0')) distinct assignments and $($Atlas.ToString('N0')) of them are in the database" }
+                  else { "the staged load applied $($applied.ToString('N0')) distinct assignments and the scope holds $($Atlas.ToString('N0'))" }
+        return @{ ok = $false; expected = $applied; atlas = $Atlas; reason = $reason }
     }
     $reason = $null
     if ($null -eq $e.Unverifiable -and $null -ne $e.SourceDistinct -and [long]$e.SourceDistinct -ne $applied) {
@@ -467,8 +474,12 @@ function Measure-SqlScopeRows {
     [CmdletBinding()]
     [OutputType([long])]
     param([Parameter(Mandatory)] [hashtable]$State, [Parameter(Mandatory)] $Expectation, [string]$Before = '')
+    # A staged window is not counted here at all: its total includes every row
+    # the window did not mention, and its unchanged rows were not touched. The
+    # finalize counted how many of the window's assignments are live instead.
+    if ($Expectation.Windowed -and $null -ne $Expectation.Present) { return [long]$Expectation.Present }
     $entity = $Expectation.Endpoint -replace '^ingest/', ''
-    # A staged scope is counted whole (SqlCrawler.Staging.ps1).
+    # A staged scope read in full is counted whole (SqlCrawler.Staging.ps1).
     $since  = if ($Before) { $Before } elseif ($Expectation.Whole) { $script:SqlBeginningOfTime } else { $State.ServerTime }
     $systems = @($Expectation.Systems)
     if ($systems.Count -eq 0) { $systems = @($State.SystemId) }
