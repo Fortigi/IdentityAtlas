@@ -134,6 +134,8 @@ erDiagram
         string assignmentType
         int systemId FK
         string principalType
+        string origin
+        string originDetail
         string complianceState
         string policyId
         string state
@@ -299,9 +301,9 @@ Every row targets either a specific account (`principalId`) or a person (`identi
 | Uniqueness | Two partial unique indexes: `(resourceId, principalId, assignmentType)` WHERE `principalId IS NOT NULL`; `(resourceId, identityId, assignmentType)` WHERE `identityId IS NOT NULL` |
 | Audit history | Yes (via `_history` trigger) |
 | Created by | Migration `001_core_schema.sql` |
-| Modified by | Migration `036_resource_assignments_identity_support.sql` |
+| Modified by | Migration `036_resource_assignments_identity_support.sql`, `082_assignment_origin.sql` |
 
-Key columns: `assignmentType`, `principalId` (nullable), `identityId` (nullable), `systemId`, `principalType`, `complianceState`, `policyId`, `state`, `assignmentStatus`, `expirationDateTime`, `extendedAttributes` (JSONB).
+Key columns: `assignmentType`, `principalId` (nullable), `identityId` (nullable), `systemId`, `principalType`, `origin`, `originDetail`, `complianceState`, `policyId`, `state`, `assignmentStatus`, `expirationDateTime`, `extendedAttributes` (JSONB).
 
 ---
 

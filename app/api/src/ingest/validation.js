@@ -23,6 +23,15 @@ const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', 'Workloa
 // Ingest REJECTS any other value; assignmentTypes.guard.test.js statically
 // scans the crawlers so a retired type can't be reintroduced at the source.
 const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible'];
+// Where an assignment came from, as the source records it: a rule or birthright
+// policy assigned it, it was requested, or the source just found it on the
+// target system. Optional: a source that does not say leaves it out, which is
+// not the same as Discovered. A closed list like assignmentType because it is a
+// universal reading; the source's own word travels beside it as `originDetail`.
+// Add a value here AND to the CHECK in migration 082 — the migration's test
+// fails when the two differ. Neither field belongs in ENTITY_KEY_MAP or
+// ENTITY_SCOPE_MAP: a grant whose origin changes is the same row, updated.
+export const ASSIGNMENT_ORIGINS = ['Automatic', 'Requested', 'Discovered'];
 const RELATIONSHIP_TYPES = ['Contains', 'GrantsAccessTo', 'DelegatesScope', 'HasAppRole', 'HasOwnership', 'HasAppOwnership', 'HasApplicationPermission'];
 // Principal→principal links (see migrations/057_principal_relationships.sql).
 // A closed allow-list like assignmentType: ownership of an AI agent and
@@ -128,6 +137,8 @@ const SCHEMAS = {
       assignmentType: { type: 'string', enum: ASSIGNMENT_TYPES },
       resourceType: { type: 'string', maxLength: 100 },
       governed: { type: 'boolean' },
+      origin: { type: 'string', enum: ASSIGNMENT_ORIGINS },
+      originDetail: { type: 'string', maxLength: 100 },
       complianceState: { type: 'string', maxLength: 50 },
       policyId: { type: 'string', maxLength: 255 },
       state: { type: 'string', maxLength: 50 },
@@ -150,6 +161,8 @@ const SCHEMAS = {
       assignmentType:      { type: 'string', enum: ASSIGNMENT_TYPES },
       resourceType:        { type: 'string', maxLength: 100 },
       governed:            { type: 'boolean' },
+      origin:              { type: 'string', enum: ASSIGNMENT_ORIGINS },
+      originDetail:        { type: 'string', maxLength: 100 },
       principalType:       { type: 'string', maxLength: 50 },
       complianceState:     { type: 'string', maxLength: 50 },
       policyId:            { type: 'string', maxLength: 255 },

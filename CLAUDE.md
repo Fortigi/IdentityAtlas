@@ -171,6 +171,8 @@ The data model supports importing authorization data from any system. Resources,
 - **Governance** → the `governed` boolean flag on the assignment (the business role / access package itself is flagged `governanceResource`), not a `Governed` type.
 - **Source-attribute detail** (former `OAuth2Grant`, `AppRole`, `AppRoleViaGroup`, `DirectoryRole`, `DirectoryRoleEligible`) → collapse to `Direct`/`Indirect`/`Eligible`, with `resourceType` carrying the source detail.
 
+**Assignment origin:** *where* a grant came from is separate from *how* it is held. The optional `origin` column is one of `Automatic` (a rule or birthright policy), `Requested` (requested and approved) or `Discovered` (the source found it on the target system); empty means the source does not say. The source's own word sits beside it in `originDetail`. Neither is part of the assignment's key or reconcile scope.
+
 See [`docs/architecture/matrix.md`](docs/architecture/matrix.md) for the badge-display rules.
 
 **Relationship types in use:** `Contains` (BusinessRole → group), `HasAppRole` (Application → AppRole), `DelegatesScope` (Application → DelegatedPermission), `HasApplicationPermission` (Application → ApplicationPermission), `HasOwnership` (group → GroupOwnership), `HasAppOwnership` (Application → Application/ServicePrincipal ownership), `GrantsAccessTo` (reserved).
