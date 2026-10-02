@@ -1,0 +1,1 @@
+- Contexts that group resources now show how much access they carry: the number of resources, the number of assignments (direct and via a role) and the number of different holders. The numbers are recalculated after each sync, shown on the context page, and available as fields and columns in the report builder

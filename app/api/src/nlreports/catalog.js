@@ -573,12 +573,35 @@ const CONTEXT = {
       label: 'Member count', type: 'number', description: 'number of members of any kind, in this context itself',
       sql: (t) => `(SELECT count(*) FROM "ContextMembers" cm WHERE cm."contextId" = ${t}."id")`,
     },
+    // The counts below are STORED on the context and recalculated after each sync
+    // (contexts/assignmentCounts.js), because they cannot be computed inside the
+    // statement limit when a report asks: 101 s for one of them at 41 million
+    // assignments. So they are as of the last sync, and empty on a context that
+    // does not group resources or has not been counted yet.
     resourceCount: {
-      label: 'Resource count', type: 'number',
-      description: 'number of resources (groups, entitlements, roles, …) in this context',
-      sql: (t) => `(SELECT count(*) FROM "ContextMembers" cm JOIN "Resources" r ON r."id" = cm."memberId"
-          WHERE cm."contextId" = ${t}."id" AND cm."memberType" = 'Resource' AND r."deletedAt" IS NULL
-          AND r."resourceType" NOT IN ${OWNERSHIP_TYPES})`,
+      label: 'Resource count', type: 'number', sql: col('resourceCount'),
+      description: 'number of resources (groups, entitlements, roles, …) in this context, as of the last sync',
+    },
+    directAssignmentCount: {
+      label: 'Assigned directly', type: 'number', sql: col('directAssignmentCount'),
+      description: 'assignments held directly on the resources in this context',
+    },
+    indirectAssignmentCount: {
+      label: 'Assigned via a role', type: 'number', sql: col('indirectAssignmentCount'),
+      description: 'assignments held through a role or a group on the resources in this context',
+    },
+    assignmentCount: {
+      label: 'Assignments', type: 'number',
+      description: 'assignments on the resources in this context, direct and via a role together',
+      sql: (t) => `(${t}."directAssignmentCount" + ${t}."indirectAssignmentCount")`,
+    },
+    eligibleAssignmentCount: {
+      label: 'Eligible', type: 'number', sql: col('eligibleAssignmentCount'),
+      description: 'assignments that can be activated on demand on the resources in this context',
+    },
+    holderCount: {
+      label: 'Holders', type: 'number', sql: col('holderCount'),
+      description: 'different people or accounts holding at least one resource in this context',
     },
     childCount: {
       label: 'Sub-context count', type: 'number', description: 'number of contexts directly under this one',

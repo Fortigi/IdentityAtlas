@@ -30,7 +30,9 @@ can open, run and download the result.
    resources), Persons (identities, with their linked accounts) or Contexts (groupings such as
    departments, tags or the applications of an application catalogue — pick the kind with a
    *Context type is …* condition). Contexts are built here in the editor; the *Ask* box does not
-   produce them yet.
+   produce them yet. For a context that groups resources you can also show and filter on how much
+   access it carries — *Resource count*, *Assignments* (direct and via a role), *Holders* — as
+   counted after the last sync.
 3. **Add conditions.**
       - **+ condition** — a field of the thing itself: *Enabled is No*, *Name contains LIC*,
         *Created is more than 90 days ago*, *Group count is more than 30*.
