@@ -117,7 +117,9 @@ describe('finalize — the empty-table path', () => {
     const st = open();
     await S.appendToStage(st, [rec]);
     const r = await S.finalizeStage(st, { deleteMissing: true });
-    expect(r).toMatchObject({ path: 'empty-table', inserted: 2, updated: 0, deleted: 0 });
+    // one row is inserted per distinct key, so that count is the distinct count
+    expect(r).toMatchObject({ path: 'empty-table', inserted: 2, updated: 0, deleted: 0, distinct: 2 });
+    expect(sqls.some(s => /AS n FROM .SELECT DISTINCT /.test(s))).toBe(false);
     const at = (re) => sqls.findIndex(s => re.test(s));
     expect(at(/LOCK TABLE "ResourceAssignments" IN ACCESS EXCLUSIVE MODE/)).toBeGreaterThan(-1);
     expect(at(/lock_timeout = '5s'/)).toBeLessThan(at(/LOCK TABLE/));
@@ -211,7 +213,7 @@ describe('finalize — stages of one crawler run together', () => {
     const loaded = open();
     await S.appendToStage(loaded, [rec]);
     const [re, rl] = await S.finalizeStages([empty, loaded]);
-    expect(re.path).toBe('empty-stage');
+    expect(re).toMatchObject({ path: 'empty-stage', rows: 0, distinct: 0 });
     expect(rl.path).toBe('merge');
   });
 });
@@ -244,6 +246,29 @@ describe('finalize — the merge path', () => {
     expect(engine.scopedDelete).toHaveBeenCalledWith(
       expect.anything(), 'ResourceAssignments', RA_KEYS, st.stageTable, 7, {}, 'systemId',
       expect.any(Set), '"principalId" IS NOT NULL', null);
+  });
+
+  // What a caller verifies the scope against: rows counts a key sent twice as two.
+  it('reports how many DISTINCT keys the stage held, counted after governed memberships are flagged', async () => {
+    handlers.push([/AS n FROM .SELECT DISTINCT /, () => ({ rows: [{ n: '33787082' }] })]);
+    let flaggedAt = -1;
+    engine.markGovernanceMemberships.mockImplementationOnce(async () => { flaggedAt = sqls.length; });
+    const st = open();
+    await S.appendToStage(st, [rec, rec, rec]);
+    const r = await S.finalizeStage(st, { deleteMissing: true });
+    expect(r).toMatchObject({ path: 'merge', rows: 3, distinct: 33787082 });
+    const count = sqls.find(s => /AS n FROM .SELECT DISTINCT /.test(s));
+    expect(count).toBe(`SELECT count(*) AS n FROM (SELECT DISTINCT "resourceId", "principalId", "assignmentType", "governed" FROM "${st.stageTable}") d`);
+    // governed is part of the key and markGovernanceMemberships may flip it
+    expect(flaggedAt).toBeGreaterThan(-1);
+    expect(flaggedAt).toBeLessThanOrEqual(sqls.indexOf(count));
+  });
+
+  it('a key sweep reports its distinct keys too, and a count that returns nothing reads as zero', async () => {
+    handlers.push([/AS n FROM .SELECT DISTINCT /, () => ({ rows: [] })]);
+    const st = open({ keysOnly: true });
+    await S.appendToStage(st, [rec]);
+    expect((await S.finalizeStage(st, { deleteMissing: true })).distinct).toBe(0);
   });
 
   it('does not delete anything unless asked', async () => {
@@ -328,7 +353,7 @@ describe('finalize — the merge path', () => {
   it('an empty stage is a no-op and still cleans up', async () => {
     const st = open();
     const r = await S.finalizeStage(st, { deleteMissing: true });
-    expect(r).toEqual({ path: 'empty-stage', inserted: 0, updated: 0, deleted: 0, rows: 0 });
+    expect(r).toEqual({ path: 'empty-stage', inserted: 0, updated: 0, deleted: 0, rows: 0, distinct: 0 });
     expect(engine.scopedDelete).not.toHaveBeenCalled();
     expect(S._stagesForTest().has(st.id)).toBe(false);
   });

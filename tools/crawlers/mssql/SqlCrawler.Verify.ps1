@@ -129,6 +129,10 @@ function Get-SqlExpectation {
             # row drift is this count's tolerance too, for free. Measuring it
             # directly would mean a second GROUP BY over tens of millions of rows.
             Drift = [long]0
+            # A staged scope only: the distinct assignments its stages held, as
+            # the finalize reported them (Set-SqlStagedExpectations). When set,
+            # it replaces the source's count as what the database is held to.
+            Applied = $null
         }
     }
     return $State.Expect[$Key]
@@ -292,6 +296,41 @@ function Get-SqlKeyedScopeVerdict {
               reason = $(if ($collapsed -gt 0) { "$($e.Rows.ToString('N0')) source rows collapsed to $($distinct.ToString('N0')) distinct pairs; a repeated pair is the same edge, so nothing was lost" }) }
 }
 
+# A scope loaded through a stage. The finalize reported how many DISTINCT
+# assignments its stages held, and with deleteMissing the scope holds exactly
+# those afterwards — so the comparison is exact, and it stays exact however far
+# the source moved, because neither side of it is the source.
+#
+# It used to be compared with the source's distinct-pair count, taken once after
+# the read, with the ROW drift as slack, on the reasoning that a pair count cannot
+# move by more than the rows did. That holds for each row changed and not for the
+# net of them: a source that gained 107 pairs and shed 6 duplicate rows moved by
+# 101 rows and 107 pairs, and a run that had loaded all 33,787,082 assignments it
+# read failed "expected 33,787,189, database 33,787,082" with 101 allowed. A
+# failed run stores no watermark, so the next one read everything again.
+#
+# Whether the READ was complete is the read check's question (Get-SqlReadVerdict),
+# and it is still asked. The source's own count is reported here when it differs,
+# as a finding about the source rather than a verdict on the load.
+function Get-SqlStagedScopeVerdict {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Expectation, [Parameter(Mandatory)] [long]$Atlas)
+    $e = $Expectation
+    $applied = [long]$e.Applied
+    if ($Atlas -ne $applied) {
+        return @{ ok = $false; expected = $applied; atlas = $Atlas
+                  reason = "the staged load applied $($applied.ToString('N0')) distinct assignments and the scope holds $($Atlas.ToString('N0'))" }
+    }
+    $reason = $null
+    if ($null -eq $e.Unverifiable -and $null -ne $e.SourceDistinct -and [long]$e.SourceDistinct -ne $applied) {
+        $drift = [long]$e.Drift
+        $reason = "every assignment read is in the database; the source, counted again afterwards, held $(([long]$e.SourceDistinct).ToString('N0')) distinct pairs" +
+                  $(if ($drift -gt 0) { " (it moved by $($drift.ToString('N0')) rows during the read)" }) +
+                  $(if ($e.Dangling -gt 0) { ", $(([long]$e.Dangling).ToString('N0')) rows were held back as dangling" })
+    }
+    return @{ ok = $true; expected = $applied; atlas = $Atlas; reason = $reason }
+}
+
 # One scope's verdict: what was expected, what the database holds, and whether
 # that is a failure. Pure given the expectation and the database count.
 function Get-SqlScopeVerdict {
@@ -299,6 +338,7 @@ function Get-SqlScopeVerdict {
     param([Parameter(Mandatory)] $Expectation, [Parameter(Mandatory)] [long]$Atlas)
     $e = $Expectation
     if ($e.KeySet) { return Get-SqlKeyedScopeVerdict -Expectation $e -Atlas $Atlas }
+    if ($null -ne $e.Applied) { return Get-SqlStagedScopeVerdict -Expectation $e -Atlas $Atlas }
     if ($null -ne $e.Unverifiable) { return @{ ok = $true; expected = $null; atlas = $Atlas; reason = "not verified: $($e.Unverifiable)" } }
     # Distinct pairs the source holds, less rows held back as dangling (a dangling
     # row is never sent). Exact when nothing dangled and one slot fed the scope —

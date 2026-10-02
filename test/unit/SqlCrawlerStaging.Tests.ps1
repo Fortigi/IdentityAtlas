@@ -102,6 +102,23 @@ Describe 'A full sync of two statements feeding one scope' {
         @($script:sent | Where-Object Endpoint -eq 'ingest/count')[0].Body.before | Should -Be '1970-01-01T00:00:00.000Z'
     }
 
+    It 'verifies each staged scope against what its own finalize applied, not against the source' {
+        $slots = @((New-GrantSlot 'A'), (New-GrantSlot 'B'), (New-GrantSlot 'C' -Type 'Indirect'))
+        $state = New-StagingState -Slots $slots
+        foreach ($s in $slots) { Invoke-SqlSlot -Slot $s -Connection 'c' -State $state | Out-Null }
+        Mock Invoke-IngestAPI { @{ results = @(
+            @{ stageId = 'stage-7-Indirect'; path = 'merge'; rows = 1; distinct = 1 },
+            @{ stageId = 'stage-7-Direct'; path = 'merge'; rows = 4; distinct = 4 }) } } -ParameterFilter { $Endpoint -eq 'ingest/stages/finalize' }
+        Complete-SqlStagedLoads -State $state | Out-Null
+        $direct = @($state.Expect.Values | Where-Object { $_.Scope.assignmentType -eq 'Direct' })[0]
+        $indirect = @($state.Expect.Values | Where-Object { $_.Scope.assignmentType -eq 'Indirect' })[0]
+        # A and B feed the one Direct stage: 4, though the mocked source says 3 pairs each.
+        $direct.Applied | Should -Be 4
+        $indirect.Applied | Should -Be 1
+        (Get-SqlScopeVerdict -Expectation $direct -Atlas 4).ok | Should -BeTrue
+        (Get-SqlScopeVerdict -Expectation $direct -Atlas 6).ok | Should -BeFalse
+    }
+
     It 'a delta run streams and reconciles as before' {
         $state = New-StagingState -SyncMode 'delta' -Slots @(New-GrantSlot 'A')
         Invoke-SqlSlot -Slot (New-GrantSlot 'A') -Connection 'c' -State $state | Out-Null
@@ -135,6 +152,52 @@ Describe 'Complete-SqlStagedLoads' {
         $calls[0].Body.ContainsKey('maxDeleteShare') | Should -BeFalse
         $calls[0].TimeoutSec | Should -Be 14400
         $results.Count | Should -Be 2
+    }
+
+    It 'tells each scope the distinct assignments its stages held, summed over its systems' {
+        $direct = @{ Applied = $null }; $indirect = @{ Applied = $null }
+        $state = New-StagingState
+        $state.Stages['7|d'] = [pscustomobject]@{ StageId = 's1'; Expect = $direct }
+        $state.Stages['9|d'] = [pscustomobject]@{ StageId = 's2'; Expect = $direct }
+        $state.Stages['7|i'] = [pscustomobject]@{ StageId = 's3'; Expect = $indirect }
+        Mock Invoke-IngestAPI { @{ results = @(
+            @{ stageId = 's2'; path = 'merge'; rows = 9; distinct = 7 },
+            @{ stageId = 's3'; path = 'empty-stage'; rows = 0; distinct = 0 },
+            @{ stageId = 's1'; path = 'merge'; rows = 40; distinct = 30 }) } }
+        Complete-SqlStagedLoads -State $state | Out-Null
+        # distinct, not rows (49), and matched by stageId, not by position
+        $direct.Applied | Should -Be 37
+        $indirect.Applied | Should -Be 0
+        $indirect.Applied | Should -Not -BeNullOrEmpty
+    }
+}
+
+Describe 'Set-SqlStagedExpectations' {
+    It 'leaves a scope to the source count when ANY of its stages came back without a distinct count' {
+        $e = @{ Applied = $null }; $other = @{ Applied = $null }
+        $stages = @([pscustomobject]@{ StageId = 's1'; Expect = $e }, [pscustomobject]@{ StageId = 's2'; Expect = $e },
+                    [pscustomobject]@{ StageId = 's3'; Expect = $other })
+        # s2 answered by an API that predates `distinct`; s3 is complete.
+        Set-SqlStagedExpectations -Stages $stages -Results @(
+            @{ stageId = 's1'; distinct = 5 }, @{ stageId = 's2'; rows = 3 }, @{ stageId = 's3'; distinct = 4 })
+        $e.Applied | Should -BeNullOrEmpty
+        $other.Applied | Should -Be 4
+    }
+
+    It 'ignores a stage with no result and a stage that carries no expectation' {
+        $e = @{ Applied = $null }
+        Set-SqlStagedExpectations -Stages @([pscustomobject]@{ StageId = 'gone'; Expect = $e }, [pscustomobject]@{ StageId = 'bare' }) `
+            -Results @(@{ stageId = 'bare'; distinct = 2 })
+        $e.Applied | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Complete-SqlStagedLoads — nothing to apply, or a failure' {
+    BeforeEach {
+        $script:sent = [System.Collections.Generic.List[object]]::new()
+        Mock Invoke-IngestAPI $script:IngestMock
+        Mock Update-CrawlerProgress { }
+        Mock Write-Host { }
     }
 
     It 'asks nothing when the run staged nothing' {
