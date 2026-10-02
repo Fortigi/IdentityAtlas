@@ -18,7 +18,7 @@
 //
 // The model never sees a row or a count: only "this name occurs in user.companyName".
 
-import { ENTITIES, GLOSSARY, OPERATORS } from './catalog.js';
+import { ENTITIES, MODEL_ENTITIES, GLOSSARY, OPERATORS } from './catalog.js';
 import { likeContains } from '../db/sqlParams.js';
 import { normalizeName } from './references.js';
 
@@ -70,7 +70,9 @@ const couldBeAName = (normalised) => normalised.length >= MIN_TERM_LENGTH && !NO
 const vocabulary = (() => {
   const words = new Set(STOPWORDS);
   const add = (text) => String(text).split(/[^\p{L}\p{N}]+/u).filter(Boolean).forEach(w => words.add(normalizeName(w)));
-  for (const [name, entity] of Object.entries(ENTITIES)) {
+  // The words the MODEL was given: an entity kept out of the prompt adds none,
+  // or "parent" and "source" would stop being recognised as possible names.
+  for (const [name, entity] of Object.entries(MODEL_ENTITIES)) {
     add(name); add(entity.label); add(`${entity.label}s`);
     for (const [fname, f] of Object.entries(entity.fields)) { add(fname); add(f.label); }
     for (const [rname, r] of Object.entries(entity.relations)) { add(rname); add(r.label); }

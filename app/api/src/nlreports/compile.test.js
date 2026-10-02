@@ -3,6 +3,9 @@ import { compileSpec, linkKind, LINKS_SUFFIX } from './compile.js';
 import { validateSpec } from './spec.js';
 import { explainSpec } from './explain.js';
 import { OWNERSHIP_RESOURCE_TYPES, OWNERSHIP_TYPES_SQL } from '../lib/ownershipTypes.js';
+import { ENTITIES, MODEL_ENTITIES } from './catalog.js';
+import { extFieldsFor, matchQuestionAttributes } from './extFields.js';
+import { buildReplySchemas, buildSystemPrompt } from './prompt.js';
 
 const compile = (raw) => {
   const { ok, spec, errors } = validateSpec(raw);
@@ -485,5 +488,132 @@ describe('compileSpec — the business roles an account has', () => {
     // rather than restating it here, where a new ownership type would be missed.
     expect(text).toContain(`"resourceType" NOT IN ${OWNERSHIP_TYPES_SQL}`);
     for (const t of OWNERSHIP_RESOURCE_TYPES) expect(text).toContain(`'${t}'`);
+  });
+});
+
+describe('the context entity', () => {
+  // A context's meaning is the deployment's own: "logical application" is a
+  // contextType VALUE and its CMDB reference a discovered attribute. Nothing
+  // below names either in the catalog — they arrive as a value and as ext fields.
+  const values = { contextType: ['LogicalApplication', 'Department'] };
+  const extFields = { context: extFieldsFor('context', ['cmdbReference', 'connectionType']) };
+  const compileContext = (raw) => {
+    const { ok, spec, errors } = validateSpec(raw, values, extFields);
+    if (!ok) throw new Error(errors.join('; '));
+    return { spec, ...compileSpec(spec, extFields) };
+  };
+  const inventory = {
+    entity: 'context',
+    conditions: [{ type: 'field', field: 'contextType', op: 'eq', value: 'LogicalApplication' }],
+    columns: ['displayName', 'owner', 'ext.cmdbReference', 'ext.connectionType', 'resourceCount'],
+  };
+
+  it('compiles an inventory of one context type with its catalogue attributes', () => {
+    const { text, params, columns } = compileContext(inventory);
+    expect(text).toContain('FROM "Contexts"');
+    expect(columns.map(c => c.key)).toEqual(inventory.columns);
+    expect(text).toContain(`"extendedAttributes"->>'cmdbReference'`);
+    expect(text).toContain(`"extendedAttributes"->>'connectionType'`);
+    // The type is a value: bound, never written into the statement.
+    expect(params).toContain('LogicalApplication');
+    expect(text).not.toContain('LogicalApplication');
+  });
+
+  it('counts the resources in a context, never the synthetic ownership rows', () => {
+    const { text } = compileContext({ entity: 'context', conditions: [], columns: ['displayName', 'resourceCount'] });
+    expect(text).toMatch(/count\(\*\) FROM "ContextMembers" cm JOIN "Resources" r ON r\."id" = cm\."memberId"/);
+    expect(text).toContain(`cm."memberType" = 'Resource' AND r."deletedAt" IS NULL`);
+    expect(text).toContain(`r."resourceType" NOT IN ${OWNERSHIP_TYPES_SQL}`);
+  });
+
+  it('counts members of every kind separately from resources', () => {
+    const { text } = compileContext({ entity: 'context', conditions: [], columns: ['displayName', 'memberCount'] });
+    expect(text).toMatch(/\(SELECT count\(\*\) FROM "ContextMembers" cm WHERE cm\."contextId" = \w+\."id"\)/);
+    expect(text).not.toContain('"Resources"');
+  });
+
+  it('shows the owner by name, falling back to the value as stored', () => {
+    const { text } = compileContext({ entity: 'context', conditions: [], columns: ['owner'] });
+    expect(text).toMatch(/COALESCE\(\(SELECT pr\."displayName" FROM "Principals" pr[\s\S]*LIMIT 1\), \w+\."ownerUserId"\)/);
+    // The account key wins over an employee number that happens to match.
+    expect(text).toMatch(/ORDER BY \(pr\."externalId" = \w+\."ownerUserId"\) DESC/);
+  });
+
+  it('finds contexts with nothing in them: "contains no resources"', () => {
+    const { text } = compileContext({
+      entity: 'context',
+      conditions: [{ type: 'relation', relation: 'resources', quantifier: 'none', conditions: [] }],
+    });
+    expect(text).toMatch(/NOT EXISTS \(SELECT 1 FROM "ContextMembers" \w+ JOIN "Resources" \w+ ON/);
+    expect(text).toContain(`."memberType" = 'Resource'`);
+  });
+
+  it('reaches each kind of member through its own member type', () => {
+    const where = (relation) => compileContext({
+      entity: 'context', conditions: [{ type: 'relation', relation, quantifier: 'some', conditions: [] }],
+    }).text;
+    expect(where('accounts')).toMatch(/JOIN "Principals" \w+ ON[\s\S]*"memberType" = 'Principal'/);
+    expect(where('identities')).toMatch(/JOIN "Identities" \w+ ON[\s\S]*"memberType" = 'Identity'/);
+    expect(where('accounts')).not.toContain(`'Identity'`);
+  });
+
+  it('walks up and down the hierarchy in opposite directions', () => {
+    const up = compileContext({ entity: 'context', conditions: [], columns: ['displayName', 'parent.displayName'] }).text;
+    const down = compileContext({
+      entity: 'context', conditions: [{ type: 'relation', relation: 'children', quantifier: 'none', conditions: [] }],
+    }).text;
+    expect(up).toMatch(/(\w+)\."id" = \w+\."parentContextId"/);
+    expect(down).toMatch(/(\w+)\."parentContextId" = \w+\."id"/);
+  });
+
+  it('counts contexts per value of a discovered attribute', () => {
+    const { text, spec } = compileContext({ entity: 'context', conditions: inventory.conditions, groupBy: 'ext.cmdbReference' });
+    expect(spec.groupBy).toBe('ext.cmdbReference');
+    expect(text).toMatch(/GROUP BY[\s\S]*"extendedAttributes"->>'cmdbReference'/);
+  });
+
+  it('explains the report in the analyst\'s words and links a row to the context', () => {
+    const { spec } = compileContext(inventory);
+    const { title, lines } = explainSpec(spec, extFields);
+    expect(title).toBe('Contexts where');
+    expect(lines).toHaveLength(1);
+    expect(lines[0].text).toMatch(/context type is .*LogicalApplication/i);
+    expect(ENTITIES.context.detailKind).toBe('context');
+  });
+
+  it('rejects a context type the deployment does not have', () => {
+    const result = validateSpec({
+      entity: 'context', conditions: [{ type: 'field', field: 'contextType', op: 'eq', value: 'Spaceship' }],
+    }, values, extFields);
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(' ')).toMatch(/contextType|Spaceship/);
+  });
+});
+
+describe('entities kept away from the language model', () => {
+  it('offers the context entity to the editor but not to the model', () => {
+    expect(Object.keys(ENTITIES)).toContain('context');
+    expect(Object.keys(MODEL_ENTITIES)).not.toContain('context');
+    // Everything else is still offered: the filter removes one entity, not the list.
+    expect(Object.keys(MODEL_ENTITIES)).toEqual(Object.keys(ENTITIES).filter(n => n !== 'context'));
+  });
+
+  it('leaves the system prompt and the reply grammar without it', () => {
+    const prompt = buildSystemPrompt();
+    const grammar = JSON.stringify(buildReplySchemas([]));
+    for (const word of ['contextType', 'resourceCount', 'parentContextId', 'Sub-context']) {
+      expect(prompt, word).not.toContain(word);
+      expect(grammar, word).not.toContain(word);
+    }
+    expect(grammar).toContain('"identity"');
+  });
+
+  it('never tells the model about an attribute of an entity it cannot name', () => {
+    const fields = {
+      context: extFieldsFor('context', ['cmdbReference']),
+      user: extFieldsFor('user', ['sfDepartmentID']),
+    };
+    expect(matchQuestionAttributes('applications per cmdbReference', fields)).toEqual([]);
+    expect(matchQuestionAttributes('users per sfDepartmentID', fields).map(m => m.key)).toEqual(['ext.sfDepartmentID']);
   });
 });

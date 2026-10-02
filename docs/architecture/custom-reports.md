@@ -39,7 +39,7 @@ A **report definition** is the only thing that travels between the layers, and t
 
 | File | Responsibility |
 |---|---|
-| `nlreports/catalog.js` | The whole vocabulary: entities (user, group, account, resource, identity), their fields and relations, each with a constant SQL template and an analyst-language description. Nothing outside this file decides what can be reported on. |
+| `nlreports/catalog.js` | The whole vocabulary: entities (user, group, account, resource, identity, change, context), their fields and relations, each with a constant SQL template and an analyst-language description. Nothing outside this file decides what can be reported on. |
 | `nlreports/spec.js` | Validation and normalisation of a definition — unknown field/operator/relation rejected, values coerced to the field's type, enum values snapped to values that exist, columns resolved, limits capped. Errors are plain sentences, so they can be handed back to the model. |
 | `nlreports/compare.js` | The set-comparison building block (identical / containsAll / within / similar) with its CTE-based SQL and its plain-language wording. |
 | `nlreports/references.js` | Looks up every named object (comparison references and `name is X` conditions): exact → punctuation-insensitive → `pg_trgm` fuzzy, producing a "did you mean" confirmation the UI applies without another model call. |
@@ -63,6 +63,18 @@ resources of type Group) rather than "account + a type filter". Small models rel
 filter; making it part of the entity took the best model of that round (Qwen2.5-Coder 3B, later dropped
 for its licence) from 22/32 to 28/32 on the tuning set at the time. `account` and `resource` remain for everything else, and a definition that restates the
 implied type is accepted and normalised away.
+
+**An entity can be kept away from the model.** `modelFacing: false` on a catalog entity (today:
+`context`) leaves it out of `MODEL_ENTITIES`, which is what the system prompt, the reply grammar, the
+question vocabulary and the per-question attribute block are built from. The entity is still validated,
+compiled and offered in the definition editor. The point is that the system prompt stays byte-identical:
+the prompt cache prepared at build time remains valid and the published accuracy figures still describe
+what ships. Offering such an entity to the model is one flag — and an evaluation run.
+
+**A context means whatever the deployment says it means.** The `context` entity has no notion of a
+department or an application: the kind is the `contextType` value, and what a source stamps on its
+contexts (a CMDB reference, a connection type) arrives as discovered `ext.*` fields. A report on
+"logical applications" is therefore a saved definition, not code.
 
 **A glossary, not synonym handling in code.** `catalog.js` exports `GLOSSARY` (person = identity,
 account = principal = user, business role = access package, plus Dutch terms). It is rendered into the

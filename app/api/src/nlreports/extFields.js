@@ -26,7 +26,7 @@
 
 import { discoverExtendedAttrKeys } from '../db/columnCache.js';
 import { getAttributeLabels } from '../lib/attributeLabels.js';
-import { staticExtKeys } from './catalog.js';
+import { MODEL_ENTITIES, staticExtKeys } from './catalog.js';
 
 export const EXT_PREFIX = 'ext.';
 
@@ -39,6 +39,7 @@ const TARGETS = [
   { table: 'Principals', target: 'principal', entities: ['user', 'account'] },
   { table: 'Resources', target: 'resource', entities: ['group', 'resource'] },
   { table: 'Identities', target: 'identity', entities: ['identity'] },
+  { table: 'Contexts', target: 'context', entities: ['context'] },
 ];
 
 // Same 5-minute TTL as the column cache and the label cache, so a fresh crawl's
@@ -116,6 +117,9 @@ const WORD = /[A-Za-z0-9_]+/g;
 function attributeIndex(extFields) {
   const index = new Map();
   for (const [entity, fields] of Object.entries(extFields || {})) {
+    // Only what the model can use: an attribute of an entity it was never told
+    // about would be a field name with no entity to put it on.
+    if (!Object.hasOwn(MODEL_ENTITIES, entity)) continue;
     for (const [key, field] of Object.entries(fields)) {
       const entry = index.get(key) || { key, label: field.label, entities: [] };
       entry.entities.push(entity);

@@ -173,7 +173,7 @@ describe('getAttributeLabels', () => {
   });
 
   it('unions every target table when none is given', async () => {
-    stage([], [`extension_${APP_A}_a`], [`extension_${APP_A}_b`], [], []);
+    stage([], [`extension_${APP_A}_a`], [`extension_${APP_A}_b`], [], [], []);
     const labels = await getAttributeLabels();
     expect(labels).toEqual({ [`extension_${APP_A}_a`]: 'a', [`extension_${APP_A}_b`]: 'b' });
     expect(query).toHaveBeenCalledTimes(1 + Object.keys(LABEL_TARGET_TABLES).length);

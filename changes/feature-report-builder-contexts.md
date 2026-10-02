@@ -1,0 +1,1 @@
+- The report builder can now report on contexts (departments, tags, application catalogues and other groupings): filter on context type, show the owner, parent and member and resource counts, and use the attributes a source stores on its contexts as fields and columns
