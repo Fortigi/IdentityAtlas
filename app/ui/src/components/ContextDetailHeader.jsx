@@ -2,6 +2,7 @@ import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 import { useCanBuildContexts } from '@ui/hooks/useCanBuildContexts';
 import { isRecipeRoot } from './contexts/assistant/recipeDraft';
 import ContextOwner from './contexts/ContextOwner';
+import ContextAccessCounts from './contexts/ContextAccessCounts';
 
 // ─── Header — surfaces provenance (variant, target, system, owner) ────────
 export default function ContextDetailHeader({ attrs, onClose, onOpenDetail }) {
@@ -37,6 +38,7 @@ export default function ContextDetailHeader({ attrs, onClose, onOpenDetail }) {
           {attrs.parentDisplayName && (
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Parent: {attrs.parentDisplayName}</p>
           )}
+          <ContextAccessCounts attrs={attrs} />
         </div>
         <div className="flex items-start gap-2">
         {canEditRecipe && (

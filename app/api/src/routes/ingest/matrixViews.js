@@ -13,6 +13,7 @@ import { crawlerHasPermission } from '../../middleware/crawlerAuth.js';
 import { bumpSyncVersion } from '../../lib/syncVersion.js';
 import { breakCycles } from '../../contexts/cycleGuard.js';
 import { createViewRefreshCoordinator, matrixRefreshDebounceMs } from '../../ingest/viewRefresh.js';
+import { refreshContextAssignmentCounts } from '../../contexts/assignmentCounts.js';
 
 const router = Router();
 
@@ -176,6 +177,16 @@ export async function refreshAfterIngest() {
     `);
   } catch (countErr) {
     console.warn('Context member count refresh failed (non-fatal):', countErr.message);
+  }
+
+  // How much access hangs off each context that groups resources. Minutes, not
+  // seconds, on a very large tenant — which is exactly why it is done here, once
+  // per sync, instead of when somebody opens a report.
+  try {
+    const { updated, durationMs } = await refreshContextAssignmentCounts();
+    console.log(`Context assignment counts: ${updated} context(s) changed in ${Math.round(durationMs / 1000)}s`);
+  } catch (acErr) {
+    console.warn('Context assignment count refresh failed (non-fatal):', acErr.message);
   }
 
   // Advance the effective-access cache version. The crawler calls this endpoint only
