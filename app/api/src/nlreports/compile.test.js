@@ -519,11 +519,28 @@ describe('the context entity', () => {
     expect(text).not.toContain('LogicalApplication');
   });
 
-  it('counts the resources in a context, never the synthetic ownership rows', () => {
-    const { text } = compileContext({ entity: 'context', conditions: [], columns: ['displayName', 'resourceCount'] });
-    expect(text).toMatch(/count\(\*\) FROM "ContextMembers" cm JOIN "Resources" r ON r\."id" = cm\."memberId"/);
-    expect(text).toContain(`cm."memberType" = 'Resource' AND r."deletedAt" IS NULL`);
-    expect(text).toContain(`r."resourceType" NOT IN ${OWNERSHIP_TYPES_SQL}`);
+  it('reads the stored counts instead of counting when the report is run', () => {
+    // Counting at request time took 101 s for one column at 41 million
+    // assignments; the numbers are kept on the context (migration 083).
+    const columns = ['resourceCount', 'directAssignmentCount', 'indirectAssignmentCount', 'eligibleAssignmentCount', 'holderCount'];
+    const { text } = compileContext({ entity: 'context', conditions: [], columns: ['displayName', ...columns] });
+    for (const column of columns) expect(text, column).toMatch(new RegExp(`\\w+\\."${column}"`));
+    expect(text).not.toContain('"ResourceAssignments"');
+    expect(text).not.toContain('"ContextMembers"');
+  });
+
+  it('adds direct and via-role into one assignment count, leaving eligible out', () => {
+    const { text } = compileContext({ entity: 'context', conditions: [], columns: ['assignmentCount'] });
+    expect(text).toMatch(/\(\w+\."directAssignmentCount" \+ \w+\."indirectAssignmentCount"\)/);
+    expect(text).not.toContain('eligibleAssignmentCount');
+  });
+
+  it('filters on a stored count: "applications nobody has access to"', () => {
+    const { text, params } = compileContext({
+      entity: 'context', conditions: [{ type: 'field', field: 'holderCount', op: 'eq', value: 0 }],
+    });
+    expect(text).toMatch(/\w+\."holderCount" = \$\d/);
+    expect(params).toContain(0);
   });
 
   it('counts members of every kind separately from resources', () => {

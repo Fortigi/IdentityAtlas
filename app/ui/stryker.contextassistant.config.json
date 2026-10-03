@@ -20,7 +20,8 @@
     "src/components/contexts/assistant/useTermConversation.js",
     "src/hooks/useCanBuildContexts.js",
     "src/hooks/useBusyRun.js",
-    "src/components/contexts/ContextOwner.jsx"
+    "src/components/contexts/ContextOwner.jsx",
+    "src/components/contexts/ContextAccessCounts.jsx"
   ],
   "mutationExclusions": {
     "src/components/contexts/assistant/ContextBuilderPage.jsx": "Composition, not logic: the page holds the draft in state and hands each panel its slice plus the draft helpers that do the work. Those helpers (recipeDraft.js) and the hooks it composes are mutated; what is left here is wiring, covered by ContextBuilderPage.mount.test.jsx end to end — the same decision as ReportBuilderPage.jsx in the reports config.",

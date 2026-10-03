@@ -76,6 +76,13 @@ department or an application: the kind is the `contextType` value, and what a so
 contexts (a CMDB reference, a connection type) arrives as discovered `ext.*` fields. A report on
 "logical applications" is therefore a saved definition, not code.
 
+**A context's access counts are stored, not computed.** Resource count, assignments (direct, via a role,
+eligible) and distinct holders are columns on `Contexts`, recalculated after each sync by
+`contexts/assignmentCounts.js`. Computed when a report asks, one such column took 101 s on 41 million
+assignments and 1,500 contexts, against the 15 s statement limit; the recalculation itself is one
+set-based statement. They describe the context's own resources, not its sub-contexts', and are empty on
+a context that does not group resources or has not been through a sync yet.
+
 **A glossary, not synonym handling in code.** `catalog.js` exports `GLOSSARY` (person = identity,
 account = principal = user, business role = access package, plus Dutch terms). It is rendered into the
 prompt so that one list governs the model's vocabulary, and the same aliases are accepted by the
