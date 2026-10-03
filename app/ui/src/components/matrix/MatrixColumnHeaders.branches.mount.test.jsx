@@ -43,6 +43,9 @@ function renderRich(overrides = {}) {
         expandedIdentities: new Set(['id1']),
         loadingIdentityCols: new Set(),
         sortAttributes: [{ attribute: 'department' }, { attribute: 'division' }],
+        // These cases pin the rotated grouping cells; the cross table has its own
+        // suite (MatrixCrossTableRows.mount.test.jsx).
+        headerMode: 'rotated',
         ...handlers,
       })),
   );
