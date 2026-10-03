@@ -373,7 +373,7 @@ paths:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
         '200':
-          description: path, inserted, updated, deleted, rows
+          description: path, inserted, updated, deleted, rows (records received) and distinct (distinct keys among them)
         '400':
           description: maxDeleteShare is not a share
         '404':
