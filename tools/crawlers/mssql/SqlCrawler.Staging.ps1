@@ -111,6 +111,25 @@ function Test-SqlStageWindowed {
     return [bool]($expect -and $expect.Windowed)
 }
 
+# Does a finalize result carry the counts this expectation is held to? Every
+# scope needs `distinct`; a windowed one needs `present` as well.
+function Test-SqlStageResultCounted {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory)] $Expect, $Result)
+    if ($null -eq $Result -or $null -eq $Result.distinct) { return $false }
+    return -not ($Expect.Windowed -and $null -eq $Result.present)
+}
+
+# Forget what a scope was told it held: one of its stages came back without
+# counts, so the sum over the others would be a wrong number, not a smaller one.
+function Clear-SqlStagedExpectation {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Expect)
+    $Expect.Applied = $null; $Expect.Present = $null
+    if ($Expect.Windowed) { $Expect.Unverifiable = 'the API did not report what the staged window held' }
+}
+
 # Tell each staged scope how many distinct assignments its stages held. For a
 # complete scope that is what the scope must hold now that the finalize has
 # removed everything else; for a windowed one the finalize also reports how many
@@ -133,14 +152,11 @@ function Set-SqlStagedExpectations {
         $expect = Get-SqlStageExpectation -Stage $s
         if ($null -eq $expect) { continue }
         $r = $byId[[string]$s.StageId]
-        if ($null -eq $r -or $null -eq $r.distinct -or ($expect.Windowed -and $null -eq $r.present)) { [void]$unknown.Add($expect); continue }
+        if (-not (Test-SqlStageResultCounted -Expect $expect -Result $r)) { [void]$unknown.Add($expect); continue }
         $expect.Applied = [long]($expect.Applied ?? 0) + [long]$r.distinct
         if ($expect.Windowed) { $expect.Present = [long]($expect.Present ?? 0) + [long]$r.present }
     }
-    foreach ($expect in $unknown) {
-        $expect.Applied = $null; $expect.Present = $null
-        if ($expect.Windowed) { $expect.Unverifiable = 'the API did not report what the staged window held' }
-    }
+    foreach ($expect in $unknown) { Clear-SqlStagedExpectation -Expect $expect }
 }
 
 # Apply the run's stages in one finalize. Without -Windowed: every COMPLETE
