@@ -117,6 +117,12 @@ Describe 'The batched path sends exactly what the per-row path sent' {
         $row.Path | Should -Be 'row'
         $row.Calls.Count | Should -BeGreaterThan 3
         $bat.Calls | Should -Be $row.Calls
+        # The watermark is read (Max below) but never stored: on either path the
+        # records carry every other column and not the cursor.
+        foreach ($calls in $bat.Calls, $row.Calls) {
+            ($calls -join '') | Should -Not -Match '"modified"'
+            ($calls -join '') | Should -Match '"Note":"a"'
+        }
         foreach ($k in 'rows', 'sent', 'skipped', 'dangling', 'misrouted', 'systems') { $bat.Totals[$k] | Should -Be $row.Totals[$k] -Because $k }
         $bat.Totals.skipped | Should -Be 2
         $bat.Totals.dangling | Should -Be 2
@@ -140,6 +146,8 @@ Describe 'The batched path sends exactly what the per-row path sent' {
             $row = Invoke-BatchTestSlot -Slot $slot -Routing $true -PerRow
         } finally { $script:Columns[7] = 'sysRef' }
         $bat.Calls | Should -Be $row.Calls
+        # No watermark named: a column called modified is an attribute like any other.
+        ($bat.Calls -join '') | Should -Match '"modified":1700000000000'
         $bat.Totals.misrouted | Should -Be $row.Totals.misrouted
         $bat.Totals.misrouted | Should -Be 1
         $bat.State.Systems.Unknown['NOPE'] | Should -Be 1

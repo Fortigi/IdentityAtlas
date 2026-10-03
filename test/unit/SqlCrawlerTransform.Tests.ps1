@@ -79,6 +79,19 @@ Describe 'Resolve-SqlColumnMap' {
         @((Resolve-SqlColumnMap -Columns @('id') -Target 'assignments')._extended) | Should -Be @('id')
     }
 
+    It 'keeps the watermark column out of _extended, whatever its spelling, and nothing else' {
+        $cols = @('principalId', 'resourceId', 'MOD_IFIED', 'last_modified', 'grantedBy')
+        $m = Resolve-SqlColumnMap -Columns $cols -Target 'assignments' -WatermarkColumn 'modified'
+        @($m._extended) | Should -Be @('last_modified', 'grantedBy')
+        $m.principalId | Should -Be 'principalId'
+    }
+
+    It 'stores a column named like a watermark when the statement names no watermark' {
+        $cols = @('principalId', 'resourceId', 'modified')
+        @((Resolve-SqlColumnMap -Columns $cols -Target 'assignments')._extended) | Should -Be @('modified')
+        @((Resolve-SqlColumnMap -Columns $cols -Target 'assignments' -WatermarkColumn '')._extended) | Should -Be @('modified')
+    }
+
     It 'throws for a target with no contract' {
         { Resolve-SqlColumnMap -Columns @('id') -Target 'nonsense' } | Should -Throw '*No column contract*'
     }

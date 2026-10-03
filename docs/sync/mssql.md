@@ -850,10 +850,13 @@ business-role resources.
 ```sql
 SELECT
     identity_id AS principalId,
-    bundle      AS resourceId,
-    idx
+    bundle      AS resourceId
 FROM spt_identity_assigned_roles
 ```
+
+Select only the two keys. `idx` is the role's position in the identity's list: removing
+one role renumbers every later one, and stored as an attribute that reads as a change to
+assignments nobody touched.
 
 ### Role composition
 
@@ -944,6 +947,13 @@ WHERE ie.type = 'Entitlement'
 with `"watermarkColumn": "modified"` on the slot (the **Watermark column** field in the
 wizard). Both halves are required: a watermark column without `@Since`, or `@Since`
 without a watermark column, is refused when the configuration is saved.
+
+The watermark column is **not stored** on the row. It is the position the next run reads
+from, not a property of the grant: IdentityIQ re-stamps `modified` on every grant an
+identity refresh looks at, changed or not, so storing it made millions of unchanged
+assignments look changed on every import. Every other column the statement returns still
+lands in `extendedAttributes`; to keep a timestamp as an attribute, return it a second
+time under another name.
 
 Four things worth knowing:
 
