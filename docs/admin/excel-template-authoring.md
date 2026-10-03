@@ -79,7 +79,28 @@ Define two named ranges (Formulas → Name Manager → New):
 > `Excel.CurrentWorkbook(){[Name="BaseUrl"]}[Content]{0}[Column1]`. If the
 > names go missing, every query stops working at refresh time.
 
-### 4. Add one Power Query per data sheet
+### 4. Turn off privacy-level checking for this workbook (do this first)
+
+Because every query feeds workbook-sourced values (`BaseUrl`, `AuthToken`) into
+`Web.Contents`, Power Query's Formula Firewall raises **"Information is required
+about data privacy"** the first time a query evaluates, and the queries do not
+run until privacy levels are ignored for the workbook.
+
+**File → Options and settings → Query Options → CURRENT WORKBOOK → Privacy →
+"Ignore the Privacy Levels and potentially improve performance" → OK.**
+
+Set this **before** step 5 so you aren't interrupted mid-way, and never touch
+the Global option — it would disable privacy checking for every workbook on
+your machine.
+
+This setting is saved *inside* the workbook, so it travels with the committed
+template. That is the whole point: it is what lets end users skip the dialog
+that the M-as-text MVP forces them through (see
+[the privacy-prompt section](./excel-powerquery-export.md#the-information-is-required-about-data-privacy-prompt)).
+**Verify it survived the save** in the sanity check below — if it didn't, the
+template gives users no advantage over the MVP on this point.
+
+### 5. Add one Power Query per data sheet
 
 For each of the 7 data sheets:
 
@@ -96,7 +117,7 @@ For each of the 7 data sheets:
 Repeat for all 7 sheets. After each one, click **Refresh All** to confirm
 data loads correctly. If a query fails, fix the M code and re-load.
 
-### 5. Replace cell values with placeholders, save, do NOT refresh again
+### 6. Replace cell values with placeholders, save, do NOT refresh again
 
 Once everything refreshes cleanly:
 
@@ -131,6 +152,10 @@ Before committing:
 3. **Don't click Refresh** — there's nothing to refresh against.
 4. Right-click each query in the Queries pane → **Properties** → confirm
    the query name matches the sheet name.
+5. **File → Options and settings → Query Options → CURRENT WORKBOOK →
+   Privacy** — confirm "Ignore the Privacy Levels…" is still selected. If it
+   reverted, redo step 4 and save again; otherwise every user of the template
+   hits the privacy dialog on their first refresh.
 
 ## What the backend does at download time
 

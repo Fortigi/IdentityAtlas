@@ -60,7 +60,20 @@ function buildReadMeSheet(wb) {
     { text: '     - Paste the M code from the sheet, then click Done → Close & Load.' },
     { text: '     - The query name in Power Query becomes the table name on this sheet.' },
     { text: '' },
-    { text: '3. Refresh: Data → Refresh All. Or right-click a query → Refresh.' },
+    { text: '3. The first time a query runs, Excel asks about data privacy. This is expected —', style: { font: { bold: true } } },
+    { text: '   you must allow it once per workbook or no query will return data:' },
+    { text: '     - Every query reads BaseUrl / AuthToken from this workbook and sends them to' },
+    { text: '       the Identity Atlas API. Power Query treats that as combining two data' },
+    { text: '       sources and shows "Information is required about data privacy".' },
+    { text: '     - Click Continue, then tick "Ignore the Privacy Levels and potentially' },
+    { text: '       improve performance" and click Save.' },
+    { text: '     - You can also set it up front: File → Options and settings → Query Options' },
+    { text: '       → CURRENT WORKBOOK → Privacy → "Ignore the Privacy Levels...".' },
+    { text: '     - Use the Current Workbook setting, not the Global one. It is safe here: the' },
+    { text: '       only two sources involved are this file and the Identity Atlas API whose' },
+    { text: '       read token this file already carries, so no data can leak anywhere new.' },
+    { text: '' },
+    { text: '4. Refresh: Data → Refresh All. Or right-click a query → Refresh.' },
     { text: '' },
     { text: 'Security notes', style: { font: { bold: true, size: 12 } } },
     { text: '' },
@@ -133,9 +146,11 @@ function buildQuerySheet(wb, query) {
   sheet.getCell('A2').font = { italic: true, color: { argb: 'FF6B7280' } };
 
   // Instructions
-  sheet.getCell('A4').value = 'Paste the M code below into Power Query: Data → Get Data → Other Sources → Blank Query → Advanced Editor.';
+  sheet.getCell('A4').value = 'Paste the M code below into Power Query: Data → Get Data → Other Sources → Blank Query → Advanced Editor. '
+    + 'On first run Excel asks "Information is required about data privacy" — click Continue and tick "Ignore the Privacy Levels..." '
+    + 'for this workbook (see the README sheet). The query returns no data until you do.';
   sheet.getCell('A4').alignment = { wrapText: true };
-  sheet.getRow(4).height = 36;
+  sheet.getRow(4).height = 48;
 
   // The M code itself, in a single cell with monospace font and wrap
   const mCell = sheet.getCell('A6');
