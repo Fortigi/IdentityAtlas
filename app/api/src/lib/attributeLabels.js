@@ -122,6 +122,7 @@ export const LABEL_TARGET_TABLES = {
   resource: 'Resources',
   identity: 'Identities',
   system: 'Systems',
+  context: 'Contexts',
 };
 
 let cache = new Map();       // target -> { labels, at }

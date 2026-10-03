@@ -33,7 +33,7 @@ let pool;
 const ids = {
   collecting: null, silent: null,           // systems: one collects sign-in data, one does not
   recent: randomUUID(), stale: randomUUID(), never: randomUUID(), uncollected: randomUUID(),
-  group: randomUUID(), role: randomUUID(), identity: randomUUID(),
+  group: randomUUID(), role: randomUUID(), identity: randomUUID(), context: randomUUID(),
 };
 
 async function insertSystem(name) {
@@ -95,11 +95,21 @@ beforeAll(async () => {
   );
   await pool.query(`INSERT INTO "Identities" ("id", "displayName") VALUES ($1, $2)`, [ids.identity, `${PREFIX}person`]);
   await pool.query(`INSERT INTO "IdentityMembers" ("identityId", "principalId") VALUES ($1, $2)`, [ids.identity, ids.recent]);
+  await pool.query(
+    `INSERT INTO "Contexts" ("id", "variant", "targetType", "contextType", "displayName", "scopeSystemId")
+     VALUES ($1, 'synced', 'Resource', 'Application', $2, $3)`,
+    [ids.context, `${PREFIX}context`, ids.collecting],
+  );
+  await pool.query(
+    `INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy") VALUES ($1, 'Resource', $2, 'sync')`,
+    [ids.context, ids.group],
+  );
 });
 
 afterAll(async () => {
   const principals = [ids.recent, ids.stale, ids.never, ids.uncollected];
   await pool.query(`DELETE FROM "PrincipalActivity" WHERE "principalId" = ANY($1::uuid[])`, [principals]);
+  await pool.query(`DELETE FROM "Contexts" WHERE "id" = $1`, [ids.context]);   // its members cascade
   await pool.query(`DELETE FROM "Identities" WHERE "id" = $1`, [ids.identity]);
   await pool.query(`DELETE FROM "ResourceRelationships" WHERE "parentResourceId" = $1`, [ids.role]);
   await pool.query(`DELETE FROM "ResourceAssignments" WHERE "resourceId" = ANY($1::uuid[])`, [[ids.group, ids.role]]);
@@ -125,6 +135,7 @@ async function run(raw) {
 // A record of the same kind as the entity, for comparisons to point at.
 const referenceIdFor = (entityName) => ({
   user: ids.recent, account: ids.recent, identity: ids.identity, group: ids.group, resource: ids.group,
+  context: ids.context,
 }[entityName]);
 
 describe('custom-report catalog SQL matches the schema', () => {

@@ -27,7 +27,10 @@ can open, run and download the result.
    "Guests without an active manager" rather than "report 3".
 2. **Choose what to report on:** Users, Groups, Accounts (including service principals, managed
    identities and AI agents), Resources (roles, applications, permissions, business roles, Azure
-   resources) or Persons (identities, with their linked accounts).
+   resources), Persons (identities, with their linked accounts) or Contexts (groupings such as
+   departments, tags or the applications of an application catalogue — pick the kind with a
+   *Context type is …* condition). Contexts are built here in the editor; the *Ask* box does not
+   produce them yet.
 3. **Add conditions.**
       - **+ condition** — a field of the thing itself: *Enabled is No*, *Name contains LIC*,
         *Created is more than 90 days ago*, *Group count is more than 30*.
