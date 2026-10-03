@@ -130,6 +130,14 @@ function Clear-SqlStagedExpectation {
     if ($Expect.Windowed) { $Expect.Unverifiable = 'the API did not report what the staged window held' }
 }
 
+# Add one stage's counts to what its scope held.
+function Add-SqlStagedExpectation {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Expect, [Parameter(Mandatory)] $Result)
+    $Expect.Applied = [long]($Expect.Applied ?? 0) + [long]$Result.distinct
+    if ($Expect.Windowed) { $Expect.Present = [long]($Expect.Present ?? 0) + [long]$Result.present }
+}
+
 # Tell each staged scope how many distinct assignments its stages held. For a
 # complete scope that is what the scope must hold now that the finalize has
 # removed everything else; for a windowed one the finalize also reports how many
@@ -153,8 +161,7 @@ function Set-SqlStagedExpectations {
         if ($null -eq $expect) { continue }
         $r = $byId[[string]$s.StageId]
         if (-not (Test-SqlStageResultCounted -Expect $expect -Result $r)) { [void]$unknown.Add($expect); continue }
-        $expect.Applied = [long]($expect.Applied ?? 0) + [long]$r.distinct
-        if ($expect.Windowed) { $expect.Present = [long]($expect.Present ?? 0) + [long]$r.present }
+        Add-SqlStagedExpectation -Expect $expect -Result $r
     }
     foreach ($expect in $unknown) { Clear-SqlStagedExpectation -Expect $expect }
 }
