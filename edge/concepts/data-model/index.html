@@ -5803,6 +5803,8 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
         string assignmentType
         int systemId FK
         string principalType
+        string origin
+        string originDetail
         string complianceState
         string policyId
         string state
@@ -6072,11 +6074,11 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 </tr>
 <tr>
 <td>Modified by</td>
-<td>Migration <code>036_resource_assignments_identity_support.sql</code></td>
+<td>Migration <code>036_resource_assignments_identity_support.sql</code>, <code>082_assignment_origin.sql</code></td>
 </tr>
 </tbody>
 </table>
-<p>Key columns: <code>assignmentType</code>, <code>principalId</code> (nullable), <code>identityId</code> (nullable), <code>systemId</code>, <code>principalType</code>, <code>complianceState</code>, <code>policyId</code>, <code>state</code>, <code>assignmentStatus</code>, <code>expirationDateTime</code>, <code>extendedAttributes</code> (JSONB).</p>
+<p>Key columns: <code>assignmentType</code>, <code>principalId</code> (nullable), <code>identityId</code> (nullable), <code>systemId</code>, <code>principalType</code>, <code>origin</code>, <code>originDetail</code>, <code>complianceState</code>, <code>policyId</code>, <code>state</code>, <code>assignmentStatus</code>, <code>expirationDateTime</code>, <code>extendedAttributes</code> (JSONB).</p>
 <hr />
 <h3 id="resourcerelationships">ResourceRelationships<a class="headerlink" href="#resourcerelationships" title="Permanent link">&para;</a></h3>
 <p>Resource-to-resource links. Used for two purposes: <code>Contains</code> links a business role to the resources it grants; <code>GrantsAccessTo</code> expresses that holding one resource implies access to another.</p>

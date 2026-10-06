@@ -6422,6 +6422,14 @@ bound against real PostgreSQL.</p>
 <td>One of exactly: <code>Direct</code>, <code>Indirect</code>, <code>Eligible</code> — ingest <strong>rejects</strong> any other value. Everything that used to be its own type is modelled differently: ownership is a <code>Direct</code> membership on a <code>GroupOwnership</code>/<code>*Ownership</code> resource; governance is the <code>governed=true</code> flag on the assignment; the former source-detail types (<code>OAuth2Grant</code>, <code>AppRole</code>, <code>AppRoleViaGroup</code>, <code>DirectoryRole</code>, <code>DirectoryRoleEligible</code>) collapse to <code>Direct</code>/<code>Indirect</code>/<code>Eligible</code> with <code>resourceType</code> carrying the detail</td>
 </tr>
 <tr>
+<td><code>origin</code></td>
+<td>Optional, on assignments. One of exactly: <code>Automatic</code> (a rule or birthright policy assigned it), <code>Requested</code> (it was requested and approved), <code>Discovered</code> (the source found it on the target system) — ingest <strong>rejects</strong> any other value. Leave it out when the source does not say; that is not the same as <code>Discovered</code>. Not part of the row key or the reconcile scope, so a grant whose origin changes is the same row</td>
+</tr>
+<tr>
+<td><code>originDetail</code></td>
+<td>Optional, on assignments, max 100 chars. The source's own word for the origin (IdentityIQ: <code>Rule</code>, <code>LCM</code>, <code>Aggregation</code>, …), kept so the grouping into <code>origin</code> can be audited</td>
+</tr>
+<tr>
 <td><code>relationshipType</code></td>
 <td>One of: <code>Contains</code>, <code>HasAppRole</code>, <code>DelegatesScope</code>, <code>HasApplicationPermission</code>, <code>HasAppOwnership</code>, <code>HasOwnership</code> (<code>GrantsAccessTo</code> is accepted but reserved / not yet emitted)</td>
 </tr>
