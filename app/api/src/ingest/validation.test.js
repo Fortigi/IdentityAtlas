@@ -5,7 +5,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { validateEnvelope, validateRecords } from './validation.js';
+import {
+  validateEnvelope, validateRecords, ASSIGNMENT_ORIGINS, ENTITY_KEY_MAP, ENTITY_SCOPE_MAP,
+} from './validation.js';
 
 // ── validateEnvelope ──────────────────────────────────────────────────────────
 
@@ -271,6 +273,54 @@ describe('validateRecords — resource-assignments', () => {
     for (const t of allTypes) {
       const result = validateRecords([{ ...validAssignment, assignmentType: t }], 'resource-assignments');
       expect(result.valid, `Expected valid for assignmentType=${t}`).toBe(true);
+    }
+  });
+});
+
+// ── validateRecords — assignment origin ───────────────────────────────────────
+
+describe.each([
+  ['resource-assignments', { principalId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' }],
+  ['resource-assignments-identity', { identityId: 'cccccccc-cccc-cccc-cccc-cccccccccccc' }],
+])('validateRecords — origin on %s', (entityType, holder) => {
+  const base = { resourceId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', assignmentType: 'Direct', ...holder };
+
+  it('is exactly the three universal origins', () => {
+    expect(ASSIGNMENT_ORIGINS).toEqual(['Automatic', 'Requested', 'Discovered']);
+  });
+
+  it.each(ASSIGNMENT_ORIGINS)('accepts origin %s', (origin) => {
+    expect(validateRecords([{ ...base, origin, originDetail: 'LCM' }], entityType).valid).toBe(true);
+  });
+
+  it('accepts a record with no origin at all, and an explicit null', () => {
+    expect(validateRecords([base], entityType).valid).toBe(true);
+    expect(validateRecords([{ ...base, origin: null, originDetail: null }], entityType).valid).toBe(true);
+  });
+
+  // A source's own word is not an origin: it belongs in originDetail. And the
+  // list is case-sensitive, like assignmentType.
+  it.each(['Rule', 'Aggregation', 'automatic', ''])('rejects origin %j and names the field', (origin) => {
+    const result = validateRecords([{ ...base, origin }], entityType);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toMatch(/'origin' must be one of: Automatic, Requested, Discovered/);
+  });
+
+  it('bounds originDetail at 100 characters', () => {
+    expect(validateRecords([{ ...base, originDetail: 'x'.repeat(100) }], entityType).valid).toBe(true);
+    const result = validateRecords([{ ...base, originDetail: 'x'.repeat(101) }], entityType);
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toMatch(/originDetail/);
+  });
+
+  // The property that keeps every existing connector working: origin describes
+  // a grant, it does not identify one, so it can change without creating a
+  // second row and without splitting a reconcile scope.
+  it('is not part of the row key or the reconcile scope', () => {
+    for (const field of ['origin', 'originDetail']) {
+      expect(ENTITY_KEY_MAP[entityType]).not.toContain(field);
+      expect(ENTITY_SCOPE_MAP[entityType]).not.toContain(field);
     }
   });
 });
