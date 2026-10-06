@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed the SQL crawler marking millions of unchanged assignments as changed on every import: a statement's watermark column (e.g. IdentityIQ's `modified`) is no longer stored as an attribute of the row. A source that re-stamps its rows during a refresh no longer causes rewrites, history entries or a slow import. Rows imported before this fix keep the value they already had.
+- The IdentityIQ preset's "Role assignments" statement no longer selects `idx` (the role's position in the list), which shifted whenever a role was removed. Existing configurations keep their own SQL: remove `idx` from the statement to get the same effect.
+
+## Changes in this PR
+
 - Every release (stable, beta and hotfix) now ships two portable Windows downloads: `IdentityAtlas-portable.zip` (the default, PGlite, every executable code-signed) and `IdentityAtlas-portable-postgres.zip` (embedded PostgreSQL 16 for large data sets; start with `-Database Postgres`; its PostgreSQL binaries are not code-signed and need the Visual C++ runtime `VCRUNTIME140.dll`)
 - Release notes now end with a short guide explaining which portable ZIP to download
 - The README and the portable launcher guide explain which ZIP to pick and why
