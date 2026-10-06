@@ -7454,10 +7454,12 @@ in the database; it streams without paging.</p>
 business-role resources.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="k">SELECT</span>
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">    </span><span class="n">identity_id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="n">bundle</span><span class="w">      </span><span class="k">AS</span><span class="w"> </span><span class="n">resourceId</span><span class="p">,</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">    </span><span class="n">idx</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity_assigned_roles</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="n">bundle</span><span class="w">      </span><span class="k">AS</span><span class="w"> </span><span class="n">resourceId</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity_assigned_roles</span>
 </code></pre></div>
+<p>Select only the two keys. <code>idx</code> is the role's position in the identity's list: removing
+one role renumbers every later one, and stored as an attribute that reads as a change to
+assignments nobody touched.</p>
 <h3 id="role-composition">Role composition<a class="headerlink" href="#role-composition" title="Permanent link">&para;</a></h3>
 <p>Target <code>relationships</code>, <code>relationshipType</code> <code>Contains</code>. Links a bundle to each entitlement
 it grants, so a business role shows which entitlements it contains. Each relation row names
@@ -7524,6 +7526,12 @@ remembers the largest value that column returned, and binds it to <code>@Since</
 <p>with <code>"watermarkColumn": "modified"</code> on the slot (the <strong>Watermark column</strong> field in the
 wizard). Both halves are required: a watermark column without <code>@Since</code>, or <code>@Since</code>
 without a watermark column, is refused when the configuration is saved.</p>
+<p>The watermark column is <strong>not stored</strong> on the row. It is the position the next run reads
+from, not a property of the grant: IdentityIQ re-stamps <code>modified</code> on every grant an
+identity refresh looks at, changed or not, so storing it made millions of unchanged
+assignments look changed on every import. Every other column the statement returns still
+lands in <code>extendedAttributes</code>; to keep a timestamp as an attribute, return it a second
+time under another name.</p>
 <p>Four things worth knowing:</p>
 <ul>
 <li><strong><code>@Since</code> is a <code>bigint</code> holding epoch milliseconds</strong>, because that is how IdentityIQ's
