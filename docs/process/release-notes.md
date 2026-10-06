@@ -1,15 +1,19 @@
 # How a release's notes are assembled
 
-`cut-release.yml` and `cut-hotfix.yml` build the GitHub release body in four
+`cut-release.yml` and `cut-hotfix.yml` build the GitHub release body in five
 steps. Knowing the order matters, because two of the steps can silently produce
-nothing and one of them is deliberately placed where a model cannot touch it.
+nothing and two of them are deliberately placed where a model cannot touch them.
 
 ```
 1. Pick the baseline          .github/scripts/release_prev_tag.sh
 2. Collect the changelog      changes/*.md fragments, or a CHANGES.md slice
 3. Polish the wording         Claude, via claude-code-action (best-effort)
 4. Append the dependencies    tools/release-notes/dependency-delta.py
+5. Append the download guide  tools/release-notes/portable-downloads.md
 ```
+
+`cut-beta.yml` runs steps 2, 3 and 5 (its baseline is the latest tag of any
+kind, and it has no dependency section).
 
 Steps 1–3 describe what people changed. Step 4 describes what the *image*
 changed, which is a different question and has a different source of truth.
@@ -133,6 +137,23 @@ Sample output:
 `unpinned` is not an error — it means that end of the range used a bare tag,
 which is true of every base image before digest pinning landed.
 
+## 5. The download guide
+
+Every release attaches two portable Windows ZIPs, built by
+`.github/scripts/build_portable_zips.sh`:
+
+| Asset | What it is |
+|-------|------------|
+| `IdentityAtlas-portable.zip` | PGlite only; `node.exe` is its only executable and is code-signed |
+| `IdentityAtlas-portable-postgres.zip` | Embeds PostgreSQL 16 for large data sets; run with `-Database Postgres`; the PostgreSQL binaries are not code-signed and need `VCRUNTIME140.dll` |
+
+`tools/release-notes/portable-downloads.md` explains that choice to whoever
+opens the release page. It is a static file appended **after** polishing, for
+the same reason as the dependency section: the model is told to drop
+packaging and tooling text, and this is the one piece of packaging text a
+downloader needs. See
+[Portable Windows Launcher](../architecture/desktop-portable.md#which-zip-to-download).
+
 ---
 
 ## Where releases can be cut from
@@ -155,7 +176,9 @@ described against its own line.
 |-------|--------|
 | `test/ci-scripts/test-release-prev-tag.sh` | Baseline selection, version ordering, pre-release exclusion, workflow wiring |
 | `tools/release-notes/test_dependency_delta.py` | Lockfile parsing, dev/production filtering, the UI manifest restriction, Dockerfile digests, rendering, truncation |
+| `app/desktop/portableReleaseAssets.guard.test.js` | All three cut workflows attach both portable ZIPs, the build order that keeps both, and the download guide's placement after polishing |
 
-Both run in the `ci-scripts` job of `pr.yml`. They are worth having precisely
+The first two run in the `ci-scripts` job of `pr.yml`; the guard runs in the
+API Vitest suite. They are worth having precisely
 because nothing else exercises this code until a release is already being cut,
 and a release is a bad place to discover that the notes generator throws.

@@ -1,6 +1,8 @@
 # ─── Cut a Hotfix Release ─────────────────────────────────────────────────────
 # Manually triggered. Tags the HEAD of a hotfix branch with a new patch version,
-# triggering docker-publish to build :latest + :X.Y.Z.0.
+# triggering docker-publish to build :latest + :X.Y.Z.0. The GitHub release gets
+# both portable Windows ZIPs (IdentityAtlas-portable.zip and
+# IdentityAtlas-portable-postgres.zip).
 #
 # Usage:
 #   1. git checkout -b bugfixes/fix-foo v5.2.0   ← branch from the release tag
@@ -76,9 +78,11 @@ jobs:
         run: npm install --prefer-offline
         working-directory: app/desktop
 
-      - name: Build portable Windows ZIP
-        run: npm run build:node-launcher
-        working-directory: app/api
+      # Two ZIPs: the default (PGlite, signed node.exe only) and -postgres
+      # (embedded PostgreSQL for large data sets, unsigned binaries). One shared
+      # script so cut-release / cut-beta / cut-hotfix cannot drift apart.
+      - name: Build portable Windows ZIPs
+        run: bash .github/scripts/build_portable_zips.sh
 
       - name: Generate release notes
         run: |
@@ -154,18 +158,22 @@ jobs:
       #
       # Appended AFTER polishing on purpose: the model cannot drop or reword a
       # section it never sees, so the shipped-dependency list is exact.
-      - name: Append dependency updates
+      # Which portable ZIP to download is appended after polishing for the same
+      # reason: the model cannot drop or reword it.
+      - name: Append dependency updates and download guide
         run: |
           python3 tools/release-notes/dependency-delta.py "${PREV_TAG}" "${TAG}" >> release-notes.md
+          cat tools/release-notes/portable-downloads.md >> release-notes.md
           echo "--- release-notes.md final ---"
           cat release-notes.md
 
-      - name: Create GitHub release with portable ZIP
+      - name: Create GitHub release with portable ZIPs
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
           gh release create "$TAG" \
-            app/api/dist-node-launcher/IdentityAtlas-portable.zip \
+            app/api/dist-node-launcher/release/IdentityAtlas-portable.zip \
+            app/api/dist-node-launcher/release/IdentityAtlas-portable-postgres.zip \
             --title "$TAG" \
             --notes-file release-notes.md \
             --latest
