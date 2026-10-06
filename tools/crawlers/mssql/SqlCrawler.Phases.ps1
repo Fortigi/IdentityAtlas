@@ -434,7 +434,7 @@ function Add-SqlStreamedRow {
     $ctx = $script:SqlRowCtx
     if (-not $ctx.Map) {
         $overrides = if ($ctx.Slot.columnMap) { $ctx.Slot.columnMap } else { @{} }
-        $ctx.Map = Resolve-SqlColumnMap -Columns @($Row.Keys) -Target $ctx.Slot.target -ColumnMap $overrides
+        $ctx.Map = Resolve-SqlColumnMap -Columns @($Row.Keys) -Target $ctx.Slot.target -ColumnMap $overrides -WatermarkColumn $ctx.Slot.watermarkColumn
         # Decided once per statement, not per row: at tens of millions of rows a
         # per-row decision is minutes spent re-deriving a constant.
         $ctx.Route = Get-SqlRouteMode -Map $ctx.Map -Target $ctx.Slot.target -Routing (Test-SqlSystemRouting -Catalog $ctx.State.Systems)

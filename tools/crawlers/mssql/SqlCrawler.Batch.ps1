@@ -51,7 +51,7 @@ function Get-SqlBatchPlan {
         $ordinal[$Columns[$i]] = $i
     }
     $overrides = if ($Ctx.Slot.columnMap) { $Ctx.Slot.columnMap } else { @{} }
-    $map = Resolve-SqlColumnMap -Columns $names.ToArray() -Target $Ctx.Slot.target -ColumnMap $overrides
+    $map = Resolve-SqlColumnMap -Columns $names.ToArray() -Target $Ctx.Slot.target -ColumnMap $overrides -WatermarkColumn $Ctx.Slot.watermarkColumn
     $Ctx.Map = $map
     $Ctx.Route = Get-SqlRouteMode -Map $map -Target $Ctx.Slot.target -Routing (Test-SqlSystemRouting -Catalog $Ctx.State.Systems)
     if ($Ctx.Delta) { Resolve-SqlWatermarkColumn -Delta $Ctx.Delta -Columns $names.ToArray() }

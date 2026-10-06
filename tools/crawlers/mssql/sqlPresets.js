@@ -158,6 +158,9 @@ FROM spt_bundle b
 LEFT JOIN spt_identity i ON i.id = b.owner`,
 };
 
+// Only the two keys. `idx` is the role's POSITION in the identity's list, so
+// removing one role renumbers every later one: stored as an attribute, a single
+// removal reads as a change to assignments nobody touched.
 const ROLE_ASSIGNMENTS = {
   name: 'Role assignments',
   target: 'assignments',
@@ -166,8 +169,7 @@ const ROLE_ASSIGNMENTS = {
   governed: true,
   sql: `SELECT
     identity_id AS principalId,
-    bundle      AS resourceId,
-    idx
+    bundle      AS resourceId
 FROM spt_identity_assigned_roles`,
 };
 

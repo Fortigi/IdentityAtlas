@@ -89,6 +89,12 @@ function ConvertTo-SqlNameKey {
 # hashtable: <contractName> → actual column name (or absent), plus `_extended`
 # = the actual column names that go to extendedAttributes. A contract name that
 # several columns satisfy (id and ID) takes the first one in column order.
+#
+# The statement's watermark column is the sync cursor, not an attribute of the
+# row: it moves whenever the source re-stamps the row, changed or not. Stored in
+# extendedAttributes it made 6.8 of 42.6 million unchanged IdentityIQ grants
+# look changed after one nightly refresh, each rewritten and given a history
+# row. So it is read for the watermark and left out of _extended.
 function Resolve-SqlColumnMap {
     [CmdletBinding()]
     param(
@@ -96,7 +102,9 @@ function Resolve-SqlColumnMap {
         [Parameter(Mandatory)] [string]$Target,
         # Operator overrides: source column name -> contract column name. Lets an
         # existing SELECT be used verbatim instead of being rewritten with aliases.
-        [hashtable]$ColumnMap = @{}
+        [hashtable]$ColumnMap = @{},
+        # The slot's watermarkColumn, when it has one.
+        [string]$WatermarkColumn
     )
     $contract = $script:SqlContract[$Target]
     if (-not $contract) { throw "No column contract for target '$Target'" }
@@ -113,7 +121,8 @@ function Resolve-SqlColumnMap {
         $src = Get-SqlSourceColumn -Name $name -ByKey $byKey -Overridden $overridden
         if ($src) { $map[$name] = $src }
     }
-    $map['_extended'] = @($Columns | Where-Object { -not $consumed.Contains($_) })
+    $cursor = if ($WatermarkColumn) { ConvertTo-SqlColumnKey -Name $WatermarkColumn }
+    $map['_extended'] = @($Columns | Where-Object { -not $consumed.Contains($_) -and (-not $cursor -or (ConvertTo-SqlColumnKey -Name $_) -ne $cursor) })
     return $map
 }
 

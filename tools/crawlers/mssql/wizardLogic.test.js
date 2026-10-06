@@ -111,6 +111,17 @@ describe('appendPresetSlots', () => {
     }
   });
 
+  // A list position is renumbered whenever an earlier entry goes, so stored on
+  // the assignment it reports a change nobody made.
+  it('reads role assignments by their two keys only, without the list position', () => {
+    for (const preset of [IDENTITYIQ_PRESET, IDENTITYIQ_ORG_PRESET]) {
+      const roles = preset.filter(q => q.name === 'Role assignments');
+      expect(roles).toHaveLength(1);
+      expect(roles[0].sql).toContain('bundle      AS resourceId\nFROM spt_identity_assigned_roles');
+      expect(roles[0].sql).not.toMatch(/\bidx\b/);
+    }
+  });
+
   it('loads identities as principals, never through the identities target', () => {
     for (const p of PRESETS) expect(p.queries.map(q => q.target)).not.toContain('identities');
   });
