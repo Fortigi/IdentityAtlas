@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Assignments can now record where they came from: assigned automatically by a rule, requested and approved, or found on the target system. Connectors that do not supply this keep working unchanged and their assignments simply show no origin
+
+## Changes in this PR
+
 - Updated transitive dependencies to clear the npm audit advisories that blocked every PR: source-map-js (event-loop DoS, high) in both the UI and the API, and proxy-addr (IP spoofing via IPv4-mapped IPv6, critical) in the API.
 
 ## Changes in this PR

@@ -1,1 +1,0 @@
-- Assignments can now record where they came from: assigned automatically by a rule, requested and approved, or found on the target system. Connectors that do not supply this keep working unchanged and their assignments simply show no origin
