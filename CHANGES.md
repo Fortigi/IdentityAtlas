@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Every release (stable, beta and hotfix) now ships two portable Windows downloads: `IdentityAtlas-portable.zip` (the default, PGlite, every executable code-signed) and `IdentityAtlas-portable-postgres.zip` (embedded PostgreSQL 16 for large data sets; start with `-Database Postgres`; its PostgreSQL binaries are not code-signed and need the Visual C++ runtime `VCRUNTIME140.dll`)
+- Release notes now end with a short guide explaining which portable ZIP to download
+- The README and the portable launcher guide explain which ZIP to pick and why
+
+## Changes in this PR
+
 - The security policy now says to use the support mailbox when GitHub does not offer private vulnerability reporting, and explains how a security fix reaches the current release.
 - The contributor guide now lists every check a pull request must pass before it can be merged.
 
