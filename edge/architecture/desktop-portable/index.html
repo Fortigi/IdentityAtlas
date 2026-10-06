@@ -1888,6 +1888,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#which-zip-to-download" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which ZIP to download
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-it-works" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2099,6 +2110,17 @@
     <span class="md-ellipsis">
       
         Embedding PostgreSQL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#release-builds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release builds
       
     </span>
   </a>
@@ -5424,6 +5446,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#which-zip-to-download" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which ZIP to download
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-it-works" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5642,6 +5675,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#release-builds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release builds
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#build-output" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5770,6 +5814,30 @@
 <h1 id="portable-windows-launcher">Portable Windows Launcher<a class="headerlink" href="#portable-windows-launcher" title="Permanent link">&para;</a></h1>
 <p>Identity Atlas can run as a standalone portable ZIP on Windows — no Docker, no WSL, no administrator rights, no installation. Unzip and run a PowerShell script to start the full stack.</p>
 <p>This deployment mode is designed for environments where Docker and WSL are blocked by security policy.</p>
+<h2 id="which-zip-to-download">Which ZIP to download<a class="headerlink" href="#which-zip-to-download" title="Permanent link">&para;</a></h2>
+<p>Every <a href="https://github.com/Fortigi/IdentityAtlas/releases">GitHub release</a> ships two portable ZIPs. They contain the same app; the second one adds a PostgreSQL server.</p>
+<table>
+<thead>
+<tr>
+<th>Download</th>
+<th>Database</th>
+<th>Pick it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IdentityAtlas-portable.zip</code></td>
+<td>PGlite, inside the app</td>
+<td><strong>The default.</strong> Small and medium tenants, and any machine whose application control trusts signed publishers: <code>node.exe</code>, the only executable in the zip, is signed by the OpenJS Foundation.</td>
+</tr>
+<tr>
+<td><code>IdentityAtlas-portable-postgres.zip</code></td>
+<td>A real PostgreSQL 16 server</td>
+<td><strong>Large data sets</strong> that PGlite cannot hold (it is capped at 4 GB; see <a href="#real-postgresql-mode">Real PostgreSQL mode</a>). Start it with <code>-Database Postgres</code>. The PostgreSQL binaries are <strong>not code-signed</strong>, so WDAC needs hash or path rules for them, and they need the Microsoft Visual C++ runtime (<code>VCRUNTIME140.dll</code>), which the zip does not contain.</td>
+</tr>
+</tbody>
+</table>
+<p><code>Start-IdentityAtlas.ps1 -Database Postgres</code> on the default ZIP fails with "no postgres binaries found": that ZIP has no <code>postgres\</code> folder.</p>
 <hr />
 <h2 id="how-it-works">How It Works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
 <p><code>IdentityAtlas-portable.zip</code> bundles:</p>
@@ -5799,7 +5867,7 @@
 </code></pre></div>
 <p><code>bootstrap.mjs</code> initializes PGlite (WebAssembly PostgreSQL) in-process, sets <code>DESKTOP_MODE=true</code>, then imports the API bundle. <code>connection.js</code> detects this flag and routes all database calls through the in-process PGlite instance instead of a TCP connection pool. No child process is spawned, no executable is written to disk at runtime.</p>
 <p>Database files are stored in <code>pgdata\</code> under the data directory (see <a href="#data-location">Data Location</a>) and persist across restarts.</p>
-<p>A package built with <code>--with-postgres</code> also carries a real PostgreSQL server and runs that instead — see <a href="#real-postgresql-mode">Real PostgreSQL mode</a>.</p>
+<p><code>IdentityAtlas-portable-postgres.zip</code> (built with <code>--with-postgres</code>) also carries a real PostgreSQL server and runs that instead — see <a href="#real-postgresql-mode">Real PostgreSQL mode</a>.</p>
 <hr />
 <h2 id="running-the-portable-launcher">Running the Portable Launcher<a class="headerlink" href="#running-the-portable-launcher" title="Permanent link">&para;</a></h2>
 <h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
@@ -5824,7 +5892,7 @@
 <p>No Docker. No WSL. No administrator rights.</p>
 <h3 id="starting-the-app">Starting the App<a class="headerlink" href="#starting-the-app" title="Permanent link">&para;</a></h3>
 <ol>
-<li>Download <code>IdentityAtlas-portable.zip</code> from the <a href="https://github.com/Fortigi/IdentityAtlas/releases">GitHub Releases page</a></li>
+<li>Download <code>IdentityAtlas-portable.zip</code> (or <code>IdentityAtlas-portable-postgres.zip</code> for a large data set; see <a href="#which-zip-to-download">Which ZIP to download</a>) from the <a href="https://github.com/Fortigi/IdentityAtlas/releases">GitHub Releases page</a></li>
 <li>Extract the zip to a folder of your choice (e.g. <code>C:\Users\YourName\IdentityAtlas\</code>)</li>
 <li>Open PowerShell 7 and run:
    <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">pwsh</span> <span class="n">-ExecutionPolicy</span> <span class="n">Bypass</span> <span class="o">-File</span> <span class="p">.\</span><span class="nb">Start-IdentityAtlas</span><span class="p">.</span><span class="n">ps1</span>
@@ -5949,7 +6017,7 @@ the zip <em>before</em> extracting works too.</p>
 <hr />
 <h2 id="real-postgresql-mode">Real PostgreSQL mode<a class="headerlink" href="#real-postgresql-mode" title="Permanent link">&para;</a></h2>
 <p>PGlite has a hard ceiling that no setting moves. It is PostgreSQL compiled to 32-bit WebAssembly inside <code>node.exe</code>, so it can never address more than 4 GB. Its buffer pool is fixed at 128 MB and <code>work_mem</code> at 4 MB, and <code>ALTER SYSTEM</code> is accepted but ignored after a restart. It is also single-threaded. A tenant of 200k users, 800k entitlements and tens of millions of assignments (15–25 GB of tables and indexes) cannot fit.</p>
-<p>A package built with <code>--with-postgres</code> therefore carries a real PostgreSQL 16 server in <code>postgres\</code>, unpacked from the official Windows binaries zip. <code>Start-IdentityAtlas.ps1</code> then runs <strong>two processes</strong>, both as the current user, with no installation and no administrator rights:</p>
+<p><code>IdentityAtlas-portable-postgres.zip</code> (a package built with <code>--with-postgres</code>) therefore carries a real PostgreSQL 16 server in <code>postgres\</code>, unpacked from the official Windows binaries zip. <code>Start-IdentityAtlas.ps1</code> then runs <strong>two processes</strong>, both as the current user, with no installation and no administrator rights:</p>
 <ol>
 <li><strong>PostgreSQL</strong>, started with <code>pg_ctl</code> from <code>postgres\bin</code>, listening on <code>127.0.0.1:5433</code>.</li>
 <li><strong><code>node.exe bootstrap.mjs</code></strong>, given <code>POSTGRES_HOST</code>/<code>POSTGRES_PORT</code>/… instead of starting PGlite. <code>DESKTOP_MODE</code> is left off, so migrations install <code>pg_trgm</code> for real and matview refreshes use <code>CONCURRENTLY</code>. The API is still pinned to <code>127.0.0.1</code>.</li>
@@ -6160,11 +6228,20 @@ the zip <em>before</em> extracting works too.</p>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c"># or add the flag to any variant:</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">node</span> <span class="p">../</span><span class="n">desktop</span><span class="p">/</span><span class="n">scripts</span><span class="p">/</span><span class="n">build-node-launcher</span><span class="p">.</span><span class="n">mjs</span> <span class="p">-</span><span class="n">-skip-ui-build</span> <span class="p">-</span><span class="n">-with-postgres</span>
 </code></pre></div>
-<p>This downloads EDB's PostgreSQL Windows binaries zip. The version and SHA-256 are pinned in <code>app/desktop/scripts/postgres-bundle.mjs</code>, and every build checks the hash. The zip is cached in <code>dist-node-launcher/</code> and only the subset the server needs is copied into <code>postgres\</code>. Binaries are never downloaded at run time, so the package works offline. Release builds do not use the flag.</p>
+<p>This downloads EDB's PostgreSQL Windows binaries zip. The version and SHA-256 are pinned in <code>app/desktop/scripts/postgres-bundle.mjs</code>, and every build checks the hash. The zip is cached in <code>dist-node-launcher/</code> and only the subset the server needs is copied into <code>postgres\</code>. Binaries are never downloaded at run time, so the package works offline.</p>
+<h4 id="release-builds">Release builds<a class="headerlink" href="#release-builds" title="Permanent link">&para;</a></h4>
+<p><code>cut-release.yml</code>, <code>cut-beta.yml</code> and <code>cut-hotfix.yml</code> build both ZIPs through one shared script, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/.github/scripts/build_portable_zips.sh"><code>.github/scripts/build_portable_zips.sh</code></a>, which writes them to <code>app/api/dist-node-launcher/release/</code>:</p>
+<ol>
+<li><code>npm run build:node-launcher</code>, then moves the zip to <code>release/IdentityAtlas-portable.zip</code>. The move matters: every build deletes and rewrites <code>dist-node-launcher/IdentityAtlas-portable.zip</code>, so the second build would otherwise destroy the first's output.</li>
+<li><code>build-node-launcher.mjs --skip-ui-build --with-postgres</code> (reusing the UI the first build produced), then moves the zip to <code>release/IdentityAtlas-portable-postgres.zip</code>.</li>
+<li>Checks that the default zip has no <code>postgres/bin/postgres.exe</code> and the PostgreSQL zip does.</li>
+</ol>
+<p>Both are attached to the GitHub release, and the release notes end with a short guide to which one to download. <code>app/desktop/portableReleaseAssets.guard.test.js</code> fails if any of the three workflows stops attaching either ZIP.</p>
 <h4 id="build-output">Build Output<a class="headerlink" href="#build-output" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>app/api/dist-node-launcher/
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>  IdentityAtlas-portable.zip   ← portable ZIP (~50 MB)
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>  IdentityAtlas-portable.zip   ← portable ZIP (~50 MB; ~80 MB with --with-postgres)
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>  stage/                       ← unpacked contents (can run directly for dev)
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>  release/                     ← only from build_portable_zips.sh: both release ZIPs
 </code></pre></div>
 <hr />
 <h2 id="security-notes">Security Notes<a class="headerlink" href="#security-notes" title="Permanent link">&para;</a></h2>

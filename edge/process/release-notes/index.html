@@ -4002,6 +4002,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#5-the-download-guide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. The download guide
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#where-releases-can-be-cut-from" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5343,6 +5354,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#5-the-download-guide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. The download guide
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#where-releases-can-be-cut-from" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5459,14 +5481,17 @@
 
 
 <h1 id="how-a-releases-notes-are-assembled">How a release's notes are assembled<a class="headerlink" href="#how-a-releases-notes-are-assembled" title="Permanent link">&para;</a></h1>
-<p><code>cut-release.yml</code> and <code>cut-hotfix.yml</code> build the GitHub release body in four
+<p><code>cut-release.yml</code> and <code>cut-hotfix.yml</code> build the GitHub release body in five
 steps. Knowing the order matters, because two of the steps can silently produce
-nothing and one of them is deliberately placed where a model cannot touch it.</p>
+nothing and two of them are deliberately placed where a model cannot touch them.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>1. Pick the baseline          .github/scripts/release_prev_tag.sh
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>2. Collect the changelog      changes/*.md fragments, or a CHANGES.md slice
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>3. Polish the wording         Claude, via claude-code-action (best-effort)
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>4. Append the dependencies    tools/release-notes/dependency-delta.py
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>5. Append the download guide  tools/release-notes/portable-downloads.md
 </code></pre></div>
+<p><code>cut-beta.yml</code> runs steps 2, 3 and 5 (its baseline is the latest tag of any
+kind, and it has no dependency section).</p>
 <p>Steps 1–3 describe what people changed. Step 4 describes what the <em>image</em>
 changed, which is a different question and has a different source of truth.</p>
 <hr />
@@ -5612,6 +5637,33 @@ all, so an empty heading cannot appear.</p>
 </code></pre></div>
 <p><code>unpinned</code> is not an error — it means that end of the range used a bare tag,
 which is true of every base image before digest pinning landed.</p>
+<h2 id="5-the-download-guide">5. The download guide<a class="headerlink" href="#5-the-download-guide" title="Permanent link">&para;</a></h2>
+<p>Every release attaches two portable Windows ZIPs, built by
+<code>.github/scripts/build_portable_zips.sh</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Asset</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IdentityAtlas-portable.zip</code></td>
+<td>PGlite only; <code>node.exe</code> is its only executable and is code-signed</td>
+</tr>
+<tr>
+<td><code>IdentityAtlas-portable-postgres.zip</code></td>
+<td>Embeds PostgreSQL 16 for large data sets; run with <code>-Database Postgres</code>; the PostgreSQL binaries are not code-signed and need <code>VCRUNTIME140.dll</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>tools/release-notes/portable-downloads.md</code> explains that choice to whoever
+opens the release page. It is a static file appended <strong>after</strong> polishing, for
+the same reason as the dependency section: the model is told to drop
+packaging and tooling text, and this is the one piece of packaging text a
+downloader needs. See
+<a href="../../architecture/desktop-portable/#which-zip-to-download">Portable Windows Launcher</a>.</p>
 <hr />
 <h2 id="where-releases-can-be-cut-from">Where releases can be cut from<a class="headerlink" href="#where-releases-can-be-cut-from" title="Permanent link">&para;</a></h2>
 <p>Both <code>cut-release</code> and <code>cut-beta</code> take a <strong><code>ref</code> input</strong> (branch, tag or commit;
@@ -5641,9 +5693,14 @@ described against its own line.</p>
 <td><code>tools/release-notes/test_dependency_delta.py</code></td>
 <td>Lockfile parsing, dev/production filtering, the UI manifest restriction, Dockerfile digests, rendering, truncation</td>
 </tr>
+<tr>
+<td><code>app/desktop/portableReleaseAssets.guard.test.js</code></td>
+<td>All three cut workflows attach both portable ZIPs, the build order that keeps both, and the download guide's placement after polishing</td>
+</tr>
 </tbody>
 </table>
-<p>Both run in the <code>ci-scripts</code> job of <code>pr.yml</code>. They are worth having precisely
+<p>The first two run in the <code>ci-scripts</code> job of <code>pr.yml</code>; the guard runs in the
+API Vitest suite. They are worth having precisely
 because nothing else exercises this code until a release is already being cut,
 and a release is a bad place to discover that the notes generator throws.</p>
 
