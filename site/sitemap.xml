@@ -1,9 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
   <url>
     <loc>https://identityatlas.io/</loc>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
+    <video:video>
+      <video:thumbnail_loc>https://identityatlas.io/assets/explainer-poster.jpg</video:thumbnail_loc>
+      <video:title>Identity Atlas explainer — Trust starts with clarity</video:title>
+      <video:description>A one-minute introduction to Identity Atlas: one shared view of who has access to what across Entra ID, Azure RBAC, Omada, midPoint and other systems. Open source, self-hosted, read-only.</video:description>
+      <video:content_loc>https://identityatlas.io/assets/explainer.mp4</video:content_loc>
+      <video:duration>66</video:duration>
+      <video:family_friendly>yes</video:family_friendly>
+      <video:live>no</video:live>
+    </video:video>
   </url>
   <url>
     <loc>https://identityatlas.io/demo/</loc>
