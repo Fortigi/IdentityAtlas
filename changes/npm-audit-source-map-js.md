@@ -1,1 +1,0 @@
-- Updated transitive dependencies to clear the npm audit advisories that blocked every PR: source-map-js (event-loop DoS, high) in both the UI and the API, and proxy-addr (IP spoofing via IPv4-mapped IPv6, critical) in the API.

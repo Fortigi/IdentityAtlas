@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Updated transitive dependencies to clear the npm audit advisories that blocked every PR: source-map-js (event-loop DoS, high) in both the UI and the API, and proxy-addr (IP spoofing via IPv4-mapped IPv6, critical) in the API.
+
+## Changes in this PR
+
 - Fixed the SQL crawler marking millions of unchanged assignments as changed on every import: a statement's watermark column (e.g. IdentityIQ's `modified`) is no longer stored as an attribute of the row. A source that re-stamps its rows during a refresh no longer causes rewrites, history entries or a slow import. Rows imported before this fix keep the value they already had.
 - The IdentityIQ preset's "Role assignments" statement no longer selects `idx` (the role's position in the list), which shifted whenever a role was removed. Existing configurations keep their own SQL: remove `idx` from the statement to get the same effect.
 
