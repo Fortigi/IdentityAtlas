@@ -1,1 +1,0 @@
-- Added the one-minute explainer video ("Trust starts with clarity") to the identityatlas.io homepage as a new "Watch" section, linked from the hero, the navigation and the footer; the video is self-hosted on the site with no third-party player.

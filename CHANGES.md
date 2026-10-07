@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added the one-minute explainer video ("Trust starts with clarity") to the identityatlas.io homepage as a new "Watch" section, linked from the hero, the navigation and the footer; the video is self-hosted on the site with no third-party player.
+
+## Changes in this PR
+
 - Assignments can now record where they came from: assigned automatically by a rule, requested and approved, or found on the target system. Connectors that do not supply this keep working unchanged and their assignments simply show no origin
 
 ## Changes in this PR
