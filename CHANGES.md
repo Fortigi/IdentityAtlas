@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed a full SQL import failing its final verification although every assignment had loaded. A source that is still being written to during a long read (IdentityIQ during aggregation) could differ from the database by a few rows more than the allowed slack, which failed the job and stored no watermark, so the next run read everything again. Assignments loaded in a full sync are now verified exactly against what was applied, and the source's own count afterwards is reported as information.
+- A full sync's assignments are now verified even when the source could not be counted (for example when the count timed out); those scopes used to be reported as not verified.
+
+## Changes in this PR
+
 - Added the one-minute explainer video ("Trust starts with clarity") to the identityatlas.io homepage as a new "Watch" section, linked from the hero, the navigation and the footer; the video is self-hosted on the site with no third-party player.
 
 ## Changes in this PR
