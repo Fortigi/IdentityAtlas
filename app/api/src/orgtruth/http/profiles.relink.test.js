@@ -195,6 +195,15 @@ describe('renameInRecipe / renameInRules', () => {
     expect(out[2]).not.toHaveProperty('targetEntityType');
     expect(renameInRules(undefined, 'a', 'b')).toEqual([]);
   });
+
+  it('for another profile only the references follow, not its own type of the same name', () => {
+    const other = [
+      { entityType: 'Uren', targetType: 'Principal' },                                   // its own "Uren": untouched
+      { entityType: 'Project', targetType: 'OrgEntity', targetEntityType: 'Uren' },      // a reference: follows
+    ];
+    expect(renameInRules(other, 'Uren', 'Urenregel', { ownType: false }).map(r => [r.entityType, r.targetEntityType ?? null]))
+      .toEqual([['Uren', null], ['Project', 'Urenregel']]);
+  });
 });
 
 describe('POST /org-truth/profiles/:id/rename-type', () => {
