@@ -77,6 +77,9 @@ try {
         for ($i = 0; $i -lt $slots.Count; $i++) {
             Invoke-SqlSlot -Slot $slots[$i] -Connection $Connection -State $State -Pct (10 + [int](75 * $i / $slots.Count)) | Out-Null
         }
+        # A windowed assignment statement streamed into a stage; apply those now,
+        # so the additions and changes are in before the sweep looks for what is gone.
+        Complete-SqlStagedLoads -State $State -Windowed | Out-Null
         # Additions and changes are in; the only difference left between source and
         # database is what the source no longer has. The sweep needs the connection,
         # so it runs before it is disposed.
@@ -85,7 +88,7 @@ try {
         $Connection.Dispose()
     }
 
-    # A full sync's assignment scopes were streamed into stages; apply them all
+    # The assignment scopes read in full were streamed into stages; apply them all
     # at once — which also removes what the source no longer has.
     Complete-SqlStagedLoads -State $State | Out-Null
     Invoke-SqlReconcile -State $State | Out-Null

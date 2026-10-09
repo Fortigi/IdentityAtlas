@@ -119,6 +119,7 @@ describe('finalize — the empty-table path', () => {
     const r = await S.finalizeStage(st, { deleteMissing: true });
     // one row is inserted per distinct key, so that count is the distinct count
     expect(r).toMatchObject({ path: 'empty-table', inserted: 2, updated: 0, deleted: 0, distinct: 2 });
+    expect(r).not.toHaveProperty('present');
     expect(sqls.some(s => /AS n FROM .SELECT DISTINCT /.test(s))).toBe(false);
     const at = (re) => sqls.findIndex(s => re.test(s));
     expect(at(/LOCK TABLE "ResourceAssignments" IN ACCESS EXCLUSIVE MODE/)).toBeGreaterThan(-1);
@@ -130,6 +131,15 @@ describe('finalize — the empty-table path', () => {
     expect(at(/CREATE UNIQUE INDEX uq_b/)).toBeGreaterThan(at(/^\s*INSERT INTO "ResourceAssignments"/));
     expect(engine.scopedDelete).not.toHaveBeenCalled();   // nothing to delete from an empty table
     expect(sqls.at(-1)).toBe(`DROP TABLE IF EXISTS "${st.stageTable}"`);
+  });
+
+  it('without deleteMissing, every key it inserted is present', async () => {
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: true }] })]);
+    handlers.push([/FROM pg_indexes/, () => ({ rows: [] })]);
+    handlers.push([/^\s*INSERT INTO "ResourceAssignments"/, () => ({ rowCount: 6 })]);
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    expect(await S.finalizeStage(st)).toMatchObject({ path: 'empty-table', distinct: 6, present: 6 });
   });
 
   it('analyzes the table it just loaded, after the indexes are back and before it returns', async () => {
@@ -269,6 +279,51 @@ describe('finalize — the merge path', () => {
     const st = open({ keysOnly: true });
     await S.appendToStage(st, [rec]);
     expect((await S.finalizeStage(st, { deleteMissing: true })).distinct).toBe(0);
+  });
+
+  // A window: the scope's total proves nothing about it, so the finalize says how
+  // many of the stage's keys are live in the table once it has written them.
+  it('without deleteMissing, counts how many of the stage\'s distinct keys are live in the table — after writing them', async () => {
+    handlers.push([/AS n FROM .SELECT DISTINCT [^)]*\) d$/, () => ({ rows: [{ n: 9 }] })]);
+    handlers.push([/WHERE EXISTS \(SELECT 1 FROM "ResourceAssignments" t/, () => ({ rows: [{ n: '8' }] })]);
+    handlers.push([/^\s*UPDATE "ResourceAssignments" t SET/, () => ({ rowCount: 2 })]);
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st);
+    expect(r).toMatchObject({ path: 'merge', distinct: 9, present: 8, deleted: 0 });
+    const at = (re) => sqls.findIndex(s => re.test(s));
+    const present = sqls[at(/WHERE EXISTS \(SELECT 1 FROM "ResourceAssignments" t/)];
+    expect(present).toContain(`FROM (SELECT DISTINCT "resourceId", "principalId", "assignmentType", "governed" FROM "${st.stageTable}") s`);
+    expect(present).toContain('t."resourceId" = s."resourceId" AND t."principalId" = s."principalId"');
+    // the partial-index arm, and live rows only: a tombstone is not "present"
+    expect(present).toContain('AND (t."principalId" IS NOT NULL) AND t."deletedAt" IS NULL');
+    expect(at(/WHERE EXISTS \(SELECT 1 FROM "ResourceAssignments" t/)).toBeGreaterThan(at(/^\s*UPDATE "ResourceAssignments" t SET/));
+    expect(engine.scopedDelete).not.toHaveBeenCalled();
+  });
+
+  it('with deleteMissing there is no present count: the scope total is the proof, and it is not paid for twice', async () => {
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st, { deleteMissing: true });
+    expect(r).not.toHaveProperty('present');
+    expect(sqls.some(s => /WHERE EXISTS \(SELECT 1 FROM "ResourceAssignments" t/.test(s))).toBe(false);
+  });
+
+  it('a key sweep applied without deleteMissing writes nothing and so has nothing to be present', async () => {
+    const st = open({ keysOnly: true });
+    await S.appendToStage(st, [rec]);
+    expect(await S.finalizeStage(st)).not.toHaveProperty('present');
+  });
+
+  it('on a table without soft delete, every matching row counts as present', async () => {
+    engine.resolveActiveColumns.mockResolvedValueOnce(cols('parentResourceId', 'childResourceId', 'relationshipType', 'systemId'));
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceRelationships"\)/, () => ({ rows: [{ empty: false }] })]);
+    const st = S.openStage({ tableName: 'ResourceRelationships', keyColumns: ['parentResourceId', 'childResourceId', 'relationshipType'], systemId: 7, ownerId: 1 });
+    await S.appendToStage(st, [{ parentResourceId: 'a', childResourceId: 'b', relationshipType: 'Contains', systemId: 7 }]);
+    await S.finalizeStage(st);
+    const present = sqls.find(s => /WHERE EXISTS \(SELECT 1 FROM "ResourceRelationships" t/.test(s));
+    expect(present).toMatch(/t\."relationshipType" = s\."relationshipType"\)$/);
+    expect(present).not.toContain('deletedAt');
   });
 
   it('does not delete anything unless asked', async () => {
