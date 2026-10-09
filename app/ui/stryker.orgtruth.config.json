@@ -33,7 +33,6 @@
     "src/components/orgtruth/useCanvasLayout.js",
     "src/components/orgtruth/useCanvasGestures.js",
     "src/components/orgtruth/orgGraphBranch.js",
-    "src/components/orgtruth/useOrgLinked.js",
     "src/components/orgtruth/orgCondition.js"
   ],
   "mutationExclusions": {

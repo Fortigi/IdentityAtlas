@@ -1,0 +1,42 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the relationship graph on the entity detail pages (components/graph + hooks/useRelationGraph). WHY: the model decides which objects are on the canvas and how they connect. A dedup that keys on the wrong thing draws a second copy of an object instead of a cycle; a collapse that prunes by ownership instead of reachability leaves orphans or removes nodes another open node still holds; a wrong edge direction or label merge says the opposite relation; a cluster threshold off by one hides or floods objects. None of that is visible as an error. SCOPE: the pure modules (model, reducer, layout, neighbour adapter, drawing decisions) and the hook are mutated; the presentational SVG and the panel are excluded with reasons. MUTATOR SET: StringLiteral and ObjectLiteral disabled, matching the sibling UI configs (labels are pinned by explicit assertions instead). NOT YET MEASURED: break is absent until a first run measures a score. Run: cd app/ui && npm run test:mutation:graph",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.graph.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-graph.json"
+  },
+  "mutate": [
+    "src/components/graph/graphModel.js",
+    "src/components/graph/graphState.js",
+    "src/components/graph/graphLayout.js",
+    "src/components/graph/graphNeighbours.js",
+    "src/components/graph/graphDraw.js",
+    "src/components/graph/useGraphPointer.js",
+    "src/hooks/useRelationGraph.js"
+  ],
+  "mutationExclusions": {
+    "src/components/graph/RelationGraph.jsx": "Presentational SVG: draws the nodes, edges and labels at the positions graphLayout.js computes, with classes and labels from graphDraw.js (both mutated), and wires pointer/keyboard input to useGraphPointer and useRelationGraph (mutated). RelationGraph.mount.test.jsx asserts the drawn nodes, edge labels, keyboard and drag behaviour.",
+    "src/components/graph/RelationGraphPanel.jsx": "Card composition only: the graph, a Collapse all button and the ExpandedItemsList fed from the hook state; no decisions of its own. Covered by RelationGraph.mount.test.jsx and the detail page mount tests."
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70
+  },
+  "concurrency": 2,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false,
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  }
+}

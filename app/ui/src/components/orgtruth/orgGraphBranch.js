@@ -1,22 +1,25 @@
-// ─── Organisation branch of the entity graph ─────────────────────────
+// ─── Organisation relations in the entity graph ──────────────────────
 // What the organisation lists say about one system object (a principal,
-// identity, resource or context), as an "Organisation" root node on its detail
-// page graph. The data is GET /api/org-truth/linked/:targetType/:id:
+// identity, resource or context), as relations of that object in the
+// relationship graph (components/graph). The data is
+// GET /api/org-truth/linked/:targetType/:id:
 //
 //   { total, groups: [{ key, entityType, via, kind, label, count, truncated,
-//                       unlinkedRows?, sourceType?, items: [{ entityId, entityType, label, detail? }] }] }
+//                       unlinkedRows?, sourceType?, items: [{ entityId, entityType, label, detail?, hours? }] }] }
 //
-// Rings: Organisation → one category node per group (key `org:<group.key>`) →
-// that group's org entities as items (entityKind 'org-entity'). Everything is
-// answered from the one payload loaded with the page (useOrgLinked), so no
-// click here fetches. A missing payload (feature off, 404/501, error) means no
-// node at all, so the rest of the graph never depends on this branch.
-
-export const ORG_ROOT_KEY = 'org';
-const GROUP_PREFIX = `${ORG_ROOT_KEY}:`;
+// Each group is one relation, and the org entity is a DIRECT neighbour of the
+// object: the group PortOfRotterdam gets one edge "name" to the node
+// "Klant · PortOfRotterdam", not an Organisation bucket and a "Klant · name"
+// bucket in between. A direct group's edge is labelled with the attribute that
+// linked them (`eigenaar`, `team`, `name` for the display name); a through group
+// (timesheet rows about the object, pointing at a customer) with what the rows
+// add up to: "worked on · 1,491 h (Uren)".
+//
+// A missing payload (feature off, 404/501, error) means no relations, so the
+// rest of the graph never depends on this.
 
 // Graph entity kind → the targetType the endpoint takes. Kinds not listed
-// (access-package, org-entity) get no Organisation node.
+// (access-package, org-entity) have no organisation relations.
 const TARGET_TYPE = {
   user: 'Principal',
   identity: 'Identity',
@@ -35,33 +38,29 @@ export function asOrgLinked(payload) {
   return Array.isArray(payload?.groups) ? payload : null;
 }
 
-// The root node, or null when there is no payload. A zero total still shows
-// the node, greyed like an empty Manager node: the lists were read, nothing
-// in them points at this object.
-export function orgRootNode(orgLinked) {
-  if (!orgLinked) return null;
-  return { key: ORG_ROOT_KEY, label: 'Organisation', count: Number(orgLinked.total) || 0, kind: 'category' };
-}
+// Answers are cached per url and authFetch (a sign-in change starts fresh); a
+// failure is not cached, the next expansion asks again.
+const cache = new WeakMap();
 
-export function isOrgCategory(categoryKey) {
-  return categoryKey === ORG_ROOT_KEY || String(categoryKey).startsWith(GROUP_PREFIX);
-}
-
-function groupNode(group) {
-  return { key: `${GROUP_PREFIX}${group.key}`, label: group.label, count: Number(group.count) || 0, kind: 'category' };
-}
-
-function itemNode(item) {
-  const node = {
-    key: `org-entity:${item.entityId}`,
-    label: item.label || item.entityId || '(unknown)',
-    kind: 'item',
-    entityKind: 'org-entity',
-    entityId: item.entityId,
-  };
-  if (item.entityType) node.resourceType = item.entityType;
-  if (item.detail) node.detail = item.detail;
-  return node;
+export function loadOrgLinked(url, authFetch) {
+  let byUrl = cache.get(authFetch);
+  if (!byUrl) {
+    byUrl = new Map();
+    cache.set(authFetch, byUrl);
+  }
+  if (!byUrl.has(url)) {
+    const pending = Promise.resolve()
+      .then(() => authFetch(url))
+      .then(r => (r.ok ? r.json() : null))
+      .then(asOrgLinked)
+      .catch(() => null)
+      .then((data) => {
+        if (!data) byUrl.delete(url);
+        return data;
+      });
+    byUrl.set(url, pending);
+  }
+  return byUrl.get(url);
 }
 
 // The note the list panel shows above a group's items: rows of a fact type
@@ -74,17 +73,47 @@ export function groupNote(group) {
   return parts.length > 0 ? parts.join(' · ') : null;
 }
 
-// Items under an Organisation category, or null when the key is not one of
-// ours. The returned array carries an optional `note` property for the list
-// panel (the graph ring ignores it).
-export function orgCategoryItems(categoryKey, orgLinked) {
-  if (!isOrgCategory(categoryKey)) return null;
-  const groups = orgLinked?.groups || [];
-  if (categoryKey === ORG_ROOT_KEY) return groups.map(groupNode);
-  const group = groups.find(g => `${GROUP_PREFIX}${g.key}` === categoryKey);
-  if (!group) return [];
-  const items = (group.items || []).map(itemNode);
-  const note = groupNote({ ...group, items: group.items || [] });
-  if (note) items.note = note;
-  return items;
+export const viaLabel = (via) => (!via || via === 'displayName' ? 'name' : via);
+
+const hours = (h) => Number(h).toLocaleString('en-US', { maximumFractionDigits: 1 });
+
+function throughLabel(group, item) {
+  const source = group.sourceType || 'other';
+  return item.hours == null ? `worked on (${source})` : `worked on · ${hours(item.hours)} h (${source})`;
+}
+
+function orgItem(item, edgeLabel) {
+  const node = {
+    key: `org-entity:${item.entityId}`,
+    label: item.label || item.entityId || '(unknown)',
+    kind: 'item',
+    entityKind: 'org-entity',
+    entityId: item.entityId,
+  };
+  if (item.entityType) node.resourceType = item.entityType;
+  if (item.detail) node.detail = item.detail;
+  if (edgeLabel) node.edgeLabel = edgeLabel;
+  return node;
+}
+
+function groupRelation(group) {
+  const through = group.kind === 'through';
+  const list = group.items || [];
+  const items = list.map(i => orgItem(i, through ? throughLabel(group, i) : null));
+  const relation = {
+    key: `org:${group.key}`,
+    title: group.label,
+    label: through ? `worked on (${group.sourceType || 'other'})` : viaLabel(group.via),
+    dir: 'out',
+    count: Number(group.count) || items.length,
+    items,
+  };
+  const note = groupNote({ ...group, items: list });
+  if (note) relation.note = note;
+  return relation;
+}
+
+/** The organisation payload → graph relations (see graphModel.js); [] without one. */
+export function orgRelations(orgLinked) {
+  return (orgLinked?.groups || []).map(groupRelation);
 }

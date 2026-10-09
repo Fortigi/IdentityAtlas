@@ -21,8 +21,9 @@
 //                                  we show individual items as the
 //                                  next ring.
 //
-// The detail pages drive expansion by storing a path of clicked nodes;
-// each expansion step just asks this module what to fetch next.
+// The relationship graph (components/graph/graphNeighbours.js) turns each
+// category into one relation of the object: an edge label and direction on top
+// of what this module fetches.
 
 // ─── Item shape ──────────────────────────────────────────────────────
 // Items we fetch from the API come in many shapes (user rows, resource
@@ -31,31 +32,8 @@
 //
 //   { key, label, kind: 'item', entityKind, entityId }
 //
-// So the caller can click an item node and recurse into getRootNodes
-// for that entityKind. `kind: 'item'` suppresses the count badge in
-// the graph and renders an initial letter instead.
-
-import { orgCategoryItems, orgRootNode } from '@ui/components/orgtruth/orgGraphBranch';
-
-export const MAX_ITEMS_PER_FANOUT = 10;
-
-// Cap a fanout for the GRAPH ring only (too many orbiting nodes is unreadable):
-// keep the first N-1 and append a non-clickable "+N more" marker. The list
-// below the graph (ExpandedItemsList) receives the FULL, uncapped list, so the
-// "+N more" in the graph is just a hint — the complete set is shown (and
-// clickable) in the list.
-export function capItems(items) {
-  if (!items) return [];
-  if (items.length <= MAX_ITEMS_PER_FANOUT) return items;
-  const shown = items.slice(0, MAX_ITEMS_PER_FANOUT - 1);
-  shown.push({
-    key: '__overflow__',
-    label: `+${items.length - (MAX_ITEMS_PER_FANOUT - 1)} more in the list below`,
-    kind: 'item',
-    overflow: true,
-  });
-  return shown;
-}
+// So the graph can expand an item by recursing into getRootNodes for its
+// entityKind, and the list below the graph can show and open it.
 
 // ─── User ────────────────────────────────────────────────────────────
 
@@ -409,11 +387,8 @@ export function getRootNodes(entityKind, core, extras = {}) {
     default:               return [];
   }
   // Recent-change pseudo-categories go first so they read as "see this
-  // first when something just moved" rather than buried at the end. The
-  // Organisation node (what the organisation lists say about this object) comes
-  // last, and only when the detail page loaded that payload (extras.orgLinked).
-  const org = orgRootNode(extras.orgLinked);
-  return [...recentRootNodes(extras.recent), ...base, ...(org ? [org] : [])];
+  // first when something just moved" rather than buried at the end.
+  return [...recentRootNodes(extras.recent), ...base];
 }
 
 export async function fetchCategoryItems(entityKind, entityId, categoryKey, authFetch, extras = {}) {
@@ -434,10 +409,6 @@ export async function fetchCategoryItems(entityKind, entityId, categoryKey, auth
     return items;
   }
 
-  // Organisation branch: answered from the payload the page already loaded.
-  const orgItems = orgCategoryItems(categoryKey, extras.orgLinked);
-  if (orgItems) return orgItems;
-
   let items = [];
   switch (entityKind) {
     case 'user':           items = await fetchUserItems(entityId, categoryKey, authFetch, extras); break;
@@ -453,8 +424,8 @@ export async function fetchCategoryItems(entityKind, entityId, categoryKey, auth
   if (addedIds && addedIds.size > 0 && items.length > 0) {
     items = items.map(it => addedIds.has(it.entityId) ? { ...it, recent: 'added' } : it);
   }
-  // Return the FULL list — the graph ring is capped in useExpandableGraph; the
-  // list below shows everything.
+  // Return the FULL list — the graph clusters big relations itself; the list
+  // below shows everything.
   return items;
 }
 

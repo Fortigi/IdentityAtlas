@@ -44,6 +44,8 @@ const EVIDENCE = {
 function render({ auth = IMPORTER, entity = ENTITY, graph = GRAPH, override = { ok: true }, evidence = EVIDENCE } = {}) {
   const authFetch = makeAuthFetch({
     '/download': blobResponse('bytes', { filename: 'projects.xlsx' }),
+    'category=rel%3Aout%3Aowner': { items: [{ key: 'org-entity:e2', label: 'Alice Contoso', entityKind: 'org-entity', entityId: 'e2', entityType: 'Person' }] },
+    'category=link%3AResource': { items: [{ key: 'resource:g1', label: 'GRP-Portal', entityKind: 'resource', entityId: 'g1', resourceType: 'Resource' }] },
     '/override': override,
     '/entities/e1/graph': graph,
     '/entities/e1/evidence': evidence,
@@ -127,9 +129,15 @@ describe('OrgEntityDetailPage', () => {
     expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull();
   });
 
-  it('draws the graph ring from the categories', async () => {
-    render();
-    expect(await screen.findByText('Resources')).toBeInTheDocument();
+  it('draws the entity with its relations as labelled edges to its neighbours', async () => {
+    const { onOpenDetail } = render();
+    await screen.findByRole('button', { name: 'Resource GRP-Portal, press to expand' });
+    const svg = screen.getByRole('group', { name: 'Relationship graph' });
+    const edges = [...svg.querySelectorAll('[data-edge]')].map(e => `${e.getAttribute('data-edge')} ${e.textContent}`).sort();
+    expect(edges).toEqual(['org-entity:e1->org-entity:e2 owner', 'resource:g1->org-entity:e1 linked']);
+    expect(within(svg).getByRole('button', { name: 'Project Northwind Portal, expanded, press to collapse' })).toBeInTheDocument();
+    await userEvent.click(within(svg).getByRole('link', { name: 'Open Alice Contoso' }));
+    expect(onOpenDetail).toHaveBeenCalledWith('org-entity', 'e2', 'Alice Contoso');
   });
 
   it('keeps the page when the graph is not available, and says so', async () => {
