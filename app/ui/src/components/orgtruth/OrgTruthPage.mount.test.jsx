@@ -42,8 +42,8 @@ describe('OrgTruthPage', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'Import organisation truth' }));
     expect(screen.getByRole('heading', { level: 3, name: 'Import organisation truth' })).toBeInTheDocument();
-    expect(screen.getByText(/^Import wizard — not built yet/)).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /New import/ })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
-    expect(screen.queryByText(/^Import wizard — not built yet/)).toBeNull();
+    expect(screen.queryByRole('radio', { name: /New import/ })).toBeNull();
   });
 });
