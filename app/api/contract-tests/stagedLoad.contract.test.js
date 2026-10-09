@@ -88,6 +88,31 @@ describe('staged load — merge path', () => {
     expect((await live(sysA)).map(x => x.updatedAt.getTime())).toEqual(before.map(x => x.updatedAt.getTime()));
   });
 
+  // What a crawler verifies its scope against. `rows` counts a key that arrived
+  // twice as two; `distinct` is what the scope holds once the finalize has run,
+  // whether or not the rows were already there.
+  it('reports the distinct keys the stage held, which is what the scope holds afterwards', async () => {
+    const first = await stageLoad(sysA, [row(1, 1), row(2, 1), row(1, 1), row(3, 2), row(2, 1)]);
+    expect(first).toMatchObject({ rows: 5, distinct: 3, inserted: 3 });
+    expect((await live(sysA)).filter(x => x.deletedAt === null)).toHaveLength(3);
+    // unchanged re-import of two of them: nothing inserted, and still two distinct
+    const again = await stageLoad(sysA, [row(1, 1), row(1, 1), row(3, 2)]);
+    expect(again).toMatchObject({ rows: 3, distinct: 2, inserted: 0, updated: 0, deleted: 1 });
+    expect((await live(sysA)).filter(x => x.deletedAt === null)).toHaveLength(2);
+  });
+
+  // A window (no deleteMissing): rows it does not mention stay, so the scope's
+  // total says nothing about it. `present` is the proof that what it held landed.
+  it('a window reports how many of its keys are live afterwards, revived ones included, and removes nothing', async () => {
+    await stageLoad(sysA, [row(1, 1), row(2, 1), row(3, 1)]);
+    await stageLoad(sysA, [row(1, 1), row(2, 1)]);                    // tombstones (3,1)
+    const r = await stageLoad(sysA, [row(3, 1), row(4, 2), row(4, 2)], { deleteMissing: false });
+    expect(r).toMatchObject({ rows: 3, distinct: 2, present: 2, inserted: 1, deleted: 0 });
+    // (1,1) and (2,1) were not in the window and are untouched
+    expect((await live(sysA)).filter(x => x.deletedAt === null)).toHaveLength(4);
+    expect(await stageLoad(sysA, [row(1, 1)], { deleteMissing: true })).not.toHaveProperty('present');
+  });
+
   it('updates exactly the row that changed', async () => {
     await stageLoad(sysA, [row(1, 1, { resourceType: 'Group' }), row(2, 1, { resourceType: 'Group' })]);
     const r = await stageLoad(sysA, [row(1, 1, { resourceType: 'Group' }), row(2, 1, { resourceType: 'AppRole' })]);

@@ -24,7 +24,7 @@ This document lists all major software components, dependencies, and infrastruct
 | express | ^5.2.1 | Web application framework | MIT |
 | pg | ^8.23.0 | PostgreSQL client | MIT |
 | ajv | ^8.20.0 | JSON Schema validation for crawler configs | MIT |
-| re2 | ^1.26.1 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
+| re2 | ^1.27.0 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
 
 ### Security & Authentication
 
@@ -57,7 +57,7 @@ This document lists all major software components, dependencies, and infrastruct
 | vitest | ^5.0.0 | Unit testing framework | MIT |
 | supertest | ^7.3.0 | HTTP integration testing | MIT |
 | eslint | ^10.11.0 | JavaScript linter | MIT |
-| eslint-plugin-security | ^4.0.1 | Security-focused lint rules | Apache 2.0 |
+| eslint-plugin-security | ^4.2.0 | Security-focused lint rules | Apache 2.0 |
 | esbuild | ^0.28.2 | Bundler for desktop launcher build | MIT |
 
 ---
@@ -83,7 +83,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.23.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.24.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
@@ -125,7 +125,7 @@ The documentation site is built and versioned from [`docs/requirements.txt`](htt
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | mkdocs | 1.6.1 | Static documentation site generator | BSD-2-Clause |
-| mkdocs-material | 9.7.6 | Material for MkDocs — docs site theme and UI | MIT |
+| mkdocs-material | 9.7.7 | Material for MkDocs — docs site theme and UI | MIT |
 | mike | 2.2.0 | Versioned docs deployment (edge / stable) | BSD-3-Clause |
 
 ---
