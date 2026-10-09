@@ -16,6 +16,7 @@ import { READ_GATE } from './gates.js';
 import { getMetaGraph } from '../model/metaGraph.js';
 import { parseListQuery, listEntities, getEntity, isUuid, isFlag } from '../model/entities.js';
 import { getEntityGraph, getGraphCategory, parseCategory } from '../model/graph.js';
+import { getEvidence } from '../model/evidence.js';
 
 const router = Router();
 
@@ -48,6 +49,17 @@ router.get('/org-truth/entities/:id', ...READ_GATE, async (req, res) => {
     if (!entity) return res.status(404).json({ error: 'Entity not found' });
     res.json(entity);
   } catch (err) { fail(res, 'the organisation entity', err); }
+});
+
+// What other lists say about this entity: its listed people (owner, team) next
+// to who the referring rows (a timesheet) show working on it, and when.
+router.get('/org-truth/entities/:id/evidence', ...READ_GATE, async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Invalid entity id' });
+  try {
+    const out = await getEvidence(req.params.id);
+    if (!out) return res.status(404).json({ error: 'Entity not found' });
+    res.json(out);
+  } catch (err) { fail(res, 'the entity evidence', err); }
 });
 
 router.get('/org-truth/entities/:id/graph', ...READ_GATE, async (req, res) => {

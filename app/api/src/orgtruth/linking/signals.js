@@ -79,15 +79,23 @@ export function signalKeys(type, value) {
 // Organisation names are written many ways: "ABN AMRO" / "ABN AMRO Bank N.V.",
 // "Gemeente Vught" / "Vught", a typo. Legal forms and noise words are dropped,
 // accents folded, then two measures, the higher wins:
-//   bigrams    Dice coefficient of the character bigrams of the joined names
+//   bigrams    Dice coefficient of the character bigrams of the joined names,
+//              counted only from DICE_MIN up ("_Intern" / "Interxion" share
+//              letters, not a meaning)
 //   contained  every word of the shorter name is a word of the longer (0.9),
 //              scaled down a little per extra word in the longer name
+//   shared     the names share a distinctive word (≥ 5 letters, not noise):
+//              SHARED_WORD — under a usual threshold, so the pair is PROPOSED
+//              for review ("Havenbedrijf Rotterdam" / "PortOfRotterdam")
 export const FUZZY_FLOOR = 0.5;
-const NOISE = new Set(['bv', 'nv', 'vof', 'cv', 'holding', 'groep', 'group', 'ltd', 'inc', 'gmbh', 'ag', 'sa', 'plc', 'llc', 'the', 'de', 'het', 'en', 'and', 'b', 'v', 'n']);
+export const DICE_MIN = 0.7;
+export const SHARED_WORD = 0.5;
+const NOISE = new Set(['bv', 'nv', 'vof', 'cv', 'holding', 'groep', 'group', 'ltd', 'inc', 'gmbh', 'ag', 'sa', 'se', 'plc', 'llc', 'the', 'de', 'het', 'en', 'and', 'of', 'van', 'b', 'v', 'n']);
 
-/** The comparable words of a name: lowercase, accents folded, legal forms and noise dropped. */
+/** The comparable words of a name: camelCase split, lowercase, accents folded, legal forms and noise dropped. */
 export function fuzzyWords(v) {
-  const folded = normValue(v).normalize('NFKD').replace(/[̀-ͯ]/g, '');
+  const split = String(v ?? '').replace(/([a-z])([A-Z])/g, '$1 $2');
+  const folded = normValue(split).normalize('NFKD').replace(/[̀-ͯ]/g, '');
   const words = folded.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   const kept = words.filter(w => !NOISE.has(w));
   return kept.length > 0 ? kept : words;
@@ -127,7 +135,13 @@ export function fuzzySimilarity(a, b) {
   const ja = wa.join('');
   const jb = wb.join('');
   if (ja === jb) return 1;
-  return Math.max(dice(ja, jb), contained(wa, wb));
+  const d = dice(ja, jb);
+  return Math.max(d >= DICE_MIN ? d : 0, contained(wa, wb), sharesDistinctiveWord(wa, wb) ? SHARED_WORD : 0);
+}
+
+function sharesDistinctiveWord(wa, wb) {
+  const have = new Set(wb.filter(w => w.length >= 5));
+  return wa.some(w => w.length >= 5 && have.has(w));
 }
 
 // Index keys: every word and its first three letters, so a name sharing one

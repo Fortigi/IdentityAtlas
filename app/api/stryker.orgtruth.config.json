@@ -32,6 +32,7 @@
     "src/orgtruth/model/metaGraph.js",
     "src/orgtruth/model/entities.js",
     "src/orgtruth/model/graph.js",
+    "src/orgtruth/model/evidence.js",
     "src/orgtruth/http/model.js",
     "src/orgtruth/linking/signals.js",
     "src/orgtruth/linking/candidates.js",

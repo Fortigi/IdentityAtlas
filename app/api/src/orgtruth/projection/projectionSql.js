@@ -38,7 +38,7 @@ export async function loadRelations() {
 
 export async function loadLinks() {
   return (await db.query(`
-    SELECT l."orgEntityId" AS "entityId", l."targetType", l."targetId",
+    SELECT l."orgEntityId" AS "entityId", l."targetType", l."targetId", l."via",
            l.status, l."analystOverride", im."principalId", im."analystOverride" AS "memberOverride"
       FROM "OrgLinks" l
       JOIN "OrgEntities" e ON e.id = l."orgEntityId"

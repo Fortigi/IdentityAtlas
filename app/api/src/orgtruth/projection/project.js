@@ -72,18 +72,30 @@ function neighbours(relations, entityIds) {
   return byEntity;
 }
 
-// Default scope: every type with an entity that has an accepted link itself OR
-// is one relation away from one. A project list links its owners (people), not
-// the projects; the projects are what the analyst wants as contexts, with the
-// owner's accounts as members — so a type reached through a relation counts.
+// Default scope: the types that are THINGS WITH SYSTEM OBJECTS ATTACHED — a
+// customer with its owner, team and group. An entity counts when it (or an
+// entity one relation away) has an accepted link to a Resource or Context, or
+// to an account/person THROUGH AN ATTRIBUTE (owner, team), or when an entity of
+// another list links to it (the customer a timesheet row names).
+// Not projected by default: a list whose rows ARE people (linked to their own
+// account through their name) and a fact list (timesheet rows, which only link
+// to accounts by name and to other lists' entities) — one context per row of
+// those is noise, not a scope.
+const PERSON_TARGETS = new Set(['Principal', 'Identity']);
+const isScopeLink = (l) => l.targetType === 'Resource' || l.targetType === 'Context'
+  || (PERSON_TARGETS.has(l.targetType) && l.via && l.via !== 'displayName');
+
 export function projectedTypes(entities, links, entityTypes, related = new Map()) {
   const present = new Set(entities.map(e => e.entityType));
   let wanted;
   if (Array.isArray(entityTypes) && entityTypes.length > 0) {
     wanted = new Set(entityTypes);
   } else {
-    const linked = new Set(links.map(l => l.entityId));
-    const reaches = (e) => linked.has(e.id) || [...(related.get(e.id) || [])].some(id => linked.has(id));
+    const scoped = new Set(links.filter(isScopeLink).map(l => l.entityId));
+    // referenced THROUGH AN ATTRIBUTE (the timesheet's customer column), not a
+    // row that is the same person as another list's row
+    for (const l of links) if (l.targetType === 'OrgEntity' && l.via && l.via !== 'displayName') scoped.add(l.targetId);
+    const reaches = (e) => scoped.has(e.id) || [...(related.get(e.id) || [])].some(id => scoped.has(id));
     wanted = new Set(entities.filter(reaches).map(e => e.entityType));
   }
   return [...present].filter(t => wanted.has(t)).sort();
