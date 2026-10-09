@@ -1,13 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
-import { mountRouter } from '../../../test-utils/routeTestKit.js';
 
+// The run's collaborators are mocked first: linking (T2) and the projection runner.
+vi.mock('../linking/run.js', () => ({ linkRun: vi.fn(async ({ runId }) => ({ runId, linked: 1, proposed: 0, ambiguous: 0, none: 0 })) }));
+vi.mock('../../contexts/plugins/runner.js', () => ({ enqueueRun: vi.fn(async () => ({})) }));
 vi.mock('../../db/connection.js');
 vi.mock('../../middleware/auth.js', () => ({
   requirePermission: (perm) => (req, res, next) => (req.headers['x-deny'] === perm ? res.status(403).json({ denied: perm }) : next()),
 }));
-vi.mock('../linking/run.js', () => ({ linkRun: vi.fn(async ({ runId }) => ({ runId, linked: 1, proposed: 0, ambiguous: 0, none: 0 })) }));
-vi.mock('../../contexts/plugins/runner.js', () => ({ enqueueRun: vi.fn(async () => ({})) }));
+
+import { mountRouter } from '../../../test-utils/routeTestKit.js';
 
 import { query, queryOne } from '../../db/connection.js';
 import { linkRun } from '../linking/run.js';
