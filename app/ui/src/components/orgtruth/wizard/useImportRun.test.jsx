@@ -80,6 +80,36 @@ describe('useImportRun', () => {
     expect(result.current.run).toBeNull();
   });
 
+  it('tracks a run another call created and calls onFinish once when it ends', async () => {
+    const next = sequence({ id: 'r9', status: 'running', pct: 50 }, { id: 'r9', status: 'completed' });
+    const authFetch = makeAuthFetch((url) => (url === '/api/org-truth/runs/r9' ? next() : undefined));
+    const onFinish = vi.fn();
+    const { result } = renderHook(() => useImportRun(), makeWrapper({ auth: { authFetch } }));
+    act(() => result.current.track({ id: 'r9', status: 'queued' }, onFinish));
+    expect(result.current.busy).toBe(true);
+    expect(result.current.run.status).toBe('queued');
+    await tick();
+    expect(result.current.run.pct).toBe(50);
+    expect(onFinish).not.toHaveBeenCalled();
+    await tick();
+    expect(onFinish).toHaveBeenCalledTimes(1);
+    expect(onFinish).toHaveBeenCalledWith({ id: 'r9', status: 'completed' });
+    expect(result.current.busy).toBe(false);
+    await tick();
+    expect(onFinish).toHaveBeenCalledTimes(1);
+    expect(authFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('calls onFinish straight away for a run that is already finished', () => {
+    const authFetch = makeAuthFetch({});
+    const onFinish = vi.fn();
+    const { result } = renderHook(() => useImportRun(), makeWrapper({ auth: { authFetch } }));
+    act(() => result.current.track({ id: 'r8', status: 'failed' }, onFinish));
+    expect(onFinish).toHaveBeenCalledWith({ id: 'r8', status: 'failed' });
+    expect(result.current.busy).toBe(false);
+    expect(authFetch).not.toHaveBeenCalled();
+  });
+
   it('stops polling on unmount', async () => {
     const authFetch = makeAuthFetch((url, opts) => (opts.method === 'POST'
       ? jsonResponse({ id: 'r3', status: 'queued' }, { status: 202 })

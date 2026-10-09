@@ -9,7 +9,8 @@
 // Table (the same data, sortable by count) — plus filters per source
 // (`?sourceId=`, options from GET /sources) and "include closed"
 // (`?includeClosed=1`), a totals line, and the model as Mermaid text with a
-// Copy button.
+// Copy button. Below the overview the link-rule editor (LinkRulesEditor):
+// one canvas per import profile to correct, add and remove links after the fact.
 //
 // Props: { onImport }
 import { useState } from 'react';
@@ -22,6 +23,7 @@ import { formatDate } from '@ui/utils/formatters';
 import { buildQuery, fetchBlocked, rowsOf } from './orgFormat';
 import { mermaidText, sortByCount } from './modelGraph';
 import ModelDiagram from './ModelDiagram';
+import LinkRulesEditor from './LinkRulesEditor';
 import { FetchState, TH, TD, CARD, INPUT } from './orgUi';
 
 const VIEWS = [{ key: 'diagram', label: 'Diagram' }, { key: 'table', label: 'Table' }];
@@ -180,6 +182,7 @@ export default function ModelTab({ onImport }) {
       {view === 'diagram'
         ? <div className={`${CARD} p-3`}><ModelDiagram model={model} /></div>
         : <ModelTable model={model} />}
+      <LinkRulesEditor model={model} onRelinked={state.reload} />
     </div>
   );
 }

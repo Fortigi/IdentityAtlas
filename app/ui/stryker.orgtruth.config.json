@@ -24,7 +24,9 @@
     "src/components/orgtruth/sourceDownload.js",
     "src/components/orgtruth/sourceDelete.js",
     "src/components/orgtruth/useLinkOverride.js",
-    "src/components/orgtruth/evidence.js"
+    "src/components/orgtruth/evidence.js",
+    "src/components/orgtruth/linkRulesDraft.js",
+    "src/components/orgtruth/modelCanvas.js"
   ],
   "mutationExclusions": {
     "src/components/orgtruth/OrgTruthPage.jsx": "Composition, not logic: tab state, the header button gated by the hook (which is mutated), and which panel shows. Covered end to end by OrgTruthPage.mount.test.jsx.",
@@ -48,7 +50,10 @@
     "src/components/orgtruth/OrgEntitySections.jsx": "Presentational header and relations list of the org-entity detail page; no logic beyond picking the other side of a relation, asserted by OrgEntityDetailPage.mount.test.jsx.",
     "src/components/orgtruth/OrgEntityDetailPage.jsx": "Detail page composition: two useFetch calls, the expandable graph hook and the shared sections. Its logic lives in orgFormat.js, reviewRows.js, useLinkOverride.js (mutated); OrgEntityDetailPage.mount.test.jsx covers it.",
     "src/components/orgtruth/orgUi.jsx": "Shared presentational pieces (status/type pills, fetch-state panels, class constants). The pill colour choice and the not-available test live in orgFormat.js, which is mutated.",
-    "src/components/orgtruth/OrgEvidenceSection.jsx": "Presentational evidence section: one useFetch, a verdict pill and three kinds of people table. The verdict, the activity line, the worked-on-it wording and the people counts live in evidence.js (mutated); OrgEvidenceSection.mount.test.jsx asserts the rendered rows."
+    "src/components/orgtruth/OrgEvidenceSection.jsx": "Presentational evidence section: one useFetch, a verdict pill and three kinds of people table. The verdict, the activity line, the worked-on-it wording and the people counts live in evidence.js (mutated); OrgEvidenceSection.mount.test.jsx asserts the rendered rows.",
+    "src/components/orgtruth/LinkRulesEditor.jsx": "Card composition for the link-rule editor: local draft, selection and popover state, the save and rename calls. Every decision (defaults, duplicates, row actions, counts, the POST bodies) lives in linkRulesDraft.js and the geometry in modelCanvas.js, both mutated; LinkRulesEditor.mount.test.jsx drives every flow.",
+    "src/components/orgtruth/RuleCanvas.jsx": "Presentational SVG of the rule canvas: draws the boxes, rows and lines that modelCanvas.js (mutated) computes and wires them as buttons; row names come from linkRulesDraft.rowName (mutated). Driven by LinkRulesEditor.mount.test.jsx.",
+    "src/components/orgtruth/RulePopover.jsx": "Presentational editor of one rule: signal rows, threshold and buttons, each edit a linkRulesDraft.js function (mutated). Driven by LinkRulesEditor.mount.test.jsx."
   },
   "thresholds": {
     "high": 90,
