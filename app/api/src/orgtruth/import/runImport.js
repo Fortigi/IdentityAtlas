@@ -22,14 +22,14 @@ import { query, queryOne, tx } from '../../db/connection.js';
 import { randomUUID } from 'node:crypto';
 import { validateRecipe } from '../contracts.js';
 import { linkRun } from '../linking/run.js';
-import { enqueueRun } from '../../contexts/plugins/runner.js';
+import { refreshProjections, PROJECTION_PLUGINS } from '../projection/refresh.js';
 import { getSourceWithContent, readSourceTable } from './sourceStore.js';
 import { getProfile } from './profileStore.js';
 import { applyRecipe, summarizeApplied } from './applyRecipe.js';
 import { writeRun } from './writeRun.js';
 
 export const ISSUE_SAMPLE_LIMIT = 50;
-export const PROJECTION_PLUGINS = ['org-truth', 'org-truth-principals'];
+export { PROJECTION_PLUGINS };
 
 export async function findActiveRun(profileName) {
   return (await queryOne(`
@@ -66,17 +66,8 @@ async function loadRun(runId) {
   return { run, source, profile };
 }
 
-// Awaited one after the other (awaitCompletion), so the two trees are not
-// rebuilt concurrently with each other; a failure of one does not stop the other.
-async function project(log) {
-  for (const plugin of PROJECTION_PLUGINS) {
-    try {
-      await enqueueRun(plugin, { instanceKey: plugin }, 'org-import', { awaitCompletion: true });
-    } catch (err) {
-      log(`projection ${plugin} not run: ${err.message}`);
-    }
-  }
-}
+// Both trees, one after the other (projection/refresh.js); a failure is logged, not fatal.
+const project = (log) => refreshProjections('org-import', log);
 
 async function steps(runId, log) {
   await updateRun(runId, { status: 'running', step: 'parse', pct: 10, startedAt: now() });

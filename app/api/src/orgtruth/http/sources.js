@@ -5,6 +5,9 @@
 //   GET  /api/org-truth/sources/:id            one source (no content)
 //   GET  /api/org-truth/sources/:id/download   the original bytes
 //   GET  /api/org-truth/sources/:id/columns    { rowCount, headerRow, columns } — column profile of a list source
+//   DELETE /api/org-truth/sources/:id          the source with its runs, entities, relations and links;
+//                                              409 while an import of it is queued/running; the projection
+//                                              trees are rebuilt afterwards (in the background)
 //
 // POST answers 201 with the stored row (never `content`) plus `rowCount`,
 // `headerRow` (1-based file row taken as the header, parse.js) and `columns`
@@ -16,8 +19,11 @@ import multer from 'multer';
 import { READ_GATE, WRITE_GATE } from './gates.js';
 import { parseList } from '../import/parse.js';
 import { profileColumns } from '../import/profileColumns.js';
-import { getSource, getSourceWithContent, listSources, readSourceTable, insertSource } from '../import/sourceStore.js';
-import { actorOf, handle, parseOr400 } from '../import/httpHelpers.js';
+import {
+  getSource, getSourceWithContent, listSources, readSourceTable, insertSource, deleteSource, findActiveRunForSource,
+} from '../import/sourceStore.js';
+import { refreshProjections } from '../projection/refresh.js';
+import { actorOf, handle, isUuid, parseOr400 } from '../import/httpHelpers.js';
 
 export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const SUPPORTED_KINDS = ['list'];
@@ -75,6 +81,19 @@ router.get('/org-truth/sources/:id/download', ...READ_GATE, handle('download the
   res.attachment(row.fileName || row.displayName);
   res.set('Content-Type', row.mimeType || 'application/octet-stream');
   res.send(Buffer.from(row.content));
+}));
+
+router.delete('/org-truth/sources/:id', ...WRITE_GATE, handle('delete the source', async (req, res) => {
+  const { id } = req.params;
+  if (!isUuid(id)) return res.status(404).json({ error: 'Source not found.' });
+  const active = await findActiveRunForSource(id);
+  if (active) return res.status(409).json({ error: 'An import of this source is still running; wait for it to finish.', runId: active.id });
+  const row = await deleteSource(id);
+  if (!row) return res.status(404).json({ error: 'Source not found.' });
+  console.log(`org-truth: source "${row.displayName}" (${row.id}) deleted by ${actorOf(req)}`);
+  // The contexts follow the claims; the caller does not wait for the two trees.
+  refreshProjections('source-delete').catch(err => console.error('org-truth: projection refresh after delete failed:', err.message));
+  res.json({ deleted: row.id, displayName: row.displayName });
 }));
 
 router.get('/org-truth/sources/:id/columns', ...READ_GATE, handle('profile the source', async (req, res) => {

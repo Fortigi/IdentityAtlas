@@ -18,6 +18,7 @@ import EmptyState from '@ui/components/EmptyState';
 import { formatDate, formatBytes } from '@ui/utils/formatters';
 import { fetchBlocked, rowsOf, runsForSource, lastProfileId, runStatsSummary } from './orgFormat';
 import { useSourceDownload } from './sourceDownload';
+import { useSourceDelete } from './sourceDelete';
 import { FetchState, StatusPill, TH, TD, CARD, SMALL_BUTTON } from './orgUi';
 
 function RunsList({ runs, runsError }) {
@@ -49,7 +50,9 @@ function RunsList({ runs, runsError }) {
   );
 }
 
-function SourceRow({ source, sourceRuns, runsError, expanded, onToggle, canImport, onDownload, onImportAgain }) {
+const DANGER_BUTTON = 'text-xs px-2 py-1 rounded border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50';
+
+function SourceRow({ source, sourceRuns, runsError, expanded, onToggle, canImport, onDownload, onImportAgain, onDelete }) {
   const profileId = lastProfileId(sourceRuns);
   const runCount = source.runCount ?? sourceRuns.length;
   return (
@@ -78,6 +81,9 @@ function SourceRow({ source, sourceRuns, runsError, expanded, onToggle, canImpor
             {canImport && profileId && (
               <button type="button" className={SMALL_BUTTON} onClick={() => onImportAgain?.(profileId)}>Import again</button>
             )}
+            {canImport && (
+              <button type="button" className={DANGER_BUTTON} onClick={() => onDelete(source)} aria-label={`Delete ${source.displayName}`}>Delete</button>
+            )}
           </div>
         </td>
       </tr>
@@ -95,10 +101,14 @@ function SourceRow({ source, sourceRuns, runsError, expanded, onToggle, canImpor
 export default function SourcesTab({ onImport, onImportAgain }) {
   const { authFetch } = useAuth();
   const onDownload = useSourceDownload(authFetch);
+  const deleteSource = useSourceDelete(authFetch);
   const canImport = useCanImportOrgTruth();
   const sources = useFetch('/api/org-truth/sources', { authFetch });
   const runs = useFetch('/api/org-truth/runs', { authFetch });
   const [expanded, setExpanded] = useState(null);
+  const onDelete = async (source) => {
+    if (await deleteSource(source)) { sources.reload(); runs.reload(); }
+  };
 
   if (fetchBlocked(sources)) return <FetchState state={sources} what="Sources" />;
 
@@ -142,6 +152,7 @@ export default function SourcesTab({ onImport, onImportAgain }) {
               canImport={canImport}
               onDownload={onDownload}
               onImportAgain={onImportAgain}
+              onDelete={onDelete}
             />
           ))}
         </tbody>

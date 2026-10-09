@@ -8,7 +8,10 @@ vi.mock('../../middleware/auth.js', () => ({
   requirePermission: (perm) => (req, res, next) => (req.headers['x-deny'] === perm ? res.status(403).json({ denied: perm }) : next()),
 }));
 
+vi.mock('../projection/refresh.js', () => ({ refreshProjections: vi.fn(async () => {}) }));
+
 import { query, queryOne } from '../../db/connection.js';
+import { refreshProjections } from '../projection/refresh.js';
 import router, { readUploadFields, MAX_UPLOAD_BYTES } from './sources.js';
 
 const app = mountRouter(router);
@@ -29,6 +32,7 @@ describe('gates', () => {
     ['get', `/api/org-truth/sources/${ID}`, 'data.read'],
     ['get', `/api/org-truth/sources/${ID}/download`, 'data.read'],
     ['get', `/api/org-truth/sources/${ID}/columns`, 'data.read'],
+    ['delete', `/api/org-truth/sources/${ID}`, 'data.write.contexts'],
   ])('%s %s needs %s', async (method, path, perm) => {
     const r = await request(app)[method](path).set('x-deny', perm);
     expect(r.status).toBe(403);
@@ -38,6 +42,37 @@ describe('gates', () => {
   it('answers 404 while the feature is off', async () => {
     process.env.FEATURE_ORG_TRUTH = 'false';
     expect((await request(app).get('/api/org-truth/sources')).status).toBe(404);
+  });
+});
+
+describe('DELETE /org-truth/sources/:id', () => {
+  beforeEach(() => refreshProjections.mockClear());
+
+  it('deletes the source, answers with what went, and rebuilds the projections in the background', async () => {
+    queryOne.mockImplementation(async (sql) => (sql.startsWith('DELETE FROM "OrgSources"') ? { id: ID, displayName: 'Projects Q3' } : undefined));
+    const r = await request(app).delete(`/api/org-truth/sources/${ID}`);
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ deleted: ID, displayName: 'Projects Q3' });
+    const [sql, params] = queryOne.mock.calls.find(([s]) => s.startsWith('DELETE FROM "OrgSources"'));
+    expect(sql).toMatch(/WHERE "id" = \$1 RETURNING/);
+    expect(params).toEqual([ID]);
+    expect(refreshProjections).toHaveBeenCalledWith('source-delete');
+  });
+
+  it('refuses while an import of the source is queued or running, naming the run', async () => {
+    queryOne.mockImplementation(async (sql) => (sql.includes('"status" IN (\'queued\', \'running\')') ? { id: 'run-7' } : undefined));
+    const r = await request(app).delete(`/api/org-truth/sources/${ID}`);
+    expect(r.status).toBe(409);
+    expect(r.body).toMatchObject({ runId: 'run-7' });
+    expect(queryOne.mock.calls.some(([s]) => s.startsWith('DELETE'))).toBe(false);
+    expect(refreshProjections).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 for an unknown or malformed id, without touching the projections', async () => {
+    expect((await request(app).delete(`/api/org-truth/sources/${ID}`)).status).toBe(404);
+    expect((await request(app).delete('/api/org-truth/sources/not-a-uuid')).status).toBe(404);
+    expect(queryOne).toHaveBeenCalledTimes(2); // the active-run check, then the delete; nothing for the bad id
+    expect(refreshProjections).not.toHaveBeenCalled();
   });
 });
 

@@ -28,6 +28,7 @@ export default defineConfig({
       'src/orgtruth/projection/project.test.js',
       'src/orgtruth/projection/projectionSql.test.js',
       'src/orgtruth/projection/pluginPrincipals.test.js',
+      'src/orgtruth/projection/refresh.test.js',
       'src/orgtruth/model/metaGraph.test.js',
       'src/orgtruth/model/entities.test.js',
       'src/orgtruth/model/graph.test.js',

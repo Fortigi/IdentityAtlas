@@ -22,6 +22,7 @@
     "src/components/orgtruth/modelGraph.js",
     "src/components/orgtruth/reviewRows.js",
     "src/components/orgtruth/sourceDownload.js",
+    "src/components/orgtruth/sourceDelete.js",
     "src/components/orgtruth/useLinkOverride.js"
   ],
   "mutationExclusions": {

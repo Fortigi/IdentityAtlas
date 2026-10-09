@@ -32,6 +32,18 @@ export async function listSources() {
   return r.rows;
 }
 
+// A queued or running import of this source, or null.
+export async function findActiveRunForSource(id) {
+  return (await queryOne(`SELECT "id" FROM "OrgImportRuns" WHERE "sourceId" = $1 AND "status" IN ('queued', 'running') LIMIT 1`, [id])) ?? null;
+}
+
+// Delete the source and, through the foreign keys, its runs, entities,
+// relations and links. Returns the deleted row (id, displayName) or null.
+export async function deleteSource(id) {
+  if (!isUuid(id)) return null;
+  return (await queryOne(`DELETE FROM "OrgSources" WHERE "id" = $1 RETURNING "id", "displayName"`, [id])) ?? null;
+}
+
 // The stored bytes as columns + rows (parse.js). Throws ListParseError for a
 // file that no longer parses.
 export function readSourceTable(source) {

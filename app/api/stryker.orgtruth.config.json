@@ -27,6 +27,7 @@
     "src/orgtruth/projection/project.js",
     "src/orgtruth/projection/projectionSql.js",
     "src/orgtruth/projection/pluginPrincipals.js",
+    "src/orgtruth/projection/refresh.js",
     "src/orgtruth/model/metaGraph.js",
     "src/orgtruth/model/entities.js",
     "src/orgtruth/model/graph.js",

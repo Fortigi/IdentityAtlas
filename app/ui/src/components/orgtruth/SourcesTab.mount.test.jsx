@@ -23,12 +23,18 @@ const RUNS = [
   { id: 'r2', sourceId: 's1', profileId: 'p2', mode: 'delta', status: 'failed', createdAt: '2026-10-02T10:00:00Z', error: 'Column ProjectCode is missing' },
 ];
 
-function render({ auth = IMPORTER, routes = {}, ...props } = {}) {
-  const authFetch = makeAuthFetch({
+function render({ auth = IMPORTER, routes = {}, onDelete, ...props } = {}) {
+  const table = {
     '/download': blobResponse('bytes', { filename: 'projects.xlsx' }),
     '/api/org-truth/sources': SOURCES,
     '/api/org-truth/runs': RUNS,
     ...routes,
+  };
+  // A DELETE is answered by `onDelete` when given; everything else by the table.
+  const authFetch = makeAuthFetch((url, opts) => {
+    if (opts?.method === 'DELETE' && onDelete) return onDelete(url);
+    const key = Object.keys(table).find(k => String(url).includes(k));
+    return key ? table[key] : undefined;
   });
   const onImport = vi.fn();
   const onImportAgain = vi.fn();
@@ -86,9 +92,41 @@ describe('SourcesTab', () => {
     expect(within(await rowOf('Northwind assets')).queryByRole('button', { name: 'Import again' })).toBeNull();
   });
 
-  it('hides Import again from a reader', async () => {
+  it('hides Import again and Delete from a reader', async () => {
     render({ auth: READER });
-    expect(within(await rowOf('Contoso projects')).queryByRole('button', { name: 'Import again' })).toBeNull();
+    const row = within(await rowOf('Contoso projects'));
+    expect(row.queryByRole('button', { name: 'Import again' })).toBeNull();
+    expect(row.queryByRole('button', { name: 'Delete Contoso projects' })).toBeNull();
+  });
+
+  it('deletes a source after the analyst confirms, then reloads the list', async () => {
+    const { authFetch } = render({ onDelete: () => ({ deleted: 's1', displayName: 'Contoso projects' }) });
+    await userEvent.click(within(await rowOf('Contoso projects')).getByRole('button', { name: 'Delete Contoso projects' }));
+    expect(await screen.findByText(/^Delete "Contoso projects"\? Everything read from it/)).toBeInTheDocument();
+    const listLoads = () => authFetch.mock.calls.filter(c => c[0] === '/api/org-truth/sources').length;
+    const before = listLoads();
+    // The confirmation's own button is named just "Delete"; the row's is "Delete Contoso projects".
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(authFetch).toHaveBeenCalledWith('/api/org-truth/sources/s1', { method: 'DELETE' });
+    expect(await screen.findByText('"Contoso projects" deleted')).toBeInTheDocument();
+    expect(listLoads()).toBe(before + 1);
+  });
+
+  it('does nothing when the confirmation is cancelled', async () => {
+    const { authFetch } = render({ onDelete: () => ({}) });
+    await userEvent.click(within(await rowOf('Contoso projects')).getByRole('button', { name: 'Delete Contoso projects' }));
+    await screen.findByText('Please confirm');
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText('Please confirm')).toBeNull();
+    expect(authFetch.mock.calls.some(c => c[1]?.method === 'DELETE')).toBe(false);
+  });
+
+  it('shows the server\'s reason when the delete is refused (an import still running)', async () => {
+    render({ onDelete: () => jsonResponse({ error: 'An import of this source is still running; wait for it to finish.' }, { ok: false, status: 409 }) });
+    await userEvent.click(within(await rowOf('Contoso projects')).getByRole('button', { name: 'Delete Contoso projects' }));
+    await screen.findByText('Please confirm');
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(await screen.findByText('An import of this source is still running; wait for it to finish.')).toBeInTheDocument();
   });
 
   it('still lists the sources when the runs fail', async () => {
