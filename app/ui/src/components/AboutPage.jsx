@@ -43,7 +43,7 @@ const SBOM_SECTIONS = [
       { name: 'jwks-rsa',           version: '^3.1.0',        purpose: 'JWKS key retrieval for Entra ID',               license: 'MIT' },
       { name: 'multer',             version: '^1.4.5-lts.1',  purpose: 'CSV upload handling',                           license: 'MIT' },
       { name: 'swagger-ui-express', version: '^5.0.1',        purpose: 'API documentation UI',                          license: 'Apache 2.0' },
-      { name: 'yamljs',             version: '^0.3.0',        purpose: 'YAML parsing for OpenAPI specs',                license: 'MIT' },
+      { name: 'yaml',               version: '^2.9.1',        purpose: 'YAML parsing for OpenAPI specs',                license: 'ISC' },
     ],
   },
   {

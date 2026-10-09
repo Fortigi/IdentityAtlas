@@ -1,0 +1,1 @@
+- Removed a moderate-severity dependency advisory (sprintf-js) by switching the API's YAML parser to a maintained library

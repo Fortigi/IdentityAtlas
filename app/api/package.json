@@ -42,6 +42,6 @@
     "pg-copy-streams": "^7.0.0",
     "re2": "^1.26.0",
     "swagger-ui-express": "^5.0.1",
-    "yamljs": "^0.3.0"
+    "yaml": "^2.9.1"
   }
 }
