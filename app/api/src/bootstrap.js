@@ -394,7 +394,7 @@ export async function bootstrapWorker() {
     // other: the server has a single slot, so preparing them at the same time would only
     // queue behind itself. Each is skipped unless its own feature is on.
     void (async () => {
-      for (const module of ['./nlreports/service.js', './contextAssistant/service.js']) {
+      for (const module of ['./nlreports/service.js', './contextAssistant/service.js', './orgtruth/propose/service.js']) {
         try {
           const { warmAtStartup } = await import(module);
           await warmAtStartup();
