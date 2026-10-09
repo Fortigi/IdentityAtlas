@@ -15,10 +15,12 @@
 //      when that is a role word ("OwnerEmail" → Owner), else Person; a collision gets a
 //      number (Owner, Owner2). Its name column is the sibling header with the same prefix
 //      ("OwnerName", "Owner"), nearest first, else the e-mail column itself.
-//   2. The primary entity is built from the remaining columns: the first text column that
-//      is ≥ 95% unique and ≥ 90% filled is its key (a number column when no text column
-//      qualifies — a choice made here, not in the handover, because ID columns are often
-//      numeric); a header with name/naam/title/titel/omschrijving/description is its name.
+//   2. The primary entity is built from the remaining columns. Its key is chosen among the
+//      text and number columns that are ≥ 80% unique and ≥ 90% filled — a real list has a
+//      few duplicate keys, which the quality step shows, so a near-unique column still
+//      keys it: first the one whose header says it is a key (code/id/nummer/number/key/
+//      name/naam/titel/title), else the most unique. A header with name/naam/title/titel/
+//      omschrijving/description is its name.
 //      Its type comes from the file name ("Projects.xlsx" → Project), else Item.
 //      When every column is an e-mail column there is no primary entity.
 //   3. Primary → each person, the predicate being the camelCased role prefix.
@@ -31,7 +33,8 @@ import { validateLinkRules, validateRecipe, normalizeLinkRules, normalizeRecipe,
 import { camelCase, pascalCase, squash, typeFromFileName, uniqueName, words } from './names.js';
 
 export const MAX_NOTES = 8;
-const KEY_UNIQUENESS = 0.95;
+const KEY_UNIQUENESS = 0.8;
+const KEY_HEADER = /code|id|nummer|number|key|name|naam|titel|title/i;
 const KEY_FILLED = 0.9;
 const NAME_HEADER = /name|naam|title|titel|omschrijving|description/i;
 const ROLE_WORDS = new Set(['owner', 'manager', 'eigenaar', 'beheerder', 'contact']);
@@ -74,8 +77,11 @@ function personEntity(email, free, taken) {
 }
 
 function pickKey(free, rows) {
-  const qualifies = (c) => num(c.uniqueness) >= KEY_UNIQUENESS && num(c.nonEmpty) >= KEY_FILLED * rows;
-  return free.find(c => c.shape === 'text' && qualifies(c)) ?? free.find(c => c.shape === 'number' && qualifies(c)) ?? null;
+  const candidates = free.filter(c => ['text', 'number'].includes(c.shape)
+    && num(c.uniqueness) >= KEY_UNIQUENESS && num(c.nonEmpty) >= KEY_FILLED * rows);
+  const byHeader = candidates.find(c => KEY_HEADER.test(c.name));
+  // Stable sort: on a tie the column further left wins.
+  return byHeader ?? [...candidates].sort((a, b) => num(b.uniqueness) - num(a.uniqueness))[0] ?? null;
 }
 
 function pickName(free, key) {
@@ -101,8 +107,8 @@ function primaryEntity({ type, free, rows }) {
     .map(c => ({ column: c.name, name: uniqueName(camelCase(c.name) || `column${num(c.index) + 1}`, attrNames) }));
   const entity = { type, nameColumn: name.name, ...(key ? { keyColumn: key.name } : {}), attributes };
   const notes = [key
-    ? `${key.name} is unique on every row, so it is the key of ${type}${name === key ? '' : `, and ${name.name} is its name`}.`
-    : `No column is unique on every row, so ${type} is identified by ${name.name}.`];
+    ? `${key.name} ${num(key.uniqueness) < 1 ? 'is nearly unique (a few values repeat)' : 'is unique on every row'}, so it is the key of ${type}${name === key ? '' : `, and ${name.name} is its name`}.`
+    : `No column is unique enough to be a key, so ${type} is identified by ${name.name}.`];
   return { entity, notes, groupLike: looksLikeGroupNames(name.samples) };
 }
 
