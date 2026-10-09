@@ -218,7 +218,10 @@ batch by batch:
 
 Entities: `resource-assignments`, `principals`, `resources`,
 `resource-relationships`. Nothing reaches the target table before finalize, which
-takes one of two paths and reports it (`path` in the result, and the sync log):
+takes one of two paths and reports it (`path` in the result, and the sync log).
+Every result also carries `rows` (records received) and `distinct` (distinct keys
+among them): after a finalize with `deleteMissing`, `distinct` is exactly what the
+scope holds, which is what a caller should verify against. The paths:
 
 - **`empty-table`** — the target table holds no rows at all (a first load on a new
   installation). Its non-constraint indexes are dropped, every stage is inserted

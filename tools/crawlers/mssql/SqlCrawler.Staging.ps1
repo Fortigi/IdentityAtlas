@@ -33,6 +33,9 @@
       * Its verification counts the scope's WHOLE live row set, not the rows
         touched since the run began: an unchanged row is deliberately not
         touched, and after deleteMissing the scope holds exactly the stage.
+        That count is compared with the number of distinct assignments the
+        finalize says its stages held — exactly, with no slack for a moving
+        source, because neither number comes from the source.
       * Nothing reaches the table until the finalize, and a run that fails
         before it leaves the scope as it was — rather than half-loaded.
 #>
@@ -57,8 +60,35 @@ function Get-SqlStage {
     if ($stage) { return $stage }
     $entity = $Spec.Endpoint -replace '^ingest/', ''
     $stage = New-CrawlerIngestStage -Entity $entity -SystemId $SystemId -IdPrefix $State.IdPrefix -Scope $Spec.Scope -BatchSize $State.BatchSize
+    # The scope's expectation travels with its stage, so the finalize can tell it
+    # what was applied (Set-SqlStagedExpectations).
+    $stage | Add-Member -NotePropertyName Expect -NotePropertyValue $Spec.Expect -Force
     $State.Stages[$key] = $stage
     return $stage
+}
+
+# Tell each staged scope how many distinct assignments its stages held — what
+# the scope must hold now that the finalize has removed everything else. This is
+# the number the verification compares the database with (Get-SqlStagedScopeVerdict):
+# it is the crawler's own data on both sides, so a source that is still being
+# written to cannot move it.
+#
+# All or nothing per scope: an API that does not report `distinct` leaves the
+# expectation as it was, and the scope is verified against the source's count.
+function Set-SqlStagedExpectations {
+    [CmdletBinding()]
+    param([object[]]$Stages = @(), [object[]]$Results = @())
+    $byId = @{}
+    foreach ($r in $Results) { if ($r.stageId) { $byId[[string]$r.stageId] = $r } }
+    $unknown = [System.Collections.Generic.HashSet[object]]::new()
+    foreach ($s in $Stages) {
+        $expect = $s.PSObject.Properties['Expect']?.Value
+        if ($null -eq $expect) { continue }
+        $r = $byId[[string]$s.StageId]
+        if ($null -eq $r -or $null -eq $r.distinct) { [void]$unknown.Add($expect); continue }
+        $expect.Applied = [long]($expect.Applied ?? 0) + [long]$r.distinct
+    }
+    foreach ($expect in $unknown) { $expect.Applied = $null }
 }
 
 # Apply every stage of the run in one finalize, removing from each scope what
@@ -81,6 +111,7 @@ function Complete-SqlStagedLoads {
     }
     $sw.Stop()
     $State.StagedSeconds = $sw.Elapsed.TotalSeconds
+    Set-SqlStagedExpectations -Stages $stages -Results $results
     Write-SqlStagedSummary -Results $results -Seconds $sw.Elapsed.TotalSeconds | Out-Null
     return $results
 }

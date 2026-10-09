@@ -88,6 +88,19 @@ describe('staged load — merge path', () => {
     expect((await live(sysA)).map(x => x.updatedAt.getTime())).toEqual(before.map(x => x.updatedAt.getTime()));
   });
 
+  // What a crawler verifies its scope against. `rows` counts a key that arrived
+  // twice as two; `distinct` is what the scope holds once the finalize has run,
+  // whether or not the rows were already there.
+  it('reports the distinct keys the stage held, which is what the scope holds afterwards', async () => {
+    const first = await stageLoad(sysA, [row(1, 1), row(2, 1), row(1, 1), row(3, 2), row(2, 1)]);
+    expect(first).toMatchObject({ rows: 5, distinct: 3, inserted: 3 });
+    expect((await live(sysA)).filter(x => x.deletedAt === null)).toHaveLength(3);
+    // unchanged re-import of two of them: nothing inserted, and still two distinct
+    const again = await stageLoad(sysA, [row(1, 1), row(1, 1), row(3, 2)]);
+    expect(again).toMatchObject({ rows: 3, distinct: 2, inserted: 0, updated: 0, deleted: 1 });
+    expect((await live(sysA)).filter(x => x.deletedAt === null)).toHaveLength(2);
+  });
+
   it('updates exactly the row that changed', async () => {
     await stageLoad(sysA, [row(1, 1, { resourceType: 'Group' }), row(2, 1, { resourceType: 'Group' })]);
     const r = await stageLoad(sysA, [row(1, 1, { resourceType: 'Group' }), row(2, 1, { resourceType: 'AppRole' })]);

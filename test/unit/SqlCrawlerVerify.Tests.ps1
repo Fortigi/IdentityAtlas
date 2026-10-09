@@ -213,6 +213,42 @@ Describe 'Get-SqlScopeVerdict — assignment scopes' {
         (Get-SqlScopeVerdict -Expectation (New-Pairs 400000 0 1 10) -Atlas 400011).ok | Should -BeFalse
     }
 
+    It 'holds a staged scope to what the finalize applied, exactly, however far the source moved' {
+        # The field failure: 33,787,082 assignments read and loaded; the source,
+        # recounted after an 82-minute read, held 33,787,189 pairs having moved
+        # by 101 ROWS. 107 > 101, and the run failed with every row in place.
+        $e = New-Pairs 33787189 0 1 101; $e.Applied = [long]33787082
+        $v = Get-SqlScopeVerdict -Expectation $e -Atlas 33787082
+        $v.ok | Should -BeTrue
+        $v.expected | Should -Be 33787082
+        $v.reason | Should -Match 'held 33[.,]787[.,]189 distinct pairs \(it moved by 101 rows during the read\)'
+        # ...and exactly: the drift buys a staged scope nothing in either direction.
+        foreach ($atlas in 33787081, 33787083, 33787189) {
+            $bad = Get-SqlScopeVerdict -Expectation $e -Atlas $atlas
+            $bad.ok | Should -BeFalse -Because $atlas
+            $bad.expected | Should -Be 33787082
+            $bad.reason | Should -Match 'applied 33[.,]787[.,]082 distinct assignments and the scope holds'
+        }
+    }
+
+    It 'says nothing more when the source agrees, and does not need the source at all' {
+        $same = New-Pairs 500 0 1 0; $same.Applied = [long]500
+        (Get-SqlScopeVerdict -Expectation $same -Atlas 500).reason | Should -BeNullOrEmpty
+        # A source count that timed out used to leave the scope unverified.
+        $blind = New-Pairs 0; $blind.SourceDistinct = $null; $blind.Unverifiable = 'the source count failed'; $blind.Applied = [long]500
+        $v = Get-SqlScopeVerdict -Expectation $blind -Atlas 500
+        $v.ok | Should -BeTrue; $v.expected | Should -Be 500; $v.reason | Should -BeNullOrEmpty
+        (Get-SqlScopeVerdict -Expectation $blind -Atlas 499).ok | Should -BeFalse
+    }
+
+    It 'mentions rows held back as dangling beside the source count, and an applied count of zero is still a count' {
+        $e = New-Pairs 100 10 1 0; $e.Applied = [long]90
+        (Get-SqlScopeVerdict -Expectation $e -Atlas 90).reason | Should -Match 'held 100 distinct pairs, 10 rows were held back as dangling$'
+        $none = New-Pairs 0; $none.Applied = [long]0
+        (Get-SqlScopeVerdict -Expectation $none -Atlas 0).ok | Should -BeTrue
+        (Get-SqlScopeVerdict -Expectation $none -Atlas 1).ok | Should -BeFalse
+    }
+
     It 'gives a scope whose source did not move no slack, so a single lost assignment still fails' {
         (Get-SqlScopeVerdict -Expectation (New-Pairs 400000 0 1 0) -Atlas 399999).ok | Should -BeFalse
         (Get-SqlScopeVerdict -Expectation (New-Pairs 400000 0 1 0) -Atlas 400000).reason | Should -BeNullOrEmpty
