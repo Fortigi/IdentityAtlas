@@ -32,12 +32,12 @@ const REPORT = {
   rows: 3, columns: COLUMNS,
   entities: { Project: { total: 3, duplicateKeys: 0, emptyKeys: 0 }, Owner: { total: 2, duplicateKeys: 0, emptyKeys: 0 } },
   relations: { owner: 3 },
-  links: { Owner: { total: 2, unique: 2, ambiguous: 0, none: 0, samples: { ambiguous: [], none: [] } } },
+  links: { 'Owner → Principal via email': { entityType: 'Owner', targetType: 'Principal', via: 'email', total: 2, unique: 2, ambiguous: 0, none: 0, samples: { ambiguous: [], none: [] } } },
   wouldClose: {}, issues: [],
 };
 const PROFILE = {
   id: 7, name: 'Contoso projects', version: 3, recipe: RECIPE,
-  linkRules: [{ entityType: 'Owner', targetType: 'Principal', threshold: 50, signals: [{ attribute: 'email', targetField: 'email', type: 'exact', weight: 90 }] }],
+  linkRules: [{ entityType: 'Owner', targetType: 'Principal', via: 'email', threshold: 50, signals: [{ attribute: 'email', targetField: 'email', type: 'exact', weight: 90 }] }],
 };
 
 // A tiny router: `routes['POST /sources']` → body | Response | (opts) => body.
@@ -53,6 +53,8 @@ const bodyOf = (authFetch, key) => {
   const call = authFetch.mock.calls.find(([url, opts]) => `${opts?.method ?? 'GET'} ${url.replace('/api/org-truth', '')}` === key);
   return call && JSON.parse(call[1].body);
 };
+
+const proposeCalls = (authFetch) => authFetch.mock.calls.filter(([url]) => String(url).endsWith('/propose/recipe')).length;
 
 const next = () => userEvent.click(screen.getByRole('button', { name: 'Next →' }));
 
@@ -70,9 +72,11 @@ function render(authFetch, props = {}) {
 
 describe('ImportWizard — new import', () => {
   it('walks upload → propose → detect → dry run → start → completed', async () => {
+    let release;
+    const held = new Promise(res => { release = res; });
     const authFetch = api({
       'POST /sources': { ...SOURCE, content: undefined },
-      'POST /propose/recipe': { recipe: RECIPE, linkRules: [], origin: 'model', notes: ['OwnerEmail looks like an e-mail address.'], timing: { ms: 900 } },
+      'POST /propose/recipe': () => held,
       'GET /propose/status': { configured: true, available: true, model: 'local', loaded: true },
       'POST /links/detect': { candidates: CANDIDATES },
       'POST /runs/dry-run': REPORT,
@@ -107,22 +111,28 @@ describe('ImportWizard — new import', () => {
     await next();
 
     // 3 Model
+    // the proposal runs on entering the step, no click needed
     expect(screen.getByRole('button', { name: 'Next →' })).toBeDisabled();
-    await userEvent.click(screen.getByRole('button', { name: 'Propose' }));
+    expect(screen.getByRole('button', { name: 'Proposing…' })).toBeDisabled();
+    release({ recipe: RECIPE, linkRules: [], origin: 'model', notes: ['OwnerEmail looks like an e-mail address.'], timing: { ms: 900 } });
     expect(await screen.findByText(/Proposed by the model/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Propose again' })).toBeEnabled();
     expect(screen.getByText('OwnerEmail looks like an e-mail address.')).toBeInTheDocument();
     expect(bodyOf(authFetch, 'POST /propose/recipe')).toEqual({ fileName: 'projects.csv', columns: COLUMNS, rowCount: 3 });
     expect(screen.queryByText(/Proposing from column names only/)).toBeNull();
     expect(screen.getByRole('textbox', { name: 'Entity 2 type' })).toHaveValue('Owner');
     expect(screen.getByRole('combobox', { name: 'Owner name column' })).toHaveValue('OwnerName');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Owner name attribute' }), 'manager');
+    const SENT = { ...RECIPE, entities: [RECIPE.entities[0], { ...RECIPE.entities[1], nameAttribute: 'manager' }] };
+    expect(proposeCalls(authFetch)).toBe(1); // edits re-render, they do not propose again
     await next();
 
     // 4 Links
     await userEvent.click(screen.getByRole('button', { name: 'Detect candidates for Owner' }));
     const accept = await screen.findByRole('button', { name: 'Accept: email matches 94 % unique on Principal.email (exact)' });
-    expect(bodyOf(authFetch, 'POST /links/detect')).toEqual({ sourceId: 'src-1', recipe: RECIPE, entityType: 'Owner' });
+    expect(bodyOf(authFetch, 'POST /links/detect')).toEqual({ sourceId: 'src-1', recipe: SENT, entityType: 'Owner' });
     await userEvent.click(accept);
-    expect(screen.getByRole('spinbutton', { name: 'Weight of email → email (exact)' })).toHaveValue(90);
+    expect(screen.getByRole('spinbutton', { name: 'Weight of email → email (exact) in email → Principal' })).toHaveValue(90);
     expect(screen.getByText(/No link rule: Project entries/)).toBeInTheDocument();
     await next();
 
@@ -131,10 +141,12 @@ describe('ImportWizard — new import', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Run check' }));
     expect(await screen.findByText('The import can start.')).toBeInTheDocument();
     expect(bodyOf(authFetch, 'POST /runs/dry-run')).toEqual({
-      sourceId: 'src-1', recipe: RECIPE, mode: 'full',
-      linkRules: [{ entityType: 'Owner', targetType: 'Principal', threshold: 50, signals: [{ attribute: 'email', targetField: 'email', type: 'exact', weight: 90 }] }],
+      sourceId: 'src-1', recipe: SENT, mode: 'full',
+      linkRules: [{ entityType: 'Owner', targetType: 'Principal', via: 'email', threshold: 50, signals: [{ attribute: 'email', targetField: 'email', type: 'exact', weight: 90 }] }],
     });
-    expect(within(screen.getByRole('region', { name: 'Quality of Owner' })).getByText('2 unique · 0 ambiguous · 0 none')).toBeInTheDocument();
+    const ownerCard = within(screen.getByRole('region', { name: 'Quality of Owner' }));
+    expect(ownerCard.getByText('2 unique · 0 ambiguous · 0 none')).toBeInTheDocument();
+    expect(ownerCard.getByText('Owner.email → Principal · 2 values')).toBeInTheDocument();
     await next();
 
     // 6 Confirm
@@ -142,7 +154,7 @@ describe('ImportWizard — new import', () => {
     expect(start).toBeDisabled();
     await userEvent.type(screen.getByRole('textbox', { name: 'Profile name' }), 'Contoso projects');
     await userEvent.click(start);
-    expect(bodyOf(authFetch, 'POST /profiles')).toMatchObject({ name: 'Contoso projects', sourceKind: 'list', recipe: RECIPE });
+    expect(bodyOf(authFetch, 'POST /profiles')).toEqual(expect.objectContaining({ name: 'Contoso projects', sourceKind: 'list', recipe: SENT }));
     expect(bodyOf(authFetch, 'POST /runs')).toEqual({ sourceId: 'src-1', profileId: 11, mode: 'full' });
     expect(await screen.findByText(/Import completed: 3 rows; 3 Project, 2 Owner; 2 linked/, {}, { timeout: 4000 })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
@@ -162,8 +174,11 @@ describe('ImportWizard — new import', () => {
     await screen.findByText(/3 rows/);
     await next();
     expect(await screen.findByText('Proposing from column names only: the local model is not available (no model URL configured).')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Propose' }));
     expect(await screen.findByText(/not available yet on this server\. Describe the entities yourself/)).toBeInTheDocument();
+    expect(proposeCalls(authFetch)).toBe(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Propose again' }));
+    await waitFor(() => expect(proposeCalls(authFetch)).toBe(2));
+    expect(await screen.findByText(/not available yet on this server/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: '+ Add entity' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Entity 1 type' }), 'Project');
@@ -184,6 +199,8 @@ describe('ImportWizard — new import', () => {
     await userEvent.click(screen.getAllByTitle('Remove').at(-1));
     await userEvent.click(screen.getByRole('button', { name: 'Remove Project' }));
     expect(screen.getByRole('button', { name: 'Next →' })).toBeDisabled();
+    // an emptied draft after a failed run does not propose again on its own
+    expect(proposeCalls(authFetch)).toBe(2);
 
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onClose).toHaveBeenCalledWith(false);
@@ -207,7 +224,6 @@ describe('ImportWizard — new import', () => {
     await screen.findByText(/3 rows/);
     await next();
     expect(screen.queryByText(/Upload failed/)).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: 'Propose' }));
     expect(await screen.findByText('The proposal failed: Source not found')).toBeInTheDocument();
   });
 });
@@ -220,7 +236,6 @@ async function toLinks(authFetch) {
   await userEvent.click(screen.getByRole('button', { name: 'Upload' }));
   await screen.findByText(/3 rows/);
   await next();
-  await userEvent.click(screen.getByRole('button', { name: 'Propose' }));
   await screen.findByText(/Proposed from the column names/);
   await next();
 }
@@ -231,14 +246,14 @@ describe('ImportWizard — links and quality', () => {
     'POST /propose/recipe': { recipe: RECIPE, linkRules: PROFILE.linkRules, origin: 'heuristic', notes: [] },
   };
 
-  it('edits signals, retargets a rule, and reports detection that finds nothing or fails', async () => {
+  it('edits signals, removes the last signal of a rule, and reports detection that finds nothing or fails', async () => {
     let detects = 0;
     const authFetch = api({
       ...base,
       'POST /links/detect': () => (++detects === 1 ? [] : jsonResponse({}, { ok: false, status: 501 })),
     });
     await toLinks(authFetch);
-    const weight = screen.getByRole('spinbutton', { name: 'Weight of email → email (exact)' });
+    const weight = screen.getByRole('spinbutton', { name: 'Weight of email → email (exact) in email → Principal' });
     fireEvent.change(weight, { target: { value: '70' } });
     expect(weight).toHaveValue(70);
 
@@ -247,14 +262,53 @@ describe('ImportWizard — links and quality', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Detect candidates for Owner' }));
     expect(await screen.findByText(/not available yet on this server/)).toBeInTheDocument();
 
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Owner links to' }), 'Identity');
-    expect(screen.getByText('email → Identity.email (exact)')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Remove email → email (exact)' }));
+    expect(screen.queryByRole('combobox', { name: /links to/ })).toBeNull();
+    expect(screen.getByText('email → Principal.email (exact)')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Remove email → email (exact) from email → Principal' }));
     expect(screen.getByText(/No link rule: Owner entries/)).toBeInTheDocument();
   });
 
+  it('one entity links its owner and team to accounts and its own name to a resource, as separate rules', async () => {
+    const candidates = [
+      { attribute: 'owner', targetType: 'Principal', targetField: 'email', type: 'exact', unique: 50, multiple: 2, none: 6, uniquePct: 86, suggestedWeight: 85 },
+      { attribute: 'team', targetType: 'Principal', targetField: 'email', type: 'exact', unique: 28, multiple: 1, none: 3, uniquePct: 88, suggestedWeight: 80 },
+      { attribute: 'displayName', targetType: 'Resource', targetField: 'displayName', type: 'name', unique: 40, multiple: 4, none: 14, uniquePct: 69, suggestedWeight: 60 },
+    ];
+    const report = { ...REPORT, links: {
+      'Project → Principal via owner': { entityType: 'Project', targetType: 'Principal', via: 'owner', total: 58, unique: 50, ambiguous: 2, none: 6 },
+      'Project → Principal via team': { entityType: 'Project', targetType: 'Principal', via: 'team', total: 32, unique: 28, ambiguous: 1, none: 3 },
+      'Project → Resource via displayName': { entityType: 'Project', targetType: 'Resource', via: 'displayName', total: 58, unique: 0, ambiguous: 4, none: 54 },
+    } };
+    const authFetch = api({ ...base, 'POST /links/detect': { candidates }, 'POST /runs/dry-run': report });
+    await toLinks(authFetch);
+    await userEvent.click(screen.getByRole('button', { name: 'Detect candidates for Project' }));
+    for (const c of candidates) {
+      const what = c.attribute === 'displayName' ? 'Project name' : c.attribute;
+      await userEvent.click(await screen.findByRole('button', { name: `Accept: ${what} matches ${c.uniquePct} % unique on ${c.targetType}.${c.targetField} (${c.type})` }));
+    }
+    const project = within(screen.getByRole('region', { name: 'Links for Project' }));
+    expect(project.getAllByRole('heading', { level: 5 }).map(h => h.textContent)).toEqual(['owner → Principal', 'team → Principal', 'Project name → Resource']);
+    expect(project.getByRole('spinbutton', { name: 'Weight of team → email (exact) in team → Principal' })).toHaveValue(80);
+
+    // removing one rule leaves the two others and Owner's rule untouched
+    await userEvent.click(project.getByRole('button', { name: 'Remove rule owner → Principal' }));
+    expect(project.getAllByRole('heading', { level: 5 }).map(h => h.textContent)).toEqual(['team → Principal', 'Project name → Resource']);
+    expect(screen.getByRole('region', { name: 'Rule email → Principal' })).toBeInTheDocument();
+
+    await next();
+    await userEvent.click(screen.getByRole('button', { name: 'Run check' }));
+    expect(await screen.findByText(/^No Project name → Resource value matched uniquely/)).toBeInTheDocument();
+    expect(bodyOf(authFetch, 'POST /runs/dry-run').linkRules.map(r => `${r.entityType}|${r.targetType}|${r.via}`))
+      .toEqual(['Owner|Principal|email', 'Project|Principal|team', 'Project|Resource|displayName']);
+    const card = within(screen.getByRole('region', { name: 'Quality of Project' }));
+    expect(card.getByText('Project.team → Principal · 32 values')).toBeInTheDocument();
+    expect(card.getByText('Project name → Resource · 58 values')).toBeInTheDocument();
+    expect(card.getAllByRole('group')).toHaveLength(3);
+    expect(within(screen.getByRole('region', { name: 'Quality of Owner' })).queryAllByRole('group')).toHaveLength(0);
+  });
+
   it('blocks on a rule with no unique match, marks the report stale on a threshold change, and goes back to links', async () => {
-    const bad = { ...REPORT, links: { Owner: { total: 2, unique: 0, ambiguous: 1, none: 1,
+    const bad = { ...REPORT, links: { 'Owner → Principal via email': { entityType: 'Owner', targetType: 'Principal', via: 'email', total: 2, unique: 0, ambiguous: 1, none: 1,
       samples: { ambiguous: [{ displayName: 'J. Doe', candidates: [{ label: 'jdoe', confidence: 60 }, { label: 'jdoe2', confidence: 60 }] }], none: [{ displayName: 'Nobody' }] } } },
       wouldClose: { Project: 2 } };
     let checks = 0;
@@ -265,7 +319,7 @@ describe('ImportWizard — links and quality', () => {
     await toLinks(authFetch);
     await next();
     await userEvent.click(screen.getByRole('button', { name: 'Run check' }));
-    expect(await screen.findByText(/^No Owner matched uniquely/)).toBeInTheDocument();
+    expect(await screen.findByText(/^No Owner\.email → Principal value matched uniquely/)).toBeInTheDocument();
     expect(screen.getByText('J. Doe: jdoe (60 %), jdoe2 (60 %)')).toBeInTheDocument();
     expect(screen.getByText('Nobody')).toBeInTheDocument();
     expect(screen.getByText(/2 closed by a full import/)).toBeInTheDocument();
@@ -325,6 +379,7 @@ describe('ImportWizard — repeat', () => {
     expect(await screen.findByText('The import failed: Source vanished')).toBeInTheDocument();
     expect(bodyOf(authFetch, 'POST /runs')).toEqual({ sourceId: 'src-1', profileId: 7, mode: 'delta' });
     expect(authFetch.mock.calls.some(([u, o]) => u.includes('/profiles') && o?.method)).toBe(false);
+    expect(proposeCalls(authFetch)).toBe(0);
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalledWith(false);
   });
@@ -349,6 +404,9 @@ describe('ImportWizard — repeat', () => {
 
     expect(screen.getByRole('textbox', { name: 'Entity 1 type' })).toHaveValue('Project');
     expect(screen.getByText('The list no longer has these columns the profile uses: OwnerEmail.')).toBeInTheDocument();
+    // the profile's recipe is not overwritten by an automatic proposal
+    expect(proposeCalls(authFetch)).toBe(0);
+    expect(screen.getByRole('button', { name: 'Propose again' })).toBeEnabled();
     await next();
     await next();
     await userEvent.click(screen.getByRole('button', { name: 'Run check' }));

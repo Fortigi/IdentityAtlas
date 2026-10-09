@@ -1,5 +1,5 @@
-// Import wizard step 3, the editor half: entities (type, name column, key
-// column, attributes) and relations (predicate, from type, to type), on the
+// Import wizard step 3, the editor half: entities (type, name column, name
+// attribute — what the name is also called in link rules —, key column, attributes) and relations (predicate, from type, to type), on the
 // shared MappingRows grid. Presentational: every edit is a wizardDraft.js call.
 import MappingRows from '@ui/components/MappingRows';
 import {
@@ -20,6 +20,11 @@ function EntityCard({ entity, i, columns, update }) {
         <div className="flex-1 min-w-[10rem]">
           <CellSelect label={`${label} name column`} value={entity.nameColumn} options={columns} placeholder="Name column…"
             onChange={v => update(d => updateEntity(d, i, { nameColumn: v }))} />
+        </div>
+        <div className="flex-1 min-w-[8rem]">
+          <input aria-label={`${label} name attribute`} value={entity.nameAttribute ?? ''} placeholder="displayName"
+            title="Name attribute: the name the entity's name is also known by in link rules"
+            onChange={e => update(d => updateEntity(d, i, { nameAttribute: e.target.value }))} className={CELL_INPUT_CLS} />
         </div>
         <div className="flex-1 min-w-[10rem]">
           <CellSelect label={`${label} key column`} value={entity.keyColumn} options={columns} placeholder="Key: same as name"

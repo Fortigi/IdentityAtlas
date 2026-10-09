@@ -23,12 +23,12 @@
 // Decisions made here (not spelled out in the handover):
 //   - An entity in the draft may carry keyColumn: '' while being edited; the
 //     contracts reject an empty keyColumn, so recipeForApi() drops it.
-//   - Renaming an entity type renames it in the relations, its link rule and
+//   - Renaming an entity type renames it in the relations, its link rules and
 //     its detection results, so an edit never leaves dangling references.
-//   - Removing the last signal of a rule removes the rule (the contracts
-//     require at least one signal per rule).
-//   - Changing a rule's target type keeps only the signals whose target field
-//     the new type allows.
+//   - Removing the last signal of a rule removes that rule (the contracts
+//     require at least one signal per rule); other rules of the entity stay.
+//   - A rule's target type is fixed by the candidate that created it; a
+//     candidate for another target type or attribute starts another rule.
 //   - Repeat mode saves a new profile version when the analyst adjusted the
 //     configuration OR the recipe / link rules differ from the stored profile.
 
@@ -94,7 +94,7 @@ export function columnNames(draft) {
 }
 
 export function applyProposal(draft, proposal) {
-  const linkRules = (proposal.linkRules ?? []).map(r => ({ ...r, threshold: r.threshold ?? draft.threshold }));
+  const linkRules = (proposal.linkRules ?? []).map(r => ({ ...r, via: ruleVia(r), threshold: r.threshold ?? draft.threshold }));
   return {
     ...draft,
     recipe: { ...emptyRecipe(), ...proposal.recipe },
@@ -109,7 +109,7 @@ export function applyProposal(draft, proposal) {
 const withRecipe = (draft, recipe) => ({ ...draft, recipe, quality: null });
 
 export function addEntity(draft) {
-  const entity = { type: '', nameColumn: '', keyColumn: '', attributes: [] };
+  const entity = { type: '', nameColumn: '', keyColumn: '', nameAttribute: '', attributes: [] };
   return withRecipe(draft, { ...draft.recipe, entities: [...draft.recipe.entities, entity] });
 }
 
@@ -180,59 +180,68 @@ export function entityAttributeNames(entity) {
 }
 
 // ─── Link rules ──────────────────────────────────────────────────────────
-const ruleIndex = (draft, entityType) => draft.linkRules.findIndex(r => r.entityType === entityType);
+// A rule links ONE attribute of an entity (its `via`: 'displayName' for the
+// entity's own name, or an attribute such as 'owner' or 'team') to ONE target
+// type. A rule is identified by (entityType, targetType, via); an entity may
+// have several. A rule without `via` (an older profile) links through its
+// first signal's attribute, as the API defaults it.
+export const ruleVia = (rule) => rule.via ?? rule.signals?.[0]?.attribute ?? NAME_ATTRIBUTE;
+export const ruleKey = (rule) => `${rule.entityType}|${rule.targetType}|${ruleVia(rule)}`;
 
-function putRule(draft, entityType, rule) {
-  const idx = ruleIndex(draft, entityType);
-  const linkRules = rule === null
-    ? draft.linkRules.filter(r => r.entityType !== entityType)
-    : idx < 0 ? [...draft.linkRules, rule] : replaceAt(draft.linkRules, idx, rule);
+// "owner → Principal", "Team name → Resource".
+export function ruleTitle(rule) {
+  const via = ruleVia(rule);
+  return `${via === NAME_ATTRIBUTE ? `${rule.entityType} name` : via} → ${rule.targetType}`;
+}
+
+// A rule is referenced by its index in draft.linkRules or by its ruleKey.
+const findRule = (draft, ref) => (typeof ref === 'number' ? ref : draft.linkRules.findIndex(r => ruleKey(r) === ref));
+
+function putRule(draft, idx, rule) {
+  let linkRules;
+  if (rule === null) linkRules = withoutAt(draft.linkRules, idx);
+  else linkRules = idx < 0 ? [...draft.linkRules, rule] : replaceAt(draft.linkRules, idx, rule);
   return { ...draft, linkRules, quality: null };
 }
 
 const sameSignal = (s, c) => s.attribute === c.attribute && s.targetField === c.targetField && s.type === c.type;
 
-// Accept a detected candidate: add it as a signal to the entity's rule (or
-// update its weight if the same signal is already there). A candidate for a
-// different target type moves the rule to that type.
+// Accept a detected candidate: add it as a signal to the rule that links the
+// same attribute to the same target type (creating that rule when there is
+// none), or update its weight if the same signal is already there.
 export function acceptCandidate(draft, entityType, c) {
-  const idx = ruleIndex(draft, entityType);
-  const existing = idx < 0 ? null : draft.linkRules[idx];
-  const base = existing && existing.targetType === c.targetType
-    ? existing
-    : retarget(existing ?? { entityType, threshold: draft.threshold, signals: [] }, c.targetType);
+  const idx = draft.linkRules.findIndex(r => r.entityType === entityType && r.targetType === c.targetType && ruleVia(r) === c.attribute);
+  const base = idx < 0
+    ? { entityType, targetType: c.targetType, via: c.attribute, threshold: draft.threshold, signals: [] }
+    : draft.linkRules[idx];
   const signal = { attribute: c.attribute, targetField: c.targetField, type: c.type, weight: clampInt(c.suggestedWeight ?? 50, 1, 100) };
   const at = base.signals.findIndex(s => sameSignal(s, c));
   if (at < 0 && base.signals.length >= MAX_SIGNALS_PER_RULE) return draft;
   const signals = at < 0 ? [...base.signals, signal] : replaceAt(base.signals, at, { ...base.signals[at], weight: signal.weight });
-  return putRule(draft, entityType, { ...base, signals });
+  return putRule(draft, idx, { ...base, signals });
 }
 
-function retarget(rule, targetType) {
-  const allowed = LINK_TARGETS[targetType] ?? [];
-  return { ...rule, targetType, signals: rule.signals.filter(s => allowed.includes(s.targetField)) };
+export function removeRule(draft, ref) {
+  const idx = findRule(draft, ref);
+  return draft.linkRules[idx] ? putRule(draft, idx, null) : draft;
 }
 
-export function setRuleTarget(draft, entityType, targetType) {
-  const idx = ruleIndex(draft, entityType);
-  if (idx < 0) return draft;
-  const rule = retarget(draft.linkRules[idx], targetType);
-  return putRule(draft, entityType, rule.signals.length ? rule : null);
-}
-
-export function updateSignal(draft, entityType, j, patch) {
-  const rule = draft.linkRules[ruleIndex(draft, entityType)];
+export function updateSignal(draft, ref, j, patch) {
+  const idx = findRule(draft, ref);
+  const rule = draft.linkRules[idx];
   if (!rule?.signals[j]) return draft;
   const next = { ...rule.signals[j], ...patch };
   if ('weight' in patch) next.weight = clampInt(patch.weight, 1, 100);
-  return putRule(draft, entityType, { ...rule, signals: replaceAt(rule.signals, j, next) });
+  return putRule(draft, idx, { ...rule, signals: replaceAt(rule.signals, j, next) });
 }
 
-export function removeSignal(draft, entityType, j) {
-  const rule = draft.linkRules[ruleIndex(draft, entityType)];
+// Removing the last signal removes that rule (and only that rule).
+export function removeSignal(draft, ref, j) {
+  const idx = findRule(draft, ref);
+  const rule = draft.linkRules[idx];
   if (!rule?.signals[j]) return draft;
   const signals = withoutAt(rule.signals, j);
-  return putRule(draft, entityType, signals.length ? { ...rule, signals } : null);
+  return putRule(draft, idx, signals.length ? { ...rule, signals } : null);
 }
 
 // "Owner matches 94 % unique on Principal.email" — the line a candidate reads as.
@@ -301,10 +310,20 @@ export function staleColumns(draft) {
 
 const plural = (n, one, many) => (n === 1 ? one : many);
 
+// The dry-run report keys `links` by rule name; each block says which entity
+// type, target type and attribute (`via`) it measured. "Project name → Resource",
+// "Project.team → Principal". A block without entityType falls back to its key.
+export function linkBlockLabel(name, block) {
+  if (!block?.entityType) return name;
+  const label = !block.via || block.via === NAME_ATTRIBUTE ? `${block.entityType} name` : `${block.entityType}.${block.via}`;
+  return `${label} → ${block.targetType}`;
+}
+
 function linkFindings(links, blockers, warnings) {
-  for (const [type, s] of Object.entries(links ?? {})) {
-    if (s.unique === 0) blockers.push(`No ${type} matched uniquely: the link rule finds nothing it can link. Adjust the rule or remove it.`);
-    else if (s.none > s.unique) warnings.push(`More ${type} entries have no match (${s.none}) than a unique one (${s.unique}).`);
+  for (const [name, s] of Object.entries(links ?? {})) {
+    const label = linkBlockLabel(name, s);
+    if (s.unique === 0) blockers.push(`No ${label} value matched uniquely: the link rule finds nothing it can link. Adjust the rule or remove it.`);
+    else if (s.none > s.unique) warnings.push(`More ${label} values have no match (${s.none}) than a unique one (${s.unique}).`);
   }
 }
 
@@ -350,6 +369,12 @@ export function stepReady(step, draft) {
 // Step 3 is shown for a new import, or for a repeat the analyst adjusts.
 export const modelStepShown = (draft) => draft.mode === 'new' || draft.adjust;
 
+// Step 3 proposes on its own when it opens on a source with nothing proposed
+// or modelled yet. A recipe that is already there (a repeat's profile, or one
+// the analyst started after a failed proposal) is never overwritten unasked.
+export const shouldAutoPropose = (draft) => modelStepShown(draft) && draft.source !== null
+  && draft.proposalOrigin === null && draft.recipe.entities.length === 0;
+
 export function nextStep(step, draft) {
   const n = step + 1;
   return n === 3 && !modelStepShown(draft) ? 4 : n;
@@ -367,6 +392,7 @@ export function recipeForApi(recipe) {
     entities: recipe.entities.map(e => {
       const out = { type: trimmed(e.type), nameColumn: e.nameColumn };
       if (trimmed(e.keyColumn)) out.keyColumn = e.keyColumn;
+      if (trimmed(e.nameAttribute)) out.nameAttribute = trimmed(e.nameAttribute);
       out.attributes = (e.attributes ?? []).filter(a => trimmed(a.column)).map(a => (
         trimmed(a.name) ? { column: a.column, name: trimmed(a.name) } : { column: a.column }
       ));
