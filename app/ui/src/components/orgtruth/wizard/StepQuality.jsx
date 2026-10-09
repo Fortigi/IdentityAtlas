@@ -1,14 +1,15 @@
 // Import wizard step 5 — Quality: a dry run (POST /api/org-truth/runs/dry-run
 // { sourceId, recipe, linkRules, mode } → report, nothing written) shown as one
 // card per entity type: entries, duplicate / empty keys, what a full run would
-// close, and unique / ambiguous / none link shares as a soft-fill bar; the
+// close, and per link rule ("Project.owner → Principal", n values scored) the
+// unique / ambiguous / none shares as a soft-fill bar; the
 // threshold slider (the AccountLinkingSettings range input) writes the threshold
 // into every rule; samples of ambiguous and unmatched entries. The verdict
 // (wizardDraft.qualityVerdict) decides whether the import may start.
 import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { WizardNav, WIZARD_BACK_CLS } from '@ui/components/crawler/wizardFields';
-import { dryRunBody, linkShares, qualityVerdict, setQuality, setThreshold, stepReady } from './wizardDraft';
+import { dryRunBody, linkBlockLabel, linkShares, qualityVerdict, setQuality, setThreshold, stepReady } from './wizardDraft';
 import { sendJson } from './wizardApi';
 import { CARD_CLS, Notice, SMALL_BTN_CLS } from './wizardUi';
 
@@ -55,6 +56,19 @@ function Samples({ stats }) {
   );
 }
 
+// One rule's block: "Project.team → Principal", how many values it scored
+// (a multi-valued cell counts each value), and the shares.
+function LinkBlock({ name, stats }) {
+  const label = linkBlockLabel(name, stats);
+  return (
+    <div className="mt-2" role="group" aria-label={`Links ${label}`}>
+      <p className="text-xs font-medium text-gray-800 dark:text-gray-200">{label} · {stats.total ?? 0} values</p>
+      <LinkBar stats={stats} />
+      <Samples stats={stats} />
+    </div>
+  );
+}
+
 function TypeCard({ type, entity, links, wouldClose }) {
   return (
     <section className={CARD_CLS} aria-label={`Quality of ${type}`}>
@@ -63,19 +77,23 @@ function TypeCard({ type, entity, links, wouldClose }) {
         {entity?.total ?? 0} entries · {entity?.duplicateKeys ?? 0} duplicate keys · {entity?.emptyKeys ?? 0} empty keys
         {wouldClose > 0 && ` · ${wouldClose} closed by a full import`}
       </p>
-      {links && <div className="mt-2"><LinkBar stats={links} /><Samples stats={links} /></div>}
+      {links.map(([name, stats]) => <LinkBlock key={name} name={name} stats={stats} />)}
     </section>
   );
 }
 
+// Link blocks are keyed by rule name; each goes into the card of its entity
+// type (a block without one falls back to its key, the pre-`via` shape).
 function Report({ draft }) {
   const report = draft.quality;
-  const types = [...new Set([...Object.keys(report.entities ?? {}), ...Object.keys(report.links ?? {})])];
+  const blocks = Object.entries(report.links ?? {});
+  const typeOf = ([name, b]) => b.entityType ?? name;
+  const types = [...new Set([...Object.keys(report.entities ?? {}), ...blocks.map(typeOf)])];
   return (
     <div className="space-y-3">
       <p className="text-sm text-gray-700 dark:text-gray-300">{report.rows ?? 0} rows checked.</p>
       {types.map(t => (
-        <TypeCard key={t} type={t} entity={report.entities?.[t]} links={report.links?.[t]}
+        <TypeCard key={t} type={t} entity={report.entities?.[t]} links={blocks.filter(b => typeOf(b) === t)}
           wouldClose={draft.runMode === 'full' ? report.wouldClose?.[t] ?? 0 : 0} />
       ))}
     </div>

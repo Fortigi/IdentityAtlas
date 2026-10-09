@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useDialog } from '@ui/components/dialogContext';
 import { WizardNav } from '@ui/components/crawler/wizardFields';
-import { profileAction, profileBody, profileLine, qualityVerdict, stepReady } from './wizardDraft';
+import { profileAction, profileBody, profileLine, qualityVerdict, ruleTitle, stepReady } from './wizardDraft';
 import { sendJson } from './wizardApi';
 import { useImportRun } from './useImportRun';
 import { Field, Notice, START_IMPORT_CLS } from './wizardUi';
@@ -26,7 +26,7 @@ function Summary({ draft }) {
     ['Mode', draft.runMode === 'full' ? 'Full: closes what the list no longer contains' : 'Delta: changes only what is in the list'],
     ['Entities', draft.recipe.entities.map(e => e.type).join(', ') || '—'],
     ['Relations', draft.recipe.relations.map(r => `${r.from} ${r.predicate} ${r.to}`).join(', ') || '—'],
-    ['Link rules', draft.linkRules.map(r => `${r.entityType} → ${r.targetType} (${r.signals.length} signals)`).join(', ') || 'none'],
+    ['Link rules', draft.linkRules.map(r => `${r.entityType}: ${ruleTitle(r)} (${r.signals.length} signals)`).join(', ') || 'none'],
   ];
   return (
     <div className="space-y-2">

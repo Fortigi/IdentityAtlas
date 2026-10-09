@@ -9,8 +9,9 @@ const COLS = [{ name: 'ProjectCode' }, { name: 'ProjectName' }, { name: 'OwnerNa
 const SOURCE = { id: 's1', displayName: 'Projects', fileName: 'Projects.csv', observedAt: '2026-10-01', rowCount: 12, columns: COLS };
 const PROJECT = { type: 'Project', nameColumn: 'ProjectName', keyColumn: 'ProjectCode', attributes: [] };
 const OWNER = { type: 'Owner', nameColumn: 'OwnerName', keyColumn: '', attributes: [{ column: 'OwnerEmail', name: 'email' }] };
+// A rule via 'email' that also reads the name (signals may read other attributes).
 const RULE = {
-  entityType: 'Owner', targetType: 'Principal', threshold: 50,
+  entityType: 'Owner', targetType: 'Principal', via: 'email', threshold: 50,
   signals: [
     { attribute: 'email', targetField: 'email', type: 'exact', weight: 90 },
     { attribute: 'displayName', targetField: 'displayName', type: 'name', weight: 60 },
@@ -94,11 +95,13 @@ describe('setSource / applyProposal', () => {
     const base = { ...W.setThreshold(W.emptyDraft(), 70), quality: { rows: 1 } };
     const d = W.applyProposal(base, {
       recipe: PROFILE.recipe,
-      linkRules: [{ ...RULE, threshold: undefined }, { ...RULE, entityType: 'Project', threshold: 40 }],
+      linkRules: [{ ...RULE, threshold: undefined }, { ...RULE, entityType: 'Project', via: undefined, signals: [RULE.signals[1]], threshold: 40 }],
       origin: 'model', notes: ['OwnerEmail looks like an e-mail address'],
     });
     expect(d.recipe.entities.map(e => e.type)).toEqual(['Project', 'Owner']);
     expect(d.linkRules.map(r => r.threshold)).toEqual([70, 40]);
+    // a rule without via links through its first signal's attribute, as the API defaults it
+    expect(d.linkRules.map(r => r.via)).toEqual(['email', 'displayName']);
     expect(d.proposalOrigin).toBe('model');
     expect(d.notes).toEqual(['OwnerEmail looks like an e-mail address']);
     expect(d.quality).toBeNull();
@@ -116,7 +119,7 @@ describe('setSource / applyProposal', () => {
 describe('entities', () => {
   it('adds a blank entity and clears the quality report', () => {
     const d = W.addEntity({ ...modelled(), quality: { rows: 1 } });
-    expect(d.recipe.entities[2]).toEqual({ type: '', nameColumn: '', keyColumn: '', attributes: [] });
+    expect(d.recipe.entities[2]).toEqual({ type: '', nameColumn: '', keyColumn: '', nameAttribute: '', attributes: [] });
     expect(d.quality).toBeNull();
   });
 
@@ -142,6 +145,18 @@ describe('entities', () => {
     expect(d.recipe.entities[2].type).toBe('Team');
   });
 
+  it('renaming keeps every rule of the entity, each with its own via and target', () => {
+    const base = { ...modelled(), linkRules: [structuredClone(RULE), { ...structuredClone(RULE), targetType: 'Resource', via: 'displayName' }] };
+    const d = W.updateEntity(base, 1, { type: 'Manager' });
+    expect(d.linkRules.map(W.ruleKey)).toEqual(['Manager|Principal|email', 'Manager|Resource|displayName']);
+  });
+
+  it('sets the name attribute like any other entity field', () => {
+    const d = W.updateEntity(modelled(), 0, { nameAttribute: 'klant' });
+    expect(d.recipe.entities[0].nameAttribute).toBe('klant');
+    expect(d.recipe.entities[1]).toEqual(OWNER);
+  });
+
   it('a patch without a type change keeps relations and rules as they were', () => {
     const base = modelled();
     const d = W.updateEntity(base, 0, { nameColumn: 'ProjectCode' });
@@ -162,7 +177,7 @@ describe('entities', () => {
       ...modelled(),
       recipe: { ...structuredClone(PROFILE.recipe), entities: [PROJECT, OWNER, { type: 'Team', nameColumn: 'ProjectName', attributes: [] }],
         relations: [{ predicate: 'owner', from: 'Project', to: 'Owner' }, { predicate: 'team', from: 'Project', to: 'Team' }, { predicate: 'lead', from: 'Owner', to: 'Team' }] },
-      linkRules: [structuredClone(RULE), { ...structuredClone(RULE), entityType: 'Team' }],
+      linkRules: [structuredClone(RULE), { ...structuredClone(RULE), entityType: 'Team' }, { ...structuredClone(RULE), targetType: 'Resource', via: 'displayName' }],
       detection: { Owner: [1], Team: [2] },
     };
     const d = W.removeEntity(base, 1);
@@ -224,23 +239,61 @@ describe('link rules', () => {
   const emailCand = { attribute: 'email', targetType: 'Principal', targetField: 'email', type: 'exact', uniquePct: 94, suggestedWeight: 90 };
   const nameCand = { attribute: 'displayName', targetType: 'Principal', targetField: 'displayName', type: 'name', uniquePct: 61, suggestedWeight: 60 };
 
-  it('accepting the first candidate creates the rule with the draft threshold', () => {
+  // The analyst's case: a Project list row links its owner cell to an account,
+  // its team cell (several people) to accounts, and its own name to a resource.
+  const ownerCand = { attribute: 'owner', targetType: 'Principal', targetField: 'email', type: 'exact', uniquePct: 90, suggestedWeight: 85 };
+  const teamCand = { attribute: 'team', targetType: 'Principal', targetField: 'email', type: 'exact', uniquePct: 80, suggestedWeight: 70 };
+  const resCand = { attribute: 'displayName', targetType: 'Resource', targetField: 'displayName', type: 'name', uniquePct: 70, suggestedWeight: 60 };
+
+  it('accepting the first candidate creates the rule via its attribute with the draft threshold', () => {
     const d = W.acceptCandidate(W.setThreshold(W.emptyDraft(), 40), 'Owner', emailCand);
-    expect(d.linkRules).toEqual([{ entityType: 'Owner', targetType: 'Principal', threshold: 40, signals: [{ attribute: 'email', targetField: 'email', type: 'exact', weight: 90 }] }]);
+    expect(d.linkRules).toEqual([{ entityType: 'Owner', targetType: 'Principal', via: 'email', threshold: 40, signals: [{ attribute: 'email', targetField: 'email', type: 'exact', weight: 90 }] }]);
   });
 
-  it('a second candidate is appended; the same one again only updates its weight', () => {
+  it('another signal on the same attribute and target is appended; the same one again only updates its weight', () => {
     let d = W.acceptCandidate(W.emptyDraft(), 'Owner', emailCand);
-    d = W.acceptCandidate(d, 'Owner', nameCand);
+    d = W.acceptCandidate(d, 'Owner', { ...emailCand, type: 'prefix', suggestedWeight: 40 });
     d = W.acceptCandidate(d, 'Owner', { ...emailCand, suggestedWeight: 95 });
-    expect(d.linkRules[0].signals.map(s => [s.attribute, s.weight])).toEqual([['email', 95], ['displayName', 60]]);
+    expect(d.linkRules).toHaveLength(1);
+    expect(d.linkRules[0].signals.map(s => [s.type, s.weight])).toEqual([['exact', 95], ['prefix', 40]]);
   });
 
-  it('a candidate for another target type moves the rule and keeps only fields that type allows', () => {
-    const base = { ...W.emptyDraft(), linkRules: [structuredClone(RULE)] };
-    const d = W.acceptCandidate(base, 'Owner', { attribute: 'email', targetType: 'Resource', targetField: 'mail', type: 'exact', suggestedWeight: 80 });
-    expect(d.linkRules[0].targetType).toBe('Resource');
-    expect(d.linkRules[0].signals.map(s => s.targetField)).toEqual(['displayName', 'mail']);
+  it('two rules on one entity to two target types: the owner to an account, the name to a resource', () => {
+    let d = W.acceptCandidate(W.emptyDraft(), 'Project', ownerCand);
+    d = W.acceptCandidate(d, 'Project', resCand);
+    expect(d.linkRules.map(W.ruleKey)).toEqual(['Project|Principal|owner', 'Project|Resource|displayName']);
+    expect(d.linkRules.map(W.ruleTitle)).toEqual(['owner → Principal', 'Project name → Resource']);
+    expect(d.linkRules.map(r => r.signals.length)).toEqual([1, 1]);
+  });
+
+  it('two rules to the same target type via different attributes stay apart', () => {
+    let d = W.acceptCandidate(W.emptyDraft(), 'Project', ownerCand);
+    d = W.acceptCandidate(d, 'Project', teamCand);
+    d = W.acceptCandidate(d, 'Project', { ...teamCand, targetField: 'displayName', type: 'name', suggestedWeight: 30 });
+    expect(d.linkRules.map(r => [r.via, r.targetType, r.signals.map(s => s.targetField)])).toEqual([
+      ['owner', 'Principal', ['email']],
+      ['team', 'Principal', ['email', 'displayName']],
+    ]);
+  });
+
+  it('the same attribute to another target type, or on another entity, is another rule', () => {
+    let d = W.acceptCandidate(W.emptyDraft(), 'Project', ownerCand);
+    d = W.acceptCandidate(d, 'Project', { ...ownerCand, targetType: 'Identity' });
+    d = W.acceptCandidate(d, 'Asset', ownerCand);
+    expect(d.linkRules.map(W.ruleKey)).toEqual(['Project|Principal|owner', 'Project|Identity|owner', 'Asset|Principal|owner']);
+  });
+
+  it('a stored rule without via is matched through its first signal attribute', () => {
+    const legacy = { entityType: 'Owner', targetType: 'Principal', threshold: 50, signals: [RULE.signals[0]] };
+    const d = W.acceptCandidate({ ...W.emptyDraft(), linkRules: [legacy] }, 'Owner', { ...emailCand, type: 'prefix' });
+    expect(d.linkRules).toHaveLength(1);
+    expect(d.linkRules[0].signals).toHaveLength(2);
+    expect(W.ruleVia({ entityType: 'X', targetType: 'Context', signals: [] })).toBe('displayName');
+  });
+
+  it('ruleTitle names the entity for its own name, the attribute otherwise', () => {
+    expect(W.ruleTitle({ entityType: 'Team', targetType: 'Resource', via: 'displayName', signals: [] })).toBe('Team name → Resource');
+    expect(W.ruleTitle(RULE)).toBe('email → Principal');
   });
 
   it('weights are clamped to 1..100 and default to 50', () => {
@@ -250,45 +303,61 @@ describe('link rules', () => {
   });
 
   it('refuses an eleventh signal but still updates an existing one at the limit', () => {
-    const signals = Array.from({ length: 10 }, (_, i) => ({ attribute: `a${i}`, targetField: 'email', type: 'exact', weight: 10 }));
-    const base = { ...W.emptyDraft(), linkRules: [{ entityType: 'A', targetType: 'Principal', threshold: 50, signals }] };
+    const signals = Array.from({ length: 10 }, (_, i) => ({ attribute: 'email', targetField: `f${i}`, type: 'exact', weight: 10 }));
+    const base = { ...W.emptyDraft(), linkRules: [{ entityType: 'A', targetType: 'Principal', via: 'email', threshold: 50, signals }] };
     expect(W.acceptCandidate(base, 'A', emailCand)).toBe(base);
-    const d = W.acceptCandidate(base, 'A', { ...emailCand, attribute: 'a3', suggestedWeight: 77 });
+    const d = W.acceptCandidate(base, 'A', { ...emailCand, targetField: 'f3', suggestedWeight: 77 });
     expect(d.linkRules[0].signals[3].weight).toBe(77);
+    // the cap is per rule: another attribute starts its own rule
+    expect(W.acceptCandidate(base, 'A', ownerCand).linkRules).toHaveLength(2);
   });
 
   it('accepting a candidate leaves the other rules in place and clears the quality report', () => {
     const base = { ...W.emptyDraft(), linkRules: [{ ...structuredClone(RULE), entityType: 'Project' }, structuredClone(RULE)], quality: { rows: 1 } };
-    const d = W.acceptCandidate(base, 'Owner', { ...emailCand, attribute: 'phone' });
+    const d = W.acceptCandidate(base, 'Owner', { ...emailCand, targetField: 'employeeId' });
     expect(d.linkRules.map(r => [r.entityType, r.signals.length])).toEqual([['Project', 2], ['Owner', 3]]);
     expect(d.quality).toBeNull();
   });
 
-  it('setRuleTarget keeps allowed signals, drops the rule when none remain, ignores unknown types', () => {
-    const base = { ...W.emptyDraft(), linkRules: [structuredClone(RULE)] };
-    expect(W.setRuleTarget(base, 'Owner', 'Context').linkRules[0].signals.map(s => s.targetField)).toEqual(['displayName']);
-    const emailOnly = { ...W.emptyDraft(), linkRules: [{ ...structuredClone(RULE), signals: [RULE.signals[0]] }] };
-    expect(W.setRuleTarget(emailOnly, 'Owner', 'Context').linkRules).toEqual([]);
-    expect(W.setRuleTarget(base, 'Nobody', 'Context')).toBe(base);
-    expect(W.setRuleTarget(base, 'Owner', 'Bogus').linkRules).toEqual([]);
+  // Owner has two rules (via email → Principal, via displayName → Resource);
+  // edits must hit the rule they name, by index or by key.
+  const twoRules = () => ({ ...W.emptyDraft(), quality: { rows: 1 }, linkRules: [
+    structuredClone(RULE),
+    { entityType: 'Owner', targetType: 'Resource', via: 'displayName', threshold: 50, signals: [{ attribute: 'displayName', targetField: 'displayName', type: 'name', weight: 40 }] },
+  ] });
+
+  it('updateSignal clamps the weight and only touches that signal of that rule', () => {
+    const base = twoRules();
+    const d = W.updateSignal(base, 0, 1, { weight: '75' });
+    expect(d.linkRules.map(r => r.signals.map(s => s.weight))).toEqual([[90, 75], [40]]);
+    expect(d.quality).toBeNull();
+    expect(W.updateSignal(base, 'Owner|Resource|displayName', 0, { weight: 55 }).linkRules.map(r => r.signals[0].weight)).toEqual([90, 55]);
+    expect(W.updateSignal(base, 0, 0, { weight: '' }).linkRules[0].signals[0].weight).toBe(1);
+    expect(W.updateSignal(base, 0, 0, { type: 'prefix' }).linkRules[0].signals[0]).toEqual({ ...RULE.signals[0], type: 'prefix' });
+    expect(W.updateSignal(base, 0, 5, { weight: 3 })).toBe(base);
+    expect(W.updateSignal(base, 'Owner|Context|email', 0, { weight: 3 })).toBe(base);
+    expect(W.updateSignal(base, 7, 0, { weight: 3 })).toBe(base);
   });
 
-  it('updateSignal clamps the weight and only touches that signal', () => {
-    const base = { ...W.emptyDraft(), linkRules: [structuredClone(RULE)] };
-    expect(W.updateSignal(base, 'Owner', 1, { weight: '75' }).linkRules[0].signals.map(s => s.weight)).toEqual([90, 75]);
-    expect(W.updateSignal(base, 'Owner', 0, { weight: '' }).linkRules[0].signals[0].weight).toBe(1);
-    expect(W.updateSignal(base, 'Owner', 0, { type: 'prefix' }).linkRules[0].signals[0]).toEqual({ ...RULE.signals[0], type: 'prefix' });
-    expect(W.updateSignal(base, 'Owner', 5, { weight: 3 })).toBe(base);
-    expect(W.updateSignal(base, 'Nobody', 0, { weight: 3 })).toBe(base);
+  it('removeSignal removes by index; removing the last signal removes only that rule', () => {
+    const base = twoRules();
+    const d = W.removeSignal(base, 0, 0);
+    expect(d.linkRules.map(r => r.signals.map(s => s.attribute))).toEqual([['displayName'], ['displayName']]);
+    const e = W.removeSignal(base, 'Owner|Resource|displayName', 0);
+    expect(e.linkRules.map(W.ruleKey)).toEqual(['Owner|Principal|email']);
+    expect(e.linkRules[0]).toEqual(RULE);
+    expect(W.removeSignal(base, 1, 1)).toBe(base);
+    expect(W.removeSignal(base, 'Nobody|Principal|email', 0)).toBe(base);
   });
 
-  it('removeSignal removes by index and the last one removes the rule', () => {
-    const base = { ...W.emptyDraft(), linkRules: [structuredClone(RULE)] };
-    const d = W.removeSignal(base, 'Owner', 0);
-    expect(d.linkRules[0].signals.map(s => s.attribute)).toEqual(['displayName']);
-    expect(W.removeSignal(d, 'Owner', 0).linkRules).toEqual([]);
-    expect(W.removeSignal(base, 'Owner', 2)).toBe(base);
-    expect(W.removeSignal(base, 'Nobody', 0)).toBe(base);
+  it('removeRule drops the named rule and leaves the others of the entity', () => {
+    const base = twoRules();
+    const d = W.removeRule(base, 'Owner|Principal|email');
+    expect(d.linkRules.map(W.ruleKey)).toEqual(['Owner|Resource|displayName']);
+    expect(d.quality).toBeNull();
+    expect(W.removeRule(base, 1).linkRules.map(W.ruleKey)).toEqual(['Owner|Principal|email']);
+    expect(W.removeRule(base, 'Owner|Identity|email')).toBe(base);
+    expect(W.removeRule(base, 4)).toBe(base);
   });
 
   it('candidateSentence reads like the handover example', () => {
@@ -329,22 +398,39 @@ describe('qualityVerdict', () => {
     expect(W.qualityVerdict(null, 50)).toEqual({ canStart: false, warnings: [], blockers: ['Run the data-quality check first.'] });
   });
 
-  it('blocks when a linked type has no unique match at all', () => {
-    const v = W.qualityVerdict({ links: { Owner: { total: 10, unique: 0, ambiguous: 2, none: 8 }, Project: { total: 5, unique: 5, none: 0 } } }, 50);
+  // Blocks keyed by rule name, as the dry run returns them.
+  const block = (entityType, targetType, via, counts) => ({ entityType, targetType, via, ...counts });
+
+  it('blocks when one rule has no unique match at all, naming that rule', () => {
+    const v = W.qualityVerdict({ links: {
+      'Project → Principal via team': block('Project', 'Principal', 'team', { total: 32, unique: 0, ambiguous: 2, none: 30 }),
+      'Project → Resource via displayName': block('Project', 'Resource', 'displayName', { total: 58, unique: 58, none: 0 }),
+    } }, 50);
     expect(v.canStart).toBe(false);
-    expect(v.blockers).toHaveLength(1);
-    expect(v.blockers[0]).toMatch(/^No Owner matched uniquely/);
+    expect(v.blockers).toEqual(['No Project.team → Principal value matched uniquely: the link rule finds nothing it can link. Adjust the rule or remove it.']);
     expect(v.warnings).toEqual([]);
   });
 
-  it('warns, but lets the run start, when more entries have no match than a unique one', () => {
-    const v = W.qualityVerdict({ links: { Owner: { unique: 4, none: 5 } } }, 50);
+  it('a rule via the entity name reads as "<type> name"', () => {
+    const v = W.qualityVerdict({ links: { r: block('Project', 'Resource', 'displayName', { unique: 0, none: 4 }) } }, 50);
+    expect(v.blockers[0]).toMatch(/^No Project name → Resource value matched uniquely/);
+  });
+
+  it('warns, but lets the run start, when more values have no match than a unique one', () => {
+    const v = W.qualityVerdict({ links: { r: block('Project', 'Principal', 'owner', { unique: 4, none: 5 }) } }, 50);
     expect(v.canStart).toBe(true);
-    expect(v.warnings).toEqual(['More Owner entries have no match (5) than a unique one (4).']);
+    expect(v.warnings).toEqual(['More Project.owner → Principal values have no match (5) than a unique one (4).']);
   });
 
   it('does not warn when none equals unique', () => {
-    expect(W.qualityVerdict({ links: { Owner: { unique: 5, none: 5 } } }, 50).warnings).toEqual([]);
+    expect(W.qualityVerdict({ links: { r: block('Owner', 'Principal', 'email', { unique: 5, none: 5 }) } }, 50).warnings).toEqual([]);
+  });
+
+  it('linkBlockLabel: by via, the entity name, or the key for a block without an entity type', () => {
+    expect(W.linkBlockLabel('x', block('Project', 'Principal', 'owner', {}))).toBe('Project.owner → Principal');
+    expect(W.linkBlockLabel('x', block('Project', 'Resource', undefined, {}))).toBe('Project name → Resource');
+    expect(W.linkBlockLabel('Owner', { unique: 1 })).toBe('Owner');
+    expect(W.linkBlockLabel('Owner', undefined)).toBe('Owner');
   });
 
   it('warns about duplicate and empty keys, closures and a weak threshold, with singulars', () => {
@@ -411,11 +497,12 @@ describe('stepReady and navigation', () => {
   });
 
   it('5: needs a fresh report whose verdict lets the run start', () => {
-    const ok = W.setQuality(modelled(), { links: { Owner: { unique: 3, none: 0 } } });
+    const rule = { entityType: 'Owner', targetType: 'Principal', via: 'email' };
+    const ok = W.setQuality(modelled(), { links: { r: { ...rule, unique: 3, none: 0 } } });
     expect(W.stepReady(5, ok)).toBe(true);
     expect(W.stepReady(5, modelled())).toBe(false);
     expect(W.stepReady(5, W.setThreshold(ok, 70))).toBe(false);
-    expect(W.stepReady(5, W.setQuality(modelled(), { links: { Owner: { unique: 0, none: 3 } } }))).toBe(false);
+    expect(W.stepReady(5, W.setQuality(modelled(), { links: { r: { ...rule, unique: 0, none: 3 } } }))).toBe(false);
   });
 
   it('6: needs a profile name; any other step is never ready', () => {
@@ -423,6 +510,17 @@ describe('stepReady and navigation', () => {
     expect(W.stepReady(6, { ...modelled(), profileName: '  ' })).toBe(false);
     expect(W.stepReady(6, { ...modelled(), profileName: 'Projects' })).toBe(true);
     expect(W.stepReady(7, modelled())).toBe(false);
+  });
+
+  it('shouldAutoPropose: a shown step, a source, nothing proposed and nothing modelled', () => {
+    const fresh = W.setSource(W.emptyDraft(), SOURCE);
+    expect(W.shouldAutoPropose(fresh)).toBe(true);
+    expect(W.shouldAutoPropose(W.emptyDraft())).toBe(false);
+    expect(W.shouldAutoPropose({ ...fresh, proposalOrigin: 'heuristic' })).toBe(false);
+    expect(W.shouldAutoPropose(W.addEntity(fresh))).toBe(false);
+    const repeat = { ...W.emptyDraft(PROFILE), source: SOURCE, recipe: { version: 1, entities: [], relations: [] } };
+    expect(W.shouldAutoPropose(repeat)).toBe(false);
+    expect(W.shouldAutoPropose({ ...repeat, adjust: true })).toBe(true);
   });
 
   it('skips the model step in a repeat unless adjusting', () => {
@@ -443,12 +541,12 @@ describe('stepReady and navigation', () => {
 describe('what the API receives', () => {
   it('recipeForApi trims, drops an empty key column and blank attributes, omits a blank attribute name', () => {
     const recipe = { version: 1,
-      entities: [{ type: ' Owner ', nameColumn: 'OwnerName', keyColumn: '', attributes: [{ column: 'OwnerEmail', name: ' email ' }, { column: 'Phone', name: '' }, { column: '', name: 'x' }] },
-        { type: 'Project', nameColumn: 'ProjectName', keyColumn: 'ProjectCode' }],
+      entities: [{ type: ' Owner ', nameColumn: 'OwnerName', keyColumn: '', nameAttribute: '  ', attributes: [{ column: 'OwnerEmail', name: ' email ' }, { column: 'Phone', name: '' }, { column: '', name: 'x' }] },
+        { type: 'Project', nameColumn: 'ProjectName', keyColumn: 'ProjectCode', nameAttribute: ' klant ' }],
       relations: [{ predicate: ' owner ', from: ' Project', to: 'Owner ' }] };
     expect(W.recipeForApi(recipe)).toEqual({ version: 1,
       entities: [{ type: 'Owner', nameColumn: 'OwnerName', attributes: [{ column: 'OwnerEmail', name: 'email' }, { column: 'Phone' }] },
-        { type: 'Project', nameColumn: 'ProjectName', keyColumn: 'ProjectCode', attributes: [] }],
+        { type: 'Project', nameColumn: 'ProjectName', keyColumn: 'ProjectCode', nameAttribute: 'klant', attributes: [] }],
       relations: [{ predicate: 'owner', from: 'Project', to: 'Owner' }] });
   });
 
