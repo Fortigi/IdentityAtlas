@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyRecipe, summarizeApplied, entityKey, splitEmails } from './applyRecipe.js';
+import { applyRecipe, summarizeApplied, entityKey, splitEmails, splitSharePointLookup, splitValues } from './applyRecipe.js';
 import { normalizeRecipe } from '../contracts.js';
 
 const recipe = normalizeRecipe({
@@ -170,6 +170,41 @@ describe('applyRecipe — several e-mail addresses in one cell', () => {
     expect(splitEmails('ann@contoso.com;;bob@contoso.com;')).toEqual(['ann@contoso.com', 'bob@contoso.com']);
     const out = applyRecipe([{ Project: 'Atlas', Owner: 'Smith, Ann', Mail: 'Smith, Ann' }], byMail);
     expect(out.entities.filter(e => e.entityType === 'Person').map(e => e.canonicalKey)).toEqual(['smith, ann']);
+  });
+});
+
+describe('applyRecipe — a SharePoint lookup cell ("Name;#id;#Name;#id")', () => {
+  const recipe = normalizeRecipe({
+    version: 1,
+    entities: [{ type: 'Customer', nameColumn: 'Title' }, { type: 'TeamMember', nameColumn: 'Team' }],
+    relations: [{ predicate: 'team', from: 'Customer', to: 'TeamMember' }],
+  });
+
+  it('splits the lookup into one person per name, dropping the item ids', () => {
+    expect(splitSharePointLookup('Ann Example;#27;#Bob Example;#16')).toEqual(['Ann Example', 'Bob Example']);
+    expect(splitSharePointLookup('Ann Example;#27')).toEqual(['Ann Example']);
+    expect(splitSharePointLookup('Ann Example')).toBeNull();
+    expect(splitSharePointLookup(';#27')).toBeNull();
+    expect(splitValues('a@contoso.com; b@contoso.com')).toEqual(['a@contoso.com', 'b@contoso.com']);
+    expect(splitValues('Ann; Bob')).toEqual(['Ann; Bob']);
+  });
+
+  it('makes one TeamMember per name on the row, each related to the customer, de-duplicated across rows', () => {
+    const out = applyRecipe([
+      { Title: 'Contoso Bank', Team: 'Ann Example;#27;#Bob Example;#16' },
+      { Title: 'Northwind', Team: 'Bob Example;#16' },
+      { Title: 'Fabrikam', Team: '' },
+    ], recipe);
+    const members = out.entities.filter(e => e.entityType === 'TeamMember');
+    expect(members.map(e => [e.displayName, e.canonicalKey, e.row])).toEqual([['Ann Example', 'ann example', 1], ['Bob Example', 'bob example', 1]]);
+    expect(out.relations.map(r => `${r.fromKey}>${r.toKey}`)).toEqual(['contoso bank>ann example', 'contoso bank>bob example', 'northwind>bob example']);
+    // an empty team cell is no instance; the relation reports the row that has no member
+    expect(out.issues.map(i => `${i.kind}:${i.row}`)).toEqual(['missingSide:3']);
+  });
+
+  it('strips the id from a single-value lookup used as a name', () => {
+    const out = applyRecipe([{ Title: 'Contoso Bank', Team: 'Ann Example;#27' }], recipe);
+    expect(out.entities.find(e => e.entityType === 'TeamMember')).toMatchObject({ displayName: 'Ann Example', canonicalKey: 'ann example' });
   });
 });
 

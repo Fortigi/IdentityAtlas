@@ -41,17 +41,18 @@ describe('heuristicProposal — a project list with an owner', () => {
     expect(result.recipe.relations).toEqual([{ predicate: 'owner', from: 'Project', to: 'Owner' }]);
   });
 
-  it('matches the owner to accounts on e-mail and name, and does not match projects to groups', () => {
-    expect(result.linkRules).toHaveLength(1);
-    expect(rule(result, 'Owner').targetType).toBe('Principal');
+  it('matches the owner to accounts on e-mail and name, and the project to resources by name', () => {
+    expect(result.linkRules.map(r => `${r.entityType}>${r.targetType}`)).toEqual(['Project>Resource', 'Owner>Principal']);
     expect(rule(result, 'Owner').threshold).toBe(50);
     expect(signalsOf(rule(result, 'Owner'))).toEqual(['email>email:exact:90', 'displayName>displayName:name:60']);
+    expect(signalsOf(rule(result, 'Project'))).toEqual(['displayName>displayName:exact:80', 'displayName>displayName:token:50']);
   });
 
   it('explains each decision in a sentence', () => {
     expect(result.notes).toEqual([
       'ProjectCode is unique on every row, so it is the key of Project, and ProjectName is its name.',
       'OwnerEmail looks like an e-mail address, so Owner is a person named by OwnerName.',
+      'Project is also matched to resources by name (ProjectName); the quality step shows whether that finds anything.',
     ]);
     expectValid(result, columns);
   });
@@ -99,12 +100,12 @@ describe('heuristicProposal — roles, collisions and groups', () => {
 });
 
 describe('heuristicProposal — degenerate profiles', () => {
-  it('one text column: one Item entity, no relations, no rules', () => {
+  it('one text column: one Item entity, no relations, only the resource rule', () => {
     const columns = profile(c('Whatever', 'text', { distinct: 3 }));
     const result = heuristicProposal({ columns });
     expect(result.recipe).toEqual({ version: 1, entities: [{ type: 'Item', nameColumn: 'Whatever', keyColumn: 'Whatever', attributes: [] }], relations: [] });
-    expect(result.linkRules).toEqual([]);
-    expect(result.notes).toEqual(['No column is unique enough to be a key, so Item is identified by Whatever.']);
+    expect(result.linkRules.map(r => `${r.entityType}>${r.targetType}`)).toEqual(['Item>Resource']);
+    expect(result.notes[0]).toBe('No column is unique enough to be a key, so Item is identified by Whatever.');
     expectValid(result, columns);
   });
 
@@ -231,7 +232,43 @@ describe('heuristicProposal — an owner column that holds names, not addresses'
 
   it('matches that person to accounts by exact name first, then graded name', () => {
     expect(signalsOf(rule(result, 'Eigenaar'))).toEqual(['displayName>displayName:exact:80', 'displayName>displayName:name:60']);
-    expect(result.notes).toContain('Eigenaar names a role, so Eigenaar is a person named by that column and matched to accounts by name.');
+    expect(result.notes).toContain('Eigenaar names a role, so Eigenaar is a person named by that column, matched to accounts by name.');
+  });
+
+  it('pairs a person column with the nearest employee-number column and matches on that number first', () => {
+    nextIndex = 0;
+    const cols = profile(
+      c('Titel', 'text', { rows: 30 }),
+      c('Personeelsnummer', 'number', { rows: 30, distinct: 12 }),
+      c('Volledige naam', 'text', { rows: 30, distinct: 12 }),
+      c('Afdeling', 'text', { rows: 30, distinct: 4 }),
+    );
+    const r = heuristicProposal({ fileName: 'Systemen.xlsx', columns: cols });
+    expectValid(r, cols);
+    expect(entity(r, 'VolledigeNaam')).toEqual({
+      type: 'VolledigeNaam', keyColumn: 'Volledige naam', nameColumn: 'Volledige naam', attributes: [{ column: 'Personeelsnummer', name: 'employeeId' }],
+    });
+    expect(signalsOf(rule(r, 'VolledigeNaam'))).toEqual(['employeeId>employeeId:exact:95', 'displayName>displayName:exact:80', 'displayName>displayName:name:60']);
+    expect(entity(r, 'System').attributes.map(a => a.column)).toEqual(['Afdeling']);
+    expect(r.notes).toContain('Volledige naam holds a person\'s name, so VolledigeNaam is a person named by that column, matched to accounts by employee number (Personeelsnummer) and name.');
+  });
+
+  it('turns a SharePoint multi-lookup column into one person entity per name, related by the header', () => {
+    nextIndex = 0;
+    const cols = profile(
+      c('Title', 'text', { rows: 30 }),
+      c('Team', 'text', { rows: 30, distinct: 20, samples: ['Ann Example;#27', 'Ann Example;#27;#Bob Example;#16'] }),
+      c('Leden', 'text', { rows: 30, distinct: 20, samples: ['Ann Example; Bob Example'] }),
+      c('Groep', 'text', { rows: 30, distinct: 20, samples: ['A; B'] }),
+    );
+    const r = heuristicProposal({ fileName: 'Klanten.xlsx', columns: cols });
+    expectValid(r, cols);
+    expect(r.recipe.entities.map(e => e.type)).toEqual(['Klant', 'TeamMember', 'LedenMember']);
+    expect(r.recipe.relations).toEqual([
+      { predicate: 'team', from: 'Klant', to: 'TeamMember' }, { predicate: 'leden', from: 'Klant', to: 'LedenMember' },
+    ]);
+    expect(entity(r, 'Klant').attributes.map(a => a.column)).toEqual(['Groep']);
+    expect(r.notes).toContain('Team lists several people per row, so TeamMember is a person named by that column, matched to accounts by name; each name in the cell becomes its own TeamMember.');
   });
 
   it('does not take a role column an e-mail column already uses as its name, and ignores non-text role columns', () => {

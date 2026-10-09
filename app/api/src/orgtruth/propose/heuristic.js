@@ -37,7 +37,14 @@ const KEY_UNIQUENESS = 0.8;
 const KEY_HEADER = /code|id|nummer|number|key|name|naam|titel|title/i;
 const KEY_FILLED = 0.9;
 const NAME_HEADER = /name|naam|title|titel|omschrijving|description/i;
-const ROLE_WORDS = new Set(['owner', 'manager', 'eigenaar', 'beheerder', 'contact']);
+const ROLE_WORDS = new Set(['owner', 'manager', 'eigenaar', 'beheerder', 'contact', 'contactpersoon', 'verantwoordelijke', 'sponsor', 'lead']);
+// Columns that hold a person's name without saying which role ("Volledige naam", "Medewerker").
+const FULL_NAME_HEADER = /volledige\s*naam|full\s*name|naam\s*medewerker|^medewerker$|employee\s*name|^persoon$|^person$|^werknemer$/i;
+// Columns that hold an employee / personnel number: the strongest person signal there is.
+const EMPLOYEE_ID_HEADER = /^(persoons?|personeels?|medewerker|employee|staff|werknemer)\s*-?\s*(nummer|number|nr|id)$|^employee\s*id$|^personnel\s*(number|nr|id)$/i;
+// Columns that list several people: a SharePoint multi-lookup ("A;#27;#B;#16") or a header that says so.
+const MULTI_PERSON_WORDS = new Set(['team', 'teamleden', 'leden', 'members', 'deelnemers', 'participants', 'medewerkers', 'teammembers']);
+const SP_LOOKUP = /;#/;
 const EMAIL_WORDS = new Set(['e', 'email', 'mail', 'emailadres', 'mailadres', 'address', 'adres', 'upn']);
 const PERSON_NAME_WORDS = ['name', 'naam', 'fullname', 'displayname', 'volledigenaam'];
 const GROUP_NAME = /^(SG|GG|DL|AAD|AZ)[_-]/i;
@@ -80,25 +87,61 @@ function personEntity(email, free, taken) {
 export function isRoleColumn(column) {
   return column.shape === 'text' && isRole(column.name);
 }
+/** A text column whose header says it holds a person's full name. */
+export function isFullNameColumn(column) {
+  return column.shape === 'text' && FULL_NAME_HEADER.test(column.name.trim());
+}
+/** A column whose header says it holds an employee / personnel number. */
+export function isEmployeeIdColumn(column) {
+  return ['text', 'number'].includes(column.shape) && EMPLOYEE_ID_HEADER.test(column.name.trim());
+}
+/** A text column that lists several people per row (SharePoint lookup values, or a team-like header with ";"). */
+export function isMultiPersonColumn(column) {
+  if (column.shape !== 'text') return false;
+  const samples = (column.samples ?? []).filter(v => typeof v === 'string');
+  if (samples.some(v => SP_LOOKUP.test(v))) return true;
+  return MULTI_PERSON_WORDS.has(squash(column.name)) && samples.some(v => v.includes(';'));
+}
 
-// People named in a role column without an e-mail address: matched to accounts by
-// name (exact first — directory names often carry the same suffix the list uses).
-function namedPersonEntity(column, taken) {
-  const type = uniqueName(pascalCase(column.name), taken);
+/** The employee-id column nearest to `person`, when the list has one. */
+function employeeIdColumnFor(person, free) {
+  const ids = free.filter(isEmployeeIdColumn);
+  ids.sort((a, b) => Math.abs(num(a.index) - num(person.index)) - Math.abs(num(b.index) - num(person.index)));
+  return ids[0] ?? null;
+}
+
+// People named in a column without an e-mail address: matched to accounts by
+// employee number when the list has one, else by name (exact first — directory
+// names often carry the same suffix the list uses, "Ann Example | Contoso").
+function namedPersonEntity(column, free, taken, { multi = false } = {}) {
+  const idCol = employeeIdColumnFor(column, free);
+  if (idCol) free.splice(free.indexOf(idCol), 1);
+  const base = pascalCase(column.name);
+  const type = uniqueName(multi && !isRole(column.name) ? `${base}Member` : base, taken);
+  const why = multi ? 'lists several people per row' : isRole(column.name) ? 'names a role' : 'holds a person\'s name';
   return {
-    entity: { type, nameColumn: column.name, attributes: [] },
+    entity: { type, nameColumn: column.name, attributes: idCol ? [{ column: idCol.name, name: 'employeeId' }] : [] },
     predicate: camelCase(column.name) || 'person',
-    note: `${column.name} names a role, so ${type} is a person named by that column and matched to accounts by name.`,
+    note: `${column.name} ${why}, so ${type} is a person named by that column, matched to accounts by ${idCol ? `employee number (${idCol.name}) and ` : ''}name${multi ? '; each name in the cell becomes its own ' + type : ''}.`,
   };
 }
 
 const namedPersonRule = (entity) => ({
   entityType: entity.type, targetType: 'Principal', threshold: 50,
   signals: [
+    ...(entity.attributes.some(a => a.name === 'employeeId')
+      ? [{ attribute: 'employeeId', targetField: 'employeeId', type: 'exact', weight: 95 }] : []),
     { attribute: NAME_ATTRIBUTE, targetField: 'displayName', type: 'exact', weight: 80 },
     { attribute: NAME_ATTRIBUTE, targetField: 'displayName', type: 'name', weight: 60 },
   ],
 });
+
+/** Person columns among the free ones, in file order: role-named, full-name, multi-person. */
+function takePersonColumns(free, slots) {
+  const picked = free.filter(c => isRoleColumn(c) || isFullNameColumn(c) || isMultiPersonColumn(c)).slice(0, Math.max(0, slots));
+  for (const c of picked) free.splice(free.indexOf(c), 1);
+  return picked;
+}
 
 function pickKey(free, rows) {
   const candidates = free.filter(c => ['text', 'number'].includes(c.shape)
@@ -180,10 +223,9 @@ export function heuristicProposal({ fileName = '', columns, rowCount } = {}) {
   // The primary claims its type first, so a person never takes the file's name.
   const primaryType = free.length ? uniqueName(typeFromFileName(fileName), taken) : null;
   const people = emails.map(c => personEntity(c, free, taken));
-  // Role-named text columns that are left (an e-mail column may have claimed its sibling).
-  const roleCols = free.filter(isRoleColumn).slice(0, Math.max(0, LIMITS.entities - 1 - people.length));
-  for (const c of roleCols) free.splice(free.indexOf(c), 1);
-  const named = roleCols.map(c => namedPersonEntity(c, taken));
+  // Person columns that are left (an e-mail column may have claimed its sibling).
+  const personCols = takePersonColumns(free, LIMITS.entities - 1 - people.length);
+  const named = personCols.map(c => namedPersonEntity(c, free, taken, { multi: isMultiPersonColumn(c) }));
   const primary = primaryType ? primaryEntity({ type: primaryType, free, rows }) : null;
 
   const persons = [...people, ...named];
@@ -191,9 +233,13 @@ export function heuristicProposal({ fileName = '', columns, rowCount } = {}) {
   const relations = primary ? persons.map(p => ({ predicate: p.predicate, from: primary.entity.type, to: p.entity.type })) : [];
   const linkRules = [...people.map(p => personRule(p.entity)), ...named.map(p => namedPersonRule(p.entity))];
   const notes = [...(primary?.notes ?? []), ...persons.map(p => p.note)];
-  if (primary?.groupLike) {
+  if (primary) {
+    // Every row of a list is often a group, site or application somewhere: propose the
+    // match and let the quality step show whether it hits.
     linkRules.unshift(resourceRule(primary.entity));
-    notes.push(`The values of ${primary.entity.nameColumn} look like group names, so ${primary.entity.type} is matched to groups.`);
+    notes.push(primary.groupLike
+      ? `The values of ${primary.entity.nameColumn} look like group names, so ${primary.entity.type} is matched to groups.`
+      : `${primary.entity.type} is also matched to resources by name (${primary.entity.nameColumn}); the quality step shows whether that finds anything.`);
   }
   return finish({ version: 1, entities, relations }, linkRules, notes, cols.map(c => c.name));
 }

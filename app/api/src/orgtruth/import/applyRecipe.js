@@ -80,14 +80,29 @@ export function splitEmails(value) {
   return parts.length > 1 && parts.every(isEmailLike) ? parts : [value];
 }
 
+// A SharePoint lookup export: "Ann Example;#27;#Bob Example;#16" — names and
+// their item ids alternate, separated by ";#". The ids are dropped.
+const SP_LOOKUP = ';#';
+export function splitSharePointLookup(value) {
+  if (!value.includes(SP_LOOKUP)) return null;
+  const parts = value.split(SP_LOOKUP).map(p => p.trim()).filter(p => p && !/^\d+$/.test(p));
+  return parts.length > 0 ? parts : null;
+}
+
+// Every value a cell holds: SharePoint lookups split on ";#", lists of
+// addresses on ";" or ","; anything else is one value.
+export function splitValues(value) {
+  return splitSharePointLookup(value) ?? splitEmails(value);
+}
+
 // The (name, key) pairs one definition yields on one row. Normally one; a key
-// cell holding several e-mail addresses yields one per address. The names
-// pair up with the addresses when the name cell splits (on ; or ,) into as
-// many parts — or is the same column; otherwise each address is its own name.
+// cell holding several values (addresses, or a SharePoint lookup) yields one
+// per value. The names pair up with the keys when the name cell splits into as
+// many parts — or is the same column; otherwise each key is its own name.
 function namesAndKeys(def, displayName, keyValue) {
-  const keys = splitEmails(keyValue);
-  if (keys.length === 1) return [{ displayName, canonicalKey: keyValue.toLowerCase() }];
-  const names = def.nameColumn === def.keyColumn ? keys : splitList(displayName);
+  const keys = splitValues(keyValue);
+  if (keys.length === 1) return [{ displayName: splitValues(displayName)[0], canonicalKey: keys[0].toLowerCase() }];
+  const names = def.nameColumn === def.keyColumn ? keys : (splitSharePointLookup(displayName) ?? splitList(displayName));
   const paired = names.length === keys.length;
   return keys.map((k, i) => ({ displayName: paired ? names[i] : k, canonicalKey: k.toLowerCase() }));
 }

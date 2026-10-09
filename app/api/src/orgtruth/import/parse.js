@@ -116,32 +116,34 @@ export function sniffDelimiter(text) {
 }
 
 // RFC 4180 state machine. Returns an array of rows, each an array of strings.
+// The state lives in one object the three small transitions below mutate.
+function endField(st) { st.row.push(st.field); st.field = ''; }
+function endRow(st) {
+  endField(st); st.rows.push(st.row); st.row = [];
+  if (st.rows.length > MAX_ROWS + SLACK) throw tooManyRows();
+}
+// Inside quotes: a doubled quote is a literal quote (returns the extra char consumed).
+function quotedChar(st, ch, next) {
+  if (ch !== '"') { st.field += ch; return 0; }
+  if (next === '"') { st.field += '"'; return 1; }
+  st.inQuotes = false;
+  return 0;
+}
+
 export function parseCsv(text, delimiter) {
-  const rows = [];
-  let row = [];
-  let field = '';
-  let inQuotes = false;
+  const st = { rows: [], row: [], field: '', inQuotes: false };
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    if (inQuotes) {
-      if (ch !== '"') field += ch;
-      else if (text[i + 1] === '"') { field += '"'; i++; }
-      else inQuotes = false;
-    } else if (ch === '"') {
-      inQuotes = true;
-    } else if (ch === delimiter) {
-      row.push(field); field = '';
-    } else if (ch === '\n' || ch === '\r') {
-      if (ch === '\r' && text[i + 1] === '\n') i++;
-      row.push(field); rows.push(row); row = []; field = '';
-      if (rows.length > MAX_ROWS + SLACK) throw tooManyRows();
-    } else {
-      field += ch;
-    }
+    const next = text[i + 1];
+    if (st.inQuotes) { i += quotedChar(st, ch, next); continue; }
+    if (ch === '"') st.inQuotes = true;
+    else if (ch === delimiter) endField(st);
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && next === '\n') i++; endRow(st); }
+    else st.field += ch;
   }
-  if (inQuotes) throw new ListParseError('The CSV file ends inside a quoted value; a closing quote (") is missing.');
-  if (field !== '' || row.length > 0) { row.push(field); rows.push(row); }
-  return rows;
+  if (st.inQuotes) throw new ListParseError('The CSV file ends inside a quoted value; a closing quote (") is missing.');
+  if (st.field !== '' || st.row.length > 0) { st.row.push(st.field); st.rows.push(st.row); }
+  return st.rows;
 }
 
 // ─── Shared: header + rows ───────────────────────────────────────────────
