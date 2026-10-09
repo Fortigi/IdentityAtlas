@@ -6812,11 +6812,15 @@ key collapse into one row but would still be counted as sent.</p>
 <td>The number of <strong>distinct</strong> pairs — (parent, child) for a relationship, (resource, principal) for an owner assignment — compared with the database's own count. A repeated pair is <strong>not</strong> a failure: it is the same edge arriving twice (a business role reaching one entitlement through two source applications, say), and collapsing it loses nothing, because an edge carries nothing but its two ends. The collapse is reported, not failed</td>
 </tr>
 <tr>
-<td>Assignments loaded through a stage (a full sync)</td>
+<td>Assignments read in full</td>
 <td><strong>Exactly</strong> the number of distinct assignments the stage held when it was applied. Both numbers are Identity Atlas's own, so a source that is still being written to cannot move them, and there is no slack. The source's distinct-pair count, taken again after the read, is printed beside it when it differs: that is a finding about the source, not a verdict on the load</td>
 </tr>
 <tr>
-<td>Assignments streamed in batches (a windowed read)</td>
+<td>Assignments read as a window</td>
+<td><strong>Every</strong> distinct assignment the window held must be live in the database after it is applied, as counted in the same transaction that wrote them. The scope's total is not compared: it includes every row the window did not mention</td>
+</tr>
+<tr>
+<td>Assignments with <code>stagedFullLoad</code> off</td>
 <td>The source's distinct (resource, principal) pairs, allowing the same drift as the read. Rows held back as dangling make this a range rather than an exact number</td>
 </tr>
 </tbody>
@@ -6877,16 +6881,28 @@ a special case:</p>
    at job start — are soft-deleted. See <a href="#what-a-full-sync-deletes">What a full sync deletes</a>.</li>
 </ol>
 <p>A run that fails part-way never reaches step 3, so a partial read can never delete anything.</p>
-<p><strong>Assignments in a full sync are staged.</strong> In a full sync (and with <code>stagedFullLoad</code> on, the
-default), the assignment batches do not go into the table one by one: they are collected
-in a <em>stage</em> per system and scope and applied together at the end of the run. That one
-step inserts what is new, updates only what changed and removes what the source no longer
-has, so it replaces the reconcile for those scopes. An unchanged re-import therefore
-rewrites nothing, and a first load into an empty table is indexed once instead of batch by
-batch. Two consequences: the assignments of a full sync appear all at once near the end of
-the job, and a full sync that fails before that step leaves the assignments exactly as they
-were. The job log shows the step as <code>Applying N staged scope(s)</code> with what it inserted,
-updated and removed. Delta runs are not staged.</p>
+<p><strong>Assignments are staged.</strong> With <code>stagedFullLoad</code> on (the default), the assignment batches
+do not go into the table one by one: they are collected in a <em>stage</em> per system and scope
+and applied together. That one step inserts what is new and updates only what changed, so
+a row that did not change is not rewritten. This holds in a full sync and in a delta run;
+what differs is whether the step also removes anything, and that follows what was <em>read</em>,
+not the run mode:</p>
+<ul>
+<li><strong>A statement read in full</strong> — every statement of a full sync, and in a delta run every
+  statement without a watermark and every watermarked one that has no stored mark yet —
+  is applied with removal: what the source no longer has goes, so the step replaces the
+  reconcile for that scope. An unchanged re-import rewrites nothing, and a first load into
+  an empty table is indexed once instead of batch by batch. The job log shows it as
+  <code>Applying N staged scope(s)</code>.</li>
+<li><strong>A statement that read a window</strong> (a watermark is stored, so only what changed since
+  was read) is applied without removal, before the key sweep; the sweep is what removes.
+  The job log shows it as <code>Applying N staged window(s)</code>.</li>
+</ul>
+<p>Two consequences: the assignments of a run appear all at once near the end of the job, and
+a run that fails before that step leaves the assignments exactly as they were.</p>
+<p>This matters most for a delta run that has no watermark yet, which is every delta run
+until one has verified: it reads everything, and used to stream all of it into the table
+batch by batch — the slow path, on exactly the run that needed the fast one.</p>
 <h3 id="where-a-slow-run-spends-its-time">Where a slow run spends its time<a class="headerlink" href="#where-a-slow-run-spends-its-time" title="Permanent link">&para;</a></h3>
 <p>Every statement ends with a line that splits its time five ways, and the run ends with the
 same split for every statement, with its rows per second:</p>
@@ -7096,7 +7112,7 @@ file has the shape shown under <a href="#configuration">Configuration</a>; on th
 <td><code>stagedFullLoad</code></td>
 <td>No</td>
 <td><code>true</code></td>
-<td>In a full sync, load each assignment scope through a staged load and apply it in one step — see <a href="#very-large-tables">Very large tables</a>. <code>false</code> streams every batch straight into the table</td>
+<td>Load each assignment scope through a staged load and apply it in one step, in a full sync and a delta run alike — see <a href="#very-large-tables">Very large tables</a>. <code>false</code> streams every batch straight into the table</td>
 </tr>
 <tr>
 <td><code>ingestConcurrency</code></td>

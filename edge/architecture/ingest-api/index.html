@@ -6181,7 +6181,10 @@ batch by batch:</p>
 takes one of two paths and reports it (<code>path</code> in the result, and the sync log).
 Every result also carries <code>rows</code> (records received) and <code>distinct</code> (distinct keys
 among them): after a finalize with <code>deleteMissing</code>, <code>distinct</code> is exactly what the
-scope holds, which is what a caller should verify against. The paths:</p>
+scope holds, which is what a caller should verify against. A finalize <em>without</em>
+<code>deleteMissing</code> applies a window rather than a complete set, so the scope's total
+says nothing about it; its result carries <code>present</code> instead, the number of those
+distinct keys that are live in the table afterwards. The paths:</p>
 <ul>
 <li><strong><code>empty-table</code></strong> — the target table holds no rows at all (a first load on a new
   installation). Its non-constraint indexes are dropped, every stage is inserted
