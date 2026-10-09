@@ -126,3 +126,13 @@ export function SectionHeading({ children, hint }) {
     </div>
   );
 }
+
+// The chip a condition of the Include / Exclude lists is drawn as, and its
+// remove button — shared by every kind of condition row.
+export const CONDITION_CHIP = 'inline-flex items-center gap-1 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded px-2 py-1 flex-1 min-w-0';
+
+export function RemoveConditionButton({ onClick }) {
+  return (
+    <button type="button" onClick={onClick} className="text-gray-600 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400" aria-label="Remove">×</button>
+  );
+}

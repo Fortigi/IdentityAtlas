@@ -29,9 +29,11 @@
     "src/components/orgtruth/linkRulesDraft.js",
     "src/components/orgtruth/modelCanvas.js",
     "src/components/orgtruth/orgGraphBranch.js",
-    "src/components/orgtruth/useOrgLinked.js"
+    "src/components/orgtruth/useOrgLinked.js",
+    "src/components/orgtruth/orgCondition.js"
   ],
   "mutationExclusions": {
+    "src/components/orgtruth/OrgConditionPicker.jsx": "The matrix wizard's + Organisation dialog: three useFetch calls (kinds, filter options, entity search) and the checkbox lists they fill. Every decision about the condition it hands back (required type, empty values, via omitted when all links are ticked, labels) is buildOrgCondition()/viasForSide() in orgCondition.js (mutated); OrgConditionPicker.mount.test.jsx asserts the exact condition JSON per path.",
     "src/components/orgtruth/OrgTruthPage.jsx": "Composition, not logic: tab state, the header button gated by the hook (which is mutated), and which panel shows. Covered end to end by OrgTruthPage.mount.test.jsx.",
     "src/components/orgtruth/NotBuiltYet.jsx": "Placeholder panel the workstreams replace; renders an EmptyState from two props and nothing else.",
     "src/components/orgtruth/orgTabs.js": "Declaration, not logic: the ordered list of the page's sub-tabs. The mount test asserts the exact list.",
