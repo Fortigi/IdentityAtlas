@@ -23,15 +23,21 @@
     "src/orgtruth/propose/heuristic.js",
     "src/orgtruth/propose/names.js",
     "src/orgtruth/propose/prompt.js",
-    "src/orgtruth/propose/service.js"
+    "src/orgtruth/propose/service.js",
+    "src/orgtruth/projection/project.js",
+    "src/orgtruth/projection/projectionSql.js",
+    "src/orgtruth/projection/pluginPrincipals.js",
+    "src/orgtruth/model/metaGraph.js",
+    "src/orgtruth/model/entities.js",
+    "src/orgtruth/model/graph.js",
+    "src/orgtruth/http/model.js"
   ],
   "mutationExclusions": {
     "src/orgtruth/http/gates.js": "Declaration, not logic: the two gate arrays (permission + feature flag) every org-truth route reuses. Which permission guards which route is asserted by the route tests of each sub-router; there is no branch here to mutate.",
     "src/orgtruth/http/sources.js": "Workstream T1 fills this router; move it to `mutate` (or keep this entry with a real reason) in the same change that adds its routes.",
     "src/orgtruth/http/profiles.js": "Workstream T1 fills this router; move it to `mutate` (or keep this entry with a real reason) in the same change that adds its routes.",
     "src/orgtruth/http/runs.js": "Workstream T1 fills this router; move it to `mutate` (or keep this entry with a real reason) in the same change that adds its routes.",
-    "src/orgtruth/http/links.js": "Workstream T2 fills this router; move it to `mutate` (or keep this entry with a real reason) in the same change that adds its routes.",
-    "src/orgtruth/http/model.js": "Workstream T4 fills this router; move it to `mutate` (or keep this entry with a real reason) in the same change that adds its routes."
+    "src/orgtruth/http/links.js": "Workstream T2 fills this router; move it to `mutate` (or keep this entry with a real reason) in the same change that adds its routes."
   },
   "thresholds": {
     "high": 90,
