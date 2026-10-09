@@ -81,7 +81,12 @@ const PILL_CLASSES = {
 };
 
 export function statusPillClass(status) {
-  return PILL_CLASSES[STATUS_COLOR[status] || 'gray'];
+  return pillColorClass(STATUS_COLOR[status]);
+}
+
+// Soft pill fill for a colour family (green, amber, blue, red, gray); gray otherwise.
+export function pillColorClass(color) {
+  return PILL_CLASSES[color] || PILL_CLASSES.gray;
 }
 
 // The detail-tab kind a link's target opens (the hash prefixes of DetailRoute).

@@ -23,7 +23,8 @@
     "src/components/orgtruth/reviewRows.js",
     "src/components/orgtruth/sourceDownload.js",
     "src/components/orgtruth/sourceDelete.js",
-    "src/components/orgtruth/useLinkOverride.js"
+    "src/components/orgtruth/useLinkOverride.js",
+    "src/components/orgtruth/evidence.js"
   ],
   "mutationExclusions": {
     "src/components/orgtruth/OrgTruthPage.jsx": "Composition, not logic: tab state, the header button gated by the hook (which is mutated), and which panel shows. Covered end to end by OrgTruthPage.mount.test.jsx.",
@@ -46,7 +47,8 @@
     "src/components/orgtruth/OrgLinkTable.jsx": "Presentational table of link candidates with Confirm/Reject/Move/Undo buttons. Move option choice lives in reviewRows.js (mutated); ReviewTab and OrgEntityDetailPage mount tests drive every button.",
     "src/components/orgtruth/OrgEntitySections.jsx": "Presentational header and relations list of the org-entity detail page; no logic beyond picking the other side of a relation, asserted by OrgEntityDetailPage.mount.test.jsx.",
     "src/components/orgtruth/OrgEntityDetailPage.jsx": "Detail page composition: two useFetch calls, the expandable graph hook and the shared sections. Its logic lives in orgFormat.js, reviewRows.js, useLinkOverride.js (mutated); OrgEntityDetailPage.mount.test.jsx covers it.",
-    "src/components/orgtruth/orgUi.jsx": "Shared presentational pieces (status/type pills, fetch-state panels, class constants). The pill colour choice and the not-available test live in orgFormat.js, which is mutated."
+    "src/components/orgtruth/orgUi.jsx": "Shared presentational pieces (status/type pills, fetch-state panels, class constants). The pill colour choice and the not-available test live in orgFormat.js, which is mutated.",
+    "src/components/orgtruth/OrgEvidenceSection.jsx": "Presentational evidence section: one useFetch, a verdict pill and three kinds of people table. The verdict, the activity line, the worked-on-it wording and the people counts live in evidence.js (mutated); OrgEvidenceSection.mount.test.jsx asserts the rendered rows."
   },
   "thresholds": {
     "high": 90,

@@ -34,11 +34,19 @@ const GRAPH = {
   categories: [{ key: 'rel:out:owner', label: 'owner →', count: 1 }, { key: 'link:Resource', label: 'Resources', count: 1 }],
 };
 
-function render({ auth = IMPORTER, entity = ENTITY, graph = GRAPH, override = { ok: true } } = {}) {
+const EVIDENCE = {
+  entity: { id: 'e1', entityType: 'Project', displayName: 'Northwind Portal' },
+  people: [{ via: 'owner', principals: [{ principalId: 'p9', label: 'Dana Contoso', worked: false, rows: 0, hours: 0, lastPeriod: null }] }],
+  activity: null,
+  workedNotListed: [],
+};
+
+function render({ auth = IMPORTER, entity = ENTITY, graph = GRAPH, override = { ok: true }, evidence = EVIDENCE } = {}) {
   const authFetch = makeAuthFetch({
     '/download': blobResponse('bytes', { filename: 'projects.xlsx' }),
     '/override': override,
     '/entities/e1/graph': graph,
+    '/entities/e1/evidence': evidence,
     '/api/org-truth/entities/e1': entity,
   });
   const onOpenDetail = vi.fn();
@@ -130,6 +138,23 @@ describe('OrgEntityDetailPage', () => {
     expect(screen.getByText('Not linked to anything in the system truth.')).toBeInTheDocument();
     expect(screen.getAllByText('None.')).toHaveLength(2);
     expect(screen.queryByRole('button', { name: 'Download source' })).toBeNull();
+  });
+
+  it('shows the evidence from other lists below the links', async () => {
+    const { onOpenDetail } = render();
+    expect(await screen.findByText('No other list refers to this entity')).toBeInTheDocument();
+    expect(screen.getByText('Evidence from other lists')).toBeInTheDocument();
+    const row = screen.getByRole('button', { name: 'Dana Contoso' }).closest('tr');
+    expect(within(row).getByText('no hours found')).toBeInTheDocument();
+    await userEvent.click(within(row).getByRole('button', { name: 'Dana Contoso' }));
+    expect(onOpenDetail).toHaveBeenCalledWith('user', 'p9', 'Dana Contoso');
+  });
+
+  it('leaves the evidence out when there is none', async () => {
+    render({ evidence: { ...EVIDENCE, people: [] } });
+    await screen.findByRole('button', { name: 'Portal team' });
+    await waitFor(() => expect(screen.queryByText('Loading evidence…')).toBeNull());
+    expect(screen.queryByText('Evidence from other lists')).toBeNull();
   });
 
   it('renders not found on a 404 and not available yet on a 501', async () => {

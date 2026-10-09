@@ -5,7 +5,8 @@
 // (EntityDetailLayout): header, Attributes on the left, the radial graph on the
 // right (EntityGraph driven by useExpandableGraph; its first ring is
 // GET /entities/:id/graph `categories`, see entityGraphShape.js), then Relations
-// and Links below. Links use the LinkedAccountsPanel idiom through OrgLinkTable:
+// and Links below, then the evidence other lists (timesheets) give about it
+// (OrgEvidenceSection). Links use the LinkedAccountsPanel idiom through OrgLinkTable:
 // a target opens its own detail tab, Confirm / Reject / Move need
 // useCanImportOrgTruth().
 //
@@ -29,6 +30,7 @@ import { toLinkCandidates } from './reviewRows';
 import { useSourceDownload } from './sourceDownload';
 import { useLinkOverride } from './useLinkOverride';
 import OrgLinkTable from './OrgLinkTable';
+import OrgEvidenceSection from './OrgEvidenceSection';
 import { OrgEntityHeader, OrgEntityRelations } from './OrgEntitySections';
 import { FetchState, InlineError, CARD } from './orgUi';
 
@@ -103,6 +105,7 @@ export default function OrgEntityDetailPage({ entityId, onOpenDetail, onClose, o
             ? <p className="text-sm text-gray-600 dark:text-gray-400">Not linked to anything in the system truth.</p>
             : <OrgLinkTable candidates={links} canEdit={canEdit} busy={busy} onOverride={override} onOpenDetail={onOpenDetail} />}
         </Section>
+        <OrgEvidenceSection entityId={entityId} onOpenDetail={onOpenDetail} />
       </EntityDetailLayout>
     </div>
   );

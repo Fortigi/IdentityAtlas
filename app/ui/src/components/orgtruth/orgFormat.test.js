@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   isNotAvailable, fetchBlocked, rowsOf, totalOf, pageParam, buildQuery, splitSignals,
-  statusPillClass, targetDetailKind, targetTypeLabel, runStatsSummary, runsForSource,
+  statusPillClass, pillColorClass, targetDetailKind, targetTypeLabel, runStatsSummary, runsForSource,
   lastProfileId, attributeEntries,
 } from './orgFormat';
 
@@ -73,6 +73,13 @@ describe('statusPillClass', () => {
     expect(statusPillClass('rejected')).toContain('red');
     expect(statusPillClass('whatever')).toContain('gray');
     expect(statusPillClass('accepted')).toContain('dark:');
+  });
+
+  it('gives a colour family its own fill, an unknown one gray', () => {
+    expect(pillColorClass('amber')).toBe(statusPillClass('proposed'));
+    expect(pillColorClass('gray')).toBe(statusPillClass('closed'));
+    expect(pillColorClass('purple')).toBe(statusPillClass('closed'));
+    expect(pillColorClass(undefined)).toContain('bg-gray-100');
   });
 });
 
