@@ -1,0 +1,7393 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Universal authorization intelligence — sync, analyze, and govern permissions from any identity system">
+      
+      
+      
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/scale-rehearsal/">
+      
+      
+        <link rel="prev" href="../scaling/">
+      
+      
+        <link rel="next" href="../../sync/entra-id/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Scale Rehearsal: 41 M Assignments - Identity Atlas</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#scale-rehearsal-41-million-assignments" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Identity Atlas" class="md-header__button md-logo" aria-label="Identity Atlas" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Identity Atlas
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Scale Rehearsal: 41 M Assignments
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Fortigi/IdentityAtlas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Fortigi/IdentityAtlas
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../start/glossary/" class="md-tabs__link">
+          
+  
+  
+  Start here
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/data-model/" class="md-tabs__link">
+          
+  
+  
+  Learn
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../ui/overview/" class="md-tabs__link">
+          
+  
+  
+  Use
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../docker-setup/" class="md-tabs__link">
+          
+  
+  
+  Set up & run
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/report-an-issue/" class="md-tabs__link">
+          
+  
+  
+  Project
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Identity Atlas" class="md-nav__button md-logo" aria-label="Identity Atlas" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    Identity Atlas
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Fortigi/IdentityAtlas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Fortigi/IdentityAtlas
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start here
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Start here
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../start/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The words you need first
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get it running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../start/first-15-minutes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your first 15 minutes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capture the Flag
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Capture the Flag
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demo/before-you-play/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Before you play
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demo/capture-the-flag/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The twelve flags
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The model
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    The model
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/governance-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance & Business Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    One Person, Many Accounts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk scoring
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Risk scoring
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/risk-scoring-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What a Risk Score Means
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How Scoring Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/classifiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classifiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/ai-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Agents & Non-Human Identities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Use
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The app at a glance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The matrix
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    The matrix
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reading the Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../matrix-scope-statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scope Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/sharing-a-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sharing a Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/custom-reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Reports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/context-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building a Context by Describing It
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../entity-detail-pages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entity Detail Pages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get data out
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get data out
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/excel-powerquery-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Export (Power Query)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/excel-template-authoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Template Authoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Set up & run
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Set up & run
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Deploy
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docker-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../azure-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../azure-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-portable/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portable Windows Launcher
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scaling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scaling & Load Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scale Rehearsal: 41 M Assignments
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scale Rehearsal: 41 M Assignments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#after-the-fixes-step-7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        After the fixes (step 7)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="After the fixes (step 7)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ingest-before-and-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingest, before and after
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-sync-and-restart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Post-sync and restart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#repeat-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repeat import
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#screens-before-and-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Screens, before and after
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Screens, before and after">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#attribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attribution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-first-minutes-after-a-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The first minutes after a load
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter-value-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter-value discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#found-during-step-7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Found during step 7
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-far-this-rehearsal-is-from-the-customer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How far this rehearsal is from the customer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The dataset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Method
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ingest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingest
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Ingest">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#per-phase" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per phase
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-wall-storage-then-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The wall: storage, then time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-the-insert-time-goes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the insert time goes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-same-load-without-the-history-trigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same load without the history trigger
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cross-check-against-main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-check against main
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#after-the-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        After the load
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="After the load">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#post-sync-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Post-sync work
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#screens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Screens
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#weak-points-found-along-the-way" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Weak points found along the way
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-means-for-the-next-piece-of-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this means for the next piece of work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reproducing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducing
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connect your systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Connect your systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/entra-id/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entra ID
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/azure-rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Resource Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/omada/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada IGA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../omada-crawler-datamodel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada Data Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/midpoint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    midPoint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/midpoint-crawler-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    midPoint Configuration Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/mssql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/scim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCIM 2.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/csv-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Administer
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/auto-updates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Automatic Updates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operations/nightly-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nightly Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    HTTP API
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    HTTP API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix & Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entity Detail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/governance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance & Business Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/risk-scores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ingest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingest API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/experimental-features/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/report-generator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report Generator (local LLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ask-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ask Assistant — how it thinks and is tested
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions & Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sql-views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../csv-import-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Schema Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sbom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Software Bill of Materials
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/coverage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Coverage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_11" id="__nav_6_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Under the hood
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Under the hood
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crawler-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crawler Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sql-connector-delta/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Connector Delta Loading
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Reports Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Assistant Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../audit-history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../soft-delete/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soft-Delete & Tombstones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../effective-access-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../resource-cluster-algorithm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resource Cluster Algorithm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Engine Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/plugin-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Plugin Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm-and-risk-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM & Risk Scoring Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../resource-assignments-identity-support/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assignments & Identity Support
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dashboard-trends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard Trends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../demo-dataset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo Dataset (contains CTF spoilers)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_1" id="__nav_7_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/local-dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/building-a-crawler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building a Crawler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/writing-tests-that-assert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Tests That Assert
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/ci-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ci-scope-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Scope Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../branching-strategy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release & Branching Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/maintaining-a-release-line/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintaining a Release Line
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How a Release's Notes Are Assembled
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/definition-of-ready/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Definition of Ready
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/dor-state-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DoR state machine & operating procedure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/operationalization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operationalising the DoR
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/dor-sidekick-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DoR sidekick setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/epic-layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The epic layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/autonomy-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Autonomy roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/epic-layer-session-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session log — epic layer (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/autonomous-bug-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Autonomous bug pipeline (partly built)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_2" id="__nav_7_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design archive
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design archive
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-archive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About the archive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-redesign/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Redesign
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-redesign-plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Redesign — Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-redesign-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Redesign — UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../assignment-model-redesign/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assignment Model Redesign
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../identitytype-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IdentityType Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../risk-scoring-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Plugins (proposal)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rule-mining-discussion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rule Mining Discussion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_3" id="__nav_7_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality & audits
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Quality & audits
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs-gap-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Gap Audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs-remediation-plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Remediation Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../maintenance-backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Backlog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ux/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Experience Assessment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Assessment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/assessment-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Assessment (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/maintenance-audit-2026-06/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Audit (June 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture-guidance-review-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Guidance Review (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Decision Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_4" id="__nav_7_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Marketing & Press Kit
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Marketing & Press Kit
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/product-brief/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Product Brief
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/key-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Key Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/features/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/use-cases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use Cases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/proof-points/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Proof Points
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/competitive-landscape/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Where Identity Atlas Fits
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/boilerplate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Boilerplate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About Identity Atlas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#after-the-fixes-step-7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        After the fixes (step 7)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="After the fixes (step 7)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ingest-before-and-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingest, before and after
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-sync-and-restart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Post-sync and restart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#repeat-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repeat import
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#screens-before-and-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Screens, before and after
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Screens, before and after">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#attribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attribution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-first-minutes-after-a-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The first minutes after a load
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter-value-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter-value discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#found-during-step-7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Found during step 7
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-far-this-rehearsal-is-from-the-customer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How far this rehearsal is from the customer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The dataset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Method
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ingest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingest
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Ingest">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#per-phase" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per phase
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-wall-storage-then-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The wall: storage, then time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-the-insert-time-goes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the insert time goes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-same-load-without-the-history-trigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same load without the history trigger
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cross-check-against-main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-check against main
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#after-the-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        After the load
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="After the load">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#post-sync-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Post-sync work
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#screens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Screens
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#weak-points-found-along-the-way" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Weak points found along the way
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-means-for-the-next-piece-of-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this means for the next piece of work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reproducing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducing
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../docker-setup/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Set up & run
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../docker-setup/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Deploy
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="scale-rehearsal-41-million-assignments">Scale Rehearsal: 41 Million Assignments<a class="headerlink" href="#scale-rehearsal-41-million-assignments" title="Permanent link">&para;</a></h1>
+<p>This page records what happened when Identity Atlas was loaded with a synthetic
+identity-governance export far larger than anything it had run on before —
+180,000 principals, 810,000 resources and 41 million assignments — and where it
+stops coping. It is a measurement, not a tuning exercise: where something was slow
+it is characterised here, not fixed.</p>
+<p>The fixes that followed were then measured the same way, on <code>main</code>, at full scale:
+see <a href="#after-the-fixes-step-7">After the fixes</a> directly below. Everything from
+<a href="#setup">Setup</a> onwards is the original rehearsal — the <em>before</em> — and is left as
+it was measured.</p>
+<p>The dataset comes from the <a href="https://github.com/Fortigi/IdentityAtlas/tree/main/tools/scale-dataset">scale test fixture generator</a>.
+The smaller, uniform load test on <a href="../scaling/">Scaling &amp; Load Testing</a> is unchanged.</p>
+<div class="admonition warning">
+<p class="admonition-title">Where the wall is</p>
+<ul>
+<li><strong>The full load does not fit on 40 GB of free disk.</strong> It stopped at 62% of
+  the assignments. The audit history trigger writes ~1 KB per new assignment,
+  three times the row itself; a first load of 41 M rows needs <strong>~70 GB free</strong>,
+  42 GB of it history.</li>
+<li><strong>Throughput decays as the indexes grow</strong>: 7,400 → 2,750 rows/s by 24 M rows.
+  Index maintenance is 80–90% of the database-side insert cost, and the history
+  trigger costs more than all 13 indexes together. With the history trigger off,
+  all 41 M rows loaded in <strong>93 minutes</strong>.</li>
+<li><strong>The post-load refresh outruns the crawler.</strong> Classifying business-role
+  assignments triggers a full matrix-view refresh (19.5 min on first
+  population); the crawler times out after 300 s, retries four times and queues
+  a refresh each time. Every refresh needs ~11 GB of scratch disk.</li>
+<li><strong>The principal matrix cannot open.</strong> Unfiltered — and even filtered to
+  enabled accounts — it crashes the API process (JavaScript heap out of memory),
+  because the 400,000-row limit is checked only after every row is loaded. The
+  same happens at 10%. Because of the skew, even "enabled, Finance, smallest
+  connector" is 519,000 assignments.</li>
+<li><strong>The logical-application pages take 4 minutes</strong> (243 s for the detail and
+  for each page of members of the largest application), and a deep page never
+  finishes — the query keeps running after the browser has given up.</li>
+<li>What holds up: the dashboard (2 s), a resource with 171,000 holders (0.6 s),
+  a small logical application in the matrix (1 s), the application list
+  (0.2 s), and a principal-based report end to end (75 s for 29 MB).</li>
+</ul>
+</div>
+<h2 id="after-the-fixes-step-7">After the fixes (step 7)<a class="headerlink" href="#after-the-fixes-step-7" title="Permanent link">&para;</a></h2>
+<p>Measured 2026-09-27 on the same rig, the same generator and seed (byte-identical
+files, checksums kept with the run), the same method, after this set had merged:</p>
+<table>
+<thead>
+<tr>
+<th>PR</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>#1266</td>
+<td>The matrix's 400,000-row limit is enforced in the query, so a large matrix is refused (413) instead of loaded</td>
+</tr>
+<tr>
+<td>#1267</td>
+<td>Logical-application members are joined on typed ids, not text</td>
+</tr>
+<tr>
+<td>#1269</td>
+<td>The matrix views are refreshed once, in the background, and not on every API start</td>
+</tr>
+<tr>
+<td>#1270</td>
+<td>A system's first load writes one history event per table instead of one per row</td>
+</tr>
+<tr>
+<td>#1271</td>
+<td>Staged full load: stream into an unindexed stage, apply once, write only changed rows</td>
+</tr>
+<tr>
+<td>#1272</td>
+<td>A repeat import is safe: stable systems, no governed duplicates; assignments no longer store their two external ids twice; PostgreSQL gets 1 GB of shared memory</td>
+</tr>
+<tr>
+<td>#1274</td>
+<td>The staged load marks business-role memberships governed too</td>
+</tr>
+<tr>
+<td>#1276</td>
+<td>A full sync removes only the contexts and memberships its own system owns</td>
+</tr>
+</tbody>
+</table>
+<p>The load, post-sync, restart and query set ran on <code>main</code> at <code>2605d960b</code>, which has
+every fix above except #1274 and #1276, which merged while the load ran. #1274
+touches only the staged load; #1276 changes the CSV crawler's context reconcile, so
+the context phase on today's <code>main</code> may differ slightly from the one timed here. The
+repeat import ran on <code>main</code> at <code>e7817e249</code>, which has all of them. The harness is
+committed in <a href="https://github.com/Fortigi/IdentityAtlas/tree/main/tools/scale-rehearsal"><code>tools/scale-rehearsal</code></a>.</p>
+<div class="admonition success">
+<p class="admonition-title">What changed</p>
+<ul>
+<li><strong>The full 41 M load completes</strong>, in 78 minutes for the whole crawler job
+  (4,663 s, 15 of them waiting for the matrix-view refresh), where it used to stop at 25 M, 103 minutes into the assignments
+  phase, for lack of disk.</li>
+<li><strong>The database is 23.2 GB at 41 M rows</strong> — it was 34.9 GB at 25 M. The audit
+  history of the whole load is 9,306 rows and 18 MB instead of 25.7 GB.</li>
+<li><strong>A repeat import changes nothing it should not</strong>: the same 42 systems with
+  the same ids, no row moved between systems, no governed duplicates, no
+  assignment history.</li>
+<li><strong>The logical-application pages are instant</strong>: 0.2–0.3 s instead of 4 minutes,
+  and the deep page that never finished answers in 0.3 s.</li>
+<li><strong>No request crashed the API.</strong> The unfiltered and enabled-only matrices are
+  refused with 413 instead.</li>
+</ul>
+</div>
+<div class="admonition failure">
+<p class="admonition-title">What did not improve, or got worse</p>
+<ul>
+<li><strong>A large matrix is refused, not shown.</strong> Every principal matrix at this size
+  — unfiltered, enabled only, the largest application — is a 413. The API now
+  survives the request; the user still gets no matrix.</li>
+<li><strong>The refusal is not fast.</strong> The unfiltered matrix takes 9–19 s to refuse on
+  a settled database, and took <strong>285.6 s</strong> straight after the load (see
+  <a href="#the-first-minutes-after-a-load">the first minutes after a load</a>).</li>
+<li><strong>The largest application's matrix is no better</strong>: 413 after 26–72 s,
+  against 413 after 82 s before.</li>
+<li><strong>Scope statistics and the disabled-accounts report did not improve.</strong>
+  Attribution on one database gives 60–129 s and 20–32 s for <em>every</em> code
+  version, old ones included: the rig's run-to-run spread is wider than any
+  difference between versions.</li>
+<li><strong>A resource's member list from the matrix view is still ~20 s</strong> (20.7 s,
+  was 19.3 s) and unpaged, 44 MB.</li>
+<li><strong>The CSV crawler cannot re-import 41 M on this disk.</strong> Every unchanged row
+  is rewritten (its <code>updatedAt</code> stamp is indexed): ~4,550 rows/s and ~5 GB of
+  dead rows per 9 M, so the run was stopped at 9 M with 13 GB left. The staged
+  load does the same re-import in 18 minutes writing nothing; the CSV crawler
+  does not use it yet.</li>
+<li><strong>Filter-value discovery takes 17 s</strong> on the resources page and 3.7 s on
+  principals, cold, at the customer's attribute shape — after every API restart
+  and every 5-minute cache expiry.</li>
+</ul>
+</div>
+<h3 id="ingest-before-and-after">Ingest, before and after<a class="headerlink" href="#ingest-before-and-after" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Phase (100%, CSV crawler, full sync)</th>
+<th style="text-align: right;">Before</th>
+<th style="text-align: right;">After</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Systems + contexts + context members</td>
+<td style="text-align: right;">71 s</td>
+<td style="text-align: right;">50 s</td>
+</tr>
+<tr>
+<td>Resources</td>
+<td style="text-align: right;">104 s</td>
+<td style="text-align: right;">117 s</td>
+</tr>
+<tr>
+<td>Users</td>
+<td style="text-align: right;">31 s</td>
+<td style="text-align: right;">32 s</td>
+</tr>
+<tr>
+<td><strong>Assignments</strong></td>
+<td style="text-align: right;"><strong>stopped at 25.25 M after 6,153 s</strong> (4,100 rows/s avg, decaying to 2,750)</td>
+<td style="text-align: right;"><strong>all 41 M in 3,534 s</strong> (11,600 rows/s)</td>
+</tr>
+<tr>
+<td>Classify + matrix-view refresh</td>
+<td style="text-align: right;">not reached</td>
+<td style="text-align: right;">891 s (refresh 862 s + 17 s; classify now finds nothing to flip, see #1272)</td>
+</tr>
+<tr>
+<td><strong>Whole job</strong>, start to end</td>
+<td style="text-align: right;">did not finish</td>
+<td style="text-align: right;"><strong>4,663 s</strong> (the crawler reports 3,758 s; it then waits 901 s for the refresh)</td>
+</tr>
+<tr>
+<td>Peak database size (during the refresh)</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">29.5 GB</td>
+</tr>
+<tr>
+<td>Peak crawler <code>pwsh</code> RSS</td>
+<td style="text-align: right;">3.6 GB</td>
+<td style="text-align: right;">2.1 GB</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Storage at the end of the load</th>
+<th style="text-align: right;">Before (25.25 M assignments)</th>
+<th style="text-align: right;">After (41 M)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Database</td>
+<td style="text-align: right;">34.9 GB</td>
+<td style="text-align: right;"><strong>23.2 GB</strong></td>
+</tr>
+<tr>
+<td><code>_history</code></td>
+<td style="text-align: right;">26.2 M rows, <strong>25.7 GB</strong></td>
+<td style="text-align: right;"><strong>9,306 rows, 18 MB</strong></td>
+</tr>
+<tr>
+<td><code>ResourceAssignments</code></td>
+<td style="text-align: right;">8.6 GB (5.0 GB heap)</td>
+<td style="text-align: right;">10.6 GB (4.8 GB heap + 5.8 GB indexes)</td>
+</tr>
+<tr>
+<td>Matrix view <code>vw_ResourceUserPermissionAssignments</code></td>
+<td style="text-align: right;">not reached</td>
+<td style="text-align: right;">11.6 GB</td>
+</tr>
+</tbody>
+</table>
+<p>Per assignment, the table went from ~340 B to ~260 B: the two external ids are no
+longer copied into <code>extendedAttributes</code> (#1272; 41.6% of the heap of 1 M real rows).
+The 9,306 history rows are one anchor per table and system for the load (#1270),
+the 42 systems, and the contexts.</p>
+<h3 id="post-sync-and-restart">Post-sync and restart<a class="headerlink" href="#post-sync-and-restart" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th style="text-align: right;">Before</th>
+<th style="text-align: right;">After</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Classify: flag business-role assignments governed</td>
+<td style="text-align: right;">171 s (1 M rows)</td>
+<td style="text-align: right;">17.3 s, 0 rows to flag (flagged at ingest)</td>
+</tr>
+<tr>
+<td>First population of the matrix view</td>
+<td style="text-align: right;">1,166 s + 23 s</td>
+<td style="text-align: right;"><strong>862 s + 17 s</strong></td>
+</tr>
+<tr>
+<td>Crawler behaviour around it</td>
+<td style="text-align: right;">timed out after 300 s, retried four times, stacked a refresh per retry, reported success</td>
+<td style="text-align: right;">waits for the one background refresh, reports its outcome</td>
+</tr>
+<tr>
+<td>Refresh with the view already populated</td>
+<td style="text-align: right;">161 s</td>
+<td style="text-align: right;">243–244 s (two runs)</td>
+</tr>
+<tr>
+<td>API start with populated views</td>
+<td style="text-align: right;">a full refresh, 2–20 min and ~11 GB of scratch disk</td>
+<td style="text-align: right;"><strong>no refresh</strong></td>
+</tr>
+<tr>
+<td><code>buildContexts</code> hook</td>
+<td style="text-align: right;">404</td>
+<td style="text-align: right;"><strong>still 404</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The standalone refresh is slower than before (243 s against 161 s); it was not
+attributed, and with the rig's spread (below) it may not be a real difference.</p>
+<h3 id="repeat-import">Repeat import<a class="headerlink" href="#repeat-import" title="Permanent link">&para;</a></h3>
+<p>The same CSV crawler configuration, run again over byte-identical files on the
+loaded database (<code>main</code> at <code>e7817e249</code>):</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Before (10% rig, two runs)</th>
+<th>After (100%)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Systems</td>
+<td>42 → <strong>84</strong>; every row re-homed to new ids</td>
+<td>42 → 42, ids identical</td>
+</tr>
+<tr>
+<td>Principals / resources per system</td>
+<td>all moved</td>
+<td>identical (checksums match)</td>
+</tr>
+<tr>
+<td>Governed + ungoverned pairs for one grant</td>
+<td>created; classification then failed with HTTP 500 on every run</td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>_history</code></td>
+<td>4.1 GB → <strong>10 GB</strong></td>
+<td>+1,500 rows (context member-count bookkeeping, see below); no assignment, resource, principal or system history</td>
+</tr>
+<tr>
+<td>Throughput</td>
+<td>397 s → 909 s for the assignments phase</td>
+<td>4,550 rows/s (first load 11,600)</td>
+</tr>
+<tr>
+<td>Outcome</td>
+<td>reported success</td>
+<td><strong>stopped at 9.04 M</strong>: would not fit on the disk (below)</td>
+</tr>
+</tbody>
+</table>
+<p>The CSV crawler's full sync stamps <code>updatedAt</code> on every row it sends, so an
+unchanged re-import rewrites every row and every index entry: 8.85 M updates, none
+HOT, 8.7 M dead row versions, ~5 GB per 9 M rows. At 41 M that needs ~23 GB more
+than the load; 13 GB was left. This is the trade-off #1271 describes for large
+scopes. The staged load is the path for it:</p>
+<table>
+<thead>
+<tr>
+<th>Unchanged re-import through the staged load</th>
+<th style="text-align: right;"></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Rows</td>
+<td style="text-align: right;">41,000,000</td>
+</tr>
+<tr>
+<td>Time</td>
+<td style="text-align: right;"><strong>1,085 s</strong> (finalize 615 s)</td>
+</tr>
+<tr>
+<td>Path</td>
+<td style="text-align: right;">merge, 41 systems</td>
+</tr>
+<tr>
+<td>Inserted / updated / deleted</td>
+<td style="text-align: right;"><strong>0 / 0 / 0</strong></td>
+</tr>
+<tr>
+<td>History written</td>
+<td style="text-align: right;">0</td>
+</tr>
+</tbody>
+</table>
+<p>It was measured on the #1279 branch: on <code>main</code>, the first two attempts failed on a pool exhaustion
+found during this run (below).</p>
+<h3 id="screens-before-and-after">Screens, before and after<a class="headerlink" href="#screens-before-and-after" title="Permanent link">&para;</a></h3>
+<p>Same requests as the <a href="#screens">original table</a>. The <em>before</em> column is the
+original rehearsal (<code>91a2bf3e9</code>, a database loaded without the history trigger, 25%
+of principals enabled); <em>after</em> is the first query set on the fresh step-7
+database. Every enabled filter is at <strong>25%</strong> enabled unless marked 62%.</p>
+<table>
+<thead>
+<tr>
+<th>Screen / request</th>
+<th>Before</th>
+<th>After</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Matrix, principal rows, unfiltered</td>
+<td><strong>crash</strong> after 31 s</td>
+<td>413 after <strong>285.6 s</strong> (fresh load); 8.8–19.3 s settled</td>
+</tr>
+<tr>
+<td>Matrix scope statistics</td>
+<td>48.8 s</td>
+<td>110.1 s; 60–129 s settled (see attribution)</td>
+</tr>
+<tr>
+<td>Matrix, enabled accounts only</td>
+<td><strong>crash</strong> after 123 s</td>
+<td>413 after 52.3 s · 62%: 413 after 31.0 s</td>
+</tr>
+<tr>
+<td>Matrix, enabled + Finance + a mid-size connector</td>
+<td>413 after 24 s</td>
+<td>413 after 7.4 s · 62%: 413 after 11.5 s</td>
+</tr>
+<tr>
+<td>Matrix, resources in the largest logical application</td>
+<td>413 after 82 s</td>
+<td>413 after 71.8 s · 62%: 413 after 26.1 s</td>
+</tr>
+<tr>
+<td>Logical applications list</td>
+<td>0.18 s</td>
+<td>0.02 s</td>
+</tr>
+<tr>
+<td>Largest application's detail page</td>
+<td><strong>243.5 s</strong></td>
+<td><strong>0.22 s</strong></td>
+</tr>
+<tr>
+<td>… first page of its members</td>
+<td><strong>243.2 s</strong></td>
+<td><strong>0.25 s</strong></td>
+</tr>
+<tr>
+<td>… members page at offset 50,000</td>
+<td><strong>did not finish in 30 min</strong></td>
+<td><strong>0.33 s</strong></td>
+</tr>
+<tr>
+<td>Resource detail, the top entitlement</td>
+<td>0.58 s</td>
+<td>0.78 s</td>
+</tr>
+<tr>
+<td>… its assignments</td>
+<td>1.3 s, 38 MB</td>
+<td>0.77 s, 38 MB</td>
+</tr>
+<tr>
+<td>… its members from the matrix view</td>
+<td>19.3 s, 44 MB</td>
+<td>20.7 s, 44 MB</td>
+</tr>
+<tr>
+<td>Report <em>Disabled accounts with access</em> — rows</td>
+<td>75.4 s, 29.5 MB</td>
+<td>108.3 s (fresh load); 20–32 s settled</td>
+</tr>
+<tr>
+<td>… CSV export</td>
+<td>76.4 s, 10.9 MB</td>
+<td>116.7 s (fresh load)</td>
+</tr>
+<tr>
+<td>Dashboard statistics</td>
+<td>1.98 s</td>
+<td>1.63 s</td>
+</tr>
+</tbody>
+</table>
+<p>The 62% runs came right after a <code>VACUUM ANALYZE</code> of <code>Principals</code>, so they are not
+like-for-like with the 25% column; what they show is that the customer's share
+does not make these queries worse.</p>
+<h4 id="attribution">Attribution<a class="headerlink" href="#attribution" title="Permanent link">&para;</a></h4>
+<p>Where a number moved, the three code versions were deployed in turn onto <strong>one</strong>
+database (the step-7 one, later in the day) and the same three queries run twice
+each:</p>
+<table>
+<thead>
+<tr>
+<th>Query</th>
+<th>Old code (<code>27d4754e2</code>, before every fix)</th>
+<th>Pre-merge integration (<code>e28d84458</code>)</th>
+<th><code>main</code> (<code>aa7234124</code>), two passes an hour apart</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Matrix, unfiltered</td>
+<td><strong>crash</strong> after 36.6 s / 42.8 s</td>
+<td>413 after 17.5 s / 14.0 s</td>
+<td>413 after 19.3 / 9.7 s · 17.7 / 8.8 s</td>
+</tr>
+<tr>
+<td>Scope statistics</td>
+<td>97.0 / 108.2 s</td>
+<td>97.4 / 101.8 s</td>
+<td>111.6 / 128.6 s · 60.2 / 61.4 s</td>
+</tr>
+<tr>
+<td>Disabled accounts report, rows</td>
+<td>20.3 / 22.7 s</td>
+<td>29.2 / 32.0 s</td>
+<td>32.1 / 28.9 s · 20.3 / 21.3 s</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>The unfiltered-matrix crash is fixed (#1266): a crash on the old code, a refusal
+  on both later ones.</li>
+<li>Scope statistics and the report: <code>main</code> alone spans 60–129 s and 20–32 s across
+  two passes, which covers every other version. No difference between versions is
+  attributable on this rig, and none is claimed.</li>
+<li>The <strong>285.6 s and 108.3 s</strong> after the load are not the code: the same code on the
+  same data was 15× and 3× faster two hours later.</li>
+</ul>
+<h4 id="the-first-minutes-after-a-load">The first minutes after a load<a class="headerlink" href="#the-first-minutes-after-a-load" title="Permanent link">&para;</a></h4>
+<p>The query set ran within minutes of the 41 M load finishing and of three
+back-to-back refreshes of the matrix view. Queries were several times slower then
+than on the same database two hours later (above). The mechanism was not isolated;
+the candidates are freshly written tables without a visibility map and hint bits
+being set on first read, and the dead rows three consecutive <code>REFRESH … CONCURRENTLY</code>
+leave in the view. A user's first minutes after a large import will look like the
+fresh-load column, not the settled one.</p>
+<h3 id="filter-value-discovery">Filter-value discovery<a class="headerlink" href="#filter-value-discovery" title="Permanent link">&para;</a></h3>
+<p>Opening the filter panel on a list page asks <code>/matrix/columns</code> for every column's
+values: one <code>SELECT DISTINCT … LIMIT</code> per column and per <code>extendedAttributes</code> key,
+each a full scan, behind a 5-minute in-process cache. It was not in the original
+query set; the customer reported it. Measured cold (API restarted) and warm:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th style="text-align: right;">Principals, cold</th>
+<th style="text-align: right;">Resources, cold</th>
+<th style="text-align: right;">Warm</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Synthetic data (2 principal extension keys)</td>
+<td style="text-align: right;">0.74 s</td>
+<td style="text-align: right;">3.6 s</td>
+<td style="text-align: right;">2 ms</td>
+</tr>
+<tr>
+<td><strong>Customer's attribute shape</strong> (15 on principals, ~13 on resources)</td>
+<td style="text-align: right;"><strong>3.7 s</strong></td>
+<td style="text-align: right;"><strong>16.9 s</strong></td>
+<td style="text-align: right;">3 ms</td>
+</tr>
+</tbody>
+</table>
+<p>The customer shape was written onto the rig's rows with the customer's own
+cardinalities (cost centres 1,846, locations 161, org levels 119 / 44 / 7 over
+176,789 identities). The largest of those is under two thousand distinct values:
+the cost is the number of full scans, not the size of the answer, and it grows with
+every custom attribute a source brings. Every user pays it after each API restart
+and every cache expiry.</p>
+<h3 id="found-during-step-7">Found during step 7<a class="headerlink" href="#found-during-step-7" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Pool exhaustion from the <code>lastUsedAt</code> stamp</strong> (fix proposed in #1279, open at the time of writing). Every
+  authenticated crawler request ran a fire-and-forget <code>UPDATE</code> of the same
+  <code>Crawlers</code> row. One stalled 5 s on a WAL flush behind an autovacuum; nine more
+  queued on its row lock and held all 10 of the API's pool connections, so the
+  staged load's appends, crawler auth and the worker's job claim all failed with
+  "timeout exceeded when trying to connect". It is the likely reason the crawler's
+  progress updates timed out during the matrix refresh as well.</li>
+<li><strong>A failed staged load leaves its stage tables</strong> (2.95 GB here) until the
+  6-hour expiry or the next API start.</li>
+<li><strong>Context bookkeeping is recorded as change.</strong> Every matrix-view refresh
+  recalculates context member counts and writes a history row per context even
+  when only <code>lastCalculatedAt</code>/<code>updatedAt</code> moved: ~6,000 of the load's 7,512
+  context history rows and 1,500 per repeat. The same class of problem migration
+  072 fixed for the entity tables; small at 1,500 contexts, not fixed.</li>
+<li><strong>The <code>buildContexts</code> hook still 404s</strong> on every CSV run.</li>
+</ul>
+<h3 id="how-far-this-rehearsal-is-from-the-customer">How far this rehearsal is from the customer<a class="headerlink" href="#how-far-this-rehearsal-is-from-the-customer" title="Permanent link">&para;</a></h3>
+<p>The customer's own counts (2026-09-27) against what was generated:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th style="text-align: right;">Customer</th>
+<th style="text-align: right;">Rehearsal</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Entitlement assignments</td>
+<td style="text-align: right;">46,031,331</td>
+<td style="text-align: right;">41,000,000</td>
+<td>close</td>
+</tr>
+<tr>
+<td>Entitlements (managed attributes)</td>
+<td style="text-align: right;">805,497</td>
+<td style="text-align: right;">810,000</td>
+<td>close</td>
+</tr>
+<tr>
+<td>Identities</td>
+<td style="text-align: right;">176,789</td>
+<td style="text-align: right;">180,000</td>
+<td>close</td>
+</tr>
+<tr>
+<td><strong>Enabled share</strong></td>
+<td style="text-align: right;"><strong>~62%</strong></td>
+<td style="text-align: right;">25%</td>
+<td>enabled-filtered queries scan ~2.5× fewer rows here; re-run at 62% above</td>
+</tr>
+<tr>
+<td><strong>Roles</strong></td>
+<td style="text-align: right;"><strong>1,434</strong></td>
+<td style="text-align: right;">10,000</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Role assignments</strong></td>
+<td style="text-align: right;"><strong>3,379,865</strong></td>
+<td style="text-align: right;">1,000,000</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Holders per role (average)</strong></td>
+<td style="text-align: right;"><strong>~2,350</strong></td>
+<td style="text-align: right;">~100</td>
+<td>the customer's roles are <strong>~20× denser</strong>, before the power law concentrates the largest ones. Anything that expands a role to its members, or renders a role column, was measured on a population an order of magnitude too small</td>
+</tr>
+<tr>
+<td><strong>Accounts (<code>spt_link</code>)</strong></td>
+<td style="text-align: right;"><strong>3,549,757</strong></td>
+<td style="text-align: right;">not modelled</td>
+<td>the engagement loads one principal per identity (176,789). Account-level visibility — the request a role-mining engagement tends to produce — is <strong>~20× the principals</strong> anything here was measured at. That is a scope boundary, not a gap in the fixture</td>
+</tr>
+</tbody>
+</table>
+<h2 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h2>
+<h3 id="the-dataset">The dataset<a class="headerlink" href="#the-dataset" title="Permanent link">&para;</a></h3>
+<p>Generated with <code>node tools/scale-dataset/generate.mjs --scale &lt;s&gt;</code> at seed
+<code>20260926</code>, tab-delimited. The same shape at three sizes:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th style="text-align: right;">1%</th>
+<th style="text-align: right;">10%</th>
+<th style="text-align: right;">100%</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Systems</td>
+<td style="text-align: right;">41</td>
+<td style="text-align: right;">41</td>
+<td style="text-align: right;">41</td>
+</tr>
+<tr>
+<td>Contexts (logical applications)</td>
+<td style="text-align: right;">15</td>
+<td style="text-align: right;">150</td>
+<td style="text-align: right;">1,500</td>
+</tr>
+<tr>
+<td>Resources (entitlements + roles)</td>
+<td style="text-align: right;">8,100</td>
+<td style="text-align: right;">81,000</td>
+<td style="text-align: right;">810,000</td>
+</tr>
+<tr>
+<td>Context members</td>
+<td style="text-align: right;">8,000</td>
+<td style="text-align: right;">80,000</td>
+<td style="text-align: right;">800,000</td>
+</tr>
+<tr>
+<td>Users (principals)</td>
+<td style="text-align: right;">1,800</td>
+<td style="text-align: right;">18,000</td>
+<td style="text-align: right;">180,000</td>
+</tr>
+<tr>
+<td>Assignments</td>
+<td style="text-align: right;">410,000</td>
+<td style="text-align: right;">4,100,000</td>
+<td style="text-align: right;">41,000,000</td>
+</tr>
+<tr>
+<td>Size on disk</td>
+<td style="text-align: right;">22 MB</td>
+<td style="text-align: right;">214 MB</td>
+<td style="text-align: right;">2.1 GB</td>
+</tr>
+</tbody>
+</table>
+<p>At 100% a quarter of the principals are enabled, 34 entitlements have six-figure
+membership and the median entitlement has 8 holders; the largest connector holds
+35% of the entitlements; most logical applications span several connectors; and
+directory entitlement values are LDAP distinguished names. See the generator's
+README for every shape parameter. Generating the full set takes ~15 s with a flat
+~250 MB of memory.</p>
+<h3 id="the-machine">The machine<a class="headerlink" href="#the-machine" title="Permanent link">&para;</a></h3>
+<p>Deliberately modest — closer to an analyst's laptop than a server:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU</td>
+<td>2 vCPU (Intel Core Ultra 5 125H), Proxmox VM</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td>7.9 GB at the start, <strong>ballooned down to 4.3–5.8 GB during the runs</strong> by the hypervisor</td>
+</tr>
+<tr>
+<td>Disk</td>
+<td>61 GB, ~39 GB free for the test</td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td>16, stock settings: <code>shared_buffers</code> 128 MB, <code>max_wal_size</code> 1 GB, <code>work_mem</code> 4 MB</td>
+</tr>
+<tr>
+<td>Stack</td>
+<td>the standard <code>docker-compose.yml</code> (web, worker, postgres), no tuning</td>
+</tr>
+</tbody>
+</table>
+<p>Absolute times on this box are pessimistic. The <em>shape</em> of each curve, the
+storage per row and the failure modes are what carry over.</p>
+<h3 id="the-code">The code<a class="headerlink" href="#the-code" title="Permanent link">&para;</a></h3>
+<p>Commit <code>91a2bf3e9</code> on <code>feature/sql-crawler</code>, not <code>main</code>. When the runs started,
+<code>main</code>'s CSV crawler read the whole assignments file into memory before sending anything,
+which died before its first request at this size; that branch carried the
+streaming rewrite of the assignments phase (read, shape, buffer, flush, then a
+timestamp reconcile) that the measurements need. That rewrite has since landed on
+<code>main</code> with the other CSV import fixes (#1263); the 10% load was repeated there as
+a cross-check (below).</p>
+<h3 id="method">Method<a class="headerlink" href="#method" title="Permanent link">&para;</a></h3>
+<ul>
+<li>A CSV crawler config per run, <code>"delimiter": "\t"</code>; the generated files are placed
+  directly in the config's upload folder (the upload path has its own limits,
+  measured separately), and a <strong>full</strong> sync is started through
+  <code>POST /api/admin/crawler-jobs</code> — exactly what the Run button does.</li>
+<li>Every 5 s: peak RSS of the crawler's <code>pwsh</code> process, container memory of web,
+  worker and postgres, <code>pg_database_size</code>, disk used, and the non-idle backends in
+  <code>pg_stat_activity</code> (query and wait event).</li>
+<li>The job log is tailed live and every line stamped on arrival, so phases that
+  print no timestamp of their own still get one (±5 s).</li>
+<li>The database is wiped (<code>docker compose down -v</code>) between runs.</li>
+<li>After a load, every screen below is driven with the exact request the UI sends,
+  timed with <code>curl</code>, capped at 30 minutes.</li>
+</ul>
+<h2 id="ingest">Ingest<a class="headerlink" href="#ingest" title="Permanent link">&para;</a></h2>
+<h3 id="per-phase">Per phase<a class="headerlink" href="#per-phase" title="Permanent link">&para;</a></h3>
+<p>Wall clock per crawler phase. Rows/s is file rows over phase wall time.</p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th style="text-align: right;">1%</th>
+<th style="text-align: right;">10%</th>
+<th style="text-align: right;">100%</th>
+<th style="text-align: right;">100% rows/s</th>
+<th style="text-align: right;">peak pwsh</th>
+<th style="text-align: right;">db after phase</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Systems</td>
+<td style="text-align: right;">&lt;1 s</td>
+<td style="text-align: right;">&lt;1 s</td>
+<td style="text-align: right;">&lt;1 s</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;">0.1 GB</td>
+<td style="text-align: right;">0.01 GB</td>
+</tr>
+<tr>
+<td>Contexts</td>
+<td style="text-align: right;">2 s</td>
+<td style="text-align: right;">5 s</td>
+<td style="text-align: right;">4 s</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;">1.2 GB</td>
+<td style="text-align: right;">0.01 GB</td>
+</tr>
+<tr>
+<td>Context members</td>
+<td style="text-align: right;">(with contexts)</td>
+<td style="text-align: right;">3 s</td>
+<td style="text-align: right;">67 s</td>
+<td style="text-align: right;">11,900</td>
+<td style="text-align: right;"><strong>3.0 GB</strong></td>
+<td style="text-align: right;">0.25 GB</td>
+</tr>
+<tr>
+<td>Resources</td>
+<td style="text-align: right;">2 s</td>
+<td style="text-align: right;">11 s</td>
+<td style="text-align: right;">104 s</td>
+<td style="text-align: right;">7,800</td>
+<td style="text-align: right;"><strong>3.6 GB</strong></td>
+<td style="text-align: right;">1.2 GB</td>
+</tr>
+<tr>
+<td>Users</td>
+<td style="text-align: right;">&lt;1 s</td>
+<td style="text-align: right;">3 s</td>
+<td style="text-align: right;">31 s</td>
+<td style="text-align: right;">5,800</td>
+<td style="text-align: right;">2.2 GB</td>
+<td style="text-align: right;">1.5 GB</td>
+</tr>
+<tr>
+<td>Assignments</td>
+<td style="text-align: right;">55 s</td>
+<td style="text-align: right;">576 s</td>
+<td style="text-align: right;"><strong>stopped at 25.25 M after 6,153 s</strong></td>
+<td style="text-align: right;">4,100 (avg)</td>
+<td style="text-align: right;">2.5 GB</td>
+<td style="text-align: right;">34.9 GB</td>
+</tr>
+<tr>
+<td>Classify + refresh views</td>
+<td style="text-align: right;">7 s</td>
+<td style="text-align: right;">69 s</td>
+<td style="text-align: right;">not reached</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td style="text-align: right;">67 s</td>
+<td style="text-align: right;">667 s</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<p>The 100% column is the unmodified product. It did not finish: see below.</p>
+<h3 id="the-wall-storage-then-time">The wall: storage, then time<a class="headerlink" href="#the-wall-storage-then-time" title="Permanent link">&para;</a></h3>
+<p>The 100% load was stopped by a disk guard (free space &lt; 4 GB) at <strong>25.25 M of 41 M
+assignments, 62%</strong>, 1 h 42 min into the assignments phase. At that point:</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th style="text-align: right;">Rows</th>
+<th style="text-align: right;">Size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>_history</code></td>
+<td style="text-align: right;">26.2 M</td>
+<td style="text-align: right;"><strong>25.7 GB</strong></td>
+</tr>
+<tr>
+<td><code>ResourceAssignments</code></td>
+<td style="text-align: right;">25.1 M</td>
+<td style="text-align: right;">8.6 GB (5.0 GB heap + 3.5 GB indexes)</td>
+</tr>
+<tr>
+<td><code>Resources</code></td>
+<td style="text-align: right;">0.8 M</td>
+<td style="text-align: right;">0.35 GB</td>
+</tr>
+<tr>
+<td>everything else</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;">&lt; 0.3 GB</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The audit history trigger is three quarters of the database.</strong> Every inserted
+assignment writes a ~1 KB JSON snapshot to <code>_history</code> (migration 009/022), three
+times the size of the assignment row itself (~340 B including its 13 indexes).
+Projected to the full load, before the matrix materialised view is even built:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th style="text-align: right;">per assignment</th>
+<th style="text-align: right;">at 41 M</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ResourceAssignments</code></td>
+<td style="text-align: right;">~340 B</td>
+<td style="text-align: right;">~14 GB</td>
+</tr>
+<tr>
+<td><code>_history</code></td>
+<td style="text-align: right;">~1,020 B</td>
+<td style="text-align: right;">~42 GB</td>
+</tr>
+<tr>
+<td>matrix view <code>vw_ResourceUserPermissionAssignments</code> (from the 10% run)</td>
+<td style="text-align: right;">~280 B</td>
+<td style="text-align: right;">~11.5 GB</td>
+</tr>
+<tr>
+<td><strong>total</strong></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"><strong>~68 GB</strong></td>
+</tr>
+</tbody>
+</table>
+<p>A first load of this size needs roughly <strong>70 GB free</strong>, of which 42 GB is the
+history of rows that were never changed — every one of them an <code>INSERT</code> of a new
+row. There is no setting to turn it off.</p>
+<p>Throughput also decays as the table grows. Assignment rows per second, per 2 M:</p>
+<table>
+<thead>
+<tr>
+<th>Rows loaded</th>
+<th style="text-align: right;">rows/s</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.25 → 2.25 M</td>
+<td style="text-align: right;">7,400</td>
+</tr>
+<tr>
+<td>4.25 → 6.25 M</td>
+<td style="text-align: right;">5,700</td>
+</tr>
+<tr>
+<td>8.25 → 10.25 M</td>
+<td style="text-align: right;">4,750</td>
+</tr>
+<tr>
+<td>12.25 → 14.25 M</td>
+<td style="text-align: right;">4,700</td>
+</tr>
+<tr>
+<td>16.25 → 18.25 M</td>
+<td style="text-align: right;">3,800</td>
+</tr>
+<tr>
+<td>20.25 → 22.25 M</td>
+<td style="text-align: right;">3,000</td>
+</tr>
+<tr>
+<td>22.25 → 24.25 M</td>
+<td style="text-align: right;">2,750</td>
+</tr>
+</tbody>
+</table>
+<p>Extrapolating that decay, the remaining 16 M rows would have taken about two more
+hours: <strong>~3.7 h for the assignments phase alone</strong>, had the disk been big enough.</p>
+<h3 id="where-the-insert-time-goes">Where the insert time goes<a class="headerlink" href="#where-the-insert-time-goes" title="Permanent link">&para;</a></h3>
+<p>Sampled <code>pg_stat_activity</code> over the 100% assignments phase (non-idle backends,
+every 5 s, 862 samples of the ingest <code>INSERT … ON CONFLICT</code>): on CPU in 46%,
+waiting on <strong><code>DataFileRead</code></strong> in 22% (index pages that no longer fit in 128 MB of
+shared buffers), on the <strong><code>WALWrite</code></strong> lock in 22%, and on data-file writes and
+<code>WALSync</code> in 4% each. Autovacuum of <code>_history</code> (mostly) and <code>ResourceAssignments</code>
+made up 194 of the 1,230 sampled busy backends.</p>
+<p>To separate index maintenance from the history trigger, the same 4.1 M assignment
+rows were loaded into a copy of <code>ResourceAssignments</code> (same name, so the history
+trigger keys it exactly as in production) in 10,000-row committed batches, on an
+idle database:</p>
+<table>
+<thead>
+<tr>
+<th>Variant</th>
+<th style="text-align: right;">Time</th>
+<th style="text-align: right;">rows/s</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No indexes, no trigger, plain <code>INSERT</code></td>
+<td style="text-align: right;">8–23 s</td>
+<td style="text-align: right;">180,000–540,000</td>
+</tr>
+<tr>
+<td>All 13 production indexes, <code>INSERT … ON CONFLICT DO UPDATE</code> (the ingest's shape)</td>
+<td style="text-align: right;">111 s</td>
+<td style="text-align: right;">37,000</td>
+</tr>
+<tr>
+<td>… plus the history trigger</td>
+<td style="text-align: right;">299 s</td>
+<td style="text-align: right;">13,700</td>
+</tr>
+<tr>
+<td>No indexes, then build the 13 indexes afterwards</td>
+<td style="text-align: right;">8 s + 17 s</td>
+<td style="text-align: right;">~170,000 overall</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Index maintenance is ~80–90% of the database-side cost</strong> of an assignment
+  insert without history, and it gets worse as the indexes outgrow memory — that
+  is the decay in the table above.</li>
+<li><strong>The history trigger costs more than all 13 indexes together</strong> (+188 s on top of
+  111 s) and writes 3.6 GB for these 4.1 M rows.</li>
+<li><strong>Dropping and rebuilding the indexes around a bulk load is ~4.5× faster</strong> than
+  maintaining them (25 s vs 111 s), and ~12× faster than today's path with history.
+  Building the indexes afterwards also produces them ~10% smaller.</li>
+<li>End to end, the crawler moved 7,100 rows/s at 10% while the database-side cost
+  alone allowed ~13,700 rows/s: at that size roughly half the time is the database
+  and half is PowerShell, HTTP, JSON and the per-batch temp table. As the table
+  grows, the database share grows with it.</li>
+</ul>
+<h3 id="the-same-load-without-the-history-trigger">The same load without the history trigger<a class="headerlink" href="#the-same-load-without-the-history-trigger" title="Permanent link">&para;</a></h3>
+<p>To get a complete 41 M-row database for the measurements that follow — and to
+see what the load costs without history — the 100% load was repeated with
+<code>ALTER TABLE "ResourceAssignments" DISABLE TRIGGER</code> on both history triggers.
+Nothing else changed; history on every other table stayed on.</p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th style="text-align: right;">wall</th>
+<th style="text-align: right;">rows/s</th>
+<th style="text-align: right;">peak pwsh</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Context members</td>
+<td style="text-align: right;">72 s</td>
+<td style="text-align: right;">11,100</td>
+<td style="text-align: right;">3.4 GB</td>
+</tr>
+<tr>
+<td>Resources</td>
+<td style="text-align: right;">119 s</td>
+<td style="text-align: right;">6,800</td>
+<td style="text-align: right;">3.4 GB</td>
+</tr>
+<tr>
+<td>Users</td>
+<td style="text-align: right;">36 s</td>
+<td style="text-align: right;">5,000</td>
+<td style="text-align: right;">2.2 GB</td>
+</tr>
+<tr>
+<td><strong>Assignments</strong></td>
+<td style="text-align: right;"><strong>5,586 s (93 min)</strong></td>
+<td style="text-align: right;"><strong>7,340</strong></td>
+<td style="text-align: right;">2.3 GB</td>
+</tr>
+</tbody>
+</table>
+<p>Assignment throughput per 2 M rows went 10,500 → 9,000 (at 10 M) → 7,400 (at
+24 M, where the standard run was at 2,750) → 5,300 rows/s (at 40 M). The database
+after the assignments phase was 15.4 GB, and 26 GB once the matrix view was built:
+<code>ResourceAssignments</code> 13 GB and <code>vw_ResourceUserPermissionAssignments</code> 11 GB. The
+<code>INSERT</code> wait profile shifted from reading index pages towards the <code>WALWrite</code> lock
+(25%) — with less written per row, WAL flushing becomes the next limit on stock
+settings.</p>
+<h3 id="cross-check-against-main">Cross-check against <code>main</code><a class="headerlink" href="#cross-check-against-main" title="Permanent link">&para;</a></h3>
+<p>After the runs above, <code>main</code> gained the CSV import fixes (#1263: quote-aware
+parser, streamed resources and assignments, extra columns). The 10% load was
+repeated on <code>main</code> (<code>b3bab23b6</code>):</p>
+<table>
+<thead>
+<tr>
+<th>10%</th>
+<th style="text-align: right;">measured commit</th>
+<th style="text-align: right;"><code>main</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Assignments</td>
+<td style="text-align: right;">576 s (7,100 rows/s)</td>
+<td style="text-align: right;">399 s (10,300 rows/s)</td>
+</tr>
+<tr>
+<td>Classify + refresh views</td>
+<td style="text-align: right;">69 s</td>
+<td style="text-align: right;">120 s</td>
+</tr>
+<tr>
+<td>Peak pwsh</td>
+<td style="text-align: right;">494 MB</td>
+<td style="text-align: right;">479 MB</td>
+</tr>
+<tr>
+<td>Database after load</td>
+<td style="text-align: right;">7.3 GB</td>
+<td style="text-align: right;">7.5 GB</td>
+</tr>
+<tr>
+<td>Unfiltered principal matrix</td>
+<td style="text-align: right;">API crash</td>
+<td style="text-align: right;">API crash</td>
+</tr>
+<tr>
+<td><code>buildContexts</code> hook</td>
+<td style="text-align: right;">404</td>
+<td style="text-align: right;">404</td>
+</tr>
+</tbody>
+</table>
+<p><code>main</code> ingests ~45% faster at this size. Storage, the history trigger, the refresh
+and every query finding are database- or API-side and are unchanged.</p>
+<h2 id="after-the-load">After the load<a class="headerlink" href="#after-the-load" title="Permanent link">&para;</a></h2>
+<p>All of this is on the complete 41 M-row database from the run without the
+assignment history trigger, and at 10% for comparison.</p>
+<h3 id="post-sync-work">Post-sync work<a class="headerlink" href="#post-sync-work" title="Permanent link">&para;</a></h3>
+<p>The CSV crawler finishes with <code>classify-business-role-assignments</code>, then
+<code>refresh-views</code>, then the post-sync hooks <code>buildContexts</code> and
+<code>accountCorrelation</code>. Timed from the database side at 100%:</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th style="text-align: right;">10%</th>
+<th style="text-align: right;">100%</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Classify endpoint, whole call (UPDATE + both refreshes), view already populated</td>
+<td style="text-align: right;">14–15 s</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>Classify: <code>UPDATE … SET governed = true</code> (1 M role assignments)</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;">171 s</td>
+</tr>
+<tr>
+<td>Classify: refresh of <code>vw_ResourceUserPermissionAssignments</code> — first population</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"><strong>1,166 s (19.5 min)</strong></td>
+</tr>
+<tr>
+<td>Refresh of <code>vw_UserPermissionAssignmentViaBusinessRole</code></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;">23 s</td>
+</tr>
+<tr>
+<td><code>refresh-views</code>, standalone, view already populated</td>
+<td style="text-align: right;">13–14 s</td>
+<td style="text-align: right;">161 s</td>
+</tr>
+<tr>
+<td>Transient disk during a refresh of the matrix view</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"><strong>~11–12 GB</strong></td>
+</tr>
+<tr>
+<td><code>buildContexts</code> hook</td>
+<td style="text-align: right;">404</td>
+<td style="text-align: right;">404</td>
+</tr>
+<tr>
+<td><code>accountCorrelation</code> hook</td>
+<td style="text-align: right;">no-op</td>
+<td style="text-align: right;">no-op</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What goes wrong at 100%:</strong></p>
+<ul>
+<li>The classify endpoint refreshes both matrix views itself (by design — see
+  <code>ingest.classify.test.js</code>). Its first call takes ~22 minutes. The crawler's HTTP
+  client gives up after <strong>300 s</strong>, logs a transient failure and retries — four
+  times. Every retry reruns the <code>UPDATE</code> (~50 s) and queues <strong>another</strong> full
+  refresh behind the first. The crawler then gives up with "(non-critical)", calls
+  <code>refresh-views</code> (another refresh; also times out) and reports success while the
+  database keeps refreshing for up to an hour.</li>
+<li>A <code>REFRESH MATERIALIZED VIEW CONCURRENTLY</code> of the 11 GB view builds the new
+  contents on disk before diffing them: free space fell from 18 GB to 5.9 GB during
+  the first one. On this box a second refresh could not start while anything else
+  was using temp space; two were cancelled by the test's disk guard.</li>
+<li><strong>The API refreshes the matrix view on every start</strong> (<code>bootstrap.js</code>, "if the
+  data is already populated, CONCURRENTLY makes this cheap"). At this size it is
+  not cheap: 2–20 minutes and ~11 GB of scratch disk. Combined with the matrix
+  crash below, one click on an unfiltered matrix restarts the API, which starts a
+  refresh, which competes for disk with whatever the next user does.</li>
+<li><code>buildContexts</code> posts to <code>/api/ingest/refresh-contexts</code>, which no longer exists;
+  it 404s in 0.06 s at any size. Context member counts are recomputed inside
+  <code>refresh-views</code> instead.</li>
+</ul>
+<h3 id="screens">Screens<a class="headerlink" href="#screens" title="Permanent link">&para;</a></h3>
+<p>Each is the exact request the UI sends. "Crash" means the API process died
+(<code>FATAL ERROR: Reached heap limit … JavaScript heap out of memory</code>), Docker
+restarted it, and every other user's request failed until it was back.</p>
+<table>
+<thead>
+<tr>
+<th>Screen / request</th>
+<th>10% (4.1 M)</th>
+<th>100% (41 M)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Matrix, principal rows, unfiltered — <code>POST /matrix/data</code></td>
+<td><strong>crash</strong> after 19 s</td>
+<td><strong>crash</strong> after 31 s</td>
+</tr>
+<tr>
+<td>Matrix scope statistics — <code>POST /matrix/scope-stats</code></td>
+<td>4.3 s</td>
+<td>48.8 s</td>
+</tr>
+<tr>
+<td>Matrix, enabled accounts only</td>
+<td>413 after 12.6 s</td>
+<td><strong>crash</strong> after 123 s</td>
+</tr>
+<tr>
+<td>Matrix, enabled + department Finance + a mid-size connector</td>
+<td>200 in 1.2 s, 65 MB</td>
+<td>413 after 24 s</td>
+</tr>
+<tr>
+<td>Matrix, enabled + Finance + the smallest connector</td>
+<td>—</td>
+<td>413 after 4.4 s (519,189 assignments)</td>
+</tr>
+<tr>
+<td>Matrix, resources in the largest logical application</td>
+<td>200 in 5.2 s, <strong>268 MB</strong></td>
+<td>413 after 82 s</td>
+</tr>
+<tr>
+<td>Matrix, resources in an 80-entitlement application</td>
+<td>—</td>
+<td>200 in 1.0 s, 2,775 rows</td>
+</tr>
+<tr>
+<td>… same, plus enabled accounts only</td>
+<td>—</td>
+<td><strong>45.2 s</strong> for 697 rows</td>
+</tr>
+<tr>
+<td>Logical applications list — <code>GET /contexts?targetType=Resource&amp;contextType=…</code></td>
+<td>0.01 s</td>
+<td>0.18 s</td>
+</tr>
+<tr>
+<td>Largest application's detail page — <code>GET /contexts/:id</code> (106 k members)</td>
+<td>3.7 s</td>
+<td><strong>243.5 s</strong></td>
+</tr>
+<tr>
+<td>… first page of its members — <code>GET /contexts/:id/members?limit=50</code></td>
+<td>3.7 s</td>
+<td><strong>243.2 s</strong></td>
+</tr>
+<tr>
+<td>… members page at offset 50,000</td>
+<td>249 s (empty page)</td>
+<td><strong>did not finish in 30 min</strong></td>
+</tr>
+<tr>
+<td>Resource detail, the top entitlement (17,100 / 171,000 holders)</td>
+<td>0.10 s</td>
+<td>0.58 s</td>
+</tr>
+<tr>
+<td>… its assignments (fetched when the graph expands; not paged)</td>
+<td>0.09 s, 3.8 MB</td>
+<td>1.3 s, <strong>38 MB</strong></td>
+</tr>
+<tr>
+<td>… its members from the matrix view (not paged)</td>
+<td>1.0 s, 4.4 MB</td>
+<td>19.3 s, 44 MB</td>
+</tr>
+<tr>
+<td>Report <em>Disabled accounts with access</em> — rows</td>
+<td>12.3 s, 2.9 MB</td>
+<td>75.4 s, 29.5 MB</td>
+</tr>
+<tr>
+<td>… CSV export</td>
+<td>9.1 s, 1.1 MB</td>
+<td>76.4 s, 10.9 MB</td>
+</tr>
+<tr>
+<td>Dashboard statistics</td>
+<td>0.54 s</td>
+<td>1.98 s</td>
+</tr>
+</tbody>
+</table>
+<p>Notes on the ones that matter:</p>
+<ul>
+<li><strong>The matrix row limit is checked too late.</strong> <code>routes/matrix/data.js</code> loads the
+  full result into the Node process and only then compares it to <code>MAX_FLAT_ROWS</code>
+  (400,000) to return a 413. Past a few million rows the heap is exhausted first.
+  There is no paging on this endpoint, so the only working views at this size are
+  narrow ones — and because of the skew, a narrow subject filter does not make a
+  narrow result: a handful of near-universal entitlements sit in every slice.</li>
+<li><strong>A subject filter can make a small matrix 45× slower.</strong> The 80-entitlement
+  application renders in 1 s; adding "enabled accounts only" takes 45 s for fewer
+  rows. This is the filter the disabled majority makes most common.</li>
+<li><strong>Logical-application members are joined on text.</strong> <code>loadMembers</code> in
+  <code>routes/contexts/read.js</code> joins <code>ContextMembers</code> to <code>Resources</code> on
+  <code>m.id::text = cm."memberId"::text</code>. The cast hides both indexes: the plan is a
+  nested loop that compares every resource, in display-name order, against all
+  106,000 materialised members (estimated 428 M rows) and stops when it has
+  <code>OFFSET + LIMIT</code> matches. Page 1 costs 4 minutes; page 1,000 never ends.</li>
+<li><strong>An abandoned request keeps running.</strong> When the client gave up on the deep page
+  after 30 minutes, the query was still running in PostgreSQL 35 minutes in —
+  there is no statement timeout and nothing cancels a query whose HTTP client has
+  gone away.</li>
+<li><strong>"Pivot by logical application" does not exist as such.</strong> The matrix can roll
+  up the subject axis by an Identity/Principal context, but it cannot group
+  resources by a Resource-targeted context. What the UI offers is the application
+  list (fast), each application's page (slow, above) and a matrix filtered to one
+  application (fine when small, 413 when large).</li>
+<li>The <em>Access outside roles</em> report returned no rows because this dataset links
+  no roles to entitlements (no <code>ResourceRelationships.csv</code>); it is not a result.</li>
+</ul>
+<h2 id="weak-points-found-along-the-way">Weak points found along the way<a class="headerlink" href="#weak-points-found-along-the-way" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><code>Sync-CsvContextMembers</code> survived 800 k rows, but at 3 GB</strong> — at the measured
+  commit, where it read through <code>Import-Csv</code> and built every record before sending.
+  At 100% it completed in 67 s with the crawler's <code>pwsh</code> at ~3.0 GB RSS, and the
+  next phase peaked at 3.6 GB, on a box with ~4.3 GB visible at the time. <code>main</code>
+  now streams this file too (#1263); on the 10% cross-check the whole run peaked
+  at 479 MB. Not re-measured at 100% on <code>main</code>.</li>
+<li><strong>An unknown <code>SystemName</code> was silently absorbed</strong> at the measured commit: every
+  phase fell back to the fallback system with no warning (8 call sites in
+  <code>CSVCrawler.Phases.ps1</code>). <code>main</code> now warns with a count and the names (#1263).</li>
+<li><strong>Commas in values shifted columns under a comma delimiter</strong> — at the measured
+  commit. Its fast CSV path split on the delimiter with no quote handling, so a DN
+  such as <code>"CN=GRP-…,OU=Application Groups,OU=East,DC=corp,DC=example,DC=com"</code>
+  turned a 7-column row into 19 cells and <code>SystemName</code> into <code>DC=corp</code>, which then
+  fell into the silent fallback above. That is why these runs used tabs. <code>main</code>
+  now parses quoted values (#1263); the correctly quoted, comma-delimited case is
+  kept as a regression fixture in
+  <a href="https://github.com/Fortigi/IdentityAtlas/tree/main/tools/scale-dataset/fixtures/comma-shift"><code>tools/scale-dataset/fixtures/comma-shift/</code></a>.</li>
+<li><strong>The <code>buildContexts</code> post-sync hook does nothing.</strong> <code>Build-FGContexts.ps1</code> posts
+  to <code>/api/ingest/refresh-contexts</code>, which no longer exists: every CSV run logs a
+  404 and still reports success. The member counts it used to maintain are
+  recomputed by <code>refresh-views</code> instead. <code>accountCorrelation</code> is a no-op ("not yet
+  implemented in v5").</li>
+</ul>
+<h2 id="what-this-means-for-the-next-piece-of-work">What this means for the next piece of work<a class="headerlink" href="#what-this-means-for-the-next-piece-of-work" title="Permanent link">&para;</a></h2>
+<p>In the order a 41 M-row load hits them. <em>Status after step 7 in italics.</em></p>
+<ol>
+<li><strong>Disk, because of <code>_history</code>.</strong> 42 of ~68 GB. Whether a first load — or any
+   bulk insert of brand-new rows — should be written to the audit history at all
+   is a product decision; until it is made, a load this size needs ~70 GB free.
+   <em>Decided and done (#1270): the whole load now writes 18 MB of history.</em></li>
+<li><strong>Index maintenance during bulk load.</strong> Measured at 80–90% of the database-side
+   insert cost and the cause of the throughput decay. Dropping and rebuilding the
+   13 <code>ResourceAssignments</code> indexes around a full load measured ~4.5× faster.
+   <em>The staged full load does this (#1271); the CSV crawler does not use it yet,
+   and its assignments phase runs at 11,600 rows/s with every index live.</em></li>
+<li><strong>Post-load refreshes.</strong> The classify call refreshes the matrix views inside a
+   request the crawler abandons after 300 s and then retries, stacking full
+   refreshes; the API refreshes again on every start. Each refresh needs ~11 GB of
+   scratch space at this size.
+   <em>Done (#1269): one background refresh, none on start. A refresh still needs
+   ~11 GB and 4–15 minutes.</em></li>
+<li><strong>The matrix endpoint.</strong> Enforce the row limit before loading rows (a count, or
+   a <code>LIMIT 400001</code>), so a large matrix returns 413 instead of taking the API down
+   for everyone; then decide what the principal view should show at 41 M.
+   <em>First half done (#1266). The second half is open: every principal matrix at
+   this size is a 413, and the refusal itself takes 9–19 s.</em></li>
+<li><strong>Logical-application membership queries.</strong> The text-cast join makes every
+   application page proportional to (resources × members), and nothing stops a
+   query its client has abandoned.
+   <em>The join is fixed (#1267): 0.2–0.3 s. Abandoned queries still run on.</em></li>
+<li><em>New after step 7: the CSV crawler's re-import at this size (it rewrites every
+   row), filter-value discovery (one full scan per attribute, cold after every
+   restart), and a large matrix that can only be refused.</em></li>
+</ol>
+<h2 id="reproducing">Reproducing<a class="headerlink" href="#reproducing" title="Permanent link">&para;</a></h2>
+<p>Everything above can be rerun: the generator is deterministic from its seed, and a
+full set takes 15 s to write. On a Docker host with at least 80 GB free:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>node<span class="w"> </span>tools/scale-dataset/generate.mjs<span class="w"> </span>--out<span class="w"> </span>./scale-10pct<span class="w"> </span>--scale<span class="w"> </span><span class="m">0</span>.1
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># create a CSV crawler config with "delimiter": "\t", put the six files in</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># /data/uploads/csv-&lt;configId&gt;/ inside the web container, and start a full sync:</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:3001/api/admin/crawler-jobs<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">'{"jobType":"csv","configId":&lt;id&gt;,"syncMode":"full"}'</span>
+</code></pre></div>
+<p>The instruments used for the step-7 re-run — load, query set, repeat import,
+attribution, filter shape — are in
+<a href="https://github.com/Fortigi/IdentityAtlas/tree/main/tools/scale-rehearsal"><code>tools/scale-rehearsal</code></a>.</p>
+<p>Start at 10%: in about ten minutes it reproduces the ingest profile and the matrix
+crash. The disk wall, the refresh stacking and the four-minute application pages
+only appear at full scale.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Created by <a href="https://www.fortigi.nl">Maatschap Fortigi</a>
+
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/Fortigi/IdentityAtlas" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/wimvdheijkant/" target="_blank" rel="noopener" title="Wim van den Heijkant" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.fortigi.nl" target="_blank" rel="noopener" title="Fortigi" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M351.9 280H161c2.9 64.5 17.2 123.9 37.5 167.4 11.4 24.5 23.7 41.8 35.1 52.4 11.2 10.5 18.9 12.2 22.9 12.2s11.7-1.7 22.9-12.2c11.4-10.6 23.7-28 35.1-52.4 20.3-43.5 34.6-102.9 37.5-167.4zm-191-48h190.9c-2.8-64.5-17.1-123.9-37.4-167.4-11.4-24.4-23.7-41.8-35.1-52.4C268.1 1.7 260.4 0 256.4 0s-11.7 1.7-22.9 12.2c-11.4 10.6-23.7 28-35.1 52.4-20.3 43.5-34.6 102.9-37.5 167.4m-48 0c3.5-85.6 25.6-165.1 57.9-217.3C78.7 47.3 10.9 131.2 1.5 232zM1.5 280c9.4 100.8 77.2 184.7 169.3 217.3-32.3-52.2-54.4-131.7-57.9-217.3zm398.4 0c-3.5 85.6-25.6 165.1-57.9 217.3 92.1-32.7 159.9-116.5 169.3-217.3zm111.4-48C501.9 131.2 434.1 47.3 342 14.7c32.3 52.2 54.4 131.7 57.9 217.3z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.path", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

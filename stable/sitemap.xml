@@ -73,6 +73,10 @@
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/architecture-guidance-review-2026-09/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/assignment-model-redesign/</loc>
          <lastmod>2026-10-09</lastmod>
     </url>
@@ -97,6 +101,10 @@
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/context-assistant/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/context-redesign-plan/</loc>
          <lastmod>2026-10-09</lastmod>
     </url>
@@ -117,11 +125,23 @@
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/custom-reports/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/dashboard-trends/</loc>
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/decision-principles/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/demo-dataset/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/design-archive/</loc>
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
@@ -165,6 +185,10 @@
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/reports/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/resource-assignments-identity-support/</loc>
          <lastmod>2026-10-09</lastmod>
     </url>
@@ -181,11 +205,19 @@
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/scale-rehearsal/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/scaling/</loc>
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/soft-delete/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/sql-connector-delta/</loc>
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
@@ -214,6 +246,14 @@
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/contributing/style-guide/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/contributing/writing-tests-that-assert/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/demo/before-you-play/</loc>
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
@@ -261,6 +301,50 @@
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/process/autonomous-bug-pipeline/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/process/autonomy-roadmap/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/process/definition-of-ready/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/process/dor-sidekick-setup/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/process/dor-state-machine/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/process/epic-layer-session-2026-09/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/process/epic-layer/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/process/maintaining-a-release-line/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/process/operationalization/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/process/release-notes/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/reference/ask-assistant/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/reference/config/</loc>
          <lastmod>2026-10-09</lastmod>
     </url>
@@ -269,7 +353,15 @@
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/reference/experimental-features/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/reference/permissions/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/reference/report-generator/</loc>
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
@@ -305,11 +397,23 @@
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/security/assessment-2026-09/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/security/assessment/</loc>
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/security/maintenance-audit-2026-06/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/start/first-15-minutes/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/start/glossary/</loc>
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
@@ -341,11 +445,27 @@
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/sync/mssql/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/sync/omada/</loc>
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/sync/scim/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/ui/context-assistant/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/ui/contexts/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/ui/custom-reports/</loc>
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
@@ -362,6 +482,10 @@
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/ui/overview/</loc>
+         <lastmod>2026-10-09</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/ui/sharing-a-matrix/</loc>
          <lastmod>2026-10-09</lastmod>
     </url>
     <url>
