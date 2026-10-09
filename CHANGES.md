@@ -1,5 +1,17 @@
 ## Changes in this PR
 
+- A delta SQL import now loads assignments through the same staged load a full import uses. A delta run that has no watermark yet (every delta run until one has completed and verified) reads everything, and used to write all of it batch by batch; it now takes the fast path, and unchanged assignments are no longer rewritten.
+- In a delta run, assignments read as a window (only what changed since the last run) are also staged: only rows whose values actually changed are written, instead of every row the source re-stamped. Removals are still found by the key sweep.
+- A delta run's assignments are verified against what was applied rather than against a recount of the source, so a source that is being written to during the read no longer fails the run.
+- The `stagedFullLoad` setting now applies to delta runs as well as full ones.
+
+## Changes in this PR
+
+- Fixed a full SQL import failing its final verification although every assignment had loaded. A source that is still being written to during a long read (IdentityIQ during aggregation) could differ from the database by a few rows more than the allowed slack, which failed the job and stored no watermark, so the next run read everything again. Assignments loaded in a full sync are now verified exactly against what was applied, and the source's own count afterwards is reported as information.
+- A full sync's assignments are now verified even when the source could not be counted (for example when the count timed out); those scopes used to be reported as not verified.
+
+## Changes in this PR
+
 - Added the one-minute explainer video ("Trust starts with clarity") to the identityatlas.io homepage as a new "Watch" section, linked from the hero, the navigation and the footer; the video is self-hosted on the site with no third-party player.
 
 ## Changes in this PR

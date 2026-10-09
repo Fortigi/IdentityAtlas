@@ -2,7 +2,7 @@
 //
 //   POST   /ingest/stages                  { entity, systemId, scope?, idGeneration?, idPrefix?, keysOnly? } → 201 { stageId }
 //   POST   /ingest/stages/:id/rows         { records }                                           → 200 { rows }
-//   POST   /ingest/stages/:id/finalize     { deleteMissing?, maxDeleteShare? }                   → 200 { path, inserted, updated, deleted, rows }
+//   POST   /ingest/stages/:id/finalize     { deleteMissing?, maxDeleteShare? }                   → 200 { path, inserted, updated, deleted, rows, distinct, present? }
 //   POST   /ingest/stages/finalize         { stageIds, deleteMissing?, maxDeleteShare? }         → 200 { results: [...] }
 //   DELETE /ingest/stages/:id                                                                    → 204
 //

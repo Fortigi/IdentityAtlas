@@ -383,7 +383,9 @@ key collapse into one row but would still be counted as sent.
 | Placed, per statement | At most **5%** of the rows read may be held back: as dangling (they name a resource or principal the run did not load) or skipped (a required column is empty). More means the statements disagree about what exists, for example an entitlement statement that filters out most entitlements while the grant statement does not. A little is normal, e.g. grants held by workgroups that the principals statement leaves out. This bound is also what makes an assignment count with dangling rows an assertion rather than an open range |
 | Principals, resources | The number of **distinct** ids the statement returned. If it returned more rows than distinct ids, the run fails: two records sharing an id overwrite each other, so all but one of them are lost. Make the id column unique |
 | Relationships, owner assignments | The number of **distinct** pairs — (parent, child) for a relationship, (resource, principal) for an owner assignment — compared with the database's own count. A repeated pair is **not** a failure: it is the same edge arriving twice (a business role reaching one entitlement through two source applications, say), and collapsing it loses nothing, because an edge carries nothing but its two ends. The collapse is reported, not failed |
-| Assignments | The source's distinct (resource, principal) pairs, allowing the same drift as the read (a pair count cannot move by more than the row count did). Rows held back as dangling make this a range rather than an exact number |
+| Assignments read in full | **Exactly** the number of distinct assignments the stage held when it was applied. Both numbers are Identity Atlas's own, so a source that is still being written to cannot move them, and there is no slack. The source's distinct-pair count, taken again after the read, is printed beside it when it differs: that is a finding about the source, not a verdict on the load |
+| Assignments read as a window | **Every** distinct assignment the window held must be live in the database after it is applied, as counted in the same transaction that wrote them. The scope's total is not compared: it includes every row the window did not mention |
+| Assignments with `stagedFullLoad` off | The source's distinct (resource, principal) pairs, allowing the same drift as the read. Rows held back as dangling make this a range rather than an exact number |
 
 A statement that pages with `@Offset` cannot be wrapped in a count, so its read and its
 assignment scope are reported as not verified rather than guessed at.
@@ -438,16 +440,29 @@ a special case:
 
 A run that fails part-way never reaches step 3, so a partial read can never delete anything.
 
-**Assignments in a full sync are staged.** In a full sync (and with `stagedFullLoad` on, the
-default), the assignment batches do not go into the table one by one: they are collected
-in a *stage* per system and scope and applied together at the end of the run. That one
-step inserts what is new, updates only what changed and removes what the source no longer
-has, so it replaces the reconcile for those scopes. An unchanged re-import therefore
-rewrites nothing, and a first load into an empty table is indexed once instead of batch by
-batch. Two consequences: the assignments of a full sync appear all at once near the end of
-the job, and a full sync that fails before that step leaves the assignments exactly as they
-were. The job log shows the step as `Applying N staged scope(s)` with what it inserted,
-updated and removed. Delta runs are not staged.
+**Assignments are staged.** With `stagedFullLoad` on (the default), the assignment batches
+do not go into the table one by one: they are collected in a *stage* per system and scope
+and applied together. That one step inserts what is new and updates only what changed, so
+a row that did not change is not rewritten. This holds in a full sync and in a delta run;
+what differs is whether the step also removes anything, and that follows what was *read*,
+not the run mode:
+
+- **A statement read in full** — every statement of a full sync, and in a delta run every
+  statement without a watermark and every watermarked one that has no stored mark yet —
+  is applied with removal: what the source no longer has goes, so the step replaces the
+  reconcile for that scope. An unchanged re-import rewrites nothing, and a first load into
+  an empty table is indexed once instead of batch by batch. The job log shows it as
+  `Applying N staged scope(s)`.
+- **A statement that read a window** (a watermark is stored, so only what changed since
+  was read) is applied without removal, before the key sweep; the sweep is what removes.
+  The job log shows it as `Applying N staged window(s)`.
+
+Two consequences: the assignments of a run appear all at once near the end of the job, and
+a run that fails before that step leaves the assignments exactly as they were.
+
+This matters most for a delta run that has no watermark yet, which is every delta run
+until one has verified: it reads everything, and used to stream all of it into the table
+batch by batch — the slow path, on exactly the run that needed the fast one.
 
 ### Where a slow run spends its time
 
@@ -581,7 +596,7 @@ file has the shape shown under [Configuration](#configuration); on the command l
 | `commandTimeoutSeconds` | No | `600` | Seconds to wait for each query, `0` = no limit (0–86400). Applies per network read, so a streaming query is not cut off as a whole |
 | `systemName` | No | the crawler's name | Override for the Identity Atlas system name — see [System naming](#system-naming) |
 | `batchSize` | No | `5000` | Records per ingest call (100–50 000). Rows stream from SQL Server and are flushed every batch, so memory stays flat however large the result set |
-| `stagedFullLoad` | No | `true` | In a full sync, load each assignment scope through a staged load and apply it in one step — see [Very large tables](#very-large-tables). `false` streams every batch straight into the table |
+| `stagedFullLoad` | No | `true` | Load each assignment scope through a staged load and apply it in one step, in a full sync and a delta run alike — see [Very large tables](#very-large-tables). `false` streams every batch straight into the table |
 | `ingestConcurrency` | No | `3` | How many assignment and relationship batches may be on their way to Identity Atlas at once while the crawler reads and prepares the next ones (1–8). `1` sends one batch at a time and waits for each |
 | `pageSize` | No | `10000` | Value bound to `@PageSize` for a query that pages with `@Offset` / `@PageSize` (100–1 000 000) |
 | `watermarkOverlapSeconds` | No | `900` | How far back of its last position each incremental read goes, to cover clock drift between the source's application servers and transactions that commit late (0–604 800) — see [Reading only what changed](#reading-only-what-changed) |
