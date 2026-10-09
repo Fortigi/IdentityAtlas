@@ -60,7 +60,9 @@ describe('toPerson', () => {
   });
 });
 
-describe('PeoplePicker', () => {
+// A test chains several SETTLE waits, so its own budget must exceed one of them
+// or a slow worker times the test out before the wait it is sitting in expires.
+describe('PeoplePicker', { timeout: 20000 }, () => {
   it('searches the directory for what was typed, debounced', async () => {
     const { authFetch, user } = mount();
     await user.type(searchBox(), 'ann');

@@ -1,0 +1,1 @@
+- Fixed an intermittent test failure in the people picker that could turn unrelated pull requests red
