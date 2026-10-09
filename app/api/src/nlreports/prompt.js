@@ -9,7 +9,7 @@
 // server compiles into a decoding grammar: the model physically cannot emit
 // anything that is not a well-formed reply with known field/relation names.
 
-import { ENTITIES, GLOSSARY, OPERATORS_BY_TYPE, OPERATORS } from './catalog.js';
+import { MODEL_ENTITIES as ENTITIES, GLOSSARY, OPERATORS_BY_TYPE, OPERATORS } from './catalog.js';
 import { MEASURES } from './compare.js';
 import { MAX_COLUMNS, MAX_CONDITIONS } from './spec.js';
 

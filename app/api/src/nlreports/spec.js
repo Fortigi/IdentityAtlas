@@ -51,6 +51,7 @@ const ENTITY_ALIASES = {
   businessrole: 'resource', 'business role': 'resource', 'access package': 'resource',
   change: 'change', changes: 'change', event: 'change', events: 'change',
   wijziging: 'change', wijzigingen: 'change',
+  context: 'context', contexts: 'context',
 };
 
 // Object.hasOwn, like every other lookup here: an entity called "constructor" or
