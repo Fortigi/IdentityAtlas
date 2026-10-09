@@ -15,13 +15,14 @@
 // names, thresholds).
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
-import { query, queryOne } from '../../db/connection.js';
+import { query, queryOne, tx } from '../../db/connection.js';
 import { READ_GATE, WRITE_GATE } from './gates.js';
 import {
   SOURCE_KINDS, validateRecipe, validateLinkRules, normalizeRecipe, normalizeLinkRules,
 } from '../contracts.js';
 import { PROFILE_COLUMNS, getProfile } from '../import/profileStore.js';
 import { getSource } from '../import/sourceStore.js';
+import { refreshProjections } from '../projection/refresh.js';
 import { createImportRun, findActiveRun, startImportRun } from '../import/runImport.js';
 import { actorOf, handle, sendInvalid } from '../import/httpHelpers.js';
 
@@ -134,6 +135,66 @@ router.post('/org-truth/profiles/:id/relink', ...WRITE_GATE, handle('relink the 
   const run = await createImportRun({ source, profile, mode: 'delta', triggeredBy: actorOf(req) });
   startImportRun(run.id);
   res.status(202).json({ profile, run });
+}));
+
+// Rename an entity type after the fact ("Uren" → "Urenregel", "FortigiTeam" → "Klant"):
+//   POST /api/org-truth/profiles/:id/rename-type { from, to } → { profile, renamedEntities, otherProfiles }
+// In one transaction: the profile's entities of that type (every version of the
+// profile), the next profile version with the type renamed in its recipe and
+// rules, and the next version of every OTHER profile whose rules point at the
+// type (targetEntityType). The projection trees are rebuilt afterwards.
+const TYPE_NAME = /^[\p{L}\p{N}][\p{L}\p{N} _-]{0,63}$/u;
+
+function renameInRecipe(recipe, from, to) {
+  return {
+    ...recipe,
+    entities: recipe.entities.map(e => (e.type === from ? { ...e, type: to } : e)),
+    relations: (recipe.relations ?? []).map(r => ({ ...r, from: r.from === from ? to : r.from, to: r.to === from ? to : r.to })),
+  };
+}
+function renameInRules(rules, from, to) {
+  return (rules ?? []).map(r => ({
+    ...r,
+    entityType: r.entityType === from ? to : r.entityType,
+    ...(r.targetEntityType === from ? { targetEntityType: to } : {}),
+    name: undefined,
+  }));
+}
+
+async function insertVersion(client, current, recipe, rules, actor) {
+  const linkRules = normalizeLinkRules(rules.map(({ name: _n, ...r }) => r));
+  return (await client.query(`
+    INSERT INTO "OrgImportProfiles" ("id", "name", "version", "sourceKind", "recipe", "linkRules", "createdBy")
+    SELECT $1, $2, COALESCE(MAX("version"), 0) + 1, $3, $4, $5, $6 FROM "OrgImportProfiles" WHERE "name" = $2
+    RETURNING ${PROFILE_COLUMNS}`,
+  [randomUUID(), current.name, current.sourceKind, JSON.stringify(recipe), JSON.stringify(linkRules), actor])).rows[0];
+}
+
+router.post('/org-truth/profiles/:id/rename-type', ...WRITE_GATE, handle('rename the entity type', async (req, res) => {
+  const current = await getProfile(req.params.id);
+  if (!current) return res.status(404).json({ error: 'Profile not found.' });
+  const from = String(req.body?.from ?? '').trim();
+  const to = String(req.body?.to ?? '').trim();
+  if (!current.recipe.entities.some(e => e.type === from)) return res.status(400).json({ error: `Profile "${current.name}" has no entity type "${from}".` });
+  if (!TYPE_NAME.test(to)) return res.status(400).json({ error: 'The new name must start with a letter or digit and be at most 64 letters, digits, spaces, _ or -.' });
+  if (to === from) return res.status(400).json({ error: 'The new name is the same as the old one.' });
+  const taken = await queryOne(`SELECT 1 AS t FROM "OrgEntities" WHERE "entityType" = $1 LIMIT 1`, [to]);
+  if (taken) return res.status(409).json({ error: `An entity type "${to}" already exists; pick another name.` });
+  const actor = actorOf(req);
+  const out = await tx(async (client) => {
+    const renamed = await client.query(`
+      UPDATE "OrgEntities" SET "entityType" = $1
+       WHERE "entityType" = $2 AND "profileId" IN (SELECT id FROM "OrgImportProfiles" WHERE name = $3)`, [to, from, current.name]);
+    const profile = await insertVersion(client, current, renameInRecipe(current.recipe, from, to), renameInRules(current.linkRules, from, to), actor);
+    const others = (await client.query(`
+      SELECT ${PROFILE_COLUMNS} FROM "OrgImportProfiles" p
+       WHERE p.name <> $1 AND p.version = (SELECT MAX(v.version) FROM "OrgImportProfiles" v WHERE v.name = p.name)`, [current.name])).rows
+      .filter(p => (p.linkRules ?? []).some(r => r.targetEntityType === from));
+    for (const p of others) await insertVersion(client, p, p.recipe, renameInRules(p.linkRules, from, to), actor);
+    return { profile, renamedEntities: renamed.rowCount ?? 0, otherProfiles: others.map(p => p.name) };
+  });
+  refreshProjections('type-rename').catch(err => console.error('org-truth: projection refresh after rename failed:', err.message));
+  res.json(out);
 }));
 
 export default router;
