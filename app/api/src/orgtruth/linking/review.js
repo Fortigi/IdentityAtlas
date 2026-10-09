@@ -165,6 +165,20 @@ const MOVE_UPSERT_SQL = `INSERT INTO "OrgLinks"
   RETURNING *`;
 const siblingParams = (link, keepIds) => [link.orgEntityId, keepIds, link.targetType, link.via ?? null, link.orgValue ?? null];
 
+// The same decision on OTHER entities: the analyst confirmed (or rejected) that
+// value V of attribute A means target T — every open proposal with the same
+// attribute, value and target takes that decision too (42 timesheet rows naming
+// "Havenbedrijf Rotterdam N.V." are confirmed by one click, not 42).
+const SAME_DECISION_SQL = `UPDATE "OrgLinks" SET "status" = $5, "analystOverride" = $6, ${STAMP.replace('$2', '$7')}
+  WHERE "id" <> $1 AND "status" = 'proposed' AND "analystOverride" IS NULL
+    AND "targetType" = $2 AND "targetId" = $3 AND "via" IS NOT DISTINCT FROM $4 AND "orgValue" IS NOT DISTINCT FROM $8
+  RETURNING "id", "orgEntityId"`;
+async function applyToSameValue(client, link, status, override, actor) {
+  if (!link.orgValue) return 0;
+  const r = await client.query(SAME_DECISION_SQL, [link.id, link.targetType, link.targetId, link.via ?? null, status, override, actor, link.orgValue]);
+  return r.rowCount ?? r.rows.length;
+}
+
 async function loadLink(id) {
   if (!isUuid(id)) throw new ReviewError(400, 'The link id must be a UUID.');
   const link = await queryOne('SELECT * FROM "OrgLinks" WHERE "id" = $1', [id]);
@@ -199,12 +213,17 @@ export async function overrideLink(id, { action, targetId } = {}, user = undefin
   const actor = actorOf(user);
   if (action === 'moved') return moveLink(original, targetId, actor);
   if (action === 'rejected') {
-    return { link: (await query(SET_OVERRIDE_SQL, [id, actor, 'rejected', 'rejected'])).rows[0] };
+    return tx(async (client) => {
+      const link = (await client.query(SET_OVERRIDE_SQL, [id, actor, 'rejected', 'rejected'])).rows[0];
+      const alsoApplied = await applyToSameValue(client, original, 'rejected', 'rejected', actor);
+      return { link, alsoApplied };
+    });
   }
   return tx(async (client) => {
     const link = (await client.query(SET_OVERRIDE_SQL, [id, actor, 'accepted', 'confirmed'])).rows[0];
     await client.query(REJECT_OPEN_SIBLINGS_SQL, siblingParams(original, [id]));
-    return { link };
+    const alsoApplied = await applyToSameValue(client, original, 'accepted', 'confirmed', actor);
+    return { link, alsoApplied };
   });
 }
 
