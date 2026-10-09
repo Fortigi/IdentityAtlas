@@ -125,8 +125,9 @@ describe('resolveLabels', () => {
     expect((await resolveLabels([])).size).toBe(0);
     expect(query).not.toHaveBeenCalled();
     query.mockResolvedValue({ rows: [] });
-    await resolveLabels([{ targetType: 'Context', targetId: 'c' }, { targetType: 'Identity', targetId: 'i' }]);
-    expect(query.mock.calls.map(c => c[0].match(/FROM "(\w+)"/)[1])).toEqual(['Identities', 'Contexts']);
+    await resolveLabels([{ targetType: 'OrgEntity', targetId: 'o' }, { targetType: 'Context', targetId: 'c' }, { targetType: 'Identity', targetId: 'i' }]);
+    expect(query.mock.calls.map(c => c[0].match(/FROM "(\w+)"/)[1])).toEqual(['Identities', 'Contexts', 'OrgEntities']);
+    expect(query.mock.calls[2][1]).toEqual([['o']]);
   });
 });
 

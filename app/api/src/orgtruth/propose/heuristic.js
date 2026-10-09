@@ -158,11 +158,13 @@ function entityOf({ type, cols, rows, probes, compositeKey }) {
   const entity = {
     type, nameColumn: name.name, ...(key ? { keyColumn: key.name } : {}), ...(composite ? { keyColumns: composite } : {}), attributes,
   };
-  let note;
-  if (key) note = `${key.name} ${num(key.uniqueness) < 1 ? 'is nearly unique (a few values repeat)' : 'is unique on every row'}, so it is the key of ${type}${name === key ? '' : `, and ${name.name} is its name`}.`;
-  else if (composite) note = `No single column is unique, but ${composite.join(' + ')} together are, so every row is one ${type}, named after ${name.name}.`;
-  else note = `No column is unique enough to be a key, so ${type} is identified by ${name.name}.`;
-  return { entity, byColumn, note, groupLike: looksLikeGroupNames(name.samples), name };
+  return { entity, byColumn, note: keyNote(type, key, name, composite), groupLike: looksLikeGroupNames(name.samples), name };
+}
+
+function keyNote(type, key, name, composite) {
+  if (key) return `${key.name} ${num(key.uniqueness) < 1 ? 'is nearly unique (a few values repeat)' : 'is unique on every row'}, so it is the key of ${type}${name === key ? '' : `, and ${name.name} is its name`}.`;
+  if (composite) return `No single column is unique, but ${composite.join(' + ')} together are, so every row is one ${type}, named after ${name.name}.`;
+  return `No column is unique enough to be a key, so ${type} is identified by ${name.name}.`;
 }
 
 const signal = (attribute, targetField, type, weight) => ({ attribute, targetField, type, weight });

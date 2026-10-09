@@ -87,6 +87,17 @@ describe('propose — the five paths', () => {
     expect(r.timing).toMatchObject({ model: true, rounds: 2 });
   });
 
+  it('probed values: the data decides (origin data), the model is never asked or even checked', async () => {
+    const probes = { KeeperEmail: { values: 3, people: 1, resources: 0, orgEntities: 0, orgEntityTypes: [] } };
+    const r = await propose({ ...input, probes });
+    expect(r.origin).toBe('data');
+    expect(r.timing.model).toBe(false);
+    expect(r.recipe).toEqual(heuristicProposal({ ...input, probes }).recipe);
+    expect(r.linkRules).toEqual(heuristicProposal({ ...input, probes }).linkRules);
+    expect(chat).not.toHaveBeenCalled();
+    expect(modelState).not.toHaveBeenCalled();
+  });
+
   it('model unreachable: the heuristic, without asking the model', async () => {
     modelState.mockRejectedValueOnce(new Error('ECONNREFUSED'));
     const r = await propose(input);

@@ -12,3 +12,5 @@
 - In the import wizard, each attribute of an entity can be linked on its own: an owner column to an account, a team column with several people to several accounts, and the entity's own name to a group or resource; the data-quality check reports every such link separately with the number of values it scored, and an entity's name can be given its own attribute name.
 - The import wizard proposes the model on its own as soon as the model step opens for a new list; Propose again re-runs it.
 - An organisation entity's detail tab shows evidence from other lists such as a timesheet: whether the people the list names (its owner, its team) actually wrote hours on it and until when, who wrote hours on it without being listed, and whether it is still active, quiet or inactive.
+- Fixed: when two names in one cell resolve to the same account, the accepted match is kept even when a proposal for that account scored higher.
+- Fixed: links from an organisation entity to an entity of another list show in the entity graph and detail page under "Other lists", with the entity's name instead of its id.

@@ -550,10 +550,11 @@ describe('what the API receives', () => {
       relations: [{ predicate: 'owner', from: 'Project', to: 'Owner' }] });
   });
 
-  it('proposeBody sends the column profile, the file name and a whole row count', () => {
-    expect(W.proposeBody(modelled())).toEqual({ fileName: 'Projects.csv', columns: COLS, rowCount: 12 });
-    expect(W.proposeBody({ ...modelled(), source: { ...SOURCE, fileName: '', rowCount: null } })).toEqual({ fileName: 'Projects', columns: COLS });
-    expect(W.proposeBody({ ...modelled(), source: { id: 'x', rowCount: 2.5 } })).toEqual({ fileName: '', columns: [] });
+  it('proposeBody sends the column profile, the file name, a whole row count and the stored source', () => {
+    expect(W.proposeBody(modelled())).toEqual({ fileName: 'Projects.csv', columns: COLS, rowCount: 12, sourceId: 's1' });
+    expect(W.proposeBody({ ...modelled(), source: { ...SOURCE, fileName: '', rowCount: null } })).toEqual({ fileName: 'Projects', columns: COLS, sourceId: 's1' });
+    expect(W.proposeBody({ ...modelled(), source: { id: 'x', rowCount: 2.5 } })).toEqual({ fileName: '', columns: [], sourceId: 'x' });
+    expect(W.proposeBody({ ...modelled(), source: { ...SOURCE, id: '' } })).not.toHaveProperty('sourceId');
     expect(W.proposeBody(W.emptyDraft())).toEqual({ fileName: '', columns: [] });
   });
 

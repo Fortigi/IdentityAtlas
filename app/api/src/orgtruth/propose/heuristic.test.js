@@ -261,3 +261,108 @@ describe('helpers', () => {
     expect(usableColumns(undefined)).toEqual([]);
   });
 });
+
+describe('heuristicProposal — with data probes', () => {
+  const probe = (p) => ({ values: 10, people: 0, resources: 0, orgEntities: 0, orgEntityTypes: [], ...p });
+
+  describe('a headerless person list', () => {
+    const columns = profile(
+      c('Column 1', 'text', { samples: ['Ann Example'] }),
+      c('Column 2', 'text', { distinct: 5, samples: ['Finance'] }),
+    );
+
+    it('a name column of at least 50 % people links each row to its own account, not to resources', () => {
+      const r = heuristicProposal({ fileName: 'Staff.csv', columns, probes: { 'Column 1': probe({ people: 0.5 }) } });
+      expectValid(r, columns);
+      expect(r.linkRules.map(x => [x.targetType, x.via])).toEqual([['Principal', 'displayName']]);
+      expect(rule(r, 'Principal', 'displayName')).toMatchObject({ threshold: 50 });
+      expect(signalsOf(rule(r, 'Principal', 'displayName'))).toEqual(['displayName>displayName:exact:80', 'displayName>displayName:name:60']);
+      expect(r.notes).toContain('50 % of the values of Column 1 are accounts, so every Staff is a person, linked to their account by name.');
+    });
+
+    it('just under 50 % people: the resource rule as before', () => {
+      const r = heuristicProposal({ fileName: 'Staff.csv', columns, probes: { 'Column 1': probe({ people: 0.49 }) } });
+      expect(r.linkRules.map(x => [x.targetType, x.via])).toEqual([['Resource', 'displayName']]);
+    });
+
+    it('people that are also resources (a quarter or more) keep the resource rule first', () => {
+      const r = heuristicProposal({ fileName: 'Staff.csv', columns, probes: { 'Column 1': probe({ people: 0.8, resources: 0.25 }) } });
+      expect(r.linkRules.map(x => [x.targetType, x.via])).toEqual([['Resource', 'displayName'], ['Principal', 'displayName']]);
+      const under = heuristicProposal({ fileName: 'Staff.csv', columns, probes: { 'Column 1': probe({ people: 0.8, resources: 0.24 }) } });
+      expect(under.linkRules.map(x => x.targetType)).toEqual(['Principal']);
+    });
+
+    it('without probes nothing changes: no column is taken for people by its values', () => {
+      const r = heuristicProposal({ fileName: 'Staff.csv', columns });
+      expect(r).toEqual(heuristicProposal({ fileName: 'Staff.csv', columns, probes: null, compositeKey: null }));
+      expect(r.linkRules.map(x => [x.targetType, x.via])).toEqual([['Resource', 'displayName']]);
+    });
+  });
+
+  describe('a timesheet (a fact list without a key)', () => {
+    const columns = profile(
+      c('Jaar', 'number', { distinct: 1, samples: ['2026'] }),
+      c('Maand', 'text', { distinct: 12, samples: ['januari'] }),
+      c('Medewerker', 'text', { distinct: 20, samples: ['Ann Example'] }),
+      c('Klant', 'text', { distinct: 30, samples: ['Contoso'] }),
+      c('Uren', 'number', { distinct: 50, samples: ['8,5'] }),
+    );
+    const probes = {
+      Medewerker: probe({ people: 0.95 }),
+      Klant: probe({ orgEntities: 0.9, orgEntityTypes: ['Customer', 'Supplier'] }),
+    };
+    const compositeKey = ['Jaar', 'Maand', 'Medewerker', 'Klant'];
+    const r = heuristicProposal({ fileName: 'Uren.xlsx', columns, probes, compositeKey });
+
+    it('keys every row on the composite key and names it after the other list it refers to', () => {
+      expectValid(r, columns);
+      expect(entity(r)).toMatchObject({ nameColumn: 'Klant', keyColumns: compositeKey });
+      expect(r.notes[0]).toBe('No single column is unique, but Jaar + Maand + Medewerker + Klant together are, so every row is one Uren, named after Klant.');
+    });
+
+    it('links the row by its name to the other list (fuzzy 100, threshold 60) and its person column to accounts', () => {
+      expect(r.linkRules.map(x => [x.targetType, x.via])).toEqual([['OrgEntity', 'displayName'], ['Principal', 'medewerker']]);
+      expect(rule(r, 'OrgEntity', 'displayName')).toMatchObject({ threshold: 60 });
+      expect(signalsOf(rule(r, 'OrgEntity', 'displayName'))).toEqual(['displayName>displayName:fuzzy:100']);
+      expect(r.notes).toContain('90 % of the values of Klant match a Customer from another list, so Uren is linked through it to that list (fuzzy on the name).');
+    });
+
+    it('without an org-entity column the row is named after its person column', () => {
+      const p = heuristicProposal({ fileName: 'Uren.xlsx', columns, probes: { Medewerker: probes.Medewerker }, compositeKey });
+      expect(entity(p).nameColumn).toBe('Medewerker');
+      expect(rule(p, 'Principal', 'displayName')).toBeDefined();
+    });
+
+    it('a composite key is ignored when a single column is a key, or when it has fewer than two columns', () => {
+      const withKey = profile(c('Code', 'text', { samples: ['A'] }), c('Naam', 'text'));
+      expect(entity(heuristicProposal({ fileName: 'x.csv', columns: withKey, compositeKey: ['Code', 'Naam'] }))).not.toHaveProperty('keyColumns');
+      expect(entity(heuristicProposal({ fileName: 'Uren.xlsx', columns, probes, compositeKey: ['Jaar'] }))).not.toHaveProperty('keyColumns');
+    });
+  });
+
+  describe('an attribute naming another list', () => {
+    const columns = profile(
+      c('ProjectCode', 'text', { samples: ['P-1'] }),
+      c('ProjectName', 'text'),
+      c('Klant', 'text', { distinct: 20, samples: ['Contoso'] }),
+      c('Opdrachtgever', 'text', { distinct: 20, samples: ['Contoso'] }),
+    );
+
+    it('a column of at least 50 % other-list entities links through it (OrgEntity, fuzzy 100, threshold 60)', () => {
+      const r = heuristicProposal({
+        fileName: 'Projects.xlsx', columns,
+        probes: { Klant: probe({ orgEntities: 0.5 }), Opdrachtgever: probe({ orgEntities: 0.49 }) },
+      });
+      expectValid(r, columns);
+      expect(rule(r, 'OrgEntity', 'klant')).toMatchObject({ threshold: 60 });
+      expect(signalsOf(rule(r, 'OrgEntity', 'klant'))).toEqual(['klant>displayName:fuzzy:100']);
+      expect(rule(r, 'OrgEntity', 'opdrachtgever')).toBeUndefined();
+      expect(r.notes).toContain('50 % of the values of Klant match an entity from another list, so Project is linked through it to that list (fuzzy on the name).');
+    });
+
+    it('a column of people is a person rule, never also an org-entity rule', () => {
+      const r = heuristicProposal({ fileName: 'Projects.xlsx', columns, probes: { Klant: probe({ people: 0.7, orgEntities: 0.9 }) } });
+      expect(r.linkRules.filter(x => x.via === 'klant').map(x => x.targetType)).toEqual(['Principal']);
+    });
+  });
+});

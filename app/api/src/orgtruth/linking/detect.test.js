@@ -52,8 +52,11 @@ describe('signalTypesFor', () => {
   });
   it('name against person display names, token against group and context names', () => {
     expect(signalTypesFor('text', 'Identity', 'displayName')).toEqual(['exact', 'name']);
-    expect(signalTypesFor('text', 'Resource', 'displayName')).toEqual(['exact', 'token']);
-    expect(signalTypesFor('text', 'Context', 'displayName')).toEqual(['exact', 'token']);
+    expect(signalTypesFor('text', 'Resource', 'displayName')).toEqual(['exact', 'token', 'fuzzy']);
+    expect(signalTypesFor('text', 'Context', 'displayName')).toEqual(['exact', 'token', 'fuzzy']);
+    expect(signalTypesFor('text', 'OrgEntity', 'displayName')).toEqual(['exact', 'fuzzy']);
+    expect(signalTypesFor('email', 'OrgEntity', 'displayName')).toEqual(['exact']);
+    expect(signalTypesFor('text', 'Resource', 'mail')).toEqual(['exact']);
     expect(signalTypesFor('text', 'Principal', 'email')).toEqual(['exact']);
   });
 });
@@ -68,6 +71,8 @@ describe('suggestedWeight', () => {
     expect(suggestedWeight('name', 'displayName')).toBe(60);
     expect(suggestedWeight('prefix', 'email')).toBe(80);
     expect(suggestedWeight('token', 'displayName')).toBe(50);
+    expect(suggestedWeight('fuzzy', 'displayName')).toBe(100);
+    expect(suggestedWeight('fuzzy', 'externalId')).toBe(100);
   });
 });
 
@@ -78,6 +83,11 @@ describe('probesFor', () => {
     expect(p).toEqual([
       { targetType: 'Context', targetField: 'displayName', type: 'exact' },
       { targetType: 'Context', targetField: 'displayName', type: 'token' },
+      { targetType: 'Context', targetField: 'displayName', type: 'fuzzy' },
+    ]);
+    expect(probesFor('text', new Map([['OrgEntity', []]]))).toEqual([
+      { targetType: 'OrgEntity', targetField: 'displayName', type: 'exact' },
+      { targetType: 'OrgEntity', targetField: 'displayName', type: 'fuzzy' },
     ]);
   });
 });
@@ -86,10 +96,10 @@ describe('detectPairs', () => {
   const rowsByType = new Map([['Principal', principals], ['Resource', resources]]);
   const pairs = detectPairs(people, ['displayName', 'email', 'code'], rowsByType);
 
-  it('counts unique, multiple and none per pair over all entities (an empty value is none)', () => {
+  it('counts unique, multiple and none per value; an empty value is not counted at all', () => {
     expect(find(pairs, 'email', 'Principal', 'email', 'exact')).toEqual({
       attribute: 'email', targetType: 'Principal', targetField: 'email', type: 'exact',
-      unique: 2, multiple: 0, none: 2, values: 4, uniquePct: 50, suggestedWeight: 90,
+      unique: 2, multiple: 0, none: 1, values: 3, uniquePct: 67, suggestedWeight: 90, // Cas's empty e-mail is no miss
     });
   });
 
@@ -100,7 +110,7 @@ describe('detectPairs', () => {
   });
 
   it('a prefix probe finds the plain and the admin account: several matches, not unique', () => {
-    expect(find(pairs, 'email', 'Principal', 'email', 'prefix')).toMatchObject({ unique: 1, multiple: 1, none: 2, uniquePct: 25 });
+    expect(find(pairs, 'email', 'Principal', 'email', 'prefix')).toMatchObject({ unique: 1, multiple: 1, none: 1, values: 3, uniquePct: 33 });
   });
 
   it('a duplicate display name makes the name match multiple', () => {
@@ -127,6 +137,17 @@ describe('detectPairs', () => {
   it('handles no entities', () => {
     expect(detectPairs(undefined, ['displayName'], rowsByType)).toEqual([]);
   });
+
+  it('a fuzzy probe against another list finds what exact misses', () => {
+    const rows = new Map([['OrgEntity', [
+      { id: 'c1', displayName: 'Contoso B.V.', entityType: 'Customer' },
+      { id: 'c2', displayName: 'Fabrikam', entityType: 'Customer' },
+    ]]]);
+    const sheet = ['Contoso', 'Fabrikam', 'Northwind', ''].map(c => ({ entityType: 'Timesheet', displayName: 'r', attributes: { customer: c } }));
+    const out = detectPairs(sheet, ['customer'], rows);
+    expect(find(out, 'customer', 'OrgEntity', 'displayName', 'fuzzy')).toMatchObject({ unique: 2, none: 1, values: 3, uniquePct: 67, suggestedWeight: 100 });
+    expect(find(out, 'customer', 'OrgEntity', 'displayName', 'exact')).toMatchObject({ unique: 1, none: 2, values: 3 });
+  });
 });
 
 describe('detectLinks', () => {
@@ -138,12 +159,13 @@ describe('detectLinks', () => {
   it('loads every target type with its whitelisted fields and scores the attributes the recipe maps', async () => {
     const def = { type: 'Person', nameColumn: 'Name', attributes: [{ column: 'Mail', name: 'email' }] };
     const pairs = await detectLinks([...people, { entityType: 'Project', displayName: 'Atlas', attributes: {} }], 'Person', def);
-    expect(query).toHaveBeenCalledTimes(4);
+    expect(query).toHaveBeenCalledTimes(5);
     expect(query.mock.calls.map(c => c[0])).toEqual([
       'SELECT "id", "displayName", "email", "employeeId", "principalType" FROM "Principals" WHERE "deletedAt" IS NULL',
       'SELECT "id", "displayName", "email", "employeeId" FROM "Identities"',
       'SELECT "id", "displayName", "mail", "externalId" FROM "Resources" WHERE "deletedAt" IS NULL AND ("resourceType" IS NULL OR "resourceType" NOT IN (\'GroupOwnership\',\'ServicePrincipalOwnership\',\'ApplicationOwnership\',\'ResourceOwnership\'))',
       'SELECT "id", "displayName" FROM "Contexts"',
+      'SELECT "id", "displayName", "entityType" FROM "OrgEntities" WHERE "status" = \'accepted\' AND "validTo" IS NULL',
     ]);
     expect(new Set(pairs.map(p => p.attribute))).toEqual(new Set(['displayName', 'email'])); // `code` is not mapped
   });

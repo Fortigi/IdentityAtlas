@@ -38,7 +38,7 @@ describe('shapeGraphCore', () => {
     expect(shapeGraphCore(entity, rel, links)).toEqual({
       core: {
         id: ID, entityType: 'Project', displayName: 'Apollo',
-        counts: { relationsOut: 3, relationsIn: 1, links: 4, bySystemType: { Principal: 1, Identity: 0, Resource: 3, Context: 0 } },
+        counts: { relationsOut: 3, relationsIn: 1, links: 4, bySystemType: { Principal: 1, Identity: 0, Resource: 3, Context: 0, OrgEntity: 0 } },
       },
       categories: [
         { key: 'rel:out:owner', label: 'owner →', count: 2, kind: 'category' },
@@ -52,20 +52,27 @@ describe('shapeGraphCore', () => {
 
   it('has zero counts and no categories for an isolated entity', () => {
     expect(shapeGraphCore(entity, [], [])).toEqual({
-      core: { ...entity, counts: { relationsOut: 0, relationsIn: 0, links: 0, bySystemType: { Principal: 0, Identity: 0, Resource: 0, Context: 0 } } },
+      core: { ...entity, counts: { relationsOut: 0, relationsIn: 0, links: 0, bySystemType: { Principal: 0, Identity: 0, Resource: 0, Context: 0, OrgEntity: 0 } } },
       categories: [],
     });
   });
 
   it('labels every link category', () => {
-    expect(LINK_LABELS).toEqual({ Principal: 'Accounts', Resource: 'Resources', Identity: 'Identities', Context: 'Contexts' });
+    expect(LINK_LABELS).toEqual({ Principal: 'Accounts', Resource: 'Resources', Identity: 'Identities', Context: 'Contexts', OrgEntity: 'Other lists' });
+  });
+
+  it('a link to another list entity gets its own labelled category', () => {
+    const out = shapeGraphCore(entity, [], [{ targetType: 'OrgEntity', n: 2 }]);
+    expect(out.core.counts.bySystemType.OrgEntity).toBe(2);
+    expect(out.categories).toEqual([{ key: 'link:OrgEntity', label: 'Other lists', count: 2, kind: 'category' }]);
+    expect(parseCategory('link:OrgEntity')).toEqual({ kind: 'link', targetType: 'OrgEntity' });
   });
 });
 
 describe('linkItem', () => {
   const link = { targetType: 'Resource', targetId: 'r1', status: 'proposed', confidence: 55 };
   it.each([
-    ['Principal', 'user'], ['Resource', 'resource'], ['Identity', 'identity'], ['Context', 'context'],
+    ['Principal', 'user'], ['Resource', 'resource'], ['Identity', 'identity'], ['Context', 'context'], ['OrgEntity', 'org-entity'],
   ])('maps %s to entityKind %s', (targetType, entityKind) => {
     expect(linkItem({ ...link, targetType }, { label: 'L' })).toEqual({
       key: `${entityKind}:r1`, label: 'L', kind: 'item', entityKind, entityId: 'r1', status: 'proposed', confidence: 55,

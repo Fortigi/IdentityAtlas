@@ -118,7 +118,7 @@ describe('ImportWizard — new import', () => {
     expect(await screen.findByText(/Proposed by the model/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Propose again' })).toBeEnabled();
     expect(screen.getByText('OwnerEmail looks like an e-mail address.')).toBeInTheDocument();
-    expect(bodyOf(authFetch, 'POST /propose/recipe')).toEqual({ fileName: 'projects.csv', columns: COLUMNS, rowCount: 3 });
+    expect(bodyOf(authFetch, 'POST /propose/recipe')).toEqual({ fileName: 'projects.csv', columns: COLUMNS, rowCount: 3, sourceId: 'src-1' });
     expect(screen.queryByText(/Proposing from column names only/)).toBeNull();
     expect(screen.getByRole('textbox', { name: 'Entity 2 type' })).toHaveValue('Owner');
     expect(screen.getByRole('combobox', { name: 'Owner name column' })).toHaveValue('OwnerName');

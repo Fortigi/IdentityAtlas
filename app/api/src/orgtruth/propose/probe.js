@@ -38,6 +38,12 @@ export async function loadProbeTargets() {
 
 /** Index the target rows for probing (pure). */
 export function buildTargets(people, resources, orgEntities) {
+  const resourceNames = new Set(resources.map(r => normValue(r.displayName)).filter(Boolean));
+  return { ...indexPeople(people), resourceNames, orgByWord: indexOrgEntities(orgEntities) };
+}
+
+// exact display names, and full-name keys (both name parts present)
+function indexPeople(people) {
   const personNames = new Set();
   const personKeys = new Set();
   for (const p of people) {
@@ -45,17 +51,19 @@ export function buildTargets(people, resources, orgEntities) {
     const k = parseName(p.displayName ?? '', p.givenName, p.surname).key;
     if (k && !k.startsWith('|') && !k.endsWith('|')) personKeys.add(k);
   }
-  const resourceNames = new Set(resources.map(r => normValue(r.displayName)).filter(Boolean));
-  // org entities indexed by word for the fuzzy comparison
+  return { personNames, personKeys };
+}
+
+// org entities indexed by word for the fuzzy comparison
+function indexOrgEntities(orgEntities) {
   const orgByWord = new Map();
   for (const e of orgEntities) {
-    for (const w of fuzzyWords(e.displayName ?? '')) {
-      if (w.length < 2) continue;
+    for (const w of fuzzyWords(e.displayName ?? '').filter(x => x.length >= 2)) {
       const list = orgByWord.get(w);
       if (list) list.push(e); else orgByWord.set(w, [e]);
     }
   }
-  return { personNames, personKeys, resourceNames, orgByWord };
+  return orgByWord;
 }
 
 function isPerson(v, t) {

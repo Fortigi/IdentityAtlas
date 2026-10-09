@@ -67,10 +67,10 @@ describe('POST /org-truth/links/detect', () => {
     const sneaky = { ...recipe, entities: [recipe.entities[0], { type: 'Person', nameColumn: 'Owner', attributes: [{ column: 'Secret', name: 'passwordHash' }] }] };
     await request(app).post('/api/org-truth/links/detect').send({ recipe: sneaky, entityType: 'Person', rows });
     const selects = query.mock.calls.map(c => c[0]).filter(sql => sql.startsWith('SELECT'));
-    expect(selects).toHaveLength(4);
+    expect(selects).toHaveLength(5);
     for (const sql of selects) {
       expect(sql).not.toMatch(/passwordHash|Secret/);
-      expect(sql).toMatch(/^SELECT "id", "displayName"(, "(email|employeeId|mail|externalId|principalType)")* FROM "(Principals|Identities|Resources|Contexts)"/);
+      expect(sql).toMatch(/^SELECT "id", "displayName"(, "(email|employeeId|mail|externalId|principalType|entityType)")* FROM "(Principals|Identities|Resources|Contexts|OrgEntities)"/);
     }
   });
 
@@ -141,7 +141,7 @@ describe('link overrides', () => {
   it('PUT confirmed answers the updated link', async () => {
     const r = await request(app).put(`/api/org-truth/links/${L1}/override`).send({ action: 'confirmed' });
     expect(r.status).toBe(200);
-    expect(r.body).toEqual({ link: { id: L1 } });
+    expect(r.body).toEqual({ link: { id: L1 }, alsoApplied: 0 });
   });
   it('PUT 400 on a bad action, 404 on an unknown link', async () => {
     expect((await request(app).put(`/api/org-truth/links/${L1}/override`).send({ action: 'approve' })).status).toBe(400);

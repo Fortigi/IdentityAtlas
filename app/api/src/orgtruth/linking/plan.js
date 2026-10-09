@@ -70,35 +70,49 @@ function tally(counts, d) {
   else counts.proposed += 1;
 }
 
-function planEntity(entityId, group, links, thresholdFor, runId, out) {
-  const kept = new Set(links.filter(l => l.analystOverride).map(l => keyOf(l.targetType, l.targetId)));
-  // A target type the analyst decided on (a pinned decision) keeps its other
-  // stored links too: the engine neither adds to nor prunes what was settled.
-  const settledTypes = new Set();
-  const written = new Map();
-  for (const raw of group) {
-    if (pinnedFor(raw, links).length > 0) { out.counts.linked += 1; settledTypes.add(raw.targetType); continue; }
-    const d = redecide(raw, links, thresholdFor(raw));
-    tally(out.counts, d);
-    if (d.decision === 'none') continue;
-    const status = d.decision === 'accepted' ? 'accepted' : 'proposed';
-    for (const c of d.candidates) {
-      // one row per (target, attribute): two names in one cell resolving to the
-      // same account write it once, the accepted / stronger one winning
-      const k = `${keyOf(c.targetType, c.targetId)}|${d.via ?? ''}`;
-      const prev = written.get(k);
-      const row = toRow(entityId, c, status, d, runId);
-      if (prev && (prev.status === 'accepted' || prev.confidence >= row.confidence)) continue;
-      if (prev) out.upserts.splice(out.upserts.indexOf(prev), 1);
-      written.set(k, row);
-      out.upserts.push(row);
-      kept.add(keyOf(c.targetType, c.targetId));
-    }
+// An accepted row beats a proposed one; between equals the stronger wins.
+const outranks = (row, prev) => (row.status === 'accepted') !== (prev.status === 'accepted')
+  ? row.status === 'accepted'
+  : row.confidence > prev.confidence;
+
+// One row per (target, attribute): two names in one cell resolving to the same
+// account write it once, the accepted / stronger one winning.
+function writeCandidates(entityId, d, runId, state, out) {
+  const status = d.decision === 'accepted' ? 'accepted' : 'proposed';
+  for (const c of d.candidates) {
+    const k = `${keyOf(c.targetType, c.targetId)}|${d.via ?? ''}`;
+    const prev = state.written.get(k);
+    const row = toRow(entityId, c, status, d, runId);
+    if (prev && !outranks(row, prev)) continue;
+    if (prev) out.upserts.splice(out.upserts.indexOf(prev), 1);
+    state.written.set(k, row);
+    out.upserts.push(row);
+    state.kept.add(keyOf(c.targetType, c.targetId));
   }
+}
+
+function rejectStale(links, state, out) {
   for (const l of links) {
-    if (l.analystOverride || l.status === 'rejected' || kept.has(keyOf(l.targetType, l.targetId)) || settledTypes.has(l.targetType)) continue;
+    if (l.analystOverride || l.status === 'rejected' || state.kept.has(keyOf(l.targetType, l.targetId)) || state.settledTypes.has(l.targetType)) continue;
     out.rejectIds.push(l.id);
   }
+}
+
+function planEntity(entityId, group, links, thresholdFor, runId, out) {
+  const state = {
+    kept: new Set(links.filter(l => l.analystOverride).map(l => keyOf(l.targetType, l.targetId))),
+    // A target type the analyst decided on (a pinned decision) keeps its other
+    // stored links too: the engine neither adds to nor prunes what was settled.
+    settledTypes: new Set(),
+    written: new Map(),
+  };
+  for (const raw of group) {
+    if (pinnedFor(raw, links).length > 0) { out.counts.linked += 1; state.settledTypes.add(raw.targetType); continue; }
+    const d = redecide(raw, links, thresholdFor(raw));
+    tally(out.counts, d);
+    if (d.decision !== 'none') writeCandidates(entityId, d, runId, state, out);
+  }
+  rejectStale(links, state, out);
 }
 
 export function planLinkWrites({ decisions, existing, thresholdFor, runId }) {
