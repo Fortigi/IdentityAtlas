@@ -152,10 +152,14 @@ export function renameInRecipe(recipe, from, to) {
     relations: (recipe.relations ?? []).map(r => ({ ...r, from: r.from === from ? to : r.from, to: r.to === from ? to : r.to })),
   };
 }
-export function renameInRules(rules, from, to) {
+// `ownType`: the rules belong to the profile whose type is renamed (their own
+// entityType follows). For another profile only the references to the renamed
+// type (targetEntityType) follow: its own entity types are its own, even when
+// one happens to carry the same name.
+export function renameInRules(rules, from, to, { ownType = true } = {}) {
   return (rules ?? []).map(r => ({
     ...r,
-    entityType: r.entityType === from ? to : r.entityType,
+    entityType: ownType && r.entityType === from ? to : r.entityType,
     ...(r.targetEntityType === from ? { targetEntityType: to } : {}),
     name: undefined,
   }));
@@ -190,7 +194,7 @@ router.post('/org-truth/profiles/:id/rename-type', ...WRITE_GATE, handle('rename
       SELECT ${PROFILE_COLUMNS} FROM "OrgImportProfiles" p
        WHERE p.name <> $1 AND p.version = (SELECT MAX(v.version) FROM "OrgImportProfiles" v WHERE v.name = p.name)`, [current.name])).rows
       .filter(p => (p.linkRules ?? []).some(r => r.targetEntityType === from));
-    for (const p of others) await insertVersion(client, p, p.recipe, renameInRules(p.linkRules, from, to), actor);
+    for (const p of others) await insertVersion(client, p, p.recipe, renameInRules(p.linkRules, from, to, { ownType: false }), actor);
     return { profile, renamedEntities: renamed.rowCount ?? 0, otherProfiles: others.map(p => p.name) };
   });
   refreshProjections('type-rename').catch(err => console.error('org-truth: projection refresh after rename failed:', err.message));
