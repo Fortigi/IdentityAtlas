@@ -84,6 +84,27 @@ describe('validateRecipe', () => {
     expect(errors).toContain('Relation 1 refers to entity type "Person", which the recipe does not define.');
   });
 
+  it('accepts a composite key of 2 to 6 source columns', () => {
+    const r = recipe();
+    r.entities[0].keyColumns = ['ProjectCode', 'OwnerName'];
+    expect(validateRecipe(r, COLUMNS)).toEqual({ ok: true, errors: [] });
+    r.entities[0].keyColumns = ['ProjectCode', 'ProjectName', 'Budget', 'OwnerName', 'OwnerEmail', 'ProjectCode'];
+    expect(LIMITS.keyColumns).toBe(6);
+    expect(validateRecipe(r, COLUMNS).ok).toBe(true);
+  });
+
+  it('rejects a composite key of one or seven columns, a non-list, an empty name, or a missing column', () => {
+    const msg = 'Entity "Project" "keyColumns" must list 2 to 6 column names.';
+    for (const bad of [['ProjectCode'], Array(7).fill('ProjectCode'), 'ProjectCode', ['ProjectCode', ' ']]) {
+      const r = recipe();
+      r.entities[0].keyColumns = bad;
+      expect(validateRecipe(r, COLUMNS).errors).toEqual([msg]);
+    }
+    const r = recipe();
+    r.entities[0].keyColumns = ['ProjectCode', 'Year'];
+    expect(validateRecipe(r, COLUMNS).errors).toEqual(['Entity "Project" keyColumns refers to column "Year", which the source does not have.']);
+  });
+
   it('enforces the caps with the actual numbers', () => {
     const r = recipe();
     r.entities = Array.from({ length: LIMITS.entities + 1 }, (_, i) => ({ type: `T${i}`, nameColumn: 'ProjectName' }));
@@ -118,12 +139,12 @@ describe('validateLinkRules', () => {
     const rs = rules();
     rs.push({ entityType: 'Project', targetType: 'System', signals: [] });
     rs[0].threshold = 101;
-    rs[0].signals[1].type = 'fuzzy';
+    rs[0].signals[1].type = 'soundex';
     rs[0].signals[1].weight = 0;
     const { errors } = validateLinkRules(rs, recipe());
-    expect(errors).toContain('Link rule 2 ("Project") has an unknown targetType "System"; use one of Principal, Identity, Resource, Context.');
+    expect(errors).toContain('Link rule 2 ("Project") has an unknown targetType "System"; use one of Principal, Identity, Resource, Context, OrgEntity.');
     expect(errors).toContain('Link rule 1 ("Person") threshold must be a whole number from 0 to 100.');
-    expect(errors).toContain(`Link rule 1 ("Person") signal 2 has type "fuzzy"; use one of ${SIGNAL_TYPES.join(', ')}.`);
+    expect(errors).toContain(`Link rule 1 ("Person") signal 2 has type "soundex"; use one of ${SIGNAL_TYPES.join(', ')}.`);
     expect(errors).toContain('Link rule 1 ("Person") signal 2 weight must be a whole number from 1 to 100.');
   });
 
@@ -187,6 +208,22 @@ describe('normalize*', () => {
     expect(n.entities[1]).toEqual({ type: 'Person', nameColumn: 'OwnerName', keyColumn: 'OwnerName', attributes: [{ column: 'OwnerEmail', name: 'OwnerEmail' }] });
     expect(n.entities[0].keyColumn).toBe('ProjectCode');
     expect(n.relations[0]).toEqual({ predicate: 'owner', from: 'Project', to: 'Person' });
+  });
+
+  it('keeps a composite key of at least two columns as a copy, drops a shorter one', () => {
+    const r = recipe();
+    const key = ['ProjectCode', 'OwnerName'];
+    r.entities[0].keyColumns = key;
+    r.entities[1].keyColumns = ['OwnerName'];
+    const n = normalizeRecipe(r);
+    expect(n.entities[0].keyColumns).toEqual(['ProjectCode', 'OwnerName']);
+    expect(n.entities[0].keyColumns).not.toBe(key);
+    expect(n.entities[1]).not.toHaveProperty('keyColumns');
+  });
+
+  it('OrgEntity is a link target addressable by displayName only, and fuzzy a signal type', () => {
+    expect(LINK_TARGETS.OrgEntity).toEqual(['displayName']);
+    expect(SIGNAL_TYPES).toEqual(['exact', 'prefix', 'name', 'token', 'fuzzy']);
   });
 
   it('fills threshold 50, via, the rule name, a signal name and the signal order', () => {

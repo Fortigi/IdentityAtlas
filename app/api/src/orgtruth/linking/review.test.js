@@ -161,24 +161,60 @@ describe('overrideLink', () => {
     await expect(overrideLink(L1, { action: 'confirmed' })).rejects.toMatchObject({ httpStatus: 404, message: 'Link not found.' });
   });
 
-  it('confirmed: accepted + override confirmed, stamped by the caller, open siblings rejected in one tx', async () => {
-    await overrideLink(L1, { action: 'confirmed' }, { preferred_username: 'ann@contoso.com' });
+  it('confirmed: accepted + override confirmed, stamped by the caller, open siblings of the same decision rejected in one tx', async () => {
+    const out = await overrideLink(L1, { action: 'confirmed' }, { preferred_username: 'ann@contoso.com' });
     expect(tx).toHaveBeenCalledTimes(1);
     const [setSql, setParams] = sqlCalls(/^UPDATE "OrgLinks" SET "status" = \$3/)[0];
     expect(setSql).toMatch(/"overriddenBy" = \$2, "overriddenAt" = now\(\)/);
     expect(setParams).toEqual([L1, 'ann@contoso.com', 'accepted', 'confirmed']);
     const [sibSql, sibParams] = sqlCalls(/"id" <> ALL/)[0];
     expect(sibSql).toMatch(/"status" = 'proposed' AND "analystOverride" IS NULL/);
-    expect(sibParams).toEqual([E1, [L1]]);
+    // only the proposals for the same target type, attribute and value
+    expect(sibSql).toMatch(/AND "targetType" = \$3 AND "via" IS NOT DISTINCT FROM \$4 AND "orgValue" IS NOT DISTINCT FROM \$5/);
+    expect(sibParams).toEqual([E1, [L1], 'Principal', null, null]);
+    // no orgValue: nothing else takes the decision
+    expect(sqlCalls(/"targetId" = \$3 AND "via"/)).toHaveLength(0);
+    expect(out.alsoApplied).toBe(0);
   });
 
-  it('rejected: status and override rejected, siblings untouched', async () => {
+  it('confirmed: the siblings rule reads the link via and orgValue', async () => {
+    queryOne.mockImplementation(async () => ({ ...stored, via: 'team', orgValue: 'Jane Doe' }));
+    await overrideLink(L1, { action: 'confirmed' });
+    expect(sqlCalls(/"id" <> ALL/)[0][1]).toEqual([E1, [L1], 'Principal', 'team', 'Jane Doe']);
+  });
+
+  it('confirmed: every other open proposal with the same target, attribute and value is confirmed too', async () => {
+    queryOne.mockImplementation(async () => ({ ...stored, via: 'customer', orgValue: 'Havenbedrijf Rotterdam N.V.' }));
+    query.mockImplementation(async (sql, params) => (/"targetId" = \$3 AND "via"/.test(sql) ? { rows: [], rowCount: 42 } : { rows: [{ id: params[0] }] }));
+    const out = await overrideLink(L1, { action: 'confirmed' }, { oid: 'o-1' });
+    const [sameSql, sameParams] = sqlCalls(/"targetId" = \$3 AND "via"/)[0];
+    expect(sameSql).toMatch(/SET "status" = \$5, "analystOverride" = \$6, "overriddenBy" = \$7/);
+    expect(sameSql).toMatch(/WHERE "id" <> \$1 AND "status" = 'proposed' AND "analystOverride" IS NULL/);
+    expect(sameSql).toMatch(/"orgValue" IS NOT DISTINCT FROM \$8/);
+    expect(sameParams).toEqual([L1, 'Principal', U1, 'customer', 'accepted', 'confirmed', 'o-1', 'Havenbedrijf Rotterdam N.V.']);
+    expect(out).toEqual({ link: { id: L1 }, alsoApplied: 42 });
+    expect(tx).toHaveBeenCalledTimes(1);
+  });
+
+  it('alsoApplied falls back to the returned rows when the driver gives no rowCount', async () => {
+    queryOne.mockImplementation(async () => ({ ...stored, via: 'customer', orgValue: 'Contoso' }));
+    query.mockImplementation(async (sql, params) => (/"targetId" = \$3 AND "via"/.test(sql) ? { rows: [{ id: 'a' }, { id: 'b' }] } : { rows: [{ id: params[0] }] }));
+    expect((await overrideLink(L1, { action: 'rejected' })).alsoApplied).toBe(2);
+  });
+
+  it('rejected: status and override rejected in a tx, siblings untouched', async () => {
     const out = await overrideLink(L1, { action: 'rejected' });
+    expect(tx).toHaveBeenCalledTimes(1);
     expect(sqlCalls(/^UPDATE "OrgLinks" SET "status" = \$3/)[0][1]).toEqual([L1, 'anonymous', 'rejected', 'rejected']);
     expect(sqlCalls(/"id" <> ALL/)).toHaveLength(0);
-    expect(out.link.id).toBe(L1);
+    expect(out).toEqual({ link: expect.objectContaining({ id: L1 }), alsoApplied: 0 });
   });
 
+  it('rejected: the same value meaning the same target is rejected everywhere', async () => {
+    queryOne.mockImplementation(async () => ({ ...stored, via: 'customer', orgValue: '_Intern' }));
+    await overrideLink(L1, { action: 'rejected' }, { oid: 'o-2' });
+    expect(sqlCalls(/"targetId" = \$3 AND "via"/)[0][1]).toEqual([L1, 'Principal', U1, 'customer', 'rejected', 'rejected', 'o-2', '_Intern']);
+  });
   it('moved: needs a uuid targetId other than the current target, of an existing row of the same type', async () => {
     await expect(overrideLink(L1, { action: 'moved' })).rejects.toMatchObject({ httpStatus: 400 });
     await expect(overrideLink(L1, { action: 'moved', targetId: U1.toUpperCase() })).rejects.toMatchObject({ httpStatus: 400 });
@@ -192,14 +228,24 @@ describe('overrideLink', () => {
     const out = await overrideLink(L1, { action: 'moved', targetId: U2 }, { oid: 'o-1' });
     const [insSql, insParams] = sqlCalls(/^INSERT INTO "OrgLinks"/)[0];
     expect(insSql).toMatch(/'accepted', 'moved'/);
-    expect(insSql).toMatch(/ON CONFLICT \("orgEntityId", "targetType", "targetId"\) DO UPDATE/);
-    expect(insParams.slice(1)).toEqual(['o-1', E1, 'Principal', U2]);
+    expect(insSql).toContain('ON CONFLICT ("orgEntityId", "targetType", "targetId", (COALESCE("via", \'\'))) DO UPDATE');
+    expect(insParams.slice(1)).toEqual(['o-1', E1, 'Principal', U2, null, null]);
     expect(insParams[0]).toMatch(/^[0-9a-f-]{36}$/);
     expect(sqlCalls(/^UPDATE "OrgLinks" SET "status" = \$3/)[0][1]).toEqual([L1, 'o-1', 'rejected', 'rejected']);
     const newId = insParams[0];
-    expect(sqlCalls(/"id" <> ALL/)[0][1]).toEqual([E1, [newId, L1]]);
+    expect(sqlCalls(/"id" <> ALL/)[0][1]).toEqual([E1, [newId, L1], 'Principal', null, null]);
     expect(out.link.id).toBe(newId);
     expect(out.original.id).toBe(L1);
+  });
+
+  it('moved: the new link carries the via and orgValue of the original', async () => {
+    queryOne.mockImplementation(async (sql) => (sql.includes('FROM "OrgLinks"') ? { ...stored, via: 'eigenaar', orgValue: 'J. Doe' } : { id: U2 }));
+    await overrideLink(L1, { action: 'moved', targetId: U2 });
+    const [insSql, insParams] = sqlCalls(/^INSERT INTO "OrgLinks"/)[0];
+    expect(insSql).toMatch(/"signals", "via", "orgValue", "origin"/);
+    expect(insSql).toMatch(/VALUES \(\$1, \$3, \$4, \$5, 100, 'analyst', \$6, \$7, 'analyst'/);
+    expect(insParams.slice(5)).toEqual(['eigenaar', 'J. Doe']);
+    expect(sqlCalls(/"id" <> ALL/)[0][1].slice(2)).toEqual(['Principal', 'eigenaar', 'J. Doe']);
   });
 });
 

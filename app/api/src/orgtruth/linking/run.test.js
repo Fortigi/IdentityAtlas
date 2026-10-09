@@ -40,7 +40,7 @@ describe('linkRun', () => {
     stage();
     const log = vi.fn();
     const out = await linkRun({ runId: RUN, profile: { linkRules: rules }, log });
-    expect(out).toEqual({ runId: RUN, linked: 2, proposed: 0, ambiguous: 0, none: 1, rejected: 0 });
+    expect(out).toEqual({ runId: RUN, linked: 2, proposed: 0, ambiguous: 0, none: 0, rejected: 0, empty: 1 }); // Cas has no e-mail
 
     const [entSql, entParams] = callsMatching(/FROM "OrgEntities"/)[0];
     expect(entSql).toMatch(/"runId" = \$1 AND "validTo" IS NULL/);
@@ -53,6 +53,7 @@ describe('linkRun', () => {
     expect(upserts).toHaveLength(1);
     const [sql, params] = upserts[0];
     expect(sql).toMatch(/WHERE "OrgLinks"\."analystOverride" IS NULL/);
+    expect(sql).toContain(`ON CONFLICT ("orgEntityId", "targetType", "targetId", (COALESCE("via", ''))) DO UPDATE`);
     expect(params[1]).toEqual(['e1', 'e2']);
     expect(params[3]).toEqual(['u1', 'u2']);
     expect(params[8]).toEqual(['email', 'email']);               // via: the rule's attribute
@@ -61,7 +62,7 @@ describe('linkRun', () => {
     expect(params[11]).toBe(RUN);
     expect(callsMatching(/^UPDATE "OrgLinks"/)).toHaveLength(0);
     expect(log).toHaveBeenCalledWith('linking Person: 3 entities scored');
-    expect(log).toHaveBeenCalledWith('linking: 2 linked, 0 proposed, 0 ambiguous, 1 none, 0 stale links rejected');
+    expect(log).toHaveBeenCalledWith('linking: 2 linked, 0 proposed, 0 ambiguous, 0 none, 0 stale links rejected');
   });
 
   it('override precedence on re-run: a confirmed link is untouched, a stale one rejected', async () => {
@@ -72,7 +73,7 @@ describe('linkRun', () => {
       ],
     });
     const out = await linkRun({ runId: RUN, profile: { linkRules: rules } });
-    expect(out).toMatchObject({ linked: 2, none: 1, rejected: 1 });
+    expect(out).toMatchObject({ linked: 2, none: 0, empty: 1, rejected: 1 });
     const [, params] = callsMatching(/INSERT INTO "OrgLinks"/)[0];
     expect(params[1]).toEqual(['e2']);               // nothing written for the pinned e1
     const [rejSql, rejParams] = callsMatching(/^UPDATE "OrgLinks"/)[0];
@@ -86,7 +87,7 @@ describe('linkRun', () => {
     const out = await linkRun({ runId: RUN, profile: { linkRules: bad } });
     const [sql] = callsMatching(/FROM "Principals"/)[0];
     expect(sql).toBe('SELECT "id", "displayName", "principalType" FROM "Principals" WHERE "deletedAt" IS NULL AND ("principalType" IS NULL OR "principalType" <> ALL($1::text[]))');
-    expect(out).toMatchObject({ linked: 0, none: 3 });
+    expect(out).toMatchObject({ linked: 0, none: 2, empty: 1 });
   });
 
   it('accepts linkRules as a JSONB string from a raw profile row', async () => {

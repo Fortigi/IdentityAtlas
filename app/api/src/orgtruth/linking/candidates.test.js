@@ -39,7 +39,11 @@ describe('buildTargetsSql', () => {
     expect(buildTargetsSql('Context', ['displayName'])).toBe('SELECT "id", "displayName" FROM "Contexts"');
   });
   it('maps every LINK_TARGETS type to a table', () => {
-    expect(Object.keys(TARGET_TABLES).sort()).toEqual(['Context', 'Identity', 'Principal', 'Resource']);
+    expect(Object.keys(TARGET_TABLES).sort()).toEqual(['Context', 'Identity', 'OrgEntity', 'Principal', 'Resource']);
+  });
+  it('OrgEntity: only current accepted entities of OrgEntities, with their entityType', () => {
+    expect(buildTargetsSql('OrgEntity', ['displayName', 'attributes']))
+      .toBe('SELECT "id", "displayName", "entityType" FROM "OrgEntities" WHERE "status" = \'accepted\' AND "validTo" IS NULL');
   });
 });
 
@@ -113,6 +117,18 @@ describe('buildRuleIndex', () => {
     const idx = buildRuleIndex(rows, r).bySignal.get('displayName→displayName');
     expect(idx.get('payroll').map(x => x.id)).toEqual(['sp']);
     expect(idx.get('jane').map(x => x.id)).toEqual(['u1', 'mi']);
+  });
+
+  it('an OrgEntity rule never indexes entities of its own entity type', () => {
+    const orgRows = [
+      { id: 'c1', displayName: 'Contoso', entityType: 'Customer' },
+      { id: 't1', displayName: 'Contoso', entityType: 'Timesheet' },
+    ];
+    const r = rule([{ attribute: 'customer', targetField: 'displayName', type: 'exact' }], { entityType: 'Timesheet', targetType: 'OrgEntity' });
+    expect(buildRuleIndex(orgRows, r).bySignal.get('customer→displayName').get('contoso').map(x => x.id)).toEqual(['c1']);
+    // the same rows under a non-OrgEntity rule keep both (entityType is no filter there)
+    const other = rule([{ attribute: 'customer', targetField: 'displayName', type: 'exact' }], { entityType: 'Timesheet', targetType: 'Context' });
+    expect(buildRuleIndex(orgRows, other).bySignal.get('customer→displayName').get('contoso').map(x => x.id)).toEqual(['c1', 't1']);
   });
 
   it('indexes nothing for an empty target value or a field the rows do not carry', () => {

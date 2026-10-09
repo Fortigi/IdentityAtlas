@@ -162,3 +162,43 @@ describe('GET /org-truth/entities/:id/graph', () => {
     expect(r.body).toEqual({ error: 'Failed to load the entity graph' });
   });
 });
+
+describe('GET /org-truth/entities/:id/evidence', () => {
+  const entityOnly = (row) => queryOne.mockImplementation(async (sql) => (sql.includes('FROM "OrgEntities"') ? row : undefined));
+
+  it('400 for a malformed id, without reading', async () => {
+    const r = await request(app).get('/api/org-truth/entities/abc/evidence');
+    expect(r.status).toBe(400);
+    expect(r.body).toEqual({ error: 'Invalid entity id' });
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('404 for an unknown entity', async () => {
+    entityOnly(null);
+    const r = await request(app).get(`/api/org-truth/entities/${ID}/evidence`);
+    expect(r.status).toBe(404);
+    expect(r.body).toEqual({ error: 'Entity not found' });
+  });
+
+  it('200 with the evidence', async () => {
+    entityOnly({ id: ID, entityType: 'Customer', displayName: 'Contoso' });
+    query.mockResolvedValue({ rows: [] });
+    const r = await request(app).get(`/api/org-truth/entities/${ID}/evidence`);
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ entity: { id: ID, entityType: 'Customer', displayName: 'Contoso' }, people: [], activity: null, workedNotListed: [] });
+  });
+
+  it('500 with a generic message on a db error', async () => {
+    entityOnly({ id: ID, entityType: 'Customer', displayName: 'Contoso' });
+    query.mockRejectedValue(new Error('boom'));
+    const r = await request(app).get(`/api/org-truth/entities/${ID}/evidence`);
+    expect(r.status).toBe(500);
+    expect(r.body).toEqual({ error: 'Failed to load the entity evidence' });
+  });
+
+  it('is behind the feature gate', async () => {
+    process.env.FEATURE_ORG_TRUTH = 'false';
+    expect((await request(app).get(`/api/org-truth/entities/${ID}/evidence`)).status).toBe(404);
+    expect(query).not.toHaveBeenCalled();
+  });
+});

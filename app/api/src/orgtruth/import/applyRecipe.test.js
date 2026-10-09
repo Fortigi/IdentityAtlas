@@ -216,6 +216,61 @@ describe('applyRecipe — a SharePoint lookup cell ("Name;#id;#Name;#id")', () =
   });
 });
 
+describe('applyRecipe — a composite key (a timesheet)', () => {
+  const recipe = normalizeRecipe({
+    version: 1,
+    entities: [{
+      type: 'Uren', nameColumn: 'Klant', keyColumns: ['Maand', 'Medewerker', 'Klant'], nameAttribute: 'klant',
+      attributes: [{ column: 'Maand', name: 'maand' }, { column: 'Medewerker', name: 'medewerker' }, { column: 'Uren', name: 'uren' }],
+    }],
+    relations: [],
+  });
+
+  it('one instance per row, keyed on the key cells joined with " | ", lowercased', () => {
+    const out = applyRecipe([
+      { Maand: 'Jan', Medewerker: 'Ann Example', Klant: 'Contoso', Uren: '8,5' },
+      { Maand: 'Jan', Medewerker: 'Bob Example', Klant: 'Contoso', Uren: '4,0' },
+    ], recipe);
+    expect(out.entities.map(e => [e.displayName, e.canonicalKey, e.sourceLocator, e.row])).toEqual([
+      ['Contoso', 'jan | ann example | contoso', 'row:1', 1],
+      ['Contoso', 'jan | bob example | contoso', 'row:2', 2],
+    ]);
+    expect(out.entities[0].attributes).toEqual({ maand: 'Jan', medewerker: 'Ann Example', uren: '8,5', klant: 'Contoso' });
+    expect(out.issues).toEqual([]);
+  });
+
+  it('never splits a key cell that holds several values: the row is one instance', () => {
+    const out = applyRecipe([{ Maand: 'Jan', Medewerker: 'Ann Example;#1;#Bob Example;#2', Klant: 'a@contoso.com; b@contoso.com', Uren: '1,0' }], recipe);
+    expect(out.entities).toHaveLength(1);
+    expect(out.entities[0]).toMatchObject({
+      displayName: 'a@contoso.com; b@contoso.com',
+      canonicalKey: 'jan | ann example;#1;#bob example;#2 | a@contoso.com; b@contoso.com',
+    });
+  });
+
+  it('a partly empty key still identifies the row; an all-empty key leaves it out with the columns named', () => {
+    const plain = normalizeRecipe({ version: 1, entities: [{ type: 'Uren', nameColumn: 'Klant', keyColumns: ['Maand', 'Medewerker'] }], relations: [] });
+    const out = applyRecipe([
+      { Maand: '', Medewerker: 'Ann Example', Klant: 'Contoso' },
+      { Maand: ' ', Medewerker: '', Klant: 'Fabrikam' },
+    ], plain);
+    expect(out.entities.map(e => e.canonicalKey)).toEqual([' | ann example']);
+    expect(out.entities[0].attributes).toEqual({});
+    expect(out.issues).toEqual([{
+      kind: 'emptyKey', entityType: 'Uren', row: 2,
+      detail: 'Uren "Fabrikam" has no value in key column "Maand, Medewerker" and is left out.',
+    }]);
+  });
+
+  it('the same composite key twice is a duplicate, merged like any other', () => {
+    const out = applyRecipe([
+      { Maand: 'Jan', Medewerker: 'Ann Example', Klant: 'Contoso', Uren: '1,0' },
+      { Maand: 'jan', Medewerker: 'ANN EXAMPLE', Klant: 'contoso', Uren: '2,0' },
+    ], recipe);
+    expect(out.entities).toHaveLength(1);
+  });
+});
+
 describe('summarizeApplied', () => {
   it('counts entities, duplicate and empty keys per recipe type, and relations per predicate, zeros included', () => {
     const out = applyRecipe([

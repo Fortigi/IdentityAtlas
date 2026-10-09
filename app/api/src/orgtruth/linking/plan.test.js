@@ -56,6 +56,55 @@ describe('planLinkWrites — fresh entities', () => {
   });
 });
 
+describe('planLinkWrites — empties and one row per (target, attribute)', () => {
+  it('an empty attribute value counts as empty, in no other count, and writes nothing', () => {
+    const p = plan([
+      decision('e1', 'none', [], { via: 'team', value: '' }),
+      decision('e2', 'none', [], { via: 'team' }),
+      decision('e3', 'none', [], { via: 'displayName', value: '' }), // the name itself: a miss, not empty
+      decision('e4', 'none', []),                                    // no via recorded: a miss
+    ]);
+    expect(p.counts).toEqual({ linked: 0, proposed: 0, ambiguous: 0, none: 2, rejected: 0, empty: 2 });
+    expect(p.upserts).toEqual([]);
+  });
+
+  it('two names in one cell resolving to the same account write it once, the accepted one winning', () => {
+    const p = plan([
+      decision('e1', 'proposed', [cand('u1', 90), cand('u2', 90)], { ambiguous: true, via: 'team', value: 'Jan Doe' }),
+      decision('e1', 'accepted', [cand('u1', 70)], { via: 'team', value: 'J. Doe (Contoso)' }),
+    ]);
+    expect(p.upserts.map(u => [u.targetId, u.status, u.confidence, u.orgValue])).toEqual([
+      ['u2', 'proposed', 90, 'Jan Doe'], ['u1', 'accepted', 70, 'J. Doe (Contoso)'],
+    ]);
+  });
+
+  it('an accepted row is never replaced by a later proposal, even a stronger one', () => {
+    const p = plan([
+      decision('e1', 'accepted', [cand('u1', 60)], { via: 'team', value: 'Ann' }),
+      decision('e1', 'proposed', [cand('u1', 95)], { via: 'team', value: 'Ann Example' }),
+    ]);
+    expect(p.upserts.map(u => [u.targetId, u.status, u.confidence])).toEqual([['u1', 'accepted', 60]]);
+  });
+
+  it('between two proposals the stronger wins; an equal one keeps the first', () => {
+    const p = plan([
+      decision('e1', 'proposed', [cand('u1', 40)], { via: 'team', value: 'A' }),
+      decision('e1', 'proposed', [cand('u1', 45)], { via: 'team', value: 'B' }),
+      decision('e1', 'proposed', [cand('u1', 45)], { via: 'team', value: 'C' }),
+    ]);
+    expect(p.upserts.map(u => [u.confidence, u.orgValue])).toEqual([[45, 'B']]);
+  });
+
+  it('the same account via the owner AND via the team writes two rows', () => {
+    const p = plan([
+      decision('e1', 'accepted', [cand('u1', 100)], { via: 'eigenaar', value: 'Ann Example' }),
+      decision('e1', 'accepted', [cand('u1', 100)], { via: 'team', value: 'Ann Example' }),
+    ]);
+    expect(p.upserts.map(u => [u.targetId, u.via])).toEqual([['u1', 'eigenaar'], ['u1', 'team']]);
+    expect(p.counts.linked).toBe(2);
+  });
+});
+
 describe('planLinkWrites — re-run against stored links', () => {
   it('an entity the analyst confirmed is left alone and counts as linked', () => {
     const p = plan(

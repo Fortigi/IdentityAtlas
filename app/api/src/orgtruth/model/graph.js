@@ -10,7 +10,7 @@
 //   categories, in this order:
 //     rel:out:<predicate>   label "<predicate> →"   one per outgoing predicate (alphabetical)
 //     rel:in:<predicate>    label "← <predicate>"   one per incoming predicate (alphabetical)
-//     link:<targetType>     Accounts | Resources | Identities | Contexts (only types with links)
+//     link:<targetType>     Accounts | Resources | Identities | Contexts | Other lists (only types with links)
 //
 // With ?category=<key>:
 //   { items: [ { key, label, kind: 'item', entityKind, entityId, status, … } ] }
@@ -28,8 +28,8 @@ import { LINK_TARGETS } from '../contracts.js';
 import { resolveLabels } from './entities.js';
 
 export const MAX_ITEMS = 500;
-export const LINK_LABELS = { Principal: 'Accounts', Resource: 'Resources', Identity: 'Identities', Context: 'Contexts' };
-const ENTITY_KIND = { Principal: 'user', Resource: 'resource', Identity: 'identity', Context: 'context' };
+export const LINK_LABELS = { Principal: 'Accounts', Resource: 'Resources', Identity: 'Identities', Context: 'Contexts', OrgEntity: 'Other lists' };
+const ENTITY_KIND = { Principal: 'user', Resource: 'resource', Identity: 'identity', Context: 'context', OrgEntity: 'org-entity' };
 const SYSTEM_TYPES = Object.keys(LINK_TARGETS);
 
 const LIVE_RELATION = `r.status <> 'rejected' AND r."validTo" IS NULL`;

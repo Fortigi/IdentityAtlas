@@ -39,6 +39,7 @@ const LABEL_SQL = {
   Resource:  `SELECT id, "displayName" AS label, "resourceType" FROM "Resources" WHERE id = ANY($1::uuid[])`,
   Identity:  `SELECT id, "displayName" AS label FROM "Identities" WHERE id = ANY($1::uuid[])`,
   Context:   `SELECT id, "displayName" AS label FROM "Contexts" WHERE id = ANY($1::uuid[])`,
+  OrgEntity: `SELECT id, "displayName" AS label FROM "OrgEntities" WHERE id = ANY($1::uuid[])`,
 };
 
 export const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);

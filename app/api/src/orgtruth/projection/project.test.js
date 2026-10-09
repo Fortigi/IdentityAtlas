@@ -41,22 +41,38 @@ describe('projectedTypes', () => {
   const ents = [
     { id: 'a', entityType: 'Project' }, { id: 'b', entityType: 'Team' }, { id: 'c', entityType: 'Asset' },
   ];
-  it('defaults to the types that have at least one link, sorted', () => {
-    expect(projectedTypes(ents, [{ entityId: 'c' }, { entityId: 'a' }], undefined)).toEqual(['Asset', 'Project']);
-    expect(projectedTypes(ents, [{ entityId: 'a' }], [])).toEqual(['Project']);
+  const res = (entityId) => ({ entityId, targetType: 'Resource' });
+  it('defaults to the types with a Resource or Context link, sorted', () => {
+    expect(projectedTypes(ents, [res('c'), { entityId: 'a', targetType: 'Context' }], undefined)).toEqual(['Asset', 'Project']);
+    expect(projectedTypes(ents, [res('a')], [])).toEqual(['Project']);
     expect(projectedTypes(ents, [], undefined)).toEqual([]);
+  });
+  it('an account or person linked through an attribute (owner, team) makes a scope; through the name it does not', () => {
+    expect(projectedTypes(ents, [{ entityId: 'a', targetType: 'Principal', via: 'eigenaar' }], undefined)).toEqual(['Project']);
+    expect(projectedTypes(ents, [{ entityId: 'a', targetType: 'Identity', via: 'team' }], undefined)).toEqual(['Project']);
+    // a person list: each row IS a person, linked to its own account by name
+    expect(projectedTypes(ents, [{ entityId: 'b', targetType: 'Principal', via: 'displayName' }], undefined)).toEqual([]);
+    expect(projectedTypes(ents, [{ entityId: 'b', targetType: 'Principal' }], undefined)).toEqual([]);
+  });
+  it('an entity another list refers to through an attribute is a scope; the referring fact row is not', () => {
+    // a timesheet row (c) names customer a in its customer column
+    expect(projectedTypes(ents, [{ entityId: 'c', targetType: 'OrgEntity', targetId: 'a', via: 'customer' }], undefined)).toEqual(['Project']);
+    // the same person in two lists (linked by name) makes nothing
+    expect(projectedTypes(ents, [{ entityId: 'c', targetType: 'OrgEntity', targetId: 'a', via: 'displayName' }], undefined)).toEqual([]);
+    expect(projectedTypes(ents, [{ entityId: 'c', targetType: 'OrgEntity', targetId: 'a' }], undefined)).toEqual([]);
   });
   it('uses an explicit list, linked or not, but never a type with no entity', () => {
     expect(projectedTypes(ents, [], ['Team', 'Nonexistent'])).toEqual(['Team']);
   });
-  it('also projects a type reached through one relation from a linked entity (the project whose owner is linked)', () => {
-    // Only the Team is linked; the Project is one relation away, the Asset is two.
+  it('also projects a type reached through one relation from a scoped entity (the project whose owner is linked)', () => {
+    // Only the Team is scoped; the Project is one relation away, the Asset is two.
     const related = new Map([['a', new Set(['b'])], ['b', new Set(['a'])], ['c', new Set(['a'])]]);
-    expect(projectedTypes(ents, [{ entityId: 'b' }], undefined, related)).toEqual(['Project', 'Team']);
-    expect(projectedTypes(ents, [{ entityId: 'b' }], [], new Map())).toEqual(['Team']);
+    expect(projectedTypes(ents, [res('b')], undefined, related)).toEqual(['Project', 'Team']);
+    expect(projectedTypes(ents, [res('b')], [], new Map())).toEqual(['Team']);
+    // one hop from an entity referred to by another list counts too
+    expect(projectedTypes(ents, [{ entityId: 'x', targetType: 'OrgEntity', targetId: 'b', via: 'team' }], undefined, related)).toEqual(['Project', 'Team']);
   });
 });
-
 describe('buildProjection — Resource members', () => {
   const out = buildProjection(input, { memberType: 'Resource' });
 
@@ -121,7 +137,7 @@ describe('buildProjection — Principal members', () => {
     const dup = buildProjection({
       entities: [entities[0], entities[4]],
       relations: [relations[0], { fromEntityId: E.U1, toEntityId: E.P1, status: 'accepted', validTo: null }],
-      links: [links[3], { ...links[3], entityId: E.P1 }],
+      links: [{ ...links[3], via: 'eigenaar' }, { ...links[3], entityId: E.P1, via: 'eigenaar' }],
     }, { memberType: 'Principal' });
     expect(memberMap(dup.members)).toEqual({ [`org:${E.P1}`]: ['A1'], [`org:${E.U1}`]: ['A1'] });
   });
