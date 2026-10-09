@@ -60,7 +60,6 @@ This document lists all major software components, dependencies, and infrastruct
 | eslint | ^10.7.0 | JavaScript linter | MIT |
 | eslint-plugin-security | ^4.0.1 | Security-focused lint rules | Apache 2.0 |
 | esbuild | ^0.28.0 | Bundler for desktop launcher build | MIT |
-| patch-package | ^8.0.1 | Patch third-party packages | MIT |
 
 ---
 

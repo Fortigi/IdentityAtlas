@@ -1,0 +1,1 @@
+- Cleared the high-severity dependency advisories that blocked updates to the 5.9 release
