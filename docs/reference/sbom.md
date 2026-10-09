@@ -42,7 +42,7 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | multer | ^2.4.0 | CSV upload handling | MIT |
 | swagger-ui-express | ^5.0.1 | API documentation UI | Apache 2.0 |
-| yamljs | ^0.3.0 | YAML parsing for OpenAPI specs | MIT |
+| yaml | ^2.9.1 | YAML parsing for OpenAPI specs | ISC |
 
 ### Data Export
 
