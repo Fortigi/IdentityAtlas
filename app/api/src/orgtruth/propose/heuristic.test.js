@@ -104,12 +104,12 @@ describe('heuristicProposal — degenerate profiles', () => {
     const result = heuristicProposal({ columns });
     expect(result.recipe).toEqual({ version: 1, entities: [{ type: 'Item', nameColumn: 'Whatever', keyColumn: 'Whatever', attributes: [] }], relations: [] });
     expect(result.linkRules).toEqual([]);
-    expect(result.notes).toEqual(['No column is unique on every row, so Item is identified by Whatever.']);
+    expect(result.notes).toEqual(['No column is unique enough to be a key, so Item is identified by Whatever.']);
     expectValid(result, columns);
   });
 
   it('no unique column: no keyColumn chosen, the name header names it', () => {
-    const columns = profile(c('Category', 'text', { distinct: 4 }), c('Description', 'text', { distinct: 80 }), c('Flag', 'boolean', { distinct: 2 }));
+    const columns = profile(c('Category', 'text', { distinct: 4 }), c('Description', 'text', { distinct: 70 }), c('Flag', 'boolean', { distinct: 2 }));
     const result = heuristicProposal({ fileName: 'x.csv', columns });
     const e = result.recipe.entities[0];
     expect(e.nameColumn).toBe('Description');
@@ -128,11 +128,11 @@ describe('heuristicProposal — degenerate profiles', () => {
   });
 
   it('just under the uniqueness and fill limits is not a key, exactly on them is', () => {
-    const under = profile(c('A', 'text', { distinct: 94 }), c('B', 'text', { nonEmpty: 89, distinct: 89 }));
+    const under = profile(c('A', 'text', { distinct: 79 }), c('B', 'text', { nonEmpty: 89, distinct: 89 }));
     expect(heuristicProposal({ columns: under, rowCount: 100 }).recipe.entities[0].attributes).toHaveLength(1);
-    expect(heuristicProposal({ columns: under, rowCount: 100 }).notes[0]).toMatch(/^No column is unique/);
-    const on = profile(c('A', 'text', { distinct: 95 }), c('B', 'text', { nonEmpty: 90, distinct: 90 }));
-    expect(heuristicProposal({ columns: on, rowCount: 100 }).recipe.entities[0].keyColumn).toBe('A');
+    expect(heuristicProposal({ columns: under, rowCount: 100 }).notes[0]).toMatch(/^No column is unique enough/);
+    const on = profile(c('A', 'text', { distinct: 80 }), c('B', 'text', { nonEmpty: 90, distinct: 90 }));
+    expect(heuristicProposal({ columns: [on[0]], rowCount: 100 }).recipe.entities[0].keyColumn).toBe('A');
     expect(heuristicProposal({ columns: [on[1]], rowCount: 100 }).recipe.entities[0].keyColumn).toBe('B');
   });
 
@@ -174,6 +174,40 @@ describe('heuristicProposal — degenerate profiles', () => {
     const columns = [{ name: 'A' }, { name: 'B', shape: 'email' }, { name: 'BName' }];
     const result = heuristicProposal({ columns });
     expect(result.recipe.entities.map(e => [e.type, e.nameColumn])).toEqual([['Item', 'A'], ['Person', 'BName']]);
+    expectValid(result, columns);
+  });
+});
+
+describe('heuristicProposal — realistic lists', () => {
+  it('a 12-row project list with one duplicate code still keys Project on that code', () => {
+    const columns = profile(
+      c('Status', 'text', { rows: 12, distinct: 12 }), // fully unique, but its header does not say key
+      c('ProjectCode', 'text', { rows: 12, distinct: 11 }),
+      c('Omschrijving', 'text', { rows: 12, distinct: 12 }),
+      c('Budget', 'number', { rows: 12, distinct: 9 }),
+    );
+    const result = heuristicProposal({ fileName: 'Projects.xlsx', columns });
+    expect(entity(result, 'Project')).toMatchObject({ keyColumn: 'ProjectCode', nameColumn: 'Omschrijving' });
+    expect(entity(result, 'Project').attributes.map(a => a.column)).toEqual(['Status', 'Budget']);
+    expect(result.notes[0]).toBe('ProjectCode is nearly unique (a few values repeat), so it is the key of Project, and Omschrijving is its name.');
+    expectValid(result, columns);
+  });
+
+  it('without a key-like header the most unique column wins, the leftmost on a tie', () => {
+    const columns = profile(c('Alpha', 'text', { distinct: 85 }), c('Beta', 'number', { distinct: 97 }), c('Gamma', 'text', { distinct: 97 }), c('Flag', 'boolean'));
+    expect(heuristicProposal({ columns }).recipe.entities[0].keyColumn).toBe('Beta');
+    // A boolean column is never a key, however its counts look.
+    const onlyFlag = profile(c('Flag', 'boolean'), c('Note', 'text', { distinct: 10 }));
+    expect(heuristicProposal({ columns: onlyFlag }).notes[0]).toMatch(/^No column is unique enough/);
+  });
+
+  it('an "OwnerEmail"-only list: an Owner named by its address, linked on e-mail alone', () => {
+    const columns = profile(c('OwnerEmail', 'email', { distinct: 40, samples: ['a.jansen@contoso.com'] }));
+    const result = heuristicProposal({ fileName: 'Projects.xlsx', columns });
+    expect(result.recipe.entities).toEqual([{ type: 'Owner', nameColumn: 'OwnerEmail', keyColumn: 'OwnerEmail', attributes: [{ column: 'OwnerEmail', name: 'email' }] }]);
+    expect(result.linkRules).toEqual([{ entityType: 'Owner', targetType: 'Principal', threshold: 50, signals: [
+      { name: 'email→email', attribute: 'email', targetField: 'email', type: 'exact', weight: 90, order: 0 },
+    ] }]);
     expectValid(result, columns);
   });
 });
