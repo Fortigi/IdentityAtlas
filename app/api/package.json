@@ -24,7 +24,8 @@
     "test:mutation:matrix": "stryker run stryker.matrix.config.json",
     "test:mutation:features": "stryker run stryker.features.config.json",
     "test:mutation:reports": "stryker run stryker.reports.config.json",
-    "test:mutation:contextassistant": "stryker run stryker.contextassistant.config.json"
+    "test:mutation:contextassistant": "stryker run stryker.contextassistant.config.json",
+    "test:mutation:orgtruth": "stryker run stryker.orgtruth.config.json"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

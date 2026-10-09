@@ -1,0 +1,1 @@
+- Added an experimental "Organisation" tab (feature flag `orgTruth`, Admin → Experimental or `FEATURE_ORG_TRUTH=true`) where the organisation's own lists — projects, assets, teams, data domains and their owners — are uploaded, kept as they were given, turned into entities and relations, and linked to the accounts, groups and contexts the crawlers synced.

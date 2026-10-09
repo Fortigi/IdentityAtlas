@@ -58,6 +58,15 @@ export const FEATURE_FLAGS = {
     key: 'CONTEXT_ASSISTANT',
     envDefault: env => env.FEATURE_CONTEXT_ASSISTANT === 'true',
   },
+  // Organisation truth: analysts upload the organisation's own lists (projects,
+  // assets, data domains and their owners), turn them into entities and relations,
+  // and link those to the accounts, groups and contexts the crawlers synced. Off by
+  // default; while off, every /api/org-truth endpoint answers 404 and the
+  // Organisation tab is hidden. See docs/architecture/org-truth.md.
+  orgTruth: {
+    key: 'ORG_TRUTH',
+    envDefault: env => env.FEATURE_ORG_TRUTH === 'true',
+  },
 };
 
 // WorkerConfig key for a flag name, e.g. 'riskScoring' → 'FEATURE_RISK_SCORING'.

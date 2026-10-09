@@ -1,0 +1,42 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the organisation-truth UI: the permission+flag gate, and the wizard's pure logic (recipe draft edits, link-rule edits, the data-quality verdict that decides whether the run may start) as the workstreams add it. WHY: a draft helper that silently drops a mapped column or a verdict that lets a run start with every owner unmatched produces an import that looks fine and links nothing. MUTATOR SET: StringLiteral and ObjectLiteral disabled, matching the sibling UI configs. SCOPE RULE: every new non-test .js/.jsx under src/components/orgtruth/ (and src/hooks/useCanImportOrgTruth.js) must be added to `mutate` here, or be given a written reason in `mutationExclusions` (mutationScope.guard.test.js in the API package matches paths exactly, no globs). Presentational panels go in exclusions, pure helpers and hooks go in mutate. NOT YET MEASURED: ships with the MVP; `break` is absent until a first run measures a score. Run: cd app/ui && npm run test:mutation:orgtruth",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.orgtruth.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-orgtruth.json"
+  },
+  "mutate": [
+    "src/hooks/useCanImportOrgTruth.js"
+  ],
+  "mutationExclusions": {
+    "src/components/orgtruth/OrgTruthPage.jsx": "Composition, not logic: tab state, the header button gated by the hook (which is mutated), and which panel shows. Covered end to end by OrgTruthPage.mount.test.jsx.",
+    "src/components/orgtruth/NotBuiltYet.jsx": "Placeholder panel the workstreams replace; renders an EmptyState from two props and nothing else.",
+    "src/components/orgtruth/orgTabs.js": "Declaration, not logic: the ordered list of the page's sub-tabs. The mount test asserts the exact list.",
+    "src/components/orgtruth/SourcesTab.jsx": "Workstream T6 fills this panel; decide mutate vs exclusion (with a real reason) in the change that adds its logic.",
+    "src/components/orgtruth/ModelTab.jsx": "Workstream T6 fills this panel; decide mutate vs exclusion (with a real reason) in the change that adds its logic.",
+    "src/components/orgtruth/EntitiesTab.jsx": "Workstream T6 fills this panel; decide mutate vs exclusion (with a real reason) in the change that adds its logic.",
+    "src/components/orgtruth/ReviewTab.jsx": "Workstream T6 fills this panel; decide mutate vs exclusion (with a real reason) in the change that adds its logic.",
+    "src/components/orgtruth/wizard/ImportWizard.jsx": "Workstream T5 fills the wizard; its pure step logic goes in sibling helper files that are mutated, the composition stays here and is covered by its mount test."
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70
+  },
+  "concurrency": 2,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false,
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  }
+}

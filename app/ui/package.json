@@ -23,7 +23,8 @@
     "test:mutation:listhooks": "stryker run stryker.listhooks.config.json",
     "test:mutation:roles": "stryker run stryker.roles.config.json",
     "test:mutation:reports": "stryker run stryker.reports.config.json",
-    "test:mutation:contextassistant": "stryker run stryker.contextassistant.config.json"
+    "test:mutation:contextassistant": "stryker run stryker.contextassistant.config.json",
+    "test:mutation:orgtruth": "stryker run stryker.orgtruth.config.json"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.24.0",

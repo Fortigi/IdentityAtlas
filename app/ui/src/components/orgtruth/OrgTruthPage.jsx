@@ -1,0 +1,62 @@
+// Organisation — the page behind the "Organisation" nav tab (feature `orgTruth`).
+//
+// Four sub-tabs, each its own file so the workstreams can build them in parallel:
+//   Sources   what was uploaded, when it was observed, what each run did     (SourcesTab, T6)
+//   Model     the meta-graph: entity types, predicates, links to system types (ModelTab, T6)
+//   Entities  the entities themselves, searchable, with a detail fan-out      (EntitiesTab, T6)
+//   Review    proposed links and claims waiting for an analyst                (ReviewTab, T6)
+// plus the import wizard (ImportWizard, T5), opened from the header button.
+//
+// This file is composition only: tab state, the header, and which panel shows.
+import { useState } from 'react';
+import TabBar from '@ui/components/TabBar';
+import { useCanImportOrgTruth } from '@ui/hooks/useCanImportOrgTruth';
+import SourcesTab from './SourcesTab';
+import ModelTab from './ModelTab';
+import EntitiesTab from './EntitiesTab';
+import ReviewTab from './ReviewTab';
+import ImportWizard from './wizard/ImportWizard';
+import { ORG_TABS } from './orgTabs';
+
+const PANELS = { sources: SourcesTab, model: ModelTab, entities: EntitiesTab, review: ReviewTab };
+
+export default function OrgTruthPage({ onOpenDetail }) {
+  const [tab, setTab] = useState('sources');
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const canImport = useCanImportOrgTruth();
+  const Panel = PANELS[tab] ?? SourcesTab;
+
+  const closeWizard = (imported) => {
+    setWizardOpen(false);
+    if (imported) setRefreshKey(k => k + 1);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Organisation</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            What the organisation says about itself — projects, assets, teams, data domains and their owners —
+            next to what the systems say. Uploaded as lists, kept as they were given, linked to accounts, groups and contexts.
+          </p>
+        </div>
+        {canImport && (
+          <button
+            type="button"
+            onClick={() => setWizardOpen(true)}
+            className="shrink-0 px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
+          >
+            Import organisation truth
+          </button>
+        )}
+      </div>
+
+      {wizardOpen && <ImportWizard onClose={closeWizard} />}
+
+      <TabBar tabs={ORG_TABS} active={tab} onChange={setTab} />
+      <Panel key={`${tab}-${refreshKey}`} onOpenDetail={onOpenDetail} refreshKey={refreshKey} />
+    </div>
+  );
+}

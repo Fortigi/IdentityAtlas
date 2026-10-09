@@ -32,6 +32,7 @@ const ContextsPage = lazy(() => import('./components/ContextsPage'));
 const IdentitiesPage = lazy(() => import('./components/IdentitiesPage'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
 const ReportsPage = lazy(() => import('./components/ReportsPage'));
+const OrgTruthPage = lazy(() => import('./components/orgtruth/OrgTruthPage'));
 
 // Each entry is a small component that takes the shared render context as PROPS
 // and renders its page; multi-key routes (resources/groups; performance/crawlers/
@@ -66,6 +67,7 @@ export const PAGE_ROUTES = new Map([
   ['identities',      ({ openDetailTab }) => <IdentitiesPage onOpenDetail={openDetailTab} />],
   ['contexts',        ({ navigate, openDetailTab }) => <ContextsPage onOpenDetail={openDetailTab} onNavigate={navigate} />],
   ['reports',         ({ openDetailTab }) => <ReportsPage onOpenDetail={openDetailTab} />],
+  ['organisation',    ({ openDetailTab }) => <OrgTruthPage onOpenDetail={openDetailTab} />],
   ['shared-matrices', AdminRoute],
   ['performance',     AdminRoute],
   ['crawlers',        AdminRoute],

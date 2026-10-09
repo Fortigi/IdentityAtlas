@@ -62,6 +62,7 @@ const UNDOCUMENTED_FILES = new Set([
   'lookups.js',
   'matrix.js',
   'orgChart.js',
+  'orgTruth.js',
   'perf.js',
   'permissions.js',
   'preferences.js',
