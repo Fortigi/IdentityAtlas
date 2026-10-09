@@ -79,6 +79,17 @@ describe('ExpandedItemsList render', () => {
     expect(html).toContain('Type');
   });
 
+  it('links an org-entity row to its detail tab and leaves a leaf as plain text', () => {
+    const html = render([
+      { key: 'org-entity:e1', label: 'Northwind Portal', kind: 'item', entityKind: 'org-entity', entityId: 'e1', resourceType: 'Project' },
+      { key: 'leaf:x', label: 'Policy A', kind: 'item', entityKind: 'leaf', entityId: 'x' },
+    ]);
+    expect(html).toMatch(/<button[^>]*>Northwind Portal<\/button>/);
+    expect(html).toContain('Project');
+    expect(html).toContain('Policy A');
+    expect(html).not.toMatch(/<button[^>]*>Policy A<\/button>/);
+  });
+
   it('renders the empty state when there are no items', () => {
     expect(render([])).toContain('Nothing to show');
   });

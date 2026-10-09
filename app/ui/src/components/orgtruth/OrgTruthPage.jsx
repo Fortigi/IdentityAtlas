@@ -5,7 +5,10 @@
 //   Model     the meta-graph: entity types, predicates, links to system types (ModelTab, T6)
 //   Entities  the entities themselves, searchable, with a detail fan-out      (EntitiesTab, T6)
 //   Review    proposed links and claims waiting for an analyst                (ReviewTab, T6)
-// plus the import wizard (ImportWizard, T5), opened from the header button.
+// plus the import wizard (ImportWizard, T5), opened from the header button (new
+// import) or from a source's "Import again" (repeat mode, `profileId` of its
+// last run). Every panel gets onImport / onImportAgain; a finished import bumps
+// refreshKey, which remounts the panel so it fetches again.
 //
 // This file is composition only: tab state, the header, and which panel shows.
 import { useState } from 'react';
@@ -22,13 +25,16 @@ const PANELS = { sources: SourcesTab, model: ModelTab, entities: EntitiesTab, re
 
 export default function OrgTruthPage({ onOpenDetail }) {
   const [tab, setTab] = useState('sources');
-  const [wizardOpen, setWizardOpen] = useState(false);
+  // null = closed; { profileId? } = open (a profileId opens it in repeat mode).
+  const [wizard, setWizard] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const canImport = useCanImportOrgTruth();
   const Panel = PANELS[tab] ?? SourcesTab;
 
+  const openWizard = () => setWizard({});
+  const onImportAgain = (profileId) => setWizard({ profileId });
   const closeWizard = (imported) => {
-    setWizardOpen(false);
+    setWizard(null);
     if (imported) setRefreshKey(k => k + 1);
   };
 
@@ -45,7 +51,7 @@ export default function OrgTruthPage({ onOpenDetail }) {
         {canImport && (
           <button
             type="button"
-            onClick={() => setWizardOpen(true)}
+            onClick={openWizard}
             className="shrink-0 px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
           >
             Import organisation truth
@@ -53,10 +59,16 @@ export default function OrgTruthPage({ onOpenDetail }) {
         )}
       </div>
 
-      {wizardOpen && <ImportWizard onClose={closeWizard} />}
+      {wizard && <ImportWizard onClose={closeWizard} profileId={wizard.profileId} />}
 
       <TabBar tabs={ORG_TABS} active={tab} onChange={setTab} />
-      <Panel key={`${tab}-${refreshKey}`} onOpenDetail={onOpenDetail} refreshKey={refreshKey} />
+      <Panel
+        key={`${tab}-${refreshKey}`}
+        onOpenDetail={onOpenDetail}
+        refreshKey={refreshKey}
+        onImport={openWizard}
+        onImportAgain={onImportAgain}
+      />
     </div>
   );
 }

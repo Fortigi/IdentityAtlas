@@ -1,6 +1,6 @@
 // ─── entityGraphShape ────────────────────────────────────────────────
 // Central description of the fanout graph: for every entity kind we
-// care about (user, resource, access-package, identity, context), this
+// care about (user, resource, access-package, identity, context, org-entity), this
 // module knows:
 //
 //   1. getRootNodes(core)        — the first-ring category nodes you
@@ -350,6 +350,33 @@ async function fetchContextItems(_contextId, categoryKey, _authFetch, extras = {
   return [];
 }
 
+// ─── Org entity (organisation truth) ─────────────────────────────────
+// The org-entity detail page and any org entity drilled into from another
+// graph. GET /api/org-truth/entities/:id/graph answers the first ring as
+// `categories` ([{ key, label, count }], e.g. 'rel:out:owner', 'link:Principal'),
+// and ?category=<key> the items of one ring as { items: [{ key, label,
+// entityKind, entityId, entityType?, resourceType? }] }. entityKind is one the
+// graph already routes ('org-entity', 'user', 'resource', 'access-package',
+// 'identity', 'context'); a 'group' is still read as 'resource' defensively.
+
+const ORG_ITEM_KIND = { group: 'resource' };
+
+function orgEntityRootNodes(core) {
+  return (core?.categories || []).map(c => ({
+    key: c.key, label: c.label, count: Number(c.count) || 0, kind: 'category',
+  }));
+}
+
+async function fetchOrgEntityItems(entityId, categoryKey, authFetch) {
+  const url = `/api/org-truth/entities/${encodeURIComponent(entityId)}/graph?category=${encodeURIComponent(categoryKey)}`;
+  const d = await authFetch(url).then(r => (r.ok ? r.json() : {}));
+  return (d.items || []).map(it => toItem(
+    { id: it.entityId, displayName: it.label },
+    ORG_ITEM_KIND[it.entityKind] || it.entityKind || 'leaf',
+    it.resourceType || it.entityType || null,
+  ));
+}
+
 // ─── Public API ──────────────────────────────────────────────────────
 
 function toItem(row, entityKind, resourceType = null) {
@@ -376,6 +403,7 @@ export function getRootNodes(entityKind, core, extras = {}) {
     case 'access-package': base = accessPackageRootNodes(core); break;
     case 'identity':       base = identityRootNodes(core); break;
     case 'context':        base = contextRootNodes(core); break;
+    case 'org-entity':     base = orgEntityRootNodes(core); break;
     default:               return [];
   }
   // Recent-change pseudo-categories go first so they read as "see this
@@ -408,6 +436,7 @@ export async function fetchCategoryItems(entityKind, entityId, categoryKey, auth
     case 'access-package': items = await fetchAccessPackageItems(entityId, categoryKey, authFetch, extras); break;
     case 'identity':       items = await fetchIdentityItems(entityId, categoryKey, authFetch, extras); break;
     case 'context':        items = await fetchContextItems(entityId, categoryKey, authFetch, extras); break;
+    case 'org-entity':     items = await fetchOrgEntityItems(entityId, categoryKey, authFetch); break;
   }
   // Tag items that were added inside the recent window so the graph can
   // highlight them inside regular fanouts too.
@@ -429,6 +458,7 @@ export async function fetchEntityCore(entityKind, entityId, authFetch) {
     'access-package': `/api/access-package/${encodeURIComponent(entityId)}`,
     'identity':       `/api/identities/${encodeURIComponent(entityId)}`,
     'context':        `/api/contexts/${encodeURIComponent(entityId)}`,
+    'org-entity':     `/api/org-truth/entities/${encodeURIComponent(entityId)}/graph`,
   }[entityKind];
   if (!url) return null;
   const r = await authFetch(url);
@@ -439,7 +469,7 @@ export async function fetchEntityCore(entityKind, entityId, authFetch) {
 // Some item kinds (leaf, policy row, review row) can't expand further —
 // the graph should just open the detail tab on click or do nothing.
 export function isExpandableItem(entityKind) {
-  return ['user', 'resource', 'access-package', 'identity', 'context'].includes(entityKind);
+  return ['user', 'resource', 'access-package', 'identity', 'context', 'org-entity'].includes(entityKind);
 }
 
 // Pull the extras the fetchers need from a freshly-loaded core payload.

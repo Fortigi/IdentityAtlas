@@ -21,6 +21,7 @@ const DETAIL_TARGET = {
   'access-package': 'access-package',
   identity:         'identity',
   context:          'context',
+  'org-entity':     'org-entity',
 };
 
 function downloadCsv(filename, csv) {
