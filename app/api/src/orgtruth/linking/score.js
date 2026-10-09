@@ -2,11 +2,17 @@
 // (owned by workstream T2). Pure: no DB, no clock.
 //
 //   scoreEntity(entity, ruleIndex)        → decision
-//   scoreEntities(entities, ruleIndexes)  → decision[]   (entities without a rule are skipped)
+//   scoreEntities(entities, ruleIndexes)  → decision[]   (one per entity × rule of its type × value)
 //   decide(candidates, threshold)         → { decision, ambiguous, confidence, candidates }
 //
+// A rule links THROUGH one attribute (rule.via, 'displayName' for the entity
+// itself). The value of that attribute is split (import/applyRecipe splitValues:
+// a SharePoint "A;#27;#B;#16" lookup, a list of e-mail addresses) and every
+// value is scored on its own, so a cell naming three people yields three
+// decisions. An empty attribute yields one 'none' decision.
+//
 // A decision:
-//   { entity, entityType, targetType, decision: 'accepted' | 'proposed' | 'none',
+//   { entity, entityType, targetType, rule, via, value, decision: 'accepted' | 'proposed' | 'none',
 //     ambiguous, confidence, signals: ['email', 'name'],
 //     candidates: [{ targetType, targetId, label, confidence, signals, matchedField, matchedValue }],
 //     allCandidates: [...every candidate that scored above 0, unsorted] }
@@ -18,6 +24,8 @@
 //   otherwise                                         → none
 // A tie is never guessed (docs/architecture/org-truth.md, Contracts).
 import { orgValueOf, signalKeys, evaluateSignal } from './signals.js';
+import { splitValues } from '../import/applyRecipe.js';
+import { NAME_ATTRIBUTE } from '../contracts.js';
 
 export const MAX_CONFIDENCE = 100;
 export const PROPOSE_FLOOR = 20;
@@ -101,11 +109,34 @@ export function scoreEntity(entity, ruleIndex) {
   return { entity, entityType: rule.entityType, targetType: rule.targetType, ...d, signals, allCandidates: scored };
 }
 
+/** The values a rule scores for an entity: the split value of its `via` attribute. */
+export function valuesOf(entity, via) {
+  const raw = orgValueOf(entity, via);
+  return raw ? splitValues(raw) : [];
+}
+
+/** The entity as the rule sees it for ONE value of its `via` attribute. */
+export function withValue(entity, via, value) {
+  if (via === NAME_ATTRIBUTE) return { ...entity, displayName: value };
+  return { ...entity, attributes: { ...(entity.attributes ?? {}), [via]: value } };
+}
+
+function scoreOne(entity, ruleIndex) {
+  const via = ruleIndex.rule.via ?? NAME_ATTRIBUTE;
+  const values = valuesOf(entity, via);
+  const common = { entity, rule: ruleIndex.rule, via };
+  if (values.length === 0) return [{ ...scoreEntity(entity, ruleIndex), ...common, value: '' }];
+  return values.map(value => ({ ...scoreEntity(withValue(entity, via, value), ruleIndex), ...common, value }));
+}
+
 export function scoreEntities(entities, ruleIndexes) {
+  const byType = new Map();
+  for (const ri of ruleIndexes?.values?.() ?? []) {
+    byType.set(ri.rule.entityType, [...(byType.get(ri.rule.entityType) ?? []), ri]);
+  }
   const out = [];
   for (const entity of entities ?? []) {
-    const ruleIndex = ruleIndexes.get(entity.entityType);
-    if (ruleIndex) out.push(scoreEntity(entity, ruleIndex));
+    for (const ri of byType.get(entity.entityType) ?? []) out.push(...scoreOne(entity, ri));
   }
   return out;
 }

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { emailPrefix, heuristicProposal, looksLikeGroupNames, personNameColumn, usableColumns, MAX_NOTES } from './heuristic.js';
+import {
+  emailPrefix, heuristicProposal, looksLikeGroupNames, personNameColumn, usableColumns, MAX_NOTES,
+  isRoleColumn, isFullNameColumn, isEmployeeIdColumn, isMultiPersonColumn,
+} from './heuristic.js';
 import { validateLinkRules, validateRecipe } from '../contracts.js';
 
 // A column profile as import/profileColumns.js produces it.
@@ -14,11 +17,12 @@ function expectValid(result, columns) {
   expect(validateRecipe(result.recipe, columns.map(x => x.name))).toEqual({ ok: true, errors: [] });
   expect(validateLinkRules(result.linkRules, result.recipe)).toEqual({ ok: true, errors: [] });
 }
-const entity = (result, type) => result.recipe.entities.find(e => e.type === type);
-const rule = (result, type) => result.linkRules.find(r => r.entityType === type);
+const entity = (result) => result.recipe.entities[0];
+const rule = (result, targetType, via) => result.linkRules.find(r => r.targetType === targetType && r.via === via);
+const ruleNames = (result) => result.linkRules.map(r => r.name);
 const signalsOf = (r) => r.signals.map(s => `${s.attribute}>${s.targetField}:${s.type}:${s.weight}`);
 
-describe('heuristicProposal — a project list with an owner', () => {
+describe('heuristicProposal — a project list with an owner (name + e-mail)', () => {
   const columns = profile(
     c('ProjectCode', 'text', { samples: ['P-001', 'P-002'] }),
     c('ProjectName', 'text', { distinct: 98, samples: ['Website relaunch', 'Data platform'] }),
@@ -28,215 +32,63 @@ describe('heuristicProposal — a project list with an owner', () => {
   );
   const result = heuristicProposal({ fileName: 'Projects.xlsx', columns });
 
-  it('proposes Project keyed on its code and named by its name column, with the rest as attributes', () => {
-    expect(entity(result, 'Project')).toEqual({
-      type: 'Project', keyColumn: 'ProjectCode', nameColumn: 'ProjectName', attributes: [{ column: 'Budget', name: 'budget' }],
+  it('proposes ONE entity, Project, keyed on its code and named by its name column, with every other column as an attribute', () => {
+    expect(result.recipe.entities).toHaveLength(1);
+    expect(result.recipe.relations).toEqual([]);
+    expect(entity(result)).toEqual({
+      type: 'Project', keyColumn: 'ProjectCode', nameColumn: 'ProjectName',
+      attributes: [{ column: 'Budget', name: 'budget' }, { column: 'OwnerName', name: 'ownerName' }, { column: 'OwnerEmail', name: 'ownerEmail' }],
     });
+    expectValid(result, columns);
   });
 
-  it('turns the e-mail column into an Owner named by its sibling, related by "owner"', () => {
-    expect(entity(result, 'Owner')).toEqual({
-      type: 'Owner', keyColumn: 'OwnerName', nameColumn: 'OwnerName', attributes: [{ column: 'OwnerEmail', name: 'email' }],
-    });
-    expect(result.recipe.relations).toEqual([{ predicate: 'owner', from: 'Project', to: 'Owner' }]);
+  it('links the project to resources by name, and through the e-mail attribute to accounts (name as a second signal)', () => {
+    expect(ruleNames(result)).toEqual(['Project → Resource via displayName', 'Project → Principal via ownerEmail']);
+    expect(signalsOf(rule(result, 'Resource', 'displayName'))).toEqual(['displayName>displayName:exact:80', 'displayName>displayName:token:50']);
+    expect(signalsOf(rule(result, 'Principal', 'ownerEmail'))).toEqual(['ownerEmail>email:exact:90', 'ownerEmail>email:prefix:80', 'ownerName>displayName:name:60']);
+    expect(rule(result, 'Principal', 'ownerEmail').threshold).toBe(50);
   });
 
-  it('matches the owner to accounts on e-mail and name, and the project to resources by name', () => {
-    expect(result.linkRules.map(r => `${r.entityType}>${r.targetType}`)).toEqual(['Project>Resource', 'Owner>Principal']);
-    expect(rule(result, 'Owner').threshold).toBe(50);
-    expect(signalsOf(rule(result, 'Owner'))).toEqual(['email>email:exact:90', 'displayName>displayName:name:60']);
-    expect(signalsOf(rule(result, 'Project'))).toEqual(['displayName>displayName:exact:80', 'displayName>displayName:token:50']);
+  it('does not also make a rule through the name column the e-mail rule uses', () => {
+    expect(rule(result, 'Principal', 'ownerName')).toBeUndefined();
   });
 
   it('explains each decision in a sentence', () => {
     expect(result.notes).toEqual([
       'ProjectCode is unique on every row, so it is the key of Project, and ProjectName is its name.',
-      'OwnerEmail looks like an e-mail address, so Owner is a person named by OwnerName.',
       'Project is also matched to resources by name (ProjectName); the quality step shows whether that finds anything.',
+      'OwnerEmail looks like an e-mail address, so Project is linked through it to accounts, with OwnerName as the name.',
     ]);
-    expectValid(result, columns);
   });
 });
 
-describe('heuristicProposal — roles, collisions and groups', () => {
-  it('types each person by its role word, numbering a repeated role and using Person otherwise', () => {
-    const columns = profile(
-      c('Code', 'text'), c('Titel', 'text'),
-      c('Owner', 'text', { distinct: 20 }), c('OwnerEmail', 'email', { distinct: 20 }),
-      c('Owner Mail', 'email', { distinct: 20 }),
-      c('Requester e-mail', 'email', { distinct: 50 }),
-      c('E-mailadres beheerder', 'email', { distinct: 5 }),
-    );
-    const result = heuristicProposal({ fileName: 'apps.csv', columns });
-    expect(result.recipe.entities.map(e => [e.type, e.nameColumn])).toEqual([
-      ['App', 'Titel'], ['Owner', 'Owner'], ['Owner2', 'Owner Mail'], ['Person', 'Requester e-mail'], ['Beheerder', 'E-mailadres beheerder'],
-    ]);
-    expect(result.recipe.relations.map(r => `${r.predicate}>${r.to}`)).toEqual(['owner>Owner', 'owner>Owner2', 'requester>Person', 'beheerder>Beheerder']);
-    // An entity named by its own e-mail address is matched on the address only.
-    expect(signalsOf(rule(result, 'Owner2'))).toEqual(['email>email:exact:90']);
-    expect(signalsOf(rule(result, 'Owner'))).toHaveLength(2);
-    expectValid(result, columns);
-  });
-
-  it('keeps the primary type when a person role has the same name', () => {
-    const columns = profile(c('Naam', 'text'), c('OwnerEmail', 'email'));
-    const result = heuristicProposal({ fileName: 'owners.xlsx', columns });
-    expect(result.recipe.entities.map(e => e.type)).toEqual(['Owner', 'Owner2']);
-    expect(result.recipe.relations).toEqual([{ predicate: 'owner', from: 'Owner', to: 'Owner2' }]);
-    expectValid(result, columns);
-  });
-
-  it('matches the primary to groups when its names look like group names', () => {
-    const columns = profile(
-      c('Group', 'text', { samples: ['SG_Finance_Read', 'GG-HR-All', 'Plain name'] }),
-      c('ManagerEmail', 'email', { distinct: 10 }),
-    );
-    const result = heuristicProposal({ fileName: 'Group owners.xlsx', columns });
-    expect(result.linkRules.map(r => `${r.entityType}>${r.targetType}`)).toEqual(['GroupOwner>Resource', 'Manager>Principal']);
-    expect(signalsOf(rule(result, 'GroupOwner'))).toEqual(['displayName>displayName:exact:80', 'displayName>displayName:token:50']);
-    expect(result.notes).toContain('The values of Group look like group names, so GroupOwner is matched to groups.');
-    expectValid(result, columns);
-  });
-});
-
-describe('heuristicProposal — degenerate profiles', () => {
-  it('one text column: one Item entity, no relations, only the resource rule', () => {
-    const columns = profile(c('Whatever', 'text', { distinct: 3 }));
-    const result = heuristicProposal({ columns });
-    expect(result.recipe).toEqual({ version: 1, entities: [{ type: 'Item', nameColumn: 'Whatever', keyColumn: 'Whatever', attributes: [] }], relations: [] });
-    expect(result.linkRules.map(r => `${r.entityType}>${r.targetType}`)).toEqual(['Item>Resource']);
-    expect(result.notes[0]).toBe('No column is unique enough to be a key, so Item is identified by Whatever.');
-    expectValid(result, columns);
-  });
-
-  it('no unique column: no keyColumn chosen, the name header names it', () => {
-    const columns = profile(c('Category', 'text', { distinct: 4 }), c('Description', 'text', { distinct: 70 }), c('Flag', 'boolean', { distinct: 2 }));
-    const result = heuristicProposal({ fileName: 'x.csv', columns });
-    const e = result.recipe.entities[0];
-    expect(e.nameColumn).toBe('Description');
-    expect(e.keyColumn).toBe('Description'); // normalizeRecipe defaults the key to the name
-    expect(e.attributes.map(a => a.column)).toEqual(['Category', 'Flag']);
-    expectValid(result, columns);
-  });
-
-  it('a unique column that is too empty is not a key; a numeric ID is when no text column qualifies', () => {
-    const sparse = profile(c('Ref', 'text', { nonEmpty: 50, distinct: 50 }), c('Id', 'number'), c('Label', 'text', { distinct: 60 }));
-    const r = heuristicProposal({ columns: sparse, rowCount: 100 });
-    expect(r.recipe.entities[0].keyColumn).toBe('Id');
-    expect(r.recipe.entities[0].nameColumn).toBe('Id');
-    expect(r.recipe.entities[0].attributes.map(a => a.name)).toEqual(['ref', 'label']);
-    expectValid(r, sparse);
-  });
-
-  it('just under the uniqueness and fill limits is not a key, exactly on them is', () => {
-    const under = profile(c('A', 'text', { distinct: 79 }), c('B', 'text', { nonEmpty: 89, distinct: 89 }));
-    expect(heuristicProposal({ columns: under, rowCount: 100 }).recipe.entities[0].attributes).toHaveLength(1);
-    expect(heuristicProposal({ columns: under, rowCount: 100 }).notes[0]).toMatch(/^No column is unique enough/);
-    const on = profile(c('A', 'text', { distinct: 80 }), c('B', 'text', { nonEmpty: 90, distinct: 90 }));
-    expect(heuristicProposal({ columns: [on[0]], rowCount: 100 }).recipe.entities[0].keyColumn).toBe('A');
-    expect(heuristicProposal({ columns: [on[1]], rowCount: 100 }).recipe.entities[0].keyColumn).toBe('B');
-  });
-
-  it('only an e-mail column: a single Person, nothing else', () => {
-    const columns = profile(c('Email', 'email'));
-    const result = heuristicProposal({ fileName: 'people.csv', columns });
-    expect(result.recipe.entities).toEqual([{ type: 'Person', nameColumn: 'Email', keyColumn: 'Email', attributes: [{ column: 'Email', name: 'email' }] }]);
-    expect(result.recipe.relations).toEqual([]);
-    expect(result.notes).toEqual(['Email looks like an e-mail address, so Person is a person.']);
-    expectValid(result, columns);
-  });
-
-  it('headers that camelCase to nothing or to a reserved name still get unique attribute names', () => {
-    const columns = profile(c('Code', 'text'), c('€', 'text', { distinct: 2 }), c('Display name', 'text', { distinct: 2 }), c('display_name', 'text', { distinct: 2 }));
-    const result = heuristicProposal({ columns });
-    expect(result.recipe.entities[0].nameColumn).toBe('Display name');
-    expect(result.recipe.entities[0].attributes.map(a => a.name)).toEqual(['column2', 'displayName2']);
-    expectValid(result, columns);
-  });
-
-  it('more e-mail columns than entity slots: the rest stay attributes of the primary', () => {
-    const columns = profile(c('Key', 'text'), ...Array.from({ length: 22 }, (_, i) => c(`Contact${i}Email`, 'email', { distinct: 5 })));
-    const result = heuristicProposal({ columns });
-    expect(result.recipe.entities).toHaveLength(20);
-    expect(result.recipe.entities[0].attributes.map(a => a.column)).toEqual(['Contact19Email', 'Contact20Email', 'Contact21Email']);
-    expect(result.notes).toHaveLength(MAX_NOTES);
-    expectValid(result, columns);
-  });
-
-  it('ignores columns without a name, and refuses a profile with none', () => {
-    const columns = [{ name: '' }, { name: '  ' }, null, { name: 'Real', shape: 'text', nonEmpty: 3, distinct: 3, uniqueness: 1 }];
-    expect(heuristicProposal({ columns }).recipe.entities[0].nameColumn).toBe('Real');
-    expect(() => heuristicProposal({ columns: [] })).toThrow('The list has no named columns');
-    expect(() => heuristicProposal({ columns: 'nope' })).toThrow('no named columns');
-    expect(() => heuristicProposal()).toThrow('no named columns');
-  });
-
-  it('survives missing counts and indexes in the profile', () => {
-    const columns = [{ name: 'A' }, { name: 'B', shape: 'email' }, { name: 'BName' }];
-    const result = heuristicProposal({ columns });
-    expect(result.recipe.entities.map(e => [e.type, e.nameColumn])).toEqual([['Item', 'A'], ['Person', 'BName']]);
-    expectValid(result, columns);
-  });
-});
-
-describe('heuristicProposal — realistic lists', () => {
-  it('a 12-row project list with one duplicate code still keys Project on that code', () => {
-    const columns = profile(
-      c('Status', 'text', { rows: 12, distinct: 12 }), // fully unique, but its header does not say key
-      c('ProjectCode', 'text', { rows: 12, distinct: 11 }),
-      c('Omschrijving', 'text', { rows: 12, distinct: 12 }),
-      c('Budget', 'number', { rows: 12, distinct: 9 }),
-    );
-    const result = heuristicProposal({ fileName: 'Projects.xlsx', columns });
-    expect(entity(result, 'Project')).toMatchObject({ keyColumn: 'ProjectCode', nameColumn: 'Omschrijving' });
-    expect(entity(result, 'Project').attributes.map(a => a.column)).toEqual(['Status', 'Budget']);
-    expect(result.notes[0]).toBe('ProjectCode is nearly unique (a few values repeat), so it is the key of Project, and Omschrijving is its name.');
-    expectValid(result, columns);
-  });
-
-  it('without a key-like header the most unique column wins, the leftmost on a tie', () => {
-    const columns = profile(c('Alpha', 'text', { distinct: 85 }), c('Beta', 'number', { distinct: 97 }), c('Gamma', 'text', { distinct: 97 }), c('Flag', 'boolean'));
-    expect(heuristicProposal({ columns }).recipe.entities[0].keyColumn).toBe('Beta');
-    // A boolean column is never a key, however its counts look.
-    const onlyFlag = profile(c('Flag', 'boolean'), c('Note', 'text', { distinct: 10 }));
-    expect(heuristicProposal({ columns: onlyFlag }).notes[0]).toMatch(/^No column is unique enough/);
-  });
-
-  it('an "OwnerEmail"-only list: an Owner named by its address, linked on e-mail alone', () => {
-    const columns = profile(c('OwnerEmail', 'email', { distinct: 40, samples: ['a.jansen@contoso.com'] }));
-    const result = heuristicProposal({ fileName: 'Projects.xlsx', columns });
-    expect(result.recipe.entities).toEqual([{ type: 'Owner', nameColumn: 'OwnerEmail', keyColumn: 'OwnerEmail', attributes: [{ column: 'OwnerEmail', name: 'email' }] }]);
-    expect(result.linkRules).toEqual([{ entityType: 'Owner', targetType: 'Principal', threshold: 50, signals: [
-      { name: 'email→email', attribute: 'email', targetField: 'email', type: 'exact', weight: 90, order: 0 },
-    ] }]);
-    expectValid(result, columns);
-  });
-});
-
-describe('heuristicProposal — an owner column that holds names, not addresses', () => {
-  // A SharePoint-style list: Title, Eigenaar (person names), a few flags and texts.
+describe('heuristicProposal — a team list: an owner by name, a multi-person cell, no addresses', () => {
   const columns = profile(
     c('Title', 'text', { rows: 58, samples: ['Contoso Bank', 'Northwind Finance'] }),
     c('Eigenaar', 'text', { rows: 58, distinct: 9, samples: ['Ann Example', 'Bob Example | Contoso'] }),
     c('Archief', 'boolean', { rows: 58, distinct: 2 }),
+    c('Team', 'text', { rows: 58, distinct: 20, samples: ['Ann Example;#27', 'Ann Example;#27;#Bob Example;#16'] }),
     c('Risico klasse', 'text', { rows: 58, distinct: 3 }),
   );
-  const result = heuristicProposal({ fileName: 'Klanten.xlsx', columns });
+  const result = heuristicProposal({ fileName: 'Fortigi-Teams.xlsx', columns });
 
-  it('turns the role column into a person entity named by that column, related by its role', () => {
+  it('keeps Eigenaar and Team as attributes of the one entity', () => {
+    expect(result.recipe.entities).toHaveLength(1);
+    expect(entity(result).attributes.map(a => a.name)).toEqual(['eigenaar', 'archief', 'team', 'risicoKlasse']);
     expectValid(result, columns);
-    expect(entity(result, 'Eigenaar')).toEqual({ type: 'Eigenaar', keyColumn: 'Eigenaar', nameColumn: 'Eigenaar', attributes: [] });
-    expect(result.recipe.relations).toEqual([{ predicate: 'eigenaar', from: 'Klant', to: 'Eigenaar' }]);
-    expect(entity(result, 'Klant').attributes.map(a => a.column)).toEqual(['Archief', 'Risico klasse']);
   });
 
-  it('matches that person to accounts by exact name first, then graded name', () => {
-    expect(signalsOf(rule(result, 'Eigenaar'))).toEqual(['displayName>displayName:exact:80', 'displayName>displayName:name:60']);
-    expect(result.notes).toContain('Eigenaar names a role, so Eigenaar is a person named by that column, matched to accounts by name.');
+  it('links through eigenaar and through team to accounts by name, and the row to resources', () => {
+    expect(ruleNames(result)).toEqual(['FortigiTeam → Resource via displayName', 'FortigiTeam → Principal via eigenaar', 'FortigiTeam → Principal via team']);
+    expect(signalsOf(rule(result, 'Principal', 'eigenaar'))).toEqual(['eigenaar>displayName:exact:80', 'eigenaar>displayName:name:60']);
+    expect(signalsOf(rule(result, 'Principal', 'team'))).toEqual(['team>displayName:exact:80', 'team>displayName:name:60']);
+    expect(result.notes).toContain('Eigenaar names a role, so FortigiTeam is linked through it to accounts by name.');
+    expect(result.notes).toContain('Team lists several people per row, so FortigiTeam is linked through it to accounts by name; each name in the cell is linked.');
   });
+});
 
-  it('pairs a person column with the nearest employee-number column and matches on that number first', () => {
-    nextIndex = 0;
+describe('heuristicProposal — employee numbers, full names, group-like names', () => {
+  it('pairs a person attribute with the nearest employee-number column as its strongest signal', () => {
     const cols = profile(
       c('Titel', 'text', { rows: 30 }),
       c('Personeelsnummer', 'number', { rows: 30, distinct: 12 }),
@@ -245,34 +97,12 @@ describe('heuristicProposal — an owner column that holds names, not addresses'
     );
     const r = heuristicProposal({ fileName: 'Systemen.xlsx', columns: cols });
     expectValid(r, cols);
-    expect(entity(r, 'VolledigeNaam')).toEqual({
-      type: 'VolledigeNaam', keyColumn: 'Volledige naam', nameColumn: 'Volledige naam', attributes: [{ column: 'Personeelsnummer', name: 'employeeId' }],
-    });
-    expect(signalsOf(rule(r, 'VolledigeNaam'))).toEqual(['employeeId>employeeId:exact:95', 'displayName>displayName:exact:80', 'displayName>displayName:name:60']);
-    expect(entity(r, 'System').attributes.map(a => a.column)).toEqual(['Afdeling']);
-    expect(r.notes).toContain('Volledige naam holds a person\'s name, so VolledigeNaam is a person named by that column, matched to accounts by employee number (Personeelsnummer) and name.');
+    expect(entity(r).attributes.map(a => a.name)).toEqual(['personeelsnummer', 'volledigeNaam', 'afdeling']);
+    expect(signalsOf(rule(r, 'Principal', 'volledigeNaam'))).toEqual(['personeelsnummer>employeeId:exact:95', 'volledigeNaam>displayName:exact:80', 'volledigeNaam>displayName:name:60']);
+    expect(r.notes).toContain('Volledige naam holds a person\'s name, so System is linked through it to accounts by employee number (Personeelsnummer) and name.');
   });
 
-  it('turns a SharePoint multi-lookup column into one person entity per name, related by the header', () => {
-    nextIndex = 0;
-    const cols = profile(
-      c('Title', 'text', { rows: 30 }),
-      c('Team', 'text', { rows: 30, distinct: 20, samples: ['Ann Example;#27', 'Ann Example;#27;#Bob Example;#16'] }),
-      c('Leden', 'text', { rows: 30, distinct: 20, samples: ['Ann Example; Bob Example'] }),
-      c('Groep', 'text', { rows: 30, distinct: 20, samples: ['A; B'] }),
-    );
-    const r = heuristicProposal({ fileName: 'Klanten.xlsx', columns: cols });
-    expectValid(r, cols);
-    expect(r.recipe.entities.map(e => e.type)).toEqual(['Klant', 'TeamMember', 'LedenMember']);
-    expect(r.recipe.relations).toEqual([
-      { predicate: 'team', from: 'Klant', to: 'TeamMember' }, { predicate: 'leden', from: 'Klant', to: 'LedenMember' },
-    ]);
-    expect(entity(r, 'Klant').attributes.map(a => a.column)).toEqual(['Groep']);
-    expect(r.notes).toContain('Team lists several people per row, so TeamMember is a person named by that column, matched to accounts by name; each name in the cell becomes its own TeamMember.');
-  });
-
-  it('does not take a role column an e-mail column already uses as its name, and ignores non-text role columns', () => {
-    nextIndex = 0;
+  it('a role column that an e-mail column uses as its name gets no rule of its own; a numeric role column is no person', () => {
     const cols = profile(
       c('Title', 'text', { rows: 20 }),
       c('Owner', 'text', { rows: 20, distinct: 5 }),
@@ -280,40 +110,154 @@ describe('heuristicProposal — an owner column that holds names, not addresses'
       c('Manager', 'number', { rows: 20, distinct: 5 }),
     );
     const r = heuristicProposal({ fileName: 'Assets.xlsx', columns: cols });
-    expect(r.recipe.entities.map(e => e.type)).toEqual(['Asset', 'Owner']);
-    expect(entity(r, 'Owner').attributes).toEqual([{ column: 'Owner email', name: 'email' }]);
-    expect(entity(r, 'Asset').attributes.map(a => a.column)).toEqual(['Manager']);
+    expectValid(r, cols);
+    expect(ruleNames(r)).toEqual(['Asset → Resource via displayName', 'Asset → Principal via ownerEmail']);
+    expect(signalsOf(rule(r, 'Principal', 'ownerEmail'))).toContain('owner>displayName:name:60');
+  });
+
+  it('says so when the names look like group names', () => {
+    const cols = profile(c('Group', 'text', { samples: ['SG_SAP_PROD', 'GG-Finance', 'DL_All'] }), c('Owner', 'text', { distinct: 10 }));
+    const r = heuristicProposal({ fileName: 'Groups.csv', columns: cols });
+    expect(r.notes).toContain('The values of Group look like group names, so Group is matched to groups.');
+    expect(rule(r, 'Resource', 'displayName')).toBeDefined();
+  });
+});
+
+describe('heuristicProposal — degenerate profiles', () => {
+  it('one text column: one Item entity named and keyed by it, the resource rule only', () => {
+    const columns = profile(c('Whatever', 'text', { distinct: 3 }));
+    const result = heuristicProposal({ columns });
+    expect(result.recipe).toEqual({ version: 1, entities: [{ type: 'Item', nameColumn: 'Whatever', keyColumn: 'Whatever', attributes: [] }], relations: [] });
+    expect(ruleNames(result)).toEqual(['Item → Resource via displayName']);
+    expect(result.notes[0]).toBe('No column is unique enough to be a key, so Item is identified by Whatever.');
+    expectValid(result, columns);
+  });
+
+  it('no unique column: no keyColumn chosen, the name header names it', () => {
+    const columns = profile(c('Category', 'text', { distinct: 4 }), c('Description', 'text', { distinct: 70 }), c('Flag', 'boolean', { distinct: 2 }));
+    const result = heuristicProposal({ fileName: 'things.csv', columns });
+    // no key chosen: after normalisation the key column is the name column
+    expect(entity(result)).toEqual({ type: 'Thing', nameColumn: 'Description', keyColumn: 'Description', attributes: [{ column: 'Category', name: 'category' }, { column: 'Flag', name: 'flag' }] });
+    expect(result.notes[0]).toBe('No column is unique enough to be a key, so Thing is identified by Description.');
+    expectValid(result, columns);
+  });
+
+  it('a unique column that is too empty is not a key; a numeric ID is when no text column qualifies, and names it too without a name header', () => {
+    const columns = profile(c('Sparse', 'text', { nonEmpty: 50, distinct: 50 }), c('Nr', 'number'), c('Label', 'text', { distinct: 20 }));
+    const result = heuristicProposal({ columns });
+    expect(entity(result)).toMatchObject({ keyColumn: 'Nr', nameColumn: 'Nr' });
+    expect(entity(result).attributes.map(a => a.column)).toEqual(['Sparse', 'Label']);
+  });
+
+  it('just under the uniqueness and fill limits is not a key, exactly on them is', () => {
+    const under = heuristicProposal({ columns: profile(c('Code', 'text', { nonEmpty: 89, distinct: 89 }), c('Name', 'text', { distinct: 10 })) });
+    expect(entity(under)).toMatchObject({ keyColumn: 'Name', nameColumn: 'Name' });
+    expect(under.notes[0]).toMatch(/^No column is unique enough/);
+    const on = heuristicProposal({ columns: profile(c('Code', 'text', { nonEmpty: 90, distinct: 72 }), c('Name', 'text', { distinct: 10 })) });
+    expect(entity(on)).toMatchObject({ keyColumn: 'Code', nameColumn: 'Name' });
+  });
+
+  it('only an e-mail column: the entity is named by the address and linked through its name to accounts by e-mail', () => {
+    const columns = profile(c('Email', 'email', { distinct: 100, samples: ['x@contoso.com'] }));
+    const result = heuristicProposal({ fileName: 'contacts.csv', columns });
+    expect(entity(result)).toEqual({ type: 'Contact', nameColumn: 'Email', keyColumn: 'Email', attributes: [] });
+    // the e-mail column IS the name column, so it is not an attribute rule; the resource rule remains
+    expect(ruleNames(result)).toEqual(['Contact → Resource via displayName']);
+    expectValid(result, columns);
+  });
+
+  it('headers that camelCase to nothing or to a reserved name still get unique attribute names', () => {
+    const columns = profile(c('Title', 'text'), c('???', 'text', { distinct: 5 }), c('Display Name', 'text', { distinct: 5 }), c('display name', 'text', { distinct: 5 }));
+    const result = heuristicProposal({ columns });
+    // Title is the key; "Display Name" is the name column (a name header); the rest are attributes
+    expect(entity(result)).toMatchObject({ keyColumn: 'Title', nameColumn: 'Display Name' });
+    expect(entity(result).attributes.map(a => a.name)).toEqual(['column2', 'displayName2']);
+    expectValid(result, columns);
+  });
+
+  it('ignores columns without a name, and refuses a profile with none', () => {
+    const result = heuristicProposal({ columns: [{ name: '', shape: 'text' }, { name: 'Id', shape: 'text', nonEmpty: 10, distinct: 10, uniqueness: 1 }] });
+    expect(entity(result).nameColumn).toBe('Id');
+    expect(() => heuristicProposal({ columns: [] })).toThrow(/no named columns/);
+    expect(() => heuristicProposal({})).toThrow(/no named columns/);
+  });
+
+  it('survives missing counts and indexes in the profile', () => {
+    const result = heuristicProposal({ columns: [{ name: 'A', shape: 'text' }, { name: 'Owner', shape: 'text' }] });
+    expect(entity(result).nameColumn).toBe('A');
+    expect(ruleNames(result)).toEqual(['Item → Resource via displayName', 'Item → Principal via owner']);
+  });
+});
+
+describe('heuristicProposal — realistic lists', () => {
+  it('a 12-row project list with one duplicate code still keys Project on that code', () => {
+    const columns = profile(
+      c('ProjectCode', 'text', { rows: 12, distinct: 11, samples: ['P-001'] }),
+      c('ProjectName', 'text', { rows: 12, distinct: 12 }),
+      c('OwnerEmail', 'email', { rows: 12, distinct: 5 }),
+    );
+    const result = heuristicProposal({ fileName: 'Projects.xlsx', columns });
+    expect(entity(result)).toMatchObject({ type: 'Project', keyColumn: 'ProjectCode', nameColumn: 'ProjectName' });
+    expect(result.notes[0]).toBe('ProjectCode is nearly unique (a few values repeat), so it is the key of Project, and ProjectName is its name.');
+  });
+
+  it('without a key-like header the most unique column wins, the leftmost on a tie', () => {
+    const columns = profile(c('Alpha', 'text', { distinct: 95 }), c('Beta', 'text', { distinct: 95 }), c('Gamma', 'text', { distinct: 90 }));
+    expect(entity(heuristicProposal({ columns })).keyColumn).toBe('Alpha');
+  });
+
+  it('an e-mail attribute without a sibling name column is linked on the address alone', () => {
+    const columns = profile(c('Project', 'text', { rows: 12 }), c('OwnerEmail', 'email', { rows: 12, distinct: 5, samples: ['a@contoso.com'] }));
+    const result = heuristicProposal({ fileName: 'Projects.xlsx', columns });
+    expect(signalsOf(rule(result, 'Principal', 'ownerEmail'))).toEqual(['ownerEmail>email:exact:90', 'ownerEmail>email:prefix:80']);
+    expect(result.notes).toContain('OwnerEmail looks like an e-mail address, so Project is linked through it to accounts.');
+  });
+
+  it('never proposes more notes than MAX_NOTES', () => {
+    const columns = profile(...Array.from({ length: 12 }, (_, i) => c(`Owner ${i} email`, 'email', { distinct: 5 })), c('Title', 'text'));
+    expect(heuristicProposal({ columns }).notes.length).toBeLessThanOrEqual(MAX_NOTES);
   });
 });
 
 describe('helpers', () => {
   it('emailPrefix strips the e-mail words wherever they stand', () => {
     expect(emailPrefix('OwnerEmail')).toBe('Owner');
-    expect(emailPrefix('Business Owner E-mail Address')).toBe('Business Owner');
     expect(emailPrefix('E-mailadres eigenaar')).toBe('eigenaar');
+    expect(emailPrefix('Email')).toBe('');
     expect(emailPrefix('UPN')).toBe('');
   });
 
   it('personNameColumn picks the nearest sibling with the same prefix', () => {
-    const free = [{ name: 'OwnerName', index: 1 }, { name: 'Other', index: 4 }, { name: 'Owner', index: 6 }, { name: 'naam owner', index: 9 }];
-    expect(personNameColumn({ name: 'OwnerEmail', index: 7 }, 'Owner', free).name).toBe('Owner');
-    expect(personNameColumn({ name: 'OwnerEmail', index: 2 }, 'Owner', free).name).toBe('OwnerName');
-    expect(personNameColumn({ name: 'OwnerEmail', index: 10 }, 'Owner', free).name).toBe('naam owner');
-    expect(personNameColumn({ name: 'Email', index: 0 }, '', free)).toBeNull();
-    expect(personNameColumn({ name: 'XEmail', index: 0 }, 'X', free)).toBeNull();
+    const email = { name: 'OwnerEmail', index: 5 };
+    const free = [{ name: 'Owner name', index: 1 }, { name: 'Budget', index: 2 }, { name: 'Owner', index: 4 }];
+    expect(personNameColumn(email, 'Owner', free).name).toBe('Owner');
+    expect(personNameColumn(email, '', free)).toBeNull();
+    expect(personNameColumn(email, 'Sponsor', free)).toBeNull();
   });
 
   it('looksLikeGroupNames needs at least half of the non-empty samples to look like groups', () => {
-    expect(looksLikeGroupNames(['SG-Finance', 'Plain'])).toBe(true);
-    expect(looksLikeGroupNames(['AAD_x', 'Plain', 'Other'])).toBe(false);
-    expect(looksLikeGroupNames(['dl-sales', 'az-ops', 'Plain'])).toBe(true);
-    expect(looksLikeGroupNames(['SGX', 'Plain'])).toBe(false);
-    expect(looksLikeGroupNames(['', '  ', 42])).toBe(false);
+    expect(looksLikeGroupNames(['SG_A', 'plain', 'x_y', ''])).toBe(true);
+    expect(looksLikeGroupNames(['SG_A', 'plain', 'other'])).toBe(false);
+    expect(looksLikeGroupNames([])).toBe(false);
     expect(looksLikeGroupNames(undefined)).toBe(false);
   });
 
+  it('column classifiers: role, full name, employee number, multi-person', () => {
+    expect(isRoleColumn({ name: 'Project owner', shape: 'text' })).toBe(true);
+    expect(isRoleColumn({ name: 'Owner', shape: 'number' })).toBe(false);
+    expect(isFullNameColumn({ name: 'Volledige naam', shape: 'text' })).toBe(true);
+    expect(isFullNameColumn({ name: 'Naam project', shape: 'text' })).toBe(false);
+    expect(isEmployeeIdColumn({ name: 'Personeelsnummer', shape: 'number' })).toBe(true);
+    expect(isEmployeeIdColumn({ name: 'Employee ID', shape: 'text' })).toBe(true);
+    expect(isEmployeeIdColumn({ name: 'Nummer', shape: 'number' })).toBe(false);
+    expect(isMultiPersonColumn({ name: 'Anything', shape: 'text', samples: ['A;#1;#B;#2'] })).toBe(true);
+    expect(isMultiPersonColumn({ name: 'Leden', shape: 'text', samples: ['A; B'] })).toBe(true);
+    expect(isMultiPersonColumn({ name: 'Leden', shape: 'text', samples: ['A'] })).toBe(false);
+    expect(isMultiPersonColumn({ name: 'Notes', shape: 'text', samples: ['a; b'] })).toBe(false);
+  });
+
   it('usableColumns keeps named columns in order and fills a missing index', () => {
-    expect(usableColumns([{ name: 'A', index: 5 }, { name: '' }, { name: 'B' }]).map(x => [x.name, x.index])).toEqual([['A', 5], ['B', 1]]);
+    expect(usableColumns([{ name: 'A' }, { name: ' ' }, { name: 'B', index: 7 }, null])).toEqual([{ name: 'A', index: 0 }, { name: 'B', index: 7 }]);
     expect(usableColumns(undefined)).toEqual([]);
   });
 });

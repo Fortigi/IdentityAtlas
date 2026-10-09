@@ -52,9 +52,10 @@ export const RECIPE_JSON_SCHEMA = Object.freeze({
         type: 'object', additionalProperties: false,
         required: ['type', 'nameColumn'],
         properties: {
-          type:       { type: 'string', minLength: 1, maxLength: 64 },
-          nameColumn: { type: 'string', minLength: 1, maxLength: 256 },
-          keyColumn:  { type: 'string', minLength: 1, maxLength: 256 },
+          type:          { type: 'string', minLength: 1, maxLength: 64 },
+          nameColumn:    { type: 'string', minLength: 1, maxLength: 256 },
+          keyColumn:     { type: 'string', minLength: 1, maxLength: 256 },
+          nameAttribute: { type: 'string', minLength: 1, maxLength: 64 },
           attributes: {
             type: 'array', maxItems: LIMITS.attributesPerEntity,
             items: {
@@ -92,6 +93,8 @@ export const LINK_RULES_JSON_SCHEMA = Object.freeze({
     properties: {
       entityType: { type: 'string', minLength: 1, maxLength: 64 },
       targetType: { enum: Object.keys(LINK_TARGETS) },
+      via:        { type: 'string', minLength: 1, maxLength: 64 },
+      name:       { type: 'string', maxLength: 200 },
       threshold:  { type: 'integer', minimum: 0, maximum: 100 },
       signals: {
         type: 'array', minItems: 1, maxItems: LIMITS.signalsPerRule,
@@ -115,10 +118,12 @@ export const LINK_RULES_JSON_SCHEMA = Object.freeze({
 const isNonEmptyString = (v) => typeof v === 'string' && v.trim().length > 0;
 
 // Attribute names an entity definition exposes to link rules and to the UI:
-// its own name plus every mapped column (attribute `name` defaults to the
-// column header).
+// its own name (also under `nameAttribute` when the analyst named it) plus
+// every mapped column (attribute `name` defaults to the column header).
 export function entityAttributeNames(entityDef) {
   const names = [NAME_ATTRIBUTE];
+  const alias = entityDef?.nameAttribute;
+  if (isNonEmptyString(alias) && alias.trim() !== NAME_ATTRIBUTE) names.push(alias.trim());
   for (const a of entityDef?.attributes ?? []) {
     const n = isNonEmptyString(a?.name) ? a.name.trim() : a?.column;
     if (isNonEmptyString(n) && !names.includes(n)) names.push(n);
@@ -141,15 +146,16 @@ function columnChecker(columns, errors) {
 function checkEntityColumns(e, type, checkColumn, errors) {
   if (!isNonEmptyString(e.nameColumn)) errors.push(`Entity "${type}" has no "nameColumn".`);
   else checkColumn(e.nameColumn, `Entity "${type}" nameColumn`);
+  if (e.nameAttribute !== undefined && !isNonEmptyString(e.nameAttribute)) errors.push(`Entity "${type}" has an empty "nameAttribute".`);
   if (e.keyColumn === undefined) return;
   if (!isNonEmptyString(e.keyColumn)) errors.push(`Entity "${type}" has an empty "keyColumn".`);
   else checkColumn(e.keyColumn, `Entity "${type}" keyColumn`);
 }
 
-function checkEntityAttributes(attrs, type, checkColumn, errors) {
+function checkEntityAttributes(attrs, type, checkColumn, errors, nameAttribute) {
   if (!Array.isArray(attrs)) { errors.push(`Entity "${type}" "attributes" must be an array.`); return; }
   if (attrs.length > LIMITS.attributesPerEntity) errors.push(`Entity "${type}" has ${attrs.length} attributes; the maximum is ${LIMITS.attributesPerEntity}.`);
-  const seen = new Set([NAME_ATTRIBUTE]);
+  const seen = new Set([NAME_ATTRIBUTE, ...(isNonEmptyString(nameAttribute) ? [nameAttribute.trim()] : [])]);
   for (const a of attrs) {
     if (!isNonEmptyString(a?.column)) { errors.push(`Entity "${type}" has an attribute without a "column".`); continue; }
     checkColumn(a.column, `Entity "${type}" attribute`);
@@ -170,7 +176,7 @@ function checkEntities(entities, checkColumn, errors) {
     if (types.has(type)) errors.push(`Entity type "${type}" is defined more than once.`);
     types.add(type);
     checkEntityColumns(e, type, checkColumn, errors);
-    checkEntityAttributes(e.attributes ?? [], type, checkColumn, errors);
+    checkEntityAttributes(e.attributes ?? [], type, checkColumn, errors, e.nameAttribute);
   }
   return types;
 }
@@ -227,25 +233,42 @@ function checkSignals(rule, where, et, entityDef, fields, errors) {
   }
 }
 
+// The attribute a rule links THROUGH: given, else the first signal's attribute,
+// else the entity's own name. One link per value of it (a cell listing several
+// people yields several links); a rule is identified by (entityType, targetType, via).
+export function ruleVia(rule) {
+  if (isNonEmptyString(rule?.via)) return rule.via.trim();
+  const first = rule?.signals?.[0]?.attribute;
+  return isNonEmptyString(first) ? first : NAME_ATTRIBUTE;
+}
+
+export const ruleName = (rule) => `${rule.entityType.trim()} → ${rule.targetType} via ${ruleVia(rule)}`;
+
 function checkRule(rule, where, et, entityDefs, recipe, errors) {
   if (recipe && !entityDefs.has(et)) errors.push(`${where} is for entity type "${et}", which the recipe does not define.`);
   const fields = LINK_TARGETS[rule.targetType];
   if (!fields) { errors.push(`${where} ("${et}") has an unknown targetType "${rule.targetType}"; use one of ${Object.keys(LINK_TARGETS).join(', ')}.`); return; }
   if (rule.threshold !== undefined && !isWholeNumberIn(rule.threshold, 0, 100)) errors.push(`${where} ("${et}") threshold must be a whole number from 0 to 100.`);
-  checkSignals(rule, where, et, recipe ? entityDefs.get(et) : null, fields, errors);
+  if (rule.via !== undefined && !isNonEmptyString(rule.via)) errors.push(`${where} ("${et}") has an empty "via".`);
+  const entityDef = recipe ? entityDefs.get(et) : null;
+  if (entityDef && isNonEmptyString(rule.via) && !entityAttributeNames(entityDef).includes(rule.via.trim())) {
+    errors.push(`${where} ("${et}") links via "${rule.via}", which entity "${et}" does not have (have: ${entityAttributeNames(entityDef).join(', ')}).`);
+  }
+  checkSignals(rule, where, et, entityDef, fields, errors);
 }
 
 export function validateLinkRules(rules, recipe = null) {
   if (!Array.isArray(rules)) return { ok: false, errors: ['Link rules must be an array.'] };
   const errors = [];
   const entityDefs = new Map((recipe?.entities ?? []).map(e => [e?.type?.trim?.(), e]));
-  const seenTypes = new Set();
+  const seen = new Set();
   for (const [i, rule] of rules.entries()) {
     const where = `Link rule ${i + 1}`;
     if (!isNonEmptyString(rule?.entityType)) { errors.push(`${where} has no "entityType".`); continue; }
     const et = rule.entityType.trim();
-    if (seenTypes.has(et)) errors.push(`Entity type "${et}" has more than one link rule.`);
-    seenTypes.add(et);
+    const key = `${et}|${rule.targetType}|${ruleVia(rule)}`;
+    if (seen.has(key)) errors.push(`${where} repeats ${et} → ${rule.targetType} via ${ruleVia(rule)}; one rule per attribute and target type.`);
+    seen.add(key);
     checkRule(rule, where, et, entityDefs, recipe, errors);
   }
   return { ok: errors.length === 0, errors };
@@ -259,6 +282,7 @@ export function normalizeRecipe(recipe) {
       type: e.type.trim(),
       nameColumn: e.nameColumn,
       keyColumn: e.keyColumn ?? e.nameColumn,
+      ...(isNonEmptyString(e.nameAttribute) && e.nameAttribute.trim() !== NAME_ATTRIBUTE ? { nameAttribute: e.nameAttribute.trim() } : {}),
       attributes: (e.attributes ?? []).map(a => ({ column: a.column, name: isNonEmptyString(a.name) ? a.name.trim() : a.column })),
     })),
     relations: (recipe.relations ?? []).map(r => ({ predicate: r.predicate.trim(), from: r.from.trim(), to: r.to.trim() })),
@@ -269,6 +293,8 @@ export function normalizeLinkRules(rules) {
   return rules.map(r => ({
     entityType: r.entityType.trim(),
     targetType: r.targetType,
+    via: ruleVia(r),
+    name: isNonEmptyString(r.name) ? r.name.trim() : ruleName(r),
     threshold: r.threshold ?? 50,
     signals: r.signals.map((s, i) => ({
       name: isNonEmptyString(s.name) ? s.name.trim() : `${s.attribute}→${s.targetField}`,

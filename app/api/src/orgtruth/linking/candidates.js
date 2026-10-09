@@ -3,7 +3,7 @@
 //
 //   loadTargets(targetType, ruleOrFields) → rows { id, displayName, <fields>, [principalType] }
 //   buildRuleIndex(rows, rule)         → { rule, bySignal: Map<signalName, Map<key, row[]>> }
-//   loadRuleIndexes(rules)             → Map<entityType, ruleIndex>  (one SQL load per targetType)
+//   loadRuleIndexes(rules)             → Map<ruleKey, ruleIndex>  (one SQL load per targetType; several rules per entity type)
 //
 // WHITELIST: the SELECT is built from LINK_TARGETS[targetType] filtered by the
 // requested fields — never from the request strings themselves — so a rule
@@ -19,8 +19,9 @@
 // exclusion is in SQL; a shared load (several rules on one target type) keeps
 // them and buildRuleIndex drops them per rule.
 import { query } from '../../db/connection.js';
-import { LINK_TARGETS, NAME_ATTRIBUTE } from '../contracts.js';
+import { LINK_TARGETS, NAME_ATTRIBUTE, ruleName } from '../contracts.js';
 import { NON_HUMAN_PRINCIPAL_TYPES } from '../../accountlinking/orphanQuery.js';
+import { OWNERSHIP_TYPES_SQL } from '../../lib/ownershipTypes.js';
 import { signalKeys } from './signals.js';
 
 export const TARGET_TABLES = Object.freeze({
@@ -49,6 +50,9 @@ export function buildTargetsSql(targetType, fields, { humanOnly = false } = {}) 
   const where = [];
   if (softDelete) where.push('"deletedAt" IS NULL');
   if (humanOnly && targetType === 'Principal') where.push('("principalType" IS NULL OR "principalType" <> ALL($1::text[]))');
+  // An ownership row is named after the group it is the ownership OF: linking a
+  // list row to "Finance" must find the group, not its owners' row (a tie otherwise).
+  if (targetType === 'Resource') where.push(`("resourceType" IS NULL OR "resourceType" NOT IN ${OWNERSHIP_TYPES_SQL})`);
   const select = [...cols].map(c => `"${c}"`).join(', ');
   return `SELECT ${select} FROM "${table}"${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`;
 }
@@ -97,7 +101,10 @@ export function buildRuleIndex(rows, rule) {
   return { rule, bySignal };
 }
 
-/** Load every target type the rules need once (union of fields), index per rule. */
+/** The key a rule index is stored under: the rule's name (entityType → targetType via attribute). */
+export const ruleKey = (rule) => rule.name ?? ruleName(rule);
+
+/** Load every target type the rules need once (union of fields), index per rule (Map<ruleKey, ruleIndex>). */
 export async function loadRuleIndexes(rules) {
   const rulesByType = new Map();
   for (const rule of rules ?? []) {
@@ -112,7 +119,7 @@ export async function loadRuleIndexes(rules) {
   }
   const out = new Map();
   for (const rule of rules ?? []) {
-    out.set(rule.entityType, buildRuleIndex(rowsByType.get(rule.targetType), rule));
+    out.set(ruleKey(rule), buildRuleIndex(rowsByType.get(rule.targetType), rule));
   }
   return out;
 }

@@ -7,8 +7,8 @@ const cand = (targetId, confidence, extra = {}) => ({
 });
 
 // A decision as score.js returns it (the fields plan.js reads).
-const decision = (entityId, decision, candidates, { ambiguous = false, all = candidates } = {}) => ({
-  entity: { id: entityId }, entityType: 'Person', decision, ambiguous, candidates, allCandidates: all,
+const decision = (entityId, decision, candidates, { ambiguous = false, all = candidates, via, value } = {}) => ({
+  entity: { id: entityId }, entityType: 'Person', targetType: 'Principal', via, value, decision, ambiguous, candidates, allCandidates: all,
 });
 
 const link = (id, entityId, targetId, status, analystOverride = null) => ({
@@ -23,9 +23,19 @@ describe('planLinkWrites — fresh entities', () => {
     const p = plan([decision('e1', 'accepted', [cand('u1', 90, { signals: ['email', 'name'] })])]);
     expect(p.upserts).toEqual([{
       orgEntityId: 'e1', targetType: 'Principal', targetId: 'u1', confidence: 90,
-      signals: 'email,name', matchedField: 'email', matchedValue: 'u1@contoso.com', status: 'accepted', runId: 'run-2',
+      signals: 'email,name', matchedField: 'email', matchedValue: 'u1@contoso.com', via: null, orgValue: null, status: 'accepted', runId: 'run-2',
     }]);
     expect(p.counts).toEqual({ linked: 1, proposed: 0, ambiguous: 0, none: 0, rejected: 0 });
+  });
+
+  it('records the attribute and value a decision came through; several decisions of one entity each write', () => {
+    const p = plan([
+      decision('e1', 'accepted', [cand('u1', 100)], { via: 'eigenaar', value: 'Ann Example' }),
+      decision('e1', 'accepted', [cand('u2', 100)], { via: 'team', value: 'Bob Example' }),
+      decision('e1', 'accepted', [cand('u3', 100)], { via: 'team', value: 'Cas Example' }),
+    ]);
+    expect(p.upserts.map(u => [u.targetId, u.via, u.orgValue])).toEqual([['u1', 'eigenaar', 'Ann Example'], ['u2', 'team', 'Bob Example'], ['u3', 'team', 'Cas Example']]);
+    expect(p.counts.linked).toBe(3);
   });
 
   it('a comma inside a signal name cannot split it in the stored list', () => {
@@ -61,6 +71,18 @@ describe('planLinkWrites — re-run against stored links', () => {
     const p = plan([decision('e1', 'none', [])], [link('l1', 'e1', 'u5', 'accepted', 'moved')]);
     expect(p.upserts).toEqual([]);
     expect(p.counts).toMatchObject({ linked: 1, none: 0 });
+  });
+
+  it('a pinned link that recorded its attribute and value pins only that decision, not the entity\'s others', () => {
+    const pinned = { ...link('l1', 'e1', 'u1', 'accepted', 'confirmed'), via: 'team', orgValue: 'Ann Example' };
+    const p = plan([
+      decision('e1', 'accepted', [cand('u9', 100)], { via: 'team', value: 'Ann Example' }),   // the analyst chose u1 for Ann: engine's u9 is not written
+      decision('e1', 'accepted', [cand('u2', 100)], { via: 'team', value: 'Bob Example' }),   // Bob is still linked
+      decision('e1', 'accepted', [cand('u3', 100)], { via: 'eigenaar', value: 'Ann Example' }), // same name through another attribute: still linked
+    ], [pinned]);
+    expect(p.upserts.map(u => u.targetId)).toEqual(['u2', 'u3']);
+    expect(p.counts.linked).toBe(3);
+    expect(p.rejectIds).toEqual([]);
   });
 
   it('a confirmed override whose status is no longer accepted does not pin', () => {

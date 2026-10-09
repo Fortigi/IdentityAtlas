@@ -119,9 +119,11 @@ function instancesFromRow(row, rowNo, def, issues) {
     return [];
   }
   const attributes = readAttributes(row, def);
+  // The analyst may expose the name under an attribute of their own naming too.
+  const alias = def.nameAttribute && def.nameAttribute !== 'displayName' ? def.nameAttribute : null;
   return namesAndKeys(def, displayName, keyValue).map(nk => ({
     entityType: def.type, ...nk,
-    attributes: { ...attributes }, sourceLocator: `row:${rowNo}`, row: rowNo,
+    attributes: alias ? { ...attributes, [alias]: nk.displayName } : { ...attributes }, sourceLocator: `row:${rowNo}`, row: rowNo,
   }));
 }
 

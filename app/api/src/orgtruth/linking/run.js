@@ -29,6 +29,7 @@
 import { randomUUID } from 'node:crypto';
 import { query, tx } from '../../db/connection.js';
 import { parseJsonbColumn } from '../../lib/jsonb.js';
+import { normalizeLinkRules } from '../contracts.js';
 import { loadRuleIndexes } from './candidates.js';
 import { scoreEntities } from './score.js';
 import { planLinkWrites } from './plan.js';
@@ -38,27 +39,28 @@ export const UPSERT_CHUNK = 5000;
 const ENTITIES_SQL = `SELECT "id", "entityType", "displayName", "canonicalKey", "attributes"
   FROM "OrgEntities" WHERE "runId" = $1 AND "validTo" IS NULL`;
 
-const EXISTING_SQL = `SELECT "id", "orgEntityId", "targetType", "targetId", "status", "analystOverride"
+const EXISTING_SQL = `SELECT "id", "orgEntityId", "targetType", "targetId", "status", "analystOverride", "via", "orgValue"
   FROM "OrgLinks" WHERE "orgEntityId" = ANY($1::uuid[])`;
 
 // One statement per chunk: unnest the column arrays. A row an analyst has
 // overridden is never updated (the WHERE on the conflict branch).
 const UPSERT_SQL = `INSERT INTO "OrgLinks"
     ("id", "orgEntityId", "targetType", "targetId", "confidence", "signals", "matchedField", "matchedValue",
-     "origin", "status", "runId")
-  SELECT u.id, u.eid, u.tt, u.tid, u.conf, u.sig, u.mf, u.mv, 'import', u.st, $10::uuid
-    FROM unnest($1::uuid[], $2::uuid[], $3::text[], $4::uuid[], $5::smallint[], $6::text[], $7::text[], $8::text[], $9::text[])
-      AS u(id, eid, tt, tid, conf, sig, mf, mv, st)
+     "via", "orgValue", "origin", "status", "runId")
+  SELECT u.id, u.eid, u.tt, u.tid, u.conf, u.sig, u.mf, u.mv, u.via, u.ov, 'import', u.st, $12::uuid
+    FROM unnest($1::uuid[], $2::uuid[], $3::text[], $4::uuid[], $5::smallint[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[], $11::text[])
+      AS u(id, eid, tt, tid, conf, sig, mf, mv, via, ov, st)
   ON CONFLICT ("orgEntityId", "targetType", "targetId") DO UPDATE SET
     "confidence" = EXCLUDED."confidence", "signals" = EXCLUDED."signals",
     "matchedField" = EXCLUDED."matchedField", "matchedValue" = EXCLUDED."matchedValue",
+    "via" = EXCLUDED."via", "orgValue" = EXCLUDED."orgValue",
     "status" = EXCLUDED."status", "runId" = EXCLUDED."runId", "updatedAt" = now() AT TIME ZONE 'utc'
   WHERE "OrgLinks"."analystOverride" IS NULL`;
 
 const REJECT_SQL = `UPDATE "OrgLinks" SET "status" = 'rejected', "updatedAt" = now() AT TIME ZONE 'utc'
   WHERE "id" = ANY($1::uuid[]) AND "analystOverride" IS NULL`;
 
-/** Column arrays for UPSERT_SQL ($1..$9; $10 is the run id). */
+/** Column arrays for UPSERT_SQL ($1..$11; $12 is the run id). */
 export function upsertParams(rows, runId) {
   return [
     rows.map(() => randomUUID()),
@@ -69,14 +71,18 @@ export function upsertParams(rows, runId) {
     rows.map(r => r.signals),
     rows.map(r => r.matchedField),
     rows.map(r => r.matchedValue),
+    rows.map(r => r.via ?? null),
+    rows.map(r => r.orgValue ?? null),
     rows.map(r => r.status),
     runId,
   ];
 }
 
+// Stored rules are normalised, but a profile saved before `via` existed is
+// normalised again here (idempotent) so every rule carries via and name.
 function rulesOf(profile) {
   const rules = parseJsonbColumn(profile?.linkRules);
-  return Array.isArray(rules) ? rules : [];
+  return Array.isArray(rules) && rules.length > 0 ? normalizeLinkRules(rules) : [];
 }
 
 function entitiesFrom(rows) {
@@ -109,11 +115,10 @@ export async function linkRun({ runId, profile, log }) {
   if (entities.length === 0) return zero(runId);
 
   const decisions = scoreEntities(entities, await loadRuleIndexes(rules));
-  const thresholds = new Map(rules.map(r => [r.entityType, r.threshold]));
 
   const plan = await tx(async (client) => {
     const existing = (await client.query(EXISTING_SQL, [entities.map(e => e.id)])).rows;
-    const p = planLinkWrites({ decisions, existing, thresholdFor: t => thresholds.get(t), runId });
+    const p = planLinkWrites({ decisions, existing, thresholdFor: d => d.rule.threshold, runId });
     await writePlan(client, p, runId);
     return p;
   });

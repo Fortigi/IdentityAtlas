@@ -55,8 +55,10 @@ describe('linkRun', () => {
     expect(sql).toMatch(/WHERE "OrgLinks"\."analystOverride" IS NULL/);
     expect(params[1]).toEqual(['e1', 'e2']);
     expect(params[3]).toEqual(['u1', 'u2']);
-    expect(params[8]).toEqual(['accepted', 'accepted']);
-    expect(params[9]).toBe(RUN);
+    expect(params[8]).toEqual(['email', 'email']);               // via: the rule's attribute
+    expect(params[9]).toEqual(['ann@contoso.com', 'bob@contoso.com']); // the value that was linked
+    expect(params[10]).toEqual(['accepted', 'accepted']);
+    expect(params[11]).toBe(RUN);
     expect(callsMatching(/^UPDATE "OrgLinks"/)).toHaveLength(0);
     expect(log).toHaveBeenCalledWith('linking Person: 3 entities scored');
     expect(log).toHaveBeenCalledWith('linking: 2 linked, 0 proposed, 0 ambiguous, 1 none, 0 stale links rejected');
@@ -121,16 +123,16 @@ describe('linkRun', () => {
 describe('upsertParams', () => {
   it('builds one array per column, a fresh uuid per row, and the run id last', () => {
     const p = upsertParams([
-      { orgEntityId: 'e1', targetType: 'Principal', targetId: 'u1', confidence: 90, signals: 'email', matchedField: 'email', matchedValue: 'a', status: 'accepted' },
+      { orgEntityId: 'e1', targetType: 'Principal', targetId: 'u1', confidence: 90, signals: 'email', matchedField: 'email', matchedValue: 'a', via: 'owner', orgValue: 'Ann', status: 'accepted' },
       { orgEntityId: 'e2', targetType: 'Resource', targetId: 'r1', confidence: 30, signals: 'tok', matchedField: 'displayName', matchedValue: null, status: 'proposed' },
     ], RUN);
-    expect(p).toHaveLength(10);
+    expect(p).toHaveLength(12);
     expect(p[0][0]).toMatch(/^[0-9a-f-]{36}$/);
     expect(p[0][0]).not.toBe(p[0][1]);
-    expect(p.slice(1, 9)).toEqual([
+    expect(p.slice(1, 11)).toEqual([
       ['e1', 'e2'], ['Principal', 'Resource'], ['u1', 'r1'], [90, 30], ['email', 'tok'],
-      ['email', 'displayName'], ['a', null], ['accepted', 'proposed'],
+      ['email', 'displayName'], ['a', null], ['owner', null], ['Ann', null], ['accepted', 'proposed'],
     ]);
-    expect(p[9]).toBe(RUN);
+    expect(p[11]).toBe(RUN);
   });
 });

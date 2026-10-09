@@ -10,27 +10,33 @@
 //   [{ name, index, nonEmpty, distinct, uniqueness, shape: 'email'|'number'|'date'|'boolean'|'text',
 //      samples: string[], duplicates }]
 //
+// The analyst's model, which this follows: a list is ONE entity per row with every
+// column as an attribute; the organisation truth is linked to the system truth through
+// those attributes. Nothing in the list becomes an invented second entity.
+//
 // Decisions, in order:
-//   1. Every e-mail-shaped column is a person entity. Its type is the role in the header
-//      when that is a role word ("OwnerEmail" → Owner), else Person; a collision gets a
-//      number (Owner, Owner2). Its name column is the sibling header with the same prefix
-//      ("OwnerName", "Owner"), nearest first, else the e-mail column itself.
-//   2. The primary entity is built from the remaining columns. Its key is chosen among the
-//      text and number columns that are ≥ 80% unique and ≥ 90% filled — a real list has a
-//      few duplicate keys, which the quality step shows, so a near-unique column still
-//      keys it: first the one whose header says it is a key (code/id/nummer/number/key/
+//   1. The entity: its type comes from the file name ("Projects.xlsx" → Project), else
+//      Item. Its key is chosen among the text and number columns that are ≥ 80% unique
+//      and ≥ 90% filled — a real list has a few duplicate keys, which the quality step
+//      shows: first the one whose header says it is a key (code/id/nummer/number/key/
 //      name/naam/titel/title), else the most unique. A header with name/naam/title/titel/
-//      omschrijving/description is its name.
-//      Its type comes from the file name ("Projects.xlsx" → Project), else Item.
-//      When every column is an e-mail column there is no primary entity.
-//   3. Primary → each person, the predicate being the camelCased role prefix.
-//   4. Every column not used above is an attribute of the primary.
-//   5. Person → Principal on email (exact 90) + displayName (name 60), threshold 50; the
-//      primary → Resource on displayName (exact 80, token 50) only when its names look
-//      like group names.
+//      omschrijving/description is its name. Every other column is an attribute.
+//   2. Link rules, one per attribute that looks like it names something in a system:
+//      - an e-mail column: → Principal via that attribute (email exact 90, prefix 80),
+//        plus a name signal (60) on its sibling name column when the list has one
+//        ("OwnerEmail" ↔ "OwnerName" / "Owner");
+//      - a text column headed by a role word (eigenaar, owner, manager, …), a full-name
+//        header (volledige naam, full name, medewerker, …), or one that lists several
+//        people per cell (a SharePoint "A;#27;#B;#16" lookup, or a team-like header with
+//        ";"): → Principal via that attribute (displayName exact 80, name 60), plus an
+//        employee-number signal (95) when the list has such a column;
+//      - the entity itself: → Resource via its name (displayName exact 80, token 50) —
+//        a row of a list is often a group, site or application; the quality step shows
+//        whether that finds anything.
+//      A cell listing several people links each of them (the engine splits the value).
 
 import { validateLinkRules, validateRecipe, normalizeLinkRules, normalizeRecipe, NAME_ATTRIBUTE, LIMITS } from '../contracts.js';
-import { camelCase, pascalCase, squash, typeFromFileName, uniqueName, words } from './names.js';
+import { camelCase, squash, typeFromFileName, uniqueName, words } from './names.js';
 
 export const MAX_NOTES = 8;
 const KEY_UNIQUENESS = 0.8;
@@ -38,6 +44,8 @@ const KEY_HEADER = /code|id|nummer|number|key|name|naam|titel|title/i;
 const KEY_FILLED = 0.9;
 const NAME_HEADER = /name|naam|title|titel|omschrijving|description/i;
 const ROLE_WORDS = new Set(['owner', 'manager', 'eigenaar', 'beheerder', 'contact', 'contactpersoon', 'verantwoordelijke', 'sponsor', 'lead']);
+const EMAIL_WORDS = new Set(['e', 'email', 'mail', 'emailadres', 'mailadres', 'address', 'adres', 'upn']);
+const PERSON_NAME_WORDS = ['name', 'naam', 'fullname', 'displayname', 'volledigenaam'];
 // Columns that hold a person's name without saying which role ("Volledige naam", "Medewerker").
 const FULL_NAME_HEADER = /volledige\s*naam|full\s*name|naam\s*medewerker|^medewerker$|employee\s*name|^persoon$|^person$|^werknemer$/i;
 // Columns that hold an employee / personnel number: the strongest person signal there is.
@@ -45,8 +53,6 @@ const EMPLOYEE_ID_HEADER = /^(persoons?|personeels?|medewerker|employee|staff|we
 // Columns that list several people: a SharePoint multi-lookup ("A;#27;#B;#16") or a header that says so.
 const MULTI_PERSON_WORDS = new Set(['team', 'teamleden', 'leden', 'members', 'deelnemers', 'participants', 'medewerkers', 'teammembers']);
 const SP_LOOKUP = /;#/;
-const EMAIL_WORDS = new Set(['e', 'email', 'mail', 'emailadres', 'mailadres', 'address', 'adres', 'upn']);
-const PERSON_NAME_WORDS = ['name', 'naam', 'fullname', 'displayname', 'volledigenaam'];
 const GROUP_NAME = /^(SG|GG|DL|AAD|AZ)[_-]/i;
 
 const num = (v) => (Number.isFinite(v) ? v : 0);
@@ -66,21 +72,9 @@ export function personNameColumn(email, prefix, free) {
   return matches[0] ?? null;
 }
 
-function isRole(prefix) {
-  const last = words(prefix).pop();
+function isRole(header) {
+  const last = words(header).pop();
   return !!last && ROLE_WORDS.has(last.toLowerCase());
-}
-
-function personEntity(email, free, taken) {
-  const prefix = emailPrefix(email.name);
-  const nameCol = personNameColumn(email, prefix, free);
-  if (nameCol) free.splice(free.indexOf(nameCol), 1);
-  const type = uniqueName(isRole(prefix) ? pascalCase(prefix) : 'Person', taken);
-  return {
-    entity: { type, nameColumn: (nameCol ?? email).name, attributes: [{ column: email.name, name: 'email' }] },
-    predicate: camelCase(prefix) || 'person',
-    note: `${email.name} looks like an e-mail address, so ${type} is a person${nameCol ? ` named by ${nameCol.name}` : ''}.`,
-  };
 }
 
 /** A text column whose header ends in a role word ("Eigenaar", "Project owner") holds people by name. */
@@ -102,61 +96,7 @@ export function isMultiPersonColumn(column) {
   if (samples.some(v => SP_LOOKUP.test(v))) return true;
   return MULTI_PERSON_WORDS.has(squash(column.name)) && samples.some(v => v.includes(';'));
 }
-
-/** The employee-id column nearest to `person`, when the list has one. */
-function employeeIdColumnFor(person, free) {
-  const ids = free.filter(isEmployeeIdColumn);
-  ids.sort((a, b) => Math.abs(num(a.index) - num(person.index)) - Math.abs(num(b.index) - num(person.index)));
-  return ids[0] ?? null;
-}
-
-// People named in a column without an e-mail address: matched to accounts by
-// employee number when the list has one, else by name (exact first — directory
-// names often carry the same suffix the list uses, "Ann Example | Contoso").
-function namedPersonEntity(column, free, taken, { multi = false } = {}) {
-  const idCol = employeeIdColumnFor(column, free);
-  if (idCol) free.splice(free.indexOf(idCol), 1);
-  const base = pascalCase(column.name);
-  const type = uniqueName(multi && !isRole(column.name) ? `${base}Member` : base, taken);
-  const why = multi ? 'lists several people per row' : isRole(column.name) ? 'names a role' : 'holds a person\'s name';
-  return {
-    entity: { type, nameColumn: column.name, attributes: idCol ? [{ column: idCol.name, name: 'employeeId' }] : [] },
-    predicate: camelCase(column.name) || 'person',
-    note: `${column.name} ${why}, so ${type} is a person named by that column, matched to accounts by ${idCol ? `employee number (${idCol.name}) and ` : ''}name${multi ? '; each name in the cell becomes its own ' + type : ''}.`,
-  };
-}
-
-const namedPersonRule = (entity) => ({
-  entityType: entity.type, targetType: 'Principal', threshold: 50,
-  signals: [
-    ...(entity.attributes.some(a => a.name === 'employeeId')
-      ? [{ attribute: 'employeeId', targetField: 'employeeId', type: 'exact', weight: 95 }] : []),
-    { attribute: NAME_ATTRIBUTE, targetField: 'displayName', type: 'exact', weight: 80 },
-    { attribute: NAME_ATTRIBUTE, targetField: 'displayName', type: 'name', weight: 60 },
-  ],
-});
-
-/** Person columns among the free ones, in file order: role-named, full-name, multi-person. */
-function takePersonColumns(free, slots) {
-  const picked = free.filter(c => isRoleColumn(c) || isFullNameColumn(c) || isMultiPersonColumn(c)).slice(0, Math.max(0, slots));
-  for (const c of picked) free.splice(free.indexOf(c), 1);
-  return picked;
-}
-
-function pickKey(free, rows) {
-  const candidates = free.filter(c => ['text', 'number'].includes(c.shape)
-    && num(c.uniqueness) >= KEY_UNIQUENESS && num(c.nonEmpty) >= KEY_FILLED * rows);
-  const byHeader = candidates.find(c => KEY_HEADER.test(c.name));
-  // Stable sort: on a tie the column further left wins.
-  return byHeader ?? [...candidates].sort((a, b) => num(b.uniqueness) - num(a.uniqueness))[0] ?? null;
-}
-
-function pickName(free, key) {
-  return free.find(c => c !== key && NAME_HEADER.test(c.name))
-    ?? key
-    ?? free.find(c => c.shape === 'text')
-    ?? free[0];
-}
+const isPersonColumn = (c) => isRoleColumn(c) || isFullNameColumn(c) || isMultiPersonColumn(c);
 
 /** At least half of the samples look like directory group names. */
 export function looksLikeGroupNames(samples) {
@@ -165,42 +105,116 @@ export function looksLikeGroupNames(samples) {
   return s.filter(v => GROUP_NAME.test(v.trim()) || v.includes('_')).length * 2 >= s.length;
 }
 
-function primaryEntity({ type, free, rows }) {
-  const key = pickKey(free, rows);
-  const name = pickName(free, key);
-  const used = new Set([key, name]);
-  const attrNames = new Set([NAME_ATTRIBUTE]);
-  const attributes = free.filter(c => !used.has(c)).slice(0, LIMITS.attributesPerEntity)
-    .map(c => ({ column: c.name, name: uniqueName(camelCase(c.name) || `column${num(c.index) + 1}`, attrNames) }));
-  const entity = { type, nameColumn: name.name, ...(key ? { keyColumn: key.name } : {}), attributes };
-  const notes = [key
-    ? `${key.name} ${num(key.uniqueness) < 1 ? 'is nearly unique (a few values repeat)' : 'is unique on every row'}, so it is the key of ${type}${name === key ? '' : `, and ${name.name} is its name`}.`
-    : `No column is unique enough to be a key, so ${type} is identified by ${name.name}.`];
-  return { entity, notes, groupLike: looksLikeGroupNames(name.samples) };
-}
-
-const personRule = (entity) => ({
-  entityType: entity.type, targetType: 'Principal', threshold: 50,
-  signals: [
-    { attribute: 'email', targetField: 'email', type: 'exact', weight: 90 },
-    // Matching an e-mail address as a person's name only adds noise.
-    ...(entity.nameColumn === entity.attributes[0].column ? [] : [{ attribute: NAME_ATTRIBUTE, targetField: 'displayName', type: 'name', weight: 60 }]),
-  ],
-});
-
-const resourceRule = (entity) => ({
-  entityType: entity.type, targetType: 'Resource', threshold: 50,
-  signals: [
-    { attribute: NAME_ATTRIBUTE, targetField: 'displayName', type: 'exact', weight: 80 },
-    { attribute: NAME_ATTRIBUTE, targetField: 'displayName', type: 'token', weight: 50 },
-  ],
-});
-
 /** Columns the heuristic can address: a non-empty name, in file order. */
 export function usableColumns(columns) {
   return (Array.isArray(columns) ? columns : [])
     .filter(c => typeof c?.name === 'string' && c.name.trim())
     .map((c, i) => ({ ...c, index: Number.isFinite(c.index) ? c.index : i }));
+}
+
+function pickKey(cols, rows) {
+  const candidates = cols.filter(c => ['text', 'number'].includes(c.shape)
+    && num(c.uniqueness) >= KEY_UNIQUENESS && num(c.nonEmpty) >= KEY_FILLED * rows);
+  const byHeader = candidates.find(c => KEY_HEADER.test(c.name));
+  // Stable sort: on a tie the column further left wins.
+  return byHeader ?? [...candidates].sort((a, b) => num(b.uniqueness) - num(a.uniqueness))[0] ?? null;
+}
+
+function pickName(cols, key) {
+  return cols.find(c => c !== key && NAME_HEADER.test(c.name) && !isPersonColumn(c) && c.shape !== 'email')
+    ?? key
+    ?? cols.find(c => c.shape === 'text')
+    ?? cols[0];
+}
+
+// The entity: name, key, every other column as an attribute. Returns the
+// definition plus a Map column → attribute name (the name column maps to
+// displayName) so the rules can refer to columns by attribute.
+function entityOf({ type, cols, rows }) {
+  const key = pickKey(cols, rows);
+  const name = pickName(cols, key);
+  const used = new Set([key, name]);
+  const attrNames = new Set([NAME_ATTRIBUTE]);
+  const byColumn = new Map([[name.name, NAME_ATTRIBUTE]]);
+  const attributes = [];
+  for (const c of cols) {
+    if (used.has(c)) continue;
+    if (attributes.length >= LIMITS.attributesPerEntity) break;
+    const attr = uniqueName(camelCase(c.name) || `column${num(c.index) + 1}`, attrNames);
+    attributes.push({ column: c.name, name: attr });
+    byColumn.set(c.name, attr);
+  }
+  const entity = { type, nameColumn: name.name, ...(key ? { keyColumn: key.name } : {}), attributes };
+  const note = key
+    ? `${key.name} ${num(key.uniqueness) < 1 ? 'is nearly unique (a few values repeat)' : 'is unique on every row'}, so it is the key of ${type}${name === key ? '' : `, and ${name.name} is its name`}.`
+    : `No column is unique enough to be a key, so ${type} is identified by ${name.name}.`;
+  return { entity, byColumn, note, groupLike: looksLikeGroupNames(name.samples) };
+}
+
+const signal = (attribute, targetField, type, weight) => ({ attribute, targetField, type, weight });
+
+/** The employee-id column nearest to `col`, when the list has one. */
+function employeeIdColumnFor(col, cols) {
+  const ids = cols.filter(isEmployeeIdColumn);
+  ids.sort((a, b) => Math.abs(num(a.index) - num(col.index)) - Math.abs(num(b.index) - num(col.index)));
+  return ids[0] ?? null;
+}
+
+function emailRule(type, col, cols, byColumn) {
+  const via = byColumn.get(col.name);
+  const nameCol = personNameColumn(col, emailPrefix(col.name), cols.filter(c => c !== col && !isEmployeeIdColumn(c)));
+  const signals = [signal(via, 'email', 'exact', 90), signal(via, 'email', 'prefix', 80)];
+  if (nameCol) signals.push(signal(byColumn.get(nameCol.name), NAME_ATTRIBUTE, 'name', 60));
+  return {
+    rule: { entityType: type, targetType: 'Principal', via, threshold: 50, signals },
+    note: `${col.name} looks like an e-mail address, so ${type} is linked through it to accounts${nameCol ? `, with ${nameCol.name} as the name` : ''}.`,
+  };
+}
+
+function personRule(type, col, cols, byColumn) {
+  const via = byColumn.get(col.name);
+  const idCol = employeeIdColumnFor(col, cols);
+  const signals = [
+    ...(idCol ? [signal(byColumn.get(idCol.name), 'employeeId', 'exact', 95)] : []),
+    signal(via, NAME_ATTRIBUTE, 'exact', 80),
+    signal(via, NAME_ATTRIBUTE, 'name', 60),
+  ];
+  const multi = isMultiPersonColumn(col);
+  const why = multi ? 'lists several people per row' : isRole(col.name) ? 'names a role' : 'holds a person\'s name';
+  return {
+    rule: { entityType: type, targetType: 'Principal', via, threshold: 50, signals },
+    note: `${col.name} ${why}, so ${type} is linked through it to accounts by ${idCol ? `employee number (${idCol.name}) and ` : ''}name${multi ? '; each name in the cell is linked' : ''}.`,
+  };
+}
+
+function resourceRule(type, entity, groupLike) {
+  return {
+    rule: {
+      entityType: type, targetType: 'Resource', via: NAME_ATTRIBUTE, threshold: 50,
+      signals: [signal(NAME_ATTRIBUTE, NAME_ATTRIBUTE, 'exact', 80), signal(NAME_ATTRIBUTE, NAME_ATTRIBUTE, 'token', 50)],
+    },
+    note: groupLike
+      ? `The values of ${entity.nameColumn} look like group names, so ${type} is matched to groups.`
+      : `${type} is also matched to resources by name (${entity.nameColumn}); the quality step shows whether that finds anything.`,
+  };
+}
+
+// The rules an entity's columns suggest: the entity itself to resources,
+// then one per column that names people. A column an e-mail rule uses as its
+// name is not a rule of its own.
+function rulesFor(type, cols, built) {
+  const { entity, byColumn, groupLike } = built;
+  const out = [resourceRule(type, entity, groupLike)];
+  const nameOf = (c) => byColumn.get(c.name);
+  const isAttr = (c) => nameOf(c) && nameOf(c) !== NAME_ATTRIBUTE;
+  const claimed = new Set();
+  for (const c of cols.filter(c => c.shape === 'email' && isAttr(c))) {
+    const r = emailRule(type, c, cols, byColumn);
+    for (const s of r.rule.signals) if (s.attribute !== r.rule.via) claimed.add(s.attribute);
+    out.push(r);
+  }
+  for (const c of cols.filter(c => isPersonColumn(c) && isAttr(c) && !claimed.has(nameOf(c)))) out.push(personRule(type, c, cols, byColumn));
+  return out;
 }
 
 /**
@@ -215,33 +229,15 @@ export function heuristicProposal({ fileName = '', columns, rowCount } = {}) {
   const cols = usableColumns(columns);
   if (cols.length === 0) throw new Error('The list has no named columns, so there is nothing to propose.');
   const rows = Number.isFinite(rowCount) ? rowCount : Math.max(...cols.map(c => num(c.nonEmpty)));
-
-  // One entity slot is kept for the primary; e-mail columns past the limit stay attributes.
-  const emails = cols.filter(c => c.shape === 'email').slice(0, LIMITS.entities - 1);
-  const free = cols.filter(c => !emails.includes(c));
-  const taken = new Set();
-  // The primary claims its type first, so a person never takes the file's name.
-  const primaryType = free.length ? uniqueName(typeFromFileName(fileName), taken) : null;
-  const people = emails.map(c => personEntity(c, free, taken));
-  // Person columns that are left (an e-mail column may have claimed its sibling).
-  const personCols = takePersonColumns(free, LIMITS.entities - 1 - people.length);
-  const named = personCols.map(c => namedPersonEntity(c, free, taken, { multi: isMultiPersonColumn(c) }));
-  const primary = primaryType ? primaryEntity({ type: primaryType, free, rows }) : null;
-
-  const persons = [...people, ...named];
-  const entities = [...(primary ? [primary.entity] : []), ...persons.map(p => p.entity)];
-  const relations = primary ? persons.map(p => ({ predicate: p.predicate, from: primary.entity.type, to: p.entity.type })) : [];
-  const linkRules = [...people.map(p => personRule(p.entity)), ...named.map(p => namedPersonRule(p.entity))];
-  const notes = [...(primary?.notes ?? []), ...persons.map(p => p.note)];
-  if (primary) {
-    // Every row of a list is often a group, site or application somewhere: propose the
-    // match and let the quality step show whether it hits.
-    linkRules.unshift(resourceRule(primary.entity));
-    notes.push(primary.groupLike
-      ? `The values of ${primary.entity.nameColumn} look like group names, so ${primary.entity.type} is matched to groups.`
-      : `${primary.entity.type} is also matched to resources by name (${primary.entity.nameColumn}); the quality step shows whether that finds anything.`);
-  }
-  return finish({ version: 1, entities, relations }, linkRules, notes, cols.map(c => c.name));
+  const type = uniqueName(typeFromFileName(fileName), new Set());
+  const built = entityOf({ type, cols, rows });
+  const rules = rulesFor(type, cols, built);
+  return finish(
+    { version: 1, entities: [built.entity], relations: [] },
+    rules.map(r => r.rule),
+    [built.note, ...rules.map(r => r.note)],
+    cols.map(c => c.name),
+  );
 }
 
 function finish(recipe, linkRules, notes, columnNames) {

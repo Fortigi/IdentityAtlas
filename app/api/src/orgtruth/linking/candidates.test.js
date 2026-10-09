@@ -33,8 +33,8 @@ describe('buildTargetsSql', () => {
     const sql = buildTargetsSql('Principal', ['email', '"; DROP TABLE "Principals"; --', 'riskScore']);
     expect(sql).toBe('SELECT "id", "displayName", "email", "principalType" FROM "Principals" WHERE "deletedAt" IS NULL');
   });
-  it('filters soft-deleted rows only on tables that have deletedAt', () => {
-    expect(buildTargetsSql('Resource', ['externalId'])).toBe('SELECT "id", "displayName", "externalId" FROM "Resources" WHERE "deletedAt" IS NULL');
+  it('filters soft-deleted rows only on tables that have deletedAt, and ownership rows out of Resources', () => {
+    expect(buildTargetsSql('Resource', ['externalId'])).toBe('SELECT "id", "displayName", "externalId" FROM "Resources" WHERE "deletedAt" IS NULL AND ("resourceType" IS NULL OR "resourceType" NOT IN (\'GroupOwnership\',\'ServicePrincipalOwnership\',\'ApplicationOwnership\',\'ResourceOwnership\'))');
     expect(buildTargetsSql('Identity', ['employeeId'])).toBe('SELECT "id", "displayName", "employeeId" FROM "Identities"');
     expect(buildTargetsSql('Context', ['displayName'])).toBe('SELECT "id", "displayName" FROM "Contexts"');
   });
@@ -137,9 +137,10 @@ describe('loadRuleIndexes', () => {
     expect(query).toHaveBeenCalledTimes(2);
     // two rules on Principal → one shared load with the union of fields, no SQL filter
     expect(query.mock.calls[0]).toEqual(['SELECT "id", "displayName", "email", "employeeId", "principalType" FROM "Principals" WHERE "deletedAt" IS NULL']);
-    expect([...out.keys()]).toEqual(['Owner', 'Member', 'App']);
-    expect(out.get('Member').bySignal.get('id→employeeId').get('e1')[0].id).toBe('u1');
-    expect(out.get('App').bySignal.get('displayName→displayName').get('sap')[0].id).toBe('r1');
+    // keyed by rule name, so an entity type may carry several rules
+    expect([...out.keys()]).toEqual(['Owner → Principal via email', 'Member → Principal via id', 'App → Resource via displayName']);
+    expect(out.get('Member → Principal via id').bySignal.get('id→employeeId').get('e1')[0].id).toBe('u1');
+    expect(out.get('App → Resource via displayName').bySignal.get('displayName→displayName').get('sap')[0].id).toBe('r1');
   });
 
   it('loads nothing for no rules', async () => {

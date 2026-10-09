@@ -202,6 +202,14 @@ describe('applyRecipe — a SharePoint lookup cell ("Name;#id;#Name;#id")', () =
     expect(out.issues.map(i => `${i.kind}:${i.row}`)).toEqual(['missingSide:3']);
   });
 
+  it('exposes the name under the analyst\'s own attribute name when the definition asks for it', () => {
+    const named = normalizeRecipe({ version: 1, entities: [{ type: 'Customer', nameColumn: 'Title', nameAttribute: 'klant', attributes: [{ column: 'Team' }] }], relations: [] });
+    const out = applyRecipe([{ Title: 'Contoso Bank', Team: 'Ann Example;#27' }], named);
+    expect(out.entities[0]).toMatchObject({ displayName: 'Contoso Bank', attributes: { klant: 'Contoso Bank', Team: 'Ann Example;#27' } });
+    const plain = applyRecipe([{ Title: 'Contoso Bank', Team: '' }], recipe);
+    expect(Object.keys(plain.entities[0].attributes)).toEqual([]);
+  });
+
   it('strips the id from a single-value lookup used as a name', () => {
     const out = applyRecipe([{ Title: 'Contoso Bank', Team: 'Ann Example;#27' }], recipe);
     expect(out.entities.find(e => e.entityType === 'TeamMember')).toMatchObject({ displayName: 'Ann Example', canonicalKey: 'ann example' });

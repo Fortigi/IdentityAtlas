@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  validateRecipe, validateLinkRules, normalizeRecipe, normalizeLinkRules,
+  validateRecipe, validateLinkRules, normalizeRecipe, normalizeLinkRules, ruleVia, ruleName,
   entityAttributeNames, LINK_TARGETS, SIGNAL_TYPES, LIMITS, RECIPE_JSON_SCHEMA, LINK_RULES_JSON_SCHEMA,
 } from './contracts.js';
 
@@ -127,13 +127,46 @@ describe('validateLinkRules', () => {
     expect(errors).toContain('Link rule 1 ("Person") signal 2 weight must be a whole number from 1 to 100.');
   });
 
-  it('rejects two rules for one entity type and a rule for an unknown entity type', () => {
+  it('allows several rules per entity type (per target type and attribute), but not the same one twice', () => {
     const rs = [...rules(), ...rules()];
     rs[1].entityType = 'Person';
+    // a second rule through another attribute, and one to another target type, are fine
+    rs.push({ entityType: 'Person', targetType: 'Principal', via: 'displayName', signals: [{ attribute: 'displayName', targetField: 'displayName', type: 'name', weight: 60 }] });
+    rs.push({ entityType: 'Person', targetType: 'Resource', signals: [{ attribute: 'displayName', targetField: 'displayName', type: 'exact', weight: 90 }] });
     rs.push({ entityType: 'Asset', targetType: 'Resource', signals: [{ attribute: 'displayName', targetField: 'displayName', type: 'exact', weight: 90 }] });
     const { errors } = validateLinkRules(rs, recipe());
-    expect(errors).toContain('Entity type "Person" has more than one link rule.');
-    expect(errors).toContain('Link rule 3 is for entity type "Asset", which the recipe does not define.');
+    expect(errors).toEqual([
+      'Link rule 2 repeats Person → Principal via email; one rule per attribute and target type.',
+      'Link rule 5 is for entity type "Asset", which the recipe does not define.',
+    ]);
+  });
+
+  it('rejects an empty via, or one the entity does not have; via defaults to the first signal\'s attribute', () => {
+    const rs = rules();
+    rs[0].via = 'mail';
+    expect(validateLinkRules(rs, recipe()).errors).toEqual([
+      'Link rule 1 ("Person") links via "mail", which entity "Person" does not have (have: displayName, email).',
+    ]);
+    rs[0].via = ' ';
+    expect(validateLinkRules(rs, recipe()).errors).toEqual(['Link rule 1 ("Person") has an empty "via".']);
+    expect(ruleVia({ signals: [{ attribute: 'team' }] })).toBe('team');
+    expect(ruleVia({ signals: [] })).toBe('displayName');
+    expect(ruleName({ entityType: ' Project ', targetType: 'Resource', signals: [] })).toBe('Project → Resource via displayName');
+  });
+
+  it('a nameAttribute exposes the name under a second attribute name and may not collide', () => {
+    const r = recipe();
+    r.entities[0].nameAttribute = 'klant';
+    expect(validateRecipe(r, COLUMNS).ok).toBe(true);
+    expect(entityAttributeNames(r.entities[0])).toEqual(['displayName', 'klant', 'budget']);
+    expect(normalizeRecipe(r).entities[0].nameAttribute).toBe('klant');
+    r.entities[0].attributes.push({ column: 'Budget', name: 'klant' });
+    expect(validateRecipe(r, COLUMNS).errors).toEqual(['Entity "Project" maps attribute "klant" twice.']);
+    r.entities[0].attributes.pop();
+    r.entities[0].nameAttribute = '';
+    expect(validateRecipe(r, COLUMNS).errors).toEqual(['Entity "Project" has an empty "nameAttribute".']);
+    r.entities[0].nameAttribute = 'displayName';
+    expect(normalizeRecipe(r).entities[0].nameAttribute).toBeUndefined();
   });
 
   it('validates without a recipe (attributes unchecked, everything else checked)', () => {
@@ -156,9 +189,11 @@ describe('normalize*', () => {
     expect(n.relations[0]).toEqual({ predicate: 'owner', from: 'Project', to: 'Person' });
   });
 
-  it('fills threshold 50, a signal name and the signal order', () => {
+  it('fills threshold 50, via, the rule name, a signal name and the signal order', () => {
     const n = normalizeLinkRules([{ entityType: 'Person', targetType: 'Principal', signals: [{ attribute: 'email', targetField: 'email', type: 'exact', weight: 90 }] }]);
     expect(n[0].threshold).toBe(50);
+    expect(n[0].via).toBe('email');
+    expect(n[0].name).toBe('Person → Principal via email');
     expect(n[0].signals[0]).toEqual({ name: 'email→email', attribute: 'email', targetField: 'email', type: 'exact', weight: 90, order: 0 });
   });
 

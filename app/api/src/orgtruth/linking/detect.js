@@ -6,11 +6,12 @@
 //   detectPairs(entities, attributes, rowsByType)      → pair[]          (pure core)
 //   entitiesFromRows(rows, entityDef)                  → entity[]        (pure; the `rows` fallback)
 //
-// pair: { attribute, targetType, targetField, type, unique, multiple, none, uniquePct, suggestedWeight }
-//   unique    entities whose value matches exactly one system row
-//   multiple  entities matching several rows
-//   none      entities with no match (an empty attribute counts here)
-//   uniquePct round(100 * unique / entities)
+// pair: { attribute, targetType, targetField, type, unique, multiple, none, values, uniquePct, suggestedWeight }
+//   unique    values matching exactly one system row (a cell listing several people counts per person)
+//   multiple  values matching several rows
+//   none      values with no match (an empty attribute counts once here)
+//   values    the number of values scored
+//   uniquePct round(100 * unique / values)
 // Sorted by uniquePct desc (then suggestedWeight desc); pairs with unique === 0 dropped.
 //
 // Which signal types are tried per (attribute, field):
@@ -25,7 +26,7 @@
 import { LINK_TARGETS, NAME_ATTRIBUTE, entityAttributeNames } from '../contracts.js';
 import { loadTargets, buildRuleIndex } from './candidates.js';
 import { orgValueOf, normValue } from './signals.js';
-import { scoreEntity } from './score.js';
+import { scoreEntity, valuesOf, withValue } from './score.js';
 
 export const SHAPE_SHARE = 0.8;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -66,15 +67,23 @@ function probeRule(attribute, targetType, targetField, type) {
   };
 }
 
-function countMatches(entities, ruleIndex) {
+// Per VALUE of the attribute (a cell listing three people counts three); an
+// entity with an empty attribute counts once, as none.
+function countMatches(entities, attribute, ruleIndex) {
   let unique = 0;
   let multiple = 0;
+  let total = 0;
   for (const e of entities) {
-    const n = scoreEntity(e, ruleIndex).allCandidates.length;
-    if (n === 1) unique += 1;
-    else if (n > 1) multiple += 1;
+    const values = valuesOf(e, attribute);
+    if (values.length === 0) { total += 1; continue; }
+    for (const v of values) {
+      total += 1;
+      const n = scoreEntity(withValue(e, attribute, v), ruleIndex).allCandidates.length;
+      if (n === 1) unique += 1;
+      else if (n > 1) multiple += 1;
+    }
   }
-  return { unique, multiple, none: entities.length - unique - multiple };
+  return { unique, multiple, none: total - unique - multiple, values: total };
 }
 
 export function detectPairs(entities, attributes, rowsByType) {
@@ -90,14 +99,14 @@ export function detectPairs(entities, attributes, rowsByType) {
 
   const out = [];
   for (const attribute of attributes) {
-    const shape = attributeShape(list.map(e => orgValueOf(e, attribute)));
+    const shape = attributeShape(list.flatMap(e => valuesOf(e, attribute)));
     for (const { targetType, targetField, type } of probesFor(shape, rowsByType)) {
       const ruleIndex = { rule: probeRule(attribute, targetType, targetField, type), bySignal: indexFor(targetType, targetField, type) };
-      const counts = countMatches(list, ruleIndex);
+      const counts = countMatches(list, attribute, ruleIndex);
       if (counts.unique === 0) continue;
       out.push({
         attribute, targetType, targetField, type, ...counts,
-        uniquePct: Math.round((100 * counts.unique) / list.length),
+        uniquePct: Math.round((100 * counts.unique) / counts.values),
         suggestedWeight: suggestedWeight(type, targetField),
       });
     }

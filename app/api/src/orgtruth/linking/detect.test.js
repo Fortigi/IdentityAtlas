@@ -89,8 +89,14 @@ describe('detectPairs', () => {
   it('counts unique, multiple and none per pair over all entities (an empty value is none)', () => {
     expect(find(pairs, 'email', 'Principal', 'email', 'exact')).toEqual({
       attribute: 'email', targetType: 'Principal', targetField: 'email', type: 'exact',
-      unique: 2, multiple: 0, none: 2, uniquePct: 50, suggestedWeight: 90,
+      unique: 2, multiple: 0, none: 2, values: 4, uniquePct: 50, suggestedWeight: 90,
     });
+  });
+
+  it('a cell listing several people counts per person, and the percentage is per value', () => {
+    const team = [{ entityType: 'Team', displayName: 'T1', attributes: { members: 'Ann Smith;#27;#Bob Jones;#16;#Nobody Here;#3' } }];
+    const p = find(detectPairs(team, ['members'], rowsByType), 'members', 'Principal', 'displayName', 'exact');
+    expect(p).toMatchObject({ values: 3, unique: 1, multiple: 1, none: 1, uniquePct: 33 }); // Ann unique; two Bob Joneses; Nobody none
   });
 
   it('a prefix probe finds the plain and the admin account: several matches, not unique', () => {
@@ -136,7 +142,7 @@ describe('detectLinks', () => {
     expect(query.mock.calls.map(c => c[0])).toEqual([
       'SELECT "id", "displayName", "email", "employeeId", "principalType" FROM "Principals" WHERE "deletedAt" IS NULL',
       'SELECT "id", "displayName", "email", "employeeId" FROM "Identities"',
-      'SELECT "id", "displayName", "mail", "externalId" FROM "Resources" WHERE "deletedAt" IS NULL',
+      'SELECT "id", "displayName", "mail", "externalId" FROM "Resources" WHERE "deletedAt" IS NULL AND ("resourceType" IS NULL OR "resourceType" NOT IN (\'GroupOwnership\',\'ServicePrincipalOwnership\',\'ApplicationOwnership\',\'ResourceOwnership\'))',
       'SELECT "id", "displayName" FROM "Contexts"',
     ]);
     expect(new Set(pairs.map(p => p.attribute))).toEqual(new Set(['displayName', 'email'])); // `code` is not mapped
