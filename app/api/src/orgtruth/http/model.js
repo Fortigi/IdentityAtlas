@@ -17,6 +17,7 @@ import { getMetaGraph } from '../model/metaGraph.js';
 import { parseListQuery, listEntities, getEntity, isUuid, isFlag } from '../model/entities.js';
 import { getEntityGraph, getGraphCategory, parseCategory } from '../model/graph.js';
 import { getEvidence } from '../model/evidence.js';
+import { getLinkedTo, TARGET_TYPES } from '../model/linkedTo.js';
 
 const router = Router();
 
@@ -60,6 +61,16 @@ router.get('/org-truth/entities/:id/evidence', ...READ_GATE, async (req, res) =>
     if (!out) return res.status(404).json({ error: 'Entity not found' });
     res.json(out);
   } catch (err) { fail(res, 'the entity evidence', err); }
+});
+
+// What the organisation lists say about one system object, for the
+// "Organisation" branch of its detail page's relationship graph.
+router.get('/org-truth/linked/:targetType/:id', ...READ_GATE, async (req, res) => {
+  if (!TARGET_TYPES.includes(req.params.targetType)) return res.status(400).json({ error: `targetType must be one of ${TARGET_TYPES.join(', ')}` });
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Invalid id' });
+  try {
+    res.json(await getLinkedTo(req.params.targetType, req.params.id));
+  } catch (err) { fail(res, 'the organisation links', err); }
 });
 
 router.get('/org-truth/entities/:id/graph', ...READ_GATE, async (req, res) => {
