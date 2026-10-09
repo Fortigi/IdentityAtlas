@@ -2,3 +2,4 @@
 - The import wizard proposes the object-relation model of an uploaded list, from the local model when available.
 - Organisation entities are projected into contexts, so projects and their owners' access show up in the matrix and reports: one context per project, asset or team holding the groups linked to it, and a twin holding the accounts of the people it is related to (such as its owner).
 - The Organisation tab can read the organisation model (entity types, relations between them, links to accounts and groups, with counts), list and search entities, and show one entity with its relations, links, source and graph.
+- Organisation lists (xlsx/csv) can be uploaded and kept as given, profiled per column, dry-run against an import profile for a data-quality report, and imported in full mode (entities that left the list are closed) or delta mode (nothing is closed); import profiles are versioned.

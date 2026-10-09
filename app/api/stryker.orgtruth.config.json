@@ -30,13 +30,22 @@
     "src/orgtruth/model/metaGraph.js",
     "src/orgtruth/model/entities.js",
     "src/orgtruth/model/graph.js",
-    "src/orgtruth/http/model.js"
+    "src/orgtruth/http/model.js",
+    "src/orgtruth/import/parse.js",
+    "src/orgtruth/import/profileColumns.js",
+    "src/orgtruth/import/applyRecipe.js",
+    "src/orgtruth/import/writeRun.js",
+    "src/orgtruth/import/runImport.js",
+    "src/orgtruth/import/dryRun.js",
+    "src/orgtruth/import/sourceStore.js",
+    "src/orgtruth/import/profileStore.js",
+    "src/orgtruth/import/httpHelpers.js",
+    "src/orgtruth/http/sources.js",
+    "src/orgtruth/http/profiles.js",
+    "src/orgtruth/http/runs.js"
   ],
   "mutationExclusions": {
     "src/orgtruth/http/gates.js": "Declaration, not logic: the two gate arrays (permission + feature flag) every org-truth route reuses. Which permission guards which route is asserted by the route tests of each sub-router; there is no branch here to mutate.",
-    "src/orgtruth/http/sources.js": "Workstream T1 fills this router; move it to `mutate` (or keep this entry with a real reason) in the same change that adds its routes.",
-    "src/orgtruth/http/profiles.js": "Workstream T1 fills this router; move it to `mutate` (or keep this entry with a real reason) in the same change that adds its routes.",
-    "src/orgtruth/http/runs.js": "Workstream T1 fills this router; move it to `mutate` (or keep this entry with a real reason) in the same change that adds its routes.",
     "src/orgtruth/http/links.js": "Workstream T2 fills this router; move it to `mutate` (or keep this entry with a real reason) in the same change that adds its routes."
   },
   "thresholds": {
