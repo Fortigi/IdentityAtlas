@@ -128,6 +128,57 @@ describe('IdentityDetailPage (mounted)', () => {
     expect(row).toHaveTextContent('No');
   });
 
+  it('shows no Organisation node when the organisation lists are off (404) or not built (501)', async () => {
+    for (const status of [404, 501]) {
+      const authFetch = routes({ '/api/org-truth/linked/': jsonResponse({ error: 'off' }, { ok: false, status }) });
+      const { unmount } = renderWithProviders(h(IdentityDetailPage, baseProps), { auth: { authFetch } });
+      const user = userEvent.setup();
+      await screen.findByText('Dana Doe');
+      await user.click(screen.getByRole('tab', { name: /Relationships/i }));
+      await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/org-truth/linked/Identity/id-1'));
+      expect((await screen.findAllByText('Linked Accounts')).length).toBeGreaterThan(0);
+      expect(screen.queryByText('Organisation')).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('fans the Organisation node out into its groups, then a group into org entities', async () => {
+    const linked = {
+      total: 3,
+      groups: [
+        { key: 'direct|Klant|eigenaar', entityType: 'Klant', kind: 'direct', label: 'Klant · eigenaar', count: 1,
+          items: [{ entityId: 'k1', entityType: 'Klant', label: 'Acme BV', detail: null }] },
+        { key: 'through|Klant|Uren|klant', entityType: 'Klant', kind: 'through', sourceType: 'Uren', label: 'Klant · Uren',
+          count: 2, unlinkedRows: 12, items: [
+            { entityId: 'k2', entityType: 'Klant', label: 'Beta NV', detail: '12.5 h · 3 rows · until 2026-01' },
+            { entityId: 'k3', entityType: 'Klant', label: 'Gamma', detail: '1 h · 1 rows' },
+          ] },
+      ],
+    };
+    const onOpenDetail = vi.fn();
+    const authFetch = routes({ '/api/org-truth/linked/Identity/id-1': linked });
+    renderWithProviders(h(IdentityDetailPage, { ...baseProps, onOpenDetail }), { auth: { authFetch } });
+    const user = userEvent.setup();
+    await screen.findByText('Dana Doe');
+    await user.click(screen.getByRole('tab', { name: /Relationships/i }));
+
+    const graphNode = (text) => screen.getAllByText(text).find(el => el.closest('svg')).closest('g');
+    await user.click((await screen.findByText('Organisation')).closest('g'));
+    // Groups ring, and the list shows the groups.
+    expect(await screen.findByRole('heading', { name: 'Organisation' })).toBeInTheDocument();
+    expect(graphNode('Klant · eigenaar')).toBeTruthy();
+
+    await user.click(graphNode('Klant · Uren'));
+    expect(await screen.findByRole('heading', { name: 'Organisation → Klant · Uren' })).toBeInTheDocument();
+    expect(screen.getByText('12 Uren rows point at no Klant')).toBeInTheDocument();
+    const row = screen.getByRole('button', { name: 'Beta NV' }).closest('tr');
+    expect(row).toHaveTextContent('12.5 h · 3 rows · until 2026-01');
+    expect(row).toHaveTextContent('Klant');
+    await user.click(screen.getByRole('button', { name: 'Gamma' }));
+    expect(onOpenDetail).toHaveBeenCalledWith('org-entity', 'k3', 'Gamma');
+    expect(authFetch.mock.calls.filter(([u]) => String(u).startsWith('/api/org-truth/linked/'))).toHaveLength(1);
+  });
+
   it('switches to the Timeline tab and triggers the timeline fetch', async () => {
     const authFetch = routes();
     renderWithProviders(h(IdentityDetailPage, baseProps), { auth: { authFetch } });

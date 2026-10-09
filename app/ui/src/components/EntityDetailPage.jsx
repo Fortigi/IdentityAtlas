@@ -8,6 +8,7 @@ import useExpandableGraph from '@ui/hooks/useExpandableGraph';
 import useTimeline from '@ui/hooks/useTimeline';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import { getRootNodes } from './entityGraphShape';
+import useOrgLinked from '@ui/components/orgtruth/useOrgLinked';
 
 // Tabs a recipient of a share link sees (#1166). The analyst-only tabs — the
 // change Timeline and the Risk panel with its override controls — are dropped:
@@ -93,6 +94,7 @@ function RelationshipsTab({ data, graph, graphCenterLabel, getDisplayName, rende
         <ExpandedItemsList
           label={graph.activeListLabel}
           items={graph.activeListItems}
+          note={graph.activeListItems?.note}
           loading={graph.loading}
           onOpenDetail={onOpenDetail}
         />
@@ -185,9 +187,13 @@ export default function EntityDetailPage({
     return () => { cancelled = true; };
   }, [entityId, authFetch, cachedData?.core, fetchData, onCacheData, entityKind, refreshKey]);
 
+  // What the organisation lists say about this object: its own fetch, so a
+  // disabled feature or an error only drops the Organisation node.
+  const orgLinked = useOrgLinked(entityKind, entityId, authFetch);
+
   const rootExtras = useMemo(
-    () => (data ? getGraphRootExtras(data) : {}),
-    [data, getGraphRootExtras],
+    () => (data ? { ...getGraphRootExtras(data), orgLinked } : {}),
+    [data, getGraphRootExtras, orgLinked],
   );
 
   const rootNodes = useMemo(

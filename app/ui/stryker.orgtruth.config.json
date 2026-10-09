@@ -27,7 +27,9 @@
     "src/components/orgtruth/evidence.js",
     "src/components/orgtruth/reviewGroups.js",
     "src/components/orgtruth/linkRulesDraft.js",
-    "src/components/orgtruth/modelCanvas.js"
+    "src/components/orgtruth/modelCanvas.js",
+    "src/components/orgtruth/orgGraphBranch.js",
+    "src/components/orgtruth/useOrgLinked.js"
   ],
   "mutationExclusions": {
     "src/components/orgtruth/OrgTruthPage.jsx": "Composition, not logic: tab state, the header button gated by the hook (which is mutated), and which panel shows. Covered end to end by OrgTruthPage.mount.test.jsx.",

@@ -35,6 +35,8 @@
 // for that entityKind. `kind: 'item'` suppresses the count badge in
 // the graph and renders an initial letter instead.
 
+import { orgCategoryItems, orgRootNode } from '@ui/components/orgtruth/orgGraphBranch';
+
 export const MAX_ITEMS_PER_FANOUT = 10;
 
 // Cap a fanout for the GRAPH ring only (too many orbiting nodes is unreadable):
@@ -407,8 +409,11 @@ export function getRootNodes(entityKind, core, extras = {}) {
     default:               return [];
   }
   // Recent-change pseudo-categories go first so they read as "see this
-  // first when something just moved" rather than buried at the end.
-  return [...recentRootNodes(extras.recent), ...base];
+  // first when something just moved" rather than buried at the end. The
+  // Organisation node (what the organisation lists say about this object) comes
+  // last, and only when the detail page loaded that payload (extras.orgLinked).
+  const org = orgRootNode(extras.orgLinked);
+  return [...recentRootNodes(extras.recent), ...base, ...(org ? [org] : [])];
 }
 
 export async function fetchCategoryItems(entityKind, entityId, categoryKey, authFetch, extras = {}) {
@@ -428,6 +433,10 @@ export async function fetchCategoryItems(entityKind, entityId, categoryKey, auth
     }));
     return items;
   }
+
+  // Organisation branch: answered from the payload the page already loaded.
+  const orgItems = orgCategoryItems(categoryKey, extras.orgLinked);
+  if (orgItems) return orgItems;
 
   let items = [];
   switch (entityKind) {
