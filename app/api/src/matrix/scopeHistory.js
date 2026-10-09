@@ -27,6 +27,7 @@
 // 'context-current'). Attribute conditions (e.g. department) reconstruct fully.
 
 import { UUID_RE, collectContextIds } from './filterSql.js';
+import { orgConditionClause } from './orgCondition.js';
 import { GROUP_PRINCIPAL_TYPE } from '../lib/principalTypes.js';
 import { shouldHideDefaultResourceTypes, visibleResourceTypesSql } from '../lib/resourceVisibility.js';
 
@@ -201,6 +202,13 @@ function scopeWhere({ entity, stateAlias, block, validColumns, contextTypes, bin
       } else if (cond.kind === 'attribute') {
         clause = attributeClause(stateAlias, cond.field, cond.values, validColumns, bind);
         if (!clause) { warnings.push(`history: attribute condition dropped (${cond.field})`); return; }
+      } else if (cond.kind === 'org') {
+        // Current links, the same way contexts use current membership — so the
+        // timeline is flagged 'context-current' too.
+        const built = orgConditionClause({ entity, idExpr: `(${stateAlias}->>'id')::uuid`, cond, bind });
+        if (built.warning) { warnings.push(`history: ${built.warning}`); return; }
+        usedContext = true;
+        clause = built.clause;
       } else {
         warnings.push(`history: unknown condition kind ${cond.kind}`);
         return;

@@ -22,6 +22,7 @@
     "src/matrix/contextRollup.js",
     "src/matrix/filterSql.js",
     "src/matrix/inheritedAccess.js",
+    "src/matrix/orgCondition.js",
     "src/matrix/resourceContexts.js",
     "src/matrix/rollupBuilders.js",
     "src/matrix/scopeHistory.js",

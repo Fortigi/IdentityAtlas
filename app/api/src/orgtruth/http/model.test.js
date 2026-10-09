@@ -21,7 +21,7 @@ beforeEach(() => {
 describe('the feature gate', () => {
   it('answers 404 on every route while the feature is off, without touching the org tables', async () => {
     process.env.FEATURE_ORG_TRUTH = 'false';
-    for (const path of ['/api/org-truth/model', '/api/org-truth/entities', `/api/org-truth/entities/${ID}`, `/api/org-truth/entities/${ID}/graph`]) {
+    for (const path of ['/api/org-truth/model', '/api/org-truth/entities', `/api/org-truth/entities/${ID}`, `/api/org-truth/entities/${ID}/graph`, '/api/org-truth/filter-options?type=Klant']) {
       expect((await request(app).get(path)).status, path).toBe(404);
     }
     expect(query).not.toHaveBeenCalled();
@@ -204,5 +204,47 @@ describe('GET /org-truth/entities/:id/evidence', () => {
     process.env.FEATURE_ORG_TRUTH = 'false';
     expect((await request(app).get(`/api/org-truth/entities/${ID}/evidence`)).status).toBe(404);
     expect(query).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /org-truth/filter-options', () => {
+  it('answers the picker options for the type, bound as a parameter', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [{ n: 2 }] })
+      .mockResolvedValueOnce({ rows: [{ key: 'iso27001', value: 'Ja', n: 2, distinctCount: 1 }] })
+      .mockResolvedValueOnce({ rows: [{ name: 'eigenaar', targetType: 'Principal', links: 2 }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const r = await request(app).get(`/api/org-truth/filter-options?type=${encodeURIComponent("Klant's")}`);
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({
+      entityType: "Klant's", entityCount: 2,
+      attributes: [{ key: 'iso27001', distinct: 1, free: false, values: [{ value: 'Ja', count: 2 }] }],
+      vias: [{ name: 'eigenaar', kind: 'direct', targets: ['Principal'], links: 2 }],
+    });
+    expect(query.mock.calls.every(([sql, params]) => !sql.includes("Klant's") && params[0] === "Klant's")).toBe(true);
+  });
+
+  it.each([
+    ['missing', ''],
+    ['blank', '?type=%20%20'],
+    ['repeated (an array)', '?type=a&type=b'],
+    ['too long', `?type=${'k'.repeat(201)}`],
+  ])('400 when type is %s, without querying', async (_label, qs) => {
+    const r = await request(app).get(`/api/org-truth/filter-options${qs}`);
+    expect(r.status).toBe(400);
+    expect(r.body).toEqual({ error: 'type is required' });
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('accepts a type of exactly 200 characters', async () => {
+    query.mockResolvedValue({ rows: [] });
+    expect((await request(app).get(`/api/org-truth/filter-options?type=${'k'.repeat(200)}`)).status).toBe(200);
+  });
+
+  it('500 with a generic message on a db error', async () => {
+    query.mockRejectedValue(new Error('relation "OrgLinks" does not exist'));
+    const r = await request(app).get('/api/org-truth/filter-options?type=Klant');
+    expect(r.status).toBe(500);
+    expect(r.body).toEqual({ error: 'Failed to load the filter options' });
   });
 });

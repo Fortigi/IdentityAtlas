@@ -4,6 +4,7 @@
 //                                              ?includeClosed=1  ?sourceId=<uuid>  ?withSystemCounts=0
 //   GET  /api/org-truth/entities               list; ?type=&q=&status=&sourceId=&includeClosed=&page=&pageSize=
 //   GET  /api/org-truth/entities/:id           one entity: attributes, relations in and out, links, source, run
+//   GET  /api/org-truth/filter-options        the matrix filter's Organisation picker for one entity type; ?type= (required)
 //   GET  /api/org-truth/entities/:id/graph     the detail page's fan-out rings (entityGraphShape.js contract)
 //                                              ?category=<key> returns the items of one ring
 //
@@ -18,6 +19,9 @@ import { parseListQuery, listEntities, getEntity, isUuid, isFlag } from '../mode
 import { getEntityGraph, getGraphCategory, parseCategory } from '../model/graph.js';
 import { getEvidence } from '../model/evidence.js';
 import { getLinkedTo, TARGET_TYPES } from '../model/linkedTo.js';
+import { getFilterOptions } from '../model/filterOptions.js';
+
+const MAX_TYPE_LENGTH = 200;
 
 const router = Router();
 
@@ -71,6 +75,19 @@ router.get('/org-truth/linked/:targetType/:id', ...READ_GATE, async (req, res) =
   try {
     res.json(await getLinkedTo(req.params.targetType, req.params.id));
   } catch (err) { fail(res, 'the organisation links', err); }
+});
+
+// What the matrix filter's Organisation picker offers for one entity type:
+// attribute values to choose a set of entities by, and the link names to
+// filter on (model/filterOptions.js).
+router.get('/org-truth/filter-options', ...READ_GATE, async (req, res) => {
+  const type = req.query.type;
+  if (typeof type !== 'string' || !type.trim() || type.length > MAX_TYPE_LENGTH) {
+    return res.status(400).json({ error: 'type is required' });
+  }
+  try {
+    res.json(await getFilterOptions(type));
+  } catch (err) { fail(res, 'the filter options', err); }
 });
 
 router.get('/org-truth/entities/:id/graph', ...READ_GATE, async (req, res) => {

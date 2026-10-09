@@ -34,6 +34,7 @@
     "src/orgtruth/model/graph.js",
     "src/orgtruth/model/evidence.js",
     "src/orgtruth/model/linkedTo.js",
+    "src/orgtruth/model/filterOptions.js",
     "src/orgtruth/http/model.js",
     "src/orgtruth/linking/signals.js",
     "src/orgtruth/linking/candidates.js",

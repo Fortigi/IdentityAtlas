@@ -35,6 +35,7 @@ export default defineConfig({
       'src/orgtruth/model/graph.test.js',
       'src/orgtruth/model/evidence.test.js',
       'src/orgtruth/model/linkedTo.test.js',
+      'src/orgtruth/model/filterOptions.test.js',
       'src/orgtruth/http/model.test.js',
       'src/orgtruth/linking/signals.test.js',
       'src/orgtruth/linking/candidates.test.js',
