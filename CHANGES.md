@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed an intermittent test failure in the people picker that could turn unrelated pull requests red
+
+## Changes in this PR
+
 - Contexts that group resources now show how much access they carry: the number of resources, the number of assignments (direct and via a role) and the number of different holders. The numbers are recalculated after each sync, shown on the context page, and available as fields and columns in the report builder
 - The report builder can now report on contexts (departments, tags, application catalogues and other groupings): filter on context type, show the owner, parent and member and resource counts, and use the attributes a source stores on its contexts as fields and columns
 
