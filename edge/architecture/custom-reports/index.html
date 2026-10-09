@@ -5414,7 +5414,7 @@ definition is, how it becomes SQL, and where the seams are.</p>
 <tbody>
 <tr>
 <td><code>nlreports/catalog.js</code></td>
-<td>The whole vocabulary: entities (user, group, account, resource, identity), their fields and relations, each with a constant SQL template and an analyst-language description. Nothing outside this file decides what can be reported on.</td>
+<td>The whole vocabulary: entities (user, group, account, resource, identity, change, context), their fields and relations, each with a constant SQL template and an analyst-language description. Nothing outside this file decides what can be reported on.</td>
 </tr>
 <tr>
 <td><code>nlreports/spec.js</code></td>
@@ -5471,6 +5471,22 @@ resources of type Group) rather than "account + a type filter". Small models rel
 filter; making it part of the entity took the best model of that round (Qwen2.5-Coder 3B, later dropped
 for its licence) from 22/32 to 28/32 on the tuning set at the time. <code>account</code> and <code>resource</code> remain for everything else, and a definition that restates the
 implied type is accepted and normalised away.</p>
+<p><strong>An entity can be kept away from the model.</strong> <code>modelFacing: false</code> on a catalog entity (today:
+<code>context</code>) leaves it out of <code>MODEL_ENTITIES</code>, which is what the system prompt, the reply grammar, the
+question vocabulary and the per-question attribute block are built from. The entity is still validated,
+compiled and offered in the definition editor. The point is that the system prompt stays byte-identical:
+the prompt cache prepared at build time remains valid and the published accuracy figures still describe
+what ships. Offering such an entity to the model is one flag — and an evaluation run.</p>
+<p><strong>A context means whatever the deployment says it means.</strong> The <code>context</code> entity has no notion of a
+department or an application: the kind is the <code>contextType</code> value, and what a source stamps on its
+contexts (a CMDB reference, a connection type) arrives as discovered <code>ext.*</code> fields. A report on
+"logical applications" is therefore a saved definition, not code.</p>
+<p><strong>A context's access counts are stored, not computed.</strong> Resource count, assignments (direct, via a role,
+eligible) and distinct holders are columns on <code>Contexts</code>, recalculated after each sync by
+<code>contexts/assignmentCounts.js</code>. Computed when a report asks, one such column took 101 s on 41 million
+assignments and 1,500 contexts, against the 15 s statement limit; the recalculation itself is one
+set-based statement. They describe the context's own resources, not its sub-contexts', and are empty on
+a context that does not group resources or has not been through a sync yet.</p>
 <p><strong>A glossary, not synonym handling in code.</strong> <code>catalog.js</code> exports <code>GLOSSARY</code> (person = identity,
 account = principal = user, business role = access package, plus Dutch terms). It is rendered into the
 prompt so that one list governs the model's vocabulary, and the same aliases are accepted by the
