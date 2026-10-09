@@ -267,3 +267,43 @@ describe('matrixFilterFingerprint', () => {
       .not.toBe(matrixFilterFingerprint({ ...seeded, subject: { include: [it_, hr], exclude: [] } }));
   });
 });
+
+// The organisation condition (T8) is opaque to the UI filter model: it must
+// survive normalisation byte for byte (saved filters, shares and the URL store
+// it), and any change to it must make a different matrix.
+describe("org conditions", () => {
+  const ID = "11111111-1111-4111-8111-111111111111";
+  const org = {
+    kind: "org", entityType: "Klant", entityIds: [ID], labels: { [ID]: "Contoso Bank" },
+    attribute: { key: "iso27001", values: ["Ja"] }, via: ["eigenaar"],
+  };
+  const withOrg = (cond, side = "subject") => ({ rowType: "principal", [side]: { include: [cond], exclude: [] } });
+
+  it("keeps an org condition unchanged on either side", () => {
+    expect(normalizeMatrixFilter(withOrg(org)).subject.include).toEqual([org]);
+    expect(normalizeMatrixFilter(withOrg(org, "resource")).resource.include).toEqual([org]);
+  });
+
+  it("gives the same fingerprint to the same condition with keys in another order", () => {
+    const reordered = { via: ["eigenaar"], attribute: { values: ["Ja"], key: "iso27001" }, labels: { [ID]: "Contoso Bank" }, entityIds: [ID], entityType: "Klant", kind: "org" };
+    expect(matrixFilterFingerprint(withOrg(reordered))).toBe(matrixFilterFingerprint(withOrg(org)));
+  });
+
+  it("changes the fingerprint when any part of the condition changes", () => {
+    const base = matrixFilterFingerprint(withOrg(org));
+    const variants = [
+      { ...org, entityType: "Leverancier" },
+      { ...org, entityIds: [ID, "22222222-2222-4222-8222-222222222222"] },
+      { ...org, attribute: { key: "iso27001", values: ["Nee"] } },
+      { ...org, attribute: { key: "sector", values: ["Ja"] } },
+      { ...org, via: ["eigenaar", "team"] },
+      (({ via, ...rest }) => rest)(org),
+    ];
+    const prints = variants.map(v => matrixFilterFingerprint(withOrg(v)));
+    for (const p of prints) expect(p).not.toBe(base);
+    expect(new Set(prints).size).toBe(variants.length);
+    // Include versus exclude, and subject versus resource, are different matrices too.
+    expect(matrixFilterFingerprint({ rowType: "principal", subject: { include: [], exclude: [org] } })).not.toBe(base);
+    expect(matrixFilterFingerprint(withOrg(org, "resource"))).not.toBe(base);
+  });
+});

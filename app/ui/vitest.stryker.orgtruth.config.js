@@ -39,6 +39,8 @@ export default defineConfig({
       'src/components/orgtruth/LinkRulesEditor.mount.test.jsx',
       'src/components/orgtruth/orgGraphBranch.test.js',
       'src/components/orgtruth/useOrgLinked.test.js',
+      'src/components/orgtruth/orgCondition.test.js',
+      'src/components/orgtruth/OrgConditionPicker.mount.test.jsx',
       'src/components/entityGraphShape.test.js',
       'src/components/IdentityDetailPage.mount.test.jsx',
     ],
