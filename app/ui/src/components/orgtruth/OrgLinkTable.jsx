@@ -1,11 +1,10 @@
 // Links of one org entity to system objects — the LinkedAccountsPanel idiom:
 // target (opens its detail tab), type, ConfidenceBar, matched signals as chips,
 // status / analyst-override badge, and Confirm / Reject / Move (or Undo once
-// decided) for someone who may import. Used by Review (one table per entity
-// group) and by the entity detail page's Links section.
+// decided) for someone who may import. Used by the entity detail page's Links
+// section (Review decides per distinct value instead, see ReviewTab.jsx).
 //
-// `candidates` are normalised rows from reviewRows.js (groupReviewRows or
-// toLinkCandidates). Move asks, through the in-app prompt, which of the other
+// `candidates` are normalised rows from reviewRows.js (toLinkCandidates). Move asks, through the in-app prompt, which of the other
 // shown candidates of the same type the link should point at (MVP: no search).
 import ConfidenceBar from '@ui/components/ConfidenceBar';
 import { useDialog } from '@ui/components/dialogContext';
