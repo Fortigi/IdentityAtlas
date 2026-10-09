@@ -51,16 +51,19 @@ describe('OrgTruthPage', () => {
     expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
   });
 
-  it('offers the import button only to someone who may import', () => {
+  it('has exactly one import button, in the Sources tab, and only for someone who may import', async () => {
     renderPage({ auth: READER });
+    await screen.findByRole('button', { name: 'Contoso projects' });
     expect(screen.queryByRole('button', { name: 'Import organisation truth' })).toBeNull();
     renderPage({ auth: IMPORTER, features: { orgTruth: false } });
+    await screen.findAllByRole('button', { name: 'Contoso projects' });
     expect(screen.queryByRole('button', { name: 'Import organisation truth' })).toBeNull();
     renderPage();
-    expect(screen.getByRole('button', { name: 'Import organisation truth' })).toBeInTheDocument();
+    await screen.findAllByRole('button', { name: 'Contoso projects' });
+    expect(screen.getAllByRole('button', { name: 'Import organisation truth' })).toHaveLength(1);
   });
 
-  it('opens a new import from the button and closes it without refreshing', async () => {
+  it('opens a new import from the Sources tab button and closes it without refreshing', async () => {
     const { authFetch } = renderPage();
     await screen.findByRole('button', { name: 'Contoso projects' });
     await userEvent.click(screen.getByRole('button', { name: 'Import organisation truth' }));

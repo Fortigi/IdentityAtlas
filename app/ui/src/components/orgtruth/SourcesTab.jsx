@@ -127,6 +127,18 @@ export default function SourcesTab({ onImport, onImportAgain }) {
   const allRuns = rowsOf(runs.data);
 
   return (
+    <div className="space-y-3">
+      {canImport && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onImport}
+            className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
+          >
+            Import organisation truth
+          </button>
+        </div>
+      )}
     <div className={`${CARD} overflow-x-auto`}>
       <table className="w-full text-sm">
         <thead className="bg-gray-50 dark:bg-gray-700/50">
@@ -157,6 +169,7 @@ export default function SourcesTab({ onImport, onImportAgain }) {
           ))}
         </tbody>
       </table>
+    </div>
     </div>
   );
 }

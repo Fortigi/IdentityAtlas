@@ -135,6 +135,16 @@ describe('SourcesTab', () => {
     expect(screen.getByText('The runs are not available.')).toBeInTheDocument();
   });
 
+  it('offers the import button above the list to an importer, not to a reader', async () => {
+    const { onImport } = render();
+    await rowOf('Contoso projects');
+    await userEvent.click(screen.getByRole('button', { name: 'Import organisation truth' }));
+    expect(onImport).toHaveBeenCalledTimes(1);
+    render({ auth: READER });
+    await screen.findAllByRole('button', { name: 'Contoso projects' });
+    expect(screen.getAllByRole('button', { name: 'Import organisation truth' })).toHaveLength(1); // only the first render's
+  });
+
   it('shows the empty state with the import action for an importer', async () => {
     const { onImport } = render({ routes: { '/api/org-truth/sources': { data: [] } } });
     await userEvent.click(await screen.findByRole('button', { name: 'Import organisation truth' }));
