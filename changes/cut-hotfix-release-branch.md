@@ -1,1 +1,0 @@
-- Fixed release publishing so a patch release cut from an older release branch no longer stops halfway, and the documentation deploy no longer fails when a release is published
