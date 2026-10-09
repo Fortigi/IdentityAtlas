@@ -1,4 +1,0 @@
-- A delta SQL import now loads assignments through the same staged load a full import uses. A delta run that has no watermark yet (every delta run until one has completed and verified) reads everything, and used to write all of it batch by batch; it now takes the fast path, and unchanged assignments are no longer rewritten.
-- In a delta run, assignments read as a window (only what changed since the last run) are also staged: only rows whose values actually changed are written, instead of every row the source re-stamped. Removals are still found by the key sweep.
-- A delta run's assignments are verified against what was applied rather than against a recount of the source, so a source that is being written to during the read no longer fails the run.
-- The `stagedFullLoad` setting now applies to delta runs as well as full ones.
