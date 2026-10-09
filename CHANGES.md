@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Contexts that group resources now show how much access they carry: the number of resources, the number of assignments (direct and via a role) and the number of different holders. The numbers are recalculated after each sync, shown on the context page, and available as fields and columns in the report builder
+- The report builder can now report on contexts (departments, tags, application catalogues and other groupings): filter on context type, show the owner, parent and member and resource counts, and use the attributes a source stores on its contexts as fields and columns
+
+## Changes in this PR
+
 - A delta SQL import now loads assignments through the same staged load a full import uses. A delta run that has no watermark yet (every delta run until one has completed and verified) reads everything, and used to write all of it batch by batch; it now takes the fast path, and unchanged assignments are no longer rewritten.
 - In a delta run, assignments read as a window (only what changed since the last run) are also staged: only rows whose values actually changed are written, instead of every row the source re-stamped. Removals are still found by the key sweep.
 - A delta run's assignments are verified against what was applied rather than against a recount of the source, so a source that is being written to during the read no longer fails the run.
