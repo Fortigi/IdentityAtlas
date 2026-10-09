@@ -6178,7 +6178,10 @@ batch by batch:</p>
 </table>
 <p>Entities: <code>resource-assignments</code>, <code>principals</code>, <code>resources</code>,
 <code>resource-relationships</code>. Nothing reaches the target table before finalize, which
-takes one of two paths and reports it (<code>path</code> in the result, and the sync log):</p>
+takes one of two paths and reports it (<code>path</code> in the result, and the sync log).
+Every result also carries <code>rows</code> (records received) and <code>distinct</code> (distinct keys
+among them): after a finalize with <code>deleteMissing</code>, <code>distinct</code> is exactly what the
+scope holds, which is what a caller should verify against. The paths:</p>
 <ul>
 <li><strong><code>empty-table</code></strong> — the target table holds no rows at all (a first load on a new
   installation). Its non-constraint indexes are dropped, every stage is inserted

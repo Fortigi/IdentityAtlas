@@ -6812,8 +6812,12 @@ key collapse into one row but would still be counted as sent.</p>
 <td>The number of <strong>distinct</strong> pairs — (parent, child) for a relationship, (resource, principal) for an owner assignment — compared with the database's own count. A repeated pair is <strong>not</strong> a failure: it is the same edge arriving twice (a business role reaching one entitlement through two source applications, say), and collapsing it loses nothing, because an edge carries nothing but its two ends. The collapse is reported, not failed</td>
 </tr>
 <tr>
-<td>Assignments</td>
-<td>The source's distinct (resource, principal) pairs, allowing the same drift as the read (a pair count cannot move by more than the row count did). Rows held back as dangling make this a range rather than an exact number</td>
+<td>Assignments loaded through a stage (a full sync)</td>
+<td><strong>Exactly</strong> the number of distinct assignments the stage held when it was applied. Both numbers are Identity Atlas's own, so a source that is still being written to cannot move them, and there is no slack. The source's distinct-pair count, taken again after the read, is printed beside it when it differs: that is a finding about the source, not a verdict on the load</td>
+</tr>
+<tr>
+<td>Assignments streamed in batches (a windowed read)</td>
+<td>The source's distinct (resource, principal) pairs, allowing the same drift as the read. Rows held back as dangling make this a range rather than an exact number</td>
 </tr>
 </tbody>
 </table>
