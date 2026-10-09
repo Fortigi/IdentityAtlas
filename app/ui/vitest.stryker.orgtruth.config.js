@@ -30,6 +30,8 @@ export default defineConfig({
       'src/components/orgtruth/EntitiesTab.mount.test.jsx',
       'src/components/orgtruth/ReviewTab.mount.test.jsx',
       'src/components/orgtruth/OrgEntityDetailPage.mount.test.jsx',
+      'src/components/orgtruth/evidence.test.js',
+      'src/components/orgtruth/OrgEvidenceSection.mount.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },
