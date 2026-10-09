@@ -324,6 +324,8 @@ describe('heuristicProposal — with data probes', () => {
       expect(r.linkRules.map(x => [x.targetType, x.via])).toEqual([['OrgEntity', 'displayName'], ['Principal', 'medewerker']]);
       expect(rule(r, 'OrgEntity', 'displayName')).toMatchObject({ threshold: 60 });
       expect(signalsOf(rule(r, 'OrgEntity', 'displayName'))).toEqual(['displayName>displayName:fuzzy:100']);
+      // names the most frequent list its values matched (the probe lists them most frequent first)
+      expect(rule(r, 'OrgEntity', 'displayName').targetEntityType).toBe('Customer');
       expect(r.notes).toContain('90 % of the values of Klant match a Customer from another list, so Uren is linked through it to that list (fuzzy on the name).');
     });
 
@@ -357,6 +359,8 @@ describe('heuristicProposal — with data probes', () => {
       expect(rule(r, 'OrgEntity', 'klant')).toMatchObject({ threshold: 60 });
       expect(signalsOf(rule(r, 'OrgEntity', 'klant'))).toEqual(['klant>displayName:fuzzy:100']);
       expect(rule(r, 'OrgEntity', 'opdrachtgever')).toBeUndefined();
+      // the probe named no list, so the rule names none
+      expect(rule(r, 'OrgEntity', 'klant')).not.toHaveProperty('targetEntityType');
       expect(r.notes).toContain('50 % of the values of Klant match an entity from another list, so Project is linked through it to that list (fuzzy on the name).');
     });
 

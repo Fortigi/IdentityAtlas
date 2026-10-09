@@ -131,6 +131,26 @@ describe('buildRuleIndex', () => {
     expect(buildRuleIndex(orgRows, other).bySignal.get('customer→displayName').get('contoso').map(x => x.id)).toEqual(['c1', 't1']);
   });
 
+  it('an OrgEntity rule with targetEntityType indexes only entities of that type', () => {
+    const orgRows = [
+      { id: 'c1', displayName: 'Contoso', entityType: 'Customer' },
+      { id: 'p1', displayName: 'Contoso', entityType: 'Project' },
+      { id: 'c2', displayName: 'Contoso', entityType: 'Customer' },
+      { id: 't1', displayName: 'Contoso', entityType: 'Timesheet' },
+    ];
+    const signals = [{ attribute: 'customer', targetField: 'displayName', type: 'exact' }];
+    const ids = (r) => buildRuleIndex(orgRows, r).bySignal.get('customer→displayName').get('contoso').map(x => x.id);
+    expect(ids(rule(signals, { entityType: 'Timesheet', targetType: 'OrgEntity', targetEntityType: 'Customer' }))).toEqual(['c1', 'c2']);
+    expect(ids(rule(signals, { entityType: 'Timesheet', targetType: 'OrgEntity', targetEntityType: 'Project' }))).toEqual(['p1']);
+    // without it, every other list's entity is a candidate
+    expect(ids(rule(signals, { entityType: 'Timesheet', targetType: 'OrgEntity' }))).toEqual(['c1', 'p1', 'c2']);
+    // its own type stays out even when named
+    expect(buildRuleIndex(orgRows, rule(signals, { entityType: 'Timesheet', targetType: 'OrgEntity', targetEntityType: 'Timesheet' }))
+      .bySignal.get('customer→displayName').size).toBe(0);
+    // targetEntityType is no filter for a rule to another target type
+    expect(ids(rule(signals, { entityType: 'Timesheet', targetType: 'Context', targetEntityType: 'Customer' }))).toEqual(['c1', 'p1', 'c2', 't1']);
+  });
+
   it('indexes nothing for an empty target value or a field the rows do not carry', () => {
     const r = rule([{ attribute: 'email', targetField: 'employeeId', type: 'exact' }]);
     expect(buildRuleIndex(rows, r).bySignal.get('email→employeeId').size).toBe(0);

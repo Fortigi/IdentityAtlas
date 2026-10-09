@@ -145,14 +145,14 @@ router.post('/org-truth/profiles/:id/relink', ...WRITE_GATE, handle('relink the 
 // type (targetEntityType). The projection trees are rebuilt afterwards.
 const TYPE_NAME = /^[\p{L}\p{N}][\p{L}\p{N} _-]{0,63}$/u;
 
-function renameInRecipe(recipe, from, to) {
+export function renameInRecipe(recipe, from, to) {
   return {
     ...recipe,
     entities: recipe.entities.map(e => (e.type === from ? { ...e, type: to } : e)),
     relations: (recipe.relations ?? []).map(r => ({ ...r, from: r.from === from ? to : r.from, to: r.to === from ? to : r.to })),
   };
 }
-function renameInRules(rules, from, to) {
+export function renameInRules(rules, from, to) {
   return (rules ?? []).map(r => ({
     ...r,
     entityType: r.entityType === from ? to : r.entityType,
