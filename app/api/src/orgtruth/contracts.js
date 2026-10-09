@@ -21,19 +21,26 @@ export const LINK_TARGETS = Object.freeze({
   Identity:  ['email', 'employeeId', 'displayName'],
   Resource:  ['displayName', 'mail', 'externalId'],
   Context:   ['displayName'],
+  // An entity of ANOTHER organisation list (open, accepted, of a different entity
+  // type): the customer named in a timesheet row ↔ the customer in the customer list.
+  OrgEntity: ['displayName'],
 });
 
 // exact  — trimmed, case-insensitive equality
 // prefix — the org value equals the target's email local part after stripping known prefixes
 // name   — graded person-name match (accountlinking/classifier.js nameMatchLevel)
 // token  — every token of the org value occurs in the target value
-export const SIGNAL_TYPES = ['exact', 'prefix', 'name', 'token'];
+// fuzzy  — similarity of two names after dropping legal forms and punctuation
+//          (character bigrams, or one name's words all inside the other's);
+//          earns weight × similarity when the similarity is at least 0.5
+export const SIGNAL_TYPES = ['exact', 'prefix', 'name', 'token', 'fuzzy'];
 
 export const LIMITS = Object.freeze({
   entities: 20,
   relations: 40,
   attributesPerEntity: 100,
   signalsPerRule: 10,
+  keyColumns: 6,
 });
 
 // The entity's own name is addressable as an attribute in link rules.
@@ -56,6 +63,7 @@ export const RECIPE_JSON_SCHEMA = Object.freeze({
           nameColumn:    { type: 'string', minLength: 1, maxLength: 256 },
           keyColumn:     { type: 'string', minLength: 1, maxLength: 256 },
           nameAttribute: { type: 'string', minLength: 1, maxLength: 64 },
+          keyColumns:    { type: 'array', minItems: 2, maxItems: LIMITS.keyColumns, items: { type: 'string', minLength: 1, maxLength: 256 } },
           attributes: {
             type: 'array', maxItems: LIMITS.attributesPerEntity,
             items: {
@@ -147,9 +155,20 @@ function checkEntityColumns(e, type, checkColumn, errors) {
   if (!isNonEmptyString(e.nameColumn)) errors.push(`Entity "${type}" has no "nameColumn".`);
   else checkColumn(e.nameColumn, `Entity "${type}" nameColumn`);
   if (e.nameAttribute !== undefined && !isNonEmptyString(e.nameAttribute)) errors.push(`Entity "${type}" has an empty "nameAttribute".`);
+  checkKeyColumns(e, type, checkColumn, errors);
   if (e.keyColumn === undefined) return;
   if (!isNonEmptyString(e.keyColumn)) errors.push(`Entity "${type}" has an empty "keyColumn".`);
   else checkColumn(e.keyColumn, `Entity "${type}" keyColumn`);
+}
+
+// A composite key: several columns that together identify a row (a timesheet:
+// year + month + person + customer). Takes precedence over keyColumn.
+function checkKeyColumns(e, type, checkColumn, errors) {
+  if (e.keyColumns === undefined) return;
+  const ok = Array.isArray(e.keyColumns) && e.keyColumns.length >= 2 && e.keyColumns.length <= LIMITS.keyColumns
+    && e.keyColumns.every(isNonEmptyString);
+  if (!ok) { errors.push(`Entity "${type}" "keyColumns" must list 2 to ${LIMITS.keyColumns} column names.`); return; }
+  for (const c of e.keyColumns) checkColumn(c, `Entity "${type}" keyColumns`);
 }
 
 function checkEntityAttributes(attrs, type, checkColumn, errors, nameAttribute) {
@@ -282,6 +301,7 @@ export function normalizeRecipe(recipe) {
       type: e.type.trim(),
       nameColumn: e.nameColumn,
       keyColumn: e.keyColumn ?? e.nameColumn,
+      ...(Array.isArray(e.keyColumns) && e.keyColumns.length >= 2 ? { keyColumns: [...e.keyColumns] } : {}),
       ...(isNonEmptyString(e.nameAttribute) && e.nameAttribute.trim() !== NAME_ATTRIBUTE ? { nameAttribute: e.nameAttribute.trim() } : {}),
       attributes: (e.attributes ?? []).map(a => ({ column: a.column, name: isNonEmptyString(a.name) ? a.name.trim() : a.column })),
     })),

@@ -63,6 +63,7 @@ function toRow(entityId, c, status, d, runId) {
 }
 
 function tally(counts, d) {
+  if (!d.value && d.via && d.via !== 'displayName') { counts.empty = (counts.empty ?? 0) + 1; return; }
   if (d.decision === 'accepted') counts.linked += 1;
   else if (d.decision === 'none') counts.none += 1;
   else if (d.ambiguous) counts.ambiguous += 1;
@@ -74,6 +75,7 @@ function planEntity(entityId, group, links, thresholdFor, runId, out) {
   // A target type the analyst decided on (a pinned decision) keeps its other
   // stored links too: the engine neither adds to nor prunes what was settled.
   const settledTypes = new Set();
+  const written = new Map();
   for (const raw of group) {
     if (pinnedFor(raw, links).length > 0) { out.counts.linked += 1; settledTypes.add(raw.targetType); continue; }
     const d = redecide(raw, links, thresholdFor(raw));
@@ -81,7 +83,15 @@ function planEntity(entityId, group, links, thresholdFor, runId, out) {
     if (d.decision === 'none') continue;
     const status = d.decision === 'accepted' ? 'accepted' : 'proposed';
     for (const c of d.candidates) {
-      out.upserts.push(toRow(entityId, c, status, d, runId));
+      // one row per (target, attribute): two names in one cell resolving to the
+      // same account write it once, the accepted / stronger one winning
+      const k = `${keyOf(c.targetType, c.targetId)}|${d.via ?? ''}`;
+      const prev = written.get(k);
+      const row = toRow(entityId, c, status, d, runId);
+      if (prev && (prev.status === 'accepted' || prev.confidence >= row.confidence)) continue;
+      if (prev) out.upserts.splice(out.upserts.indexOf(prev), 1);
+      written.set(k, row);
+      out.upserts.push(row);
       kept.add(keyOf(c.targetType, c.targetId));
     }
   }

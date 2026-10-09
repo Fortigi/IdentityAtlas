@@ -20,6 +20,7 @@ import ModelEditor from './ModelEditor';
 const ORIGIN_TEXT = {
   model: 'Proposed by the model. Check it before you continue.',
   heuristic: 'Proposed from the column names and values. Check it before you continue.',
+  data: 'Proposed from the data: every column\'s values were compared with the accounts, groups and other organisation lists. Check it before you continue.',
 };
 
 export default function StepModel({ draft, update, onBack, onNext }) {

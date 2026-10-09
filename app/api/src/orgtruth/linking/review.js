@@ -151,15 +151,19 @@ export async function listClaims(params) {
 // ─── Overrides ──────────────────────────────────────────────────────────
 const STAMP = `"overriddenBy" = $2, "overriddenAt" = now() AT TIME ZONE 'utc', "updatedAt" = now() AT TIME ZONE 'utc'`;
 const SET_OVERRIDE_SQL = `UPDATE "OrgLinks" SET "status" = $3, "analystOverride" = $4, ${STAMP} WHERE "id" = $1 RETURNING *`;
+// Only the proposals for the SAME decision (target type, attribute and value):
+// confirming a team member must not reject the proposals for the owner.
 const REJECT_OPEN_SIBLINGS_SQL = `UPDATE "OrgLinks" SET "status" = 'rejected', "updatedAt" = now() AT TIME ZONE 'utc'
-  WHERE "orgEntityId" = $1 AND "id" <> ALL($2::uuid[]) AND "status" = 'proposed' AND "analystOverride" IS NULL`;
+  WHERE "orgEntityId" = $1 AND "id" <> ALL($2::uuid[]) AND "status" = 'proposed' AND "analystOverride" IS NULL
+    AND "targetType" = $3 AND "via" IS NOT DISTINCT FROM $4 AND "orgValue" IS NOT DISTINCT FROM $5`;
 const MOVE_UPSERT_SQL = `INSERT INTO "OrgLinks"
-    ("id", "orgEntityId", "targetType", "targetId", "confidence", "signals", "origin", "status",
+    ("id", "orgEntityId", "targetType", "targetId", "confidence", "signals", "via", "orgValue", "origin", "status",
      "analystOverride", "overriddenBy", "overriddenAt")
-  VALUES ($1, $3, $4, $5, 100, 'analyst', 'analyst', 'accepted', 'moved', $2, now() AT TIME ZONE 'utc')
-  ON CONFLICT ("orgEntityId", "targetType", "targetId") DO UPDATE SET
+  VALUES ($1, $3, $4, $5, 100, 'analyst', $6, $7, 'analyst', 'accepted', 'moved', $2, now() AT TIME ZONE 'utc')
+  ON CONFLICT ("orgEntityId", "targetType", "targetId", (COALESCE("via", ''))) DO UPDATE SET
     "status" = 'accepted', "analystOverride" = 'moved', ${STAMP}
   RETURNING *`;
+const siblingParams = (link, keepIds) => [link.orgEntityId, keepIds, link.targetType, link.via ?? null, link.orgValue ?? null];
 
 async function loadLink(id) {
   if (!isUuid(id)) throw new ReviewError(400, 'The link id must be a UUID.');
@@ -182,9 +186,9 @@ async function moveLink(original, targetId, actor) {
   await assertTargetExists(original.targetType, targetId);
   return tx(async (client) => {
     const moved = (await client.query(MOVE_UPSERT_SQL,
-      [randomUUID(), actor, original.orgEntityId, original.targetType, targetId])).rows[0];
+      [randomUUID(), actor, original.orgEntityId, original.targetType, targetId, original.via ?? null, original.orgValue ?? null])).rows[0];
     const rejected = (await client.query(SET_OVERRIDE_SQL, [original.id, actor, 'rejected', 'rejected'])).rows[0];
-    await client.query(REJECT_OPEN_SIBLINGS_SQL, [original.orgEntityId, [moved.id, original.id]]);
+    await client.query(REJECT_OPEN_SIBLINGS_SQL, siblingParams(original, [moved.id, original.id]));
     return { link: moved, original: rejected };
   });
 }
@@ -199,7 +203,7 @@ export async function overrideLink(id, { action, targetId } = {}, user = undefin
   }
   return tx(async (client) => {
     const link = (await client.query(SET_OVERRIDE_SQL, [id, actor, 'accepted', 'confirmed'])).rows[0];
-    await client.query(REJECT_OPEN_SIBLINGS_SQL, [original.orgEntityId, [id]]);
+    await client.query(REJECT_OPEN_SIBLINGS_SQL, siblingParams(original, [id]));
     return { link };
   });
 }

@@ -31,7 +31,9 @@ describe('migration 084 — organisation truth', () => {
       expect(checkFor(t, 'origin')).toBe(quoted(ORIGINS));
       expect(checkFor(t, 'status')).toBe(quoted(CLAIM_STATUSES));
     }
-    expect(checkFor('OrgLinks', 'targetType').split(',').sort()).toEqual(quoted(Object.keys(LINK_TARGETS)).split(',').sort());
+    // 086 widens this list with 'OrgEntity'; 084 itself stays as written
+    const in084 = Object.keys(LINK_TARGETS).filter(t => t !== 'OrgEntity');
+    expect(checkFor('OrgLinks', 'targetType').split(',').sort()).toEqual(quoted(in084).split(',').sort());
   });
 
   it('claims default to accepted, links default to proposed', () => {

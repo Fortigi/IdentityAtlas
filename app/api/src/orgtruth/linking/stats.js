@@ -5,7 +5,7 @@
 //
 // Contract:
 //   linkStats(entities, linkRules) → Promise<{
-//     [ruleName]: { entityType, targetType, via, total, unique, ambiguous, none, lowConfidence,
+//     [ruleName]: { entityType, targetType, via, total, unique, ambiguous, none, lowConfidence, empty,
 //                   samples: { ambiguous: [{ displayName, candidates: [{ targetType, targetId, label, confidence }] }],
 //                              none: [{ displayName }] } }
 //   }>                                                            ≤ SAMPLE_LIMIT samples each
@@ -33,9 +33,13 @@ export const SAMPLE_LIMIT = 10;
 function emptyBlock(rule) {
   return {
     entityType: rule.entityType, targetType: rule.targetType, via: rule.via,
-    total: 0, unique: 0, ambiguous: 0, none: 0, lowConfidence: 0, samples: { ambiguous: [], none: [] },
+    total: 0, unique: 0, ambiguous: 0, none: 0, lowConfidence: 0, empty: 0, samples: { ambiguous: [], none: [] },
   };
 }
+
+// An entity whose `via` attribute is empty has nothing to link: it is counted
+// as `empty`, outside total (an empty team cell is not a failed match).
+export const isEmptyDecision = (d) => !d.value && d.via && d.via !== 'displayName';
 
 function sampleCandidates(candidates) {
   return candidates.map(c => ({ targetType: c.targetType, targetId: c.targetId, label: c.label, confidence: c.confidence }));
@@ -44,6 +48,7 @@ function sampleCandidates(candidates) {
 const sampleName = (d) => d.value || d.entity.displayName;
 
 function count(block, d) {
+  if (isEmptyDecision(d)) { block.empty += 1; return; }
   block.total += 1;
   if (d.decision === 'accepted') { block.unique += 1; return; }
   if (d.decision === 'none') {

@@ -10,6 +10,7 @@
 //   name    graded person-name match: 'full' earns the whole weight,
 //           'surnameInitial' 75 % of it, anything else nothing
 //   token   every token (≥ 2 chars) of the org value is a token of the target
+//   fuzzy   name similarity (fuzzySimilarity below) ≥ 0.5 earns weight × similarity
 //
 // Every type also has index keys (`signalKeys`, the same function for a target
 // value and an org value) so candidates.js can build a Map per signal and
@@ -69,8 +70,75 @@ export function signalKeys(type, value) {
     case 'prefix': return nonEmpty([prefixKey(value)]);
     case 'name': return nonEmpty([parseName(value).surname]);
     case 'token': return [...new Set(tokensOf(value))];
+    case 'fuzzy': return fuzzyKeys(value);
     default: return [];
   }
+}
+
+// ─── fuzzy ───────────────────────────────────────────────────────────────
+// Organisation names are written many ways: "ABN AMRO" / "ABN AMRO Bank N.V.",
+// "Gemeente Vught" / "Vught", a typo. Legal forms and noise words are dropped,
+// accents folded, then two measures, the higher wins:
+//   bigrams    Dice coefficient of the character bigrams of the joined names
+//   contained  every word of the shorter name is a word of the longer (0.9),
+//              scaled down a little per extra word in the longer name
+export const FUZZY_FLOOR = 0.5;
+const NOISE = new Set(['bv', 'nv', 'vof', 'cv', 'holding', 'groep', 'group', 'ltd', 'inc', 'gmbh', 'ag', 'sa', 'plc', 'llc', 'the', 'de', 'het', 'en', 'and', 'b', 'v', 'n']);
+
+/** The comparable words of a name: lowercase, accents folded, legal forms and noise dropped. */
+export function fuzzyWords(v) {
+  const folded = normValue(v).normalize('NFKD').replace(/[̀-ͯ]/g, '');
+  const words = folded.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const kept = words.filter(w => !NOISE.has(w));
+  return kept.length > 0 ? kept : words;
+}
+
+function bigrams(s) {
+  const out = new Map();
+  for (let i = 0; i < s.length - 1; i++) {
+    const g = s.slice(i, i + 2);
+    out.set(g, (out.get(g) ?? 0) + 1);
+  }
+  return out;
+}
+
+function dice(a, b) {
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return 0;
+  const A = bigrams(a);
+  const B = bigrams(b);
+  let shared = 0;
+  for (const [g, n] of A) shared += Math.min(n, B.get(g) ?? 0);
+  return (2 * shared) / (a.length - 1 + b.length - 1);
+}
+
+function contained(wa, wb) {
+  const [short, long] = wa.length <= wb.length ? [wa, wb] : [wb, wa];
+  const have = new Set(long);
+  if (short.length === 0 || !short.every(w => have.has(w))) return 0;
+  return Math.max(0.6, 0.9 - 0.05 * (long.length - short.length));
+}
+
+/** Similarity of two names, 0..1. */
+export function fuzzySimilarity(a, b) {
+  const wa = fuzzyWords(a);
+  const wb = fuzzyWords(b);
+  if (wa.length === 0 || wb.length === 0) return 0;
+  const ja = wa.join('');
+  const jb = wb.join('');
+  if (ja === jb) return 1;
+  return Math.max(dice(ja, jb), contained(wa, wb));
+}
+
+// Index keys: every word and its first three letters, so a name sharing one
+// word (or a typo past the third letter) is at least a candidate.
+function fuzzyKeys(value) {
+  const keys = new Set();
+  for (const w of fuzzyWords(value)) {
+    if (w.length >= 2) keys.add(w);
+    if (w.length > 3) keys.add(w.slice(0, 3));
+  }
+  return [...keys];
 }
 
 /**
@@ -86,6 +154,7 @@ export function evaluateSignal(signal, orgValue, targetValue) {
     case 'prefix': return prefixMatches(o, t) ? signal.weight : 0;
     case 'name': return nameWeight(signal.weight, o, t);
     case 'token': return tokensMatch(o, t) ? signal.weight : 0;
+    case 'fuzzy': return fuzzyWeight(signal.weight, o, t);
     default: return 0;
   }
 }
@@ -100,6 +169,11 @@ function nameWeight(weight, o, t) {
   if (level === 'full') return weight;
   if (level === 'surnameInitial') return Math.round(weight * SURNAME_INITIAL_FACTOR);
   return 0;
+}
+
+function fuzzyWeight(weight, o, t) {
+  const sim = fuzzySimilarity(o, t);
+  return sim >= FUZZY_FLOOR ? Math.round(weight * sim) : 0;
 }
 
 function tokensMatch(o, t) {

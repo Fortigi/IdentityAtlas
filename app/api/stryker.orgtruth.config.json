@@ -24,6 +24,7 @@
     "src/orgtruth/propose/names.js",
     "src/orgtruth/propose/prompt.js",
     "src/orgtruth/propose/service.js",
+    "src/orgtruth/propose/probe.js",
     "src/orgtruth/projection/project.js",
     "src/orgtruth/projection/projectionSql.js",
     "src/orgtruth/projection/pluginPrincipals.js",

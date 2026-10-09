@@ -29,6 +29,7 @@ export const TARGET_TABLES = Object.freeze({
   Identity:  { table: 'Identities', softDelete: false },
   Resource:  { table: 'Resources', softDelete: true },
   Context:   { table: 'Contexts', softDelete: false },
+  OrgEntity: { table: 'OrgEntities', softDelete: false },
 });
 
 /** The whitelisted fields of `fields` for a target type, in LINK_TARGETS order. */
@@ -46,6 +47,7 @@ export function allowedFields(targetType, fields) {
 export function buildTargetsSql(targetType, fields, { humanOnly = false } = {}) {
   const cols = new Set(['id', NAME_ATTRIBUTE, ...allowedFields(targetType, fields)]);
   if (targetType === 'Principal') cols.add('principalType');
+  if (targetType === 'OrgEntity') cols.add('entityType');
   const { table, softDelete } = TARGET_TABLES[targetType];
   const where = [];
   if (softDelete) where.push('"deletedAt" IS NULL');
@@ -53,6 +55,8 @@ export function buildTargetsSql(targetType, fields, { humanOnly = false } = {}) 
   // An ownership row is named after the group it is the ownership OF: linking a
   // list row to "Finance" must find the group, not its owners' row (a tie otherwise).
   if (targetType === 'Resource') where.push(`("resourceType" IS NULL OR "resourceType" NOT IN ${OWNERSHIP_TYPES_SQL})`);
+  // Another list's entity only counts while it is a current, accepted claim.
+  if (targetType === 'OrgEntity') where.push(`"status" = 'accepted' AND "validTo" IS NULL`);
   const select = [...cols].map(c => `"${c}"`).join(', ');
   return `SELECT ${select} FROM "${table}"${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`;
 }
@@ -89,7 +93,10 @@ function push(map, key, row) {
 /** One Map<key, row[]> per signal of the rule. */
 export function buildRuleIndex(rows, rule) {
   const keepNonHuman = displayNameOnly(rule);
-  const usable = keepNonHuman ? rows : rows.filter(r => !isNonHuman(r));
+  // An org entity never links to an entity of its own type: a timesheet row
+  // named after its customer must find the customer list, not its sibling rows.
+  const usable = (keepNonHuman ? rows : rows.filter(r => !isNonHuman(r)))
+    .filter(r => rule.targetType !== 'OrgEntity' || r.entityType !== rule.entityType);
   const bySignal = new Map();
   for (const s of rule.signals) {
     const idx = new Map();

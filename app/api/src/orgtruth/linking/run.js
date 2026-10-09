@@ -50,7 +50,7 @@ const UPSERT_SQL = `INSERT INTO "OrgLinks"
   SELECT u.id, u.eid, u.tt, u.tid, u.conf, u.sig, u.mf, u.mv, u.via, u.ov, 'import', u.st, $12::uuid
     FROM unnest($1::uuid[], $2::uuid[], $3::text[], $4::uuid[], $5::smallint[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[], $11::text[])
       AS u(id, eid, tt, tid, conf, sig, mf, mv, via, ov, st)
-  ON CONFLICT ("orgEntityId", "targetType", "targetId") DO UPDATE SET
+  ON CONFLICT ("orgEntityId", "targetType", "targetId", (COALESCE("via", ''))) DO UPDATE SET
     "confidence" = EXCLUDED."confidence", "signals" = EXCLUDED."signals",
     "matchedField" = EXCLUDED."matchedField", "matchedValue" = EXCLUDED."matchedValue",
     "via" = EXCLUDED."via", "orgValue" = EXCLUDED."orgValue",

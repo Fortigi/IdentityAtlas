@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
 import {
-  parseList, ListParseError, MAX_ROWS, findHeaderIndex, detectFormat, cellToString, sniffDelimiter, parseCsv, headerNames,
+  parseList, ListParseError, MAX_ROWS, findHeaderIndex, detectFormat, cellToString, sniffDelimiter, parseCsv, headerNames, looksLikeData,
 } from './parse.js';
 
 const csv = (text) => Buffer.from(text, 'utf8');
@@ -87,6 +87,23 @@ describe('header detection', () => {
     expect(out.headerRow).toBe(2);
     expect(out.columns).toEqual(['Name']);
     expect(out.rows).toHaveLength(2);
+  });
+
+  it('reads an export without a header row: the first line is data, columns are numbered, empty trailing columns dropped', async () => {
+    const out = await parseList(csv('2020;januari;"Ann Example";_Intern;"52,00";;\n2020;februari;"Bob Example";Contoso;"8,00";;\n'));
+    expect(out.headerRow).toBe(0);
+    expect(out.columns).toEqual(['Column 1', 'Column 2', 'Column 3', 'Column 4', 'Column 5']);
+    expect(out.rows).toHaveLength(2);
+    expect(out.rows[0]).toEqual({ 'Column 1': '2020', 'Column 2': 'januari', 'Column 3': 'Ann Example', 'Column 4': '_Intern', 'Column 5': '52,00' });
+  });
+
+  it('a header that merely contains digits is still a header', async () => {
+    const out = await parseList(csv('Code 1;ISO 27001;Name\nP-1;ja;Atlas\n'));
+    expect(out.headerRow).toBe(1);
+    expect(out.columns).toEqual(['Code 1', 'ISO 27001', 'Name']);
+    expect(looksLikeData(['Code', '2020'])).toBe(true);
+    expect(looksLikeData(['Code', '1,5'])).toBe(true);
+    expect(looksLikeData(['ISO 27001', 'v2'])).toBe(false);
   });
 
   it('findHeaderIndex answers -1 when every row is blank', () => {

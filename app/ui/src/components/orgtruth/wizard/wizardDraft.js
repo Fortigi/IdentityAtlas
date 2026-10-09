@@ -37,8 +37,9 @@ export const LINK_TARGETS = Object.freeze({
   Identity:  ['email', 'employeeId', 'displayName'],
   Resource:  ['displayName', 'mail', 'externalId'],
   Context:   ['displayName'],
+  OrgEntity: ['displayName'],
 });
-export const SIGNAL_TYPES = ['exact', 'prefix', 'name', 'token'];
+export const SIGNAL_TYPES = ['exact', 'prefix', 'name', 'token', 'fuzzy'];
 export const MAX_SIGNALS_PER_RULE = 10;
 export const NAME_ATTRIBUTE = 'displayName';
 export const DEFAULT_THRESHOLD = 50;
@@ -412,6 +413,8 @@ export function proposeBody(draft) {
   const s = draft.source ?? {};
   const body = { fileName: s.fileName || s.displayName || '', columns: s.columns ?? [] };
   if (Number.isInteger(s.rowCount)) body.rowCount = s.rowCount;
+  // the stored source lets the server probe the VALUES against accounts and other lists
+  if (s.id) body.sourceId = s.id;
   return body;
 }
 

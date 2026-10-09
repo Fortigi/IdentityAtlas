@@ -39,6 +39,7 @@ export function suggestedWeight(type, targetField) {
   if (type === 'prefix') return 80;
   if (type === 'name') return 60;
   if (type === 'token') return 50;
+  if (type === 'fuzzy') return 100;
   if (targetField === 'employeeId' || targetField === 'externalId') return 95;
   if (EMAIL_FIELDS.has(targetField)) return 90;
   return 70;
@@ -56,7 +57,10 @@ export function attributeShape(values) {
 export function signalTypesFor(shape, targetType, targetField) {
   const types = ['exact'];
   if (shape === 'email' && EMAIL_FIELDS.has(targetField)) types.push('prefix');
-  if (shape === 'text' && targetField === NAME_ATTRIBUTE) types.push(PERSON_TARGETS.has(targetType) ? 'name' : 'token');
+  if (shape === 'text' && targetField === NAME_ATTRIBUTE) {
+    if (PERSON_TARGETS.has(targetType)) types.push('name');
+    else types.push(...(targetType === 'OrgEntity' ? ['fuzzy'] : ['token', 'fuzzy']));
+  }
   return types;
 }
 
@@ -68,15 +72,13 @@ function probeRule(attribute, targetType, targetField, type) {
 }
 
 // Per VALUE of the attribute (a cell listing three people counts three); an
-// entity with an empty attribute counts once, as none.
+// empty attribute is not counted at all (an empty team cell is not a miss).
 function countMatches(entities, attribute, ruleIndex) {
   let unique = 0;
   let multiple = 0;
   let total = 0;
   for (const e of entities) {
-    const values = valuesOf(e, attribute);
-    if (values.length === 0) { total += 1; continue; }
-    for (const v of values) {
+    for (const v of valuesOf(e, attribute)) {
       total += 1;
       const n = scoreEntity(withValue(e, attribute, v), ruleIndex).allCandidates.length;
       if (n === 1) unique += 1;

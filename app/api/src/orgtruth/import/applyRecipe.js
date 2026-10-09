@@ -38,6 +38,12 @@ const SEP = '\u0000';
 const cell = (row, column) => String(row?.[column] ?? '').trim();
 export const entityKey = (type, key) => `${type}${SEP}${key}`;
 
+// The analyst may expose the name under an attribute of their own naming too.
+function withAlias(attributes, def, displayName) {
+  const alias = def.nameAttribute && def.nameAttribute !== 'displayName' ? def.nameAttribute : null;
+  return alias ? { ...attributes, [alias]: displayName } : { ...attributes };
+}
+
 function readAttributes(row, def) {
   const attributes = {};
   for (const a of def.attributes) {
@@ -107,23 +113,33 @@ function namesAndKeys(def, displayName, keyValue) {
   return keys.map((k, i) => ({ displayName: paired ? names[i] : k, canonicalKey: k.toLowerCase() }));
 }
 
+// The key of a row: the keyColumn cell, or for a composite key the cells of
+// keyColumns joined (empty only when every one of them is empty).
+function keyOf(row, def) {
+  if (!def.keyColumns) return cell(row, def.keyColumn);
+  const parts = def.keyColumns.map(c => cell(row, c));
+  return parts.some(Boolean) ? parts.join(' | ') : '';
+}
+
 function instancesFromRow(row, rowNo, def, issues) {
   const displayName = cell(row, def.nameColumn);
   if (displayName === '') return [];
-  const keyValue = cell(row, def.keyColumn);
+  const keyValue = keyOf(row, def);
   if (keyValue === '') {
     issues.push({
       kind: 'emptyKey', entityType: def.type, row: rowNo,
-      detail: `${def.type} "${displayName}" has no value in key column "${def.keyColumn}" and is left out.`,
+      detail: `${def.type} "${displayName}" has no value in key column "${(def.keyColumns ?? [def.keyColumn]).join(', ')}" and is left out.`,
     });
     return [];
   }
+  // A composite key identifies one row; it is never a list of values to split.
+  if (def.keyColumns) {
+    return [{ entityType: def.type, displayName, canonicalKey: keyValue.toLowerCase(), attributes: withAlias(readAttributes(row, def), def, displayName), sourceLocator: `row:${rowNo}`, row: rowNo }];
+  }
   const attributes = readAttributes(row, def);
-  // The analyst may expose the name under an attribute of their own naming too.
-  const alias = def.nameAttribute && def.nameAttribute !== 'displayName' ? def.nameAttribute : null;
   return namesAndKeys(def, displayName, keyValue).map(nk => ({
     entityType: def.type, ...nk,
-    attributes: alias ? { ...attributes, [alias]: nk.displayName } : { ...attributes }, sourceLocator: `row:${rowNo}`, row: rowNo,
+    attributes: withAlias(attributes, def, nk.displayName), sourceLocator: `row:${rowNo}`, row: rowNo,
   }));
 }
 

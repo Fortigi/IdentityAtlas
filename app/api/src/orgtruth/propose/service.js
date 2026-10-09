@@ -124,10 +124,15 @@ const fallbackNote = (reason) => `The local model's proposal could not be used: 
  * @param {object} [options]        { timeoutMs, warmWaitMs } — for tests
  * @returns {Promise<{ recipe, linkRules, notes: string[], origin: 'model'|'heuristic', timing: object }>}
  */
-export async function propose({ fileName = '', columns, rowCount } = {}, options = {}) {
+export async function propose({ fileName = '', columns, rowCount, probes = null, compositeKey = null } = {}, options = {}) {
   const started = Date.now();
-  const heuristic = heuristicProposal({ fileName, columns, rowCount });
+  const heuristic = heuristicProposal({ fileName, columns, rowCount, probes, compositeKey });
   const done = (result, origin, extra = {}) => ({ ...result, origin, timing: { ms: Date.now() - started, ...extra } });
+  // DECISION: with the list's values probed against the accounts, resources and
+  // other lists, the data decides — it knows "Column 3" holds people, which no
+  // model reading headers and five samples can. The model is asked only when the
+  // proposal has nothing but the column profile to go on.
+  if (probes) return done(heuristic, 'data', { model: false });
   if (!(await modelReachable())) return done(heuristic, 'heuristic', { model: false });
 
   try {

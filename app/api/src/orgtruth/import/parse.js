@@ -159,15 +159,37 @@ export function findHeaderIndex(matrix) {
   return wide >= 0 ? wide : matrix.findIndex(cells => filledCells(cells) > 0);
 }
 
+// A row that is data, not a header: one of its cells is a plain number
+// ("2020", "52,00"). A real column header is never just a number, while an
+// export without a header row (a timesheet: year;month;person;customer;hours)
+// starts with one on the very first line.
+const NUMBER_CELL = /^[-+]?\d+([.,]\d+)?$/;
+export function looksLikeData(cells) {
+  return cells.some(c => NUMBER_CELL.test(c.trim()));
+}
+
 function toTable(matrix) {
   const headerAt = findHeaderIndex(matrix);
   if (headerAt < 0) throw new ListParseError('The file has no header row: every row is empty.');
-  const columns = headerNames(matrix[headerAt]);
-  const data = matrix.slice(headerAt + 1);
+  const headerless = looksLikeData(matrix[headerAt]);
+  const width = Math.max(...matrix.slice(headerAt, headerAt + 50).map(r => r.length));
+  const columns = headerless
+    ? trimEmptyColumns(Array.from({ length: width }, (_, i) => `Column ${i + 1}`), matrix.slice(headerAt))
+    : headerNames(matrix[headerAt]);
+  const data = matrix.slice(headerless ? headerAt : headerAt + 1);
   while (data.length > 0 && isBlankRow(data[data.length - 1])) data.pop();
   if (data.length > MAX_ROWS) throw tooManyRows();
   const rows = data.map(cells => Object.fromEntries(columns.map((name, i) => [name, cells[i] ?? ''])));
-  return { columns, rows, headerRow: headerAt + 1 };
+  // headerRow 0 = the file has no header row; every row is data
+  return { columns, rows, headerRow: headerless ? 0 : headerAt + 1 };
+}
+
+// Generated names for a headerless file, minus trailing columns that are empty
+// on every row (a timesheet export ending in ";;").
+function trimEmptyColumns(names, rows) {
+  let n = names.length;
+  while (n > 0 && rows.every(r => String(r[n - 1] ?? '').trim() === '')) n -= 1;
+  return names.slice(0, n);
 }
 
 // Trailing empty header cells are dropped; an empty or repeated name in

@@ -88,6 +88,8 @@
     "082_assignment_origin.sql": "fdb70c1da1be0abdba6b3ff1b5c2bbd8c5523dbda1093bac749b38a5f14cf099",
     "083_context_assignment_counts.sql": "8de6fd61424a9433a99f6b94be7a02cdb823c35ee40379cad23a4a35382383e4",
     "084_org_truth.sql": "62c58a375732ce2c7cf3e10478fbf1bf3d08647e5c1f0781bd9da05bb5ec164d",
-    "085_org_links_via.sql": "44f9599d9bf335b016b60586657c13abcaf39d91ebf79df94a0ea4c63d7c3e69"
+    "085_org_links_via.sql": "44f9599d9bf335b016b60586657c13abcaf39d91ebf79df94a0ea4c63d7c3e69",
+    "086_org_links_org_entity.sql": "af02d2880f28c44bae54e22a57e50d819cfd849b00bb476d43e41d14050dfbe2",
+    "087_org_links_unique_per_attribute.sql": "35bf9d00bb74d10d1208c7222b88306fc0b533434be0414e460aaf7a96fbdc9b"
   }
 }

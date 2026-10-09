@@ -120,9 +120,19 @@ function pickKey(cols, rows) {
   return byHeader ?? [...candidates].sort((a, b) => num(b.uniqueness) - num(a.uniqueness))[0] ?? null;
 }
 
-function pickName(cols, key) {
+// The data probes (probe.js), when the proposal had the rows: share of a
+// column's values that are accounts / resources / entities of another list.
+const PROBE_SHARE = 0.5;
+const probeOf = (probes, c) => probes?.[c.name] ?? { people: 0, resources: 0, orgEntities: 0, orgEntityTypes: [] };
+const holdsPeople = (probes, c) => probeOf(probes, c).people >= PROBE_SHARE;
+const namesOrgEntities = (probes, c) => probeOf(probes, c).orgEntities >= PROBE_SHARE;
+
+function pickName(cols, key, probes) {
   return cols.find(c => c !== key && NAME_HEADER.test(c.name) && !isPersonColumn(c) && c.shape !== 'email')
     ?? key
+    // a fact list without a key (a timesheet): name a row after what it is about
+    ?? cols.find(c => c.shape === 'text' && namesOrgEntities(probes, c))
+    ?? cols.find(c => c.shape === 'text' && holdsPeople(probes, c))
     ?? cols.find(c => c.shape === 'text')
     ?? cols[0];
 }
@@ -130,9 +140,9 @@ function pickName(cols, key) {
 // The entity: name, key, every other column as an attribute. Returns the
 // definition plus a Map column → attribute name (the name column maps to
 // displayName) so the rules can refer to columns by attribute.
-function entityOf({ type, cols, rows }) {
+function entityOf({ type, cols, rows, probes, compositeKey }) {
   const key = pickKey(cols, rows);
-  const name = pickName(cols, key);
+  const name = pickName(cols, key, probes);
   const used = new Set([key, name]);
   const attrNames = new Set([NAME_ATTRIBUTE]);
   const byColumn = new Map([[name.name, NAME_ATTRIBUTE]]);
@@ -144,11 +154,15 @@ function entityOf({ type, cols, rows }) {
     attributes.push({ column: c.name, name: attr });
     byColumn.set(c.name, attr);
   }
-  const entity = { type, nameColumn: name.name, ...(key ? { keyColumn: key.name } : {}), attributes };
-  const note = key
-    ? `${key.name} ${num(key.uniqueness) < 1 ? 'is nearly unique (a few values repeat)' : 'is unique on every row'}, so it is the key of ${type}${name === key ? '' : `, and ${name.name} is its name`}.`
-    : `No column is unique enough to be a key, so ${type} is identified by ${name.name}.`;
-  return { entity, byColumn, note, groupLike: looksLikeGroupNames(name.samples) };
+  const composite = !key && Array.isArray(compositeKey) && compositeKey.length >= 2 ? compositeKey : null;
+  const entity = {
+    type, nameColumn: name.name, ...(key ? { keyColumn: key.name } : {}), ...(composite ? { keyColumns: composite } : {}), attributes,
+  };
+  let note;
+  if (key) note = `${key.name} ${num(key.uniqueness) < 1 ? 'is nearly unique (a few values repeat)' : 'is unique on every row'}, so it is the key of ${type}${name === key ? '' : `, and ${name.name} is its name`}.`;
+  else if (composite) note = `No single column is unique, but ${composite.join(' + ')} together are, so every row is one ${type}, named after ${name.name}.`;
+  else note = `No column is unique enough to be a key, so ${type} is identified by ${name.name}.`;
+  return { entity, byColumn, note, groupLike: looksLikeGroupNames(name.samples), name };
 }
 
 const signal = (attribute, targetField, type, weight) => ({ attribute, targetField, type, weight });
@@ -199,12 +213,47 @@ function resourceRule(type, entity, groupLike) {
   };
 }
 
-// The rules an entity's columns suggest: the entity itself to resources,
-// then one per column that names people. A column an e-mail rule uses as its
-// name is not a rule of its own.
-function rulesFor(type, cols, built) {
-  const { entity, byColumn, groupLike } = built;
-  const out = [resourceRule(type, entity, groupLike)];
+function orgEntityRule(type, col, via, probes) {
+  const p = probeOf(probes, col);
+  const other = p.orgEntityTypes[0];
+  return {
+    rule: {
+      entityType: type, targetType: 'OrgEntity', via, threshold: 60,
+      signals: [signal(via, NAME_ATTRIBUTE, 'fuzzy', 100)],
+    },
+    note: `${Math.round(p.orgEntities * 100)} % of the values of ${col.name} match ${other ? `a ${other}` : 'an entity'} from another list, so ${type} is linked through it to that list (fuzzy on the name).`,
+  };
+}
+
+function selfPersonRule(type, entity, probes, name) {
+  return {
+    rule: {
+      entityType: type, targetType: 'Principal', via: NAME_ATTRIBUTE, threshold: 50,
+      signals: [signal(NAME_ATTRIBUTE, NAME_ATTRIBUTE, 'exact', 80), signal(NAME_ATTRIBUTE, NAME_ATTRIBUTE, 'name', 60)],
+    },
+    note: `${Math.round(probeOf(probes, name).people * 100)} % of the values of ${entity.nameColumn} are accounts, so every ${type} is a person, linked to their account by name.`,
+  };
+}
+
+// The rules for the entity itself: a person list links each row to its own
+// account; a list naming another list's entities links to them; otherwise the
+// row is matched to resources by name.
+function selfRules(type, built, probes) {
+  const { entity, groupLike, name } = built;
+  const out = [];
+  if (holdsPeople(probes, name)) out.push(selfPersonRule(type, entity, probes, name));
+  if (namesOrgEntities(probes, name)) out.push(orgEntityRule(type, name, NAME_ATTRIBUTE, probes));
+  if (out.length === 0 || probeOf(probes, name).resources >= PROBE_SHARE / 2) out.unshift(resourceRule(type, entity, groupLike));
+  return out;
+}
+
+// The rules an entity's columns suggest: the entity itself (selfRules), then one
+// per column that names people (by header, or because the probe found its values
+// among the accounts) or another list's entities. A column an e-mail rule uses as
+// its name is not a rule of its own.
+function rulesFor(type, cols, built, probes) {
+  const { byColumn } = built;
+  const out = selfRules(type, built, probes);
   const nameOf = (c) => byColumn.get(c.name);
   const isAttr = (c) => nameOf(c) && nameOf(c) !== NAME_ATTRIBUTE;
   const claimed = new Set();
@@ -213,7 +262,11 @@ function rulesFor(type, cols, built) {
     for (const s of r.rule.signals) if (s.attribute !== r.rule.via) claimed.add(s.attribute);
     out.push(r);
   }
-  for (const c of cols.filter(c => isPersonColumn(c) && isAttr(c) && !claimed.has(nameOf(c)))) out.push(personRule(type, c, cols, byColumn));
+  const personish = (c) => isPersonColumn(c) || (c.shape === 'text' && holdsPeople(probes, c));
+  for (const c of cols.filter(c => personish(c) && isAttr(c) && !claimed.has(nameOf(c)))) out.push(personRule(type, c, cols, byColumn));
+  for (const c of cols.filter(c => c.shape === 'text' && isAttr(c) && !personish(c) && namesOrgEntities(probes, c))) {
+    out.push(orgEntityRule(type, c, nameOf(c), probes));
+  }
   return out;
 }
 
@@ -222,16 +275,18 @@ function rulesFor(type, cols, built) {
  * @param {string} [args.fileName]
  * @param {object[]} args.columns   the column profile
  * @param {number} [args.rowCount]  rows in the list; the fullest column's count when absent
+ * @param {object} [args.probes]    probe.js probeColumns result, when the rows were available
+ * @param {string[]} [args.compositeKey] probe.js findCompositeKey result
  * @returns {{ recipe: object, linkRules: object[], notes: string[] }} validated and normalised
  * @throws when the profile has no usable column (nothing can be proposed for an empty list)
  */
-export function heuristicProposal({ fileName = '', columns, rowCount } = {}) {
+export function heuristicProposal({ fileName = '', columns, rowCount, probes = null, compositeKey = null } = {}) {
   const cols = usableColumns(columns);
   if (cols.length === 0) throw new Error('The list has no named columns, so there is nothing to propose.');
   const rows = Number.isFinite(rowCount) ? rowCount : Math.max(...cols.map(c => num(c.nonEmpty)));
   const type = uniqueName(typeFromFileName(fileName), new Set());
-  const built = entityOf({ type, cols, rows });
-  const rules = rulesFor(type, cols, built);
+  const built = entityOf({ type, cols, rows, probes, compositeKey });
+  const rules = rulesFor(type, cols, built, probes);
   return finish(
     { version: 1, entities: [built.entity], relations: [] },
     rules.map(r => r.rule),
