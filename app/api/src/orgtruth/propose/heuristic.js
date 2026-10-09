@@ -76,6 +76,30 @@ function personEntity(email, free, taken) {
   };
 }
 
+/** A text column whose header ends in a role word ("Eigenaar", "Project owner") holds people by name. */
+export function isRoleColumn(column) {
+  return column.shape === 'text' && isRole(column.name);
+}
+
+// People named in a role column without an e-mail address: matched to accounts by
+// name (exact first — directory names often carry the same suffix the list uses).
+function namedPersonEntity(column, taken) {
+  const type = uniqueName(pascalCase(column.name), taken);
+  return {
+    entity: { type, nameColumn: column.name, attributes: [] },
+    predicate: camelCase(column.name) || 'person',
+    note: `${column.name} names a role, so ${type} is a person named by that column and matched to accounts by name.`,
+  };
+}
+
+const namedPersonRule = (entity) => ({
+  entityType: entity.type, targetType: 'Principal', threshold: 50,
+  signals: [
+    { attribute: NAME_ATTRIBUTE, targetField: 'displayName', type: 'exact', weight: 80 },
+    { attribute: NAME_ATTRIBUTE, targetField: 'displayName', type: 'name', weight: 60 },
+  ],
+});
+
 function pickKey(free, rows) {
   const candidates = free.filter(c => ['text', 'number'].includes(c.shape)
     && num(c.uniqueness) >= KEY_UNIQUENESS && num(c.nonEmpty) >= KEY_FILLED * rows);
@@ -156,12 +180,17 @@ export function heuristicProposal({ fileName = '', columns, rowCount } = {}) {
   // The primary claims its type first, so a person never takes the file's name.
   const primaryType = free.length ? uniqueName(typeFromFileName(fileName), taken) : null;
   const people = emails.map(c => personEntity(c, free, taken));
+  // Role-named text columns that are left (an e-mail column may have claimed its sibling).
+  const roleCols = free.filter(isRoleColumn).slice(0, Math.max(0, LIMITS.entities - 1 - people.length));
+  for (const c of roleCols) free.splice(free.indexOf(c), 1);
+  const named = roleCols.map(c => namedPersonEntity(c, taken));
   const primary = primaryType ? primaryEntity({ type: primaryType, free, rows }) : null;
 
-  const entities = [...(primary ? [primary.entity] : []), ...people.map(p => p.entity)];
-  const relations = primary ? people.map(p => ({ predicate: p.predicate, from: primary.entity.type, to: p.entity.type })) : [];
-  const linkRules = people.map(p => personRule(p.entity));
-  const notes = [...(primary?.notes ?? []), ...people.map(p => p.note)];
+  const persons = [...people, ...named];
+  const entities = [...(primary ? [primary.entity] : []), ...persons.map(p => p.entity)];
+  const relations = primary ? persons.map(p => ({ predicate: p.predicate, from: primary.entity.type, to: p.entity.type })) : [];
+  const linkRules = [...people.map(p => personRule(p.entity)), ...named.map(p => namedPersonRule(p.entity))];
+  const notes = [...(primary?.notes ?? []), ...persons.map(p => p.note)];
   if (primary?.groupLike) {
     linkRules.unshift(resourceRule(primary.entity));
     notes.push(`The values of ${primary.entity.nameColumn} look like group names, so ${primary.entity.type} is matched to groups.`);

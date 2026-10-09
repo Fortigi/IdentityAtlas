@@ -212,6 +212,43 @@ describe('heuristicProposal — realistic lists', () => {
   });
 });
 
+describe('heuristicProposal — an owner column that holds names, not addresses', () => {
+  // A SharePoint-style list: Title, Eigenaar (person names), a few flags and texts.
+  const columns = profile(
+    c('Title', 'text', { rows: 58, samples: ['Contoso Bank', 'Northwind Finance'] }),
+    c('Eigenaar', 'text', { rows: 58, distinct: 9, samples: ['Ann Example', 'Bob Example | Contoso'] }),
+    c('Archief', 'boolean', { rows: 58, distinct: 2 }),
+    c('Risico klasse', 'text', { rows: 58, distinct: 3 }),
+  );
+  const result = heuristicProposal({ fileName: 'Klanten.xlsx', columns });
+
+  it('turns the role column into a person entity named by that column, related by its role', () => {
+    expectValid(result, columns);
+    expect(entity(result, 'Eigenaar')).toEqual({ type: 'Eigenaar', keyColumn: 'Eigenaar', nameColumn: 'Eigenaar', attributes: [] });
+    expect(result.recipe.relations).toEqual([{ predicate: 'eigenaar', from: 'Klant', to: 'Eigenaar' }]);
+    expect(entity(result, 'Klant').attributes.map(a => a.column)).toEqual(['Archief', 'Risico klasse']);
+  });
+
+  it('matches that person to accounts by exact name first, then graded name', () => {
+    expect(signalsOf(rule(result, 'Eigenaar'))).toEqual(['displayName>displayName:exact:80', 'displayName>displayName:name:60']);
+    expect(result.notes).toContain('Eigenaar names a role, so Eigenaar is a person named by that column and matched to accounts by name.');
+  });
+
+  it('does not take a role column an e-mail column already uses as its name, and ignores non-text role columns', () => {
+    nextIndex = 0;
+    const cols = profile(
+      c('Title', 'text', { rows: 20 }),
+      c('Owner', 'text', { rows: 20, distinct: 5 }),
+      c('Owner email', 'email', { rows: 20, distinct: 5 }),
+      c('Manager', 'number', { rows: 20, distinct: 5 }),
+    );
+    const r = heuristicProposal({ fileName: 'Assets.xlsx', columns: cols });
+    expect(r.recipe.entities.map(e => e.type)).toEqual(['Asset', 'Owner']);
+    expect(entity(r, 'Owner').attributes).toEqual([{ column: 'Owner email', name: 'email' }]);
+    expect(entity(r, 'Asset').attributes.map(a => a.column)).toEqual(['Manager']);
+  });
+});
+
 describe('helpers', () => {
   it('emailPrefix strips the e-mail words wherever they stand', () => {
     expect(emailPrefix('OwnerEmail')).toBe('Owner');
