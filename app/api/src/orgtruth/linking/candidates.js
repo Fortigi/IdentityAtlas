@@ -96,7 +96,9 @@ export function buildRuleIndex(rows, rule) {
   // An org entity never links to an entity of its own type: a timesheet row
   // named after its customer must find the customer list, not its sibling rows.
   const usable = (keepNonHuman ? rows : rows.filter(r => !isNonHuman(r)))
-    .filter(r => rule.targetType !== 'OrgEntity' || r.entityType !== rule.entityType);
+    .filter(r => rule.targetType !== 'OrgEntity' || r.entityType !== rule.entityType)
+    // a rule to another list may name which list (targetEntityType)
+    .filter(r => rule.targetType !== 'OrgEntity' || !rule.targetEntityType || r.entityType === rule.targetEntityType);
   const bySignal = new Map();
   for (const s of rule.signals) {
     const idx = new Map();

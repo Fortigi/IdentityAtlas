@@ -221,6 +221,7 @@ function orgEntityRule(type, col, via, probes) {
   return {
     rule: {
       entityType: type, targetType: 'OrgEntity', via, threshold: 60,
+      ...(other ? { targetEntityType: other } : {}),
       signals: [signal(via, NAME_ATTRIBUTE, 'fuzzy', 100)],
     },
     note: `${Math.round(p.orgEntities * 100)} % of the values of ${col.name} match ${other ? `a ${other}` : 'an entity'} from another list, so ${type} is linked through it to that list (fuzzy on the name).`,

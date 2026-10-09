@@ -5,8 +5,10 @@
 //   {
 //     entityTypes: [ { type, count, proposed, attributeKeys: string[], sources, lastObservedAt } ],  // by type
 //     predicates:  [ { predicate, fromType, toType, count, proposed } ],  // by predicate, fromType, toType
-//     links:       [ { entityType, targetType, accepted, proposed } ],    // by entityType, targetType
+//     links:       [ { entityType, targetType, via, accepted, proposed } ],  // to the system truth, per attribute
+//     entityLinks: [ { fromType, toType, via, accepted, proposed } ],        // between two organisation lists
 //     systemTypes: [ { targetType, count } ],                              // Principal, Resource, Identity, Context; [] with withSystemCounts=0
+//     profiles:    [ { id, name, version, recipe, linkRules, lastSourceId, lastRunStatus } ], // newest version per name
 //     totals:      { entities, relations, links, sources }
 //   }
 //
@@ -79,18 +81,53 @@ async function predicateRows(filters) {
   `, params)).rows;
 }
 
+// Links to the system truth, per entity type, target type AND attribute
+// ("eigenaar", "team"): one edge per attribute in the diagram.
 async function linkRows(filters) {
   const { params, bind } = createParams();
   return (await db.query(`
-    SELECT e."entityType", l."targetType",
+    SELECT e."entityType", l."targetType", COALESCE(l.via, 'displayName') AS via,
            COUNT(*) FILTER (WHERE l.status = 'accepted')::int AS accepted,
            COUNT(*) FILTER (WHERE l.status = 'proposed')::int AS proposed
       FROM "OrgLinks" l
       JOIN "OrgEntities" e ON e.id = l."orgEntityId"
-     WHERE l.status <> 'rejected' AND ${claimFilter('e', filters, bind)}
-     GROUP BY e."entityType", l."targetType"
-     ORDER BY e."entityType", l."targetType"
+     WHERE l.status <> 'rejected' AND l."targetType" <> 'OrgEntity' AND ${claimFilter('e', filters, bind)}
+     GROUP BY e."entityType", l."targetType", COALESCE(l.via, 'displayName')
+     ORDER BY e."entityType", l."targetType", 3
   `, params)).rows;
+}
+
+// Links between two organisation lists: from entity type → to entity type, per
+// attribute (Uren —klant→ FortigiTeam). Drawn as type-to-type edges.
+async function entityLinkRows(filters) {
+  const { params, bind } = createParams();
+  return (await db.query(`
+    SELECT e."entityType" AS "fromType", t."entityType" AS "toType", COALESCE(l.via, 'displayName') AS via,
+           COUNT(*) FILTER (WHERE l.status = 'accepted')::int AS accepted,
+           COUNT(*) FILTER (WHERE l.status = 'proposed')::int AS proposed
+      FROM "OrgLinks" l
+      JOIN "OrgEntities" e ON e.id = l."orgEntityId"
+      JOIN "OrgEntities" t ON t.id = l."targetId"
+     WHERE l.status <> 'rejected' AND l."targetType" = 'OrgEntity' AND ${claimFilter('e', filters, bind)}
+     GROUP BY 1, 2, 3
+     ORDER BY 1, 2, 3
+  `, params)).rows;
+}
+
+// The import profiles behind the model, newest version per name, with their
+// link rules and the source their last run read: what the Model tab's rule
+// editor edits and re-links.
+async function profileRows() {
+  return (await db.query(`
+    SELECT p.id, p.name, p.version, p.recipe, p."linkRules",
+           (SELECT r."sourceId" FROM "OrgImportRuns" r JOIN "OrgImportProfiles" pv ON pv.id = r."profileId"
+             WHERE pv.name = p.name ORDER BY r."createdAt" DESC LIMIT 1) AS "lastSourceId",
+           (SELECT r.status FROM "OrgImportRuns" r JOIN "OrgImportProfiles" pv ON pv.id = r."profileId"
+             WHERE pv.name = p.name ORDER BY r."createdAt" DESC LIMIT 1) AS "lastRunStatus"
+      FROM "OrgImportProfiles" p
+     WHERE p.version = (SELECT MAX(v.version) FROM "OrgImportProfiles" v WHERE v.name = p.name)
+     ORDER BY p.name
+  `)).rows;
 }
 
 async function sourceCount({ sourceId }) {
@@ -129,13 +166,15 @@ const sum = (rows, ...fields) => rows.reduce((n, r) => n + fields.reduce((m, f) 
  */
 export async function getMetaGraph({ includeClosed = false, sourceId = null, withSystemCounts = true } = {}) {
   const filters = { includeClosed, sourceId };
-  const [types, keyRows, predicates, links, sources, systemTypes] = await Promise.all([
+  const [types, keyRows, predicates, links, entityLinks, sources, systemTypes, profiles] = await Promise.all([
     entityTypeRows(filters),
     attributeKeyRows(filters),
     predicateRows(filters),
     linkRows(filters),
+    entityLinkRows(filters),
     sourceCount(filters),
     withSystemCounts ? systemTypeRows() : Promise.resolve([]),
+    profileRows(),
   ]);
   const keys = groupAttributeKeys(keyRows);
   const entityTypes = types.map(t => ({ ...t, attributeKeys: keys.get(t.type) || [] }));
@@ -143,11 +182,13 @@ export async function getMetaGraph({ includeClosed = false, sourceId = null, wit
     entityTypes,
     predicates,
     links,
+    entityLinks,
     systemTypes,
+    profiles,
     totals: {
       entities: sum(types, 'count', 'proposed'),
       relations: sum(predicates, 'count', 'proposed'),
-      links: sum(links, 'accepted', 'proposed'),
+      links: sum(links, 'accepted', 'proposed') + sum(entityLinks, 'accepted', 'proposed'),
       sources,
     },
   };

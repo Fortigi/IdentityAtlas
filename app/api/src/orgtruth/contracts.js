@@ -103,6 +103,7 @@ export const LINK_RULES_JSON_SCHEMA = Object.freeze({
       targetType: { enum: Object.keys(LINK_TARGETS) },
       via:        { type: 'string', minLength: 1, maxLength: 64 },
       name:       { type: 'string', maxLength: 200 },
+      targetEntityType: { type: 'string', minLength: 1, maxLength: 64 },
       threshold:  { type: 'integer', minimum: 0, maximum: 100 },
       signals: {
         type: 'array', minItems: 1, maxItems: LIMITS.signalsPerRule,
@@ -261,7 +262,9 @@ export function ruleVia(rule) {
   return isNonEmptyString(first) ? first : NAME_ATTRIBUTE;
 }
 
-export const ruleName = (rule) => `${rule.entityType.trim()} → ${rule.targetType} via ${ruleVia(rule)}`;
+// A rule to another list names that list's entity type when it has one ("Uren → FortigiTeam via klant").
+const ruleTarget = (rule) => (rule.targetType === 'OrgEntity' && isNonEmptyString(rule.targetEntityType) ? rule.targetEntityType.trim() : rule.targetType);
+export const ruleName = (rule) => `${rule.entityType.trim()} → ${ruleTarget(rule)} via ${ruleVia(rule)}`;
 
 function checkRule(rule, where, et, entityDefs, recipe, errors) {
   if (recipe && !entityDefs.has(et)) errors.push(`${where} is for entity type "${et}", which the recipe does not define.`);
@@ -269,6 +272,9 @@ function checkRule(rule, where, et, entityDefs, recipe, errors) {
   if (!fields) { errors.push(`${where} ("${et}") has an unknown targetType "${rule.targetType}"; use one of ${Object.keys(LINK_TARGETS).join(', ')}.`); return; }
   if (rule.threshold !== undefined && !isWholeNumberIn(rule.threshold, 0, 100)) errors.push(`${where} ("${et}") threshold must be a whole number from 0 to 100.`);
   if (rule.via !== undefined && !isNonEmptyString(rule.via)) errors.push(`${where} ("${et}") has an empty "via".`);
+  if (rule.targetEntityType !== undefined && (rule.targetType !== 'OrgEntity' || !isNonEmptyString(rule.targetEntityType))) {
+    errors.push(`${where} ("${et}") targetEntityType names the entity type of another list and only goes with targetType OrgEntity.`);
+  }
   const entityDef = recipe ? entityDefs.get(et) : null;
   if (entityDef && isNonEmptyString(rule.via) && !entityAttributeNames(entityDef).includes(rule.via.trim())) {
     errors.push(`${where} ("${et}") links via "${rule.via}", which entity "${et}" does not have (have: ${entityAttributeNames(entityDef).join(', ')}).`);
@@ -315,6 +321,7 @@ export function normalizeLinkRules(rules) {
     targetType: r.targetType,
     via: ruleVia(r),
     name: isNonEmptyString(r.name) ? r.name.trim() : ruleName(r),
+    ...(isNonEmptyString(r.targetEntityType) ? { targetEntityType: r.targetEntityType.trim() } : {}),
     threshold: r.threshold ?? 50,
     signals: r.signals.map((s, i) => ({
       name: isNonEmptyString(s.name) ? s.name.trim() : `${s.attribute}→${s.targetField}`,
