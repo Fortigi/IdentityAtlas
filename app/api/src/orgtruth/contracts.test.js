@@ -190,6 +190,48 @@ describe('validateLinkRules', () => {
     expect(normalizeRecipe(r).entities[0].nameAttribute).toBeUndefined();
   });
 
+  describe('targetEntityType', () => {
+    const toList = (extra) => ([{
+      entityType: 'Project', targetType: 'OrgEntity', via: 'displayName', ...extra,
+      signals: [{ attribute: 'displayName', targetField: 'displayName', type: 'fuzzy', weight: 100 }],
+    }]);
+    const msg = 'Link rule 1 ("Project") targetEntityType names the entity type of another list and only goes with targetType OrgEntity.';
+
+    it('accepts the entity type of another list on a rule to OrgEntity', () => {
+      expect(validateLinkRules(toList({ targetEntityType: 'Person' }), recipe())).toEqual({ ok: true, errors: [] });
+      expect(validateLinkRules(toList({}), recipe())).toEqual({ ok: true, errors: [] });
+    });
+
+    it('rejects it on any other target type, and rejects an empty or non-string one', () => {
+      const principal = toList({ targetType: 'Principal', targetEntityType: 'Person' });
+      expect(validateLinkRules(principal, recipe()).errors).toEqual([msg]);
+      for (const bad of ['  ', '', 7, null]) {
+        expect(validateLinkRules(toList({ targetEntityType: bad }), recipe()).errors, String(bad)).toEqual([msg]);
+      }
+    });
+
+    it('names the rule after the target list ("Uren → FortigiTeam via column4"), only for OrgEntity', () => {
+      const uren = { entityType: 'Uren', targetType: 'OrgEntity', targetEntityType: ' FortigiTeam ', signals: [{ attribute: 'column4' }] };
+      expect(ruleName(uren)).toBe('Uren → FortigiTeam via column4');
+      expect(ruleName({ ...uren, targetEntityType: ' ' })).toBe('Uren → OrgEntity via column4');
+      expect(ruleName({ ...uren, targetEntityType: undefined })).toBe('Uren → OrgEntity via column4');
+      expect(ruleName({ ...uren, targetType: 'Resource' })).toBe('Uren → Resource via column4');
+    });
+
+    it('normalizeLinkRules keeps it trimmed, names the rule by it, and leaves it out when absent', () => {
+      const [kept] = normalizeLinkRules(toList({ targetEntityType: ' Person ' }));
+      expect(kept.targetEntityType).toBe('Person');
+      expect(kept.name).toBe('Project → Person via displayName');
+      const [plain] = normalizeLinkRules(toList({}));
+      expect(plain).not.toHaveProperty('targetEntityType');
+      expect(plain.name).toBe('Project → OrgEntity via displayName');
+    });
+
+    it('is in the JSON schema as a non-empty string', () => {
+      expect(LINK_RULES_JSON_SCHEMA.items.properties.targetEntityType).toEqual({ type: 'string', minLength: 1, maxLength: 64 });
+    });
+  });
+
   it('validates without a recipe (attributes unchecked, everything else checked)', () => {
     const rs = rules();
     rs[0].signals[0].attribute = 'whatever';

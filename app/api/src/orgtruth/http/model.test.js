@@ -35,7 +35,10 @@ describe('GET /org-truth/model', () => {
     expect(r.status).toBe(200);
     expect(r.body.totals).toEqual({ entities: 0, relations: 0, links: 0, sources: 0 });
     expect(r.body.systemTypes).toHaveLength(4);
-    expect(query).toHaveBeenCalledTimes(6);
+    expect(r.body.entityLinks).toEqual([]);
+    expect(r.body.profiles).toEqual([]);
+    // types, keys, predicates, links, entity links, sources, system counts, profiles
+    expect(query).toHaveBeenCalledTimes(8);
     expect(query.mock.calls[0][0]).toMatch(/"validTo" IS NULL/);
   });
 
@@ -44,7 +47,7 @@ describe('GET /org-truth/model', () => {
     const r = await request(app).get(`/api/org-truth/model?includeClosed=1&sourceId=${SRC}&withSystemCounts=0`);
     expect(r.status).toBe(200);
     expect(r.body.systemTypes).toEqual([]);
-    expect(query).toHaveBeenCalledTimes(5);
+    expect(query).toHaveBeenCalledTimes(7);
     expect(query.mock.calls[0][0]).not.toMatch(/"validTo" IS NULL/);
     expect(query.mock.calls[0][1]).toEqual([SRC]);
   });
@@ -52,7 +55,8 @@ describe('GET /org-truth/model', () => {
   it('also skips system counts for withSystemCounts=false', async () => {
     query.mockResolvedValue({ rows: [] });
     await request(app).get('/api/org-truth/model?withSystemCounts=false');
-    expect(query).toHaveBeenCalledTimes(5);
+    expect(query).toHaveBeenCalledTimes(7);
+    expect(query.mock.calls.some(([sql]) => sql.includes('FROM "Principals"'))).toBe(false);
   });
 
   it('400 for a malformed sourceId, 500 with a generic message on a db error', async () => {
