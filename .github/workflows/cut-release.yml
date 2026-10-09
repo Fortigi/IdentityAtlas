@@ -178,6 +178,8 @@ jobs:
           echo "--- release-notes.md final ---"
           cat release-notes.md
 
+      # Publishing the release triggers docs.yml, which deploys the stable docs.
+      # Don't deploy them here as well: two pushes to gh-pages race and one fails.
       - name: Create GitHub release with portable ZIPs
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
@@ -188,11 +190,6 @@ jobs:
             --title "$TAG" \
             --notes-file release-notes.md \
             --latest
-
-      - name: Deploy versioned docs
-        run: |
-          pip install --quiet -r docs/requirements.txt
-          mike deploy --push --title "$VERSION" stable
 
       - name: Post run summary
         run: |

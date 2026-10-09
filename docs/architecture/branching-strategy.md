@@ -130,6 +130,12 @@ git push origin bugfixes/fix-login-crash
 5. The workflow creates tag `v5.2.1` on the HEAD of your branch
 6. `docker-publish.yml` builds `:latest` + `:5.2.1.0`
 
+To cut a patch from a long-lived release branch such as `release/5.9`, dispatch the workflow **from that branch** so the branch's own copy runs. `main`'s copy calls scripts an older branch does not have, and stops before tagging when it finds them missing:
+
+```bash
+gh workflow run cut-hotfix.yml --ref release/5.9 -f branch=release/5.9 -f version=5.9.3
+```
+
 After the hotfix ships, open a PR to cherry-pick the fix into `main`:
 
 ```bash
