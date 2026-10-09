@@ -8,7 +8,8 @@
 //       org:<entityId>       one per open, accepted entity contextType = the entity type
 //
 // Which types are projected: `params.entityTypes` when it is a non-empty list;
-// otherwise every type that has at least one accepted link (to any target type).
+// otherwise every type with an entity that has an accepted link (to any target
+// type) or is one accepted relation away from an entity that has one.
 // Within a projected type every open, accepted entity appears, linked or not —
 // an unlinked project is a finding, not noise.
 //
@@ -71,14 +72,19 @@ function neighbours(relations, entityIds) {
   return byEntity;
 }
 
-export function projectedTypes(entities, links, entityTypes) {
+// Default scope: every type with an entity that has an accepted link itself OR
+// is one relation away from one. A project list links its owners (people), not
+// the projects; the projects are what the analyst wants as contexts, with the
+// owner's accounts as members — so a type reached through a relation counts.
+export function projectedTypes(entities, links, entityTypes, related = new Map()) {
   const present = new Set(entities.map(e => e.entityType));
   let wanted;
   if (Array.isArray(entityTypes) && entityTypes.length > 0) {
     wanted = new Set(entityTypes);
   } else {
     const linked = new Set(links.map(l => l.entityId));
-    wanted = new Set(entities.filter(e => linked.has(e.id)).map(e => e.entityType));
+    const reaches = (e) => linked.has(e.id) || [...(related.get(e.id) || [])].some(id => linked.has(id));
+    wanted = new Set(entities.filter(reaches).map(e => e.entityType));
   }
   return [...present].filter(t => wanted.has(t)).sort();
 }
@@ -139,13 +145,13 @@ export function buildProjection(input, { memberType, entityTypes }) {
   const entityIds = new Set(entities.map(e => e.id));
   const relations = input.relations.filter(isLive);
   const links = input.links.filter(l => isLiveLink(l) && entityIds.has(l.entityId));
-  const types = projectedTypes(entities, links, entityTypes);
+  const related = neighbours(relations, entityIds);
+  const types = projectedTypes(entities, links, entityTypes, related);
   if (types.length === 0) return { contexts: [], members: [] };
 
   const typeSet = new Set(types);
   const projected = entities.filter(e => typeSet.has(e.entityType));
   const direct = directMembers(links, memberType);
-  const related = neighbours(relations, entityIds);
 
   const contexts = [ROOT_CONTEXT, ...types.map(typeContext), ...projected.map(entityContext)];
   const members = [];

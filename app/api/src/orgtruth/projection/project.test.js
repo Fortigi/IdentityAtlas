@@ -49,6 +49,12 @@ describe('projectedTypes', () => {
   it('uses an explicit list, linked or not, but never a type with no entity', () => {
     expect(projectedTypes(ents, [], ['Team', 'Nonexistent'])).toEqual(['Team']);
   });
+  it('also projects a type reached through one relation from a linked entity (the project whose owner is linked)', () => {
+    // Only the Team is linked; the Project is one relation away, the Asset is two.
+    const related = new Map([['a', new Set(['b'])], ['b', new Set(['a'])], ['c', new Set(['a'])]]);
+    expect(projectedTypes(ents, [{ entityId: 'b' }], undefined, related)).toEqual(['Project', 'Team']);
+    expect(projectedTypes(ents, [{ entityId: 'b' }], [], new Map())).toEqual(['Team']);
+  });
 });
 
 describe('buildProjection — Resource members', () => {
