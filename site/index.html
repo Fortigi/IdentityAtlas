@@ -12,6 +12,10 @@
   <meta property="og:title" content="Identity Atlas — Universal authorization intelligence" />
   <meta property="og:description" content="You can't govern what you can't see. Role mining and analytics that make sense of your authorization data — open source, self-hosted, your identity data never leaves your environment." />
   <meta property="og:image" content="assets/og-image.png" />
+  <meta property="og:video" content="https://identityatlas.io/assets/explainer.mp4" />
+  <meta property="og:video:type" content="video/mp4" />
+  <meta property="og:video:width" content="1920" />
+  <meta property="og:video:height" content="1080" />
   <meta name="twitter:card" content="summary_large_image" />
 
   <!-- Set theme before paint to avoid flash -->
@@ -100,6 +104,18 @@
     .hero-art img { position: relative; z-index: 1; width: min(360px, 78%); filter: drop-shadow(0 24px 48px rgba(101,163,13,.28)); }
     @media (prefers-reduced-motion: no-preference) { .hero-art img { animation: float 7s ease-in-out infinite; } }
     @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+
+    /* ── Watch (explainer video) ───────────────────────────── */
+    .watch .sec-head { max-width: 640px; margin: 0 auto 32px; text-align: center; }
+    .video-frame {
+      max-width: 960px; margin: 0 auto; aspect-ratio: 16 / 9;
+      border-radius: var(--radius); overflow: hidden; background: var(--bg-elev);
+      border: 1px solid var(--border-strong); box-shadow: var(--shadow-lg);
+    }
+    .video-frame video { width: 100%; height: 100%; display: block; background: var(--bg-elev); }
+    .video-meta { margin-top: 16px; text-align: center; color: var(--fg-subtle); font-size: .9rem; }
+    .video-meta a { font-weight: 600; }
+    .btn .play { width: 16px; height: 16px; flex: none; }
 
     /* ── Sections ──────────────────────────────────────────── */
     section.band { padding: 84px 0; border-top: 1px solid var(--border); }
@@ -244,6 +260,7 @@
         <span>Identity<span class="b-atlas"> Atlas</span></span>
       </a>
       <nav class="nav-links" id="navlinks" aria-label="Primary">
+        <a class="nlink" href="#watch">Watch</a>
         <a class="nlink" href="#why">Why</a>
         <a class="nlink" href="#what">What</a>
         <a class="nlink" href="#how">How to start</a>
@@ -283,6 +300,10 @@
           </p>
           <div class="hero-cta">
             <a class="btn btn-primary" href="/demo/">Try the live demo</a>
+            <a class="btn btn-ghost" href="#watch">
+              <svg class="play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.87l11-6.5a1 1 0 0 0 0-1.74l-11-6.5A1 1 0 0 0 8 5.5Z"/></svg>
+              Watch the explainer
+            </a>
             <a class="btn btn-ghost" href="#how">Get started</a>
           </div>
           <p class="hero-note">
@@ -294,6 +315,29 @@
           <div class="glow" aria-hidden="true"></div>
           <img src="assets/mark.png" alt="Identity Atlas logo — a shield woven into a neural network" width="360" height="360" />
         </div>
+      </div>
+    </section>
+
+    <!-- ─── WATCH ─────────────────────────────────────────── -->
+    <section class="band watch" id="watch">
+      <div class="wrap">
+        <div class="sec-head reveal">
+          <span class="eyebrow">Watch the explainer</span>
+          <h2>Identity Atlas in about a minute.</h2>
+          <p>Who has access to what, across every connected system — and why that answer is hard to get today.</p>
+        </div>
+        <div class="video-frame reveal">
+          <video controls preload="metadata" playsinline
+                 poster="assets/explainer-poster.jpg" width="1920" height="1080"
+                 aria-label="Identity Atlas explainer video — Trust starts with clarity">
+            <source src="assets/explainer.mp4" type="video/mp4" />
+            Your browser can't play this video. <a href="assets/explainer.mp4">Download the explainer (MP4, 6 MB)</a>.
+          </video>
+        </div>
+        <p class="video-meta reveal">
+          1 minute · with sound · hosted here, no third-party player or tracking.
+          <a href="assets/explainer.mp4" download="IdentityAtlas-Explainer.mp4">Download the MP4 ↓</a>
+        </p>
       </div>
     </section>
 
@@ -575,6 +619,7 @@
         </div>
         <div class="ft-col">
           <h4>Product</h4>
+          <a href="#watch">Watch the explainer</a>
           <a href="#why">Why</a>
           <a href="#what">What it is</a>
           <a href="#how">How to start</a>
