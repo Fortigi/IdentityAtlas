@@ -43,6 +43,14 @@ describe('buildGroups', () => {
       { entityId: C2, entityType: 'Klant', label: 'Northwind', detail: '0 h · 1 rows · until 2024-05', hours: 0, lastPeriod: '2024-05' },
     ]);
     expect(g.sourceType).toBe('Uren');
+    expect(g.unlinkedRows).toBe(0);
+  });
+
+  it('rows of a fact type that point at no other list are counted on its through group, not listed', () => {
+    const lonely = { id: 'u9', entityType: 'Uren', displayName: 'Ann Example', attributes: {}, via: 'displayName' };
+    const o = buildGroups([...direct, lonely], through);
+    expect(o.groups.map(x => x.label)).not.toContain('Uren · name');
+    expect(o.groups.find(x => x.kind === 'through').unlinkedRows).toBe(1);
   });
 
   it('empty input is no groups', () => {

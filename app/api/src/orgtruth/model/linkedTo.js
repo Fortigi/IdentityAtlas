@@ -58,9 +58,14 @@ const viaLabel = (via) => (via === 'displayName' ? 'name' : via);
 /** Pure: direct rows + through rows → groups. */
 export function buildGroups(directRows, throughRows) {
   const factIds = new Set(throughRows.map(r => r.fromId));
+  // A type with ANY row pointing at another list is a fact type: its rows that
+  // point nowhere (internal hours, an unknown customer) are counted, not listed.
+  const factTypes = new Set(directRows.filter(r => factIds.has(r.id)).map(r => r.entityType));
+  const unlinked = new Map();
   const direct = new Map();
   for (const r of directRows) {
     if (factIds.has(r.id)) continue;
+    if (factTypes.has(r.entityType)) { unlinked.set(r.entityType, (unlinked.get(r.entityType) ?? 0) + 1); continue; }
     const key = `direct|${r.entityType}|${r.via}`;
     const g = direct.get(key) ?? { key, entityType: r.entityType, via: r.via, kind: 'direct', label: `${r.entityType} · ${viaLabel(r.via)}`, items: new Map() };
     g.items.set(r.id, { entityId: r.id, entityType: r.entityType, label: r.displayName, detail: null });
@@ -88,7 +93,8 @@ export function buildGroups(directRows, throughRows) {
       : i));
     items.sort((a, b) => (b.hours ?? 0) - (a.hours ?? 0) || String(a.label).localeCompare(String(b.label)));
     const { items: _i, ...rest } = g;
-    return { ...rest, count: items.length, items: items.slice(0, ITEM_CAP), truncated: items.length > ITEM_CAP };
+    const extra = g.kind === 'through' ? { unlinkedRows: unlinked.get(g.sourceType) ?? 0 } : {};
+    return { ...rest, ...extra, count: items.length, items: items.slice(0, ITEM_CAP), truncated: items.length > ITEM_CAP };
   };
   const groups = [...direct.values(), ...through.values()].map(finish).sort((a, b) => a.label.localeCompare(b.label));
   return { total: groups.reduce((n, g) => n + g.count, 0), groups };
