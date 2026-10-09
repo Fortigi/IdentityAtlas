@@ -127,75 +127,117 @@ export function entityAttributeNames(entityDef) {
 }
 
 // ─── validateRecipe ──────────────────────────────────────────────────────
-export function validateRecipe(recipe, columns = null) {
-  const errors = [];
-  if (!recipe || typeof recipe !== 'object' || Array.isArray(recipe)) {
-    return { ok: false, errors: ['The recipe must be an object with "entities" and "relations".'] };
-  }
-  if (recipe.version !== 1) errors.push('The recipe "version" must be 1.');
+// Each check is its own small function that pushes sentences into `errors`;
+// the entry points only sequence them (complexity gate: ≤ 15 cognitive).
+const isWholeNumberIn = (v, min, max) => Number.isInteger(v) && v >= min && v <= max;
 
-  const entities = Array.isArray(recipe.entities) ? recipe.entities : null;
-  if (!entities || entities.length === 0) {
-    errors.push('The recipe needs at least one entity.');
-  } else if (entities.length > LIMITS.entities) {
-    errors.push(`The recipe has ${entities.length} entities; the maximum is ${LIMITS.entities}.`);
-  }
-
+function columnChecker(columns, errors) {
   const known = new Set(columns ?? []);
-  const checkColumn = (col, where) => {
+  return (col, where) => {
     if (columns && !known.has(col)) errors.push(`${where} refers to column "${col}", which the source does not have.`);
   };
+}
 
+function checkEntityColumns(e, type, checkColumn, errors) {
+  if (!isNonEmptyString(e.nameColumn)) errors.push(`Entity "${type}" has no "nameColumn".`);
+  else checkColumn(e.nameColumn, `Entity "${type}" nameColumn`);
+  if (e.keyColumn === undefined) return;
+  if (!isNonEmptyString(e.keyColumn)) errors.push(`Entity "${type}" has an empty "keyColumn".`);
+  else checkColumn(e.keyColumn, `Entity "${type}" keyColumn`);
+}
+
+function checkEntityAttributes(attrs, type, checkColumn, errors) {
+  if (!Array.isArray(attrs)) { errors.push(`Entity "${type}" "attributes" must be an array.`); return; }
+  if (attrs.length > LIMITS.attributesPerEntity) errors.push(`Entity "${type}" has ${attrs.length} attributes; the maximum is ${LIMITS.attributesPerEntity}.`);
+  const seen = new Set([NAME_ATTRIBUTE]);
+  for (const a of attrs) {
+    if (!isNonEmptyString(a?.column)) { errors.push(`Entity "${type}" has an attribute without a "column".`); continue; }
+    checkColumn(a.column, `Entity "${type}" attribute`);
+    const name = isNonEmptyString(a.name) ? a.name.trim() : a.column;
+    if (seen.has(name)) errors.push(`Entity "${type}" maps attribute "${name}" twice.`);
+    seen.add(name);
+  }
+}
+
+// Returns the set of defined entity types.
+function checkEntities(entities, checkColumn, errors) {
   const types = new Set();
+  if (!entities || entities.length === 0) errors.push('The recipe needs at least one entity.');
+  else if (entities.length > LIMITS.entities) errors.push(`The recipe has ${entities.length} entities; the maximum is ${LIMITS.entities}.`);
   for (const [i, e] of (entities ?? []).entries()) {
-    const where = `Entity ${i + 1}`;
-    if (!isNonEmptyString(e?.type)) { errors.push(`${where} has no "type".`); continue; }
+    if (!isNonEmptyString(e?.type)) { errors.push(`Entity ${i + 1} has no "type".`); continue; }
     const type = e.type.trim();
     if (types.has(type)) errors.push(`Entity type "${type}" is defined more than once.`);
     types.add(type);
-    if (!isNonEmptyString(e.nameColumn)) errors.push(`Entity "${type}" has no "nameColumn".`);
-    else checkColumn(e.nameColumn, `Entity "${type}" nameColumn`);
-    if (e.keyColumn !== undefined) {
-      if (!isNonEmptyString(e.keyColumn)) errors.push(`Entity "${type}" has an empty "keyColumn".`);
-      else checkColumn(e.keyColumn, `Entity "${type}" keyColumn`);
-    }
-    const attrs = e.attributes ?? [];
-    if (!Array.isArray(attrs)) { errors.push(`Entity "${type}" "attributes" must be an array.`); continue; }
-    if (attrs.length > LIMITS.attributesPerEntity) errors.push(`Entity "${type}" has ${attrs.length} attributes; the maximum is ${LIMITS.attributesPerEntity}.`);
-    const seen = new Set([NAME_ATTRIBUTE]);
-    for (const a of attrs) {
-      if (!isNonEmptyString(a?.column)) { errors.push(`Entity "${type}" has an attribute without a "column".`); continue; }
-      checkColumn(a.column, `Entity "${type}" attribute`);
-      const name = isNonEmptyString(a.name) ? a.name.trim() : a.column;
-      if (seen.has(name)) errors.push(`Entity "${type}" maps attribute "${name}" twice.`);
-      seen.add(name);
-    }
+    checkEntityColumns(e, type, checkColumn, errors);
+    checkEntityAttributes(e.attributes ?? [], type, checkColumn, errors);
   }
+  return types;
+}
 
-  const relations = recipe.relations ?? [];
-  if (!Array.isArray(relations)) errors.push('The recipe "relations" must be an array.');
-  else {
-    if (relations.length > LIMITS.relations) errors.push(`The recipe has ${relations.length} relations; the maximum is ${LIMITS.relations}.`);
-    const seen = new Set();
-    for (const [i, r] of relations.entries()) {
-      const where = `Relation ${i + 1}`;
-      if (!isNonEmptyString(r?.predicate)) errors.push(`${where} has no "predicate".`);
-      for (const side of ['from', 'to']) {
-        if (!isNonEmptyString(r?.[side])) errors.push(`${where} has no "${side}" entity type.`);
-        else if (!types.has(r[side].trim())) errors.push(`${where} refers to entity type "${r[side]}", which the recipe does not define.`);
-      }
-      const key = `${r?.predicate}|${r?.from}|${r?.to}`;
-      if (seen.has(key)) errors.push(`${where} (${r.predicate}: ${r.from} → ${r.to}) is defined more than once.`);
-      seen.add(key);
-    }
+function checkRelationSides(r, where, types, errors) {
+  for (const side of ['from', 'to']) {
+    if (!isNonEmptyString(r?.[side])) errors.push(`${where} has no "${side}" entity type.`);
+    else if (!types.has(r[side].trim())) errors.push(`${where} refers to entity type "${r[side]}", which the recipe does not define.`);
   }
+}
+
+function checkRelations(relations, types, errors) {
+  if (!Array.isArray(relations)) { errors.push('The recipe "relations" must be an array.'); return; }
+  if (relations.length > LIMITS.relations) errors.push(`The recipe has ${relations.length} relations; the maximum is ${LIMITS.relations}.`);
+  const seen = new Set();
+  for (const [i, r] of relations.entries()) {
+    const where = `Relation ${i + 1}`;
+    if (!isNonEmptyString(r?.predicate)) errors.push(`${where} has no "predicate".`);
+    checkRelationSides(r, where, types, errors);
+    const key = `${r?.predicate}|${r?.from}|${r?.to}`;
+    if (seen.has(key)) errors.push(`${where} (${r.predicate}: ${r.from} → ${r.to}) is defined more than once.`);
+    seen.add(key);
+  }
+}
+
+export function validateRecipe(recipe, columns = null) {
+  if (!recipe || typeof recipe !== 'object' || Array.isArray(recipe)) {
+    return { ok: false, errors: ['The recipe must be an object with "entities" and "relations".'] };
+  }
+  const errors = [];
+  if (recipe.version !== 1) errors.push('The recipe "version" must be 1.');
+  const checkColumn = columnChecker(columns, errors);
+  const types = checkEntities(Array.isArray(recipe.entities) ? recipe.entities : null, checkColumn, errors);
+  checkRelations(recipe.relations ?? [], types, errors);
   return { ok: errors.length === 0, errors };
 }
 
 // ─── validateLinkRules ───────────────────────────────────────────────────
+function checkSignal(s, sw, { fields, targetType, allowedAttrs }, errors) {
+  if (!isNonEmptyString(s?.attribute)) errors.push(`${sw} has no "attribute".`);
+  else if (allowedAttrs && !allowedAttrs.includes(s.attribute)) errors.push(`${sw} uses attribute "${s.attribute}", which entity "${allowedAttrs.entityType}" does not have (have: ${allowedAttrs.join(', ')}).`);
+  if (!fields.includes(s?.targetField)) errors.push(`${sw} targets field "${s?.targetField}"; ${targetType} allows ${fields.join(', ')}.`);
+  if (!SIGNAL_TYPES.includes(s?.type)) errors.push(`${sw} has type "${s?.type}"; use one of ${SIGNAL_TYPES.join(', ')}.`);
+  if (!isWholeNumberIn(s?.weight, 1, 100)) errors.push(`${sw} weight must be a whole number from 1 to 100.`);
+}
+
+function checkSignals(rule, where, et, entityDef, fields, errors) {
+  if (!Array.isArray(rule.signals) || rule.signals.length === 0) { errors.push(`${where} ("${et}") needs at least one signal.`); return; }
+  if (rule.signals.length > LIMITS.signalsPerRule) errors.push(`${where} ("${et}") has ${rule.signals.length} signals; the maximum is ${LIMITS.signalsPerRule}.`);
+  let allowedAttrs = null;
+  if (entityDef) { allowedAttrs = entityAttributeNames(entityDef); allowedAttrs.entityType = et; }
+  for (const [j, s] of rule.signals.entries()) {
+    checkSignal(s, `${where} ("${et}") signal ${j + 1}`, { fields, targetType: rule.targetType, allowedAttrs }, errors);
+  }
+}
+
+function checkRule(rule, where, et, entityDefs, recipe, errors) {
+  if (recipe && !entityDefs.has(et)) errors.push(`${where} is for entity type "${et}", which the recipe does not define.`);
+  const fields = LINK_TARGETS[rule.targetType];
+  if (!fields) { errors.push(`${where} ("${et}") has an unknown targetType "${rule.targetType}"; use one of ${Object.keys(LINK_TARGETS).join(', ')}.`); return; }
+  if (rule.threshold !== undefined && !isWholeNumberIn(rule.threshold, 0, 100)) errors.push(`${where} ("${et}") threshold must be a whole number from 0 to 100.`);
+  checkSignals(rule, where, et, recipe ? entityDefs.get(et) : null, fields, errors);
+}
+
 export function validateLinkRules(rules, recipe = null) {
-  const errors = [];
   if (!Array.isArray(rules)) return { ok: false, errors: ['Link rules must be an array.'] };
+  const errors = [];
   const entityDefs = new Map((recipe?.entities ?? []).map(e => [e?.type?.trim?.(), e]));
   const seenTypes = new Set();
   for (const [i, rule] of rules.entries()) {
@@ -204,23 +246,7 @@ export function validateLinkRules(rules, recipe = null) {
     const et = rule.entityType.trim();
     if (seenTypes.has(et)) errors.push(`Entity type "${et}" has more than one link rule.`);
     seenTypes.add(et);
-    if (recipe && !entityDefs.has(et)) errors.push(`${where} is for entity type "${et}", which the recipe does not define.`);
-    const fields = LINK_TARGETS[rule.targetType];
-    if (!fields) { errors.push(`${where} ("${et}") has an unknown targetType "${rule.targetType}"; use one of ${Object.keys(LINK_TARGETS).join(', ')}.`); continue; }
-    if (rule.threshold !== undefined && !(Number.isInteger(rule.threshold) && rule.threshold >= 0 && rule.threshold <= 100)) {
-      errors.push(`${where} ("${et}") threshold must be a whole number from 0 to 100.`);
-    }
-    if (!Array.isArray(rule.signals) || rule.signals.length === 0) { errors.push(`${where} ("${et}") needs at least one signal.`); continue; }
-    if (rule.signals.length > LIMITS.signalsPerRule) errors.push(`${where} ("${et}") has ${rule.signals.length} signals; the maximum is ${LIMITS.signalsPerRule}.`);
-    const allowedAttrs = recipe && entityDefs.has(et) ? entityAttributeNames(entityDefs.get(et)) : null;
-    for (const [j, s] of rule.signals.entries()) {
-      const sw = `${where} ("${et}") signal ${j + 1}`;
-      if (!isNonEmptyString(s?.attribute)) errors.push(`${sw} has no "attribute".`);
-      else if (allowedAttrs && !allowedAttrs.includes(s.attribute)) errors.push(`${sw} uses attribute "${s.attribute}", which entity "${et}" does not have (have: ${allowedAttrs.join(', ')}).`);
-      if (!fields.includes(s?.targetField)) errors.push(`${sw} targets field "${s?.targetField}"; ${rule.targetType} allows ${fields.join(', ')}.`);
-      if (!SIGNAL_TYPES.includes(s?.type)) errors.push(`${sw} has type "${s?.type}"; use one of ${SIGNAL_TYPES.join(', ')}.`);
-      if (!(Number.isInteger(s?.weight) && s.weight >= 1 && s.weight <= 100)) errors.push(`${sw} weight must be a whole number from 1 to 100.`);
-    }
+    checkRule(rule, where, et, entityDefs, recipe, errors);
   }
   return { ok: errors.length === 0, errors };
 }
