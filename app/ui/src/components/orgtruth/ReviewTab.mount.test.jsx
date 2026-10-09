@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 //
-// Organisation → Review against stubbed routes: grouping per entity, the
-// decision buttons only for an importer, Confirm / Reject / Move / Undo reaching
-// PUT|DELETE /links/:id/override then refetching, failures inline, the filter,
-// and the empty and 501 states.
+// Organisation → Review against stubbed routes: one card per distinct decision
+// (GET /review/groups), Confirm / Reject / Reject all sending the exact
+// PUT /review/groups/decision body then reloading, the toast, failures inline,
+// read-only for readers and for decided statuses, the filters, empty and 501.
 import { describe, it, expect, vi } from 'vitest';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, userEvent, waitFor, within } from '@ui/test-utils/renderWithProviders';
 import ReviewTab from './ReviewTab';
@@ -11,22 +11,25 @@ import ReviewTab from './ReviewTab';
 const IMPORTER = { hasWildcard: false, permissions: new Set(['data.read', 'data.write.contexts']) };
 const READER = { hasWildcard: false, permissions: new Set(['data.read']) };
 
-const ALICE = { id: 'e1', entityType: 'Person', displayName: 'Alice Contoso' };
-const PORTAL = { id: 'e2', entityType: 'Project', displayName: 'Northwind Portal' };
-const REVIEW = {
-  data: [
-    { link: { id: 'l1', confidence: 45, status: 'proposed', signals: 'name' }, entity: ALICE, target: { targetType: 'Principal', id: 'u1', label: 'alice.c' },
-      candidates: [{ id: 'l2', targetType: 'Principal', targetId: 'u2', label: 'alice.contoso', confidence: 70, status: 'proposed', signals: 'email,name' }] },
-    { link: { id: 'l3', confidence: 55, status: 'proposed', signals: 'token', analystOverride: 'rejected' }, entity: PORTAL, target: { targetType: 'Resource', id: 'g1', label: 'GRP-Portal' }, candidates: [] },
+const HARBOUR = {
+  entityType: 'Hours', via: 'customer', value: 'Contoso Harbour Ltd.', targetType: 'OrgEntity', entities: 42, bestConfidence: 70,
+  candidates: [
+    { targetId: 'c2', label: 'Harbour Holding', confidence: 55, entities: 42 },
+    { targetId: 'c1', label: 'Contoso Harbour', confidence: 70, entities: 42 },
   ],
-  total: 2,
 };
+const PORTAL = {
+  entityType: 'Project', via: 'displayName', value: 'Northwind Portal', targetType: 'Resource', entities: 1, bestConfidence: 80,
+  candidates: [{ targetId: 'g1', label: 'GRP-Portal', confidence: 80, entities: 1 }],
+};
+const GROUPS = { kind: 'groups', status: 'proposed', page: 1, pageSize: 50, total: 2, rows: [HARBOUR, PORTAL] };
+const HARBOUR_TITLE = 'Hours · customer = “Contoso Harbour Ltd.”';
 
-function render({ auth = IMPORTER, review = REVIEW, override = { ok: true } } = {}) {
+function render({ auth = IMPORTER, groups = GROUPS, decision = { accepted: 42, rejected: 42 } } = {}) {
   const authFetch = makeAuthFetch((url, opts) => {
-    if (url.startsWith('/api/org-truth/model')) return { entityTypes: [{ type: 'Person', count: 60 }, { type: 'Project', count: 87 }] };
-    if (url.startsWith('/api/org-truth/review')) return review;
-    if (url.includes('/override')) return typeof override === 'function' ? override(url, opts) : override;
+    if (url.startsWith('/api/org-truth/model')) return { entityTypes: [{ type: 'Project', count: 87 }, { type: 'Asset', count: 3 }] };
+    if (url === '/api/org-truth/review/groups/decision') return typeof decision === 'function' ? decision(url, opts) : decision;
+    if (url.startsWith('/api/org-truth/review/groups')) return groups;
     return undefined;
   });
   const onOpenDetail = vi.fn();
@@ -34,116 +37,120 @@ function render({ auth = IMPORTER, review = REVIEW, override = { ok: true } } = 
   return { authFetch, onOpenDetail };
 }
 
-const reviewCalls = (af) => af.mock.calls.filter(c => c[0].startsWith('/api/org-truth/review')).length;
-const overrideCalls = (af) => af.mock.calls.filter(c => c[0].includes('/override'));
-const group = async (name) => within(await screen.findByRole('region', { name }));
-// The in-app prompt is a form holding the message, the textbox and its buttons.
-const promptForm = async () => (await screen.findByRole('textbox')).closest('form');
-const rowOf = (g, label) => within(g.getByRole('button', { name: label }).closest('tr'));
+const groupCalls = (af) => af.mock.calls.filter(c => c[0].startsWith('/api/org-truth/review/groups?')).length;
+const decisionCalls = (af) => af.mock.calls.filter(c => c[0] === '/api/org-truth/review/groups/decision');
+const card = async (name) => within(await screen.findByRole('region', { name }));
 
 describe('ReviewTab', () => {
-  it('groups candidates per entity, best first, with confidence and signal chips', async () => {
+  it('renders one card per group with its rows, target kind and candidates best first', async () => {
     render();
-    const alice = await group('Alice Contoso');
-    const targets = alice.getAllByRole('row').slice(1).map(r => r.cells[0].textContent);
-    expect(targets).toEqual(['alice.contoso', 'alice.c']);
-    expect(alice.getByText('70%')).toBeInTheDocument();
-    expect(rowOf(alice, 'alice.contoso').getByText('email')).toBeInTheDocument();
-    expect(alice.getAllByText('Account')).toHaveLength(2);
-    expect(alice.getByText('Person')).toBeInTheDocument();
+    const harbour = await card(HARBOUR_TITLE);
+    expect(harbour.getByText('42 rows · links to another list')).toBeInTheDocument();
+    const names = harbour.getAllByRole('listitem').map(li => li.textContent);
+    expect(names[0]).toMatch(/^Contoso Harbour/);
+    expect(names[1]).toMatch(/^Harbour Holding/);
+    expect(harbour.getByText('70%')).toBeInTheDocument();
+    expect(harbour.getAllByText('42 rows')).toHaveLength(2);
+    const portal = await card('Project · name = “Northwind Portal”');
+    expect(portal.getByText('1 row · links to Group')).toBeInTheDocument();
+    expect(screen.getAllByRole('region')).toHaveLength(2);
   });
 
-  it('confirms a candidate, toasts and refetches the queue', async () => {
+  it('confirms a candidate with the exact body, toasts and reloads', async () => {
     const { authFetch } = render();
-    const alice = await group('Alice Contoso');
-    const before = reviewCalls(authFetch);
-    await userEvent.click(rowOf(alice, 'alice.contoso').getByRole('button', { name: 'Confirm' }));
-    expect(overrideCalls(authFetch)[0]).toEqual(['/api/org-truth/links/l2/override',
-      { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{"action":"confirmed"}' }]);
-    expect(await screen.findByText('Link confirmed')).toBeInTheDocument();
-    await waitFor(() => expect(reviewCalls(authFetch)).toBe(before + 1));
+    const harbour = await card(HARBOUR_TITLE);
+    const before = groupCalls(authFetch);
+    await userEvent.click(harbour.getByRole('button', { name: 'Confirm Contoso Harbour for “Contoso Harbour Ltd.”' }));
+    expect(decisionCalls(authFetch)).toEqual([['/api/org-truth/review/groups/decision', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entityType: 'Hours', via: 'customer', value: 'Contoso Harbour Ltd.', targetType: 'OrgEntity', action: 'confirmed', targetId: 'c1' }),
+    }]]);
+    expect(await screen.findByText('42 rows linked to Contoso Harbour')).toBeInTheDocument();
+    await waitFor(() => expect(groupCalls(authFetch)).toBe(before + 1));
   });
 
-  it('rejects, and undoes an earlier decision', async () => {
-    const { authFetch } = render();
-    const alice = await group('Alice Contoso');
-    await userEvent.click(rowOf(alice, 'alice.c').getByRole('button', { name: 'Reject' }));
-    expect(JSON.parse(overrideCalls(authFetch)[0][1].body)).toEqual({ action: 'rejected' });
-    const portal = await group('Northwind Portal');
-    const row = rowOf(portal, 'GRP-Portal');
-    expect(row.queryByRole('button', { name: 'Confirm' })).toBeNull();
-    await userEvent.click(row.getByRole('button', { name: 'Undo' }));
-    expect(overrideCalls(authFetch)[1][1]).toEqual({ method: 'DELETE' });
+  it('rejects one candidate, and rejects the whole group', async () => {
+    const { authFetch } = render({ decision: { accepted: 0, rejected: 42 } });
+    const harbour = await card(HARBOUR_TITLE);
+    await userEvent.click(harbour.getByRole('button', { name: 'Reject Harbour Holding for “Contoso Harbour Ltd.”' }));
+    expect(JSON.parse(decisionCalls(authFetch)[0][1].body)).toEqual(
+      { entityType: 'Hours', via: 'customer', value: 'Contoso Harbour Ltd.', targetType: 'OrgEntity', action: 'rejected', targetId: 'c2' });
+    expect(await screen.findByText('42 rows rejected for Harbour Holding')).toBeInTheDocument();
+    await userEvent.click(harbour.getByRole('button', { name: 'Reject all for “Contoso Harbour Ltd.”' }));
+    await waitFor(() => expect(decisionCalls(authFetch)).toHaveLength(2));
+    expect(JSON.parse(decisionCalls(authFetch)[1][1].body)).toEqual(
+      { entityType: 'Hours', via: 'customer', value: 'Contoso Harbour Ltd.', targetType: 'OrgEntity', action: 'rejected' });
+    expect(await screen.findByText('42 rows rejected')).toBeInTheDocument();
   });
 
-  it('moves a link to another shown candidate picked in the prompt', async () => {
-    const { authFetch } = render();
-    const alice = await group('Alice Contoso');
-    await userEvent.click(rowOf(alice, 'alice.c').getByRole('button', { name: 'Move' }));
-    const dialog = await promptForm();
-    expect(dialog).toHaveTextContent('1. alice.contoso (70%)');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Move' }));
-    await waitFor(() => expect(overrideCalls(authFetch)).toHaveLength(1));
-    expect(overrideCalls(authFetch)[0][0]).toBe('/api/org-truth/links/l1/override');
-    expect(JSON.parse(overrideCalls(authFetch)[0][1].body)).toEqual({ action: 'moved', targetId: 'u2' });
+  it('shows a failed decision inline and does not reload', async () => {
+    const { authFetch } = render({ decision: jsonResponse({ error: 'No open proposal for that value and target.' }, { ok: false, status: 404 }) });
+    const harbour = await card(HARBOUR_TITLE);
+    const before = groupCalls(authFetch);
+    await userEvent.click(harbour.getByRole('button', { name: 'Confirm Contoso Harbour for “Contoso Harbour Ltd.”' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The decision was not saved: No open proposal for that value and target.');
+    expect(groupCalls(authFetch)).toBe(before);
   });
 
-  it('refuses a move to something that is not a shown candidate, and a cancelled prompt does nothing', async () => {
-    const { authFetch } = render();
-    const alice = await group('Alice Contoso');
-    await userEvent.click(rowOf(alice, 'alice.c').getByRole('button', { name: 'Move' }));
-    const form = await promptForm();
-    const input = within(form).getByRole('textbox');
-    await userEvent.clear(input);
-    await userEvent.type(input, 'someone else');
-    await userEvent.click(within(form).getByRole('button', { name: 'Move' }));
-    expect(await screen.findByText('That is not one of the shown candidates.')).toBeInTheDocument();
-    await userEvent.click(rowOf(alice, 'alice.c').getByRole('button', { name: 'Move' }));
-    await userEvent.click(within(await promptForm()).getByRole('button', { name: 'Cancel' }));
-    expect(overrideCalls(authFetch)).toEqual([]);
-    // A candidate with no other target of its type cannot be moved.
-    expect(rowOf(await group('Northwind Portal'), 'GRP-Portal').queryByRole('button', { name: 'Move' })).toBeNull();
+  it('shows a network failure inline', async () => {
+    render({ decision: () => { throw new Error('offline'); } });
+    const harbour = await card(HARBOUR_TITLE);
+    await userEvent.click(harbour.getByRole('button', { name: 'Reject all for “Contoso Harbour Ltd.”' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The decision was not saved: offline');
   });
 
-  it('shows a failed decision inline', async () => {
-    render({ override: jsonResponse({ error: 'Link not found' }, { ok: false, status: 404 }) });
-    const alice = await group('Alice Contoso');
-    await userEvent.click(rowOf(alice, 'alice.c').getByRole('button', { name: 'Confirm' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('The decision was not saved: Link not found');
-  });
-
-  it('opens the entity and the target detail tabs', async () => {
+  it('opens a candidate\'s detail tab', async () => {
     const { onOpenDetail } = render();
-    const alice = await group('Alice Contoso');
-    await userEvent.click(alice.getByRole('button', { name: 'Alice Contoso' }));
-    expect(onOpenDetail).toHaveBeenCalledWith('org-entity', 'e1', 'Alice Contoso');
-    await userEvent.click(alice.getByRole('button', { name: 'alice.c' }));
-    expect(onOpenDetail).toHaveBeenCalledWith('user', 'u1', 'alice.c');
-    await userEvent.click((await group('Northwind Portal')).getByRole('button', { name: 'GRP-Portal' }));
+    await userEvent.click((await card(HARBOUR_TITLE)).getByRole('button', { name: 'Contoso Harbour' }));
+    expect(onOpenDetail).toHaveBeenCalledWith('org-entity', 'c1', 'Contoso Harbour');
+    await userEvent.click((await card('Project · name = “Northwind Portal”')).getByRole('button', { name: 'GRP-Portal' }));
     expect(onOpenDetail).toHaveBeenCalledWith('resource', 'g1', 'GRP-Portal');
   });
 
   it('is read-only for a reader', async () => {
     render({ auth: READER });
-    const alice = await group('Alice Contoso');
-    expect(alice.queryByRole('button', { name: 'Confirm' })).toBeNull();
+    const harbour = await card(HARBOUR_TITLE);
+    expect(harbour.queryByRole('button', { name: /^Confirm/ })).toBeNull();
+    expect(harbour.queryByRole('button', { name: /^Reject/ })).toBeNull();
     expect(screen.getByText(/deciding on a link needs permission/)).toBeInTheDocument();
   });
 
-  it('filters by entity type and resets to the first page', async () => {
+  it('shows decided groups read-only and resets to the first page on a filter', async () => {
     const { authFetch } = render();
-    await group('Alice Contoso');
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Entity type' }), 'Project');
-    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/org-truth/review?status=proposed&entityType=Project&page=1'));
+    await card(HARBOUR_TITLE);
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'accepted');
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/org-truth/review/groups?status=accepted&page=1'));
+    const harbour = await card(HARBOUR_TITLE);
+    await waitFor(() => expect(harbour.queryByRole('button', { name: /^Confirm/ })).toBeNull());
+    expect(harbour.queryByRole('button', { name: /^Reject all/ })).toBeNull();
+    expect(screen.queryByText(/deciding on a link needs permission/)).toBeNull();
+  });
+
+  it('filters by entity type from the model and the groups', async () => {
+    const { authFetch } = render();
+    await card(HARBOUR_TITLE);
+    const select = screen.getByRole('combobox', { name: 'Entity type' });
+    await waitFor(() => expect(within(select).getAllByRole('option').map(o => o.textContent))
+      .toEqual(['All types', 'Asset', 'Hours', 'Project']));
+    await userEvent.selectOptions(select, 'Hours');
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/org-truth/review/groups?status=proposed&entityType=Hours&page=1'));
+  });
+
+  it('pages through the groups', async () => {
+    const { authFetch } = render({ groups: { ...GROUPS, total: 120 } });
+    await card(HARBOUR_TITLE);
+    await userEvent.click(screen.getByRole('button', { name: /next/i }));
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/org-truth/review/groups?status=proposed&page=2'));
   });
 
   it('shows an empty queue', async () => {
-    render({ review: { data: [], total: 0 } });
+    render({ groups: { ...GROUPS, total: 0, rows: [] } });
     expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
   });
 
   it('renders a 501 as not available yet', async () => {
-    render({ review: jsonResponse({}, { ok: false, status: 501 }) });
+    render({ groups: jsonResponse({}, { ok: false, status: 501 }) });
     expect(await screen.findByText('Review — not available yet')).toBeInTheDocument();
   });
 });

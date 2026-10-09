@@ -14,3 +14,4 @@
 - An organisation entity's detail tab shows evidence from other lists such as a timesheet: whether the people the list names (its owner, its team) actually wrote hours on it and until when, who wrote hours on it without being listed, and whether it is still active, quiet or inactive.
 - Fixed: when two names in one cell resolve to the same account, the accepted match is kept even when a proposal for that account scored higher.
 - Fixed: links from an organisation entity to an entity of another list show in the entity graph and detail page under "Other lists", with the entity's name instead of its id.
+- Organisation → Review now shows each distinct decision once: all rows that name the same value (for example 42 timesheet rows naming one customer) form one card with its candidates and how many rows each covers, and one Confirm, Reject or Reject all decides for every row; a status filter shows the groups already accepted or rejected.

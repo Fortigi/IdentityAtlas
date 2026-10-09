@@ -1,60 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupReviewRows, toLinkCandidates, moveOptions, movePromptMessage, pickMoveOption } from './reviewRows';
-
-const ALICE = { id: 'e1', entityType: 'Person', displayName: 'Alice Contoso' };
-const PROJ = { id: 'e2', entityType: 'Project', displayName: 'Northwind Portal' };
-
-function row(entity, linkId, confidence, label, extra = {}) {
-  return {
-    link: { id: linkId, confidence, status: 'proposed', signals: 'email,name', ...extra },
-    entity,
-    target: { targetType: 'Principal', id: `t-${linkId}`, label },
-    candidates: [],
-  };
-}
-
-describe('groupReviewRows', () => {
-  it('groups per entity in API order and sorts candidates by confidence desc', () => {
-    const groups = groupReviewRows([
-      row(ALICE, 'l1', 40, 'alice.c'),
-      row(PROJ, 'l3', 55, 'GRP-Portal'),
-      row(ALICE, 'l2', 72, 'alice.contoso'),
-    ]);
-    expect(groups.map(g => g.entity.id)).toEqual(['e1', 'e2']);
-    expect(groups[0].candidates.map(c => c.linkId)).toEqual(['l2', 'l1']);
-    expect(groups[0].candidates[0]).toMatchObject({
-      targetType: 'Principal', targetId: 't-l2', label: 'alice.contoso', confidence: 72, signals: ['email', 'name'], status: 'proposed',
-    });
-  });
-
-  it('merges sibling candidates (flat or nested) and de-duplicates by link id', () => {
-    const r = row(ALICE, 'l1', 40, 'alice.c');
-    r.candidates = [
-      { id: 'l1', targetType: 'Principal', targetId: 't-l1', label: 'dup', confidence: 40 },
-      { id: 'l9', targetType: 'Principal', targetId: 't-l9', label: 'a.contoso', confidence: 61, signals: ['prefix'] },
-      { link: { id: 'l8', confidence: 61 }, target: { targetType: 'Principal', id: 't-l8', label: 'Alice C' } },
-    ];
-    const [g] = groupReviewRows([r]);
-    // l1 keeps the row's own label (first seen wins); the 61 tie sorts by label.
-    expect(g.candidates.map(c => [c.linkId, c.label])).toEqual([['l9', 'a.contoso'], ['l8', 'Alice C'], ['l1', 'alice.c']]);
-    expect(g.candidates[0].signals).toEqual(['prefix']);
-  });
-
-  it('skips rows without an entity and tolerates nulls', () => {
-    expect(groupReviewRows([{ link: { id: 'x' } }, null])).toEqual([]);
-    expect(groupReviewRows(undefined)).toEqual([]);
-  });
-
-  it('puts a candidate without confidence last and keeps the override', () => {
-    const [g] = groupReviewRows([
-      row(ALICE, 'l1', null, 'zed'),
-      row(ALICE, 'l2', 0, 'amy', { analystOverride: 'rejected' }),
-    ]);
-    expect(g.candidates.map(c => c.linkId)).toEqual(['l2', 'l1']);
-    expect(g.candidates[0].override).toBe('rejected');
-    expect(g.candidates[1].confidence).toBeNull();
-  });
-});
+import { toLinkCandidates, moveOptions, movePromptMessage, pickMoveOption } from './reviewRows';
 
 describe('toLinkCandidates', () => {
   it('normalises the detail page links, best first, dropping rows without id', () => {
@@ -67,6 +12,26 @@ describe('toLinkCandidates', () => {
     expect(c[0].label).toBe('u1');
     expect(c[1]).toMatchObject({ matchedField: 'displayName', matchedValue: 'GRP-A' });
     expect(toLinkCandidates(null)).toEqual([]);
+  });
+
+  it('reads a nested { link, target } row like a flat one, with signals, status and override', () => {
+    const [c] = toLinkCandidates([{ link: { id: 'l8', confidence: '61', signals: 'email,name', status: 'proposed', analystOverride: 'rejected' },
+      target: { targetType: 'Principal', id: 't-l8', label: 'Alice C' } }]);
+    expect(c).toEqual({
+      linkId: 'l8', targetType: 'Principal', targetId: 't-l8', label: 'Alice C', confidence: 61, signals: ['email', 'name'],
+      status: 'proposed', override: 'rejected', matchedField: null, matchedValue: null,
+    });
+    expect(toLinkCandidates([{ id: 'z' }])[0]).toMatchObject({ label: '(unknown)', targetType: null, targetId: null, confidence: null, status: null, override: null });
+  });
+
+  it('puts a zero confidence above a missing one, and ties by label', () => {
+    const c = toLinkCandidates([
+      { id: 'l1', label: 'zed', confidence: null },
+      { id: 'l2', label: 'amy', confidence: 0 },
+      { id: 'l3', label: 'bob', confidence: 61 },
+      { id: 'l4', label: 'abe', confidence: 61 },
+    ]);
+    expect(c.map(x => x.linkId)).toEqual(['l4', 'l3', 'l2', 'l1']);
   });
 });
 

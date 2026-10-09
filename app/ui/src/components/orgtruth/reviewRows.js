@@ -1,17 +1,9 @@
-// Pure logic behind Organisation → Review.
+// Pure logic behind the per-link table (OrgLinkTable) on the org-entity detail
+// page: one normalised candidate row per link, and the Move choice.
 //
-// GET /api/org-truth/review returns one row per proposed link (T2):
-//   { link: { id, confidence, status, signals, analystOverride, matchedField, matchedValue },
-//     entity: { id, entityType, displayName },
-//     target: { targetType, id, label },
-//     candidates: [ ...the other proposed links of the same entity ] }
-// The sibling shape is not pinned down; a candidate is read either flat
-// ({ id, targetType, targetId, label, confidence, signals }) or nested like a row
-// ({ link, target }). Verify at integration (T7).
-//
-// groupReviewRows turns that into one group per org entity (in the order the
-// API sent them: lowest confidence first) with its candidates de-duplicated by
-// link id and sorted by confidence desc, so the best guess reads first.
+// A link is read either flat ({ id, targetType, targetId, label, confidence,
+// signals }, as GET /entities/:id sends it) or nested ({ link, target }).
+// Review works on distinct decision groups instead (reviewGroups.js).
 import { splitSignals } from './orgFormat';
 
 function toCandidate(x) {
@@ -33,23 +25,6 @@ function toCandidate(x) {
 
 function byConfidenceDesc(a, b) {
   return ((b.confidence ?? -1) - (a.confidence ?? -1)) || String(a.label).localeCompare(String(b.label));
-}
-
-export function groupReviewRows(rows) {
-  const groups = new Map();
-  for (const row of rows || []) {
-    const entity = row?.entity;
-    if (!entity?.id) continue;
-    if (!groups.has(entity.id)) groups.set(entity.id, { entity, byLink: new Map() });
-    const g = groups.get(entity.id);
-    for (const c of [toCandidate(row), ...(row.candidates || []).map(toCandidate)]) {
-      if (c.linkId != null && !g.byLink.has(c.linkId)) g.byLink.set(c.linkId, c);
-    }
-  }
-  return [...groups.values()].map(g => ({
-    entity: g.entity,
-    candidates: [...g.byLink.values()].sort(byConfidenceDesc),
-  }));
 }
 
 // The flat `links` of GET /entities/:id as the same candidate rows, best first.
