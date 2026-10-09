@@ -14,7 +14,10 @@
     "fileName": "reports/stryker-orgtruth.json"
   },
   "mutate": [
-    "src/hooks/useCanImportOrgTruth.js"
+    "src/hooks/useCanImportOrgTruth.js",
+    "src/components/orgtruth/wizard/wizardDraft.js",
+    "src/components/orgtruth/wizard/wizardApi.js",
+    "src/components/orgtruth/wizard/useImportRun.js"
   ],
   "mutationExclusions": {
     "src/components/orgtruth/OrgTruthPage.jsx": "Composition, not logic: tab state, the header button gated by the hook (which is mutated), and which panel shows. Covered end to end by OrgTruthPage.mount.test.jsx.",
@@ -24,7 +27,15 @@
     "src/components/orgtruth/ModelTab.jsx": "Workstream T6 fills this panel; decide mutate vs exclusion (with a real reason) in the change that adds its logic.",
     "src/components/orgtruth/EntitiesTab.jsx": "Workstream T6 fills this panel; decide mutate vs exclusion (with a real reason) in the change that adds its logic.",
     "src/components/orgtruth/ReviewTab.jsx": "Workstream T6 fills this panel; decide mutate vs exclusion (with a real reason) in the change that adds its logic.",
-    "src/components/orgtruth/wizard/ImportWizard.jsx": "Workstream T5 fills the wizard; its pure step logic goes in sibling helper files that are mutated, the composition stays here and is covered by its mount test."
+    "src/components/orgtruth/wizard/ImportWizard.jsx": "Composition only: the draft state, the current step, the step list and which panel shows; navigation and readiness are wizardDraft.js functions (mutated). Covered end to end by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/StepStart.jsx": "Presentational import-wizard panel: it renders the draft and hands every edit to a wizardDraft.js function (mutated). Step 1 (mode, profile picker, run mode, adjust) is walked by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/StepSource.jsx": "Presentational import-wizard panel: it renders the draft and hands every edit to a wizardDraft.js function (mutated). Step 2 (file choice, FormData upload, column list) is walked by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/StepModel.jsx": "Presentational import-wizard panel: it renders the draft and hands every edit to a wizardDraft.js function (mutated). Step 3 (proposal call, status and stale-column notices) is walked by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/ModelEditor.jsx": "Presentational import-wizard panel: it renders the draft and hands every edit to a wizardDraft.js function (mutated). The entity/attribute/relation editor on MappingRows is driven by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/StepLinks.jsx": "Presentational import-wizard panel: it renders the draft and hands every edit to a wizardDraft.js function (mutated). Step 4 (detect, accept, weights, retarget, remove) is walked by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/StepQuality.jsx": "Presentational import-wizard panel: it renders the draft and hands every edit to a wizardDraft.js function (mutated). Step 5 (dry run, cards, slider, verdict) is walked by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/StepConfirm.jsx": "Presentational import-wizard panel: it renders the draft and hands every edit to a wizardDraft.js function (mutated). Step 6 (summary, profile save, start and poll via useImportRun, mutated) is walked by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/wizardUi.jsx": "Markup-only primitives for the wizard (labelled field, select, notice, chip, class constants); no logic beyond passing props through."
   },
   "thresholds": {
     "high": 90,

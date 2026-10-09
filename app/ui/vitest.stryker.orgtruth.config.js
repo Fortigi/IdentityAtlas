@@ -16,6 +16,10 @@ export default defineConfig({
     include: [
       'src/hooks/useCanImportOrgTruth.test.js',
       'src/components/orgtruth/OrgTruthPage.mount.test.jsx',
+      'src/components/orgtruth/wizard/wizardDraft.test.js',
+      'src/components/orgtruth/wizard/wizardApi.test.js',
+      'src/components/orgtruth/wizard/useImportRun.test.jsx',
+      'src/components/orgtruth/wizard/ImportWizard.mount.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },
