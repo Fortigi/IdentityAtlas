@@ -168,7 +168,8 @@ export function evaluateSignal(signal, orgValue, targetValue) {
     case 'prefix': return prefixMatches(o, t) ? signal.weight : 0;
     case 'name': return nameWeight(signal.weight, o, t);
     case 'token': return tokensMatch(o, t) ? signal.weight : 0;
-    case 'fuzzy': return fuzzyWeight(signal.weight, o, t);
+    // the raw values: fuzzyWords splits camelCase ("PortOfRotterdam") before it lowercases
+    case 'fuzzy': return fuzzyWeight(signal.weight, orgValue, targetValue);
     default: return 0;
   }
 }
