@@ -14,17 +14,27 @@
     "fileName": "reports/stryker-orgtruth.json"
   },
   "mutate": [
-    "src/hooks/useCanImportOrgTruth.js"
+    "src/hooks/useCanImportOrgTruth.js",
+    "src/components/orgtruth/orgFormat.js",
+    "src/components/orgtruth/modelGraph.js",
+    "src/components/orgtruth/reviewRows.js",
+    "src/components/orgtruth/sourceDownload.js",
+    "src/components/orgtruth/useLinkOverride.js"
   ],
   "mutationExclusions": {
     "src/components/orgtruth/OrgTruthPage.jsx": "Composition, not logic: tab state, the header button gated by the hook (which is mutated), and which panel shows. Covered end to end by OrgTruthPage.mount.test.jsx.",
     "src/components/orgtruth/NotBuiltYet.jsx": "Placeholder panel the workstreams replace; renders an EmptyState from two props and nothing else.",
     "src/components/orgtruth/orgTabs.js": "Declaration, not logic: the ordered list of the page's sub-tabs. The mount test asserts the exact list.",
-    "src/components/orgtruth/SourcesTab.jsx": "Workstream T6 fills this panel; decide mutate vs exclusion (with a real reason) in the change that adds its logic.",
-    "src/components/orgtruth/ModelTab.jsx": "Workstream T6 fills this panel; decide mutate vs exclusion (with a real reason) in the change that adds its logic.",
-    "src/components/orgtruth/EntitiesTab.jsx": "Workstream T6 fills this panel; decide mutate vs exclusion (with a real reason) in the change that adds its logic.",
-    "src/components/orgtruth/ReviewTab.jsx": "Workstream T6 fills this panel; decide mutate vs exclusion (with a real reason) in the change that adds its logic.",
-    "src/components/orgtruth/wizard/ImportWizard.jsx": "Workstream T5 fills the wizard; its pure step logic goes in sibling helper files that are mutated, the composition stays here and is covered by its mount test."
+    "src/components/orgtruth/SourcesTab.jsx": "Panel composition: two useFetch calls, a table and an expandable runs row. Its decisions (runs per source, last profile, stats summary, download) live in orgFormat.js and sourceDownload.js, which are mutated; SourcesTab.mount.test.jsx covers the wiring.",
+    "src/components/orgtruth/ModelTab.jsx": "Panel composition: filters, the Diagram/Table toggle and the totals line. Layout, Mermaid export and count sorting live in modelGraph.js, which is mutated; ModelTab.mount.test.jsx covers the wiring.",
+    "src/components/orgtruth/EntitiesTab.jsx": "Panel composition: filter controls, a debounced search and a paged table. The query building and paging conversion live in orgFormat.js (mutated); EntitiesTab.mount.test.jsx asserts the exact URLs sent.",
+    "src/components/orgtruth/ReviewTab.jsx": "Panel composition: one useFetch and a card per entity group. Grouping and sorting live in reviewRows.js and the decisions in useLinkOverride.js, both mutated; ReviewTab.mount.test.jsx covers the wiring.",
+    "src/components/orgtruth/wizard/ImportWizard.jsx": "Workstream T5 fills the wizard; its pure step logic goes in sibling helper files that are mutated, the composition stays here and is covered by its mount test.",
+    "src/components/orgtruth/ModelDiagram.jsx": "Presentational SVG: draws the nodes and edges that layoutModel (modelGraph.js, mutated) computes, with a theme palette. ModelTab.mount.test.jsx asserts the drawn nodes, edges, tooltips and dark palette.",
+    "src/components/orgtruth/OrgLinkTable.jsx": "Presentational table of link candidates with Confirm/Reject/Move/Undo buttons. Move option choice lives in reviewRows.js (mutated); ReviewTab and OrgEntityDetailPage mount tests drive every button.",
+    "src/components/orgtruth/OrgEntitySections.jsx": "Presentational header and relations list of the org-entity detail page; no logic beyond picking the other side of a relation, asserted by OrgEntityDetailPage.mount.test.jsx.",
+    "src/components/orgtruth/OrgEntityDetailPage.jsx": "Detail page composition: two useFetch calls, the expandable graph hook and the shared sections. Its logic lives in orgFormat.js, reviewRows.js, useLinkOverride.js (mutated); OrgEntityDetailPage.mount.test.jsx covers it.",
+    "src/components/orgtruth/orgUi.jsx": "Shared presentational pieces (status/type pills, fetch-state panels, class constants). The pill colour choice and the not-available test live in orgFormat.js, which is mutated."
   },
   "thresholds": {
     "high": 90,
