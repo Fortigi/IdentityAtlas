@@ -125,7 +125,7 @@ The documentation site is built and versioned from [`docs/requirements.txt`](htt
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | mkdocs | 1.6.1 | Static documentation site generator | BSD-2-Clause |
-| mkdocs-material | 9.7.6 | Material for MkDocs — docs site theme and UI | MIT |
+| mkdocs-material | 9.7.7 | Material for MkDocs — docs site theme and UI | MIT |
 | mike | 2.2.0 | Versioned docs deployment (edge / stable) | BSD-3-Clause |
 
 ---
