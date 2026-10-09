@@ -68,6 +68,7 @@ function routes(overrides = {}) {
   return makeAuthFetch({
     '/api/risk-scores/identities/id-1': riskData,
     '/api/identities/id-1/timeline': timeline,
+    '/api/identities/id-1/contexts': [{ id: 'ctx-9', displayName: 'Engineering' }],
     '/api/identities/id-1': detail,
     ...overrides,
   });
@@ -118,8 +119,8 @@ describe('IdentityDetailPage (mounted)', () => {
     await screen.findByText('Dana Doe');
     await user.click(screen.getByRole('tab', { name: /Relationships/i }));
 
-    expect(await screen.findByText('dana@corp.com')).toBeInTheDocument();
-    expect(screen.getByText('ddoe@legacy')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'dana@corp.com' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ddoe@legacy' })).toBeInTheDocument();
     // Each account is shown with its source system and enabled state.
     expect(screen.getAllByRole('columnheader').map(th => th.textContent))
       .toEqual(['System', 'Account', 'Enabled', 'Type', 'Actions']);
@@ -128,54 +129,60 @@ describe('IdentityDetailPage (mounted)', () => {
     expect(row).toHaveTextContent('No');
   });
 
-  it('shows no Organisation node when the organisation lists are off (404) or not built (501)', async () => {
+  it('asks the organisation lists nothing while the feature is off, and shows no organisation neighbours on a 404 or 501', async () => {
+    const off = routes();
+    const first = renderWithProviders(h(IdentityDetailPage, baseProps), { auth: { authFetch: off } });
+    await screen.findByText('Dana Doe');
+    await userEvent.setup().click(screen.getByRole('tab', { name: /Relationships/i }));
+    await screen.findByRole('button', { name: /^User dana@corp\.com/ });
+    expect(off.mock.calls.some(([u]) => String(u).includes('/org-truth/'))).toBe(false);
+    first.unmount();
+
     for (const status of [404, 501]) {
       const authFetch = routes({ '/api/org-truth/linked/': jsonResponse({ error: 'off' }, { ok: false, status }) });
-      const { unmount } = renderWithProviders(h(IdentityDetailPage, baseProps), { auth: { authFetch } });
+      const { unmount, container } = renderWithProviders(h(IdentityDetailPage, baseProps), { auth: { authFetch }, features: { orgTruth: true } });
       const user = userEvent.setup();
       await screen.findByText('Dana Doe');
       await user.click(screen.getByRole('tab', { name: /Relationships/i }));
       await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/org-truth/linked/Identity/id-1'));
-      expect((await screen.findAllByText('Linked Accounts')).length).toBeGreaterThan(0);
+      await screen.findByRole('button', { name: /^User dana@corp\.com/ });
+      expect(container.querySelector('[data-node^="org-entity:"]')).toBeNull();
       expect(screen.queryByText('Organisation')).not.toBeInTheDocument();
       unmount();
     }
   });
 
-  it('fans the Organisation node out into its groups, then a group into org entities', async () => {
+  it('draws organisation entities as direct neighbours: linked by attribute, or by the hours worked', async () => {
     const linked = {
       total: 3,
       groups: [
-        { key: 'direct|Klant|eigenaar', entityType: 'Klant', kind: 'direct', label: 'Klant · eigenaar', count: 1,
-          items: [{ entityId: 'k1', entityType: 'Klant', label: 'Acme BV', detail: null }] },
-        { key: 'through|Klant|Uren|klant', entityType: 'Klant', kind: 'through', sourceType: 'Uren', label: 'Klant · Uren',
+        { key: 'direct|Klant|eigenaar', entityType: 'Klant', via: 'eigenaar', kind: 'direct', label: 'Klant · eigenaar', count: 1,
+          items: [{ entityId: 'k1', entityType: 'Klant', label: 'Contoso BV', detail: null }] },
+        { key: 'through|Klant|Uren|klant', entityType: 'Klant', via: 'klant', kind: 'through', sourceType: 'Uren', label: 'Klant · worked on (Uren)',
           count: 2, unlinkedRows: 12, items: [
-            { entityId: 'k2', entityType: 'Klant', label: 'Beta NV', detail: '12.5 h · 3 rows · until 2026-01' },
-            { entityId: 'k3', entityType: 'Klant', label: 'Gamma', detail: '1 h · 1 rows' },
+            { entityId: 'k2', entityType: 'Klant', label: 'Fabrikam', detail: '1491 h · 3 rows · until 2026-01', hours: 1491 },
+            { entityId: 'k3', entityType: 'Klant', label: 'Northwind', detail: '1 h · 1 rows', hours: 1 },
           ] },
       ],
     };
     const onOpenDetail = vi.fn();
     const authFetch = routes({ '/api/org-truth/linked/Identity/id-1': linked });
-    renderWithProviders(h(IdentityDetailPage, { ...baseProps, onOpenDetail }), { auth: { authFetch } });
+    const { container } = renderWithProviders(h(IdentityDetailPage, { ...baseProps, onOpenDetail }), { auth: { authFetch }, features: { orgTruth: true } });
     const user = userEvent.setup();
     await screen.findByText('Dana Doe');
     await user.click(screen.getByRole('tab', { name: /Relationships/i }));
 
-    const graphNode = (text) => screen.getAllByText(text).find(el => el.closest('svg')).closest('g');
-    await user.click((await screen.findByText('Organisation')).closest('g'));
-    // Groups ring, and the list shows the groups.
-    expect(await screen.findByRole('heading', { name: 'Organisation' })).toBeInTheDocument();
-    expect(graphNode('Klant · eigenaar')).toBeTruthy();
+    await screen.findByRole('button', { name: 'Klant Contoso BV, press to expand' });
+    const edgeText = (to) => container.querySelector(`[data-edge="identity:id-1->org-entity:${to}"]`)?.textContent;
+    expect(edgeText('k1')).toBe('eigenaar');
+    expect(edgeText('k2')).toBe('worked on · 1,491 h (Uren)');
+    expect(edgeText('k3')).toBe('worked on · 1 h (Uren)');
+    // No Organisation bucket and no "Klant · eigenaar" bucket in between.
+    expect(screen.queryByText('Organisation')).toBeNull();
+    expect(screen.queryByText('Klant · eigenaar')).toBeNull();
 
-    await user.click(graphNode('Klant · Uren'));
-    expect(await screen.findByRole('heading', { name: 'Organisation → Klant · Uren' })).toBeInTheDocument();
-    expect(screen.getByText('12 Uren rows point at no Klant')).toBeInTheDocument();
-    const row = screen.getByRole('button', { name: 'Beta NV' }).closest('tr');
-    expect(row).toHaveTextContent('12.5 h · 3 rows · until 2026-01');
-    expect(row).toHaveTextContent('Klant');
-    await user.click(screen.getByRole('button', { name: 'Gamma' }));
-    expect(onOpenDetail).toHaveBeenCalledWith('org-entity', 'k3', 'Gamma');
+    await user.click(screen.getByRole('link', { name: 'Open Northwind' }));
+    expect(onOpenDetail).toHaveBeenCalledWith('org-entity', 'k3', 'Northwind');
     expect(authFetch.mock.calls.filter(([u]) => String(u).startsWith('/api/org-truth/linked/'))).toHaveLength(1);
   });
 

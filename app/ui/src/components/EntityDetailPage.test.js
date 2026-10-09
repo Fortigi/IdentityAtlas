@@ -14,8 +14,8 @@ describe('EntityDetailPage scaffold', () => {
     expect(src).toContain('renderHeader');
   });
 
-  it('uses useExpandableGraph and useTimeline internally', () => {
-    expect(src).toContain('useExpandableGraph');
+  it('uses useRelationGraph and useTimeline internally', () => {
+    expect(src).toContain('useRelationGraph');
     expect(src).toContain('useTimeline');
   });
 

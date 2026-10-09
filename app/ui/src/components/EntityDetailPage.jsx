@@ -1,14 +1,11 @@
 import { useState, useEffect, useReducer, useMemo } from 'react';
-import EntityGraph from './EntityGraph';
+import RelationGraphPanel from '@ui/components/graph/RelationGraphPanel';
 import { AttributesTable } from './EntityDetailLayout';
-import ExpandedItemsList from './ExpandedItemsList';
 import TabBar from './TabBar';
 import EntityTimeline from './EntityTimeline';
-import useExpandableGraph from '@ui/hooks/useExpandableGraph';
+import useRelationGraph from '@ui/hooks/useRelationGraph';
 import useTimeline from '@ui/hooks/useTimeline';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
-import { getRootNodes } from './entityGraphShape';
-import useOrgLinked from '@ui/components/orgtruth/useOrgLinked';
 
 // Tabs a recipient of a share link sees (#1166). The analyst-only tabs — the
 // change Timeline and the Risk panel with its override controls — are dropped:
@@ -70,42 +67,19 @@ function AttributesTab({ data, attributeEntries, renderAttributesBefore, renderA
   return <AttributesTable entries={attributeEntries} />;
 }
 
-// Relationships tab body — radial graph plus the expanded-items list / empty state.
-function RelationshipsTab({ data, graph, graphCenterLabel, getDisplayName, renderRelationshipsExtra, onOpenDetail }) {
+// Relationships tab body — the relationship graph and its list, then the page's extras.
+function RelationshipsTab({ data, graph, renderRelationshipsExtra, onOpenDetail }) {
   return (
     <div className="space-y-4">
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-        <EntityGraph
-          centerLabel={graphCenterLabel}
-          centerSubLabel={getDisplayName(data)}
-          nodes={graph.nodesWithExpansion}
-          expandedPath={graph.expandedPath}
-          onNodeClick={graph.handleNodeClick}
-        />
-        {graph.pathDepth > 0 && (
-          <div className="text-xs text-gray-600 dark:text-gray-500 text-center pb-2">
-            <span className="font-medium text-gray-600 dark:text-gray-300">{graph.activeListLabel}</span>
-            {' — '}
-            <button onClick={graph.reset} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline">collapse</button>
-          </div>
-        )}
-      </div>
-      {graph.pathDepth > 0 ? (
-        <ExpandedItemsList
-          label={graph.activeListLabel}
-          items={graph.activeListItems}
-          note={graph.activeListItems?.note}
-          loading={graph.loading}
-          onOpenDetail={onOpenDetail}
-        />
-      ) : (
-        <div className="bg-white dark:bg-gray-800 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
-          <p className="text-sm text-gray-600 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse.</p>
-        </div>
-      )}
+      <RelationGraphPanel graph={graph} onOpenDetail={onOpenDetail} />
       {renderRelationshipsExtra?.(data, graph)}
     </div>
   );
+}
+
+// The graph's type label for the page's object: a resource says what kind it is.
+function rootTypeLabel(entityKind, data, graphCenterLabel) {
+  return (entityKind === 'resource' && data?.attributes?.resourceType) || graphCenterLabel;
 }
 
 /**
@@ -121,9 +95,9 @@ function RelationshipsTab({ data, graph, graphCenterLabel, getDisplayName, rende
  *   cachedData            { core: rawData } — skip fetch when present (ignored when refreshKey > 0)
  *   onCacheData           optional: (id, kind, { core }) => void
  *   refreshKey            optional number; increment to force re-fetch ignoring cache
- *   getGraphRootExtras    (data) => extras object passed to getRootNodes + useExpandableGraph
- *   graphCenterLabel      string for EntityGraph center node label
- *   getDisplayName        optional: (data) => string for graph center sub-label
+ *   getGraphRootExtras    (data) => extras the graph's category fetchers need (entityGraphShape)
+ *   graphCenterLabel      type label of the page's object in the relationship graph
+ *   getDisplayName        optional: (data) => the object's name in the relationship graph
  *   getTabs               (data, attributeEntries) => [{key, label, count?}, ...]
  *   getAttributeEntries   (data) => [{key, label, value}, ...] — attribute table rows
  *   renderHeader          (data) => JSX — left-side header content only
@@ -187,31 +161,26 @@ export default function EntityDetailPage({
     return () => { cancelled = true; };
   }, [entityId, authFetch, cachedData?.core, fetchData, onCacheData, entityKind, refreshKey]);
 
-  // What the organisation lists say about this object: its own fetch, so a
-  // disabled feature or an error only drops the Organisation node.
-  const orgLinked = useOrgLinked(entityKind, entityId, authFetch);
-
-  const rootExtras = useMemo(
-    () => (data ? { ...getGraphRootExtras(data), orgLinked } : {}),
-    [data, getGraphRootExtras, orgLinked],
-  );
-
-  const rootNodes = useMemo(
-    () => (data ? getRootNodes(entityKind, data, rootExtras) : []),
-    [data, entityKind, rootExtras],
-  );
+  const rootExtras = useMemo(() => (data ? getGraphRootExtras(data) : null), [data, getGraphRootExtras]);
 
   const timeline = useTimeline(entityKind, entityId, authFetch, {
     sinceDays: timelineDays,
     enabled: activeTab === 'timeline',
   });
 
-  const graph = useExpandableGraph({
-    rootEntityKind: entityKind,
-    rootEntityId: entityId,
+  // The relationship graph: this object at the root, expanded; organisation
+  // links join it per object when the orgTruth feature is on.
+  const graph = useRelationGraph({
+    root: {
+      kind: entityKind,
+      id: entityId,
+      label: (data && getDisplayName(data)) || entityId,
+      typeLabel: rootTypeLabel(entityKind, data, graphCenterLabel),
+    },
+    rootCore: data,
     rootExtras,
-    rootNodes,
     authFetch,
+    enabled: activeTab === 'relationships',
   });
 
   if (loading) {
@@ -250,8 +219,6 @@ export default function EntityDetailPage({
           <RelationshipsTab
             data={data}
             graph={graph}
-            graphCenterLabel={graphCenterLabel}
-            getDisplayName={getDisplayName}
             renderRelationshipsExtra={renderRelationshipsExtra}
             onOpenDetail={onOpenDetail}
           />

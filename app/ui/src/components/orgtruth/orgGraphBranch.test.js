@@ -1,28 +1,33 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
-  ORG_ROOT_KEY,
   orgLinkedUrl,
   asOrgLinked,
-  orgRootNode,
-  isOrgCategory,
+  loadOrgLinked,
   groupNote,
-  orgCategoryItems,
+  viaLabel,
+  orgRelations,
 } from '@ui/components/orgtruth/orgGraphBranch';
+import { makeAuthFetch, jsonResponse } from '@ui/test-utils/renderWithProviders';
 
 const OWNER = {
   key: 'direct|Klant|eigenaar', entityType: 'Klant', via: 'eigenaar', kind: 'direct',
   label: 'Klant · eigenaar', count: 2, truncated: false,
   items: [
-    { entityId: 'k1', entityType: 'Klant', label: 'Acme BV', detail: null },
+    { entityId: 'k1', entityType: 'Klant', label: 'Contoso BV', detail: null },
     { entityId: 'k2', entityType: 'Klant', label: '', detail: null },
   ],
+};
+const NAME = {
+  key: 'direct|Klant|displayName', entityType: 'Klant', via: 'displayName', kind: 'direct',
+  label: 'Klant · name', count: 1, items: [{ entityId: 'k9', entityType: 'Klant', label: 'Northwind' }],
 };
 const WORKED = {
   key: 'through|Klant|Uren|klant', entityType: 'Klant', via: 'klant', kind: 'through', sourceType: 'Uren',
   label: 'Klant · worked on (Uren)', count: 1, truncated: false, unlinkedRows: 12,
-  items: [{ entityId: 'k3', entityType: 'Klant', label: 'Beta NV', detail: '12.5 h · 3 rows · until 2026-01', hours: 12.5 }],
+  items: [{ entityId: 'k3', entityType: 'Klant', label: 'Fabrikam', detail: '1491 h · 3 rows · until 2026-01', hours: 1491 }],
 };
-const LINKED = { total: 3, groups: [OWNER, WORKED] };
+const LINKED = { total: 4, groups: [OWNER, NAME, WORKED] };
+const URL = '/api/org-truth/linked/Principal/p1';
 
 describe('orgLinkedUrl', () => {
   it('maps the four graph kinds to the endpoint target types and encodes the id', () => {
@@ -48,29 +53,32 @@ describe('asOrgLinked', () => {
   });
 });
 
-describe('orgRootNode', () => {
-  it('is null without a payload', () => {
-    expect(orgRootNode(null)).toBeNull();
-    expect(orgRootNode(undefined)).toBeNull();
+describe('loadOrgLinked', () => {
+  it('fetches once per url and authFetch, then answers from the cache', async () => {
+    const authFetch = makeAuthFetch({ [URL]: LINKED });
+    expect(await loadOrgLinked(URL, authFetch)).toEqual(LINKED);
+    expect(await loadOrgLinked(URL, authFetch)).toEqual(LINKED);
+    expect(authFetch).toHaveBeenCalledTimes(1);
+    // A different authFetch (another sign-in) asks again.
+    const other = makeAuthFetch({ [URL]: LINKED });
+    await loadOrgLinked(URL, other);
+    expect(other).toHaveBeenCalledTimes(1);
   });
 
-  it('carries the total as its count', () => {
-    expect(orgRootNode(LINKED)).toEqual({ key: 'org', label: 'Organisation', count: 3, kind: 'category' });
+  it.each([
+    ['404 (feature off)', jsonResponse({ error: 'off' }, { ok: false, status: 404 })],
+    ['501', jsonResponse({ error: 'not built' }, { ok: false, status: 501 })],
+    ['a payload without groups', { total: 3 }],
+  ])('answers null on %s and does not cache it', async (_name, response) => {
+    const authFetch = makeAuthFetch({ [URL]: response });
+    expect(await loadOrgLinked(URL, authFetch)).toBeNull();
+    expect(await loadOrgLinked(URL, authFetch)).toBeNull();
+    expect(authFetch).toHaveBeenCalledTimes(2);
   });
 
-  it('shows a zero total as a greyed node with count 0', () => {
-    expect(orgRootNode({ total: 0, groups: [] }).count).toBe(0);
-    expect(orgRootNode({ groups: [] }).count).toBe(0);
-  });
-});
-
-describe('isOrgCategory', () => {
-  it('recognises the root and its group keys only', () => {
-    expect(isOrgCategory(ORG_ROOT_KEY)).toBe(true);
-    expect(isOrgCategory('org:direct|Klant|eigenaar')).toBe(true);
-    expect(isOrgCategory('organisation')).toBe(false);
-    expect(isOrgCategory('contexts')).toBe(false);
-    expect(isOrgCategory(undefined)).toBe(false);
+  it('answers null when the request throws', async () => {
+    const authFetch = vi.fn(async () => { throw new Error('network'); });
+    expect(await loadOrgLinked(URL, authFetch)).toBeNull();
   });
 });
 
@@ -95,45 +103,56 @@ describe('groupNote', () => {
   });
 });
 
-describe('orgCategoryItems', () => {
-  it('returns null for a key that is not ours', () => {
-    expect(orgCategoryItems('contexts', LINKED)).toBeNull();
+describe('viaLabel', () => {
+  it('calls a display-name match "name" and keeps an attribute as it is', () => {
+    expect(viaLabel('displayName')).toBe('name');
+    expect(viaLabel(undefined)).toBe('name');
+    expect(viaLabel('eigenaar')).toBe('eigenaar');
+  });
+});
+
+describe('orgRelations', () => {
+  it('is empty without a payload', () => {
+    expect(orgRelations(null)).toEqual([]);
+    expect(orgRelations({ groups: [] })).toEqual([]);
   });
 
-  it('fans the root out into one category node per group', () => {
-    expect(orgCategoryItems('org', LINKED)).toEqual([
-      { key: 'org:direct|Klant|eigenaar', label: 'Klant · eigenaar', count: 2, kind: 'category' },
-      { key: 'org:through|Klant|Uren|klant', label: 'Klant · worked on (Uren)', count: 1, kind: 'category' },
-    ]);
+  it('turns a direct group into one relation labelled with the linking attribute, objects as direct neighbours', () => {
+    const [owner, name] = orgRelations(LINKED);
+    expect(owner).toEqual({
+      key: 'org:direct|Klant|eigenaar', title: 'Klant · eigenaar', label: 'eigenaar', dir: 'out', count: 2,
+      items: [
+        { key: 'org-entity:k1', label: 'Contoso BV', kind: 'item', entityKind: 'org-entity', entityId: 'k1', resourceType: 'Klant' },
+        { key: 'org-entity:k2', label: 'k2', kind: 'item', entityKind: 'org-entity', entityId: 'k2', resourceType: 'Klant' },
+      ],
+    });
+    // A match on the display name reads "name", not "displayName".
+    expect(name.label).toBe('name');
+    expect(name.items.map(i => i.edgeLabel)).toEqual([undefined]);
   });
 
-  it('answers [] for the root or a group without a payload', () => {
-    expect(orgCategoryItems('org', null)).toEqual([]);
-    expect(orgCategoryItems('org:direct|Klant|eigenaar', undefined)).toEqual([]);
-    expect(orgCategoryItems('org:nope', LINKED)).toEqual([]);
+  it('labels each through edge with the hours it adds up to, and keeps the note for the list', () => {
+    const worked = orgRelations(LINKED)[2];
+    expect(worked.label).toBe('worked on (Uren)');
+    expect(worked.items[0].edgeLabel).toBe('worked on · 1,491 h (Uren)');
+    expect(worked.items[0].detail).toBe('1491 h · 3 rows · until 2026-01');
+    expect(worked.note).toBe('12 Uren rows point at no Klant');
   });
 
-  it('fans a group out into org-entity items, label falling back to the id', () => {
-    const items = orgCategoryItems('org:direct|Klant|eigenaar', LINKED);
-    expect(items).toEqual([
-      { key: 'org-entity:k1', label: 'Acme BV', kind: 'item', entityKind: 'org-entity', entityId: 'k1', resourceType: 'Klant' },
-      { key: 'org-entity:k2', label: 'k2', kind: 'item', entityKind: 'org-entity', entityId: 'k2', resourceType: 'Klant' },
-    ]);
-    expect(items.note).toBeUndefined();
+  it('copes with a through item without hours, a group without items, count or source type', () => {
+    const odd = { groups: [
+      { key: 't', kind: 'through', label: 'T', items: [{ entityId: 'z', hours: null }] },
+      { key: 'g', kind: 'direct', via: 'team', label: 'G' },
+    ] };
+    const [t, g] = orgRelations(odd);
+    expect(t.items[0]).toEqual({ key: 'org-entity:z', label: 'z', kind: 'item', entityKind: 'org-entity', entityId: 'z', edgeLabel: 'worked on (other)' });
+    expect(t.count).toBe(1);
+    expect(g).toEqual({ key: 'org:g', title: 'G', label: 'team', dir: 'out', count: 0, items: [] });
   });
 
-  it('carries the detail per item and the unlinked-rows note on the list', () => {
-    const items = orgCategoryItems('org:through|Klant|Uren|klant', LINKED);
-    expect(items[0].detail).toBe('12.5 h · 3 rows · until 2026-01');
-    expect(items.note).toBe('12 Uren rows point at no Klant');
-  });
-
-  it('copes with a group that has no items array or entity type', () => {
-    const odd = { total: 1, groups: [{ key: 'g', label: 'G', count: 1 }, { key: 'h', label: 'H', count: 1, items: [{ entityId: 'z' }] }] };
-    expect(orgCategoryItems('org:g', odd)).toEqual([]);
-    expect(orgCategoryItems('org:h', odd)).toEqual([
-      { key: 'org-entity:z', label: 'z', kind: 'item', entityKind: 'org-entity', entityId: 'z' },
-    ]);
-    expect(orgCategoryItems('org', { groups: [{ key: 'g', label: 'G' }] })[0].count).toBe(0);
+  it('keeps the server count when the list was capped', () => {
+    const capped = orgRelations({ groups: [{ ...OWNER, count: 250, truncated: true }] })[0];
+    expect(capped.count).toBe(250);
+    expect(capped.note).toBe('showing the first 2 of 250');
   });
 });

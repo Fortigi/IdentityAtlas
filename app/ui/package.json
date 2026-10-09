@@ -24,7 +24,8 @@
     "test:mutation:roles": "stryker run stryker.roles.config.json",
     "test:mutation:reports": "stryker run stryker.reports.config.json",
     "test:mutation:contextassistant": "stryker run stryker.contextassistant.config.json",
-    "test:mutation:orgtruth": "stryker run stryker.orgtruth.config.json"
+    "test:mutation:orgtruth": "stryker run stryker.orgtruth.config.json",
+    "test:mutation:graph": "stryker run stryker.graph.config.json"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.24.0",
@@ -34,6 +35,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-virtual": "^3.14.13",
+    "d3-force": "^3.0.0",
     "exceljs": "^4.4.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

@@ -11,14 +11,17 @@ const here = dirname(fileURLToPath(import.meta.url));
 const read = (f) => readFileSync(join(here, f), 'utf8');
 
 describe('data-viz fills use soft tiers', () => {
-  it('EntityGraph node gradients end soft, not at the saturated -600', () => {
-    const src = read('EntityGraph.jsx');
-    // old saturated end-stops (only ever used in the node gradients)
-    expect(src).not.toContain('#ca8a04'); // amber-600 (added)
-    expect(src).not.toContain('#e11d48'); // rose-600 (removed)
-    // new soft end-stops
-    expect(src).toContain('#fcd34d'); // amber-300
-    expect(src).toContain('#fda4af'); // rose-300
+  it('relationship graph node fills use soft tiers, never the saturated 500/600', () => {
+    const src = read('graph/graphDraw.js');
+    // The node circle palette (NODE_CLASS); thin marks like the arrowhead keep
+    // their stronger colours.
+    const start = src.indexOf('const NODE_CLASS');
+    const palette = src.slice(start, src.indexOf('};', start));
+    const fills = palette.match(/fill-[a-z]+-[0-9]{2,3}/g) || [];
+    // Soft light fills (50-200), deep dark-mode fills (800-950).
+    expect(fills.length).toBeGreaterThan(5);
+    expect(fills.filter(f => /-(500|600)$/.test(f))).toEqual([]);
+    expect(fills).toContain('fill-lime-200');
   });
 
   it('ConfidenceBar uses pastel fills', () => {

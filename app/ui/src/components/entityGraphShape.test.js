@@ -1,7 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  MAX_ITEMS_PER_FANOUT,
-  capItems,
   getRootNodes,
   fetchCategoryItems,
   fetchEntityCore,
@@ -18,31 +16,6 @@ function stub(map = {}) {
     return { ok: true, status: 200, json: async () => map[key] };
   };
 }
-
-describe('capItems', () => {
-  it('returns [] for null/undefined', () => {
-    expect(capItems(null)).toEqual([]);
-    expect(capItems(undefined)).toEqual([]);
-  });
-
-  it('returns the list unchanged when at or below the cap', () => {
-    const items = Array.from({ length: MAX_ITEMS_PER_FANOUT }, (_, i) => ({ key: `k${i}` }));
-    expect(capItems(items)).toBe(items);
-  });
-
-  it('caps and appends a non-clickable overflow marker when over the cap', () => {
-    const items = Array.from({ length: MAX_ITEMS_PER_FANOUT + 5 }, (_, i) => ({ key: `k${i}` }));
-    const out = capItems(items);
-    expect(out).toHaveLength(MAX_ITEMS_PER_FANOUT);
-    const overflow = out[out.length - 1];
-    expect(overflow.overflow).toBe(true);
-    expect(overflow.key).toBe('__overflow__');
-    // 15 total, keep first 9, marker counts the remaining 6.
-    expect(overflow.label).toContain('+6 more');
-    // The first N-1 originals are preserved.
-    expect(out.slice(0, MAX_ITEMS_PER_FANOUT - 1)).toEqual(items.slice(0, MAX_ITEMS_PER_FANOUT - 1));
-  });
-});
 
 describe('getRootNodes', () => {
   it('returns [] for an unknown entity kind', () => {
@@ -589,62 +562,11 @@ describe('org-entity (organisation truth)', () => {
   });
 });
 
-describe('Organisation branch (extras.orgLinked)', () => {
-  const LINKED = {
-    total: 2,
-    groups: [
-      { key: 'direct|Klant|eigenaar', entityType: 'Klant', kind: 'direct', label: 'Klant · eigenaar', count: 1,
-        items: [{ entityId: 'k1', entityType: 'Klant', label: 'Acme BV' }] },
-      { key: 'through|Klant|Uren|klant', entityType: 'Klant', kind: 'through', sourceType: 'Uren', label: 'Klant · worked on (Uren)',
-        count: 1, unlinkedRows: 4, items: [{ entityId: 'k2', entityType: 'Klant', label: 'Beta NV', detail: '12.5 h · until 2026-01' }] },
-    ],
-  };
-  const ORG_NODE = { key: 'org', label: 'Organisation', count: 2, kind: 'category' };
-
-  it.each([
-    ['user', { membershipByType: {} }],
-    ['identity', { members: [] }],
-    ['resource', { assignmentByType: {} }],
-    ['context', { members: [], subContexts: [] }],
-  ])('appends the Organisation node last for a %s', (kind, core) => {
-    const nodes = getRootNodes(kind, core, { orgLinked: LINKED });
-    expect(nodes.at(-1)).toEqual(ORG_NODE);
-    expect(getRootNodes(kind, core, {}).some(n => n.key === 'org')).toBe(false);
-  });
-
-  it('has no node when the payload is absent (404/501/error read as null)', () => {
-    expect(getRootNodes('user', {}, { orgLinked: null }).some(n => n.key === 'org')).toBe(false);
-  });
-
-  it('shows a zero total greyed (count 0) like Manager', () => {
-    const nodes = getRootNodes('resource', {}, { orgLinked: { total: 0, groups: [] } });
-    expect(nodes.at(-1)).toEqual({ ...ORG_NODE, count: 0 });
-  });
-
-  it('fans the root into a groups ring without calling the API', async () => {
-    const calls = [];
-    const authFetch = async (url) => { calls.push(url); return { ok: false, json: async () => ({}) }; };
-    const ring = await fetchCategoryItems('user', 'u1', 'org', authFetch, { orgLinked: LINKED });
-    expect(ring.map(n => [n.key, n.label, n.count, n.kind])).toEqual([
-      ['org:direct|Klant|eigenaar', 'Klant · eigenaar', 1, 'category'],
-      ['org:through|Klant|Uren|klant', 'Klant · worked on (Uren)', 1, 'category'],
-    ]);
-    expect(calls).toEqual([]);
-  });
-
-  it('fans a group into org-entity items with their detail and the list note', async () => {
-    const items = await fetchCategoryItems('identity', 'i1', 'org:through|Klant|Uren|klant', stub(), { orgLinked: LINKED });
-    expect([...items]).toEqual([{
-      key: 'org-entity:k2', label: 'Beta NV', kind: 'item', entityKind: 'org-entity', entityId: 'k2',
-      resourceType: 'Klant', detail: '12.5 h · until 2026-01',
-    }]);
-    expect(items.note).toBe('4 Uren rows point at no Klant');
-  });
-
-  it('leaves the other categories of the entity alone', async () => {
-    const items = await fetchCategoryItems('context', 'c1', 'members', stub(), {
-      orgLinked: LINKED, members: [{ id: 'm1', displayName: 'Ann' }],
-    });
-    expect(items.map(i => i.entityId)).toEqual(['m1']);
+describe('no Organisation bucket', () => {
+  // Organisation links are the graph's own relations now (graphNeighbours.js),
+  // not a category of the entity: an orgLinked extra no longer adds a node.
+  it('ignores extras.orgLinked', () => {
+    const nodes = getRootNodes('user', { membershipByType: {} }, { orgLinked: { total: 2, groups: [] } });
+    expect(nodes.some(n => n.key === 'org' || n.label === 'Organisation')).toBe(false);
   });
 });

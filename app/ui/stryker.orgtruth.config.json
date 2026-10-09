@@ -29,7 +29,6 @@
     "src/components/orgtruth/linkRulesDraft.js",
     "src/components/orgtruth/modelCanvas.js",
     "src/components/orgtruth/orgGraphBranch.js",
-    "src/components/orgtruth/useOrgLinked.js",
     "src/components/orgtruth/orgCondition.js"
   ],
   "mutationExclusions": {
