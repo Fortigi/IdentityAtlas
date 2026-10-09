@@ -241,7 +241,8 @@ describe('upload → profile → dry-run → run, end to end', () => {
       expect(run.status).toBe('completed');
     });
     expect(linkRun).toHaveBeenCalledWith(expect.objectContaining({ runId: started.body.id }));
-    expect(enqueueRun).toHaveBeenCalledWith('org-truth', { instanceKey: 'org-truth' }, 'org-import');
+    expect(enqueueRun).toHaveBeenCalledWith('org-truth', { instanceKey: 'org-truth' }, 'org-import', { awaitCompletion: true });
+    expect(enqueueRun).toHaveBeenCalledWith('org-truth-principals', { instanceKey: 'org-truth-principals' }, 'org-import', { awaitCompletion: true });
     expect(JSON.parse(run.stats)).toMatchObject({ rows: 2, write: { entitiesInserted: 3, relationsInserted: 2 }, links: { runId: started.body.id } });
   });
 });

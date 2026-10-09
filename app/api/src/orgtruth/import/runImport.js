@@ -8,7 +8,8 @@
 // Steps, each stamped on the run row as `step` + `pct` (the wizard polls it):
 //   parse (10) → apply (30) → write (50) → link (70) → project (90) → completed (100)
 //   link    = linking/run.js linkRun({ runId, profile, log }), result in stats.links
-//   project = enqueueRun('org-truth', { instanceKey: 'org-truth' }, 'org-import');
+//   project = enqueueRun(p, { instanceKey: p }, 'org-import', { awaitCompletion: true })
+//             for p of 'org-truth' and 'org-truth-principals' (T4's two plugins), in turn;
 //             a failure there is logged, not fatal (the entities are written)
 // Any other throw ends the run as `failed` with `error` = the message.
 //
@@ -28,7 +29,7 @@ import { applyRecipe, summarizeApplied } from './applyRecipe.js';
 import { writeRun } from './writeRun.js';
 
 export const ISSUE_SAMPLE_LIMIT = 50;
-export const PROJECTION_PLUGIN = 'org-truth';
+export const PROJECTION_PLUGINS = ['org-truth', 'org-truth-principals'];
 
 export async function findActiveRun(profileName) {
   return (await queryOne(`
@@ -65,11 +66,15 @@ async function loadRun(runId) {
   return { run, source, profile };
 }
 
+// Awaited one after the other (awaitCompletion), so the two trees are not
+// rebuilt concurrently with each other; a failure of one does not stop the other.
 async function project(log) {
-  try {
-    await enqueueRun(PROJECTION_PLUGIN, { instanceKey: PROJECTION_PLUGIN }, 'org-import');
-  } catch (err) {
-    log(`projection not queued: ${err.message}`);
+  for (const plugin of PROJECTION_PLUGINS) {
+    try {
+      await enqueueRun(plugin, { instanceKey: plugin }, 'org-import', { awaitCompletion: true });
+    } catch (err) {
+      log(`projection ${plugin} not run: ${err.message}`);
+    }
   }
 }
 

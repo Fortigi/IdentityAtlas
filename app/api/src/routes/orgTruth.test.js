@@ -26,9 +26,9 @@ describe('the composed org-truth router', () => {
 
   it('answers 501, naming the method and path, for a path no sub-router claims yet', async () => {
     process.env.FEATURE_ORG_TRUTH = 'true';
-    const r = await request(app).post('/api/org-truth/runs/dry-run').send({});
+    const r = await request(app).post('/api/org-truth/no-such-thing').send({});
     expect(r.status).toBe(501);
-    expect(r.body).toEqual({ error: 'Not built yet: POST /org-truth/runs/dry-run' });
+    expect(r.body).toEqual({ error: 'Not built yet: POST /org-truth/no-such-thing' });
     expect((await request(app).get('/api/org-truth')).status).toBe(501);
   });
 

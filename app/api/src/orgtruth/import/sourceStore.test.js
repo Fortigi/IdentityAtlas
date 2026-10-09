@@ -44,7 +44,7 @@ describe('listSources', () => {
 describe('readSourceTable', () => {
   it('parses the stored bytes, also when the driver hands back a Uint8Array', async () => {
     const out = await readSourceTable({ content: new Uint8Array(Buffer.from('a;b\n1;2')), fileName: 'x.csv', mimeType: 'text/csv' });
-    expect(out).toEqual({ columns: ['a', 'b'], rows: [{ a: '1', b: '2' }] });
+    expect(out).toEqual({ columns: ['a', 'b'], rows: [{ a: '1', b: '2' }], headerRow: 1 });
   });
 
   it('refuses a source without bytes or names with the parser sentence', async () => {

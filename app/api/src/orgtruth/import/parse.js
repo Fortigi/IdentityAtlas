@@ -1,12 +1,15 @@
 // Organisation truth — read an uploaded list (xlsx or csv) into columns + rows.
 //
-//   parseList(buffer, { fileName, mimeType }) → Promise<{ columns: string[], rows: object[] }>
+//   parseList(buffer, { fileName, mimeType }) → Promise<{ columns: string[], rows: object[], headerRow: number }>
 //
+// `headerRow` is the 1-based row of the file (xlsx row number / csv record)
+// that was taken as the header: the first row with at least two filled cells,
+// or for a one-column list the first non-empty row.
 // `rows` are plain objects keyed by the column names, every value a string
 // ('' for an empty cell), in file order. Row N of `rows` is "data row N"
 // (1-based) everywhere else in the import (sourceLocator `row:N`).
 //
-// xlsx: the first worksheet; the first non-empty row is the header. Cell values
+// xlsx: the first worksheet. Cell values
 // become strings: dates as ISO 8601, formulas by their cached result, rich text
 // joined, hyperlinks by their text.
 // csv: UTF-8 (BOM stripped); the delimiter is whichever of `;` `,` TAB occurs
@@ -144,15 +147,25 @@ export function parseCsv(text, delimiter) {
 // ─── Shared: header + rows ───────────────────────────────────────────────
 const isBlankRow = (cells) => cells.every(c => c.trim() === '');
 
+const filledCells = (cells) => cells.filter(c => c.trim() !== '').length;
+
+// The header is the first row with at least two filled cells, so a title line
+// above the table ("Projects per 1 October") is skipped. A one-column list has
+// no such row: then the first non-empty row is the header.
+export function findHeaderIndex(matrix) {
+  const wide = matrix.findIndex(cells => filledCells(cells) >= 2);
+  return wide >= 0 ? wide : matrix.findIndex(cells => filledCells(cells) > 0);
+}
+
 function toTable(matrix) {
-  const headerAt = matrix.findIndex(cells => !isBlankRow(cells));
+  const headerAt = findHeaderIndex(matrix);
   if (headerAt < 0) throw new ListParseError('The file has no header row: every row is empty.');
   const columns = headerNames(matrix[headerAt]);
   const data = matrix.slice(headerAt + 1);
   while (data.length > 0 && isBlankRow(data[data.length - 1])) data.pop();
   if (data.length > MAX_ROWS) throw tooManyRows();
   const rows = data.map(cells => Object.fromEntries(columns.map((name, i) => [name, cells[i] ?? ''])));
-  return { columns, rows };
+  return { columns, rows, headerRow: headerAt + 1 };
 }
 
 // Trailing empty header cells are dropped; an empty or repeated name in

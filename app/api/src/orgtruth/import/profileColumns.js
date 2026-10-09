@@ -24,11 +24,22 @@ export const SAMPLE_COUNT = 5;
 export const SHAPE_SHARE = 0.8;
 
 const SHAPES = [
-  ['email', (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)],
+  // a cell of several addresses ("a@x.nl; b@x.nl") still counts as email
+  ['email', isEmailListLike],
   ['boolean', (v) => /^(true|false|yes|no|ja|nee|y|n)$/i.test(v)],
   ['number', isNumberLike],
   ['date', isDateLike],
 ];
+
+// Also used by applyRecipe.js to split a cell of several addresses.
+export function isEmailLike(v) {
+  return /^[^\s@;,]+@[^\s@;,]+\.[^\s@;,]+$/.test(v);
+}
+
+function isEmailListLike(v) {
+  const parts = v.split(/[;,]/).map(p => p.trim()).filter(Boolean);
+  return parts.length > 0 && parts.every(isEmailLike);
+}
 
 // Digits with an optional sign, thousands separators (. , space) and one
 // decimal mark: 12, -3.5, 1.234.567, 10,5, 1 000. Two separators in a row or a

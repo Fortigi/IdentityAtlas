@@ -4,11 +4,11 @@
 //   GET  /api/org-truth/sources                list (no content), with runCount and lastRunAt
 //   GET  /api/org-truth/sources/:id            one source (no content)
 //   GET  /api/org-truth/sources/:id/download   the original bytes
-//   GET  /api/org-truth/sources/:id/columns    { rowCount, columns } — column profile of a list source
+//   GET  /api/org-truth/sources/:id/columns    { rowCount, headerRow, columns } — column profile of a list source
 //
-// POST answers 201 with the stored row (never `content`) plus `rowCount` and
-// `columns` (import/profileColumns.js shape), so the wizard needs no second
-// call. A file the parser refuses is NOT stored: 400 with the parser's
+// POST answers 201 with the stored row (never `content`) plus `rowCount`,
+// `headerRow` (1-based file row taken as the header, parse.js) and `columns`
+// (import/profileColumns.js shape), so the wizard needs no second call. A file the parser refuses is NOT stored: 400 with the parser's
 // sentence. Only kind 'list' is accepted in the MVP (transcripts and mail need
 // the extraction model that is not chosen yet).
 import { Router } from 'express';
@@ -44,7 +44,7 @@ export function readUploadFields(body, file) {
   return { kind, observedAt: observedAt.toISOString(), displayName };
 }
 
-const tableResponse = ({ columns, rows }) => ({ rowCount: rows.length, columns: profileColumns(columns, rows) });
+const tableResponse = ({ columns, rows, headerRow }) => ({ rowCount: rows.length, headerRow, columns: profileColumns(columns, rows) });
 
 router.post('/org-truth/sources', ...WRITE_GATE, receiveFile, handle('store the source', async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file was uploaded; send it in the multipart field "file".' });

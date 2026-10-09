@@ -7,7 +7,10 @@
 // array is data row i + 1.
 //
 // entities:  { entityType, canonicalKey, displayName, attributes, sourceLocator, row }
-//   One instance per entity definition per row whose nameColumn is non-blank.
+//   One instance per entity definition per row whose nameColumn is non-blank —
+//   or several, when the keyColumn cell holds several e-mail addresses
+//   separated by ; or , (one instance per address, see namesAndKeys; every
+//   relation of that row then runs to each of them).
 //   canonicalKey = the trimmed, lower-cased keyColumn value. Instances are
 //   de-duplicated per (entityType, canonicalKey): the first row wins for the
 //   name and the locator; attributes are merged, the first non-blank value per
@@ -28,6 +31,8 @@
 //
 // summarizeApplied(applied, recipe) → the per-type / per-predicate counts the
 // dry-run report and the run stats share.
+import { isEmailLike } from './profileColumns.js';
+
 const SEP = '\u0000';
 
 const cell = (row, column) => String(row?.[column] ?? '').trim();
@@ -65,30 +70,53 @@ function mergeEntity(existing, incoming, issues) {
   }
 }
 
-function instanceFromRow(row, rowNo, def, issues) {
+const splitList = (v) => v.split(/[;,]/).map(p => p.trim()).filter(Boolean);
+
+// "ann@contoso.com; bob@contoso.com" → both addresses; anything else → [value].
+// Only a cell whose every part is an e-mail address is split: "Smith, Ann" is
+// one name, not two.
+export function splitEmails(value) {
+  const parts = splitList(value);
+  return parts.length > 1 && parts.every(isEmailLike) ? parts : [value];
+}
+
+// The (name, key) pairs one definition yields on one row. Normally one; a key
+// cell holding several e-mail addresses yields one per address. The names
+// pair up with the addresses when the name cell splits (on ; or ,) into as
+// many parts — or is the same column; otherwise each address is its own name.
+function namesAndKeys(def, displayName, keyValue) {
+  const keys = splitEmails(keyValue);
+  if (keys.length === 1) return [{ displayName, canonicalKey: keyValue.toLowerCase() }];
+  const names = def.nameColumn === def.keyColumn ? keys : splitList(displayName);
+  const paired = names.length === keys.length;
+  return keys.map((k, i) => ({ displayName: paired ? names[i] : k, canonicalKey: k.toLowerCase() }));
+}
+
+function instancesFromRow(row, rowNo, def, issues) {
   const displayName = cell(row, def.nameColumn);
-  if (displayName === '') return null;
-  const canonicalKey = cell(row, def.keyColumn).toLowerCase();
-  if (canonicalKey === '') {
+  if (displayName === '') return [];
+  const keyValue = cell(row, def.keyColumn);
+  if (keyValue === '') {
     issues.push({
       kind: 'emptyKey', entityType: def.type, row: rowNo,
       detail: `${def.type} "${displayName}" has no value in key column "${def.keyColumn}" and is left out.`,
     });
-    return null;
+    return [];
   }
-  return {
-    entityType: def.type, canonicalKey, displayName,
-    attributes: readAttributes(row, def), sourceLocator: `row:${rowNo}`, row: rowNo,
-  };
+  const attributes = readAttributes(row, def);
+  return namesAndKeys(def, displayName, keyValue).map(nk => ({
+    entityType: def.type, ...nk,
+    attributes: { ...attributes }, sourceLocator: `row:${rowNo}`, row: rowNo,
+  }));
 }
 
 function addRelation(rel, onRow, rowNo, out) {
-  const fromKey = onRow.get(rel.from);
-  const toKey = onRow.get(rel.to);
-  if (fromKey === undefined || toKey === undefined) {
-    if (fromKey === toKey) return; // neither side on this row
-    const missing = fromKey === undefined ? rel.from : rel.to;
-    const present = fromKey === undefined ? rel.to : rel.from;
+  const fromKeys = onRow.get(rel.from) ?? [];
+  const toKeys = onRow.get(rel.to) ?? [];
+  if (fromKeys.length === 0 || toKeys.length === 0) {
+    if (fromKeys.length === toKeys.length) return; // neither side on this row
+    const missing = fromKeys.length === 0 ? rel.from : rel.to;
+    const present = fromKeys.length === 0 ? rel.to : rel.from;
     out.issues.push({
       kind: 'missingSide', entityType: missing, row: rowNo,
       detail: `Row ${rowNo} has a ${present} but no ${missing}, so "${rel.predicate}" (${rel.from} → ${rel.to}) is not recorded for it.`,
@@ -96,13 +124,16 @@ function addRelation(rel, onRow, rowNo, out) {
     return;
   }
   if (rel.from === rel.to) return;
-  const key = [rel.predicate, rel.from, fromKey, rel.to, toKey].join(SEP);
-  if (out.relationIndex.has(key)) return;
-  const relation = {
-    predicate: rel.predicate, fromType: rel.from, fromKey, toType: rel.to, toKey,
-    sourceLocator: `row:${rowNo}`, row: rowNo,
-  };
-  out.relationIndex.set(key, relation);
+  for (const fromKey of fromKeys) {
+    for (const toKey of toKeys) {
+      const key = [rel.predicate, rel.from, fromKey, rel.to, toKey].join(SEP);
+      if (out.relationIndex.has(key)) continue;
+      out.relationIndex.set(key, {
+        predicate: rel.predicate, fromType: rel.from, fromKey, toType: rel.to, toKey,
+        sourceLocator: `row:${rowNo}`, row: rowNo,
+      });
+    }
+  }
 }
 
 export function applyRecipe(rows, recipe) {
@@ -112,13 +143,15 @@ export function applyRecipe(rows, recipe) {
     const rowNo = i + 1;
     const onRow = new Map();
     for (const def of recipe.entities) {
-      const inst = instanceFromRow(row, rowNo, def, out.issues);
-      if (!inst) continue;
-      onRow.set(def.type, inst.canonicalKey);
-      const k = entityKey(inst.entityType, inst.canonicalKey);
-      const existing = entityIndex.get(k);
-      if (existing) mergeEntity(existing, inst, out.issues);
-      else entityIndex.set(k, inst);
+      const keys = [];
+      for (const inst of instancesFromRow(row, rowNo, def, out.issues)) {
+        keys.push(inst.canonicalKey);
+        const k = entityKey(inst.entityType, inst.canonicalKey);
+        const existing = entityIndex.get(k);
+        if (existing) mergeEntity(existing, inst, out.issues);
+        else entityIndex.set(k, inst);
+      }
+      onRow.set(def.type, keys);
     }
     for (const rel of recipe.relations) addRelation(rel, onRow, rowNo, out);
   });

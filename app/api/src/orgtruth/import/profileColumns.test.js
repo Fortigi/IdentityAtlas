@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { profileColumns, detectShape } from './profileColumns.js';
+import { profileColumns, detectShape, isEmailLike } from './profileColumns.js';
 
 describe('profileColumns', () => {
   const columns = ['Code', 'Owner', 'Mail', 'Empty'];
@@ -43,6 +43,14 @@ describe('detectShape', () => {
     expect(detectShape(['Yes', 'no', 'TRUE', 'ja', 'N'])).toBe('boolean');
     expect(detectShape(['12', '-3.5', '1.234.567', '10,5', '+7', '1 000'])).toBe('number');
     expect(detectShape(['2026-10-01', '2026-01-02T00:00:00.000Z', '1-10-2026', '01/10/2026', '2026/10/1', '2026-10-01 12:00'])).toBe('date');
+  });
+
+  it('counts a cell of several addresses as email, but not separators alone or a name list', () => {
+    expect(detectShape(['ann@contoso.com; bob@contoso.com', 'cas@contoso.com,dan@contoso.com', 'eva@contoso.com;'])).toBe('email');
+    expect(detectShape([';'])).toBe('text');
+    expect(detectShape(['ann@contoso.com; Bob'])).toBe('text');
+    expect(isEmailLike('ann@contoso.com;bob@contoso.com')).toBe(false);
+    expect(isEmailLike('ann@contoso.com')).toBe(true);
   });
 
   it('calls everything else, and an empty column, text', () => {

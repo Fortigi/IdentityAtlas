@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { actorOf, isUuid, handle, sendInvalid } from './httpHelpers.js';
+import { actorOf, isUuid, handle, sendInvalid, parseOr400 } from './httpHelpers.js';
+import { ListParseError } from './parse.js';
 
 const fakeRes = () => {
   const res = { headersSent: false };
@@ -61,5 +62,17 @@ describe('sendInvalid', () => {
     sendInvalid(res, 'Bad.', ['One.', 'Two.']);
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({ error: 'Bad.', errors: ['One.', 'Two.'] });
+  });
+});
+
+describe('parseOr400', () => {
+  it('returns the parse result, answers 400 for a ListParseError, rethrows anything else', async () => {
+    const res = fakeRes();
+    expect(await parseOr400(res, async () => 'table')).toBe('table');
+    expect(await parseOr400(res, async () => { throw new ListParseError('The file is empty.'); })).toBeNull();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: 'The file is empty.' });
+    const boom = new Error('db');
+    await expect(parseOr400(fakeRes(), async () => { throw boom; })).rejects.toBe(boom);
   });
 });

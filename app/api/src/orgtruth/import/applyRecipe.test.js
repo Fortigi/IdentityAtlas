@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyRecipe, summarizeApplied, entityKey } from './applyRecipe.js';
+import { applyRecipe, summarizeApplied, entityKey, splitEmails } from './applyRecipe.js';
 import { normalizeRecipe } from '../contracts.js';
 
 const recipe = normalizeRecipe({
@@ -128,6 +128,48 @@ describe('applyRecipe — relation sides', () => {
     const out = applyRecipe([{ Project: 'Atlas' }, null], recipe);
     expect(out.entities).toEqual([]);
     expect(out.issues).toEqual([expect.objectContaining({ kind: 'emptyKey', entityType: 'Project', row: 1 })]);
+  });
+});
+
+describe('applyRecipe — several e-mail addresses in one cell', () => {
+  const byMail = normalizeRecipe({
+    version: 1,
+    entities: [
+      { type: 'Project', nameColumn: 'Project' },
+      { type: 'Person', nameColumn: 'Owner', keyColumn: 'Mail', attributes: [{ column: 'Dept' }] },
+      { type: 'Contact', nameColumn: 'Mail' },
+    ],
+    relations: [{ predicate: 'owner', from: 'Project', to: 'Person' }, { predicate: 'contact', from: 'Contact', to: 'Project' }],
+  });
+
+  it('makes one instance per address, pairs names that split the same way, and relates each', () => {
+    const out = applyRecipe([{ Project: 'Atlas', Owner: 'Ann; Bob', Mail: 'Ann@contoso.com; bob@contoso.com', Dept: 'IT' }], byMail);
+    expect(out.entities.filter(e => e.entityType === 'Person')).toEqual([
+      { entityType: 'Person', displayName: 'Ann', canonicalKey: 'ann@contoso.com', attributes: { Dept: 'IT' }, sourceLocator: 'row:1', row: 1 },
+      { entityType: 'Person', displayName: 'Bob', canonicalKey: 'bob@contoso.com', attributes: { Dept: 'IT' }, sourceLocator: 'row:1', row: 1 },
+    ]);
+    // name column = key column: the address is the name
+    expect(out.entities.filter(e => e.entityType === 'Contact').map(e => [e.displayName, e.canonicalKey]))
+      .toEqual([['Ann@contoso.com', 'ann@contoso.com'], ['bob@contoso.com', 'bob@contoso.com']]);
+    expect(out.relations.map(r => `${r.predicate}:${r.fromKey}>${r.toKey}`)).toEqual([
+      'owner:atlas>ann@contoso.com', 'owner:atlas>bob@contoso.com',
+      'contact:ann@contoso.com>atlas', 'contact:bob@contoso.com>atlas',
+    ]);
+    expect(out.issues).toEqual([]);
+  });
+
+  it('uses each address as the name when the names do not split into as many parts', () => {
+    const out = applyRecipe([{ Project: 'Atlas', Owner: 'Team Atlas', Mail: 'ann@contoso.com,bob@contoso.com' }], byMail);
+    expect(out.entities.filter(e => e.entityType === 'Person').map(e => e.displayName)).toEqual(['ann@contoso.com', 'bob@contoso.com']);
+  });
+
+  it('does not split a key that is not a list of addresses', () => {
+    expect(splitEmails('Smith, Ann')).toEqual(['Smith, Ann']);
+    expect(splitEmails('ann@contoso.com; Bob')).toEqual(['ann@contoso.com; Bob']);
+    expect(splitEmails('ann@contoso.com')).toEqual(['ann@contoso.com']);
+    expect(splitEmails('ann@contoso.com;;bob@contoso.com;')).toEqual(['ann@contoso.com', 'bob@contoso.com']);
+    const out = applyRecipe([{ Project: 'Atlas', Owner: 'Smith, Ann', Mail: 'Smith, Ann' }], byMail);
+    expect(out.entities.filter(e => e.entityType === 'Person').map(e => e.canonicalKey)).toEqual(['smith, ann']);
   });
 });
 

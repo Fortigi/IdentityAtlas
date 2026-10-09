@@ -1,7 +1,8 @@
 // Organisation truth — import profiles (owned by workstream T1).
 //
 //   GET  /api/org-truth/profiles               every profile version: the latest version of each name
-//                                              first (isLatest: true), then the older ones; ?name= filters
+//                                              first (isLatest: true), then the older ones; ?name= filters,
+//                                              ?latest=1 returns only the newest version of each name
 //   GET  /api/org-truth/profiles/:id           one version
 //   POST /api/org-truth/profiles               create { name, sourceKind, recipe, linkRules } → version 1 (201)
 //   PUT  /api/org-truth/profiles/:id           { sourceKind, recipe, linkRules } → a NEW version of that
@@ -47,12 +48,16 @@ const isUniqueViolation = (err) => err?.code === '23505';
 
 router.get('/org-truth/profiles', ...READ_GATE, handle('list the profiles', async (req, res) => {
   const name = typeof req.query.name === 'string' && req.query.name !== '' ? req.query.name : null;
+  const latestOnly = ['1', 'true'].includes(req.query.latest);
   const r = await query(`
-    SELECT ${PROFILE_COLUMNS},
-           ("version" = MAX("version") OVER (PARTITION BY "name")) AS "isLatest"
-      FROM "OrgImportProfiles"
-     WHERE ($1::text IS NULL OR "name" = $1)
-     ORDER BY "isLatest" DESC, "name", "version" DESC`, [name]);
+    SELECT * FROM (
+      SELECT ${PROFILE_COLUMNS},
+             ("version" = MAX("version") OVER (PARTITION BY "name")) AS "isLatest"
+        FROM "OrgImportProfiles"
+       WHERE ($1::text IS NULL OR "name" = $1)
+    ) p
+     WHERE (NOT $2::boolean OR p."isLatest")
+     ORDER BY p."isLatest" DESC, p."name", p."version" DESC`, [name, latestOnly]);
   res.json(r.rows);
 }));
 

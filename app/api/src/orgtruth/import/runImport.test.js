@@ -76,17 +76,21 @@ describe('executeImportRun', () => {
     });
 
     expect(linkRun).toHaveBeenCalledWith({ runId: RUN, profile, log: expect.any(Function) });
-    expect(enqueueRun).toHaveBeenCalledWith('org-truth', { instanceKey: 'org-truth' }, 'org-import');
+    expect(enqueueRun.mock.calls).toEqual([
+      ['org-truth', { instanceKey: 'org-truth' }, 'org-import', { awaitCompletion: true }],
+      ['org-truth-principals', { instanceKey: 'org-truth-principals' }, 'org-import', { awaitCompletion: true }],
+    ]);
     // full mode: the write step closed what this source no longer has
     expect(query.mock.calls.some(([sql]) => sql.includes('SET "validTo" = $2'))).toBe(true);
   });
 
-  it('keeps going when the projection cannot be queued, and logs why', async () => {
+  it('keeps going when one projection fails, still runs the other, and logs why', async () => {
     stage();
     enqueueRun.mockRejectedValueOnce(new Error('Unknown plugin: org-truth'));
     await executeImportRun(RUN);
     expect(runUpdates().at(-1).status).toBe('completed');
-    expect(console.log).toHaveBeenCalledWith(`[org-import ${RUN}] projection not queued: Unknown plugin: org-truth`);
+    expect(console.log).toHaveBeenCalledWith(`[org-import ${RUN}] projection org-truth not run: Unknown plugin: org-truth`);
+    expect(enqueueRun).toHaveBeenCalledTimes(2);
   });
 
   it('caps the stored issue samples', async () => {

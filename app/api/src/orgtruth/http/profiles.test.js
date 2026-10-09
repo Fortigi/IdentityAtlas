@@ -76,12 +76,16 @@ describe('GET /org-truth/profiles', () => {
     query.mockResolvedValue({ rows: [{ id: ID, isLatest: true }] });
     const r = await request(app).get('/api/org-truth/profiles');
     expect(r.body).toEqual([{ id: ID, isLatest: true }]);
-    expect(query.mock.calls[0][1]).toEqual([null]);
-    expect(query.mock.calls[0][0]).toMatch(/ORDER BY "isLatest" DESC, "name", "version" DESC/);
+    expect(query.mock.calls[0][1]).toEqual([null, false]);
+    expect(query.mock.calls[0][0]).toMatch(/ORDER BY p."isLatest" DESC, p."name", p."version" DESC/);
     await request(app).get('/api/org-truth/profiles?name=Projects');
-    expect(query.mock.calls[1][1]).toEqual(['Projects']);
-    await request(app).get('/api/org-truth/profiles?name=');
-    expect(query.mock.calls[2][1]).toEqual([null]);
+    expect(query.mock.calls[1][1]).toEqual(['Projects', false]);
+    await request(app).get('/api/org-truth/profiles?name=&latest=0');
+    expect(query.mock.calls[2][1]).toEqual([null, false]);
+    await request(app).get('/api/org-truth/profiles?latest=1');
+    expect(query.mock.calls[3][1]).toEqual([null, true]);
+    await request(app).get('/api/org-truth/profiles?latest=true&name=X');
+    expect(query.mock.calls[4][1]).toEqual(['X', true]);
   });
 });
 

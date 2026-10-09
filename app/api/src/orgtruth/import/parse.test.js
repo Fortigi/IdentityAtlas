@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
 import {
-  parseList, ListParseError, MAX_ROWS, detectFormat, cellToString, sniffDelimiter, parseCsv, headerNames,
+  parseList, ListParseError, MAX_ROWS, findHeaderIndex, detectFormat, cellToString, sniffDelimiter, parseCsv, headerNames,
 } from './parse.js';
 
 const csv = (text) => Buffer.from(text, 'utf8');
@@ -74,6 +74,28 @@ describe('parseList — csv', () => {
   });
 });
 
+describe('header detection', () => {
+  it('skips a title line above the table: the header is the first row with two filled cells', async () => {
+    const out = await parseList(csv('Projects per 1 October;;\n;;\nCode;Name;Owner\nP-1;Atlas;Ann'));
+    expect(out.headerRow).toBe(3);
+    expect(out.columns).toEqual(['Code', 'Name', 'Owner']);
+    expect(out.rows).toEqual([{ Code: 'P-1', Name: 'Atlas', Owner: 'Ann' }]);
+  });
+
+  it('takes the first non-empty row of a one-column list', async () => {
+    const out = await parseList(csv('\nName\nAtlas\nBeacon'));
+    expect(out.headerRow).toBe(2);
+    expect(out.columns).toEqual(['Name']);
+    expect(out.rows).toHaveLength(2);
+  });
+
+  it('findHeaderIndex answers -1 when every row is blank', () => {
+    expect(findHeaderIndex([[''], [' ', '']])).toBe(-1);
+    expect(findHeaderIndex([['t', ''], ['a', 'b']])).toBe(1);
+    expect(findHeaderIndex([['t', ''], ['u']])).toBe(0);
+  });
+});
+
 describe('sniffDelimiter', () => {
   it('picks the delimiter that occurs most on the header line, ignoring quoted text', () => {
     expect(sniffDelimiter('a;b;c\n1,2,3,4,5')).toBe(';');
@@ -138,6 +160,7 @@ describe('parseList — xlsx', () => {
   it('reads the first worksheet from its first non-empty row, with dates and formulas as values', async () => {
     const buf = await xlsxOf((wb) => {
       const ws = wb.addWorksheet('Projects');
+      ws.getRow(1).values = ['Project list, October'];
       ws.getRow(3).values = ['Code', 'Name', 'Start', 'Budget'];
       ws.getRow(4).values = ['P-1', 'Atlas', new Date(Date.UTC(2026, 0, 2)), { formula: '2*5', result: 10 }];
       ws.getRow(6).values = ['P-2', { richText: [{ text: 'Bea' }, { text: 'con' }] }];
@@ -145,6 +168,7 @@ describe('parseList — xlsx', () => {
     });
     const out = await parseList(buf, { fileName: 'projects.xlsx' });
     expect(out.columns).toEqual(['Code', 'Name', 'Start', 'Budget']);
+    expect(out.headerRow).toBe(3);
     expect(out.rows).toEqual([
       { Code: 'P-1', Name: 'Atlas', Start: '2026-01-02T00:00:00.000Z', Budget: '10' },
       { Code: '', Name: '', Start: '', Budget: '' },

@@ -49,7 +49,7 @@ describe('POST /org-truth/sources', () => {
       .field('displayName', ' Projects Q3 ').field('observedAt', '2026-09-30')
       .attach('file', Buffer.from(CSV), { filename: 'projects.csv', contentType: 'text/csv' });
     expect(r.status).toBe(201);
-    expect(r.body).toMatchObject({ id: ID, displayName: 'Projects Q3', rowCount: 2 });
+    expect(r.body).toMatchObject({ id: ID, displayName: 'Projects Q3', rowCount: 2, headerRow: 1 });
     expect(r.body.columns.map(c => [c.name, c.shape])).toEqual([['Code', 'text'], ['Project', 'text'], ['Owner', 'email']]);
     const params = queryOne.mock.calls.find(([sql]) => sql.includes('INSERT INTO "OrgSources"'))[1];
     expect(params.slice(1, 6)).toEqual(['list', 'Projects Q3', 'projects.csv', 'text/csv', Buffer.byteLength(CSV)]);
@@ -174,6 +174,7 @@ describe('GET /org-truth/sources/:id/columns', () => {
     const r = await request(app).get(`/api/org-truth/sources/${ID}/columns`);
     expect(r.status).toBe(200);
     expect(r.body.rowCount).toBe(2);
+    expect(r.body.headerRow).toBe(1);
     expect(r.body.columns[2]).toMatchObject({ name: 'Owner', nonEmpty: 2, distinct: 2, shape: 'email' });
   });
 
