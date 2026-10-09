@@ -30,6 +30,7 @@ export default defineConfig({
       'src/components/contexts/assistant/TermsPanel.mount.test.jsx',
       'src/hooks/useCanBuildContexts.test.js',
       'src/components/contexts/ContextOwner.test.jsx',
+      'src/components/contexts/ContextAccessCounts.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },

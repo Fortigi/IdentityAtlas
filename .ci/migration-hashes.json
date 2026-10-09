@@ -85,6 +85,7 @@
     "079_conversation_store.sql": "eab8ee5dfeecf4d43dd5a4f75e365f264b5d2327ede0e82c385bc44fbec7c27d",
     "080_declined_outcome.sql": "c80a67664fa1cd07924d9beb15a377f347388b7d04267d8a3e92d0b4109a0f77",
     "081_first_reply.sql": "ba7cc81930baed65438a02eba9372c9afe06b5e76c90ebcbd96a7d19de811e64",
-    "082_assignment_origin.sql": "fdb70c1da1be0abdba6b3ff1b5c2bbd8c5523dbda1093bac749b38a5f14cf099"
+    "082_assignment_origin.sql": "fdb70c1da1be0abdba6b3ff1b5c2bbd8c5523dbda1093bac749b38a5f14cf099",
+    "083_context_assignment_counts.sql": "8de6fd61424a9433a99f6b94be7a02cdb823c35ee40379cad23a4a35382383e4"
   }
 }
