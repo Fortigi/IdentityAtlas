@@ -21,7 +21,15 @@ const MODEL = {
     { predicate: 'owner', fromType: 'Project', toType: 'Person', count: 85 },
     { predicate: 'sponsor', fromType: 'Project', toType: 'Person', count: 90 },
   ],
-  links: [{ entityType: 'Person', targetType: 'Principal', accepted: 51, proposed: 9 }],
+  links: [
+    { entityType: 'Person', targetType: 'Principal', via: 'displayName', accepted: 51, proposed: 9 },
+    { entityType: 'Person', targetType: 'Principal', via: 'email', accepted: 3, proposed: 0 },
+  ],
+  entityLinks: [{ fromType: 'Person', toType: 'Project', via: 'team', accepted: 7, proposed: 1 }],
+  profiles: [{
+    id: 'p1', name: 'Contoso projects', version: 2, lastRunStatus: 'completed',
+    recipe: { version: 1, entities: [{ type: 'Project', nameColumn: 'Name', attributes: [] }] }, linkRules: [],
+  }],
   systemTypes: [{ targetType: 'Principal', count: 1127 }],
   totals: { entities: 147, relations: 175, links: 60, sources: 2 },
 };
@@ -45,11 +53,33 @@ describe('ModelTab', () => {
     const nodes = [...container.querySelectorAll('[data-node]')].map(n => n.getAttribute('data-node'));
     expect(nodes).toEqual(['t:Project', 't:Person', 's:Principal']);
     const edges = [...container.querySelectorAll('[data-edge]')].map(e => e.getAttribute('data-edge'));
-    expect(edges).toEqual(['p:Project:owner:Person', 'p:Project:sponsor:Person', 'l:Person:Principal']);
-    expect(container.querySelector('[data-edge="l:Person:Principal"]')).toHaveAttribute('stroke-dasharray', '5 4');
-    expect(screen.getByText('51 accepted · 9 proposed')).toBeInTheDocument();
+    expect(edges).toEqual([
+      'p:Project:owner:Person', 'p:Project:sponsor:Person', 'e:Person:team:Project',
+      'l:Person:Principal:displayName', 'l:Person:Principal:email',
+    ]);
+    expect(nodes).not.toContain('s:OrgEntity');
+    expect(container.querySelector('[data-edge="l:Person:Principal:displayName"]')).toHaveAttribute('stroke-dasharray', '5 4');
+    expect(container.querySelector('[data-edge="l:Person:Principal:displayName"]')).not.toHaveAttribute('marker-end');
+    expect(container.querySelector('[data-edge="e:Person:team:Project"]')).toHaveAttribute('stroke-dasharray', '5 4');
+    expect(container.querySelector('[data-edge="e:Person:team:Project"]')).toHaveAttribute('marker-end', 'url(#ot-arrow-link)');
+    expect(container.querySelector('[data-edge="p:Project:owner:Person"]')).toHaveAttribute('marker-end', 'url(#ot-arrow)');
+    expect(screen.getByText('name: 51 accepted · 9 proposed')).toBeInTheDocument();
+    expect(screen.getByText('email: 3 accepted')).toBeInTheDocument();
+    expect(screen.getByText('team: 7 accepted · 1 proposed')).toBeInTheDocument();
     expect(screen.getByText('owner 85')).toBeInTheDocument();
     expect(screen.getByTestId('model-totals')).toHaveTextContent('147 entities · 175 relations · 60 links · 2 sources');
+  });
+
+  it('shows the link-rule editor under the overview and reloads the model after a rename', async () => {
+    const { authFetch } = render({ routes: { '/rename-type': { profile: { id: 'p2' }, renamedEntities: 87, otherProfiles: [] } } });
+    expect(await screen.findByRole('heading', { name: 'Link rules' })).toBeInTheDocument();
+    const modelCalls = () => authFetch.mock.calls.filter(([u]) => u.startsWith('/api/org-truth/model')).length;
+    const before = modelCalls();
+    await userEvent.click(screen.getByRole('button', { name: 'Rename Project' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'New name for Project' }), 's{Enter}');
+    await waitFor(() => expect(modelCalls()).toBe(before + 1));
+    await userEvent.click(screen.getByRole('button', { name: 'Table' }));
+    expect(screen.getByRole('heading', { name: 'Link rules' })).toBeInTheDocument();
   });
 
   it('puts the attribute keys and sources in the node tooltip', async () => {

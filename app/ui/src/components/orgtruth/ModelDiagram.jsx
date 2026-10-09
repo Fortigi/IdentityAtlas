@@ -3,6 +3,9 @@
 // is a pure, tested function. Colours are hex (SVG attributes), picked per theme
 // with useIsDark(); fills are the soft 200–300 tier.
 //
+// Edges: predicates (solid arcs), links between two lists (dashed arcs) and
+// links to the system truth (dashed lines, one per attribute).
+//
 // Hover or focus a node: its <title> lists the attribute keys and the number of
 // sources (entity types) or the size of the system table (system types).
 import { useMemo } from 'react';
@@ -27,8 +30,13 @@ function nodeTitle(n) {
   return `${n.label}: ${n.count} entities (${n.proposed} proposed)\nAttributes: ${keys}${sources}`;
 }
 
+// Predicates and links between two lists have a direction; a link to the
+// system truth is always downwards and needs no arrow.
+const MARKERS = { predicate: 'url(#ot-arrow)', entityLink: 'url(#ot-arrow-link)' };
+const markerOf = (e) => MARKERS[e.kind];
+
 function EdgeLabel({ edge, c }) {
-  const w = edge.label.length * 6.2 + 10;
+  const w = edge.labelW;
   return (
     <g>
       <rect x={edge.labelX - w / 2} y={edge.labelY - 9} width={w} height={16} rx={3} fill={c.labelBg} opacity={0.9} />
@@ -54,6 +62,9 @@ export default function ModelDiagram({ model }) {
         <marker id="ot-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" fill={c.edge} />
         </marker>
+        <marker id="ot-arrow-link" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill={c.link} />
+        </marker>
       </defs>
       {layout.edges.map(e => (
         <path
@@ -64,7 +75,7 @@ export default function ModelDiagram({ model }) {
           stroke={e.dashed ? c.link : c.edge}
           strokeWidth={1.5}
           strokeDasharray={e.dashed ? '5 4' : undefined}
-          markerEnd={e.dashed ? undefined : 'url(#ot-arrow)'}
+          markerEnd={markerOf(e)}
         />
       ))}
       {layout.nodes.map(n => (
