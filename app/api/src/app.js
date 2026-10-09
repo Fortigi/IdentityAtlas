@@ -15,6 +15,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { readFileSync } from 'fs';
 import { authMiddleware } from './middleware/auth.js';
 import { resolveModuleVersion } from './version.js';
 import { perfMetrics } from './middleware/perfMetrics.js';
@@ -52,7 +53,7 @@ import updatesRouter from './routes/updates.js';
 import { isAuthEnabled, getTenantId, getClientId } from './config/authConfig.js';
 import { isSchemaReady } from './startupState.js';
 import swaggerUi from 'swagger-ui-express';
-import YAML from 'yamljs';
+import YAML from 'yaml';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isProduction = process.env.NODE_ENV === 'production';
@@ -185,7 +186,7 @@ export function createApp() {
 
   // ─── Swagger / OpenAPI docs (public) ─────────────────────────────
   try {
-    const openapiSpec = YAML.load(join(__dirname, 'openapi.yaml'));
+    const openapiSpec = YAML.parse(readFileSync(join(__dirname, 'openapi.yaml'), 'utf8'));
     app.get('/api/openapi.json', (req, res) => res.json(openapiSpec));
     app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, {
       customSiteTitle: 'Identity Atlas Ingest API',
