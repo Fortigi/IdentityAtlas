@@ -42,6 +42,7 @@ export default defineConfig({
       'src/orgtruth/linking/detect.test.js',
       'src/orgtruth/linking/sourceEntities.test.js',
       'src/orgtruth/linking/review.test.js',
+      'src/orgtruth/linking/reviewGroups.test.js',
       'src/orgtruth/http/links.test.js',
       'src/orgtruth/import/parse.test.js',
       'src/orgtruth/import/profileColumns.test.js',

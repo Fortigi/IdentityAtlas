@@ -19,6 +19,7 @@ import { READ_GATE, WRITE_GATE } from './gates.js';
 import { validateRecipe, normalizeRecipe } from '../contracts.js';
 import { detectLinks, entitiesFromRows } from '../linking/detect.js';
 import { loadSourceEntities, SourceParsingUnavailable } from '../linking/sourceEntities.js';
+import { listReviewGroups, decideGroup } from '../linking/reviewGroups.js';
 import {
   ReviewError, isUuid, listReview, listClaims, overrideLink, clearOverride, setClaimStatus,
 } from '../linking/review.js';
@@ -75,6 +76,24 @@ router.get('/org-truth/review', ...READ_GATE, async (req, res) => {
     return res.json(req.query.kind === 'claims' ? await listClaims(params) : await listReview(params));
   } catch (err) {
     return fail(res, err, 'load the review queue');
+  }
+});
+
+// The queue as distinct decisions (one row per entity type, attribute, value
+// and target type), and one decision for every open proposal in such a group.
+router.get('/org-truth/review/groups', ...READ_GATE, async (req, res) => {
+  try {
+    return res.json(await listReviewGroups({ status: req.query.status, entityType: req.query.entityType, page: req.query.page }));
+  } catch (err) {
+    return fail(res, err, 'load the review groups');
+  }
+});
+
+router.put('/org-truth/review/groups/decision', ...WRITE_GATE, async (req, res) => {
+  try {
+    return res.json(await decideGroup(req.body, req.user));
+  } catch (err) {
+    return fail(res, err, 'decide the review group');
   }
 });
 

@@ -41,6 +41,7 @@
     "src/orgtruth/linking/detect.js",
     "src/orgtruth/linking/sourceEntities.js",
     "src/orgtruth/linking/review.js",
+    "src/orgtruth/linking/reviewGroups.js",
     "src/orgtruth/http/links.js",
     "src/orgtruth/import/parse.js",
     "src/orgtruth/import/profileColumns.js",
