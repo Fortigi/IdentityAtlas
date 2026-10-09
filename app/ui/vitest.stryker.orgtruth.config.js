@@ -36,6 +36,8 @@ export default defineConfig({
       'src/components/orgtruth/OrgLinkTable.mount.test.jsx',
       'src/components/orgtruth/linkRulesDraft.test.js',
       'src/components/orgtruth/modelCanvas.test.js',
+      'src/components/orgtruth/canvasLayout.test.js',
+      'src/components/orgtruth/canvasView.test.js',
       'src/components/orgtruth/LinkRulesEditor.mount.test.jsx',
       'src/components/orgtruth/orgGraphBranch.test.js',
       'src/components/orgtruth/useOrgLinked.test.js',

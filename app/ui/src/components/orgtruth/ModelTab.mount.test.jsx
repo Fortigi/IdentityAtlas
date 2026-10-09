@@ -70,16 +70,17 @@ describe('ModelTab', () => {
     expect(screen.getByTestId('model-totals')).toHaveTextContent('147 entities · 175 relations · 60 links · 2 sources');
   });
 
-  it('shows the link-rule editor under the overview and reloads the model after a rename', async () => {
+  it('shows the model canvas under the overview and reloads the model after a rename', async () => {
     const { authFetch } = render({ routes: { '/rename-type': { profile: { id: 'p2' }, renamedEntities: 87, otherProfiles: [] } } });
-    expect(await screen.findByRole('heading', { name: 'Link rules' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Model canvas' })).toBeInTheDocument();
+    await screen.findByRole('group', { name: 'Model canvas' });
     const modelCalls = () => authFetch.mock.calls.filter(([u]) => u.startsWith('/api/org-truth/model')).length;
     const before = modelCalls();
     await userEvent.click(screen.getByRole('button', { name: 'Rename Project' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'New name for Project' }), 's{Enter}');
     await waitFor(() => expect(modelCalls()).toBe(before + 1));
     await userEvent.click(screen.getByRole('button', { name: 'Table' }));
-    expect(screen.getByRole('heading', { name: 'Link rules' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Model canvas' })).toBeInTheDocument();
   });
 
   it('puts the attribute keys and sources in the node tooltip', async () => {

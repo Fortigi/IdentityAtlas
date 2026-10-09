@@ -9,8 +9,9 @@
 // Table (the same data, sortable by count) — plus filters per source
 // (`?sourceId=`, options from GET /sources) and "include closed"
 // (`?includeClosed=1`), a totals line, and the model as Mermaid text with a
-// Copy button. Below the overview the link-rule editor (LinkRulesEditor):
-// one canvas per import profile to correct, add and remove links after the fact.
+// Copy button. Below the overview the model canvas (LinkRulesEditor): every
+// list's entity types and the system types on ONE draggable canvas, where the
+// links are corrected, added and removed after the fact.
 //
 // Props: { onImport }
 import { useState } from 'react';

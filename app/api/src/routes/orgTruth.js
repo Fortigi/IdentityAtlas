@@ -1,6 +1,6 @@
 // Organisation truth — the composed API router.
 //
-// The feature is built as six sub-routers under src/orgtruth/http/, one per
+// The feature is built as sub-routers under src/orgtruth/http/, one per
 // workstream, so they can be developed in parallel without touching one
 // another. This file only composes them and adds the one behaviour they share:
 // any /org-truth path no sub-router claims answers 501 while the feature is on,
@@ -18,10 +18,11 @@ import runs from '../orgtruth/http/runs.js';
 import links from '../orgtruth/http/links.js';
 import propose from '../orgtruth/http/propose.js';
 import model from '../orgtruth/http/model.js';
+import layout from '../orgtruth/http/layout.js';
 
 const router = Router();
 
-router.use(sources, profiles, runs, links, propose, model);
+router.use(sources, profiles, runs, links, propose, model, layout);
 
 // Everything under /org-truth that nothing above claimed.
 router.all('/org-truth', requireFeature(FEATURE), notBuilt);

@@ -56,7 +56,9 @@
     "src/orgtruth/import/httpHelpers.js",
     "src/orgtruth/http/sources.js",
     "src/orgtruth/http/profiles.js",
-    "src/orgtruth/http/runs.js"
+    "src/orgtruth/http/runs.js",
+    "src/orgtruth/model/layout.js",
+    "src/orgtruth/http/layout.js"
   ],
   "mutationExclusions": {
     "src/orgtruth/http/gates.js": "Declaration, not logic: the two gate arrays (permission + feature flag) every org-truth route reuses. Which permission guards which route is asserted by the route tests of each sub-router; there is no branch here to mutate."
