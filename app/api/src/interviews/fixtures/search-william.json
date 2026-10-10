@@ -1,0 +1,20 @@
+{
+  "kind": "identity",
+  "scoped": true,
+  "candidates": [
+    {
+      "id": "a1b2c3d4-0000-4000-8000-000000000001",
+      "kind": "identity",
+      "displayName": "William de Boer",
+      "label": "Platform engineer · ICT Beheer",
+      "score": 0.71,
+      "inScope": true
+    }
+  ],
+  "truncated": false,
+  "outcome": {
+    "state": "suggested",
+    "entityId": "a1b2c3d4-0000-4000-8000-000000000001",
+    "reason": "single-candidate"
+  }
+}
