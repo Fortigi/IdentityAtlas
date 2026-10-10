@@ -15,9 +15,27 @@ describe('shapeAttributes', () => {
       { key: 'iso27001', value: 'Ja', n: 14, distinctCount: 2 },
     ];
     expect(shapeAttributes(rows, 61)).toEqual([
-      { key: 'iso27001', distinct: 2, free: false, values: [{ value: 'Nee', count: 47 }, { value: 'Ja', count: 14 }] },
-      { key: 'sector', distinct: 2, free: false, values: [{ value: 'Bank', count: 3 }, { value: 'Retail', count: 1 }] },
+      { key: 'iso27001', distinct: 2, free: false, multi: false, values: [{ value: 'Nee', count: 47 }, { value: 'Ja', count: 14 }] },
+      { key: 'sector', distinct: 2, free: false, multi: false, values: [{ value: 'Bank', count: 3 }, { value: 'Retail', count: 1 }] },
     ]);
+  });
+
+  it('marks a multi-valued key (its values are the separate elements)', () => {
+    const [a] = shapeAttributes([
+      { key: 'expertises', value: 'devops engineer', n: 8, distinctCount: 2, multi: true },
+      { key: 'expertises', value: 'CISO', n: 4, distinctCount: 2, multi: true },
+    ], 11);
+    expect(a).toEqual({ key: 'expertises', distinct: 2, free: false, multi: true, values: [{ value: 'devops engineer', count: 8 }, { value: 'CISO', count: 4 }] });
+  });
+
+  it('the values query splits JSON arrays into their elements and counts each entity once per value', async () => {
+    query.mockResolvedValue({ rows: [] });
+    await getFilterOptions('Maten');
+    const valuesSql = query.mock.calls[1][0];
+    expect(valuesSql).toContain(`jsonb_typeof(a.value) = 'array' AS multi`);
+    expect(valuesSql).toContain('SELECT jsonb_array_elements_text(kv.value) AS value WHERE kv.multi');
+    expect(valuesSql).toContain(`UNION ALL SELECT kv.value #>> '{}' WHERE NOT kv.multi`);
+    expect(valuesSql).toContain('count(DISTINCT "id")::int AS n');
   });
 
   // Free = unique per entity AND too many to list. Each half alone must not do it.
@@ -52,22 +70,27 @@ describe('shapeVias', () => {
 });
 
 describe('getFilterOptions', () => {
-  it('binds the type into all four queries and assembles the answer', async () => {
+  it('binds the type into all five queries and assembles the answer', async () => {
     query
       .mockResolvedValueOnce({ rows: [{ n: 61 }] })
-      .mockResolvedValueOnce({ rows: [{ key: 'iso27001', value: 'Ja', n: 14, distinctCount: 2 }] })
+      .mockResolvedValueOnce({ rows: [{ key: 'iso27001', value: 'Ja', n: 14, distinctCount: 2, multi: false }] })
       .mockResolvedValueOnce({ rows: [{ name: 'eigenaar', targetType: 'Principal', links: 58 }] })
+      .mockResolvedValueOnce({ rows: [{ name: 'Hours', targetType: 'Principal', links: 12 }] })
       .mockResolvedValueOnce({ rows: [{ name: 'Uren', targetType: 'Principal', links: 839 }] });
     const out = await getFilterOptions('Klant');
     expect(out).toEqual({
       entityType: 'Klant', entityCount: 61,
-      attributes: [{ key: 'iso27001', distinct: 2, free: false, values: [{ value: 'Ja', count: 14 }] }],
+      attributes: [{ key: 'iso27001', distinct: 2, free: false, multi: false, values: [{ value: 'Ja', count: 14 }] }],
       vias: [
         { name: 'eigenaar', kind: 'direct', targets: ['Principal'], links: 58 },
+        { name: 'Hours', kind: 'through', targets: ['Principal'], links: 12 },
+        // activity on the customers is a `through` name too
         { name: 'Uren', kind: 'through', targets: ['Principal'], links: 839 },
       ],
     });
-    const [count, values, direct, through] = query.mock.calls;
+    const [count, values, direct, through, activity] = query.mock.calls;
+    expect(activity[1]).toEqual(['Klant', ['Principal', 'Identity', 'Resource', 'Context']]);
+    expect(activity[0]).toContain(`sk."status" = 'accepted' AND sk."targetType" = 'OrgEntity'`);
     expect(count[1]).toEqual(['Klant']);
     expect(values[1]).toEqual(['Klant', VALUES_PER_KEY]);
     expect(direct[1]).toEqual(['Klant', ['Principal', 'Identity', 'Resource', 'Context']]);

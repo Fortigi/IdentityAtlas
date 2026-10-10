@@ -25,19 +25,42 @@ const CURRENT = (alias) => `${alias}."status" = 'accepted' AND ${alias}."validTo
 
 const countSql = `SELECT count(*)::int AS n FROM "OrgEntities" e WHERE e."entityType" = $1 AND ${CURRENT('e')}`;
 
-// Per (key, value): how many entities; per key: how many distinct values.
+// Per (key, value): how many entities; per key: how many distinct values, and
+// whether it is multi-valued. A multi-valued attribute (stored as a JSON array,
+// e.g. expertises) offers its SEPARATE values — "devops engineer" — not each
+// row's whole list; an entity counts once per value it holds.
 const valuesSql = `
-  WITH v AS (
-    SELECT kv.key, kv.value, count(*)::int AS n
+  WITH kv AS (
+    SELECT e."id", a.key, jsonb_typeof(a.value) = 'array' AS multi, a.value
       FROM "OrgEntities" e
-     CROSS JOIN LATERAL jsonb_each_text(CASE WHEN jsonb_typeof(e."attributes") = 'object' THEN e."attributes" ELSE '{}'::jsonb END) kv
-     WHERE e."entityType" = $1 AND ${CURRENT('e')} AND kv.value IS NOT NULL AND kv.value <> ''
-     GROUP BY kv.key, kv.value),
+     CROSS JOIN LATERAL jsonb_each(CASE WHEN jsonb_typeof(e."attributes") = 'object' THEN e."attributes" ELSE '{}'::jsonb END) a
+     WHERE e."entityType" = $1 AND ${CURRENT('e')}),
+  flat AS (
+    SELECT kv."id", kv.key, kv.multi, x.value
+      FROM kv CROSS JOIN LATERAL (
+        SELECT jsonb_array_elements_text(kv.value) AS value WHERE kv.multi
+        UNION ALL SELECT kv.value #>> '{}' WHERE NOT kv.multi) x),
+  v AS (
+    SELECT key, value, count(DISTINCT "id")::int AS n, bool_or(multi) AS multi
+      FROM flat WHERE value IS NOT NULL AND value <> ''
+     GROUP BY key, value),
   r AS (
     SELECT key, value, n, count(*) OVER (PARTITION BY key)::int AS "distinctCount",
+           bool_or(multi) OVER (PARTITION BY key) AS multi,
            row_number() OVER (PARTITION BY key ORDER BY n DESC, value) AS rn
       FROM v)
-  SELECT key, value, n, "distinctCount" FROM r WHERE rn <= $2 ORDER BY key, rn`;
+  SELECT key, value, n, "distinctCount", multi FROM r WHERE rn <= $2 ORDER BY key, rn`;
+
+// Activity on these entities (a timesheet imported as activity): its type is a
+// `through` name the condition's `via` accepts, like a fact list's type.
+const activitySql = `
+  SELECT a."activityType" AS name, ak."targetType", count(*)::int AS links
+    FROM "OrgActivities" a
+    JOIN "OrgActivityKeys" sk ON sk."id" = a."subjectKeyId" AND sk."status" = 'accepted' AND sk."targetType" = 'OrgEntity'
+    JOIN "OrgActivityKeys" ak ON ak."id" = a."actorKeyId" AND ak."status" = 'accepted' AND ak."targetType" = ANY($2::text[])
+    JOIN "OrgEntities" e ON e."id" = sk."targetId"
+   WHERE e."entityType" = $1 AND ${CURRENT('e')}
+   GROUP BY 1, 2`;
 
 const directSql = `
   SELECT COALESCE(l."via", 'displayName') AS name, l."targetType", count(*)::int AS links
@@ -60,7 +83,7 @@ const throughSql = `
 export function shapeAttributes(rows, entityCount) {
   const byKey = new Map();
   for (const r of rows) {
-    const a = byKey.get(r.key) ?? { key: r.key, distinct: r.distinctCount, free: false, values: [] };
+    const a = byKey.get(r.key) ?? { key: r.key, distinct: r.distinctCount, free: false, multi: r.multi === true, values: [] };
     a.values.push({ value: r.value, count: r.n });
     byKey.set(r.key, a);
   }
@@ -89,17 +112,18 @@ export function shapeVias(directRows, throughRows) {
 }
 
 export async function getFilterOptions(entityType) {
-  const [count, values, direct, through] = await Promise.all([
+  const [count, values, direct, through, activity] = await Promise.all([
     query(countSql, [entityType]),
     query(valuesSql, [entityType, VALUES_PER_KEY]),
     query(directSql, [entityType, SYSTEM_TYPES]),
     query(throughSql, [entityType, SYSTEM_TYPES]),
+    query(activitySql, [entityType, SYSTEM_TYPES]),
   ]);
   const entityCount = count.rows[0]?.n ?? 0;
   return {
     entityType,
     entityCount,
     attributes: shapeAttributes(values.rows, entityCount),
-    vias: shapeVias(direct.rows, through.rows),
+    vias: shapeVias(direct.rows, [...through.rows, ...activity.rows]),
   };
 }

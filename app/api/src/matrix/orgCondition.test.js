@@ -128,14 +128,21 @@ describe('orgConditionClause', () => {
     const key = `x'); DROP TABLE "Principals"; --`;
     const out = build({ entityType: 'Klant', attribute: { key, values: ['Ja'] } });
     expect(out.params).toEqual(['Klant', key, ['Ja']]);
-    expect(out.sql).toContain(`AND e."attributes"->>($2::text) = ANY($3::text[])`);
+    expect(out.sql).toContain(`AND (CASE WHEN jsonb_typeof(e."attributes"->($2::text)) = 'array'`);
+    expect(out.sql).toContain(`ELSE e."attributes"->>($2::text) = ANY($3::text[]) END)`);
     expect(out.sql).not.toContain('DROP TABLE');
   });
 
   it('combines ids and attribute with AND, numbered in bind order', () => {
     const out = build({ entityType: 'Klant', entityIds: [ID_A], attribute: { key: 'iso27001', values: ['Ja', 'Nee'] } });
     expect(out.params).toEqual(['Klant', [ID_A], 'iso27001', ['Ja', 'Nee']]);
-    expect(out.sql).toContain(`e."validTo" IS NULL AND e."id" = ANY($2::uuid[]) AND e."attributes"->>($3::text) = ANY($4::text[])`);
+    expect(out.sql).toContain(`e."validTo" IS NULL AND e."id" = ANY($2::uuid[]) AND (CASE WHEN jsonb_typeof(e."attributes"->($3::text)) = 'array'`);
+  });
+
+  it('matches a multi-valued attribute (a JSON array) when ANY element is chosen, a single value by equality', () => {
+    const { sql } = build({ entityType: 'Maten', attribute: { key: 'expertises', values: ['devops engineer'] } });
+    expect(sql).toContain(`THEN EXISTS (SELECT 1 FROM jsonb_array_elements_text(e."attributes"->($2::text)) av WHERE av = ANY($3::text[]))`);
+    expect(sql).toContain(`ELSE e."attributes"->>($2::text) = ANY($3::text[]) END`);
   });
 
   it('applies one via list to the direct links (via) AND to the through links (fact type)', () => {

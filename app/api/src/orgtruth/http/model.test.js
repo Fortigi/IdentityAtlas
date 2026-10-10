@@ -214,12 +214,13 @@ describe('GET /org-truth/filter-options', () => {
       .mockResolvedValueOnce({ rows: [{ n: 2 }] })
       .mockResolvedValueOnce({ rows: [{ key: 'iso27001', value: 'Ja', n: 2, distinctCount: 1 }] })
       .mockResolvedValueOnce({ rows: [{ name: 'eigenaar', targetType: 'Principal', links: 2 }] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
     const r = await request(app).get(`/api/org-truth/filter-options?type=${encodeURIComponent("Klant's")}`);
     expect(r.status).toBe(200);
     expect(r.body).toEqual({
       entityType: "Klant's", entityCount: 2,
-      attributes: [{ key: 'iso27001', distinct: 1, free: false, values: [{ value: 'Ja', count: 2 }] }],
+      attributes: [{ key: 'iso27001', distinct: 1, free: false, multi: false, values: [{ value: 'Ja', count: 2 }] }],
       vias: [{ name: 'eigenaar', kind: 'direct', targets: ['Principal'], links: 2 }],
     });
     expect(query.mock.calls.every(([sql, params]) => !sql.includes("Klant's") && params[0] === "Klant's")).toBe(true);

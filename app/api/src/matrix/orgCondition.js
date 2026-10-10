@@ -86,13 +86,20 @@ export function parseOrgCondition(cond) {
   return { ok: true, value: { entityType: cond.entityType, entityIds: ids.value, attribute: attribute.value, via: via.value } };
 }
 
+// A single value matches when it is one of `values`; a multi-valued attribute
+// (a JSON array, e.g. expertises) when ANY of its elements is.
+function attributeMatch(keyP, valuesP) {
+  const attr = `e."attributes"->(${keyP}::text)`;
+  return `(CASE WHEN jsonb_typeof(${attr}) = 'array'
+      THEN EXISTS (SELECT 1 FROM jsonb_array_elements_text(${attr}) av WHERE av = ANY(${valuesP}::text[]))
+      ELSE e."attributes"->>(${keyP}::text) = ANY(${valuesP}::text[]) END)`;
+}
+
 // The chosen org entities (CTE org_e).
 function entitiesSql(spec, bind) {
   const where = [`e."entityType" = ${bind(spec.entityType)}`, `e."status" = 'accepted'`, `e."validTo" IS NULL`];
   if (spec.entityIds.length) where.push(`e."id" = ANY(${bind(spec.entityIds)}::uuid[])`);
-  if (spec.attribute) {
-    where.push(`e."attributes"->>(${bind(spec.attribute.key)}::text) = ANY(${bind(spec.attribute.values)}::text[])`);
-  }
+  if (spec.attribute) where.push(attributeMatch(bind(spec.attribute.key), bind(spec.attribute.values)));
   return `SELECT e."id" FROM "OrgEntities" e WHERE ${where.join(' AND ')}`;
 }
 
