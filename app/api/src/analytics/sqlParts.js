@@ -5,7 +5,18 @@
 // labels and scope system ids — always go through `bind`, never into the text.
 
 import { GROUP_PRINCIPAL_TYPE } from '../lib/principalTypes.js';
+import { HIDDEN_BY_DEFAULT_RESOURCE_TYPES } from '../lib/resourceVisibility.js';
 import { fieldSql } from './fields.js';
+
+// The type values the analytics definitions branch on — the group principals
+// excluded from every account count, and the resource types excluded from the
+// governed-share denominator. ontologyTerms.test.js checks each against the
+// core ontology's value lists.
+export const TYPE_VALUE_DEPENDENCIES = Object.freeze([
+  { entity: 'Principal', column: 'principalType', value: GROUP_PRINCIPAL_TYPE, usedBy: 'every account count (excluded)' },
+  ...HIDDEN_BY_DEFAULT_RESOURCE_TYPES.map(value => (
+    { entity: 'Resource', column: 'resourceType', value, usedBy: 'assignments.governedShare denominator (excluded)' })),
+]);
 
 // Identity-dimension values for accounts that do not map to exactly one identity.
 // An account is counted once per dataset, so it needs ONE bucket.

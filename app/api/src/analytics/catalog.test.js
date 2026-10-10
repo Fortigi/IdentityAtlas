@@ -1,4 +1,5 @@
-// fields.js, metrics.js and ontologyTerms.js — the whitelist and its IRIs.
+// fields.js and metrics.js — the whitelist. The IRIs are checked against
+// ontology/core.ttl in ontologyTerms.test.js.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../db/columnCache.js', () => ({ discoverExtendedAttrKeys: vi.fn() }));
@@ -10,23 +11,11 @@ import {
   CORE_FIELDS, resolveField, parseExtFieldId, fieldSql, fieldStateSql, listFields, discoveredKeys, describeField,
 } from './fields.js';
 import { METRICS, getMetric, entityRejection, describeMetrics } from './metrics.js';
-import { ONTOLOGY_NAMESPACE, PROPERTY_TERMS, iriFor, classIriFor } from './ontologyTerms.js';
 
 function binder() {
   const params = [];
   return { params, bind: v => `$${params.push(v)}` };
 }
-
-describe('ontology terms', () => {
-  it('maps every core field - and only core fields - to an IRI in the ontology namespace', () => {
-    expect(Object.keys(PROPERTY_TERMS).sort()).toEqual(Object.keys(CORE_FIELDS).sort());
-    expect(iriFor('Principal.accountEnabled')).toBe('https://identityatlas.io/ontology#accountEnabled');
-    expect(iriFor('Principal.ext.employeeCategory')).toBeNull();
-    expect(iriFor('constructor')).toBeNull();
-    expect(classIriFor('Identity')).toBe(`${ONTOLOGY_NAMESPACE}Identity`);
-    expect(classIriFor('Context')).toBeNull();
-  });
-});
 
 describe('fields', () => {
   it('parses discovered field ids strictly', () => {

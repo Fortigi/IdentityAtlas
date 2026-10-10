@@ -5,9 +5,8 @@ type: reference
 # Analytics Profiles & Power BI — design note
 
 > Status: **proposal + Phase 1 slice** (Feature 2). Written before the code, from an audit of
-> `main` at `5.792.20261009.1322`. The prerequisite Core Ontology (Feature 1, branch
-> `feature/core-ontology`) had not landed when this was written; see
-> [Ontology alignment](#ontology-alignment).
+> `main` at `5.792.20261009.1322`, then stacked on the Core Ontology (Feature 1, PR #1369,
+> [core-ontology.md](core-ontology.md)); see [Ontology alignment](#9-ontology-alignment).
 >
 > Companion code: [`app/api/src/analytics/`](https://github.com/Fortigi/IdentityAtlas/tree/main/app/api/src/analytics),
 > [`routes/analytics.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/routes/analytics.js),
@@ -275,17 +274,35 @@ step for someone with Desktop — see blockers.
    exercised locally against PGlite (WebAssembly PostgreSQL 16, the portable runtime). No
    large-volume timings (criterion 14 open); the 41 M rehearsal rig (sidekick-6) is the place.
 3. **Defects in existing history code** (§2.2) block a trustworthy *historic* governed share.
-4. **Feature 1 ontology** not merged: field IRIs are provisional (§9).
+4. **Feature 1 ontology** (#1369) is not merged yet; this branch is stacked on it (§9).
 
 ## 9. Ontology alignment
 
-Field ids are `Entity.property` (e.g. `Principal.accountEnabled`) and map to an IRI in
-`https://identityatlas.io/ontology#` through **one** table, `analytics/ontologyTerms.js`. Discovered
-`extendedAttributes` keys are per-install and get no core IRI (the RDF note proposes a per-install
-namespace for them). When `feature/core-ontology` lands, this branch is rebased onto it and that table
-is validated against (or generated from) the Turtle file; only `ontologyTerms.js`, its test and the
-catalog IRIs in this page should need to change. Customer selections never go into the core ontology.
+Field ids are `Entity.property` (e.g. `Principal.accountEnabled`) and map to IRIs of the core
+ontology (`ontology/core.ttl`, namespace `https://identityatlas.io/ontology#`) through **one**
+table, `analytics/ontologyTerms.js`, following the core conventions:
 
+| Analytics | Core ontology |
+|---|---|
+| `Principal.accountEnabled`, `Identity.department`, … (a column) | the property named as the column: `ia:accountEnabled`, `ia:department` (shared by every table that has the column; its `rdfs:domain` lists them) |
+| `Principal.system`, `Resource.system` (reported as the system's name) | the foreign key `ia:systemId`, an object property ranging over `ia:System` |
+| entities `Principal`, `Identity`, `Resource`, `System`, `Assignment` | classes `ia:Principal`, `ia:Identity`, `ia:Resource`, `ia:System`, `ia:ResourceAssignment` |
+| the type values the queries branch on (`BusinessRole`, …) | typed subclasses (`ia:BusinessRole`, `ia:typeValue "BusinessRole"`) or value-list individuals |
+| `<Entity>.ext.<key>` | **no core IRI** — extended attributes are per-install vocabulary and stay outside the core ontology by design |
+
+`analytics/ontologyTerms.test.js` loads `core.ttl` through the ontology module (`ontology/cli.js
+loadOntology`, N3.js) — no second parser — and fails when a catalog field names a property that is
+not defined, or one whose domain does not include the field's class (e.g. `Identity.accountEnabled`:
+`ia:accountEnabled` exists, but only on `ia:Principal` and `ia:IdentityMember`), or when a type value
+the queries depend on is not declared.
+
+**One inconsistency found:** every account count excludes principals of type
+`#microsoft.graph.group` (`lib/principalTypes.js`, used app-wide), but the ontology closes
+`ia:Principal`'s `principalType` list to the ingest `PRINCIPAL_TYPES`, which do not include it.
+Either such rows cannot arrive (and the exclusion is dead code everywhere) or the closed list is
+incomplete. The test records it as a known gap (a ratchet: it fails once the ontology declares the
+value); the fix belongs in the ontology/ingest, not here. Customer selections never go into the core
+ontology.
 ## 10. Staged plan
 
 | Phase | Content | State |

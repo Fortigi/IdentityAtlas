@@ -53,6 +53,7 @@ export default defineConfig({
       'src/analytics/aggregator.test.js',
       'src/analytics/catalog.test.js',
       'src/analytics/metadata.test.js',
+      'src/analytics/ontologyTerms.test.js',
       'src/analytics/profileSchema.test.js',
       'src/analytics/profileStore.test.js',
       'src/analytics/queries.test.js',

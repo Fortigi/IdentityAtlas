@@ -1,17 +1,25 @@
-// The ONE place where analytics field ids meet the Core Ontology.
+// The ONE place where analytics field ids meet the Core Ontology
+// (ontology/core.ttl, docs/architecture/core-ontology.md).
 //
 // An analytics field id is `<Class>.<property>` (`Principal.accountEnabled`).
-// Its IRI is the ontology namespace + the property's local name. The local
-// names below are PROVISIONAL: the Core Ontology (Feature 1, branch
-// feature/core-ontology) had not landed when this was written. When it does,
-// this table is validated against — or generated from — its Turtle file, and
-// nothing else in analytics/ needs to change.
+// Its IRI follows the core ontology's conventions:
+//   * a column is a property named exactly as the column, shared by every table
+//     that has it (Principals.accountEnabled → ia:accountEnabled);
+//   * a foreign key is an object property named as the column, ranging over the
+//     class (Principals.systemId → ia:systemId → ia:System) — so the analytics
+//     "system" field, which reports the system's name, is ia:systemId;
+//   * tables are singular classes (ia:Principal, ia:ResourceAssignment).
+// analytics/ontologyTerms.test.js loads core.ttl through the ontology module and
+// fails when any term here, or any type value the analytics queries depend on,
+// is not defined there.
 //
-// Discovered `extendedAttributes` keys are per-install vocabulary and have no
-// core IRI (the RDF/OWL note proposes a per-install namespace for them), so
-// iriFor() returns null for `<Class>.ext.<key>` ids.
+// Discovered `extendedAttributes` keys are per-install vocabulary and stay
+// outside the core ontology by design, so iriFor() returns null for
+// `<Class>.ext.<key>` ids.
 
-export const ONTOLOGY_NAMESPACE = 'https://identityatlas.io/ontology#';
+import { IA } from '../ontology/vocabulary.js';
+
+export const ONTOLOGY_NAMESPACE = IA;
 
 // Analytics entity → ontology class local name.
 export const CLASS_TERMS = Object.freeze({
@@ -19,17 +27,17 @@ export const CLASS_TERMS = Object.freeze({
   Identity: 'Identity',
   Resource: 'Resource',
   System: 'System',
-  Assignment: 'Assignment',
+  Assignment: 'ResourceAssignment',
 });
 
-// Core field id → ontology property local name.
+// Core field id → ontology property local name (= the column it reads).
 export const PROPERTY_TERMS = Object.freeze({
   'Principal.accountEnabled': 'accountEnabled',
   'Principal.principalType': 'principalType',
   'Principal.department': 'department',
   'Principal.companyName': 'companyName',
   'Principal.jobTitle': 'jobTitle',
-  'Principal.system': 'system',
+  'Principal.system': 'systemId',
   'Principal.displayName': 'displayName',
   'Principal.email': 'email',
   'Principal.employeeId': 'employeeId',
@@ -43,7 +51,7 @@ export const PROPERTY_TERMS = Object.freeze({
   'Identity.email': 'email',
   'Identity.analystNotes': 'analystNotes',
   'Resource.resourceType': 'resourceType',
-  'Resource.system': 'system',
+  'Resource.system': 'systemId',
   'Resource.displayName': 'displayName',
   'Resource.description': 'description',
 });
