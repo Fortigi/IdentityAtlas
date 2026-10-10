@@ -45,6 +45,8 @@ export const PERMISSIONS = Object.freeze({
     description: 'Run and configure context-algorithm plugins (clustering, manager-hierarchy, etc.).' },
   'admin.csv-import':          { label: 'CSV import',              group: 'Admin',
     description: 'Upload CSV files and run custom-connector ingest jobs.' },
+  'admin.analytics':           { label: 'Analytics profiles',      group: 'Admin',
+    description: 'Create, edit and retire Analytics Profiles: which attributes are reporting dimensions, which combinations Power BI may pull, and the minimum group size. Reading profiles and their aggregate datasets only needs Read data.' },
   'admin.read-tokens':         { label: 'Manage read API keys',    group: 'Admin',
     description: 'List and revoke existing fgr_ read tokens that other people minted.' },
   'admin.feature-flags':       { label: 'Feature flags',           group: 'Admin',

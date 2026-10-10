@@ -167,7 +167,15 @@ describe('readFeatures', () => {
     process.env.FEATURE_EXPERIMENTAL_CRAWLERS = 'true';
     const payload = await readFeatures();
     expect(Object.keys(payload).sort()).toEqual(Object.keys(FEATURE_FLAGS).sort());
-    expect(payload).toEqual({ riskScoring: false, accountLinking: true, experimentalCrawlers: true, matrixSharing: false, customReports: false, contextAssistant: false });
+    expect(payload).toEqual({ riskScoring: false, accountLinking: true, experimentalCrawlers: true, matrixSharing: false, customReports: false, contextAssistant: false, analytics: false });
+  });
+
+  it('switches analytics on only for the exact string "true" in FEATURE_ANALYTICS', async () => {
+    process.env.FEATURE_ANALYTICS = 'yes';
+    expect(await isFeatureEnabled('analytics')).toBe(false);
+    process.env.FEATURE_ANALYTICS = 'true';
+    expect(await isFeatureEnabled('analytics')).toBe(true);
+    delete process.env.FEATURE_ANALYTICS;
   });
 });
 

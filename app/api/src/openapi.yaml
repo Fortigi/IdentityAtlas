@@ -50,6 +50,14 @@ tags:
       404 while the feature is off. The caller's permission is checked first, so a caller without
       it gets 403 whether or not the feature is on.
 
+  - name: Analytics
+    description: >
+      Experimental Analytics Profiles and jointly aggregated datasets for Power BI (feature flag
+      `analytics`). Every route answers 404 while the feature is off; the permission is checked
+      first, so a caller without it gets 403 whether or not the feature is on. GET routes also
+      accept a read-only API key (`Authorization: Bearer fgr_...`). See
+      docs/architecture/analytics-profiles.md.
+
 paths:
   # ─── Ingest Endpoints ──────────────────────────────────────────
   /ingest/systems:
@@ -2167,6 +2175,169 @@ paths:
                     nullable: true
                   runId: { type: string, format: uuid }
 
+  # ─── Analytics (experimental) ──────────────────────────────────
+  /analytics/v1/catalog:
+    get:
+      tags: [Analytics]
+      summary: Reportable fields and metric definitions
+      operationId: analyticsCatalog
+      description: >
+        Core and discovered fields (id, ontology IRI, type, whether reportable and why not, history
+        support) and every metric with its exact grain, measures and allowed dimension entities.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200': { description: The catalog }
+        '404': { description: The analytics feature is switched off }
+
+  /analytics/v1/profiles:
+    get:
+      tags: [Analytics]
+      summary: List Analytics Profiles
+      operationId: listAnalyticsProfiles
+      description: >
+        All profiles with their current version, active and retired.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200': { description: "Every profile, current version" }
+    post:
+      tags: [Analytics]
+      summary: Create an Analytics Profile (admin.analytics)
+      operationId: createAnalyticsProfile
+      description: >
+        Validates the shape against the field whitelist and metric rules, then checks the data (discovered attributes exist, scoped systems exist, each dimension has at most 200 distinct values) and saves version 1.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnalyticsProfileInput' }
+      responses:
+        '201': { description: "Created as version 1, with warnings and the size preview" }
+        '400': { description: "Invalid profile (code invalid_profile); details.errors lists each problem with its path" }
+        '409': { description: A profile with this name exists }
+
+  /analytics/v1/profiles/validate:
+    post:
+      tags: [Analytics]
+      summary: Validate a profile and preview dataset sizes without saving (admin.analytics)
+      operationId: validateAnalyticsProfile
+      description: >
+        Runs every check a save runs and returns the measured distinct values per dimension and an upper bound on cells per dataset. Nothing is saved.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnalyticsProfileInput' }
+      responses:
+        '200': { description: "Valid; measured distinct values per dimension and estimated cells per dataset" }
+        '400': { description: Invalid profile }
+
+  /analytics/v1/profiles/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Analytics]
+      summary: Read one profile
+      operationId: getAnalyticsProfile
+      description: >
+        The current definition, version and status of one profile.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200': { description: The profile }
+        '404': { description: No such profile }
+    put:
+      tags: [Analytics]
+      summary: Replace a profile as a new version (admin.analytics)
+      operationId: updateAnalyticsProfile
+      description: >
+        Optimistic update - the stored version must equal expectedVersion. The full definition is appended to the version trail.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/AnalyticsProfileInput'
+                - type: object
+                  required: [expectedVersion]
+                  properties:
+                    expectedVersion: { type: integer, description: The version the caller edited }
+      responses:
+        '200': { description: Saved as the next version }
+        '400': { description: "Invalid profile, or expectedVersion missing" }
+        '404': { description: No such profile }
+        '409': { description: "version_conflict: the profile changed since expectedVersion" }
+    delete:
+      tags: [Analytics]
+      summary: Retire a profile (a new version with status retired; nothing is deleted) (admin.analytics)
+      operationId: retireAnalyticsProfile
+      description: >
+        Saves a new version with status retired. Datasets of a retired profile are refused; its versions stay readable.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200': { description: The retired profile }
+        '404': { description: No such profile }
+
+  /analytics/v1/profiles/{id}/versions:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Analytics]
+      summary: Every saved version of a profile, newest first
+      operationId: listAnalyticsProfileVersions
+      description: >
+        The append-only trail of every saved definition, with who saved it and when. Never pruned.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200': { description: The version trail }
+        '404': { description: No such profile }
+
+  /analytics/v1/profiles/{id}/metadata:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Analytics]
+      summary: Versions, metric definitions, history methods and limitations of a profile
+      operationId: getAnalyticsProfileMetadata
+      description: >
+        What a report needs to label itself - profile version, the exact metric definitions per dataset, history methods, supported combinations, timezone and known limitations.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200': { description: The metadata }
+        '404': { description: No such profile }
+
+  /analytics/v1/profiles/{id}/datasets/{datasetId}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: datasetId, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Analytics]
+      summary: One jointly aggregated dataset of a profile
+      operationId: getAnalyticsDataset
+      description: >
+        One GROUP BY over all of the dataset's dimensions. Cells smaller than the profile's minimum
+        group size have their measures withheld (suppressed=true). Bounded: a result larger than
+        limits.maxRows is refused with 422, never truncated. Carries profile and metric versions,
+        the history method, coverage (unavailable periods) and freshness.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200': { description: "columns, rows, suppression, excluded, coverage, freshness" }
+        '404': { description: No such profile or dataset }
+        '409': { description: "The profile is retired, or a field it uses no longer exists" }
+        '422': { description: "dataset_too_large: more cells than limits.maxRows" }
+
 components:
   securitySchemes:
     CrawlerApiKey:
@@ -2180,6 +2351,52 @@ components:
       description: Entra ID JWT token
 
   schemas:
+    AnalyticsProfileInput:
+      type: object
+      required: [name, definition]
+      properties:
+        name: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 2000, nullable: true }
+        status: { type: string, enum: [active, retired] }
+        definition:
+          type: object
+          required: [dimensions, datasets]
+          properties:
+            scope:
+              type: object
+              properties:
+                systemIds: { type: array, items: { type: integer }, nullable: true }
+            dimensions:
+              type: array
+              minItems: 1
+              maxItems: 8
+              items:
+                type: object
+                required: [field]
+                properties:
+                  field: { type: string, description: "Field id from the catalog, e.g. Principal.accountEnabled or Principal.ext.<key>" }
+                  label: { type: string, maxLength: 100 }
+                  unknownLabel: { type: string, maxLength: 50 }
+            datasets:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                type: object
+                required: [id, metric]
+                properties:
+                  id: { type: string, pattern: '^[a-z0-9][a-z0-9-]{0,62}$' }
+                  metric: { type: string }
+                  dimensions: { type: array, maxItems: 4, items: { type: string } }
+                  periods: { type: integer, minimum: 1, maximum: 12 }
+            privacy:
+              type: object
+              properties:
+                minGroupSize: { type: integer, minimum: 1, maximum: 100 }
+            limits:
+              type: object
+              properties:
+                maxRows: { type: integer, minimum: 1, maximum: 50000 }
     ContextRecipe:
       type: object
       description: >
