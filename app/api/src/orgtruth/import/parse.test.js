@@ -143,10 +143,10 @@ describe('headerNames', () => {
 });
 
 describe('detectFormat', () => {
-  it('reads a zip as xlsx and anything else as csv', () => {
+  it('reads a zip as xlsx and anything else as delimited text', () => {
     expect(detectFormat(Buffer.from([0x50, 0x4b, 0x03, 0x04, 0]), 'x.bin')).toBe('xlsx');
-    expect(detectFormat(Buffer.from('a,b'), 'list.csv', 'text/csv')).toBe('csv');
-    expect(detectFormat(Buffer.from('PK'), 'list.txt')).toBe('csv');
+    expect(detectFormat(Buffer.from('a,b'), 'list.csv', 'text/csv')).toBe('delimited');
+    expect(detectFormat(Buffer.from('PK'), 'list.txt')).toBe('delimited');
   });
   it('refuses an old .xls (by magic or name) and a file that claims to be xlsx but is not', () => {
     expect(() => detectFormat(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 1]), 'a.bin')).toThrow(/old-style \.xls/);

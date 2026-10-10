@@ -57,7 +57,9 @@ export function detectFormat(buffer, fileName = '', mimeType = '') {
   if (/\.xlsx$/i.test(fileName) || /spreadsheetml/i.test(mimeType)) {
     throw new ListParseError('The file is named as an Excel workbook but is not one; save it again as .xlsx or .csv.');
   }
-  return 'csv';
+  // Delimited text (`;`, `,` or TAB — sniffDelimiter decides). Named 'delimited',
+  // not after the file extension: it is a file format here, not a crawler type.
+  return 'delimited';
 }
 
 // ─── xlsx ────────────────────────────────────────────────────────────────
