@@ -69,7 +69,7 @@ function SourceStep({ source, onPick, canDescribe }) {
     { key: 'plugin', title: 'Run a plugin', tone: 'blue', description: 'Build a tree from existing data — manager chains, department strings, OU distinguished names, LLM clusters.' },
     { key: 'manual', title: 'Create manual', tone: 'amber', description: 'Start an empty tree you’ll curate yourself. Useful for business processes, app groupings, tags.' },
     // Experimental: only offered when the context assistant is on and the user may build contexts.
-    ...(canDescribe ? [{ key: 'describe', title: 'Describe it', tone: 'violet', description: 'Describe a process, application or project; the local model proposes search terms and you pick the groups. Refreshed after every crawl.' }] : []),
+    ...(canDescribe ? [{ key: 'describe', title: 'Describe it', tone: 'violet', description: 'The local model proposes search terms; pick the groups or organisation entities, and get those resources or the users who have access. Refreshed after every crawl.' }] : []),
   ];
   return (
     <div className={`grid grid-cols-1 gap-3 ${cards.length === 4 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>

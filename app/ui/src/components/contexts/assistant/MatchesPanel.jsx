@@ -1,12 +1,14 @@
 // Context builder — the objects the terms find: exclude one, include one a term does not
-// find, and see why each is there.
+// find, and see why each is there. For a users recipe the resources are the first of three
+// blocks: the organisation entities the terms find, and the users both lead to, follow.
 
 import { useState } from 'react';
-import { useAuth } from '@ui/auth/AuthGate';
-import { MUTED, SECONDARY } from '@ui/components/reports/ask/AskAssistant.styles';
-import { rowAction } from './recipeDraft';
-
-const MAX_ROWS = 300;
+import { MUTED } from '@ui/components/reports/ask/AskAssistant.styles';
+import { recipeTarget, rowAction } from './recipeDraft';
+import AddByName from './AddByName';
+import { CELL, CHIP, MatchTable, NAME_BUTTON, ROW_BUTTON, StatusBadge, SUBHEAD } from './MatchTable';
+import OrgMatchesBlock from './OrgMatchesBlock';
+import PrincipalsBlock from './PrincipalsBlock';
 
 const VIEWS = [
   { key: 'in', label: 'In the context', statuses: ['member', 'included'] },
@@ -14,15 +16,10 @@ const VIEWS = [
   { key: 'candidate', label: 'Found only by dropped terms', statuses: ['candidate'] },
 ];
 
-const STATUS_BADGE = {
-  included: { text: 'added by hand', cls: 'bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
-  excluded: { text: 'excluded', cls: 'bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-300' },
-};
-
 function HitChips({ hits, fieldLabels }) {
   return hits.map(h => (
     <span key={h.term} title={`in ${h.fields.map(f => fieldLabels[f] || f).join(', ')}`}
-      className={`mr-1 inline-block rounded px-1.5 py-0.5 text-[11px] ${h.accepted ? 'bg-sky-50 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
+      className={`${CHIP} ${h.accepted ? 'bg-sky-50 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
       {h.term}{h.fields.includes('displayName') ? '' : ` (${(fieldLabels[h.fields[0]] || h.fields[0]).toLowerCase()})`}
     </span>
   ));
@@ -30,66 +27,23 @@ function HitChips({ hits, fieldLabels }) {
 
 function MatchRow({ m, fieldLabels, onChoose, onOpen }) {
   const action = rowAction(m.status);
-  const badge = STATUS_BADGE[m.status];
   return (
     <tr className="align-top">
-      <td className="px-3 py-1.5">
-        <button type="button" className="text-left text-sm font-medium text-blue-700 hover:underline dark:text-blue-300" onClick={() => onOpen(m)}>{m.displayName}</button>
-        {badge && <span className={`ml-2 rounded px-1.5 py-0.5 text-[11px] ${badge.cls}`}>{badge.text}</span>}
+      <td className={CELL}>
+        <button type="button" className={NAME_BUTTON} onClick={() => onOpen(m)}>{m.displayName}</button>
+        <StatusBadge status={m.status} />
         {m.description && <div className="max-w-xl truncate text-xs text-gray-500 dark:text-gray-400" title={m.description}>{m.description}</div>}
       </td>
-      <td className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400">{m.resourceType}{m.systemName ? ` · ${m.systemName}` : ''}</td>
-      <td className="px-3 py-1.5"><HitChips hits={m.hits} fieldLabels={fieldLabels} /></td>
-      <td className="px-3 py-1.5 text-right">
-        <button type="button" className="text-xs font-medium text-gray-700 hover:text-blue-700 dark:text-gray-300" onClick={() => onChoose(m.id, action.choice)}>{action.label}</button>
+      <td className={`${CELL} text-xs text-gray-600 dark:text-gray-400`}>{m.resourceType}{m.systemName ? ` · ${m.systemName}` : ''}</td>
+      <td className={CELL}><HitChips hits={m.hits} fieldLabels={fieldLabels} /></td>
+      <td className={`${CELL} text-right`}>
+        <button type="button" className={ROW_BUTTON} onClick={() => onChoose(m.id, action.choice)}>{action.label}</button>
       </td>
     </tr>
   );
 }
 
-function AddByName({ include, resourceTypes, onChoose }) {
-  const { authFetch } = useAuth();
-  const [text, setText] = useState('');
-  const [found, setFound] = useState(null);
-
-  const search = async (e) => {
-    e.preventDefault();
-    const res = await authFetch(`/api/context-assistant/lookup?q=${encodeURIComponent(text.trim())}`);
-    const body = await res.json().catch(() => ({}));
-    // Only kinds of object the context searches: anything else would never show up in it.
-    setFound(res.ok ? (body.data || []).filter(f => resourceTypes.includes(f.type)) : []);
-  };
-
-  return (
-    <div className="space-y-1">
-      <form onSubmit={search} className="flex flex-wrap items-center gap-2">
-        <label htmlFor="ctx-add-object" className="sr-only">Find an object to include by hand</label>
-        <input id="ctx-add-object" value={text} onChange={e => setText(e.target.value)} placeholder="Include by name…"
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
-        <button type="submit" className={SECONDARY} disabled={text.trim().length < 2}>Find</button>
-      </form>
-      {found && found.length === 0 && <p className={MUTED}>Nothing found.</p>}
-      {found?.map(f => (
-        <div key={f.id} className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
-          <span>{f.name}</span><span className={MUTED}>{f.type}</span>
-          {include.includes(f.id)
-            ? <span className={MUTED}>included</span>
-            : <button type="button" className="text-xs font-medium text-blue-700 dark:text-blue-300" onClick={() => onChoose(f.id, 'include')}>Include</button>}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/**
- * @param {object}   props
- * @param {object}   [props.evaluation]  the evaluate answer
- * @param {object}   props.recipe
- * @param {object}   props.fieldLabels
- * @param {Function} props.onChoose      (id, 'include'|'exclude'|'auto')
- * @param {Function} props.onOpenDetail
- */
-export default function MatchesPanel({ evaluation, recipe, fieldLabels, onChoose, onOpenDetail }) {
+function ResourceMatches({ evaluation, recipe, fieldLabels, onChoose, onOpenDetail }) {
   const [view, setView] = useState('in');
   const matches = evaluation?.matches || [];
   const counts = Object.fromEntries(VIEWS.map(v => [v.key, matches.filter(m => v.statuses.includes(m.status)).length]));
@@ -107,25 +61,43 @@ export default function MatchesPanel({ evaluation, recipe, fieldLabels, onChoose
         {evaluation && <span className={MUTED}>of {evaluation.scopeTotal} {recipe.resourceTypes.join(' / ').toLowerCase()} objects in scope</span>}
       </div>
       {evaluation?.truncated && <p className="text-xs text-amber-700 dark:text-amber-300">More objects matched than can be shown; narrow the terms.</p>}
-      {shown.length === 0 ? (
-        <p className={MUTED}>Nothing here.</p>
-      ) : (
-        <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-          <table className="min-w-full divide-y divide-gray-100 text-sm dark:divide-gray-700">
-            <thead className="bg-gray-50 text-left text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-              <tr><th className="px-3 py-1.5">Name</th><th className="px-3 py-1.5">Type</th><th className="px-3 py-1.5">Found by</th><th className="px-3 py-1.5" /></tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {shown.slice(0, MAX_ROWS).map(m => (
-                <MatchRow key={m.id} m={m} fieldLabels={fieldLabels} onChoose={onChoose}
-                  onOpen={row => onOpenDetail?.('resource', row.id, row.displayName)} />
-              ))}
-            </tbody>
-          </table>
-          {shown.length > MAX_ROWS && <p className={`px-3 py-2 ${MUTED}`}>Showing the first {MAX_ROWS} of {shown.length}.</p>}
-        </div>
-      )}
-      <AddByName include={recipe.include} resourceTypes={recipe.resourceTypes} onChoose={onChoose} />
+      <MatchTable
+        headers={['Name', 'Type', 'Found by', '']} rows={shown}
+        renderRow={m => (
+          <MatchRow key={m.id} m={m} fieldLabels={fieldLabels} onChoose={onChoose}
+            onOpen={row => onOpenDetail?.('resource', row.id, row.displayName)} />
+        )}
+      />
+      <AddByName
+        inputId="ctx-add-object" label="Find an object to include by hand" placeholder="Include by name…"
+        // Only kinds of object the context searches: anything else would never show up in it.
+        accept={f => recipe.resourceTypes.includes(f.type)}
+        included={recipe.include} onInclude={id => onChoose(id, 'include')}
+      />
+    </div>
+  );
+}
+
+/**
+ * @param {object}   props
+ * @param {object}   [props.evaluation]  the evaluate answer
+ * @param {object}   props.recipe
+ * @param {object}   props.fieldLabels
+ * @param {Function} props.onChoose      (resourceId, 'include'|'exclude'|'auto')
+ * @param {Function} [props.onChooseOrg]       (entityId, choice) — users recipe only
+ * @param {Function} [props.onChoosePrincipal] (principalId, choice) — users recipe only
+ * @param {Function} props.onOpenDetail
+ */
+export default function MatchesPanel({ onChooseOrg, onChoosePrincipal, ...props }) {
+  if (recipeTarget(props.recipe) !== 'principal') return <ResourceMatches {...props} />;
+  return (
+    <div className="space-y-6">
+      <section aria-label="Matched resources" className="space-y-2">
+        <h4 className={SUBHEAD}>Resources the terms find</h4>
+        <ResourceMatches {...props} />
+      </section>
+      <OrgMatchesBlock orgMatches={props.evaluation?.orgMatches || []} onChoose={onChooseOrg} onOpenDetail={props.onOpenDetail} />
+      <PrincipalsBlock evaluation={props.evaluation} recipe={props.recipe} onChoose={onChoosePrincipal} onOpenDetail={props.onOpenDetail} />
     </div>
   );
 }
