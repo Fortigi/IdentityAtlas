@@ -6,7 +6,9 @@
 // verdict pill and the activity line, one table per attribute the entity links
 // people through (`via`: owner, team, …), and the people who worked on it but
 // are in none of those. Nothing at all when no person is linked and no other
-// list refers to the entity; a 501 renders "not available yet".
+// list refers to the entity; a 501 renders "not available yet". `compact`
+// (the Activity section already shows the activity): only the listed-people
+// tables, without the activity verdict and the worked-but-not-listed table.
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { Section } from '@ui/components/DetailSection';
@@ -92,18 +94,18 @@ function ActivityHeader({ activity, people }) {
   );
 }
 
-export default function OrgEvidenceSection({ entityId, onOpenDetail }) {
+export default function OrgEvidenceSection({ entityId, onOpenDetail, compact = false }) {
   const { authFetch } = useAuth();
   const state = useFetch(`/api/org-truth/entities/${encodeURIComponent(entityId)}/evidence`, { authFetch });
   if (fetchBlocked(state)) return <Section title={TITLE}><FetchState state={state} what="Evidence" /></Section>;
   const evidence = state.data;
-  if (evidenceEmpty(evidence)) return null;
-  const people = evidence.people || [];
-  const notListed = evidence.workedNotListed || [];
+  const people = evidence?.people || [];
+  if (evidenceEmpty(evidence) || (compact && people.length === 0)) return null;
+  const notListed = compact ? [] : evidence.workedNotListed || [];
   return (
     <Section title={TITLE}>
       <div className="space-y-4">
-        <ActivityHeader activity={evidence.activity} people={people} />
+        {!compact && <ActivityHeader activity={evidence.activity} people={people} />}
         {people.map(g => <ViaTable key={g.via} group={g} onOpenDetail={onOpenDetail} />)}
         {notListed.length > 0 && <NotListedTable rows={notListed} onOpenDetail={onOpenDetail} />}
       </div>

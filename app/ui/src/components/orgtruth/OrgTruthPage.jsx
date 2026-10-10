@@ -4,6 +4,7 @@
 //   Sources   what was uploaded, when it was observed, what each run did     (SourcesTab, T6)
 //   Model     the meta-graph: entity types, predicates, links to system types (ModelTab, T6)
 //   Entities  the entities themselves, searchable, with a detail fan-out      (EntitiesTab, T6)
+//   Signals   what imported activity says about a collection type     (SignalsTab)
 //   Review    proposed links and claims waiting for an analyst                (ReviewTab, T6)
 // plus the import wizard (ImportWizard, T5), opened from the Sources tab's
 // "Import additional information" button (new import) or from a source's "Import
@@ -18,10 +19,11 @@ import SourcesTab from './SourcesTab';
 import ModelTab from './ModelTab';
 import EntitiesTab from './EntitiesTab';
 import ReviewTab from './ReviewTab';
+import SignalsTab from './SignalsTab';
 import ImportWizard from './wizard/ImportWizard';
 import { ORG_TABS } from './orgTabs';
 
-const PANELS = { sources: SourcesTab, model: ModelTab, entities: EntitiesTab, review: ReviewTab };
+const PANELS = { sources: SourcesTab, model: ModelTab, entities: EntitiesTab, signals: SignalsTab, review: ReviewTab };
 
 export default function OrgTruthPage({ onOpenDetail }) {
   const [tab, setTab] = useState('sources');

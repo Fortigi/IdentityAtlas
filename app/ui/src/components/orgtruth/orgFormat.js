@@ -18,10 +18,25 @@ export function isNotAvailable(error) {
   return error?.message === 'HTTP 501';
 }
 
+// A route this server does not have (404) or has not built yet (501): the
+// optional panels that read it render nothing at all.
+export function isMissingRoute(error) {
+  return isNotAvailable(error) || error?.message === 'HTTP 404';
+}
+
 // True while a useFetch result has nothing to show yet: it failed, or it is
 // still loading its first response (a reload keeps the old data on screen).
 export function fetchBlocked(state) {
   return Boolean(state?.error) || Boolean(state?.loading && state?.data == null);
+}
+
+// The `error` sentence of a refused request's JSON body, '' when there is none.
+export async function readErrorDetail(res) {
+  try {
+    return (await res.json())?.error || '';
+  } catch {
+    return '';
+  }
 }
 
 export function rowsOf(data) {
@@ -99,6 +114,13 @@ const TARGET_DETAIL_KIND = {
 
 export function targetDetailKind(targetType) {
   return TARGET_DETAIL_KIND[targetType] || null;
+}
+
+// The import template of an entity type or profile recipe: 'collection',
+// 'enrichment', 'activity' or 'relation'. A missing template is a collection
+// (every profile from before templates existed is one).
+export function isCollectionTemplate(template) {
+  return (template ?? 'collection') === 'collection';
 }
 
 // User-facing word per system target type.

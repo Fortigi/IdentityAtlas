@@ -4,5 +4,6 @@ export const ORG_TABS = [
   { key: 'sources', label: 'Sources' },
   { key: 'model', label: 'Model' },
   { key: 'entities', label: 'Entities' },
+  { key: 'signals', label: 'Signals' },
   { key: 'review', label: 'Review' },
 ];

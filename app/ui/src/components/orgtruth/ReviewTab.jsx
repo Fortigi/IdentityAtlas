@@ -8,6 +8,8 @@
 // then a toast and a reload; failures show inline. Accepted / rejected groups and
 // readers (no useCanImportOrgTruth()) see the cards read-only.
 //
+// Below the cards: the activity references (ActivityKeysSection).
+//
 // Props: { onOpenDetail }
 import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
@@ -17,21 +19,14 @@ import { useDialog } from '@ui/components/dialogContext';
 import EmptyState from '@ui/components/EmptyState';
 import Pagination from '@ui/components/Pagination';
 import ConfidenceBar from '@ui/components/ConfidenceBar';
-import { buildQuery, fetchBlocked, pageParam, rowsOf, totalOf } from './orgFormat';
+import { buildQuery, fetchBlocked, readErrorDetail, pageParam, rowsOf, totalOf } from './orgFormat';
 import {
   GROUPS_URL, DECISION_URL, REVIEW_STATUSES, DEFAULT_PAGE_SIZE,
   groupTitle, groupSubline, groupKey, candidateName, orderCandidates, candidateDetailKind,
   entityTypeOptions, canDecide, decisionBody, decisionToast, decisionError, rowsText, totalPages,
 } from './reviewGroups';
 import { FetchState, InlineError, CARD, INPUT, LINK_BUTTON, SMALL_BUTTON } from './orgUi';
-
-async function readError(res) {
-  try {
-    return (await res.json())?.error || '';
-  } catch {
-    return '';
-  }
-}
+import ActivityKeysSection from './ActivityKeysSection';
 
 function useGroupDecision({ authFetch, onDone }) {
   const dialog = useDialog();
@@ -48,7 +43,7 @@ function useGroupDecision({ authFetch, onDone }) {
         body: JSON.stringify(decisionBody(group, action, candidate?.targetId)),
       });
       if (!res.ok) {
-        setError(decisionError(res.status, await readError(res)));
+        setError(decisionError(res.status, await readErrorDetail(res)));
         return;
       }
       dialog.toast(decisionToast(action, await res.json(), candidate ? candidateName(candidate) : ''), { variant: 'success' });
@@ -132,7 +127,7 @@ function Filters({ types, entityType, status, onEntityType, onStatus }) {
   );
 }
 
-export default function ReviewTab({ onOpenDetail }) {
+function LinkReview({ onOpenDetail }) {
   const { authFetch } = useAuth();
   const canEdit = useCanImportOrgTruth();
   const [entityType, setEntityType] = useState('');
@@ -175,6 +170,16 @@ export default function ReviewTab({ onOpenDetail }) {
         ))
       )}
       <Pagination page={page} setPage={setPage} totalPages={totalPages(total, pageSize)} total={total} pageSize={pageSize} />
+    </div>
+  );
+}
+
+// The proposed links, then the activity references (ActivityKeysSection).
+export default function ReviewTab({ onOpenDetail }) {
+  return (
+    <div className="space-y-6">
+      <LinkReview onOpenDetail={onOpenDetail} />
+      <ActivityKeysSection onOpenDetail={onOpenDetail} />
     </div>
   );
 }

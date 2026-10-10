@@ -33,7 +33,12 @@
     "src/components/orgtruth/useCanvasLayout.js",
     "src/components/orgtruth/useCanvasGestures.js",
     "src/components/orgtruth/orgGraphBranch.js",
-    "src/components/orgtruth/orgCondition.js"
+    "src/components/orgtruth/orgCondition.js",
+    "src/components/orgtruth/activity.js",
+    "src/components/orgtruth/signals.js",
+    "src/components/orgtruth/activityKeys.js",
+    "src/components/orgtruth/templateCanvas.js",
+    "src/components/orgtruth/enrichment.js"
   ],
   "mutationExclusions": {
     "src/components/orgtruth/OrgConditionPicker.jsx": "The matrix wizard's + Organisation dialog: three useFetch calls (kinds, filter options, entity search) and the checkbox lists they fill. Every decision about the condition it hands back (required type, empty values, via omitted when all links are ticked, labels) is buildOrgCondition()/viasForSide() in orgCondition.js (mutated); OrgConditionPicker.mount.test.jsx asserts the exact condition JSON per path.",
@@ -61,7 +66,12 @@
     "src/components/orgtruth/LinkRulesEditor.jsx": "Composition of the model canvas: the rule drafts per profile, the selection, the popover, the rename flow and the toolbar. Every decision (merged cards, rule entries, row actions, defaults, duplicates, the POST bodies) lives in modelCanvas.js and linkRulesDraft.js, the layout in canvasLayout.js, the pointer math in canvasView.js, and the drag and layout state in useCanvasGestures.js / useCanvasLayout.js, all mutated; LinkRulesEditor.mount.test.jsx drives every flow, including which profile an edit is saved to.",
     "src/components/orgtruth/RuleCanvas.jsx": "Presentational SVG of the model canvas: draws the cards, rows, rule and relation lines that modelCanvas.js (mutated) computes inside the pan/zoom group of useCanvasGestures.js (mutated), and wires rows, lines and card headers as buttons/drag handles; row names come from linkRulesDraft.rowName (mutated). Driven by LinkRulesEditor.mount.test.jsx.",
     "src/components/orgtruth/RulePopover.jsx": "Presentational editor of one rule: signal rows, threshold and buttons, each edit a linkRulesDraft.js function (mutated). Driven by LinkRulesEditor.mount.test.jsx.",
-    "src/components/orgtruth/ProfileRules.jsx": "Presentational strip of one import profile under the model canvas: name, version, run status, the Save and link again button, the run progress and the rule list. The POST body is linkRulesDraft.relinkProfile and the polling useImportRun (both mutated); LinkRulesEditor.mount.test.jsx asserts which profile is posted, the progress lines and the 400 reasons."
+    "src/components/orgtruth/ProfileRules.jsx": "Presentational strip of one import profile under the model canvas: name, version, run status, the Save and link again button, the run progress and the rule list. The POST body is linkRulesDraft.relinkProfile and the polling useImportRun (both mutated); LinkRulesEditor.mount.test.jsx asserts which profile is posted, the progress lines and the 400 reasons.",
+    "src/components/orgtruth/SignalsTab.jsx": "Panel composition of Organisation → Signals: the model and findings fetches, the collection type picker and four finding lists. Which types are collections, the row sentences, the links each row opens and the as-of line live in signals.js (mutated); SignalsTab.mount.test.jsx asserts the counts, rows and links.",
+    "src/components/orgtruth/SignalsSettings.jsx": "The settings form of one collection type: a fetch, three fields and a PUT gated by useCanImportOrgTruth (mutated). The draft, validation and the PUT body (every other type kept) are signals.js functions (mutated); SignalsTab.mount.test.jsx asserts the exact PUT body, the refusal and the read-only view.",
+    "src/components/orgtruth/ActivityKeysSection.jsx": "Review's Activity references list: one useFetch, two filters, a row per distinct value and a PUT per decision. The candidates, which buttons show, the PUT bodies, toasts and errors live in activityKeys.js (mutated); ActivityKeysSection.mount.test.jsx asserts the exact bodies, filters and reloads.",
+    "src/components/orgtruth/OrgActivitySection.jsx": "Presentational Activity section of a collection entity: a bar per month and a people table. Bar heights, ordering, the member wording and the summary line are activity.js functions (mutated); OrgEntityDetailPage.mount.test.jsx asserts the bars, rows and links.",
+    "src/components/orgtruth/OrgActivitySummary.jsx": "Presentational activity summary on user and identity pages: one feature-gated useFetch and a table per activity list. Grouping, ordering and formatting live in activity.js (mutated); UserDetailPage and IdentityDetailPage mount tests assert the rows and the feature gate."
   },
   "thresholds": {
     "high": 90,

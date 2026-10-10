@@ -6,24 +6,27 @@
 // (linkRulesDraft.rowName). A reader gets the same drawing without the rule
 // buttons. With a highlighted list, the other lists' cards and lines fade.
 //
-// Props: { placed, lines, predicates, ghost, view, svgRef, handlers,
+// Enrichment blocks sit at the foot of their system card; activity and
+// relation pairs (templateCanvas.js) are dashed edges like the predicates.
+//
+// Props: { placed, lines, predicates, edges, ghost, view, svgRef, handlers,
 //          selection, canEdit, highlight, onRow(row), onLine(line),
 //          onNudge(boxId, dx, dy), rename: { type, value } | null,
 //          onRenameStart(type), onRenameChange(value), onRenameSave(), onRenameCancel() }
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import { rowName } from './linkRulesDraft';
-import { HEADER_H, ROW_H } from './modelCanvas';
+import { HEADER_H, ROW_H, BLOCK_H } from './modelCanvas';
 import { LABEL_H } from './modelGraph';
 
 const LIGHT = {
   entityHead: '#c7d2fe', systemHead: '#bae6fd', body: '#ffffff', stroke: '#6b7280', text: '#111827',
   sub: '#374151', chip: '#eef2ff', selected: '#fde68a', target: '#e0f2fe', line: '#0369a1',
-  relation: '#4b5563', labelBg: '#ffffff', label: '#1f2937', canvas: '#f9fafb',
+  relation: '#4b5563', labelBg: '#ffffff', label: '#1f2937', canvas: '#f9fafb', block: '#f0fdf4', activity: '#15803d',
 };
 const DARK = {
   entityHead: '#3730a3', systemHead: '#075985', body: '#1f2937', stroke: '#9ca3af', text: '#f9fafb',
   sub: '#e5e7eb', chip: '#312e81', selected: '#92400e', target: '#0c4a6e', line: '#7dd3fc',
-  relation: '#d1d5db', labelBg: '#111827', label: '#e5e7eb', canvas: '#111827',
+  relation: '#d1d5db', labelBg: '#111827', label: '#e5e7eb', canvas: '#111827', block: '#052e16', activity: '#86efac',
 };
 const FADED = 0.3;
 const NUDGE = 20;
@@ -62,6 +65,23 @@ function Row({ row, selection, canEdit, onRow, c }) {
     </g>
   );
 }
+
+// An enrichment: the attributes another list adds to these objects, with
+// that list's name in brackets.
+function Block({ block, highlight, c }) {
+  const faded = highlight && block.owner !== highlight;
+  return (
+    <g data-block={block.id} opacity={faded ? FADED : 1} pointerEvents="none">
+      <title>{block.label} ({block.source})</title>
+      <rect x={block.x + 1} y={block.y} width={198} height={BLOCK_H} fill={c.block} />
+      <text x={block.x + 12} y={block.y + 15} fontSize={11} fill={c.text}>
+        {clip(block.label, 24)} <tspan fill={c.sub}>({block.source})</tspan>
+      </text>
+    </g>
+  );
+}
+
+const clip = (text, n) => (text.length > n ? `${text.slice(0, n - 1)}…` : text);
 
 function RenameField({ box, rename, onRenameChange, onRenameSave, onRenameCancel }) {
   return (
@@ -135,6 +155,7 @@ function Box({ box, c, props }) {
       {renaming ? <RenameField box={box} rename={rename} {...props} /> : <Title box={box} c={c} />}
       {canEdit && box.own && !renaming && <PencilButton box={box} onRenameStart={props.onRenameStart} c={c} />}
       {box.rows.map(r => <Row key={r.id} row={r} selection={selection} canEdit={canEdit} onRow={onRow} c={c} />)}
+      {(box.blocks ?? []).map(k => <Block key={k.id} block={k} highlight={highlight} c={c} />)}
     </g>
   );
 }
@@ -160,19 +181,22 @@ function Line({ line, canEdit, onLine, highlight, c }) {
   );
 }
 
+const EDGE_TITLE = { activity: 'Activity', relation: 'Pairs' };
+
 function Relation({ line, highlight, c }) {
   const faded = highlight && !line.owners.includes(highlight);
+  const stroke = line.kind === 'activity' ? c.activity : c.relation;
   return (
-    <g data-predicate={line.key} opacity={faded ? FADED : 1} pointerEvents="none">
-      <title>Relation {line.label}</title>
-      <path d={line.path} fill="none" stroke={c.relation} strokeWidth={1.2} strokeDasharray="5 4" />
-      <LineLabel line={line} c={c} stroke={c.relation} />
+    <g {...(line.kind ? { 'data-edge': line.key } : { 'data-predicate': line.key })} opacity={faded ? FADED : 1} pointerEvents="none">
+      <title>{EDGE_TITLE[line.kind] ?? 'Relation'} {line.label}</title>
+      <path d={line.path} fill="none" stroke={stroke} strokeWidth={1.2} strokeDasharray="5 4" />
+      <LineLabel line={line} c={c} stroke={stroke} />
     </g>
   );
 }
 
 export default function RuleCanvas(props) {
-  const { placed, lines, predicates, ghost, view, svgRef, handlers, canEdit, onLine, highlight } = props;
+  const { placed, lines, predicates, edges = [], ghost, view, svgRef, handlers, canEdit, onLine, highlight } = props;
   const c = useIsDark() ? DARK : LIGHT;
   return (
     <svg ref={svgRef} role="group" aria-label="Model canvas" className="block w-full rounded border border-gray-200 dark:border-gray-700"
@@ -184,6 +208,7 @@ export default function RuleCanvas(props) {
       </defs>
       <g data-view={`${view.x},${view.y},${view.k}`} transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
         {predicates.map(l => <Relation key={l.key} line={l} highlight={highlight} c={c} />)}
+        {edges.map(l => <Relation key={l.key} line={l} highlight={highlight} c={c} />)}
         {placed.map(b => <Box key={b.id} box={b} c={c} props={props} />)}
         {lines.map(l => <Line key={l.key} line={l} canEdit={canEdit} onLine={onLine} highlight={highlight} c={c} />)}
         {ghost && (

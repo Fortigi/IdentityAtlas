@@ -77,6 +77,11 @@ function RelationshipsTab({ data, graph, renderRelationshipsExtra, onOpenDetail 
   );
 }
 
+// The page's attribute rows followed by any fetched apart (organisation enrichment).
+function withExtraEntries(entries, extra) {
+  return extra?.length ? [...entries, ...extra] : entries;
+}
+
 // The graph's type label for the page's object: a resource says what kind it is.
 function rootTypeLabel(entityKind, data, graphCenterLabel) {
   return (entityKind === 'resource' && data?.attributes?.resourceType) || graphCenterLabel;
@@ -100,6 +105,7 @@ function rootTypeLabel(entityKind, data, graphCenterLabel) {
  *   getDisplayName        optional: (data) => the object's name in the relationship graph
  *   getTabs               (data, attributeEntries) => [{key, label, count?}, ...]
  *   getAttributeEntries   (data) => [{key, label, value}, ...] — attribute table rows
+ *   extraAttributeEntries optional: entries fetched apart (organisation enrichment), appended to those rows
  *   renderHeader          (data) => JSX — left-side header content only
  *   headerCard            optional bool — wraps header in a card (used by IdentityDetailPage)
  *   renderAttributesBefore optional: (data) => JSX — rendered above AttributesTable
@@ -124,6 +130,7 @@ export default function EntityDetailPage({
   getDisplayName = (d) => d.attributes?.displayName,
   getTabs,
   getAttributeEntries,
+  extraAttributeEntries,
   renderHeader,
   headerCard = false,
   renderAttributesBefore,
@@ -191,7 +198,7 @@ export default function EntityDetailPage({
   }
   if (!data) return null;
 
-  const attributeEntries = getAttributeEntries(data);
+  const attributeEntries = withExtraEntries(getAttributeEntries(data), extraAttributeEntries);
   const allTabs = getTabs(data, attributeEntries);
   // getTabs callers emit `false`/`undefined` entries for feature-gated tabs;
   // filter those out before narrowing, so the shared view can't keep one.

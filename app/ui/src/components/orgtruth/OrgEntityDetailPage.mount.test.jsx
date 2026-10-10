@@ -34,6 +34,15 @@ const GRAPH = {
   categories: [{ key: 'rel:out:owner', label: 'owner →', count: 1 }, { key: 'link:Resource', label: 'Resources', count: 1 }],
 };
 
+const ACTIVITY = {
+  type: 'Uren', unit: 'h', total: 52, firstOn: '2026-01-01', lastOn: '2026-03-01', unresolvedRows: 2,
+  months: [{ month: '2026-03', total: 12 }, { month: '2026-01', total: 40 }],
+  actors: [
+    { targetType: 'Principal', targetId: 'u7', label: 'Ann Example', total: 12, lastOn: '2026-03-01', isMember: false, memberRoles: [] },
+    { targetType: 'Identity', targetId: 'i3', label: 'Dana Contoso', total: 40, lastOn: '2026-02-01', isMember: true, memberRoles: ['owner'] },
+  ],
+};
+
 const EVIDENCE = {
   entity: { id: 'e1', entityType: 'Project', displayName: 'Northwind Portal' },
   people: [{ via: 'owner', principals: [{ principalId: 'p9', label: 'Dana Contoso', worked: false, rows: 0, hours: 0, lastPeriod: null }] }],
@@ -41,8 +50,9 @@ const EVIDENCE = {
   workedNotListed: [],
 };
 
-function render({ auth = IMPORTER, entity = ENTITY, graph = GRAPH, override = { ok: true }, evidence = EVIDENCE } = {}) {
+function render({ auth = IMPORTER, entity = ENTITY, graph = GRAPH, override = { ok: true }, evidence = EVIDENCE, activity } = {}) {
   const authFetch = makeAuthFetch({
+    '/activity/subject/OrgEntity/e1': activity,
     '/download': blobResponse('bytes', { filename: 'projects.xlsx' }),
     'category=rel%3Aout%3Aowner': { items: [{ key: 'org-entity:e2', label: 'Alice Contoso', entityKind: 'org-entity', entityId: 'e2', entityType: 'Person' }] },
     'category=link%3AResource': { items: [{ key: 'resource:g1', label: 'GRP-Portal', entityKind: 'resource', entityId: 'g1', resourceType: 'Resource' }] },
@@ -175,5 +185,36 @@ describe('OrgEntityDetailPage', () => {
   it('renders a 501 as not available yet', async () => {
     render({ entity: jsonResponse({}, { ok: false, status: 501 }) });
     expect(await screen.findByText('Entity — not available yet')).toBeInTheDocument();
+  });
+
+  it('shows the activity: a bar per month and the people, most active first, with membership', async () => {
+    const { authFetch, onOpenDetail } = render({ activity: ACTIVITY });
+    expect(await screen.findByText('Uren: 52 h · from January 2026 to March 2026 · 2 rows whose person is not resolved yet')).toBeInTheDocument();
+    expect(authFetch).toHaveBeenCalledWith('/api/org-truth/activity/subject/OrgEntity/e1');
+    const bars = within(screen.getByRole('list', { name: 'Activity per month' })).getAllByRole('listitem');
+    expect(bars.map(b => b.getAttribute('aria-label'))).toEqual(['January 2026: 40 h', 'March 2026: 12 h']);
+    expect(bars.map(b => b.querySelector('[data-height]').getAttribute('data-height'))).toEqual(['80', '24']);
+    const rows = within(screen.getByRole('table', { name: 'People with activity' })).getAllByRole('row').slice(1);
+    expect(rows.map(r => r.textContent)).toEqual(['Dana Contoso40 hFebruary 2026yes · owner', 'Ann Example12 hMarch 2026no']);
+    await userEvent.click(within(rows[1]).getByRole('button', { name: 'Ann Example' }));
+    expect(onOpenDetail).toHaveBeenCalledWith('user', 'u7', 'Ann Example');
+  });
+
+  it('drops the evidence verdict and worked-but-not-listed table once activity is shown, keeping the listed people', async () => {
+    const evidence = { ...EVIDENCE, activity: { rows: 3, hours: 9, lastPeriod: '2026-03' }, workedNotListed: [{ principalId: 'p5', label: 'Eve Example', hours: 9, lastPeriod: '2026-03' }] };
+    render({ activity: ACTIVITY, evidence });
+    await screen.findByText(/^Uren: 52 h/);
+    // Once in the activity table, once in the evidence's listed-people (owner) table.
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Dana Contoso' })).toHaveLength(2));
+    expect(screen.getByText('Evidence from other lists')).toBeInTheDocument();
+    expect(screen.queryByText('Worked on it but not listed')).toBeNull();
+    expect(screen.queryByText(/3 rows · 9 hours/)).toBeNull();
+  });
+
+  it('keeps the full evidence section when no activity refers to the entity', async () => {
+    const evidence = { ...EVIDENCE, workedNotListed: [{ principalId: 'p5', label: 'Eve Example', hours: 9, lastPeriod: '2026-03' }] };
+    render({ activity: { type: 'Uren', months: [], actors: [] }, evidence });
+    expect(await screen.findByText('Worked on it but not listed')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Activity per month' })).toBeNull();
   });
 });

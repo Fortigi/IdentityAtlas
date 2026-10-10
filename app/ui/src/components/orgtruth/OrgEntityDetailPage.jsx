@@ -7,7 +7,9 @@
 // relations are GET /entities/:id/graph `categories`, see entityGraphShape.js and
 // graph/graphNeighbours.js), then Relations
 // and Links below, then the evidence other lists (timesheets) give about it
-// (OrgEvidenceSection). Links use the LinkedAccountsPanel idiom through OrgLinkTable:
+// (OrgEvidenceSection). The Activity section (OrgActivitySection, GET
+// /activity/subject/OrgEntity/:id) sits above it; once it has data the
+// evidence keeps only its listed-people tables. Links use the LinkedAccountsPanel idiom through OrgLinkTable:
 // a target opens its own detail tab, Confirm / Reject / Move need
 // useCanImportOrgTruth().
 //
@@ -30,6 +32,8 @@ import { useSourceDownload } from './sourceDownload';
 import { useLinkOverride } from './useLinkOverride';
 import OrgLinkTable from './OrgLinkTable';
 import OrgEvidenceSection from './OrgEvidenceSection';
+import OrgActivitySection from './OrgActivitySection';
+import { subjectEmpty } from './activity';
 import { OrgEntityHeader, OrgEntityRelations } from './OrgEntitySections';
 import { FetchState, InlineError } from './orgUi';
 
@@ -40,6 +44,7 @@ export default function OrgEntityDetailPage({ entityId, onOpenDetail, onClose, o
   const base = `/api/org-truth/entities/${encodeURIComponent(entityId)}`;
   const state = useFetch(base, { authFetch });
   const graphState = useFetch(`${base}/graph`, { authFetch });
+  const activityState = useFetch(`/api/org-truth/activity/subject/OrgEntity/${encodeURIComponent(entityId)}`, { authFetch });
   const entity = state.data;
 
   // The root's name and type come with the graph payload itself, so the graph
@@ -80,7 +85,8 @@ export default function OrgEntityDetailPage({ entityId, onOpenDetail, onClose, o
             ? <p className="text-sm text-gray-600 dark:text-gray-400">Not linked to anything in the connected systems.</p>
             : <OrgLinkTable candidates={links} canEdit={canEdit} busy={busy} onOverride={override} onOpenDetail={onOpenDetail} />}
         </Section>
-        <OrgEvidenceSection entityId={entityId} onOpenDetail={onOpenDetail} />
+        <OrgActivitySection state={activityState} onOpenDetail={onOpenDetail} />
+        <OrgEvidenceSection entityId={entityId} onOpenDetail={onOpenDetail} compact={!subjectEmpty(activityState.data)} />
       </EntityDetailLayout>
     </div>
   );
