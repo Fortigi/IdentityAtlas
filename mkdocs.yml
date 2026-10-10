@@ -165,10 +165,12 @@ nav:
       - Ask Assistant — how it thinks and is tested: reference/ask-assistant.md
       - Permissions & Roles: reference/permissions.md
       - Database Views: reference/sql-views.md
+      - Core Model Reference: reference/core-model.md
       - CSV Schema Reference: architecture/csv-import-schema.md
       - Software Bill of Materials: reference/sbom.md
       - Test Coverage: reference/coverage.md
       - Under the hood:
+          - Core Ontology: architecture/core-ontology.md
           - Crawler Architecture: architecture/crawler-architecture.md
           - SQL Connector Delta Loading: architecture/sql-connector-delta.md
           - Reports: architecture/reports.md
@@ -193,6 +195,7 @@ nav:
           - Local Development: ui/local-dev.md
           - Building a Crawler: sync/building-a-crawler.md
           - Writing Tests That Assert: contributing/writing-tests-that-assert.md
+          - Maintaining the Core Ontology: contributing/maintaining-the-ontology.md
           - UI Style Guide: contributing/style-guide.md
           - CI Pipeline: contributing/ci-pipeline.md
           - CI Scope Testing: architecture/ci-scope-testing.md

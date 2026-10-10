@@ -179,6 +179,8 @@ See [`docs/architecture/matrix.md`](docs/architecture/matrix.md) for the badge-d
 
 **Core + JSON pattern:** Frequently-queried attributes are real SQL columns; system-specific attributes live in `extendedAttributes` JSON.
 
+**Core ontology:** `ontology/core.ttl` (OWL/Turtle, namespace `https://identityatlas.io/ontology#`) is the formal description of all of the above — every core table, column, type value and relationship type. A change to the model (new column, relationship type, principal type, closed value list, ingest entity) must update it in the same PR: `npm run ontology:check` (app/api, also in CI) fails otherwise, and `npm run ontology:generate` refreshes the generated docs. See [`docs/contributing/maintaining-the-ontology.md`](docs/contributing/maintaining-the-ontology.md).
+
 **Backward compatibility:** Account and resource data lives in the universal `Principals` and `Resources` tables. The pre-v3.1 `GraphUsers` / `GraphGroups` tables are **gone from the schema** (never created by the v5 migrations) — there is no runtime fallback to them.
 
 ### Contexts (v6, April 2026)

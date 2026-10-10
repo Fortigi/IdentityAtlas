@@ -273,6 +273,7 @@ six hours after it was opened.
 
 No external IdP dependency. The API manages its own crawler credentials.
 
+<!-- ontology: out-of-scope — crawler credential tables, not the graph model -->
 ```mermaid
 erDiagram
     Crawlers {

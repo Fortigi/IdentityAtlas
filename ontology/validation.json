@@ -1,0 +1,48 @@
+{
+  "_comment": "Configuration for the core ontology check (npm run ontology:check in app/api; docs/contributing/maintaining-the-ontology.md). outOfScopeIngestEntities: ingest entity types that are deliberately NOT part of the core graph model, each with a reason — a NEW ingest entity type that is neither a core class nor listed here fails the check. knownGaps: inconsistencies the check found in the implementation itself, accepted for now with a reason. Matching is on (code, subject). The list is a ratchet: an entry that no longer matches a finding fails as stale, so fixing a gap forces its removal. scope 'database' entries are judged only by the contract test that compares with a real PostgreSQL schema.",
+  "outOfScopeIngestEntities": {
+    "governance/catalogs": "Governance satellite table (GovernanceCatalogs). Business roles themselves are core Resources (resourceType BusinessRole); the catalogs, policies, requests and certification decisions around them are a candidate for the next ontology version.",
+    "governance/policies": "Governance satellite table (AssignmentPolicies); see governance/catalogs.",
+    "governance/requests": "Governance satellite table (AssignmentRequests); see governance/catalogs.",
+    "governance/certifications": "Governance satellite table (CertificationDecisions); see governance/catalogs.",
+    "principal-activity": "High-frequency activity snapshot (PrincipalActivity), deliberately kept out of the audited graph tables (docs/concepts/data-model.md, Activity Data). Not a node or edge of the graph."
+  },
+  "knownGaps": [
+    {
+      "code": "ingest-field-unmapped", "subject": "principals.contextId",
+      "reason": "The ingest schema still accepts contextId, but migration 018 replaced per-entity contextId columns with ContextMembers. The value is packed into extendedAttributes instead of a column. Fix: drop the field from validation.js SCHEMAS (needs a check that no crawler still sends it)."
+    },
+    {
+      "code": "ingest-field-unmapped", "subject": "resources.contextId",
+      "reason": "Same as principals.contextId: no Resources.contextId column since migration 018; the value lands in extendedAttributes."
+    },
+    {
+      "code": "ingest-field-unmapped", "subject": "identities.contextId",
+      "reason": "Same as principals.contextId: no Identities.contextId column since migration 018; the value lands in extendedAttributes."
+    },
+    {
+      "code": "ingest-field-unmapped", "subject": "contexts.managerExternalId",
+      "reason": "Contexts has no managerId column (dropped by the 018 redesign), although validation.js, normalization.js and docs/concepts/data-model.md say a context carries one. The reference cannot resolve and stays in extendedAttributes. routes/riskScores/list.js still selects Contexts.managerId — see the PR description."
+    },
+    {
+      "code": "ingest-field-unmapped", "subject": "contexts.managerIdentityExternalId",
+      "reason": "Contexts has no managerIdentityId column either (dropped by the 018 redesign); same situation as contexts.managerExternalId."
+    },
+    {
+      "code": "ingest-field-unmapped", "subject": "identity-members.extendedAttributes",
+      "reason": "The ingest accepts extendedAttributes on identity members but IdentityMembers has no extendedAttributes column, so the value cannot be stored."
+    },
+    {
+      "code": "ingest-type-mismatch", "subject": "resource-assignments.policyId",
+      "reason": "Ingest validates policyId as free text (maxLength 255) but ResourceAssignments.policyId is uuid, so a non-uuid policy id passes validation and fails at insert."
+    },
+    {
+      "code": "ingest-type-mismatch", "subject": "resource-assignments-identity.policyId",
+      "reason": "Same as resource-assignments.policyId, on the identity-level assignment endpoint."
+    },
+    {
+      "code": "fk-type-mismatch", "subject": "ia:memberId",
+      "reason": "ContextMembers.memberId is uuid and Systems.id is integer, yet memberType/targetType admit 'System' (migration 018 CHECK, ingest enum). A System member cannot reference its system by id; routes/contexts/read.js compares them as text, which never matches."
+    }
+  ]
+}
