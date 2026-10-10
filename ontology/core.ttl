@@ -1,0 +1,948 @@
+# Identity Atlas core ontology
+#
+# The canonical, version-controlled description of the built-in graph model that
+# the PostgreSQL migrations, the ingest validation and the crawlers implement.
+# It DESCRIBES the model; it does not drive it. PostgreSQL stays the store.
+#
+# Conventions (enforced by `npm run ontology:check` in app/api — see
+# docs/contributing/maintaining-the-ontology.md):
+#   * Namespace https://identityatlas.io/ontology# , prefix ia: .
+#   * A class that maps to a table carries ia:table. Its node IRI stands for the
+#     row, so the table's identifier column (ia:identifierColumn, "id") is not a
+#     property.
+#   * A property that maps to a column is named EXACTLY like the column
+#     (camelCase as in the database) and carries ia:sqlType. One property per
+#     column name, shared by every core table that has that column — its
+#     rdfs:domain lists them. So Principals.accountEnabled is ia:accountEnabled.
+#   * A foreign-key column is an owl:ObjectProperty whose range is the class it
+#     points at; every other column is an owl:DatatypeProperty.
+#   * A value stored in a discriminator / type column is ia:typeValue on the
+#     class (principalType, resourceType), on the relationship property
+#     (relationshipType) or on the named individual (assignmentType, origin, …).
+#   * Named individuals of a closed value list are called <Scheme>_<value>.
+#   * Relationship-type properties are lowerCamel of the stored value
+#     ('HasAppRole' -> ia:hasAppRole) and say which edge table stores them.
+#   * Every term is rdfs:isDefinedBy <https://identityatlas.io/ontology>. Future
+#     runtime-defined extensions live in their own ontology and namespace and
+#     never add triples about core terms' definitions (docs/architecture/core-ontology.md).
+
+@prefix ia:      <https://identityatlas.io/ontology#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+<https://identityatlas.io/ontology>
+    a owl:Ontology ;
+    dcterms:title "Identity Atlas core ontology"@en ;
+    rdfs:comment "The built-in Identity Atlas graph model: systems, accounts (principals), resources, persons (identities) and contexts, and the edge tables that connect them. Describes what the PostgreSQL schema and the ingest API implement today."@en ;
+    owl:versionInfo "1.0.0" ;
+    owl:versionIRI <https://identityatlas.io/ontology/1.0.0> ;
+    dcterms:license <https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE> .
+
+# jsonb columns use rdf:JSON (RDF 1.1 / JSON-LD 1.1). It is not in the OWL 2
+# datatype map, so it is declared here; a strict DL reasoner may need its
+# "ignore unsupported datatypes" option.
+rdf:JSON a rdfs:Datatype .
+# dcterms terms used on the ontology header, declared so OWL 2 DL tools do not
+# have to guess their kind.
+dcterms:title a owl:AnnotationProperty .
+dcterms:license a owl:AnnotationProperty .
+
+# ─── Mapping annotations ──────────────────────────────────────────────────────
+# Describe how an ontology term maps onto the implementation. They are
+# annotations, so OWL reasoners ignore them; the validator reads them.
+
+ia:table a owl:AnnotationProperty ;
+    rdfs:label "table" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The PostgreSQL table whose rows are instances of this class." .
+ia:identifierColumn a owl:AnnotationProperty ;
+    rdfs:label "identifier column" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The column that identifies a row of this class. It is represented by the instance IRI, not by a property." .
+ia:identifierSqlType a owl:AnnotationProperty ;
+    rdfs:label "identifier SQL type" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The PostgreSQL type of the identifier column. A foreign-key column pointing at this class must have the same type." .
+ia:ingestEntity a owl:AnnotationProperty ;
+    rdfs:label "ingest entity" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The ingest API entity type (POST /api/ingest/<entity>) that writes this class." .
+ia:discriminator a owl:AnnotationProperty ;
+    rdfs:label "discriminator" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The column whose value selects the subclass of this class (see ia:typeValue on the subclasses)." .
+ia:openVocabulary a owl:AnnotationProperty ;
+    rdfs:label "open vocabulary" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "True when the discriminator accepts any value: the declared subclasses are the built-in values the application itself relies on, not an allow-list." .
+ia:typeColumn a owl:AnnotationProperty ;
+    rdfs:label "type column" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "On an edge class: the column that holds the relationship type. Its allowed values are the ia:typeValue of every property with ia:storedIn this class." .
+ia:sourceProperty a owl:AnnotationProperty ;
+    rdfs:label "source property" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "On an edge class: the foreign-key property naming the edge's source (subject) node." .
+ia:targetProperty a owl:AnnotationProperty ;
+    rdfs:label "target property" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "On an edge class: the foreign-key property naming the edge's target (object) node." .
+ia:sqlType a owl:AnnotationProperty ;
+    rdfs:label "SQL type" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The column's PostgreSQL data type exactly as information_schema.columns.data_type reports it." .
+ia:ingestAlias a owl:AnnotationProperty ;
+    rdfs:label "ingest alias" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An ingest field that is not a column but is resolved into this column (an external id turned into the deterministic internal id)." .
+ia:typeValue a owl:AnnotationProperty ;
+    rdfs:label "type value" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The exact string stored in the database for this class, relationship type or enumerated value." .
+ia:storedIn a owl:AnnotationProperty ;
+    rdfs:label "stored in" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "On a relationship-type property: the edge class whose rows carry it." .
+ia:valueScheme a owl:AnnotationProperty ;
+    rdfs:label "value scheme" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "On a datatype property: the class whose named individuals are the column's closed list of allowed values." .
+ia:denotesClass a owl:AnnotationProperty ;
+    rdfs:label "denotes class" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "On an ia:EntityKind value: the core class that the stored string names." .
+ia:status a owl:AnnotationProperty ;
+    rdfs:label "status" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Lifecycle note for a term that exists in the implementation but is not (fully) in use: 'reserved' or 'unused'. Retired terms use owl:deprecated." .
+
+# ─── Abstract structure ───────────────────────────────────────────────────────
+
+ia:Node a owl:Class ;
+    rdfs:label "Node" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A node table of the Identity Atlas graph: Systems, Principals, Resources, Identities, Contexts." .
+ia:Edge a owl:Class ;
+    rdfs:label "Edge" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An edge table of the Identity Atlas graph. Edges carry their own columns, so each edge row is an instance in its own right (the edge-with-fields pattern)." .
+
+# ─── Node classes ─────────────────────────────────────────────────────────────
+
+ia:System a owl:Class ; rdfs:subClassOf ia:Node ;
+    rdfs:label "System" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A connected authorization source (Entra ID, Omada, a SQL database, a CSV feed …). Principals, resources and synced contexts belong to one system." ;
+    ia:table "Systems" ; ia:identifierColumn "id" ; ia:identifierSqlType "integer" ; ia:ingestEntity "systems" .
+
+ia:Principal a owl:Class ; rdfs:subClassOf ia:Node ;
+    rdfs:label "Principal" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An account in a source system: a user, service principal, managed identity, AI agent, guest, shared mailbox …" ;
+    ia:table "Principals" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" ; ia:ingestEntity "principals" ;
+    ia:discriminator "principalType" .
+
+ia:Resource a owl:Class ; rdfs:subClassOf ia:Node ;
+    rdfs:label "Resource" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Anything that grants access — a group, a directory role, an app role, a permission — and also a business role (governance construct)." ;
+    ia:table "Resources" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" ; ia:ingestEntity "resources" ;
+    ia:discriminator "resourceType" ; ia:openVocabulary true .
+
+ia:Identity a owl:Class ; rdfs:subClassOf ia:Node ;
+    rdfs:label "Identity" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A real person, aggregated from one or more accounts (principals) through IdentityMembers." ;
+    ia:table "Identities" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" ; ia:ingestEntity "identities" .
+
+ia:Context a owl:Class ; rdfs:subClassOf ia:Node ;
+    rdfs:label "Context" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A grouping of one kind of entity — a department, an OU, a tag, a cluster, a logical application. Synced, generated by a plugin, or manual. contextType is an open vocabulary." ;
+    ia:table "Contexts" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" ; ia:ingestEntity "contexts" .
+
+# ─── Edge classes ─────────────────────────────────────────────────────────────
+
+ia:ResourceAssignment a owl:Class ; rdfs:subClassOf ia:Edge ;
+    rdfs:label "Resource assignment" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Who holds what: one account (principalId) or one person (identityId) — exactly one of the two — holds one resource, Direct / Indirect / Eligible, optionally governed." ;
+    ia:table "ResourceAssignments" ;
+    ia:ingestEntity "resource-assignments", "resource-assignments-identity" ;
+    ia:sourceProperty ia:principalId, ia:identityId ; ia:targetProperty ia:resourceId .
+
+ia:ResourceRelationship a owl:Class ; rdfs:subClassOf ia:Edge ;
+    rdfs:label "Resource relationship" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A typed link from a parent resource to a child resource." ;
+    ia:table "ResourceRelationships" ; ia:ingestEntity "resource-relationships" ;
+    ia:typeColumn "relationshipType" ;
+    ia:sourceProperty ia:parentResourceId ; ia:targetProperty ia:childResourceId .
+
+ia:PrincipalRelationship a owl:Class ; rdfs:subClassOf ia:Edge ;
+    rdfs:label "Principal relationship" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A responsibility link between two accounts: relatedPrincipalId is the Owner / Sponsor OF principalId." ;
+    ia:table "PrincipalRelationships" ; ia:ingestEntity "principal-relationships" ;
+    ia:typeColumn "relationshipType" ;
+    ia:sourceProperty ia:principalId ; ia:targetProperty ia:relatedPrincipalId .
+
+ia:IdentityMember a owl:Class ; rdfs:subClassOf ia:Edge ;
+    rdfs:label "Identity member" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Links a person (identity) to one of their accounts (principal), from a crawler or from Account Linking." ;
+    ia:table "IdentityMembers" ; ia:ingestEntity "identity-members" ;
+    ia:sourceProperty ia:identityId ; ia:targetProperty ia:principalId .
+
+ia:ContextMember a owl:Class ; rdfs:subClassOf ia:Edge ;
+    rdfs:label "Context member" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Membership of an identity, principal, resource or system in a context. memberType says which table memberId points at." ;
+    ia:table "ContextMembers" ; ia:ingestEntity "context-members" ;
+    ia:sourceProperty ia:contextId ; ia:targetProperty ia:memberId .
+
+# ─── Principal types (closed: ingest enum on principalType) ──────────────────
+
+ia:User a owl:Class ; rdfs:subClassOf ia:Principal ; ia:typeValue "User" ;
+    rdfs:label "User" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An interactive human user account." .
+ia:ServicePrincipal a owl:Class ; rdfs:subClassOf ia:Principal ; ia:typeValue "ServicePrincipal" ;
+    rdfs:label "Service principal" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The service principal of an application registration." .
+ia:ManagedIdentity a owl:Class ; rdfs:subClassOf ia:Principal ; ia:typeValue "ManagedIdentity" ;
+    rdfs:label "Managed identity" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A system- or user-assigned identity attached to a cloud resource." .
+ia:WorkloadIdentity a owl:Class ; rdfs:subClassOf ia:Principal ; ia:typeValue "WorkloadIdentity" ;
+    rdfs:label "Workload identity" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A federated-credential identity used by a workload (a pipeline, a Kubernetes service account)." .
+ia:AIAgent a owl:Class ; rdfs:subClassOf ia:Principal ; ia:typeValue "AIAgent" ;
+    rdfs:label "AI agent" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An AI agent (Copilot Studio, Azure OpenAI, a custom bot) that holds access as its own account." .
+ia:ExternalUser a owl:Class ; rdfs:subClassOf ia:Principal ; ia:typeValue "ExternalUser" ;
+    rdfs:label "External user" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A guest / B2B account from another organisation." .
+ia:SharedMailbox a owl:Class ; rdfs:subClassOf ia:Principal ; ia:typeValue "SharedMailbox" ;
+    rdfs:label "Shared mailbox" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A shared, room or equipment mailbox account." .
+
+# ─── Resource types (open vocabulary; these are the built-in ones) ───────────
+
+ia:Group a owl:Class ; rdfs:subClassOf ia:Resource ; ia:typeValue "Group" ;
+    rdfs:label "Group" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A security or Microsoft 365 group. The effective-access engine expands membership through it." .
+ia:EntraDirectoryRole a owl:Class ; rdfs:subClassOf ia:Resource ; ia:typeValue "EntraDirectoryRole" ;
+    rdfs:label "Entra directory role" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "One Entra directory role (id = roleDefinitionId); extendedAttributes holds its allowedResourceActions." .
+ia:BusinessRole a owl:Class ; rdfs:subClassOf ia:Resource ; ia:typeValue "BusinessRole" ;
+    rdfs:label "Business role" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A governance construct (Entra access package, Omada / midPoint business role). Contains the resources it grants; hidden from the matrix by default." .
+ia:Application a owl:Class ; rdfs:subClassOf ia:Resource ; ia:typeValue "Application" ;
+    rdfs:label "Application" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An enterprise application (service principal) as a resource. Grants nothing by itself; parent of its app roles and permissions." .
+ia:AppRole a owl:Class ; rdfs:subClassOf ia:Resource ; ia:typeValue "AppRole" ;
+    rdfs:label "App role" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "One app role of an application (one resource per application + appRoleId)." .
+ia:DelegatedPermission a owl:Class ; rdfs:subClassOf ia:Resource ; ia:typeValue "DelegatedPermission" ;
+    rdfs:label "Delegated permission" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "One OAuth2 delegated scope granted to a client application on an API (one resource per client, API and scope)." .
+ia:ApplicationPermission a owl:Class ; rdfs:subClassOf ia:Resource ; ia:typeValue "ApplicationPermission" ;
+    rdfs:label "Application permission" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "One app-only (admin-consented) permission a service principal holds on another API." .
+ia:OwnershipResource a owl:Class ; rdfs:subClassOf ia:Resource ;
+    rdfs:label "Ownership resource" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A synthetic resource meaning 'owner of something else', named after the owned thing. Each owner holds it through a Direct assignment. The list is app/api/src/lib/ownershipTypes.js." .
+ia:GroupOwnership a owl:Class ; rdfs:subClassOf ia:OwnershipResource ; ia:typeValue "GroupOwnership" ;
+    rdfs:label "Group ownership" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The owners of an Entra group." .
+ia:ServicePrincipalOwnership a owl:Class ; rdfs:subClassOf ia:OwnershipResource ; ia:typeValue "ServicePrincipalOwnership" ;
+    rdfs:label "Service principal ownership" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The owners of an enterprise application's service principal." .
+ia:ApplicationOwnership a owl:Class ; rdfs:subClassOf ia:OwnershipResource ; ia:typeValue "ApplicationOwnership" ;
+    rdfs:label "Application ownership" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The owners of an app registration — they can add a credential and act as the app." .
+ia:ResourceOwnership a owl:Class ; rdfs:subClassOf ia:OwnershipResource ; ia:typeValue "ResourceOwnership" ;
+    rdfs:label "Resource ownership" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The owners of a resource loaded by the SQL connector; the owned resource's own type is in extendedAttributes.ownedResourceType." .
+
+# ─── Closed value lists ───────────────────────────────────────────────────────
+
+ia:AssignmentType a owl:Class ;
+    rdfs:label "Assignment type" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How an assignment is held. Only these three values exist; ownership, governance and source detail are modelled elsewhere." .
+ia:AssignmentType_Direct a owl:NamedIndividual, ia:AssignmentType ; ia:typeValue "Direct" ;
+    rdfs:label "Direct" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Held directly: a membership, a directly assigned app role, an OAuth2 grant, an ownership." .
+ia:AssignmentType_Indirect a owl:NamedIndividual, ia:AssignmentType ; ia:typeValue "Indirect" ;
+    rdfs:label "Indirect" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Inherited through another resource (an app role held via a group, a nested group). Stored, not inferred." .
+ia:AssignmentType_Eligible a owl:NamedIndividual, ia:AssignmentType ; ia:typeValue "Eligible" ;
+    rdfs:label "Eligible" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Granted but not active (PIM-eligible): can be activated." .
+
+ia:AssignmentOrigin a owl:Class ;
+    rdfs:label "Assignment origin" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Where an assignment came from, as the source records it. Optional." .
+ia:AssignmentOrigin_Automatic a owl:NamedIndividual, ia:AssignmentOrigin ; ia:typeValue "Automatic" ;
+    rdfs:label "Automatic" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Assigned by a rule or birthright policy." .
+ia:AssignmentOrigin_Requested a owl:NamedIndividual, ia:AssignmentOrigin ; ia:typeValue "Requested" ;
+    rdfs:label "Requested" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Assigned through an access request." .
+ia:AssignmentOrigin_Discovered a owl:NamedIndividual, ia:AssignmentOrigin ; ia:typeValue "Discovered" ;
+    rdfs:label "Discovered" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Found on the target system without a recorded reason." .
+
+ia:AssignmentEffect a owl:Class ;
+    rdfs:label "Assignment effect" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What an assignment does to effective access (read by the effective-access engine)." .
+ia:AssignmentEffect_allow a owl:NamedIndividual, ia:AssignmentEffect ; ia:typeValue "allow" ;
+    rdfs:label "allow" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A concrete grant." .
+ia:AssignmentEffect_deny a owl:NamedIndividual, ia:AssignmentEffect ; ia:typeValue "deny" ;
+    rdfs:label "deny" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An explicit deny." .
+ia:AssignmentEffect_eligible a owl:NamedIndividual, ia:AssignmentEffect ; ia:typeValue "eligible" ;
+    rdfs:label "eligible" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Potential access only; excluded from effective answers." .
+ia:AssignmentEffect_notset a owl:NamedIndividual, ia:AssignmentEffect ; ia:typeValue "notset" ;
+    rdfs:label "notset" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Neither grants nor denies." .
+
+ia:PropagationScope a owl:Class ;
+    rdfs:label "Propagation scope" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Where along a containment hierarchy an assignment applies." .
+ia:PropagationScope_self a owl:NamedIndividual, ia:PropagationScope ; ia:typeValue "self" ;
+    rdfs:label "self" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Only at the assigned resource." .
+ia:PropagationScope_descendants a owl:NamedIndividual, ia:PropagationScope ; ia:typeValue "descendants" ;
+    rdfs:label "descendants" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Only below the assigned resource." .
+ia:PropagationScope_selfAndDescendants a owl:NamedIndividual, ia:PropagationScope ; ia:typeValue "selfAndDescendants" ;
+    rdfs:label "selfAndDescendants" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "At the assigned resource and everything below it (the default)." .
+
+ia:ContextVariant a owl:Class ;
+    rdfs:label "Context variant" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How a context came to exist." .
+ia:ContextVariant_synced a owl:NamedIndividual, ia:ContextVariant ; ia:typeValue "synced" ;
+    rdfs:label "synced" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Ingested from a source system." .
+ia:ContextVariant_generated a owl:NamedIndividual, ia:ContextVariant ; ia:typeValue "generated" ;
+    rdfs:label "generated" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Emitted by a context-algorithm plugin." .
+ia:ContextVariant_manual a owl:NamedIndividual, ia:ContextVariant ; ia:typeValue "manual" ;
+    rdfs:label "manual" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Curated by an analyst (tags included)." .
+
+ia:EntityKind a owl:Class ;
+    rdfs:label "Entity kind" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The kind of node a context groups (targetType) or a context member is (memberType)." .
+ia:EntityKind_Identity a owl:NamedIndividual, ia:EntityKind ; ia:typeValue "Identity" ; ia:denotesClass ia:Identity ;
+    rdfs:label "Identity" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Members are identities." .
+ia:EntityKind_Resource a owl:NamedIndividual, ia:EntityKind ; ia:typeValue "Resource" ; ia:denotesClass ia:Resource ;
+    rdfs:label "Resource" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Members are resources." .
+ia:EntityKind_Principal a owl:NamedIndividual, ia:EntityKind ; ia:typeValue "Principal" ; ia:denotesClass ia:Principal ;
+    rdfs:label "Principal" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Members are principals." .
+ia:EntityKind_System a owl:NamedIndividual, ia:EntityKind ; ia:typeValue "System" ; ia:denotesClass ia:System ;
+    rdfs:label "System" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Members are systems. Note: memberId is a uuid and Systems.id an integer, so a System member row cannot reference a system by id." .
+
+ia:MembershipSource a owl:Class ;
+    rdfs:label "Membership source" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Who put a member into a context." .
+ia:MembershipSource_sync a owl:NamedIndividual, ia:MembershipSource ; ia:typeValue "sync" ;
+    rdfs:label "sync" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A crawler." .
+ia:MembershipSource_algorithm a owl:NamedIndividual, ia:MembershipSource ; ia:typeValue "algorithm" ;
+    rdfs:label "algorithm" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A context-algorithm plugin." .
+ia:MembershipSource_analyst a owl:NamedIndividual, ia:MembershipSource ; ia:typeValue "analyst" ;
+    rdfs:label "analyst" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An analyst, by hand." .
+
+# ─── Relationship types (ResourceRelationships.relationshipType) ─────────────
+
+ia:contains a owl:ObjectProperty ; ia:typeValue "Contains" ; ia:storedIn ia:ResourceRelationship ;
+    rdfs:domain ia:Resource ; rdfs:range ia:Resource ;
+    rdfs:label "contains" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The child is part of the parent: a business role's granted resources, a scope inside a scope. Holding the parent reaches the child." .
+ia:grantsAccessTo a owl:ObjectProperty ; ia:typeValue "GrantsAccessTo" ; ia:storedIn ia:ResourceRelationship ;
+    rdfs:domain ia:Resource ; rdfs:range ia:Resource ;
+    rdfs:label "grants access to" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Holding the parent implies access to the child. Emitted by the CSV and SQL connectors and the demo dataset; no built-in crawler uses it." .
+ia:hasAppRole a owl:ObjectProperty ; ia:typeValue "HasAppRole" ; ia:storedIn ia:ResourceRelationship ;
+    rdfs:domain ia:Application ; rdfs:range ia:AppRole ;
+    rdfs:label "has app role" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An application and one of its app roles." .
+ia:delegatesScope a owl:ObjectProperty ; ia:typeValue "DelegatesScope" ; ia:storedIn ia:ResourceRelationship ;
+    rdfs:domain ia:Application ; rdfs:range ia:DelegatedPermission ;
+    rdfs:label "delegates scope" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A client application and a delegated permission it was granted." .
+ia:hasApplicationPermission a owl:ObjectProperty ; ia:typeValue "HasApplicationPermission" ; ia:storedIn ia:ResourceRelationship ;
+    rdfs:domain ia:Application ; rdfs:range ia:ApplicationPermission ;
+    rdfs:label "has application permission" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A client application and an app-only permission it holds." .
+ia:hasOwnership a owl:ObjectProperty ; ia:typeValue "HasOwnership" ; ia:storedIn ia:ResourceRelationship ;
+    rdfs:domain ia:Resource ; rdfs:range [ a owl:Class ; owl:unionOf ( ia:GroupOwnership ia:ResourceOwnership ) ] ;
+    rdfs:label "has ownership" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An owned resource and the ownership resource whose holders are its owners (Entra groups, SQL-connector resources)." .
+ia:hasAppOwnership a owl:ObjectProperty ; ia:typeValue "HasAppOwnership" ; ia:storedIn ia:ResourceRelationship ;
+    rdfs:domain ia:Application ; rdfs:range [ a owl:Class ; owl:unionOf ( ia:ServicePrincipalOwnership ia:ApplicationOwnership ) ] ;
+    rdfs:label "has app ownership" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Same meaning as hasOwnership, for applications. A separate value only so the group-owner full sync cannot reconcile app-owner links away." .
+
+# ─── Relationship types (PrincipalRelationships.relationshipType) ────────────
+
+ia:owner a owl:ObjectProperty ; ia:typeValue "Owner" ; ia:storedIn ia:PrincipalRelationship ;
+    rdfs:domain ia:Principal ; rdfs:range ia:Principal ;
+    rdfs:label "owner" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The object is an owner of the subject (typically of an AI agent or service principal)." .
+ia:sponsor a owl:ObjectProperty ; ia:typeValue "Sponsor" ; ia:storedIn ia:PrincipalRelationship ;
+    rdfs:domain ia:Principal ; rdfs:range ia:Principal ;
+    rdfs:label "sponsor" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The object is a sponsor of the subject (typically of a guest account)." .
+
+# ─── Columns ──────────────────────────────────────────────────────────────────
+# One property per column name, named exactly like the column. rdfs:domain lists
+# every core table that has the column; ia:sqlType is its PostgreSQL type.
+
+ia:accountCount a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:Identity ;
+    rdfs:range xsd:integer ;
+    rdfs:label "accountCount" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Number of accounts linked to this person." .
+ia:accountEnabled a owl:DatatypeProperty ; ia:sqlType "boolean" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:IdentityMember ) ] ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "accountEnabled" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Whether the account can sign in. On IdentityMembers a copy taken when the link was made." .
+ia:accountType a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:IdentityMember ;
+    rdfs:range xsd:string ;
+    rdfs:label "accountType" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Account category detected by Account Linking (Admin, Guest, Service, Shared, Secondary, …)." .
+ia:accountTypePattern a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:IdentityMember ;
+    rdfs:range xsd:string ;
+    rdfs:label "accountTypePattern" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The naming pattern that classified accountType." .
+ia:accountTypes a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
+    rdfs:domain ia:Identity ;
+    rdfs:range rdf:JSON ;
+    rdfs:label "accountTypes" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The account categories this person holds." .
+ia:addedAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain ia:ContextMember ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "addedAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When the member was added." .
+ia:addedBy a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ContextMember ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:MembershipSource ;
+    rdfs:label "addedBy" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Who added the member." .
+ia:analystNotes a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Identity ;
+    rdfs:range xsd:string ;
+    rdfs:label "analystNotes" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Free-text analyst notes on the person." .
+ia:analystOverride a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:IdentityMember ;
+    rdfs:range xsd:string ;
+    rdfs:label "analystOverride" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An analyst's verdict on a link (confirmed / rejected / moved); Account Linking honours it on every run." .
+ia:analystVerified a owl:DatatypeProperty ; ia:sqlType "boolean" ;
+    rdfs:domain ia:Identity ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "analystVerified" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An analyst has verified this person." .
+ia:assignmentStatus a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ResourceAssignment ;
+    rdfs:range xsd:string ;
+    rdfs:label "assignmentStatus" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source system's own status word for the assignment." .
+ia:assignmentType a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ResourceAssignment ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:AssignmentType ;
+    rdfs:label "assignmentType" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How the access is held." .
+ia:assignmentTypes a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
+    rdfs:domain ia:System ;
+    rdfs:range rdf:JSON ;
+    ia:status "unused" ;
+    rdfs:label "assignmentTypes" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Meant to list the assignment types a system emits. Nothing reads or writes it." .
+ia:capabilityId a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Resource ;
+    rdfs:range xsd:string ;
+    rdfs:label "capabilityId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Generated from extendedAttributes.capabilityId for the effective-access engine." .
+ia:catalogId a owl:DatatypeProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:Resource ;
+    rdfs:range xsd:string ;
+    rdfs:label "catalogId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The governance catalog (GovernanceCatalogs.id) a business role belongs to. GovernanceCatalogs is outside the core model." .
+ia:childResourceId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:ResourceRelationship ;
+    rdfs:range ia:Resource ;
+    ia:ingestAlias "childExternalId" ;
+    rdfs:label "childResourceId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The child (target) resource." .
+ia:city a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Identity ;
+    rdfs:range xsd:string ;
+    rdfs:label "city" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The person's city." .
+ia:companyName a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Identity ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:label "companyName" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Company name." .
+ia:complianceState a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ResourceAssignment ;
+    rdfs:range xsd:string ;
+    rdfs:label "complianceState" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source system's compliance verdict for the assignment." .
+ia:contextId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:ContextMember ;
+    rdfs:range ia:Context ;
+    ia:ingestAlias "contextExternalId" ;
+    rdfs:label "contextId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The context." .
+ia:contextType a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:string ;
+    rdfs:label "contextType" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What kind of grouping this is (Department, OrgUnit, Tag, Cluster, LogicalApplication, …). An open vocabulary." .
+ia:country a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Identity ;
+    rdfs:range xsd:string ;
+    rdfs:label "country" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The person's country." .
+ia:createdAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "createdAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When the context row was created." .
+ia:createdByUser a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:string ;
+    rdfs:label "createdByUser" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The analyst who created a manual context." .
+ia:createdDateTime a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Resource ia:PrincipalRelationship ) ] ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "createdDateTime" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When the object was created in the source (PrincipalRelationships: when the row was created)." .
+ia:deletedAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Resource ia:ResourceAssignment ) ] ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "deletedAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Soft-delete tombstone: set when the source stopped reporting the row; NULL while live." .
+ia:department a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Identity ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:label "department" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Department name as a plain attribute (organisational placement itself is a Context)." .
+ia:description a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:System ia:Resource ia:Context ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:label "description" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Free-text description." .
+ia:directAssignmentCount a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:integer ;
+    rdfs:label "directAssignmentCount" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Stored count of Direct (resource, holder) pairs over the resources in this context." .
+ia:directMemberCount a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:integer ;
+    rdfs:label "directMemberCount" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Stored count of direct members." .
+ia:directorySystemId a owl:ObjectProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:System ;
+    rdfs:range ia:System ;
+    rdfs:label "directorySystemId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The directory system whose principals this system references but does not own (Azure RM -> Entra ID)." .
+ia:displayName a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:System ia:Principal ia:Resource ia:Identity ia:Context ia:IdentityMember ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:label "displayName" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Human-readable name. On IdentityMembers a copy of the account name." .
+ia:effect a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ResourceAssignment ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:AssignmentEffect ;
+    rdfs:label "effect" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What the assignment does to effective access." .
+ia:eligibleAssignmentCount a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:integer ;
+    rdfs:label "eligibleAssignmentCount" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Stored count of Eligible (resource, holder) pairs over the resources in this context." .
+ia:email a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Identity ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:label "email" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "E-mail address." .
+ia:employeeId a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Identity ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:label "employeeId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Employee number." .
+ia:enabled a owl:DatatypeProperty ; ia:sqlType "boolean" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:System ia:Resource ) ] ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "enabled" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Whether the system or resource is enabled." .
+ia:expirationDateTime a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain ia:ResourceAssignment ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "expirationDateTime" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When the assignment expires." .
+ia:extendedAttributes a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:System ia:Principal ia:Resource ia:Identity ia:Context ia:ResourceAssignment ia:ResourceRelationship ia:PrincipalRelationship ) ] ;
+    rdfs:range rdf:JSON ;
+    rdfs:label "extendedAttributes" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Source-specific attributes that have no column of their own." .
+ia:externalId a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Resource ia:Context ia:PrincipalRelationship ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:label "externalId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The object's id in its source system." .
+ia:givenName a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Identity ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:label "givenName" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Given name." .
+ia:governanceResource a owl:DatatypeProperty ; ia:sqlType "boolean" ;
+    rdfs:domain ia:Resource ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "governanceResource" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The resource is a governance construct that governs other access (business roles)." .
+ia:governed a owl:DatatypeProperty ; ia:sqlType "boolean" ;
+    rdfs:domain ia:ResourceAssignment ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "governed" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The row is governance intent (a business-role / access-package assignment) rather than observed access. Part of the key." .
+ia:holderCount a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:integer ;
+    rdfs:label "holderCount" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Stored count of distinct holders over the resources in this context." .
+ia:hrAccountId a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Identity ;
+    rdfs:range xsd:string ;
+    rdfs:label "hrAccountId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The HR record id the person is anchored on." .
+ia:hrIndicators a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
+    rdfs:domain ia:IdentityMember ;
+    rdfs:range rdf:JSON ;
+    rdfs:label "hrIndicators" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Signals that made this account look HR-authoritative." .
+ia:hrScore a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:IdentityMember ;
+    rdfs:range xsd:integer ;
+    rdfs:label "hrScore" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How strongly this account looks like the HR record." .
+ia:identityId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:IdentityMember ia:ResourceAssignment ) ] ;
+    rdfs:range ia:Identity ;
+    ia:ingestAlias "identityExternalId" ;
+    rdfs:label "identityId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The person. On ResourceAssignments set instead of principalId for person-level assignments." .
+ia:indirectAssignmentCount a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:integer ;
+    rdfs:label "indirectAssignmentCount" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Stored count of Indirect (resource, holder) pairs over the resources in this context." .
+ia:isHidden a owl:DatatypeProperty ; ia:sqlType "boolean" ;
+    rdfs:domain ia:Resource ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "isHidden" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Hidden from the default views." .
+ia:isHrAnchored a owl:DatatypeProperty ; ia:sqlType "boolean" ;
+    rdfs:domain ia:Identity ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "isHrAnchored" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The person is anchored on an HR record." .
+ia:isHrAuthoritative a owl:DatatypeProperty ; ia:sqlType "boolean" ;
+    rdfs:domain ia:IdentityMember ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "isHrAuthoritative" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "This account is the HR-authoritative one." .
+ia:isPrimary a owl:DatatypeProperty ; ia:sqlType "boolean" ;
+    rdfs:domain ia:IdentityMember ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "isPrimary" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "This is the person's primary account." .
+ia:jobTitle a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Identity ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:label "jobTitle" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Job title." .
+ia:lastCalculatedAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "lastCalculatedAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When the stored counts were last recalculated." .
+ia:lastSyncDateTime a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain ia:System ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "lastSyncDateTime" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When the system was last synced." .
+ia:linkConfidence a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Identity ia:IdentityMember ) ] ;
+    rdfs:range xsd:integer ;
+    rdfs:label "linkConfidence" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Account Linking confidence score; NULL for crawler-sourced links." .
+ia:linkedAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain ia:Identity ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "linkedAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When Account Linking last linked the person." .
+ia:linkSignals a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Identity ia:IdentityMember ) ] ;
+    rdfs:range rdf:JSON ;
+    rdfs:label "linkSignals" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The signals Account Linking matched on." .
+ia:mail a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Resource ;
+    rdfs:range xsd:string ;
+    rdfs:label "mail" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Mail address of a mail-enabled resource." .
+ia:managerId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:Principal ;
+    rdfs:range ia:Principal ;
+    ia:ingestAlias "managerExternalId" ;
+    rdfs:label "managerId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The manager's ACCOUNT." .
+ia:managerIdentityId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:Identity ;
+    rdfs:range ia:Identity ;
+    ia:ingestAlias "managerIdentityExternalId" ;
+    rdfs:label "managerIdentityId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The manager as a PERSON." .
+ia:memberId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:ContextMember ;
+    rdfs:range [ a owl:Class ; owl:unionOf ( ia:Identity ia:Resource ia:Principal ia:System ) ] ;
+    ia:ingestAlias "memberExternalId" ;
+    rdfs:label "memberId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The member; memberType names its table." .
+ia:memberType a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ContextMember ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:EntityKind ;
+    rdfs:label "memberType" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Which kind of node memberId is." .
+ia:modifiedDateTime a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Resource ia:PrincipalRelationship ) ] ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "modifiedDateTime" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When the object was last modified in the source (PrincipalRelationships: when the row was last modified)." .
+ia:officeLocation a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Identity ;
+    rdfs:range xsd:string ;
+    rdfs:label "officeLocation" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The person's office." .
+ia:origin a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ResourceAssignment ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:AssignmentOrigin ;
+    rdfs:label "origin" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Where the assignment came from, as the source records it. Optional." .
+ia:originDetail a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ResourceAssignment ;
+    rdfs:range xsd:string ;
+    rdfs:label "originDetail" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source's own word for the origin." .
+ia:orphanStatus a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Identity ;
+    rdfs:range xsd:string ;
+    owl:deprecated true ;
+    rdfs:label "orphanStatus" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Orphan-ness is the generated Orphaned Accounts context now; the column is kept in the schema for compatibility." .
+ia:ownerUserId a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:string ;
+    rdfs:label "ownerUserId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Whatever the source calls the owner of the grouping (free text, resolved to a principal for display)." .
+ia:parentContextId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:Context ;
+    rdfs:range ia:Context ;
+    ia:ingestAlias "parentExternalId" ;
+    rdfs:label "parentContextId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The parent context in the tree." .
+ia:parentResourceId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:ResourceRelationship ;
+    rdfs:range ia:Resource ;
+    ia:ingestAlias "parentExternalId" ;
+    rdfs:label "parentResourceId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The parent (source) resource." .
+ia:photo a owl:DatatypeProperty ; ia:sqlType "bytea" ;
+    rdfs:domain ia:Principal ;
+    rdfs:range xsd:base64Binary ;
+    rdfs:label "photo" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Profile photo (sent base64 to the ingest)." .
+ia:photoContentType a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Principal ;
+    rdfs:range xsd:string ;
+    rdfs:label "photoContentType" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "MIME type of the photo." .
+ia:photoFetchedAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain ia:Principal ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "photoFetchedAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When the photo was last fetched; set with a NULL photo means \"has none\"." .
+ia:policyId a owl:DatatypeProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:ResourceAssignment ;
+    rdfs:range xsd:string ;
+    rdfs:label "policyId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The assignment policy (AssignmentPolicies.id) behind a governed assignment. AssignmentPolicies is outside the core model." .
+ia:primaryPrincipalId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:Identity ;
+    rdfs:range ia:Principal ;
+    rdfs:label "primaryPrincipalId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The person's primary account." .
+ia:principalId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ResourceAssignment ia:PrincipalRelationship ia:IdentityMember ) ] ;
+    rdfs:range ia:Principal ;
+    ia:ingestAlias "principalExternalId", "userExternalId" ;
+    rdfs:label "principalId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor." .
+ia:principalType a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:ResourceAssignment ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:label "principalType" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The kind of account. On Principals it selects the subclass; on ResourceAssignments it is a denormalised copy of the holder's type." .
+ia:propagationScope a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ResourceAssignment ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:PropagationScope ;
+    rdfs:label "propagationScope" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Where along a containment hierarchy the assignment applies." .
+ia:relatedPrincipalId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:PrincipalRelationship ;
+    rdfs:range ia:Principal ;
+    ia:ingestAlias "relatedPrincipalExternalId" ;
+    rdfs:label "relatedPrincipalId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The owner / sponsor." .
+ia:relationshipType a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ResourceRelationship ia:PrincipalRelationship ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:label "relationshipType" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The relationship type: one of the ia:typeValue of the properties stored in this edge table." .
+ia:resourceCount a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:integer ;
+    rdfs:label "resourceCount" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Stored count of resources in this context." .
+ia:resourceId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:ResourceAssignment ;
+    rdfs:range ia:Resource ;
+    ia:ingestAlias "resourceExternalId" ;
+    rdfs:label "resourceId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The resource that is held." .
+ia:resourceType a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Resource ia:ResourceAssignment ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:label "resourceType" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The kind of resource (open vocabulary). On Resources it selects the subclass; on ResourceAssignments it is a denormalised copy used to partition reconciles." .
+ia:resourceTypes a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
+    rdfs:domain ia:System ;
+    rdfs:range rdf:JSON ;
+    ia:status "unused" ;
+    rdfs:label "resourceTypes" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Meant to list the resource types a system emits. Nothing reads or writes it." .
+ia:riskScore a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Resource ) ] ;
+    rdfs:range xsd:integer ;
+    rdfs:label "riskScore" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Latest risk score, denormalised from RiskScores." .
+ia:riskTier a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Resource ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:label "riskTier" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Latest risk tier, denormalised from RiskScores." .
+ia:roleName a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ResourceRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:label "roleName" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The role the child plays inside the parent (for example the access-package resource role)." .
+ia:roleOriginSystem a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ResourceRelationship ;
+    rdfs:range xsd:string ;
+    rdfs:label "roleOriginSystem" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Where that role is defined." .
+ia:scopeSystemId a owl:ObjectProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:Context ;
+    rdfs:range ia:System ;
+    rdfs:label "scopeSystemId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The system a synced or generated context is scoped to." .
+ia:sourceAlgorithmId a owl:DatatypeProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:string ;
+    rdfs:label "sourceAlgorithmId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The context-algorithm (ContextAlgorithms.id) that generated the context. ContextAlgorithms is outside the core model." .
+ia:sourceInstanceKey a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:string ;
+    rdfs:label "sourceInstanceKey" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Distinguishes several trees generated by one plugin on one system." .
+ia:sourceRunId a owl:DatatypeProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:string ;
+    rdfs:label "sourceRunId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The plugin run that generated the context." .
+ia:state a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ResourceAssignment ;
+    rdfs:range xsd:string ;
+    rdfs:label "state" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source system's state word for the assignment (for example Delivered)." .
+ia:surname a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Identity ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:label "surname" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Surname." .
+ia:syncEnabled a owl:DatatypeProperty ; ia:sqlType "boolean" ;
+    rdfs:domain ia:System ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "syncEnabled" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Whether the system is synced." .
+ia:systemId a owl:ObjectProperty ; ia:sqlType "integer" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Resource ia:ResourceAssignment ia:ResourceRelationship ia:PrincipalRelationship ) ] ;
+    rdfs:range ia:System ;
+    rdfs:label "systemId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The system that sourced the row." .
+ia:systemType a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:System ;
+    rdfs:range xsd:string ;
+    rdfs:label "systemType" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The connector kind (EntraID, Omada, CSV, …). Together with tenantId the system key." .
+ia:targetNodeId a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Resource ;
+    rdfs:range xsd:string ;
+    rdfs:label "targetNodeId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Generated from extendedAttributes.targetNodeId: the node a capability resource applies to." .
+ia:targetType a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:EntityKind ;
+    rdfs:label "targetType" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Which kind of node the context groups." .
+ia:tenantId a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:System ;
+    rdfs:range xsd:string ;
+    rdfs:label "tenantId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The tenant / instance the system connects to." .
+ia:totalMemberCount a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:integer ;
+    rdfs:label "totalMemberCount" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Stored count of members including sub-contexts." .
+ia:updatedAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Resource ia:ResourceAssignment ia:ResourceRelationship ia:PrincipalRelationship ia:Context ) ] ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "updatedAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When the row was last written by the ingest (full-sync reconcile cutoff)." .
+ia:userRenamed a owl:DatatypeProperty ; ia:sqlType "boolean" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "userRenamed" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An analyst renamed this generated context; re-runs keep the name." .
+ia:userReparented a owl:DatatypeProperty ; ia:sqlType "boolean" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "userReparented" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An analyst moved this generated context; re-runs keep the placement." .
+ia:variant a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Context ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:ContextVariant ;
+    rdfs:label "variant" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How the context came to exist." .
+ia:visibility a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Resource ;
+    rdfs:range xsd:string ;
+    rdfs:label "visibility" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Visibility as the source reports it (Public / Private for groups)." .
