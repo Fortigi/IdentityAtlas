@@ -57,6 +57,12 @@ describe('renderReference', () => {
     expect(renderReference(modelOf(ttl))).toContain('A \\| B.');
   });
 
+  it('escapes a backslash before the pipe, so a description cannot smuggle in its own escape', () => {
+    const ttl = MINI_TTL.replace('rdfs:comment "Kind." ; rdfs:isDefinedBy <https://identityatlas.io/ontology> .\nia:resourceType', 'rdfs:comment "C:\\\\x \\\\| y." ; rdfs:isDefinedBy <https://identityatlas.io/ontology> .\nia:resourceType');
+    // Turtle "C:\\x \\| y." is the text C:\x \| y. → cell C:\\x \\\| y.
+    expect(renderReference(modelOf(ttl))).toContain('| C:\\\\x \\\\\\| y. |');
+  });
+
   it('says which columns use each value list', () => {
     expect(md).toContain('`ia:AssignmentType` — How it is held. Used by `ResourceAssignments.assignmentType`.');
   });

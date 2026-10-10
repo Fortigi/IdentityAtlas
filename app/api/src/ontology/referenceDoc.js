@@ -10,7 +10,9 @@ import {
 const TTL_URL = 'https://github.com/Fortigi/IdentityAtlas/blob/main/ontology/core.ttl';
 const RAW_URL = 'https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl';
 
-const cell = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
+// Escape the backslash first, then the pipe, so a description can neither end a
+// table cell early nor turn a "\|" of its own into an escape.
+const cell = (s) => String(s ?? '').replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
 const code = (s) => `\`${s}\``;
 const byName = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
