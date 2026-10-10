@@ -120,6 +120,7 @@ nav:
       - Get data out:
           - Excel Export (Power Query): admin/excel-powerquery-export.md
           - Excel Template Authoring: admin/excel-template-authoring.md
+          - Power BI Analytics (experimental): admin/power-bi-analytics.md
 
   # ── Operator territory: deploy it, connect real systems, keep it healthy.
   - Set up & run:
@@ -185,6 +186,7 @@ nav:
           - LLM & Risk Scoring Internals: architecture/llm-and-risk-scoring.md
           - Assignments & Identity Support: architecture/resource-assignments-identity-support.md
           - Dashboard Trends: architecture/dashboard-trends.md
+          - Analytics Profiles & Power BI: architecture/analytics-profiles.md
           - Demo Dataset (contains CTF spoilers): architecture/demo-dataset.md
 
   # ── Everything about the project itself: internals, contributing, provenance.
