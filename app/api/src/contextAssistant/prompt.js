@@ -10,6 +10,8 @@
 // saved prompt cache of it next to the report prompt's. It is kept short on purpose:
 // on a CPU, reading the prompt is most of the wait.
 
+import { TARGETS } from '../contexts/recipe/recipe.js';
+
 export const REPLY_LIMITS = {
   terms: 15,
   moreTerms: 10,
@@ -37,15 +39,18 @@ const TERM = {
   required: ['text', 'why'],
 };
 
-const termsReply = (maxTerms) => ({
+// target: what the context collects — the groups themselves, or the users who have access (recipe.js TARGETS).
+
+const termsReply = (maxTerms, { withTarget = false } = {}) => ({
   type: 'object',
   properties: {
     kind: { type: 'string', enum: ['terms'] },
     name: { type: 'string', maxLength: REPLY_LIMITS.name },
+    ...(withTarget ? { target: { type: 'string', enum: TARGETS } } : {}),
     terms: boundedList(TERM, maxTerms),
     notes: boundedList({ type: 'string', maxLength: REPLY_LIMITS.note }, REPLY_LIMITS.notes),
   },
-  required: ['kind', 'name', 'terms', 'notes'],
+  required: withTarget ? ['kind', 'name', 'target', 'terms', 'notes'] : ['kind', 'name', 'terms', 'notes'],
 });
 
 const CLARIFY_REPLY = {
@@ -58,7 +63,7 @@ const CLARIFY_REPLY = {
   required: ['kind', 'question', 'options'],
 };
 
-export const TERMS_ONLY_SCHEMA = termsReply(REPLY_LIMITS.terms);
+export const TERMS_ONLY_SCHEMA = termsReply(REPLY_LIMITS.terms, { withTarget: true });
 export const RESPONSE_SCHEMA = { anyOf: [TERMS_ONLY_SCHEMA, CLARIFY_REPLY] };
 export const MORE_TERMS_SCHEMA = termsReply(REPLY_LIMITS.moreTerms);
 
@@ -70,7 +75,7 @@ const t = (text, why) => ({ text, why });
 const EXAMPLES = [
   {
     q: 'Groepen voor de salarisadministratie',
-    a: { kind: 'terms', name: 'Salarisadministratie', notes: [], terms: [
+    a: { kind: 'terms', name: 'Salarisadministratie', target: 'resource', notes: [], terms: [
       t('salarisadministratie', 'name'), t('salaris', 'name'), t('payroll', 'translation'), t('loonadministratie', 'synonym'),
       t('verloning', 'activity'), t('loonstrook', 'activity'), t('salary', 'translation'), t('Youforce', 'system'),
       t('Loket', 'system'), t('ADP', 'system'),
@@ -78,16 +83,22 @@ const EXAMPLES = [
   },
   {
     q: 'everything to do with Zenvira',
-    a: { kind: 'terms', name: 'Zenvira', terms: [t('Zenvira', 'name')], notes: [
+    a: { kind: 'terms', name: 'Zenvira', target: 'resource', terms: [t('Zenvira', 'name')], notes: [
       'I do not know Zenvira, so I search for the name exactly as written. Related words can find the names it appears together with.',
     ] },
   },
   {
     q: 'facility management groups',
-    a: { kind: 'terms', name: 'Facility management', notes: [], terms: [
+    a: { kind: 'terms', name: 'Facility management', target: 'resource', notes: [], terms: [
       t('facility', 'name'), t('facilities', 'name'), t('facilitair', 'translation'), t('FM', 'abbreviation'),
       t('huisvesting', 'translation'), t('gebouwbeheer', 'activity'), t('receptie', 'activity'), t('catering', 'activity'),
       t('Planon', 'system'), t('TOPdesk', 'system'),
+    ] },
+  },
+  {
+    q: 'which users have access to Velmora',
+    a: { kind: 'terms', name: 'Velmora', target: 'principal', terms: [t('Velmora', 'name')], notes: [
+      'I do not know Velmora, so I search for the name exactly as written: the groups and organisation entities named after it, and the users who have them.',
     ] },
   },
   {
@@ -115,6 +126,7 @@ export function buildContextPrompt() {
 6. "name" is a short name for the context, in the analyst's language.
 7. Reply {"kind":"clarify"} only when the request names no subject at all. Give 2-3 short options.
 8. When you are told which terms the analyst kept and dropped, propose only NEW terms: like the kept ones, unlike the dropped ones.
+9. "target" is "principal" when the analyst asks for people — users, accounts, medewerkers, who has access to or works on the subject — and "resource" when they ask for the groups themselves. The terms are the same either way: words in the names of the groups and organisation entities (customers, projects), never words for people. "name" then names the subject only.
 
 # Examples
 ${examples}`;

@@ -5,6 +5,10 @@
 //
 //   { version, name, target, resourceTypes, fields, terms, include, exclude, structure }
 //
+// target 'principal' adds { access, orgTypes?, orgInclude, orgExclude, principalInclude,
+// principalExclude }: the context then holds the USERS who have access to the matched
+// resources or belong to matching organisation entities (see principals.js).
+//
 // It is stored as the parameters of the `context-recipe` plugin, which turns it into a
 // context tree with plain SQL — no model — so the tree is refreshed after every crawl
 // like any other generated tree. Include and exclude live here, not as member edits,
@@ -25,6 +29,12 @@ export const MATCH_MODES = ['token', 'wordStart', 'contains'];
 export const TERM_STATES = ['accepted', 'rejected'];
 export const TERM_ORIGINS = ['model', 'analyst', 'related'];
 export const STRUCTURES = ['byTerm', 'flat'];
+// What a recipe collects: resources (groups…), or the users who have access to them or
+// belong to matching organisation entities.
+export const TARGETS = ['resource', 'principal'];
+export const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible'];
+export const DEFAULT_ASSIGNMENT_TYPES = ['Direct', 'Indirect'];
+export const MAX_ORG_TYPES = 50;
 
 // Text fields a recipe may search, taken from the report catalog so there is one
 // definition of each field's SQL. Only these; never a column name from the request.
@@ -135,10 +145,35 @@ function normalizeStrings(list, max) {
   return [...new Set((Array.isArray(list) ? list : []).filter(s => typeof s === 'string' && s.trim()).map(s => s.trim().slice(0, 100)))].slice(0, max);
 }
 
+// An id cannot be both included and excluded: excluding wins, because it is the more
+// deliberate choice.
+const withoutExcluded = (include, exclude) => {
+  const excluded = new Set(exclude);
+  return include.filter(id => !excluded.has(id));
+};
+
+// The principal-only part of a recipe (target 'principal'): who counts as having access,
+// which organisation entities the terms are also matched against, and the hand-picked
+// org entities and users. `orgTypes` stays absent when not given: absent = every
+// collection type, [] = none.
+function principalPart(src, errors) {
+  const types = normalizeStrings(src.access?.assignmentTypes, ASSIGNMENT_TYPES.length).filter(t => ASSIGNMENT_TYPES.includes(t));
+  const part = { access: { assignmentTypes: types.length ? types : [...DEFAULT_ASSIGNMENT_TYPES] } };
+  if (Array.isArray(src.orgTypes)) part.orgTypes = normalizeStrings(src.orgTypes, MAX_ORG_TYPES);
+  part.orgExclude = normalizeIds(src.orgExclude, 'excluded organisation', errors);
+  part.orgInclude = withoutExcluded(normalizeIds(src.orgInclude, 'included organisation', errors), part.orgExclude);
+  part.principalExclude = normalizeIds(src.principalExclude, 'excluded user', errors);
+  part.principalInclude = withoutExcluded(normalizeIds(src.principalInclude, 'included user', errors), part.principalExclude);
+  return part;
+}
+
 /**
  * Validate and normalise a recipe from the browser, the model, or stored run parameters.
  * Never throws. `ok` is false when the recipe cannot produce a context at all; `errors`
  * also carries what was dropped along the way, as sentences an analyst can read.
+ *
+ * A recipe without a target (or with an unknown one) is a resource recipe, normalised
+ * exactly as before principal recipes existed.
  *
  * @returns {{ ok: boolean, recipe: object, errors: string[] }}
  */
@@ -149,7 +184,7 @@ export function validateRecipe(raw) {
   const recipe = {
     version: 1,
     name: typeof src.name === 'string' ? src.name.trim().slice(0, MAX_NAME) : '',
-    target: 'resource',
+    target: pick(src.target, TARGETS, 'resource'),
     resourceTypes: normalizeStrings(src.resourceTypes, MAX_RESOURCE_TYPES),
     fields: fields.length ? fields : [...DEFAULT_FIELDS],
     terms: normalizeTerms(src.terms, errors),
@@ -158,11 +193,11 @@ export function validateRecipe(raw) {
     structure: pick(src.structure, STRUCTURES, 'byTerm'),
   };
   if (recipe.resourceTypes.length === 0) recipe.resourceTypes = ['Group'];
-  // An object cannot be both: excluding wins, because it is the more deliberate choice.
-  const excluded = new Set(recipe.exclude);
-  recipe.include = recipe.include.filter(id => !excluded.has(id));
+  recipe.include = withoutExcluded(recipe.include, recipe.exclude);
+  if (recipe.target === 'principal') Object.assign(recipe, principalPart(src, errors));
 
   const accepted = recipe.terms.some(t => t.state === 'accepted');
-  if (!accepted && recipe.include.length === 0) errors.push('Keep at least one term, or include at least one object.');
-  return { ok: accepted || recipe.include.length > 0, recipe, errors };
+  const pinned = [recipe.include, recipe.orgInclude, recipe.principalInclude].some(list => list?.length > 0);
+  if (!accepted && !pinned) errors.push('Keep at least one term, or include at least one object.');
+  return { ok: accepted || pinned, recipe, errors };
 }

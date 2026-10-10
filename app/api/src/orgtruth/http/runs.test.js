@@ -3,7 +3,7 @@ import request from 'supertest';
 
 // The run's collaborators are mocked first: linking (T2) and the projection runner.
 vi.mock('../linking/run.js', () => ({ linkRun: vi.fn(async ({ runId }) => ({ runId, linked: 1, proposed: 0, ambiguous: 0, none: 0 })) }));
-vi.mock('../../contexts/plugins/runner.js', () => ({ enqueueRun: vi.fn(async () => ({})) }));
+vi.mock('../../contexts/plugins/runner.js', () => ({ enqueueRun: vi.fn(async () => ({})), refreshGeneratedContexts: vi.fn(async () => 0) }));
 vi.mock('../../db/connection.js');
 vi.mock('../../middleware/auth.js', () => ({
   requirePermission: (perm) => (req, res, next) => (req.headers['x-deny'] === perm ? res.status(403).json({ denied: perm }) : next()),

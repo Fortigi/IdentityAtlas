@@ -5,9 +5,15 @@
 // gone from Contexts after the next refresh. The two plugins run one after the
 // other (awaitCompletion), never concurrently with each other; a failure of one
 // is logged and does not stop the other.
-import { enqueueRun } from '../../contexts/plugins/runner.js';
+//
+// After them, the context-assistant trees whose membership reads org truth (a
+// "users with access to …" recipe counts the users linked to matching org
+// entities) are refreshed too, the same way a crawl refreshes them.
+import { enqueueRun, refreshGeneratedContexts } from '../../contexts/plugins/runner.js';
 
 export const PROJECTION_PLUGINS = ['org-truth', 'org-truth-principals'];
+// Plugins whose trees depend on org entities and their links (contexts/plugins/context-recipe-principals.js).
+export const ORG_READING_PLUGINS = ['context-recipe-principals'];
 
 export async function refreshProjections(triggeredBy, log = (msg) => console.log(`[org-truth] ${msg}`)) {
   for (const plugin of PROJECTION_PLUGINS) {
@@ -16,5 +22,10 @@ export async function refreshProjections(triggeredBy, log = (msg) => console.log
     } catch (err) {
       log(`projection ${plugin} not run: ${err.message}`);
     }
+  }
+  try {
+    await refreshGeneratedContexts(triggeredBy, { awaitCompletion: true, algorithms: ORG_READING_PLUGINS });
+  } catch (err) {
+    log(`context recipes not refreshed: ${err.message}`);
   }
 }

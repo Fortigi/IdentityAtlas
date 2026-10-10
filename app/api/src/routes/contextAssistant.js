@@ -11,7 +11,7 @@
 //   POST /api/context-assistant/suggest          description + kept/dropped terms → new terms
 //   POST /api/context-assistant/evaluate         recipe → per-term numbers and the matched objects
 //   POST /api/context-assistant/related          recipe → words typical of what it finds (no model)
-//   GET  /api/context-assistant/lookup           objects by name, to include one by hand (?q=)
+//   GET  /api/context-assistant/lookup           objects by name, to include one by hand (?q=, ?kind=principal for users)
 //   GET  /api/context-assistant/recipe/:id       the recipe behind a context tree, to edit it
 //   POST /api/context-assistant/save             create the context tree, or refresh an existing one
 //
@@ -31,6 +31,7 @@ import { loadValues } from '../nlreports/service.js';
 import { ensureWarm, interpret, suggestMore, warmupState } from '../contextAssistant/service.js';
 import { SEARCH_FIELDS, searchFieldLabel, validateRecipe } from '../contexts/recipe/recipe.js';
 import { computeMatches, loadCandidates } from '../contexts/recipe/matches.js';
+import { evaluatePrincipals } from '../contexts/recipe/principals.js';
 import { loadScopeNames, relatedWords } from '../contexts/recipe/relatedWords.js';
 import { enqueueRun, getRun } from '../contexts/plugins/runner.js';
 
@@ -39,7 +40,8 @@ const router = Router();
 // Per route, never on the mount (a mount-level gate would apply to every later /api route).
 const gate = [requirePermission('data.write.contexts'), requireFeature('contextAssistant')];
 
-const PLUGIN = 'context-recipe';
+// The plugin that builds a recipe's tree, per recipe target.
+const PLUGINS = { resource: 'context-recipe', principal: 'context-recipe-principals' };
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const claimQuestion = oneQuestionAtATime();
 
@@ -107,7 +109,10 @@ router.post('/context-assistant/evaluate', gate, async (req, res) => {
   try {
     const { rows, scopeTotal, truncated } = await loadCandidates(recipe, tx);
     const { terms, matches, memberIds, addedByModel } = computeMatches(rows, recipe, scopeTotal);
-    res.json({ recipe, errors, scopeTotal, truncated, terms, matches, memberCount: memberIds.length, addedByModel });
+    const body = { recipe, errors, scopeTotal, truncated, terms, matches, memberCount: memberIds.length, addedByModel };
+    // A principal recipe adds the org matches and the users; a resource recipe answers as always.
+    if (recipe.target === 'principal') Object.assign(body, await evaluatePrincipals(recipe, rows, scopeTotal, tx));
+    res.json(body);
   } catch (err) {
     fail(res, 'evaluate', err);
   }
@@ -127,11 +132,24 @@ router.post('/context-assistant/related', gate, async (req, res) => {
   }
 });
 
+// The sign-in name of each looked-up account, so two accounts with one name can be told apart.
+async function withUpn(found) {
+  if (!found.length) return found;
+  const { rows } = await query(
+    `SELECT "id", COALESCE("extendedAttributes"->>'userPrincipalName', "email") AS "upn" FROM "Principals" WHERE "id" = ANY($1::uuid[])`,
+    [found.map(f => f.id)]);
+  const upn = new Map(rows.map(r => [r.id, r.upn]));
+  return found.map(f => ({ ...f, upn: upn.get(f.id) ?? null }));
+}
+
 router.get('/context-assistant/lookup', gate, async (req, res) => {
   const text = String(req.query.q || '').trim();
   if (text.length < 2 || text.length > 100) return res.json({ data: [] });
   try {
-    res.json({ data: await searchNames(query, 'resource', text) });
+    // ?kind=principal looks up users (a principal recipe's add-by-hand): same shape, type =
+    // principalType, plus the upn. Anything else looks up resources, as always.
+    if (req.query.kind !== 'principal') return res.json({ data: await searchNames(query, 'resource', text) });
+    res.json({ data: await withUpn(await searchNames(query, 'account', text)) });
   } catch (err) {
     fail(res, 'lookup', err);
   }
@@ -140,12 +158,12 @@ router.get('/context-assistant/lookup', gate, async (req, res) => {
 /** The root context of a tree built from a recipe, with its run parameters. */
 async function recipeTree(contextId) {
   return queryOne(`
-    SELECT c."id", c."displayName", c."sourceInstanceKey", r."parameters"
+    SELECT c."id", c."displayName", c."sourceInstanceKey", r."parameters", a."name" AS "plugin"
       FROM "Contexts" c
       JOIN "ContextAlgorithms" a ON a."id" = c."sourceAlgorithmId"
       LEFT JOIN "ContextAlgorithmRuns" r ON r."id" = c."sourceRunId"
-     WHERE c."id" = $1 AND a."name" = $2 AND c."parentContextId" IS NULL AND c."variant" = 'generated'`,
-  [contextId, PLUGIN]);
+     WHERE c."id" = $1 AND a."name" = ANY($2::text[]) AND c."parentContextId" IS NULL AND c."variant" = 'generated'`,
+  [contextId, Object.values(PLUGINS)]);
 }
 
 router.get('/context-assistant/recipe/:id', gate, async (req, res) => {
@@ -164,11 +182,16 @@ router.get('/context-assistant/recipe/:id', gate, async (req, res) => {
   }
 });
 
-async function instanceKeyFor(contextId) {
+// A tree keeps the target it was built with: its contexts hold resources or users, and the
+// runner reconciles a tree only within the plugin that made it.
+async function instanceKeyFor(contextId, plugin) {
   if (!contextId) return { key: randomUUID() };
-  if (!UUID_RE.test(String(contextId))) return { error: 'Context not found' };
+  if (!UUID_RE.test(String(contextId))) return { status: 404, error: 'Context not found' };
   const row = await recipeTree(contextId);
-  if (!row?.sourceInstanceKey) return { error: 'Context not found' };
+  if (!row?.sourceInstanceKey) return { status: 404, error: 'Context not found' };
+  if (row.plugin !== plugin) {
+    return { status: 409, error: 'This context was built for the other kind of members (resources or users). Save it as a new context instead.' };
+  }
   return { key: row.sourceInstanceKey };
 }
 
@@ -183,9 +206,10 @@ router.post('/context-assistant/save', gate, async (req, res) => {
   if (!ok || !recipe.name) return res.status(400).json({ error: 'The context cannot be saved', errors });
   const question = typeof req.body.question === 'string' ? req.body.question.trim().slice(0, MAX_QUESTION) : '';
   try {
-    const target = await instanceKeyFor(req.body.contextId);
-    if (target.error) return res.status(404).json({ error: target.error });
-    const runId = await enqueueRun(PLUGIN, { recipe, question, instanceKey: target.key }, userOf(req), { awaitCompletion: true });
+    const plugin = PLUGINS[recipe.target];
+    const target = await instanceKeyFor(req.body.contextId, plugin);
+    if (target.error) return res.status(target.status).json({ error: target.error });
+    const runId = await enqueueRun(plugin, { recipe, question, instanceKey: target.key }, userOf(req), { awaitCompletion: true });
     const run = await getRun(runId);
     if (run?.status !== 'succeeded') {
       return res.status(500).json({ error: 'Building the context failed', detail: run?.errorMessage || null, runId });

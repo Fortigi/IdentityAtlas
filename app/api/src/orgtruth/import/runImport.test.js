@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('../../db/connection.js');
 vi.mock('../linking/run.js', () => ({ linkRun: vi.fn(async ({ runId }) => ({ runId, linked: 3, proposed: 1, ambiguous: 0, none: 2 })) }));
-vi.mock('../../contexts/plugins/runner.js', () => ({ enqueueRun: vi.fn(async () => ({ id: 'ctx-run' })) }));
+vi.mock('../../contexts/plugins/runner.js', () => ({ enqueueRun: vi.fn(async () => ({ id: 'ctx-run' })), refreshGeneratedContexts: vi.fn(async () => 0) }));
 
 import { query, queryOne } from '../../db/connection.js';
 import { linkRun } from '../linking/run.js';
