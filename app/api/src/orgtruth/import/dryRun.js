@@ -23,13 +23,21 @@
 // only computed when the body also names an existing `profileId` (the repeat
 // import, step 5 "comparison with the previous run"); otherwise it is {}.
 //
+// Per template: every report carries `template`. Enrichment and relation reports
+// have the shape above (a relation is its one derived entity, its link rules the
+// generated ones); an activity report is activityDryRun.js's.
+//
 // A source that no longer parses throws ListParseError (the route answers 400).
 import { query } from '../../db/connection.js';
 import { validateRecipe, validateLinkRules, normalizeRecipe, normalizeLinkRules } from '../contracts.js';
 import { linkStats } from '../linking/stats.js';
 import { readSourceTable } from './sourceStore.js';
 import { profileColumns } from './profileColumns.js';
-import { applyRecipe, summarizeApplied, entityKey } from './applyRecipe.js';
+import { summarizeApplied, entityKey } from './applyRecipe.js';
+import { applyTemplate } from './templateRecipe.js';
+import { activityDryRun } from './activityDryRun.js';
+import { relationLinkRules } from '../referenceRules.js';
+import { templateOf } from '../templates.js';
 
 export const ISSUE_REPORT_LIMIT = 500;
 
@@ -47,26 +55,33 @@ export async function countWouldClose(profileName, entities) {
   return out;
 }
 
+// A relation's rules are generated from its recipe (referenceRules.js), whatever
+// the body sent; every other template is checked with the rules it sent.
+function checkInput(recipe, rules, columns) {
+  const recipeErrors = validateRecipe(recipe, columns).errors;
+  if (recipe?.template === 'relation') return recipeErrors;
+  return [...recipeErrors, ...validateLinkRules(rules, recipe).errors];
+}
+
 export async function dryRun({ source, recipe, linkRules, mode, profileName = null }) {
   const table = await readSourceTable(source);
-  const rules = linkRules ?? [];
-  const errors = [
-    ...validateRecipe(recipe, table.columns).errors,
-    ...validateLinkRules(rules, recipe).errors,
-  ];
+  const errors = checkInput(recipe, linkRules ?? [], table.columns);
   if (errors.length > 0) return { ok: false, errors };
 
   const nRecipe = normalizeRecipe(recipe);
-  const applied = applyRecipe(table.rows, nRecipe);
-  const summary = summarizeApplied(applied, nRecipe);
+  if (nRecipe.template === 'activity') return { ok: true, report: await activityDryRun({ table, recipe: nRecipe, mode, profileName }) };
+  const rules = nRecipe.template === 'relation' ? relationLinkRules(nRecipe) : normalizeLinkRules(linkRules ?? []);
+  const { recipe: entityRecipe, applied } = applyTemplate(table.rows, nRecipe);
+  const summary = summarizeApplied(applied, entityRecipe);
   return {
     ok: true,
     report: {
+      template: templateOf(nRecipe),
       rows: table.rows.length,
       columns: profileColumns(table.columns, table.rows),
       entities: summary.entities,
       relations: summary.relations,
-      links: await linkStats(applied.entities, normalizeLinkRules(rules)),
+      links: await linkStats(applied.entities, rules),
       wouldClose: mode === 'full' && profileName ? await countWouldClose(profileName, applied.entities) : {},
       issues: applied.issues.slice(0, ISSUE_REPORT_LIMIT),
       issueCount: applied.issues.length,

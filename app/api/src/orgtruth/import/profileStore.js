@@ -6,7 +6,7 @@
 import { queryOne } from '../../db/connection.js';
 import { isUuid } from './httpHelpers.js';
 
-export const PROFILE_COLUMNS = `"id", "name", "version", "sourceKind", "recipe", "linkRules", "createdBy", "createdAt"`;
+export const PROFILE_COLUMNS = `"id", "name", "version", "sourceKind", "template", "recipe", "linkRules", "createdBy", "createdAt"`;
 
 export async function getProfile(id) {
   if (!isUuid(id)) return null;

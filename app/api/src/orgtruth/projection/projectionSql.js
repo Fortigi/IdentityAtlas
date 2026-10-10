@@ -17,6 +17,11 @@
 // project.js re-checks them (isLive) and a widened query can never leak a
 // proposed or closed claim into a context.
 import * as db from '../../db/connection.js';
+import { ENTITY_TEMPLATE_SQL } from '../templates.js';
+
+// Only collections become contexts: an enrichment row or a relation pair is
+// information ABOUT things that exist, not a thing people and resources belong to.
+export const COLLECTION_ONLY = `${ENTITY_TEMPLATE_SQL('e')} = 'collection'`;
 
 export async function loadEntities() {
   return (await db.query(`
@@ -24,6 +29,7 @@ export async function loadEntities() {
            e.status, e."validTo"
       FROM "OrgEntities" e
      WHERE e.status = 'accepted' AND e."validTo" IS NULL
+       AND ${COLLECTION_ONLY}
      ORDER BY e."entityType", lower(e."displayName"), e.id
   `)).rows;
 }
@@ -49,6 +55,7 @@ export async function loadLinks() {
      WHERE l.status = 'accepted'
        AND l."analystOverride" IS DISTINCT FROM 'rejected'
        AND e.status = 'accepted' AND e."validTo" IS NULL
+       AND ${COLLECTION_ONLY}
   `)).rows;
 }
 

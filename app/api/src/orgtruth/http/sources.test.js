@@ -48,15 +48,35 @@ describe('gates', () => {
 describe('DELETE /org-truth/sources/:id', () => {
   beforeEach(() => refreshProjections.mockClear());
 
+  // The delete runs in a transaction: the activity profile names of the source, the delete, the key cleanup.
+  const stageDelete = ({ deleted, profileNames = [] }) => query.mockImplementation(async (sql) => {
+    if (sql.includes('SELECT DISTINCT "profileName" FROM "OrgActivities"')) return { rows: profileNames.map(profileName => ({ profileName })) };
+    if (sql.startsWith('DELETE FROM "OrgSources"')) return { rows: deleted ? [deleted] : [] };
+    return { rows: [], rowCount: 0 };
+  });
+
   it('deletes the source, answers with what went, and rebuilds the projections in the background', async () => {
-    queryOne.mockImplementation(async (sql) => (sql.startsWith('DELETE FROM "OrgSources"') ? { id: ID, displayName: 'Projects Q3' } : undefined));
+    stageDelete({ deleted: { id: ID, displayName: 'Projects Q3' } });
     const r = await request(app).delete(`/api/org-truth/sources/${ID}`);
     expect(r.status).toBe(200);
     expect(r.body).toEqual({ deleted: ID, displayName: 'Projects Q3' });
-    const [sql, params] = queryOne.mock.calls.find(([s]) => s.startsWith('DELETE FROM "OrgSources"'));
+    const [sql, params] = query.mock.calls.find(([s]) => s.startsWith('DELETE FROM "OrgSources"'));
     expect(sql).toMatch(/WHERE "id" = \$1 RETURNING/);
     expect(params).toEqual([ID]);
+    // no activities came from this source: no key cleanup
+    expect(query.mock.calls.some(([s]) => s.includes('DELETE FROM "OrgActivityKeys"'))).toBe(false);
     expect(refreshProjections).toHaveBeenCalledWith('source-delete');
+  });
+
+  it('removes the keys of an activity profile name that has no activity left after the delete', async () => {
+    stageDelete({ deleted: { id: ID, displayName: 'Hours 2026' }, profileNames: ['Hours'] });
+    expect((await request(app).delete(`/api/org-truth/sources/${ID}`)).status).toBe(200);
+    const [sql, params] = query.mock.calls.find(([s]) => s.includes('DELETE FROM "OrgActivityKeys"'));
+    expect(params).toEqual([['Hours']]);
+    expect(sql).toMatch(/"profileName" = ANY\(\$1::text\[\]\)\s+AND NOT EXISTS \(SELECT 1 FROM "OrgActivities" a WHERE a."profileName" = k."profileName"\)/);
+    // the profile names are read BEFORE the cascade removes the activities
+    const order = query.mock.calls.map(([s]) => s.trim().slice(0, 30));
+    expect(order.findIndex(s => s.startsWith('SELECT DISTINCT'))).toBeLessThan(order.findIndex(s => s.startsWith('DELETE FROM "OrgSources"')));
   });
 
   it('refuses while an import of the source is queued or running, naming the run', async () => {
@@ -64,14 +84,17 @@ describe('DELETE /org-truth/sources/:id', () => {
     const r = await request(app).delete(`/api/org-truth/sources/${ID}`);
     expect(r.status).toBe(409);
     expect(r.body).toMatchObject({ runId: 'run-7' });
-    expect(queryOne.mock.calls.some(([s]) => s.startsWith('DELETE'))).toBe(false);
+    expect(query.mock.calls.some(([s]) => s.startsWith('DELETE'))).toBe(false);
     expect(refreshProjections).not.toHaveBeenCalled();
   });
 
-  it('answers 404 for an unknown or malformed id, without touching the projections', async () => {
+  it('answers 404 for an unknown or malformed id, without touching the projections or the keys', async () => {
+    stageDelete({ deleted: null, profileNames: ['Hours'] });
     expect((await request(app).delete(`/api/org-truth/sources/${ID}`)).status).toBe(404);
     expect((await request(app).delete('/api/org-truth/sources/not-a-uuid')).status).toBe(404);
-    expect(queryOne).toHaveBeenCalledTimes(2); // the active-run check, then the delete; nothing for the bad id
+    expect(queryOne).toHaveBeenCalledTimes(1); // the active-run check; nothing for the bad id
+    expect(query.mock.calls.filter(([s]) => s.startsWith('DELETE FROM "OrgSources"'))).toHaveLength(1);
+    expect(query.mock.calls.some(([s]) => s.includes('DELETE FROM "OrgActivityKeys"'))).toBe(false);
     expect(refreshProjections).not.toHaveBeenCalled();
   });
 });

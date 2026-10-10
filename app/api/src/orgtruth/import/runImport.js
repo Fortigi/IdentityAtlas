@@ -13,7 +13,11 @@
 //             a failure there is logged, not fatal (the entities are written)
 // Any other throw ends the run as `failed` with `error` = the message.
 //
-// stats on a completed run:
+// Per template (templates.js, read from the recipe): an ACTIVITY run takes its
+// own steps and stats (runActivity.js); a relation is applied as its one derived
+// entity (templateRecipe.js); only a COLLECTION run ends with the projection.
+//
+// stats on a completed entity run:
 //   { rows, entities: { byType }, relations: { byPredicate },
 //     write: writeRun.js counts, links: linkRun result,
 //     issues: { count, samples: first ISSUE_SAMPLE_LIMIT issues } }
@@ -25,7 +29,10 @@ import { linkRun } from '../linking/run.js';
 import { refreshProjections, PROJECTION_PLUGINS } from '../projection/refresh.js';
 import { getSourceWithContent, readSourceTable } from './sourceStore.js';
 import { getProfile } from './profileStore.js';
-import { applyRecipe, summarizeApplied } from './applyRecipe.js';
+import { summarizeApplied } from './applyRecipe.js';
+import { applyTemplate } from './templateRecipe.js';
+import { activitySteps } from './runActivity.js';
+import { templateOf } from '../templates.js';
 import { writeRun } from './writeRun.js';
 
 export const ISSUE_SAMPLE_LIMIT = 50;
@@ -69,25 +76,23 @@ async function loadRun(runId) {
 // Both trees, one after the other (projection/refresh.js); a failure is logged, not fatal.
 const project = (log) => refreshProjections('org-import', log);
 
-async function steps(runId, log) {
-  await updateRun(runId, { status: 'running', step: 'parse', pct: 10, startedAt: now() });
-  const { run, source, profile } = await loadRun(runId);
-  const table = await readSourceTable(source);
-  const fit = validateRecipe(profile.recipe, table.columns);
-  if (!fit.ok) throw new Error(`The source does not fit profile "${profile.name}" version ${profile.version}: ${fit.errors.join(' ')}`);
+// The steps of the entity templates (collection, enrichment, relation). Only a
+// collection becomes contexts, so only a collection run rebuilds the projections.
+async function entitySteps({ runId, run, source, profile, table, step, log }) {
+  await step({ step: 'apply', pct: 30 });
+  const { recipe, applied } = applyTemplate(table.rows, profile.recipe);
+  const summary = summarizeApplied(applied, recipe);
 
-  await updateRun(runId, { step: 'apply', pct: 30 });
-  const applied = applyRecipe(table.rows, profile.recipe);
-  const summary = summarizeApplied(applied, profile.recipe);
-
-  await updateRun(runId, { step: 'write', pct: 50 });
+  await step({ step: 'write', pct: 50 });
   const write = await tx(client => writeRun({ client, run, source, profile, ...applied }));
 
-  await updateRun(runId, { step: 'link', pct: 70 });
+  await step({ step: 'link', pct: 70 });
   const links = await linkRun({ runId, profile, log });
 
-  await updateRun(runId, { step: 'project', pct: 90 });
-  await project(log);
+  if (templateOf(profile.recipe) === 'collection') {
+    await step({ step: 'project', pct: 90 });
+    await project(log);
+  }
 
   return {
     rows: table.rows.length,
@@ -99,12 +104,28 @@ async function steps(runId, log) {
   };
 }
 
+async function steps(runId, log) {
+  await updateRun(runId, { status: 'running', step: 'parse', pct: 10, startedAt: now() });
+  const { run, source, profile } = await loadRun(runId);
+  const table = await readSourceTable(source);
+  const fit = validateRecipe(profile.recipe, table.columns);
+  if (!fit.ok) throw new Error(`The source does not fit profile "${profile.name}" version ${profile.version}: ${fit.errors.join(' ')}`);
+  const ctx = { runId, run, source, profile, table, log, step: (fields) => updateRun(runId, fields) };
+  return templateOf(profile.recipe) === 'activity' ? activitySteps(ctx) : entitySteps(ctx);
+}
+
+// One line for the log, per template.
+export function describeStats(stats) {
+  if (stats.write) return `${stats.write.entitiesInserted} new, ${stats.write.entitiesUpdated} updated, ${stats.write.entitiesClosed} closed`;
+  return `${stats.activities} activities, ${stats.skipped} rows skipped`;
+}
+
 export async function executeImportRun(runId) {
   const log = (msg) => console.log(`[org-import ${runId}] ${msg}`);
   try {
     const stats = await steps(runId, log);
     await updateRun(runId, { status: 'completed', step: 'completed', pct: 100, stats: JSON.stringify(stats), finishedAt: now() });
-    log(`completed: ${stats.write.entitiesInserted} new, ${stats.write.entitiesUpdated} updated, ${stats.write.entitiesClosed} closed`);
+    log(`completed: ${describeStats(stats)}`);
   } catch (err) {
     log(`failed: ${err.message}`);
     await updateRun(runId, { status: 'failed', error: err.message, finishedAt: now() });

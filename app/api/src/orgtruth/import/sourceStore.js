@@ -4,7 +4,7 @@
 // background run) goes through here, so the "never return `content` unless
 // asked" rule lives in one place.
 import { createHash, randomUUID } from 'node:crypto';
-import { query, queryOne } from '../../db/connection.js';
+import { query, queryOne, tx } from '../../db/connection.js';
 import { parseList } from './parse.js';
 import { isUuid } from './httpHelpers.js';
 
@@ -38,10 +38,23 @@ export async function findActiveRunForSource(id) {
 }
 
 // Delete the source and, through the foreign keys, its runs, entities,
-// relations and links. Returns the deleted row (id, displayName) or null.
+// relations, links and activities. An activity profile name left without any
+// activity loses its keys too (the values and the decisions on them): nothing
+// refers to them any more. Returns the deleted row (id, displayName) or null.
+const ACTIVITY_PROFILES_SQL = `SELECT DISTINCT "profileName" FROM "OrgActivities" WHERE "sourceId" = $1`;
+export const ORPHAN_KEYS_SQL = `
+  DELETE FROM "OrgActivityKeys" k
+   WHERE k."profileName" = ANY($1::text[])
+     AND NOT EXISTS (SELECT 1 FROM "OrgActivities" a WHERE a."profileName" = k."profileName")`;
+
 export async function deleteSource(id) {
   if (!isUuid(id)) return null;
-  return (await queryOne(`DELETE FROM "OrgSources" WHERE "id" = $1 RETURNING "id", "displayName"`, [id])) ?? null;
+  return tx(async (client) => {
+    const names = (await client.query(ACTIVITY_PROFILES_SQL, [id])).rows.map(r => r.profileName);
+    const row = (await client.query(`DELETE FROM "OrgSources" WHERE "id" = $1 RETURNING "id", "displayName"`, [id])).rows[0] ?? null;
+    if (row && names.length > 0) await client.query(ORPHAN_KEYS_SQL, [names]);
+    return row;
+  });
 }
 
 // The stored bytes as columns + rows (parse.js). Throws ListParseError for a

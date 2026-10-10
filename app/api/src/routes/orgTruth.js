@@ -19,10 +19,11 @@ import links from '../orgtruth/http/links.js';
 import propose from '../orgtruth/http/propose.js';
 import model from '../orgtruth/http/model.js';
 import layout from '../orgtruth/http/layout.js';
+import activityKeys from '../orgtruth/http/activityKeys.js';
 
 const router = Router();
 
-router.use(sources, profiles, runs, links, propose, model, layout);
+router.use(sources, profiles, runs, links, propose, model, layout, activityKeys);
 
 // Everything under /org-truth that nothing above claimed.
 router.all('/org-truth', requireFeature(FEATURE), notBuilt);

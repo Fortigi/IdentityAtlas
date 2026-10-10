@@ -23,6 +23,8 @@ import {
 import { PROFILE_COLUMNS, getProfile } from '../import/profileStore.js';
 import { getSource } from '../import/sourceStore.js';
 import { refreshProjections } from '../projection/refresh.js';
+import { relationLinkRules } from '../referenceRules.js';
+import { templateOf } from '../templates.js';
 import { createImportRun, findActiveRun, startImportRun } from '../import/runImport.js';
 import { actorOf, handle, sendInvalid } from '../import/httpHelpers.js';
 
@@ -39,9 +41,13 @@ export function readProfileBody(body) {
   if (!SOURCE_KINDS.includes(sourceKind)) errors.push(`sourceKind "${sourceKind}" is not one of ${SOURCE_KINDS.join(', ')}.`);
   const linkRules = body?.linkRules ?? [];
   const recipeCheck = validateRecipe(body?.recipe);
-  errors.push(...recipeCheck.errors, ...validateLinkRules(linkRules, body?.recipe).errors);
+  errors.push(...recipeCheck.errors);
+  // A relation's link rules are generated from its two ends; the body's are not used.
+  const generated = body?.recipe?.template === 'relation';
+  if (!generated) errors.push(...validateLinkRules(linkRules, body?.recipe).errors);
   if (errors.length > 0) return { errors };
-  return { value: { name, sourceKind, recipe: normalizeRecipe(body.recipe), linkRules: normalizeLinkRules(linkRules) } };
+  const recipe = normalizeRecipe(body.recipe);
+  return { value: { name, sourceKind, recipe, linkRules: generated ? relationLinkRules(recipe) : normalizeLinkRules(linkRules) } };
 }
 
 const conflict = (res, name) => res.status(409).json({
@@ -77,10 +83,10 @@ router.post('/org-truth/profiles', ...WRITE_GATE, handle('save the profile', asy
   if (taken) return conflict(res, value.name);
   try {
     const row = await queryOne(`
-      INSERT INTO "OrgImportProfiles" ("id", "name", "version", "sourceKind", "recipe", "linkRules", "createdBy")
-      VALUES ($1, $2, 1, $3, $4, $5, $6)
+      INSERT INTO "OrgImportProfiles" ("id", "name", "version", "sourceKind", "recipe", "linkRules", "createdBy", "template")
+      VALUES ($1, $2, 1, $3, $4, $5, $6, $7)
       RETURNING ${PROFILE_COLUMNS}`,
-    [randomUUID(), value.name, value.sourceKind, JSON.stringify(value.recipe), JSON.stringify(value.linkRules), actorOf(req)]);
+    [randomUUID(), value.name, value.sourceKind, JSON.stringify(value.recipe), JSON.stringify(value.linkRules), actorOf(req), templateOf(value.recipe)]);
     res.status(201).json(row);
   } catch (err) {
     if (isUniqueViolation(err)) return conflict(res, value.name);
@@ -95,11 +101,11 @@ router.put('/org-truth/profiles/:id', ...WRITE_GATE, handle('save the profile ve
   if (errors) return sendInvalid(res, 'The profile is not valid.', errors);
   try {
     const row = await queryOne(`
-      INSERT INTO "OrgImportProfiles" ("id", "name", "version", "sourceKind", "recipe", "linkRules", "createdBy")
-      SELECT $1, $2, COALESCE(MAX("version"), 0) + 1, $3, $4, $5, $6
+      INSERT INTO "OrgImportProfiles" ("id", "name", "version", "sourceKind", "recipe", "linkRules", "createdBy", "template")
+      SELECT $1, $2, COALESCE(MAX("version"), 0) + 1, $3, $4, $5, $6, $7
         FROM "OrgImportProfiles" WHERE "name" = $2
       RETURNING ${PROFILE_COLUMNS}`,
-    [randomUUID(), current.name, value.sourceKind, JSON.stringify(value.recipe), JSON.stringify(value.linkRules), actorOf(req)]);
+    [randomUUID(), current.name, value.sourceKind, JSON.stringify(value.recipe), JSON.stringify(value.linkRules), actorOf(req), templateOf(value.recipe)]);
     res.status(201).json(row);
   } catch (err) {
     if (!isUniqueViolation(err)) throw err;
@@ -117,6 +123,8 @@ router.put('/org-truth/profiles/:id', ...WRITE_GATE, handle('save the profile ve
 router.post('/org-truth/profiles/:id/relink', ...WRITE_GATE, handle('relink the profile', async (req, res) => {
   const current = await getProfile(req.params.id);
   if (!current) return res.status(404).json({ error: 'Profile not found.' });
+  // A delta run of an activity profile would append its facts a second time.
+  if (templateOf(current.recipe) === 'activity') return res.status(400).json({ error: 'An activity profile has no link rules; review its references under Activity references instead.' });
   const { errors, value } = readProfileBody({ name: current.name, sourceKind: current.sourceKind, recipe: current.recipe, linkRules: req.body?.linkRules });
   if (errors) return sendInvalid(res, 'The link rules are not valid.', errors);
   const last = await queryOne(`
@@ -126,10 +134,10 @@ router.post('/org-truth/profiles/:id/relink', ...WRITE_GATE, handle('relink the 
   const active = await findActiveRun(current.name);
   if (active) return res.status(409).json({ error: `Profile "${current.name}" already has a run in progress; wait for it to finish.`, runId: active.id });
   const profile = await queryOne(`
-    INSERT INTO "OrgImportProfiles" ("id", "name", "version", "sourceKind", "recipe", "linkRules", "createdBy")
-    SELECT $1, $2, COALESCE(MAX("version"), 0) + 1, $3, $4, $5, $6 FROM "OrgImportProfiles" WHERE "name" = $2
+    INSERT INTO "OrgImportProfiles" ("id", "name", "version", "sourceKind", "recipe", "linkRules", "createdBy", "template")
+    SELECT $1, $2, COALESCE(MAX("version"), 0) + 1, $3, $4, $5, $6, $7 FROM "OrgImportProfiles" WHERE "name" = $2
     RETURNING ${PROFILE_COLUMNS}`,
-  [randomUUID(), current.name, value.sourceKind, JSON.stringify(value.recipe), JSON.stringify(value.linkRules), actorOf(req)]);
+  [randomUUID(), current.name, value.sourceKind, JSON.stringify(value.recipe), JSON.stringify(value.linkRules), actorOf(req), templateOf(value.recipe)]);
   const source = await getSource(last.sourceId);
   if (!source) return res.status(409).json({ error: 'The source of the last run no longer exists; upload the list again.' });
   const run = await createImportRun({ source, profile, mode: 'delta', triggeredBy: actorOf(req) });
@@ -168,10 +176,10 @@ export function renameInRules(rules, from, to, { ownType = true } = {}) {
 async function insertVersion(client, current, recipe, rules, actor) {
   const linkRules = normalizeLinkRules(rules.map(({ name: _n, ...r }) => r));
   return (await client.query(`
-    INSERT INTO "OrgImportProfiles" ("id", "name", "version", "sourceKind", "recipe", "linkRules", "createdBy")
-    SELECT $1, $2, COALESCE(MAX("version"), 0) + 1, $3, $4, $5, $6 FROM "OrgImportProfiles" WHERE "name" = $2
+    INSERT INTO "OrgImportProfiles" ("id", "name", "version", "sourceKind", "recipe", "linkRules", "createdBy", "template")
+    SELECT $1, $2, COALESCE(MAX("version"), 0) + 1, $3, $4, $5, $6, $7 FROM "OrgImportProfiles" WHERE "name" = $2
     RETURNING ${PROFILE_COLUMNS}`,
-  [randomUUID(), current.name, current.sourceKind, JSON.stringify(recipe), JSON.stringify(linkRules), actor])).rows[0];
+  [randomUUID(), current.name, current.sourceKind, JSON.stringify(recipe), JSON.stringify(linkRules), actor, templateOf(recipe)])).rows[0];
 }
 
 router.post('/org-truth/profiles/:id/rename-type', ...WRITE_GATE, handle('rename the entity type', async (req, res) => {
@@ -179,7 +187,7 @@ router.post('/org-truth/profiles/:id/rename-type', ...WRITE_GATE, handle('rename
   if (!current) return res.status(404).json({ error: 'Profile not found.' });
   const from = String(req.body?.from ?? '').trim();
   const to = String(req.body?.to ?? '').trim();
-  if (!current.recipe.entities.some(e => e.type === from)) return res.status(400).json({ error: `Profile "${current.name}" has no entity type "${from}".` });
+  if (!(current.recipe.entities ?? []).some(e => e.type === from)) return res.status(400).json({ error: `Profile "${current.name}" has no entity type "${from}".` });
   if (!TYPE_NAME.test(to)) return res.status(400).json({ error: 'The new name must start with a letter or digit and be at most 64 letters, digits, spaces, _ or -.' });
   if (to === from) return res.status(400).json({ error: 'The new name is the same as the old one.' });
   const taken = await queryOne(`SELECT 1 AS t FROM "OrgEntities" WHERE "entityType" = $1 LIMIT 1`, [to]);

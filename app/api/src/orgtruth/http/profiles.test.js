@@ -179,3 +179,59 @@ describe('PUT /org-truth/profiles/:id', () => {
     expect((await request(app).put(`/api/org-truth/profiles/${ID}`).send(body)).status).toBe(500);
   });
 });
+
+describe('templates on profiles', () => {
+  const relation = {
+    version: 1, template: 'relation',
+    relation: { type: 'SoD', predicate: 'incompatibleWith', left: { column: 'A', targetType: 'Resource' }, right: { column: 'B', targetType: 'Resource' } },
+  };
+  const activity = {
+    version: 1, template: 'activity',
+    activity: { type: 'Hours', actor: { column: 'P', targetTypes: ['Principal'] }, subject: { column: 'C', targetType: 'Resource' }, when: { dateColumn: 'D' } },
+  };
+
+  it('a relation\'s rules are generated from its ends; the body\'s rules are ignored', () => {
+    const { value, errors } = readProfileBody({ name: 'SoD', recipe: relation, linkRules: [{ entityType: 'Ghost' }] });
+    expect(errors).toBeUndefined();
+    expect(value.recipe.template).toBe('relation');
+    expect(value.linkRules.map(r => r.name)).toEqual(['SoD → Resource via left', 'SoD → Resource via right']);
+  });
+
+  it('an activity with link rules is refused', () => {
+    expect(readProfileBody({ name: 'Hours', recipe: activity, linkRules: linkRules }).errors)
+      .toEqual(['An activity import has no link rules: its actor and subject columns are matched per distinct value.']);
+  });
+
+  it('POST stores the template in its column ($7) and in the recipe', async () => {
+    queryOne.mockImplementation(async (sql) => (sql.includes('INSERT') ? { id: ID } : undefined));
+    const r = await request(app).post('/api/org-truth/profiles').send({ name: 'Hours', recipe: activity });
+    expect(r.status).toBe(201);
+    const [sql, params] = insertCall();
+    expect(sql).toMatch(/"createdBy", "template"\)\s+VALUES \(\$1, \$2, 1, \$3, \$4, \$5, \$6, \$7\)/);
+    expect(params[6]).toBe('activity');
+    expect(JSON.parse(params[3]).template).toBe('activity');
+  });
+
+  it('a collection without template is stored as collection', async () => {
+    queryOne.mockImplementation(async (sql) => (sql.includes('INSERT') ? { id: ID } : undefined));
+    await request(app).post('/api/org-truth/profiles').send(body);
+    const [, params] = insertCall();
+    expect(params[6]).toBe('collection');
+    expect(JSON.parse(params[3]).template).toBe('collection');
+  });
+
+  it('relink of an activity profile is refused: a delta run would append its facts again', async () => {
+    queryOne.mockResolvedValueOnce({ id: ID, name: 'Hours', version: 1, sourceKind: 'list', recipe: activity, linkRules: [] });
+    const r = await request(app).post(`/api/org-truth/profiles/${ID}/relink`).send({ linkRules: [] });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/An activity profile has no link rules/);
+    expect(insertCall()).toBeUndefined();
+  });
+
+  it('rename-type on a profile without entities says the type is not there', async () => {
+    queryOne.mockResolvedValueOnce({ id: ID, name: 'Hours', version: 1, sourceKind: 'list', recipe: activity, linkRules: [] });
+    const r = await request(app).post(`/api/org-truth/profiles/${ID}/rename-type`).send({ from: 'Hours', to: 'Uren' });
+    expect(r.status).toBe(400);
+    expect(r.body).toEqual({ error: 'Profile "Hours" has no entity type "Hours".' });
+  });
+});

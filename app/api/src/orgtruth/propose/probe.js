@@ -9,7 +9,7 @@
 //
 // Per column, up to MAX_PROBE distinct non-empty values (split like the link
 // engine splits a cell: SharePoint lookups, address lists) are tested:
-//   people       share matching a human account's display name exactly or by full name
+//   people       share matching a human account's display name exactly, by full name, or its e-mail address
 //   resources    share matching a resource's display name exactly
 //   orgEntities  share matching an entity of another list (fuzzy ≥ ORG_SIMILARITY)
 //   orgEntityTypes the entity types those matches belong to, most frequent first
@@ -26,32 +26,38 @@ export const MAX_PROBE = 200;
 export const ORG_SIMILARITY = 0.8;
 
 export async function loadProbeTargets() {
-  const [people, resources, org] = await Promise.all([
-    query(`SELECT "displayName", "givenName", "surname" FROM "Principals"
+  const [people, resources, org, identities] = await Promise.all([
+    query(`SELECT "displayName", "givenName", "surname", "email" FROM "Principals"
             WHERE "deletedAt" IS NULL AND ("principalType" IS NULL OR "principalType" <> ALL($1::text[]))`, [NON_HUMAN_PRINCIPAL_TYPES]),
     query(`SELECT "displayName" FROM "Resources" WHERE "deletedAt" IS NULL
             AND ("resourceType" IS NULL OR "resourceType" NOT IN ${OWNERSHIP_TYPES_SQL})`),
     query(`SELECT "displayName", "entityType" FROM "OrgEntities" WHERE "status" = 'accepted' AND "validTo" IS NULL`),
+    query(`SELECT EXISTS (SELECT 1 FROM "Identities") AS "any"`),
   ]);
-  return buildTargets(people.rows, resources.rows, org.rows);
+  return buildTargets(people.rows, resources.rows, org.rows, identities.rows[0]?.any === true);
 }
 
-/** Index the target rows for probing (pure). */
-export function buildTargets(people, resources, orgEntities) {
+/**
+ * Index the target rows for probing (pure). `hasIdentities`: account correlation
+ * has produced identities, so a list of people can enrich those (templateRecipes.js).
+ */
+export function buildTargets(people, resources, orgEntities, hasIdentities = false) {
   const resourceNames = new Set(resources.map(r => normValue(r.displayName)).filter(Boolean));
-  return { ...indexPeople(people), resourceNames, orgByWord: indexOrgEntities(orgEntities) };
+  return { ...indexPeople(people), resourceNames, orgByWord: indexOrgEntities(orgEntities), hasIdentities };
 }
 
-// exact display names, and full-name keys (both name parts present)
+// exact display names, full-name keys (both name parts present), and e-mail addresses
 function indexPeople(people) {
   const personNames = new Set();
   const personKeys = new Set();
+  const personEmails = new Set();
   for (const p of people) {
     if (p.displayName) personNames.add(normValue(p.displayName));
+    if (p.email) personEmails.add(normValue(p.email));
     const k = parseName(p.displayName ?? '', p.givenName, p.surname).key;
     if (k && !k.startsWith('|') && !k.endsWith('|')) personKeys.add(k);
   }
-  return { personNames, personKeys };
+  return { personNames, personKeys, personEmails };
 }
 
 // org entities indexed by word for the fuzzy comparison
@@ -67,7 +73,7 @@ function indexOrgEntities(orgEntities) {
 }
 
 function isPerson(v, t) {
-  if (t.personNames.has(normValue(v))) return true;
+  if (t.personNames.has(normValue(v)) || t.personEmails.has(normValue(v))) return true;
   const k = parseName(v).key;
   return !!k && t.personKeys.has(k);
 }

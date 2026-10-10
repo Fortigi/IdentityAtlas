@@ -127,7 +127,7 @@ describe('heuristicProposal — degenerate profiles', () => {
   it('one text column: one Item entity named and keyed by it, the resource rule only', () => {
     const columns = profile(c('Whatever', 'text', { distinct: 3 }));
     const result = heuristicProposal({ columns });
-    expect(result.recipe).toEqual({ version: 1, entities: [{ type: 'Item', nameColumn: 'Whatever', keyColumn: 'Whatever', attributes: [] }], relations: [] });
+    expect(result.recipe).toEqual({ version: 1, template: 'collection', entities: [{ type: 'Item', nameColumn: 'Whatever', keyColumn: 'Whatever', attributes: [] }], relations: [] });
     expect(ruleNames(result)).toEqual(['Item → Resource via displayName']);
     expect(result.notes[0]).toBe('No column is unique enough to be a key, so Item is identified by Whatever.');
     expectValid(result, columns);

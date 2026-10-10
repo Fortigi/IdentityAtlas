@@ -4,8 +4,12 @@
 //        reachable, is this prompt warm:
 //        { configured, available, model, loaded, promptCache, reason }
 //   POST /api/org-truth/propose/recipe   (data.write.contexts)  { fileName?, columns, rowCount? }
-//        → { recipe, linkRules, notes: string[], origin: 'model' | 'heuristic',
-//            timing: { ms, model: boolean, rounds?, llm? } }
+//        { sourceId, template? } reads the stored source and probes its values instead;
+//        `template` ('collection'|'enrichment'|'activity'|'relation') forces that kind
+//        → { recipe, linkRules, notes: string[], origin: 'model' | 'heuristic' | 'data',
+//            timing: { ms, model: boolean, rounds?, llm? },
+//            template: { kind, confidence, reason, alternatives: [kind…] } }
+//        `recipe` has the shape of template.kind (propose/template.js decides it from the data).
 //        `columns` is the column profile of import/profileColumns.js:
 //          [{ name, index?, nonEmpty, distinct, uniqueness, shape, samples: string[] }]
 //        `recipe` and `linkRules` are already validated and normalised (contracts.js).
@@ -24,6 +28,7 @@ import { propose, warmupState } from '../propose/service.js';
 import { probeColumns, loadProbeTargets, findCompositeKey } from '../propose/probe.js';
 import { getSourceWithContent, readSourceTable } from '../import/sourceStore.js';
 import { profileColumns } from '../import/profileColumns.js';
+import { TEMPLATES } from '../templates.js';
 
 const router = Router();
 const claim = oneQuestionAtATime();
@@ -51,7 +56,19 @@ function cleanColumn(c, i) {
  * @returns {{ error: string, status?: number } | { fileName: string, columns: object[], rowCount?: number }}
  */
 export function parseProposeRequest(body) {
-  if (body?.sourceId !== undefined && body?.columns === undefined) return { sourceOnly: true, sourceId: body.sourceId };
+  const template = readTemplate(body?.template);
+  if (template.error) return template;
+  if (body?.sourceId !== undefined && body?.columns === undefined) return { sourceOnly: true, sourceId: body.sourceId, ...template };
+  return { ...parseColumnsRequest(body), ...template };
+}
+
+// The analyst's forced template: absent → {}, else { template } or { error }.
+function readTemplate(value) {
+  if (value === undefined) return {};
+  return TEMPLATES.includes(value) ? { template: value } : { error: `template must be one of ${TEMPLATES.join(', ')}` };
+}
+
+function parseColumnsRequest(body) {
   const columns = Array.isArray(body?.columns) ? body.columns : null;
   if (!columns || columns.length === 0 || columns.length > MAX_COLUMNS) return { error: `columns must be a list of 1 to ${MAX_COLUMNS} column profiles` };
   const clean = columns.map(cleanColumn);
@@ -71,11 +88,12 @@ async function withProbes(parsed) {
   if (!source) return { notFound: true };
   const table = await readSourceTable(source);
   const columns = parsed.columns ?? profileColumns(table.columns, table.rows);
-  const probes = probeColumns(columns, table.rows, await loadProbeTargets());
+  const targets = await loadProbeTargets();
+  const probes = probeColumns(columns, table.rows, targets);
   const hasKey = columns.some(c => c.uniqueness >= 0.8 && ['text', 'number'].includes(c.shape));
   return {
     fileName: parsed.fileName || source.fileName || source.displayName || '',
-    columns, rowCount: table.rows.length, probes,
+    columns, rowCount: table.rows.length, probes, hasIdentities: targets.hasIdentities, template: parsed.template,
     compositeKey: hasKey ? null : findCompositeKey(columns, table.rows),
   };
 }

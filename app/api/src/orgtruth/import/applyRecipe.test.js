@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyRecipe, summarizeApplied, entityKey, splitEmails, splitSharePointLookup, splitValues } from './applyRecipe.js';
+import { applyRecipe, summarizeApplied, entityKey, splitEmails, splitSharePointLookup, splitValues, splitMulti } from './applyRecipe.js';
 import { normalizeRecipe } from '../contracts.js';
 
 const recipe = normalizeRecipe({
@@ -290,5 +290,27 @@ describe('summarizeApplied', () => {
 describe('entityKey', () => {
   it('cannot collide across type and key boundaries', () => {
     expect(entityKey('a', 'bc')).not.toBe(entityKey('ab', 'c'));
+  });
+});
+
+describe('applyRecipe — multi-valued attributes', () => {
+  const def = { version: 1, entities: [{ type: 'Staff', nameColumn: 'Name', keyColumn: 'Name', attributes: [{ column: 'Skills', name: 'skills', multi: true }, { column: 'Role', name: 'role' }] }], relations: [] };
+
+  it('a multi attribute is the list of its values; another attribute stays one string', () => {
+    const { entities } = applyRecipe([{ Name: 'Ann', Skills: ' IAM , Azure|Security\nIAM ', Role: 'Lead, Senior' }], def);
+    expect(entities[0].attributes).toEqual({ skills: ['IAM', 'Azure', 'Security'], role: 'Lead, Senior' });
+  });
+
+  it('a repeated row with the same values is no conflict; different values are', () => {
+    const same = applyRecipe([{ Name: 'Ann', Skills: 'IAM, Azure', Role: '' }, { Name: 'Ann', Skills: 'IAM;Azure', Role: '' }], def);
+    expect(same.issues).toEqual([]);
+    const differ = applyRecipe([{ Name: 'Ann', Skills: 'IAM', Role: '' }, { Name: 'Ann', Skills: 'Azure', Role: '' }], def);
+    expect(differ.issues.map(i => i.detail)).toEqual([expect.stringContaining('differs in skills')]);
+  });
+
+  it('splitMulti: SharePoint lookups by name, else ; , | and line breaks', () => {
+    expect(splitMulti('Ann;#1;#Bob;#2')).toEqual(['Ann', 'Bob']);
+    expect(splitMulti('a;b,c|d\ne')).toEqual(['a', 'b', 'c', 'd', 'e']);
+    expect(splitMulti(' ; ,a, a ')).toEqual(['a']);
   });
 });
