@@ -3,10 +3,17 @@
 // wizard) codes against the two documents defined here: the import RECIPE
 // (how rows become entities and relations) and the LINK RULES (how entities
 // are matched to system objects). Keep this file dependency-free: it is the
-// one place the parallel workstreams must agree on.
+// one place the parallel workstreams must agree on. The template-specific
+// parts (enrichment, activity, relation) are in templateContracts.js, which is
+// dependency-free too.
 //
 // Both validators return `{ ok, errors }` where every error is a sentence a
 // person (or a model, in the repair round) can act on. Nothing throws.
+import { TEMPLATES } from './templates.js';
+import {
+  checkEnrichment, validateActivityRecipe, validateRelationRecipe,
+  normalizeActivityRecipe, normalizeRelationRecipe, relationEntityDef,
+} from './templateContracts.js';
 
 export const SOURCE_KINDS = ['list', 'transcript', 'email', 'manual'];
 export const ORIGINS = ['import', 'model', 'analyst'];
@@ -222,16 +229,49 @@ function checkRelations(relations, types, errors) {
   }
 }
 
+// `recipe.template` selects the shape (templates.js); absent means collection,
+// so every profile saved before templates existed keeps validating.
 export function validateRecipe(recipe, columns = null) {
   if (!recipe || typeof recipe !== 'object' || Array.isArray(recipe)) {
     return { ok: false, errors: ['The recipe must be an object with "entities" and "relations".'] };
   }
   const errors = [];
   if (recipe.version !== 1) errors.push('The recipe "version" must be 1.');
+  const template = recipe.template ?? 'collection';
+  if (!TEMPLATES.includes(template)) return { ok: false, errors: [...errors, `The recipe "template" must be one of ${TEMPLATES.join(', ')}.`] };
   const checkColumn = columnChecker(columns, errors);
-  const types = checkEntities(Array.isArray(recipe.entities) ? recipe.entities : null, checkColumn, errors);
-  checkRelations(recipe.relations ?? [], types, errors);
+  if (template === 'activity') validateActivityRecipe(recipe, checkColumn, errors);
+  else if (template === 'relation') validateRelationRecipe(recipe, checkColumn, errors);
+  else {
+    const types = checkEntities(Array.isArray(recipe.entities) ? recipe.entities : null, checkColumn, errors);
+    checkRelations(recipe.relations ?? [], types, errors);
+    if (template === 'enrichment') checkEnrichment(recipe, errors);
+  }
   return { ok: errors.length === 0, errors };
+}
+
+// The entity definitions link rules are checked against: a relation recipe's one
+// derived entity (templateContracts.js relationEntityDef), else recipe.entities.
+function entityDefsOf(recipe) {
+  if (recipe?.template === 'relation' && recipe.relation?.left && recipe.relation?.right && typeof recipe.relation.type === 'string') {
+    return [relationEntityDef({ ...recipe.relation, type: recipe.relation.type.trim() })];
+  }
+  return recipe?.entities ?? [];
+}
+
+// Template rules on the rule set as a whole: an activity resolves its references
+// itself (no rules); an enrichment needs the rule that finds the thing it enriches.
+function checkTemplateRules(rules, recipe, errors) {
+  if (recipe?.template === 'activity') {
+    if (rules.length > 0) errors.push('An activity import has no link rules: its actor and subject columns are matched per distinct value.');
+    return;
+  }
+  if (recipe?.template !== 'enrichment') return;
+  const target = recipe.enrich?.targetType;
+  const type = recipe.entities?.[0]?.type?.trim?.();
+  if (!rules.some(r => r?.entityType?.trim?.() === type && r?.targetType === target)) {
+    errors.push(`An enrichment needs a link rule from "${type}" to ${target}: it says which ${target} each row adds information to.`);
+  }
 }
 
 // ─── validateLinkRules ───────────────────────────────────────────────────
@@ -285,7 +325,10 @@ function checkRule(rule, where, et, entityDefs, recipe, errors) {
 export function validateLinkRules(rules, recipe = null) {
   if (!Array.isArray(rules)) return { ok: false, errors: ['Link rules must be an array.'] };
   const errors = [];
-  const entityDefs = new Map((recipe?.entities ?? []).map(e => [e?.type?.trim?.(), e]));
+  const entityDefs = new Map(entityDefsOf(recipe).map(e => [e?.type?.trim?.(), e]));
+  checkTemplateRules(rules, recipe, errors);
+  // an activity has no entity a rule could be about: the one sentence says it all
+  if (recipe?.template === 'activity') return { ok: errors.length === 0, errors };
   const seen = new Set();
   for (const [i, rule] of rules.entries()) {
     const where = `Link rule ${i + 1}`;
@@ -300,7 +343,19 @@ export function validateLinkRules(rules, recipe = null) {
 }
 
 // Fill in the defaults every consumer may rely on after validation passed.
+// Every normalised recipe names its template (a recipe stored before templates
+// existed has none and reads as a collection), next to the profile's `template` column.
 export function normalizeRecipe(recipe) {
+  if (recipe.template === 'activity') return normalizeActivityRecipe(recipe);
+  if (recipe.template === 'relation') return normalizeRelationRecipe(recipe);
+  const { version, entities, relations } = normalizeEntityRecipe(recipe);
+  if (recipe.template !== 'enrichment') return { version, template: 'collection', entities, relations };
+  return { version, template: 'enrichment', enrich: { targetType: recipe.enrich.targetType }, entities, relations: [] };
+}
+
+const normalizeAttribute = (a) => ({ column: a.column, name: isNonEmptyString(a.name) ? a.name.trim() : a.column, ...(a.multi === true ? { multi: true } : {}) });
+
+function normalizeEntityRecipe(recipe) {
   return {
     version: 1,
     entities: recipe.entities.map(e => ({
@@ -309,7 +364,7 @@ export function normalizeRecipe(recipe) {
       keyColumn: e.keyColumn ?? e.nameColumn,
       ...(Array.isArray(e.keyColumns) && e.keyColumns.length >= 2 ? { keyColumns: [...e.keyColumns] } : {}),
       ...(isNonEmptyString(e.nameAttribute) && e.nameAttribute.trim() !== NAME_ATTRIBUTE ? { nameAttribute: e.nameAttribute.trim() } : {}),
-      attributes: (e.attributes ?? []).map(a => ({ column: a.column, name: isNonEmptyString(a.name) ? a.name.trim() : a.column })),
+      attributes: (e.attributes ?? []).map(normalizeAttribute),
     })),
     relations: (recipe.relations ?? []).map(r => ({ predicate: r.predicate.trim(), from: r.from.trim(), to: r.to.trim() })),
   };

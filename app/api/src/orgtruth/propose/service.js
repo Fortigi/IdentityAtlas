@@ -1,6 +1,6 @@
 // Organisation truth — the recipe proposal: the heuristic, or the local model when it is there.
 //
-//   propose({ fileName, columns, rowCount }) → { recipe, linkRules, notes, origin, timing }
+//   propose({ fileName, columns, rowCount, probes?, template? }) → { recipe, linkRules, notes, origin, timing, template }
 //
 // The heuristic always runs first and is always the fallback. The model (the report
 // generator custom reports and the context assistant use) is asked only when a model
@@ -28,6 +28,8 @@ import { normalizeLinkRules, normalizeRecipe, validateLinkRules, validateRecipe 
 import { FEATURE } from '../http/gates.js';
 import { heuristicProposal, MAX_NOTES, usableColumns } from './heuristic.js';
 import { buildPrompt, buildUserMessage, MAX_NOTE, RESPONSE_SCHEMA } from './prompt.js';
+import { chooseTemplate } from './template.js';
+import { templateProposal } from './templateRecipes.js';
 
 export const CHAT_TIMEOUT_MS = 20_000;
 export const WARM_WAIT_MS = 10_000;
@@ -117,14 +119,31 @@ export async function modelReachable() {
 const fallbackNote = (reason) => `The local model's proposal could not be used: ${reason}. This proposal comes from the column names and values.`;
 
 /**
+ * The template first (template.js: which of the four kinds this list is, or the
+ * analyst's forced `template`); an activity, enrichment or relation gets its recipe
+ * from templateRecipes.js, a collection from the heuristic or the model below.
  * @param {object} args
  * @param {string} [args.fileName]
  * @param {object[]} args.columns   the column profile (see heuristic.js)
  * @param {number} [args.rowCount]
+ * @param {object} [args.probes]    probe.js results, when the rows were read
+ * @param {string} [args.template]  force this template (the wizard's override)
+ * @param {boolean} [args.hasIdentities] identities exist (an enrichment of people then targets Identity)
  * @param {object} [options]        { timeoutMs, warmWaitMs } — for tests
- * @returns {Promise<{ recipe, linkRules, notes: string[], origin: 'model'|'heuristic', timing: object }>}
+ * @returns {Promise<{ recipe, linkRules, notes: string[], origin: 'model'|'heuristic'|'data', timing: object,
+ *                     template: { kind, confidence, reason, alternatives } }>}
  */
-export async function propose({ fileName = '', columns, rowCount, probes = null, compositeKey = null } = {}, options = {}) {
+export async function propose(input = {}, options = {}) {
+  const { fileName = '', columns, rowCount, probes = null, template = null, hasIdentities = false } = input;
+  const started = Date.now();
+  const cols = usableColumns(columns);
+  const chosen = chooseTemplate({ columns: cols, probes, rowCount, forced: template });
+  if (chosen.kind === 'collection') return { ...(await proposeCollection(input, options)), template: chosen.summary };
+  const result = templateProposal(chosen.kind, { fileName, columns: cols, probes, picks: chosen.picks, hasIdentities });
+  return { ...result, origin: probes ? 'data' : 'heuristic', timing: { ms: Date.now() - started, model: false }, template: chosen.summary };
+}
+
+async function proposeCollection({ fileName = '', columns, rowCount, probes = null, compositeKey = null } = {}, options = {}) {
   const started = Date.now();
   const heuristic = heuristicProposal({ fileName, columns, rowCount, probes, compositeKey });
   const done = (result, origin, extra = {}) => ({ ...result, origin, timing: { ms: Date.now() - started, ...extra } });

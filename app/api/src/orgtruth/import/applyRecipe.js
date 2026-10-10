@@ -44,21 +44,32 @@ function withAlias(attributes, def, displayName) {
   return alias ? { ...attributes, [alias]: displayName } : { ...attributes };
 }
 
+// A `multi` attribute (an enrichment's "expertises: IAM, Azure") is stored as the
+// list of its values, so a filter can ask for any one of them.
 function readAttributes(row, def) {
   const attributes = {};
   for (const a of def.attributes) {
     const v = cell(row, a.column);
-    if (v !== '') attributes[a.name] = v;
+    if (v !== '') attributes[a.name] = a.multi ? splitMulti(v) : v;
   }
   return attributes;
 }
+
+// Every value of a multi-valued cell: a SharePoint lookup's names, else the parts
+// between ; , | or line breaks — trimmed, blanks and repeats left out, in cell order.
+export function splitMulti(value) {
+  const parts = splitSharePointLookup(value) ?? value.split(/[;,|\n]/).map(p => p.trim()).filter(Boolean);
+  return [...new Set(parts)];
+}
+
+const sameValue = (a, b) => (Array.isArray(a) || Array.isArray(b) ? JSON.stringify(a) === JSON.stringify(b) : a === b);
 
 // The fields on which `incoming` contradicts `existing` (both non-blank, different).
 function conflicts(existing, incoming) {
   const out = [];
   if (existing.displayName !== incoming.displayName) out.push('name');
   for (const [k, v] of Object.entries(incoming.attributes)) {
-    if (existing.attributes[k] !== undefined && existing.attributes[k] !== v) out.push(k);
+    if (existing.attributes[k] !== undefined && !sameValue(existing.attributes[k], v)) out.push(k);
   }
   return out;
 }

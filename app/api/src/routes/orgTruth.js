@@ -22,10 +22,11 @@ import layout from '../orgtruth/http/layout.js';
 import enrichment from '../orgtruth/http/enrichment.js';
 import activity from '../orgtruth/http/activity.js';
 import signals from '../orgtruth/http/signals.js';
+import activityKeys from '../orgtruth/http/activityKeys.js';
 
 const router = Router();
 
-router.use(sources, profiles, runs, links, propose, model, layout, enrichment, activity, signals);
+router.use(sources, profiles, runs, links, propose, model, layout, enrichment, activity, signals, activityKeys);
 
 // Everything under /org-truth that nothing above claimed.
 router.all('/org-truth', requireFeature(FEATURE), notBuilt);

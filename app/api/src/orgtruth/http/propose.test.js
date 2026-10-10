@@ -212,3 +212,40 @@ describe('parseProposeRequest', () => {
     expect(parseProposeRequest({ sourceId: 5, columns: [{ name: 'A' }] })).not.toHaveProperty('sourceId');
   });
 });
+
+describe('POST /org-truth/propose/recipe — templates', () => {
+  it('the wizard\'s body { fileName, columns, rowCount, sourceId, template } forwards the forced template and whether identities exist', async () => {
+    const withTemplate = { ...proposal, template: { kind: 'activity', confidence: 0, reason: 'r', alternatives: ['collection', 'enrichment', 'relation'] } };
+    propose.mockResolvedValueOnce(withTemplate);
+    getSourceWithContent.mockResolvedValueOnce({ id: 'src-9', fileName: 'Uren.csv' });
+    readSourceTable.mockResolvedValueOnce({ columns: ['Code'], rows: [{ Code: 'A' }] });
+    loadProbeTargets.mockResolvedValueOnce(buildTargets([], [], [], true));
+    const r = await request(app).post('/api/org-truth/propose/recipe').send({ fileName: 'Uren.csv', columns, rowCount: 1, sourceId: 'src-9', template: 'activity' });
+    expect(r.status).toBe(200);
+    expect(r.body.template).toEqual(withTemplate.template);
+    expect(r.body).toHaveProperty('recipe');
+    expect(r.body).toHaveProperty('linkRules');
+    const input = propose.mock.calls[0][0];
+    expect(input.template).toBe('activity');
+    expect(input.hasIdentities).toBe(true);
+  });
+
+  it('a source-only body keeps the template; a columns-only body too', async () => {
+    getSourceWithContent.mockResolvedValueOnce({ id: 'src-9' });
+    readSourceTable.mockResolvedValueOnce({ columns: ['Code'], rows: [{ Code: 'A' }] });
+    loadProbeTargets.mockResolvedValueOnce(buildTargets([], [], []));
+    await request(app).post('/api/org-truth/propose/recipe').send({ sourceId: 'src-9', template: 'relation' });
+    expect(propose.mock.calls[0][0]).toMatchObject({ template: 'relation', hasIdentities: false });
+    await request(app).post('/api/org-truth/propose/recipe').send({ columns, template: 'enrichment' });
+    expect(propose.mock.calls[1][0].template).toBe('enrichment');
+  });
+
+  it('400 for an unknown template, before anything is read', async () => {
+    const r = await request(app).post('/api/org-truth/propose/recipe').send({ sourceId: 'src-9', template: 'timesheet' });
+    expect(r.status).toBe(400);
+    expect(r.body).toEqual({ error: 'template must be one of collection, enrichment, activity, relation' });
+    expect(getSourceWithContent).not.toHaveBeenCalled();
+    expect(parseProposeRequest({ columns, template: 'collection' })).toMatchObject({ template: 'collection' });
+    expect('template' in parseProposeRequest({ columns })).toBe(false);
+  });
+});

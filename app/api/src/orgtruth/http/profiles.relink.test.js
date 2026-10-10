@@ -140,7 +140,9 @@ describe('POST /org-truth/profiles/:id/relink', () => {
     expect(sql).toMatch(/COALESCE\(MAX\("version"\), 0\) \+ 1/);
     const [, name, sourceKind, recipeJson, rulesJson, actor] = params;
     expect([name, sourceKind, actor]).toEqual(['Uren', 'list', 'ana@fortigi.nl']);
-    expect(JSON.parse(recipeJson)).toEqual(URen().recipe);
+    // the stored recipe names its template, like the profile's template column ($7)
+    expect(JSON.parse(recipeJson)).toEqual({ ...URen().recipe, template: 'collection' });
+    expect(params[6]).toBe('collection');
     expect(JSON.parse(rulesJson)).toEqual([{
       entityType: 'Uren', targetType: 'OrgEntity', targetEntityType: 'Klant', via: 'klant',
       name: 'Uren → Klant via klant', threshold: 50,

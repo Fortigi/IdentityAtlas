@@ -87,3 +87,42 @@ describe('countWouldClose', () => {
     expect(await countWouldClose('X', [{ entityType: 'Project', canonicalKey: 'p-1' }])).toEqual({});
   });
 });
+
+describe('dryRun — per template', () => {
+  it('a collection report names its template', async () => {
+    expect((await dryRun({ source, recipe, linkRules, mode: 'delta' })).report.template).toBe('collection');
+  });
+
+  it('a relation uses its generated rules (whatever the body sent) and counts its pairs', async () => {
+    const rel = { version: 1, template: 'relation', relation: { type: 'Pair', predicate: 'p', left: { column: 'Code', targetType: 'Resource' }, right: { column: 'Owner', targetType: 'Principal' } } };
+    const out = await dryRun({ source, recipe: rel, linkRules: [{ nonsense: true }], mode: 'delta' });
+    expect(out.ok).toBe(true);
+    expect(out.report.template).toBe('relation');
+    expect(out.report.entities).toEqual({ Pair: { total: 3, duplicateKeys: 0, emptyKeys: 0 } });
+    const [entities, rules] = linkStats.mock.calls[0];
+    expect(entities.map(e => e.displayName)).toEqual(['P-1 → Ann', 'P-2 → Ann', 'P-2 → Bob']);
+    expect(rules.map(r => [r.via, r.targetType])).toEqual([['left', 'Resource'], ['right', 'Principal']]);
+  });
+
+  it('a relation recipe that does not fit is refused on the recipe alone', async () => {
+    const rel = { version: 1, template: 'relation', relation: { type: 'Pair', predicate: 'p', left: { column: 'Nope', targetType: 'Resource' }, right: { column: 'Owner', targetType: 'Principal' } } };
+    const out = await dryRun({ source, recipe: rel, linkRules: [], mode: 'delta' });
+    expect(out).toEqual({ ok: false, errors: ['The relation left end refers to column "Nope", which the source does not have.'] });
+  });
+
+  it('an activity gets the activity report: facts, skipped rows, sample, key counts — and no entity link stats', async () => {
+    const act = { version: 1, template: 'activity', activity: { type: 'Hours', actor: { column: 'Owner', targetTypes: ['Principal'] }, subject: { column: 'Project', targetType: 'Resource' }, when: { dateColumn: 'Code' } } };
+    const out = await dryRun({ source, recipe: act, linkRules: [], mode: 'delta' });
+    expect(out.ok).toBe(true);
+    expect(out.report).toMatchObject({ template: 'activity', rows: 3, activities: 0, skipped: 3, sample: [] });
+    expect(out.report.keys.actor).toEqual({ total: 0, accepted: 0, proposed: 0, unmatched: 0 });
+    expect(linkStats).not.toHaveBeenCalled();
+  });
+
+  it('an activity with link rules is refused', async () => {
+    const act = { version: 1, template: 'activity', activity: { type: 'Hours', actor: { column: 'Owner', targetTypes: ['Principal'] }, subject: { column: 'Project', targetType: 'Resource' }, when: { dateColumn: 'Code' } } };
+    const out = await dryRun({ source, recipe: act, linkRules, mode: 'delta' });
+    expect(out.ok).toBe(false);
+    expect(out.errors).toEqual(['An activity import has no link rules: its actor and subject columns are matched per distinct value.']);
+  });
+});

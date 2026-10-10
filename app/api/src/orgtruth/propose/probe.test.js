@@ -61,6 +61,12 @@ describe('probeColumns', () => {
   it('splits a cell like the link engine (SharePoint lookups) and skips empty cells', () => {
     expect(out.Mixed).toMatchObject({ values: 2, people: 0.5 });
   });
+  it('people: an e-mail address of an account counts, case-insensitively; another address does not', () => {
+    const t = buildTargets([{ displayName: 'Ann Example', email: 'ann@contoso.com' }], [], []);
+    const r = probeColumns(['Mail'], [{ Mail: 'ANN@contoso.com' }, { Mail: 'bob@contoso.com' }], t);
+    expect(r.Mail.people).toBe(0.5);
+    expect(t.hasIdentities).toBe(false);
+  });
   it('a column without values is all zeros', () => {
     expect(out.Missing).toEqual({ values: 0, people: 0, resources: 0, orgEntities: 0, orgEntityTypes: [] });
   });
@@ -135,11 +141,15 @@ describe('findCompositeKey', () => {
 describe('loadProbeTargets', () => {
   it('reads human accounts, non-ownership resources and current accepted org entities, and indexes them', async () => {
     query
-      .mockResolvedValueOnce({ rows: [{ displayName: 'Ann Example' }] })
+      .mockResolvedValueOnce({ rows: [{ displayName: 'Ann Example', email: 'Ann@Contoso.com' }] })
       .mockResolvedValueOnce({ rows: [{ displayName: 'SG_Finance' }] })
-      .mockResolvedValueOnce({ rows: [{ displayName: 'Contoso', entityType: 'Customer' }] });
+      .mockResolvedValueOnce({ rows: [{ displayName: 'Contoso', entityType: 'Customer' }] })
+      .mockResolvedValueOnce({ rows: [{ any: true }] });
     const t = await loadProbeTargets();
-    expect(query).toHaveBeenCalledTimes(3);
+    expect(query).toHaveBeenCalledTimes(4);
+    expect(query.mock.calls[3][0]).toMatch(/SELECT EXISTS \(SELECT 1 FROM "Identities"\)/);
+    expect(t.hasIdentities).toBe(true);
+    expect([...t.personEmails]).toEqual(['ann@contoso.com']);
     const [pSql, pParams] = query.mock.calls[0];
     expect(pSql).toMatch(/FROM "Principals"\s+WHERE "deletedAt" IS NULL AND \("principalType" IS NULL OR "principalType" <> ALL\(\$1::text\[\]\)\)/);
     expect(pParams).toEqual([['ServicePrincipal', 'ManagedIdentity', 'AIAgent']]);

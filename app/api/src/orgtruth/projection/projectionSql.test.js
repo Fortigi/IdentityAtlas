@@ -43,3 +43,14 @@ describe('projection queries', () => {
     expect(query).toHaveBeenCalledTimes(3);
   });
 });
+
+describe('projection queries — collections only', () => {
+  it('entities and links of enrichment / relation / activity profiles never become contexts', async () => {
+    query.mockResolvedValue({ rows: [] });
+    await loadEntities();
+    await loadLinks();
+    const filter = `COALESCE((SELECT p."template" FROM "OrgImportProfiles" p WHERE p."id" = e."profileId"), 'collection') = 'collection'`;
+    expect(query.mock.calls[0][0]).toContain(filter);
+    expect(query.mock.calls[1][0]).toContain(filter);
+  });
+});

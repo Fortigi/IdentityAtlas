@@ -155,3 +155,52 @@ describe('createImportRun / findActiveRun', () => {
     expect(await findActiveRun('Projects')).toBeNull();
   });
 });
+
+describe('executeImportRun — per template', () => {
+  it('an enrichment run writes and links but rebuilds no projection (only collections become contexts)', async () => {
+    const enrich = normalizeRecipe({
+      version: 1, template: 'enrichment', enrich: { targetType: 'Principal' },
+      entities: [{ type: 'Staff', nameColumn: 'Owner', attributes: [{ column: 'Project', name: 'skills', multi: true }] }],
+    });
+    stage({ prof: { ...profile, recipe: enrich } });
+    await executeImportRun(RUN);
+    const updates = runUpdates();
+    expect(updates.map(u => u.step)).toEqual(['parse', 'apply', 'write', 'link', 'completed']);
+    expect(linkRun).toHaveBeenCalledTimes(1);
+    expect(enqueueRun).not.toHaveBeenCalled();
+    expect(JSON.parse(updates.at(-1).stats).entities.byType).toEqual({ Staff: { total: 1, duplicateKeys: 0, emptyKeys: 0 } });
+  });
+
+  it('a relation run writes one entity per pair', async () => {
+    const rel = normalizeRecipe({
+      version: 1, template: 'relation',
+      relation: { type: 'Pair', predicate: 'p', left: { column: 'Code', targetType: 'Resource' }, right: { column: 'Project', targetType: 'Resource' } },
+    });
+    stage({ prof: { ...profile, recipe: rel } });
+    await executeImportRun(RUN);
+    const stats = JSON.parse(runUpdates().at(-1).stats);
+    expect(stats.entities.byType).toEqual({ Pair: { total: 2, duplicateKeys: 0, emptyKeys: 0 } });
+    expect(enqueueRun).not.toHaveBeenCalled();
+  });
+
+  it('an activity run takes its own steps: facts and keys instead of entities, no linking engine, no projection', async () => {
+    const act = normalizeRecipe({
+      version: 1, template: 'activity',
+      activity: { type: 'Hours', actor: { column: 'Owner', targetTypes: ['Principal'] }, subject: { column: 'Project', targetType: 'Resource' }, when: { dateColumn: 'Code' } },
+    });
+    const csv = 'Code,Project,Owner\n2026-03-01,Atlas,Ann\n2026-03-02,Beacon,\n';
+    stage({ prof: { ...profile, recipe: act }, src: { ...source, content: Buffer.from(csv) } });
+    await executeImportRun(RUN);
+    const updates = runUpdates();
+    expect(updates.map(u => u.step)).toEqual(['parse', 'apply', 'write', 'link', 'completed']);
+    const stats = JSON.parse(updates.at(-1).stats);
+    expect(stats).toMatchObject({ rows: 2, activities: 1, skipped: 1, replaced: 0 });
+    expect(stats.keys).toEqual({ actor: { total: 0, accepted: 0, proposed: 0, unmatched: 0 }, subject: { total: 0, accepted: 0, proposed: 0, unmatched: 0 } });
+    expect(stats.issues.samples).toEqual([{ row: 2, reason: 'row 2 has no Owner' }]);
+    expect(query.mock.calls.some(([sql]) => sql.includes('INSERT INTO "OrgActivities"'))).toBe(true);
+    expect(query.mock.calls.some(([sql]) => sql.includes('"OrgEntities"'))).toBe(false);
+    expect(linkRun).not.toHaveBeenCalled();
+    expect(enqueueRun).not.toHaveBeenCalled();
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('completed: 1 activities, 1 rows skipped'));
+  });
+});
