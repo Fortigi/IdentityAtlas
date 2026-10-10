@@ -14,6 +14,8 @@
     "test:contract": "vitest run --config vitest.contract.config.js",
     "test:watch": "vitest",
     "lint": "eslint src/",
+    "ontology:check": "node src/ontology/cli.js check",
+    "ontology:generate": "node src/ontology/cli.js generate",
     "build:node-launcher": "node ../desktop/scripts/build-node-launcher.mjs",
     "build:node-launcher:skip-ui": "node ../desktop/scripts/build-node-launcher.mjs --skip-ui-build",
     "build:node-launcher:postgres": "node ../desktop/scripts/build-node-launcher.mjs --with-postgres",
@@ -36,6 +38,7 @@
     "eslint": "^10.12.0",
     "eslint-plugin-security": "^4.2.0",
     "eslint-plugin-sonarjs": "4.2.1",
+    "n3": "^2.13.12",
     "supertest": "^7.3.0",
     "vitest": "^5.0.0"
   },
