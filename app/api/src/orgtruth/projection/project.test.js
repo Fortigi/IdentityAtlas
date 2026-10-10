@@ -88,7 +88,7 @@ describe('buildProjection — Resource members', () => {
       [`org:${E.U2}`, 'org:type:Person', 'Person'],
       [`org:${E.T1}`, 'org:type:Team', 'Team'],
     ]);
-    expect(out.contexts[0].displayName).toBe('Organisation truth');
+    expect(out.contexts[0].displayName).toBe('Additional information');
     expect(out.contexts[2].displayName).toBe('Project');
     expect(out.contexts[2].description).toBe('Organisation entities of type Project');
   });

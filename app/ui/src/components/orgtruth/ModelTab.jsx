@@ -169,7 +169,7 @@ export default function ModelTab({ onImport }) {
         <EmptyState
           title="No model yet"
           hint="The model is read from the imported lists. Import a list to see its entity types and how they relate."
-          actionLabel={canImport ? 'Import organisation truth' : undefined}
+          actionLabel={canImport ? 'Import additional information' : undefined}
           onAction={onImport}
         />
       </div>

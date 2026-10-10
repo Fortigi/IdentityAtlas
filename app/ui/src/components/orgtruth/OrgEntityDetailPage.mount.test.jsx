@@ -143,7 +143,7 @@ describe('OrgEntityDetailPage', () => {
   it('keeps the page when the graph is not available, and says so', async () => {
     render({ graph: jsonResponse({}, { ok: false, status: 501 }), entity: { ...ENTITY, links: [], relations: undefined, source: null } });
     expect(await screen.findByText('The relationship graph is not available yet.')).toBeInTheDocument();
-    expect(screen.getByText('Not linked to anything in the system truth.')).toBeInTheDocument();
+    expect(screen.getByText('Not linked to anything in the connected systems.')).toBeInTheDocument();
     expect(screen.getAllByText('None.')).toHaveLength(2);
     expect(screen.queryByRole('button', { name: 'Download source' })).toBeNull();
   });

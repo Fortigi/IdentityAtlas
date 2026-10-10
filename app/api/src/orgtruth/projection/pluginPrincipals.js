@@ -8,7 +8,7 @@ import { makeOrgTruthPlugin } from './project.js';
 
 export default makeOrgTruthPlugin({
   name: 'org-truth-principals',
-  displayName: 'Organisation truth (accounts)',
+  displayName: 'Additional information (accounts)',
   description: 'One context per organisation entity (project, asset, team, data domain), with the accounts linked to it, or to the entities it is related to (an owner, a team member), as members.',
   targetType: 'Principal',
 });

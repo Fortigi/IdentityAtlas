@@ -54,19 +54,19 @@ describe('OrgTruthPage', () => {
   it('has exactly one import button, in the Sources tab, and only for someone who may import', async () => {
     renderPage({ auth: READER });
     await screen.findByRole('button', { name: 'Contoso projects' });
-    expect(screen.queryByRole('button', { name: 'Import organisation truth' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Import additional information' })).toBeNull();
     renderPage({ auth: IMPORTER, features: { orgTruth: false } });
     await screen.findAllByRole('button', { name: 'Contoso projects' });
-    expect(screen.queryByRole('button', { name: 'Import organisation truth' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Import additional information' })).toBeNull();
     renderPage();
     await screen.findAllByRole('button', { name: 'Contoso projects' });
-    expect(screen.getAllByRole('button', { name: 'Import organisation truth' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Import additional information' })).toHaveLength(1);
   });
 
   it('opens a new import from the Sources tab button and closes it without refreshing', async () => {
     const { authFetch } = renderPage();
     await screen.findByRole('button', { name: 'Contoso projects' });
-    await userEvent.click(screen.getByRole('button', { name: 'Import organisation truth' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Import additional information' }));
     expect(screen.getByTestId('wizard')).toHaveTextContent('wizard profile=none');
     const loads = authFetch.mock.calls.length;
     await userEvent.click(screen.getByRole('button', { name: 'Cancel wizard' }));

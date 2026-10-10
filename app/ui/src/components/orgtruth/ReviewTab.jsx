@@ -163,7 +163,7 @@ export default function ReviewTab({ onOpenDetail }) {
     <div className="space-y-4">
       {filters}
       {!canEdit && groups.length > 0 && (
-        <p className="text-sm text-gray-600 dark:text-gray-400">You can see the queue; deciding on a link needs permission to import organisation truth.</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">You can see the queue; deciding on a link needs permission to import additional information.</p>
       )}
       <InlineError message={error} />
       {groups.length === 0 ? (

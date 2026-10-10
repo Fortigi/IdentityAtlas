@@ -138,23 +138,23 @@ describe('SourcesTab', () => {
   it('offers the import button above the list to an importer, not to a reader', async () => {
     const { onImport } = render();
     await rowOf('Contoso projects');
-    await userEvent.click(screen.getByRole('button', { name: 'Import organisation truth' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Import additional information' }));
     expect(onImport).toHaveBeenCalledTimes(1);
     render({ auth: READER });
     await screen.findAllByRole('button', { name: 'Contoso projects' });
-    expect(screen.getAllByRole('button', { name: 'Import organisation truth' })).toHaveLength(1); // only the first render's
+    expect(screen.getAllByRole('button', { name: 'Import additional information' })).toHaveLength(1); // only the first render's
   });
 
   it('shows the empty state with the import action for an importer', async () => {
     const { onImport } = render({ routes: { '/api/org-truth/sources': { data: [] } } });
-    await userEvent.click(await screen.findByRole('button', { name: 'Import organisation truth' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Import additional information' }));
     expect(onImport).toHaveBeenCalledTimes(1);
   });
 
   it('shows the empty state without an action for a reader', async () => {
     render({ auth: READER, routes: { '/api/org-truth/sources': [] } });
     expect(await screen.findByText('No organisation sources yet')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Import organisation truth' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Import additional information' })).toBeNull();
   });
 
   it('renders a 501 as "not available yet"', async () => {

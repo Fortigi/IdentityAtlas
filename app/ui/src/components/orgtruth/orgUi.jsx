@@ -34,7 +34,7 @@ export function FetchState({ state, what }) {
     return (
       <EmptyState
         title={`${what} — not available yet`}
-        hint="This part of the organisation truth is not available on this server yet."
+        hint="This part of the additional information is not available on this server yet."
       />
     );
   }

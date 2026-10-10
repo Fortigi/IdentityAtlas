@@ -89,7 +89,7 @@ describe('ModelTab', () => {
     expect(container.querySelector('[data-node="t:Project"] title').textContent)
       .toBe('Project: 87 entities (0 proposed)\nAttributes: budget, costCenter\nSources: 2');
     expect(container.querySelector('[data-node="t:Person"] title').textContent).toContain('Attributes: none');
-    expect(container.querySelector('[data-node="s:Principal"] title').textContent).toBe('Principal: 1127 in the system truth');
+    expect(container.querySelector('[data-node="s:Principal"] title').textContent).toBe('Principal: 1127 in the connected systems');
   });
 
   it('uses the dark palette in dark mode', async () => {
@@ -133,7 +133,7 @@ describe('ModelTab', () => {
 
   it('shows an empty model with the import action', async () => {
     const { onImport } = render({ routes: { '/api/org-truth/model': { entityTypes: [] } } });
-    await userEvent.click(await screen.findByRole('button', { name: 'Import organisation truth' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Import additional information' }));
     expect(onImport).toHaveBeenCalled();
     expect(screen.getByText('No model yet')).toBeInTheDocument();
   });

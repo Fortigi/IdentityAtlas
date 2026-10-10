@@ -134,7 +134,7 @@ function typeContext(entityType) {
 
 const ROOT_CONTEXT = {
   externalId: ROOT_EXTERNAL_ID,
-  displayName: 'Organisation truth',
+  displayName: 'Additional information',
   contextType: 'OrganisationTruth',
   description: 'Entities from the organisation lists, with the system objects linked to them',
 };

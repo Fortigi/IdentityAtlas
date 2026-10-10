@@ -77,7 +77,7 @@ export default function OrgEntityDetailPage({ entityId, onOpenDetail, onClose, o
         <Section title="Links" count={links.length}>
           <InlineError message={error} />
           {links.length === 0
-            ? <p className="text-sm text-gray-600 dark:text-gray-400">Not linked to anything in the system truth.</p>
+            ? <p className="text-sm text-gray-600 dark:text-gray-400">Not linked to anything in the connected systems.</p>
             : <OrgLinkTable candidates={links} canEdit={canEdit} busy={busy} onOverride={override} onOpenDetail={onOpenDetail} />}
         </Section>
         <OrgEvidenceSection entityId={entityId} onOpenDetail={onOpenDetail} />

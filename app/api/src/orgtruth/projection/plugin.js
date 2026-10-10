@@ -13,7 +13,7 @@ import { makeOrgTruthPlugin } from './project.js';
 
 export default makeOrgTruthPlugin({
   name: 'org-truth',
-  displayName: 'Organisation truth',
+  displayName: 'Additional information',
   description: 'One context per organisation entity (project, asset, team, data domain), with the resources linked to it, or to the entities it is related to, as members.',
   targetType: 'Resource',
 });

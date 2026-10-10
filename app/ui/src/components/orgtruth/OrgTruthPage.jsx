@@ -6,7 +6,7 @@
 //   Entities  the entities themselves, searchable, with a detail fan-out      (EntitiesTab, T6)
 //   Review    proposed links and claims waiting for an analyst                (ReviewTab, T6)
 // plus the import wizard (ImportWizard, T5), opened from the Sources tab's
-// "Import organisation truth" button (new import) or from a source's "Import
+// "Import additional information" button (new import) or from a source's "Import
 // again" (repeat mode, `profileId` of its last run). Every panel gets onImport /
 // onImportAgain; a finished import bumps refreshKey, which remounts the panel so
 // it fetches again.

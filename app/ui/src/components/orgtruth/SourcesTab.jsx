@@ -118,7 +118,7 @@ export default function SourcesTab({ onImport, onImportAgain }) {
       <EmptyState
         title="No organisation sources yet"
         hint="Upload a list of projects, assets, teams or data domains with their owners to start."
-        actionLabel={canImport ? 'Import organisation truth' : undefined}
+        actionLabel={canImport ? 'Import additional information' : undefined}
         onAction={onImport}
       />
     );
@@ -135,7 +135,7 @@ export default function SourcesTab({ onImport, onImportAgain }) {
             onClick={onImport}
             className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
           >
-            Import organisation truth
+            Import additional information
           </button>
         </div>
       )}

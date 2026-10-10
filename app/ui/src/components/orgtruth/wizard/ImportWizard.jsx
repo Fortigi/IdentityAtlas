@@ -57,7 +57,7 @@ export default function ImportWizard({ onClose, profileId }) {
 
   return (
     <WizardShell
-      title="Import organisation truth"
+      title="Import additional information"
       onCancel={() => onClose(false)}
       steps={steps}
       currentStep={step}

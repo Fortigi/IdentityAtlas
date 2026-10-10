@@ -23,7 +23,7 @@ const DARK = {
 
 function nodeTitle(n) {
   if (n.kind === 'system') {
-    return n.systemCount != null ? `${n.label}: ${n.systemCount} in the system truth` : n.label;
+    return n.systemCount != null ? `${n.label}: ${n.systemCount} in the connected systems` : n.label;
   }
   const keys = n.attributeKeys.length > 0 ? n.attributeKeys.join(', ') : 'none';
   const sources = n.sources != null ? `\nSources: ${n.sources}` : '';

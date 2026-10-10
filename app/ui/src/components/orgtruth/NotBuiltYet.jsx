@@ -6,7 +6,7 @@ export default function NotBuiltYet({ what, workstream }) {
   return (
     <EmptyState
       title={`${what} — not built yet`}
-      hint={`This panel is workstream ${workstream} of the organisation-truth MVP. See the handover for its contract.`}
+      hint={`This panel is workstream ${workstream} of the organisation MVP. See the handover for its contract.`}
     />
   );
 }

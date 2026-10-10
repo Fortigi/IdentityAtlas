@@ -20,7 +20,7 @@ describe('org-truth projection plugin (Resource members)', () => {
     expect(getPlugin('org-truth')).toBe(plugin);
     expect(REGISTERED_PLUGINS.filter(p => p.name === 'org-truth')).toHaveLength(1);
     expect(plugin.targetType).toBe('Resource');
-    expect(plugin.displayName).toBe('Organisation truth');
+    expect(plugin.displayName).toBe('Additional information');
     expect(plugin.parametersSchema.properties.entityTypes.items.type).toBe('string');
     expect(plugin.parametersSchema.required).toBeUndefined();
   });
