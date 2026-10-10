@@ -20,6 +20,8 @@
     "src/matrix/attrExpr.js",
     "src/matrix/attributeCut.js",
     "src/matrix/contextRollup.js",
+    "src/matrix/enrichmentCondition.js",
+    "src/matrix/enrichmentFields.js",
     "src/matrix/filterSql.js",
     "src/matrix/inheritedAccess.js",
     "src/matrix/orgCondition.js",

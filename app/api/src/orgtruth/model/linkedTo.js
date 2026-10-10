@@ -8,26 +8,27 @@
 //
 //   direct   org entities linked to the object through an attribute, per
 //            (entityType, via): "Klant · eigenaar" (customers this person owns),
-//            "Klant · team", "FortigiMaten · name" (the person themselves)
-//   through  for rows that are FACTS about the object (a timesheet row linked to
-//            this person by name, which itself links to a customer through its
-//            customer column): not the 98 rows, but the distinct entities they
-//            point at — "Klant · worked on (Uren)" with hours and the last period
-//            per customer. Fact rows are recognised by having such a link to
-//            another list; their own direct group is left out (they are counted
-//            in the `through` group's detail instead).
+//            "Klant · team", "Maten · name" (the person themselves)
+//   through  what the person WORKED ON according to an activity list (T10,
+//            OrgActivities): not the rows, but the distinct subjects they point at
+//            — "Klant · worked on (Uren)" with hours (sum of measure) and the last
+//            period (YYYY-MM) per customer. Only accepted actor and subject keys
+//            count; the person's rows whose subject is unresolved are counted on
+//            the group as `unlinkedRows`. Through groups also carry
+//            `sourceType` (the activity type) and `via: 'subject'`; their items
+//            carry `hours` and `lastPeriod`.
 // A Principal also collects what is linked to the Identity it belongs to, and
 // an Identity what is linked to its accounts.
 import { query } from '../../db/connection.js';
-import { parseJsonbColumn } from '../../lib/jsonb.js';
-import { hoursOf, periodOf } from './evidence.js';
+import { activityRollupSql, later } from '../activity/sql.js';
 
 export const TARGET_TYPES = ['Principal', 'Identity', 'Resource', 'Context'];
 const ITEM_CAP = 200;
+const ACTOR_TYPES = new Set(['Principal', 'Identity']);
 
 // The (targetType, id) pairs to look for: the object itself, plus the identity
 // ↔ accounts it is linked with.
-async function targetsOf(targetType, id) {
+export async function targetsOf(targetType, id) {
   const pairs = [{ targetType, id }];
   if (targetType === 'Principal') {
     const r = await query(`SELECT "identityId" FROM "IdentityMembers" WHERE "principalId" = $1`, [id]);
@@ -46,51 +47,56 @@ const directSql = `
    WHERE l."status" = 'accepted' AND l."targetType" = ANY($1::text[]) AND l."targetId" = ANY($2::uuid[])
      AND e."status" = 'accepted' AND e."validTo" IS NULL`;
 
-// For the given org entities: their accepted links to OTHER lists' entities through an attribute.
-const throughSql = `
-  SELECT l."orgEntityId" AS "fromId", COALESCE(l."via", 'displayName') AS via, t."id", t."entityType", t."displayName"
-    FROM "OrgLinks" l JOIN "OrgEntities" t ON t."id" = l."targetId"
-   WHERE l."status" = 'accepted' AND l."targetType" = 'OrgEntity' AND COALESCE(l."via", 'displayName') <> 'displayName'
-     AND l."orgEntityId" = ANY($1::uuid[]) AND t."status" = 'accepted' AND t."validTo" IS NULL`;
+// The person's activity rows (accepted actor keys), per activity type and subject.
+const activitySql = activityRollupSql(`ak."targetType" = ANY($1::text[]) AND ak."targetId" = ANY($2::uuid[])`);
 
 const viaLabel = (via) => (via === 'displayName' ? 'name' : via);
+const round1 = (n) => Math.round(n * 10) / 10;
 
-/** Pure: direct rows + through rows → groups. */
-export function buildGroups(directRows, throughRows) {
-  const factIds = new Set(throughRows.map(r => r.fromId));
-  // A type with ANY row pointing at another list is a fact type: its rows that
-  // point nowhere (internal hours, an unknown customer) are counted, not listed.
-  const factTypes = new Set(directRows.filter(r => factIds.has(r.id)).map(r => r.entityType));
-  const unlinked = new Map();
+function directGroups(directRows) {
   const direct = new Map();
   for (const r of directRows) {
-    if (factIds.has(r.id)) continue;
-    if (factTypes.has(r.entityType)) { unlinked.set(r.entityType, (unlinked.get(r.entityType) ?? 0) + 1); continue; }
     const key = `direct|${r.entityType}|${r.via}`;
     const g = direct.get(key) ?? { key, entityType: r.entityType, via: r.via, kind: 'direct', label: `${r.entityType} · ${viaLabel(r.via)}`, items: new Map() };
     g.items.set(r.id, { entityId: r.id, entityType: r.entityType, label: r.displayName, detail: null });
     direct.set(key, g);
   }
-  const factsById = new Map(directRows.filter(r => factIds.has(r.id)).map(r => [r.id, r]));
+  return direct;
+}
+
+function addThroughRow(through, a) {
+  const entityType = a.subjectEntityType ?? a.subjectType;
+  const key = `through|${entityType}|${a.activityType}`;
+  const g = through.get(key) ?? {
+    key, entityType, via: 'subject', kind: 'through', label: `${entityType} · worked on (${a.activityType})`, items: new Map(), sourceType: a.activityType,
+  };
+  const item = g.items.get(a.subjectId) ?? { entityId: a.subjectId, entityType, label: a.subjectLabel ?? null, rows: 0, hours: 0, lastPeriod: null };
+  item.rows += a.rowCount;
+  item.hours += a.total;
+  item.lastPeriod = later(item.lastPeriod, a.lastOn ? a.lastOn.slice(0, 7) : null);
+  g.items.set(a.subjectId, item);
+  through.set(key, g);
+}
+
+function throughItem(i) {
+  const hours = round1(i.hours);
+  const until = i.lastPeriod ? ` · until ${i.lastPeriod}` : '';
+  return { entityId: i.entityId, entityType: i.entityType, label: i.label, detail: `${hours} h · ${i.rows} rows${until}`, hours, lastPeriod: i.lastPeriod };
+}
+
+/**
+ * Pure: direct rows + activity roll-up rows (orgtruth/activity/sql.js) → groups.
+ */
+export function buildGroups(directRows, activityRows = []) {
+  const direct = directGroups(directRows);
   const through = new Map();
-  for (const t of throughRows) {
-    const fact = factsById.get(t.fromId);
-    if (!fact) continue;
-    const key = `through|${t.entityType}|${fact.entityType}|${t.via}`;
-    const g = through.get(key) ?? { key, entityType: t.entityType, via: t.via, kind: 'through', label: `${t.entityType} · worked on (${fact.entityType})`, items: new Map(), sourceType: fact.entityType };
-    const attrs = parseJsonbColumn(fact.attributes) ?? {};
-    const item = g.items.get(t.id) ?? { entityId: t.id, entityType: t.entityType, label: t.displayName, rows: 0, hours: 0, lastPeriod: null };
-    item.rows += 1;
-    item.hours += hoursOf(attrs);
-    const p = periodOf(attrs);
-    if (p && (!item.lastPeriod || p > item.lastPeriod)) item.lastPeriod = p;
-    g.items.set(t.id, item);
-    through.set(key, g);
+  const unlinked = new Map();
+  for (const a of activityRows) {
+    if (a.subjectId) addThroughRow(through, a);
+    else unlinked.set(a.activityType, (unlinked.get(a.activityType) ?? 0) + a.rowCount);
   }
   const finish = (g) => {
-    const items = [...g.items.values()].map(i => (g.kind === 'through'
-      ? { entityId: i.entityId, entityType: i.entityType, label: i.label, detail: `${Math.round(i.hours * 10) / 10} h · ${i.rows} rows${i.lastPeriod ? ` · until ${i.lastPeriod}` : ''}`, hours: Math.round(i.hours * 10) / 10, lastPeriod: i.lastPeriod }
-      : i));
+    const items = [...g.items.values()].map(i => (g.kind === 'through' ? throughItem(i) : i));
     items.sort((a, b) => (b.hours ?? 0) - (a.hours ?? 0) || String(a.label).localeCompare(String(b.label)));
     const { items: _i, ...rest } = g;
     const extra = g.kind === 'through' ? { unlinkedRows: unlinked.get(g.sourceType) ?? 0 } : {};
@@ -102,8 +108,9 @@ export function buildGroups(directRows, throughRows) {
 
 export async function getLinkedTo(targetType, id) {
   const pairs = await targetsOf(targetType, id);
-  const directRows = (await query(directSql, [pairs.map(p => p.targetType), pairs.map(p => p.id)])).rows;
-  const ids = directRows.map(r => r.id);
-  const throughRows = ids.length === 0 ? [] : (await query(throughSql, [ids])).rows;
-  return buildGroups(directRows, throughRows);
+  const types = pairs.map(p => p.targetType);
+  const ids = pairs.map(p => p.id);
+  const directRows = (await query(directSql, [types, ids])).rows;
+  const activityRows = ACTOR_TYPES.has(targetType) ? (await query(activitySql, [types, ids])).rows : [];
+  return buildGroups(directRows, activityRows);
 }

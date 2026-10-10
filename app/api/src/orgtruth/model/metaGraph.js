@@ -3,14 +3,20 @@
 // Response (all counts integers; arrays sorted as listed):
 //
 //   {
-//     entityTypes: [ { type, count, proposed, attributeKeys: string[], sources, lastObservedAt } ],  // by type
+//     entityTypes: [ { type, count, proposed, attributeKeys: string[], sources, lastObservedAt, template } ],  // by type
 //     predicates:  [ { predicate, fromType, toType, count, proposed } ],  // by predicate, fromType, toType
 //     links:       [ { entityType, targetType, via, accepted, proposed } ],  // to the system truth, per attribute
 //     entityLinks: [ { fromType, toType, via, accepted, proposed } ],        // between two organisation lists
 //     systemTypes: [ { targetType, count } ],                              // Principal, Resource, Identity, Context; [] with withSystemCounts=0
 //     profiles:    [ { id, name, version, recipe, linkRules, lastSourceId, lastRunStatus } ], // newest version per name
+//     enrichments: [ … ], activities: [ … ], pairs: [ … ]                // the T10 templates, see templateGraph.js
 //     totals:      { entities, relations, links, sources }
 //   }
+//
+// entityTypes[].template is the import template of the type's rows (collection,
+// enrichment, activity, relation; 'collection' for a list imported before the
+// templates existed). Enrichment and relation types stay in entityTypes — the
+// Model tab draws them as attribute blocks and edges, not as cards.
 //
 // Semantics (T4 decisions):
 //   - `count` is the accepted rows, `proposed` the proposed ones; rejected rows
@@ -24,18 +30,11 @@
 //     = uploaded OrgSources (1 or 0 with a sourceId filter).
 import * as db from '../../db/connection.js';
 import { createParams } from '../../db/sqlParams.js';
+import { claimFilter } from './claimFilter.js';
+import { getTemplateGraph } from './templateGraph.js';
 
 export const ATTRIBUTE_KEY_CAP = 50;
 export const SYSTEM_TYPES = ['Principal', 'Resource', 'Identity', 'Context'];
-
-// WHERE fragment for a row of OrgEntities/OrgRelations under alias `a`.
-// The sourceId value is bound; the closed filter is a fixed fragment.
-function claimFilter(a, { includeClosed, sourceId }, bind) {
-  const parts = [`${a}.status <> 'rejected'`];
-  if (!includeClosed) parts.push(`${a}."validTo" IS NULL`);
-  if (sourceId) parts.push(`${a}."sourceId" = ${bind(sourceId)}::uuid`);
-  return parts.join(' AND ');
-}
 
 async function entityTypeRows(filters) {
   const { params, bind } = createParams();
@@ -177,7 +176,8 @@ export async function getMetaGraph({ includeClosed = false, sourceId = null, wit
     profileRows(),
   ]);
   const keys = groupAttributeKeys(keyRows);
-  const entityTypes = types.map(t => ({ ...t, attributeKeys: keys.get(t.type) || [] }));
+  const extra = await getTemplateGraph(filters, profiles);
+  const entityTypes = types.map(t => ({ ...t, attributeKeys: keys.get(t.type) || [], template: extra.templates.get(t.type) ?? 'collection' }));
   return {
     entityTypes,
     predicates,
@@ -185,6 +185,9 @@ export async function getMetaGraph({ includeClosed = false, sourceId = null, wit
     entityLinks,
     systemTypes,
     profiles,
+    enrichments: extra.enrichments,
+    activities: extra.activities,
+    pairs: extra.pairs,
     totals: {
       entities: sum(types, 'count', 'proposed'),
       relations: sum(predicates, 'count', 'proposed'),

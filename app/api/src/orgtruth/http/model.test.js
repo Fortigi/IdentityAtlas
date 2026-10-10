@@ -38,7 +38,8 @@ describe('GET /org-truth/model', () => {
     expect(r.body.entityLinks).toEqual([]);
     expect(r.body.profiles).toEqual([]);
     // types, keys, predicates, links, entity links, sources, system counts, profiles
-    expect(query).toHaveBeenCalledTimes(8);
+    // + the template parts: templates, enrichments, activities, activity keys, pairs
+    expect(query).toHaveBeenCalledTimes(13);
     expect(query.mock.calls[0][0]).toMatch(/"validTo" IS NULL/);
   });
 
@@ -47,7 +48,7 @@ describe('GET /org-truth/model', () => {
     const r = await request(app).get(`/api/org-truth/model?includeClosed=1&sourceId=${SRC}&withSystemCounts=0`);
     expect(r.status).toBe(200);
     expect(r.body.systemTypes).toEqual([]);
-    expect(query).toHaveBeenCalledTimes(7);
+    expect(query).toHaveBeenCalledTimes(12);
     expect(query.mock.calls[0][0]).not.toMatch(/"validTo" IS NULL/);
     expect(query.mock.calls[0][1]).toEqual([SRC]);
   });
@@ -55,7 +56,7 @@ describe('GET /org-truth/model', () => {
   it('also skips system counts for withSystemCounts=false', async () => {
     query.mockResolvedValue({ rows: [] });
     await request(app).get('/api/org-truth/model?withSystemCounts=false');
-    expect(query).toHaveBeenCalledTimes(7);
+    expect(query).toHaveBeenCalledTimes(12);
     expect(query.mock.calls.some(([sql]) => sql.includes('FROM "Principals"'))).toBe(false);
   });
 

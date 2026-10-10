@@ -12,6 +12,7 @@
 //   { kind: 'context',   contextId,  includeChildren }
 //   { kind: 'attribute', field,      values: [...] }   // values are OR'd
 //   { kind: 'org',       entityType, entityIds?, attribute?, via? }  // see orgCondition.js
+//   { kind: 'attribute', field: 'org.<SourceType>.<attr>', values }    // see enrichmentCondition.js
 //
 // `buildEntitySubquery` turns a `{ include, exclude }` block into a parenthesised
 // `(SELECT id FROM "<Table>" WHERE …)` that the matrix data and preview queries
@@ -23,6 +24,7 @@
 // map into `buildEntitySubquery` so the module stays free of DB knowledge.
 
 import { orgConditionClause } from './orgCondition.js';
+import { isEnrichmentField, enrichmentConditionClause } from './enrichmentCondition.js';
 
 export const UUID_RE =/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SAFE_IDENT_RE = /^[a-zA-Z0-9_]+$/;
@@ -139,6 +141,11 @@ function buildConditionClause({ entity, cond, validColumns, contextTypes, bind }
       bind,
     });
     return clause ? { clause } : { warning: `context type ${ctxType} incompatible with entity ${entity} — dropped` };
+  }
+
+  // ─── enrichment attribute (see enrichmentCondition.js) ──────
+  if (cond.kind === 'attribute' && isEnrichmentField(cond.field)) {
+    return enrichmentConditionClause({ entity, idExpr: 'id', field: cond.field, values: cond.values, bind });
   }
 
   // ─── attribute match ────────────────────────────────────────

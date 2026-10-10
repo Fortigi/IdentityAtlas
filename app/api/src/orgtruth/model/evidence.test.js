@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 vi.mock('../../db/connection.js');
 import { query, queryOne } from '../../db/connection.js';
 import { monthOf, periodOf, hoursOf, computeEvidence, getEvidence } from './evidence.js';
+import { familyIndex } from '../activity/family.js';
 
 const ID = 'e0000000-0000-4000-8000-000000000001';
 
@@ -58,10 +59,23 @@ describe('hoursOf', () => {
   });
 });
 
+
 describe('computeEvidence', () => {
   const entity = { id: ID, entityType: 'Customer', displayName: 'Contoso', extra: 'dropped' };
-  const sheet = (id, attrs) => ({ id, entityType: 'Timesheet', attributes: attrs });
-  const labels = new Map([['ann', 'Ann Example'], ['bob', 'Bob Example'], ['cas', 'Cas Example'], ['dee', 'Dee Example']]);
+  // activity/sql.js roll-up rows (byMonth): one per (type, subject, actor, month)
+  const row = (actorType, actorId, month, rowCount, total) => ({
+    activityType: 'Timesheet', unit: 'h', subjectType: 'OrgEntity', subjectId: ID, actorType, actorId, month, rowCount, total,
+    firstOn: month ? `${month}-01` : null, lastOn: month ? `${month}-01` : null,
+  });
+  // ann has two records: account 'ann' and identity 'idAnn'; bob's account 'bob2' is a sibling of listed 'bob'
+  const family = familyIndex([
+    { principalId: 'ann', identityId: 'idAnn' },
+    { principalId: 'bob', identityId: 'idBob' }, { principalId: 'bob2', identityId: 'idBob' },
+  ]);
+  const labels = new Map([
+    ['Principal:ann', { label: 'Ann Example' }], ['Principal:bob', { label: 'Bob Example' }], ['Principal:cas', { label: 'Cas Example' }],
+    ['Principal:dee', { label: 'Dee Example' }], ['Identity:idEve', { label: 'Eve Example' }],
+  ]);
   const input = {
     entity,
     directLinks: [
@@ -71,20 +85,15 @@ describe('computeEvidence', () => {
       { via: 'team', targetId: 'bob' },   // listed twice: once
       { via: null, targetId: 'zed' },     // no via: the name itself
     ],
-    referrers: [
-      sheet('t1', { jaar: '2026', maand: 'januari', uren: '10,5' }),
-      sheet('t2', JSON.stringify({ jaar: '2026', maand: 'maart', uren: '4,0' })),
-      sheet('t3', { jaar: '2025', maand: 'december', uren: '20,0' }),
-      sheet('t4', { jaar: '2026', maand: 'februari', uren: '2,25' }),
-      sheet('t5', { uren: '1,0' }),                                // no period
+    activities: [
+      row('Principal', 'ann', '2026-01', 1, 10.5),
+      row('Identity', 'idAnn', '2026-03', 1, 4),          // ann's identity counts for her listed account
+      row('Principal', 'dee', '2025-12', 1, 20),
+      row('Principal', 'bob2', '2026-02', 2, 2.25),        // bob's other account counts for bob
+      row('Identity', 'idEve', '2026-02', 1, 1.04),         // an identity nobody listed
+      row(null, null, '2026-02', 3, 1),                      // actor unresolved
     ],
-    referrerLinks: [
-      { orgEntityId: 't1', targetId: 'ann' },
-      { orgEntityId: 't2', targetId: 'ann' },
-      { orgEntityId: 't3', targetId: 'dee' },
-      { orgEntityId: 't4', targetId: 'cas' },
-      { orgEntityId: 't4', targetId: 'eve' },                       // a row naming two people counts for both
-    ],
+    family,
     labels,
   };
   const out = computeEvidence(input);
@@ -93,42 +102,38 @@ describe('computeEvidence', () => {
     expect(out.entity).toEqual({ id: ID, entityType: 'Customer', displayName: 'Contoso' });
   });
 
-  it('lists the people per attribute, each marked with whether, how much and until when they worked on it', () => {
+  it('lists the people per attribute, crediting work done under any record of the same person', () => {
     expect(out.people).toEqual([
       { via: 'eigenaar', principals: [{ principalId: 'ann', label: 'Ann Example', worked: true, rows: 2, hours: 14.5, lastPeriod: '2026-03' }] },
       { via: 'team', principals: [
-        { principalId: 'bob', label: 'Bob Example', worked: false, rows: 0, hours: 0, lastPeriod: null },
-        { principalId: 'cas', label: 'Cas Example', worked: true, rows: 1, hours: 2.3, lastPeriod: '2026-02' },
+        { principalId: 'bob', label: 'Bob Example', worked: true, rows: 2, hours: 2.3, lastPeriod: '2026-02' },
+        { principalId: 'cas', label: 'Cas Example', worked: false, rows: 0, hours: 0, lastPeriod: null },
       ] },
       { via: 'displayName', principals: [{ principalId: 'zed', label: null, worked: false, rows: 0, hours: 0, lastPeriod: null }] },
     ]);
   });
 
-  it('sums the activity over all referring rows: rows, hours, first and last period, distinct periods, unlinked rows', () => {
+  it('sums the activity over all rows: rows, hours, first and last month, distinct months, rows without a resolved person', () => {
     expect(out.activity).toEqual({
-      referrerTypes: ['Timesheet'], rows: 5, hours: 37.8, firstPeriod: '2025-12', lastPeriod: '2026-03', periods: 4, unlinkedRows: 1,
+      referrerTypes: ['Timesheet'], rows: 9, hours: 38.8, firstPeriod: '2025-12', lastPeriod: '2026-03', periods: 4, unlinkedRows: 3,
     });
   });
 
-  it('names who worked on it without being listed, most hours first', () => {
+  it('names who worked on it without being listed, most hours first, with the record type', () => {
     expect(out.workedNotListed).toEqual([
-      { principalId: 'dee', label: 'Dee Example', rows: 1, hours: 20, lastPeriod: '2025-12' },
-      { principalId: 'eve', label: null, rows: 1, hours: 2.3, lastPeriod: '2026-02' },
+      { principalId: 'dee', targetType: 'Principal', label: 'Dee Example', rows: 1, hours: 20, lastPeriod: '2025-12' },
+      { principalId: 'idEve', targetType: 'Identity', label: 'Eve Example', rows: 1, hours: 1, lastPeriod: '2026-02' },
     ]);
   });
 
-  it('the last period of a person is the latest of their rows, whatever the order', () => {
-    const e = computeEvidence({
-      ...input,
-      referrers: [sheet('a', { jaar: '2026', maand: 'mei' }), sheet('b', { jaar: '2026', maand: 'jan' }), sheet('c', { uren: '1,0' })],
-      referrerLinks: [{ orgEntityId: 'a', targetId: 'ann' }, { orgEntityId: 'b', targetId: 'ann' }, { orgEntityId: 'c', targetId: 'ann' }],
-    });
-    expect(e.people[0].principals[0]).toMatchObject({ rows: 3, lastPeriod: '2026-05' });
-    expect(e.activity).toMatchObject({ firstPeriod: '2026-01', lastPeriod: '2026-05', periods: 2, unlinkedRows: 0 });
+  it('a row without a month takes the period of its last date', () => {
+    const e = computeEvidence({ ...input, activities: [{ ...row('Principal', 'ann', null, 1, 1), lastOn: '2026-05-14' }] });
+    expect(e.people[0].principals[0]).toMatchObject({ rows: 1, lastPeriod: '2026-05' });
+    expect(e.activity).toMatchObject({ firstPeriod: '2026-05', lastPeriod: '2026-05', periods: 1, unlinkedRows: 0 });
   });
 
-  it('no referring rows: activity null, nobody worked', () => {
-    const e = computeEvidence({ ...input, referrers: [], referrerLinks: [] });
+  it('no activity: activity null, nobody worked', () => {
+    const e = computeEvidence({ ...input, activities: [] });
     expect(e.activity).toBeNull();
     expect(e.workedNotListed).toEqual([]);
     expect(e.people[0].principals[0]).toMatchObject({ worked: false, rows: 0 });
@@ -143,31 +148,30 @@ describe('getEvidence', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('reads the direct links, the referring rows of other types, their people and the labels', async () => {
+  it('reads the direct links, the accepted activity on the entity, the people\'s identity links and labels', async () => {
     queryOne.mockResolvedValueOnce({ id: ID, entityType: 'Customer', displayName: 'Contoso' });
     query
       .mockResolvedValueOnce({ rows: [{ via: 'eigenaar', targetId: 'ann' }] })
-      .mockResolvedValueOnce({ rows: [{ id: 't1', entityType: 'Timesheet', attributes: { jaar: '2026', maand: '4', uren: '3,5' } }] })
-      .mockResolvedValueOnce({ rows: [{ orgEntityId: 't1', targetId: 'bob' }] })
-      .mockResolvedValueOnce({ rows: [{ id: 'ann', displayName: 'Ann Example' }, { id: 'bob', displayName: 'Bob Example' }] });
+      .mockResolvedValueOnce({ rows: [{ activityType: 'Timesheet', subjectId: ID, actorType: 'Principal', actorId: 'bob', month: '2026-04', rowCount: 1, total: 3.5, lastOn: '2026-04-01' }] })
+      .mockResolvedValueOnce({ rows: [] })                                                    // IdentityMembers
+      .mockResolvedValueOnce({ rows: [{ id: 'ann', label: 'Ann Example' }, { id: 'bob', label: 'Bob Example' }] });
     const out = await getEvidence(ID);
 
-    const [direct, referrers, people, labels] = query.mock.calls;
+    const [direct, activity, family, labels] = query.mock.calls;
     expect(direct[0]).toMatch(/WHERE "orgEntityId" = \$1 AND "status" = 'accepted' AND "targetType" = 'Principal'/);
     expect(direct[1]).toEqual([ID]);
-    expect(referrers[0]).toMatch(/l\."targetType" = 'OrgEntity' AND l\."targetId" = \$1 AND l\."status" = 'accepted'/);
-    expect(referrers[0]).toMatch(/l\."via" IS DISTINCT FROM 'displayName'/);
-    expect(referrers[0]).toMatch(/r\."status" = 'accepted' AND r\."validTo" IS NULL AND r\."entityType" <> \$2/);
-    expect(referrers[1]).toEqual([ID, 'Customer']);
-    expect(people[0]).toMatch(/"orgEntityId" = ANY\(\$1::uuid\[\]\) AND "status" = 'accepted' AND "targetType" = 'Principal'/);
-    expect(people[1]).toEqual([['t1']]);
+    expect(activity[0]).toMatch(/FROM "OrgActivities" a/);
+    expect(activity[0]).toMatch(/sk\."targetType" = 'OrgEntity' AND sk\."targetId" = \$1/);
+    expect(activity[0]).toMatch(/to_char\(a\."occurredOn", 'YYYY-MM'\) AS month/);
+    expect(activity[1]).toEqual([ID]);
+    expect(family[1]).toEqual([['ann', 'bob']]);
     expect(labels[1]).toEqual([['ann', 'bob']]);
 
     expect(out.people).toEqual([{ via: 'eigenaar', principals: [{ principalId: 'ann', label: 'Ann Example', worked: false, rows: 0, hours: 0, lastPeriod: null }] }]);
-    expect(out.workedNotListed).toEqual([{ principalId: 'bob', label: 'Bob Example', rows: 1, hours: 3.5, lastPeriod: '2026-04' }]);
+    expect(out.workedNotListed).toEqual([{ principalId: 'bob', targetType: 'Principal', label: 'Bob Example', rows: 1, hours: 3.5, lastPeriod: '2026-04' }]);
   });
 
-  it('skips the people and label reads when there is nothing to look up', async () => {
+  it('skips the identity and label reads when there is nobody to look up', async () => {
     queryOne.mockResolvedValueOnce({ id: ID, entityType: 'Customer', displayName: 'Contoso' });
     query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
     const out = await getEvidence(ID);

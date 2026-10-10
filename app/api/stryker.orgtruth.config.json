@@ -58,7 +58,22 @@
     "src/orgtruth/http/profiles.js",
     "src/orgtruth/http/runs.js",
     "src/orgtruth/model/layout.js",
-    "src/orgtruth/http/layout.js"
+    "src/orgtruth/http/layout.js",
+    "src/orgtruth/templates.js",
+    "src/orgtruth/model/claimFilter.js",
+    "src/orgtruth/model/templateGraph.js",
+    "src/orgtruth/enrichment/sql.js",
+    "src/orgtruth/enrichment/read.js",
+    "src/orgtruth/activity/sql.js",
+    "src/orgtruth/activity/family.js",
+    "src/orgtruth/activity/subject.js",
+    "src/orgtruth/activity/actor.js",
+    "src/orgtruth/signals/settings.js",
+    "src/orgtruth/signals/findings.js",
+    "src/orgtruth/signals/read.js",
+    "src/orgtruth/http/enrichment.js",
+    "src/orgtruth/http/activity.js",
+    "src/orgtruth/http/signals.js"
   ],
   "mutationExclusions": {
     "src/orgtruth/http/gates.js": "Declaration, not logic: the two gate arrays (permission + feature flag) every org-truth route reuses. Which permission guards which route is asserted by the route tests of each sub-router; there is no branch here to mutate."

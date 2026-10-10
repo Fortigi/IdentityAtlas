@@ -17,7 +17,13 @@ const QUERIES = {
   entityLinks: (sql) => sql.includes('FROM "OrgLinks"') && sql.includes(`l."targetType" = 'OrgEntity'`),
   sources:     (sql) => sql.includes('FROM "OrgSources"'),
   system:      (sql) => sql.includes('FROM "Principals"'),
-  profiles:    (sql) => sql.includes('FROM "OrgImportProfiles" p'),
+  profiles:    (sql) => sql.includes('WHERE p.version = (SELECT MAX'),
+  // the T10 template parts (templateGraph.js)
+  templates:   (sql) => sql.includes('AS template'),
+  enrichments: (sql) => sql.includes("p.\"template\" = 'enrichment'"),
+  pairs:       (sql) => sql.includes("p.\"template\" = 'relation'"),
+  activities:  (sql) => sql.includes('FROM "OrgActivities" a'),
+  activityKeys:(sql) => sql.includes('FROM "OrgActivityKeys"'),
 };
 const kindOf = (sql) => Object.keys(QUERIES).filter(k => QUERIES[k](sql));
 
@@ -70,8 +76,8 @@ describe('getMetaGraph', () => {
     const out = await getMetaGraph();
     expect(out).toEqual({
       entityTypes: [
-        { type: 'Person', count: 51, proposed: 2, sources: 1, lastObservedAt: LAST, attributeKeys: [] },
-        { type: 'Project', count: 87, proposed: 0, sources: 2, lastObservedAt: LAST, attributeKeys: ['budget', 'costCenter'] },
+        { type: 'Person', count: 51, proposed: 2, sources: 1, lastObservedAt: LAST, attributeKeys: [], template: 'collection' },
+        { type: 'Project', count: 87, proposed: 0, sources: 2, lastObservedAt: LAST, attributeKeys: ['budget', 'costCenter'], template: 'collection' },
       ],
       predicates: [{ predicate: 'owner', fromType: 'Project', toType: 'Person', count: 85, proposed: 3 }],
       links: ROWS.links,
@@ -81,10 +87,24 @@ describe('getMetaGraph', () => {
         { targetType: 'Identity', count: 600 }, { targetType: 'Context', count: 42 },
       ],
       profiles: [PROFILE],
+      enrichments: [], activities: [], pairs: [],
       // links = 51+9+7+0 to the system truth + 4+1 between lists
       totals: { entities: 140, relations: 88, links: 72, sources: 2 },
     });
-    expect(query).toHaveBeenCalledTimes(8);
+    expect(query).toHaveBeenCalledTimes(13);
+  });
+
+  it('stamps each entity type with its template and passes the template parts through', async () => {
+    stage({
+      ...ROWS,
+      // Person: more rows from an enrichment than as a collection → the most frequent wins (order = n DESC)
+      templates: [{ type: 'Person', template: 'enrichment', n: 40 }, { type: 'Person', template: 'collection', n: 11 }],
+      pairs: [{ type: 'SoD', profileName: 'SoD', count: 3 }],
+    });
+    const out = await getMetaGraph();
+    expect(out.entityTypes.map(t => [t.type, t.template])).toEqual([['Person', 'enrichment'], ['Project', 'collection']]);
+    expect(out.pairs).toEqual([{ type: 'SoD', predicate: null, leftType: null, rightType: null, count: 3 }]);
+    expect(callOf('templates')[0]).toMatch(/COALESCE\(\(SELECT p\."template" FROM "OrgImportProfiles" p WHERE p\."id" = e\."profileId"\), 'collection'\)/);
   });
 
   it('counts links between lists in totals.links even with no system links', async () => {
@@ -155,10 +175,11 @@ describe('getMetaGraph', () => {
   it('skips the system counts when asked, and survives empty result sets', async () => {
     stage({});
     const out = await getMetaGraph({ withSystemCounts: false });
-    expect(query).toHaveBeenCalledTimes(7);
+    expect(query).toHaveBeenCalledTimes(12);
     expect(query.mock.calls.some(([sql]) => QUERIES.system(sql))).toBe(false);
     expect(out).toEqual({
       entityTypes: [], predicates: [], links: [], entityLinks: [], systemTypes: [], profiles: [],
+      enrichments: [], activities: [], pairs: [],
       totals: { entities: 0, relations: 0, links: 0, sources: 0 },
     });
   });

@@ -23,3 +23,4 @@
 - The import button and wizard are called "Import additional information"; the screens no longer speak of "organisation truth" or "system truth".
 - In the Relationships graph, the organisation entities of one kind are one node with a count (for example "14 Klant"), like memberships and business roles; opening it shows each one with every way it is linked on a single line.
 - Organisation → Model shows only the model canvas; the separate overview diagram, table view and per-list filter above it are gone.
+- Imported enrichment lists (for example expertises) now show as ordinary attributes on people, accounts and resources and can be used in matrix filters ("expertise A and B but not C"); activity lists such as timesheets show per customer and per person, and a new set of signals flags inactive customers, customers marked inactive that are still active, people working on a customer without being a member, and members without activity, over a configurable period.
