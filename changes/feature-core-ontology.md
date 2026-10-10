@@ -1,0 +1,5 @@
+- Added the Identity Atlas core ontology (`ontology/core.ttl`): a standard OWL/Turtle description of the built-in graph model — systems, accounts, resources, persons, contexts, the tables that connect them, every column, and every principal, resource, relationship and assignment type — that Protégé and other RDF/OWL tools can open directly
+- Added a generated Core Model Reference page to the documentation, listing every table, column, type value and relationship type with its meaning, plus a generated class diagram of the type hierarchy
+- The Entity Relationship Diagram on the Data Model page is now generated from the ontology, so it always matches the real schema (it previously showed columns that do not exist and missed the principal relationships table)
+- Corrected the PrincipalActivity description on the Data Model page (its columns and key)
+- CI now fails when the data model changes without the ontology — for example a new relationship type, principal type, column or allowed value — and when a data-model diagram in the docs drifts from it; run `npm run ontology:check` in `app/api` to check locally
