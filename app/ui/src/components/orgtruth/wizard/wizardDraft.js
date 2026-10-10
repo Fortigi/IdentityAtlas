@@ -1,7 +1,7 @@
 // Organisation → Import wizard: the draft and every edit to it (PURE).
 //
 // The wizard's whole state is one plain object (the "draft"); every control in
-// the six step panels calls one of the functions below and hands the result to
+// the seven step panels calls one of the functions below and hands the result to
 // setDraft. Nothing here touches React, the network or the clock, so the edits
 // are unit-tested and mutation-tested on their own (stryker.orgtruth.config.json).
 //
@@ -11,6 +11,7 @@
 //     source: null | { id, displayName, fileName, observedAt, rowCount, columns: [profile columns] },
 //     recipe: { version: 1, entities: [], relations: [] }, linkRules: [],
 //     proposalOrigin: null | 'model' | 'heuristic', notes: [],
+//     templateProposal: null | { kind, confidence, reason, alternatives }, templateChosen: false,
 //     detection: { [entityType]: [candidates] }, quality: null | report, qualityStale: false,
 //     threshold: 50, profileName: '' }
 //
@@ -31,6 +32,18 @@
 //     candidate for another target type or attribute starts another rule.
 //   - Repeat mode saves a new profile version when the analyst adjusted the
 //     configuration OR the recipe / link rules differ from the stored profile.
+//   - recipe.template picks the recipe's shape (templateDraft.js); a recipe
+//     without one is a collection and is sent without it, exactly as before.
+//     templateProposal is the UNFORCED proposal's template block: picking
+//     another kind re-proposes (templateChosen) but keeps it, so the card the
+//     data suggested stays marked with its reason.
+//   - Activity and relation imports send no link rules (the API generates
+//     what they need); a collection or enrichment sends the draft's rules.
+
+import {
+  activityFindings, activityForApi, activityProblems, attributesForApi, enrichmentProblems, linksTemplate, proposalTemplate,
+  proposedKind, relationForApi, relationProblems, sectionColumns, templateOf, withTemplateDefaults,
+} from './templateDraft';
 
 export const LINK_TARGETS = Object.freeze({
   Principal: ['email', 'employeeId', 'displayName'],
@@ -49,12 +62,13 @@ const clampInt = (n, lo, hi) => Math.min(hi, Math.max(lo, Math.round(Number(n) |
 const replaceAt = (list, i, item) => list.map((x, idx) => (idx === i ? item : x));
 const withoutAt = (list, i) => list.filter((_, idx) => idx !== i);
 const emptyRecipe = () => ({ version: 1, entities: [], relations: [] });
+const kindOf = (draft) => templateOf(draft.recipe);
 
 // ─── Creating and choosing ───────────────────────────────────────────────
 export function emptyDraft(profile = null) {
   const base = {
     mode: 'new', profile: null, runMode: 'full', adjust: false, source: null,
-    recipe: emptyRecipe(), linkRules: [], proposalOrigin: null, notes: [],
+    recipe: emptyRecipe(), linkRules: [], proposalOrigin: null, notes: [], templateProposal: null, templateChosen: false,
     detection: {}, quality: null, qualityStale: false, threshold: DEFAULT_THRESHOLD, profileName: '',
   };
   return profile ? selectProfile(base, profile) : base;
@@ -65,13 +79,21 @@ export function setMode(draft, mode) {
   return { ...draft, mode: 'repeat' };
 }
 
+// A stored profile's recipe in the shape its template needs; a collection
+// recipe is used as stored. The template may sit on the recipe or the profile.
+export function profileRecipe(profile) {
+  const recipe = profile?.recipe ?? emptyRecipe();
+  const kind = recipe.template ?? profile?.template;
+  return !kind || kind === 'collection' ? recipe : withTemplateDefaults(recipe, kind);
+}
+
 export function selectProfile(draft, profile) {
-  const recipe = profile.recipe ?? emptyRecipe();
+  const recipe = profileRecipe(profile);
   const linkRules = profile.linkRules ?? [];
   return {
     ...draft, mode: 'repeat', profile, recipe, linkRules,
     threshold: linkRules[0]?.threshold ?? DEFAULT_THRESHOLD,
-    profileName: profile.name ?? '', detection: {}, quality: null,
+    profileName: profile.name ?? '', detection: {}, quality: null, templateProposal: null, templateChosen: false,
   };
 }
 
@@ -94,17 +116,34 @@ export function columnNames(draft) {
   return (draft.source?.columns ?? []).map(c => c.name);
 }
 
-export function applyProposal(draft, proposal) {
+// forcedKind: the proposal answers POST /propose/recipe { template } — the
+// analyst's choice — so the recipe takes that shape whatever the answer says,
+// and the unforced proposal's template block stays.
+export function applyProposal(draft, proposal, forcedKind = null) {
   const linkRules = (proposal.linkRules ?? []).map(r => ({ ...r, via: ruleVia(r), threshold: r.threshold ?? draft.threshold }));
   return {
     ...draft,
-    recipe: { ...emptyRecipe(), ...proposal.recipe },
+    recipe: withTemplateDefaults({ ...emptyRecipe(), ...proposal.recipe }, forcedKind ?? proposedKind(proposal)),
     linkRules,
     proposalOrigin: proposal.origin ?? 'heuristic',
     notes: proposal.notes ?? [],
+    templateProposal: forcedKind ? draft.templateProposal : proposalTemplate(proposal),
+    templateChosen: !!forcedKind,
     detection: {}, quality: null,
   };
 }
+
+// The analyst picks a kind: an empty recipe of that shape (filled by the
+// re-proposal when it answers) and no rules carried over from another kind.
+export function chooseTemplate(draft, kind) {
+  return {
+    ...draft, recipe: withTemplateDefaults(emptyRecipe(), kind), linkRules: [], notes: [],
+    templateChosen: true, detection: {}, quality: null,
+  };
+}
+
+// An edit to a template section: fn(recipe) → recipe (templateDraft.js edits).
+export const editTemplate = (draft, fn) => ({ ...draft, recipe: fn(draft.recipe), quality: null });
 
 // ─── Entities, attributes, relations ─────────────────────────────────────
 const withRecipe = (draft, recipe) => ({ ...draft, recipe, quality: null });
@@ -278,6 +317,14 @@ export function setQuality(draft, report) {
 // Sentences describing what keeps the recipe from being valid (a subset of
 // validateRecipe in the contracts: the parts an editor can get wrong).
 export function recipeProblems(draft) {
+  const kind = kindOf(draft);
+  if (kind === 'activity') return activityProblems(draft.recipe.activity);
+  if (kind === 'relation') return relationProblems(draft.recipe.relation);
+  if (kind === 'enrichment') return enrichmentProblems(draft.recipe);
+  return collectionProblems(draft);
+}
+
+function collectionProblems(draft) {
   const problems = [];
   const entities = draft.recipe.entities;
   if (entities.length === 0) problems.push('Add at least one entity.');
@@ -300,11 +347,10 @@ export function recipeProblems(draft) {
 export function staleColumns(draft) {
   if (!draft.source) return [];
   const have = new Set(columnNames(draft));
+  const cols = (draft.recipe.entities ?? []).flatMap(e => [e.nameColumn, e.keyColumn, ...(e.attributes ?? []).map(a => a.column)]);
   const used = [];
-  for (const e of draft.recipe.entities) {
-    for (const col of [e.nameColumn, e.keyColumn, ...(e.attributes ?? []).map(a => a.column)]) {
-      if (trimmed(col) && !have.has(col) && !used.includes(col)) used.push(col);
-    }
+  for (const col of [...cols, ...sectionColumns(draft.recipe)]) {
+    if (trimmed(col) && !have.has(col) && !used.includes(col)) used.push(col);
   }
   return used;
 }
@@ -351,70 +397,105 @@ export function qualityVerdict(report, threshold) {
   linkFindings(report.links, blockers, warnings);
   keyWarnings(report.entities, warnings);
   closeWarnings(report.wouldClose, warnings);
+  activityFindings(report, blockers, warnings);
   if (threshold < 30) warnings.push(`A threshold of ${threshold} links on weak evidence; most links will need review.`);
   return { canStart: blockers.length === 0, warnings, blockers };
 }
+
+// The rule an enrichment needs: one that links its list to the target type
+// (any attribute; the key column's rule is the usual one). Null when missing.
+export function enrichKeyRule(draft) {
+  const type = trimmed(draft.recipe.entities[0]?.type);
+  const target = draft.recipe.enrich?.targetType;
+  return draft.linkRules.find(r => r.entityType === type && r.targetType === target) ?? null;
+}
+
+// The steps: 1 Start, 2 Source, 3 Kind, 4 Model, 5 Links, 6 Quality, 7 Confirm.
+export const LAST_STEP = 7;
 
 export function stepReady(step, draft) {
   switch (step) {
     case 1: return draft.mode === 'new' || draft.profile !== null;
     case 2: return draft.source !== null;
-    case 3: return recipeProblems(draft).length === 0;
-    case 4: return true;
-    case 5: return !draft.qualityStale && qualityVerdict(draft.quality, draft.threshold).canStart;
-    case 6: return trimmed(draft.profileName).length > 0;
+    case 3: return true;
+    case 4: return recipeProblems(draft).length === 0;
+    case 5: return kindOf(draft) !== 'enrichment' || enrichKeyRule(draft) !== null;
+    case 6: return !draft.qualityStale && qualityVerdict(draft.quality, draft.threshold).canStart;
+    case 7: return trimmed(draft.profileName).length > 0;
     default: return false;
   }
 }
 
-// Step 3 is shown for a new import, or for a repeat the analyst adjusts.
+// Steps 3 and 4 are shown for a new import, or for a repeat the analyst adjusts.
 export const modelStepShown = (draft) => draft.mode === 'new' || draft.adjust;
 
+// Step 5 (links) only for the kinds that carry link rules.
+export function stepShown(step, draft) {
+  if (step === 3 || step === 4) return modelStepShown(draft);
+  if (step === 5) return linksTemplate(kindOf(draft));
+  return true;
+}
+
 // Step 3 proposes on its own when it opens on a source with nothing proposed
-// or modelled yet. A recipe that is already there (a repeat's profile, or one
-// the analyst started after a failed proposal) is never overwritten unasked.
+// or modelled yet. A recipe that is already there (a repeat's profile, a kind
+// the analyst picked, or one started after a failed proposal) is never
+// overwritten unasked.
 export const shouldAutoPropose = (draft) => modelStepShown(draft) && draft.source !== null
-  && draft.proposalOrigin === null && draft.recipe.entities.length === 0;
+  && draft.proposalOrigin === null && !draft.templateChosen
+  && kindOf(draft) === 'collection' && draft.recipe.entities.length === 0;
 
 export function nextStep(step, draft) {
-  const n = step + 1;
-  return n === 3 && !modelStepShown(draft) ? 4 : n;
+  let n = step + 1;
+  while (n < LAST_STEP && !stepShown(n, draft)) n += 1;
+  return n;
 }
 
 export function prevStep(step, draft) {
-  const n = step - 1;
-  return n === 3 && !modelStepShown(draft) ? 2 : n;
+  let n = step - 1;
+  while (n > 1 && !stepShown(n, draft)) n -= 1;
+  return n;
 }
 
 // ─── What the API receives ───────────────────────────────────────────────
-export function recipeForApi(recipe) {
-  return {
-    version: 1,
-    entities: recipe.entities.map(e => {
-      const out = { type: trimmed(e.type), nameColumn: e.nameColumn };
-      if (trimmed(e.keyColumn)) out.keyColumn = e.keyColumn;
-      if (trimmed(e.nameAttribute)) out.nameAttribute = trimmed(e.nameAttribute);
-      out.attributes = (e.attributes ?? []).filter(a => trimmed(a.column)).map(a => (
-        trimmed(a.name) ? { column: a.column, name: trimmed(a.name) } : { column: a.column }
-      ));
-      return out;
-    }),
-    relations: recipe.relations.map(r => ({ predicate: trimmed(r.predicate), from: trimmed(r.from), to: trimmed(r.to) })),
-  };
+function entitiesForApi(entities) {
+  return entities.map(e => {
+    const out = { type: trimmed(e.type), nameColumn: e.nameColumn };
+    if (trimmed(e.keyColumn)) out.keyColumn = e.keyColumn;
+    if (trimmed(e.nameAttribute)) out.nameAttribute = trimmed(e.nameAttribute);
+    out.attributes = attributesForApi(e.attributes);
+    return out;
+  });
 }
 
+// A collection goes out as before, without `template`; the other kinds carry it.
+export function recipeForApi(recipe) {
+  const kind = templateOf(recipe);
+  if (kind === 'activity') return { version: 1, template: kind, activity: activityForApi(recipe.activity) };
+  if (kind === 'relation') return { version: 1, template: kind, relation: relationForApi(recipe.relation) };
+  const out = {
+    version: 1,
+    entities: entitiesForApi(recipe.entities),
+    relations: recipe.relations.map(r => ({ predicate: trimmed(r.predicate), from: trimmed(r.from), to: trimmed(r.to) })),
+  };
+  return kind === 'enrichment' ? { ...out, template: kind, enrich: { targetType: recipe.enrich?.targetType } } : out;
+}
+
+const rulesForApi = (draft) => (linksTemplate(kindOf(draft)) ? draft.linkRules : []);
+
 export function profileBody(draft) {
-  return { name: trimmed(draft.profileName), sourceKind: 'list', recipe: recipeForApi(draft.recipe), linkRules: draft.linkRules };
+  return { name: trimmed(draft.profileName), sourceKind: 'list', recipe: recipeForApi(draft.recipe), linkRules: rulesForApi(draft) };
 }
 
 // POST /propose/recipe takes the column profile, not the source id (integrator
-// contract update): { fileName, columns, rowCount? }.
-export function proposeBody(draft) {
+// contract update): { fileName, columns, rowCount? }. `template` forces the
+// kind of list (the analyst's pick on step 3); without it the server proposes one.
+export function proposeBody(draft, template) {
   const s = draft.source ?? {};
   const body = { fileName: s.fileName || s.displayName || '', columns: s.columns ?? [] };
   if (Number.isInteger(s.rowCount)) body.rowCount = s.rowCount;
   // the stored source lets the server probe the VALUES against accounts and other lists
   if (s.id) body.sourceId = s.id;
+  if (template) body.template = template;
   return body;
 }
 
@@ -425,14 +506,14 @@ export function columnNamesOnly(status) {
 }
 
 export function dryRunBody(draft) {
-  return { sourceId: draft.source?.id, recipe: recipeForApi(draft.recipe), linkRules: draft.linkRules, mode: draft.runMode };
+  return { sourceId: draft.source?.id, recipe: recipeForApi(draft.recipe), linkRules: rulesForApi(draft), mode: draft.runMode };
 }
 
 // 'create' a new profile, save a new 'version' of the chosen one, or 'reuse' it as is.
 export function profileAction(draft) {
   if (draft.mode === 'new' || !draft.profile) return 'create';
   if (draft.adjust) return 'version';
-  const same = JSON.stringify(recipeForApi(draft.recipe)) === JSON.stringify(recipeForApi(draft.profile.recipe ?? emptyRecipe()))
+  const same = JSON.stringify(recipeForApi(draft.recipe)) === JSON.stringify(recipeForApi(profileRecipe(draft.profile)))
     && JSON.stringify(draft.linkRules) === JSON.stringify(draft.profile.linkRules ?? []);
   return same ? 'reuse' : 'version';
 }

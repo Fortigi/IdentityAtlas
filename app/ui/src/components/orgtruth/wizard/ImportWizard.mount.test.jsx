@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
 //
-// The import wizard end to end against authFetch stubs: a new import (upload →
-// propose → detect → dry run → start → completed), a repeat with and without
-// adjusting, a repeat opened by profileId, and the "not available yet" path a
-// live 501 takes.
-import { describe, it, expect, vi } from 'vitest';
-import {
-  renderWithProviders, makeAuthFetch, jsonResponse, screen, userEvent, waitFor, within, fireEvent,
-} from '@ui/test-utils/renderWithProviders';
-import ImportWizard from './ImportWizard';
+// The import wizard end to end against authFetch stubs: a new import of a
+// collection (upload → kind → propose → detect → dry run → start → completed),
+// a repeat with and without adjusting, a repeat opened by profileId, and the
+// "not available yet" path a live 501 takes. The other three templates are in
+// ImportWizard.templates.mount.test.jsx.
+import { describe, it, expect } from 'vitest';
+import { jsonResponse, screen, userEvent, waitFor, within, fireEvent } from '@ui/test-utils/renderWithProviders';
+import { api, bodyOf, next, proposeCalls, renderWizard as render, upload } from '@ui/test-utils/importWizardKit';
 
 const COLUMNS = [
   { name: 'ProjectCode', shape: 'text', nonEmpty: 3, distinct: 3 },
@@ -40,35 +39,6 @@ const PROFILE = {
   linkRules: [{ entityType: 'Owner', targetType: 'Principal', via: 'email', threshold: 50, signals: [{ attribute: 'email', targetField: 'email', type: 'exact', weight: 90 }] }],
 };
 
-// A tiny router: `routes['POST /sources']` → body | Response | (opts) => body.
-function api(routes) {
-  return makeAuthFetch((url, opts) => {
-    const key = `${opts.method ?? 'GET'} ${String(url).replace('/api/org-truth', '')}`;
-    const r = routes[key];
-    return typeof r === 'function' ? r(opts) : r;
-  });
-}
-
-const bodyOf = (authFetch, key) => {
-  const call = authFetch.mock.calls.find(([url, opts]) => `${opts?.method ?? 'GET'} ${url.replace('/api/org-truth', '')}` === key);
-  return call && JSON.parse(call[1].body);
-};
-
-const proposeCalls = (authFetch) => authFetch.mock.calls.filter(([url]) => String(url).endsWith('/propose/recipe')).length;
-
-const next = () => userEvent.click(screen.getByRole('button', { name: 'Next →' }));
-
-async function upload(name = 'projects.csv') {
-  const file = new File(['ProjectCode;ProjectName\nP1;Apollo'], name, { type: 'text/csv', lastModified: Date.UTC(2026, 8, 30) });
-  await userEvent.upload(screen.getByLabelText('Choose file'), file);
-  return file;
-}
-
-function render(authFetch, props = {}) {
-  const onClose = vi.fn();
-  renderWithProviders(<ImportWizard onClose={onClose} {...props} />, { auth: { authFetch } });
-  return onClose;
-}
 
 describe('ImportWizard — new import', () => {
   it('walks upload → propose → detect → dry run → start → completed', async () => {
@@ -110,15 +80,26 @@ describe('ImportWizard — new import', () => {
     expect(within(screen.getByRole('list', { name: 'Columns' })).getAllByRole('listitem')).toHaveLength(4);
     await next();
 
-    // 3 Model
-    // the proposal runs on entering the step, no click needed
+    // 3 Kind
+    // the proposal runs on entering the step, no click needed; the cards wait for it
     expect(screen.getByRole('button', { name: 'Next →' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Proposing…' })).toBeDisabled();
-    release({ recipe: RECIPE, linkRules: [], origin: 'model', notes: ['OwnerEmail looks like an e-mail address.'], timing: { ms: 900 } });
+    expect(screen.getByText('Proposing…')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Activity/ })).toBeDisabled();
+    release({
+      recipe: RECIPE, linkRules: [], origin: 'model', notes: ['OwnerEmail looks like an e-mail address.'], timing: { ms: 900 },
+      template: { kind: 'collection', confidence: 84, reason: 'A name column with owner columns that match accounts.', alternatives: ['enrichment'] },
+    });
+    expect(await screen.findByText('A name column with owner columns that match accounts.')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Collection/ })).toBeChecked();
+    expect(screen.getByText('Proposed · 84 %')).toBeInTheDocument();
+    // the collection path sends no template: the server proposes the kind
+    expect(bodyOf(authFetch, 'POST /propose/recipe')).toEqual({ fileName: 'projects.csv', columns: COLUMNS, rowCount: 3, sourceId: 'src-1' });
+    await next();
+
+    // 4 Model
     expect(await screen.findByText(/Proposed by the model/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Propose again' })).toBeEnabled();
     expect(screen.getByText('OwnerEmail looks like an e-mail address.')).toBeInTheDocument();
-    expect(bodyOf(authFetch, 'POST /propose/recipe')).toEqual({ fileName: 'projects.csv', columns: COLUMNS, rowCount: 3, sourceId: 'src-1' });
     expect(screen.queryByText(/Proposing from column names only/)).toBeNull();
     expect(screen.getByRole('textbox', { name: 'Entity 2 type' })).toHaveValue('Owner');
     expect(screen.getByRole('combobox', { name: 'Owner name column' })).toHaveValue('OwnerName');
@@ -127,7 +108,7 @@ describe('ImportWizard — new import', () => {
     expect(proposeCalls(authFetch)).toBe(1); // edits re-render, they do not propose again
     await next();
 
-    // 4 Links
+    // 5 Links
     await userEvent.click(screen.getByRole('button', { name: 'Detect candidates for Owner' }));
     const accept = await screen.findByRole('button', { name: 'Accept: email matches 94 % unique on Principal.email (exact)' });
     expect(bodyOf(authFetch, 'POST /links/detect')).toEqual({ sourceId: 'src-1', recipe: SENT, entityType: 'Owner' });
@@ -136,7 +117,7 @@ describe('ImportWizard — new import', () => {
     expect(screen.getByText(/No link rule: Project entries/)).toBeInTheDocument();
     await next();
 
-    // 5 Quality
+    // 6 Quality
     expect(screen.getByRole('button', { name: 'Next →' })).toBeDisabled();
     await userEvent.click(screen.getByRole('button', { name: 'Run check' }));
     expect(await screen.findByText('The import can start.')).toBeInTheDocument();
@@ -149,7 +130,8 @@ describe('ImportWizard — new import', () => {
     expect(ownerCard.getByText('Owner.email → Principal · 2 values')).toBeInTheDocument();
     await next();
 
-    // 6 Confirm
+    // 7 Confirm
+    expect(screen.getByText('Kind', { selector: 'dt' }).nextSibling).toHaveTextContent('Collection');
     const start = screen.getByRole('button', { name: 'Start import' });
     expect(start).toBeDisabled();
     await userEvent.type(screen.getByRole('textbox', { name: 'Profile name' }), 'Contoso projects');
@@ -159,7 +141,7 @@ describe('ImportWizard — new import', () => {
     expect(await screen.findByText(/Import completed: 3 rows; 3 Project, 2 Owner; 2 linked/, {}, { timeout: 4000 })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalledWith(true);
-  });
+  }, 15000); // seven steps of clicks; slow under a parallel run
 
   it('keeps the editor usable when the proposal is not available, and the step-1 cancel closes without import', async () => {
     const authFetch = api({
@@ -173,12 +155,16 @@ describe('ImportWizard — new import', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Upload' }));
     await screen.findByText(/3 rows/);
     await next();
+    expect(await screen.findByText(/not available yet on this server\. Pick the kind yourself/)).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Collection/ })).toBeChecked();
+    expect(proposeCalls(authFetch)).toBe(1);
+    await next();
     expect(await screen.findByText('Proposing from column names only: the local model is not available (no model URL configured).')).toBeInTheDocument();
-    expect(await screen.findByText(/not available yet on this server\. Describe the entities yourself/)).toBeInTheDocument();
+    // the model step does not propose again on its own after a failed proposal
     expect(proposeCalls(authFetch)).toBe(1);
     await userEvent.click(screen.getByRole('button', { name: 'Propose again' }));
     await waitFor(() => expect(proposeCalls(authFetch)).toBe(2));
-    expect(await screen.findByText(/not available yet on this server/)).toBeInTheDocument();
+    expect(await screen.findByText(/not available yet on this server\. Describe the entities yourself/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: '+ Add entity' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Entity 1 type' }), 'Project');
@@ -228,13 +214,15 @@ describe('ImportWizard — new import', () => {
   });
 });
 
-// Drives a new import to step 4 with the recipe proposed and one rule accepted.
+// Drives a new import to step 5 with the recipe proposed and one rule accepted.
 async function toLinks(authFetch) {
   render(authFetch);
   await next();
   await upload();
   await userEvent.click(screen.getByRole('button', { name: 'Upload' }));
   await screen.findByText(/3 rows/);
+  await next();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Next →' })).toBeEnabled());
   await next();
   await screen.findByText(/Proposed from the column names/);
   await next();
@@ -359,6 +347,7 @@ describe('ImportWizard — repeat', () => {
 
     expect(screen.queryByRole('button', { name: /Model/ })).toBeNull();
     expect(screen.queryByText('Model')).toBeNull();
+    expect(screen.queryByText('Kind')).toBeNull();
     await upload();
     await userEvent.click(screen.getByRole('button', { name: 'Upload' }));
     await screen.findByText(/3 rows/);
@@ -400,6 +389,10 @@ describe('ImportWizard — repeat', () => {
     await upload();
     await userEvent.click(screen.getByRole('button', { name: 'Upload' }));
     await screen.findByText(/3 rows, 3 columns/);
+    await next();
+    // the profile's kind is preselected, nothing proposed
+    expect(screen.getByRole('radio', { name: /Collection/ })).toBeChecked();
+    expect(screen.queryByText(/^Proposed/)).toBeNull();
     await next();
 
     expect(screen.getByRole('textbox', { name: 'Entity 1 type' })).toHaveValue('Project');

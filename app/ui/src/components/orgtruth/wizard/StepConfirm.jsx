@@ -1,13 +1,15 @@
-// Import wizard step 6 — Confirm: the summary, the profile (a name for a new
+// Import wizard step 7 — Confirm: the summary (wizardSummary.confirmRows), the profile (a name for a new
 // one, "saves version N+1 of <name>" when a repeat changed anything, "uses
 // <name> version N" otherwise), then Start import: POST or PUT /profiles, POST
 // /runs { sourceId, profileId, mode }, and poll the run (useImportRun) until it
-// completes or fails. Close reports `imported` to the page so it refreshes.
+// completes or fails; the completed line is wizardSummary.runSummary (an
+// activity run reads its key match counts). Close reports `imported` to the page so it refreshes.
 import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useDialog } from '@ui/components/dialogContext';
 import { WizardNav } from '@ui/components/crawler/wizardFields';
-import { profileAction, profileBody, profileLine, qualityVerdict, ruleTitle, stepReady } from './wizardDraft';
+import { profileAction, profileBody, profileLine, qualityVerdict, stepReady } from './wizardDraft';
+import { confirmRows, runSummary } from './wizardSummary';
 import { sendJson } from './wizardApi';
 import { useImportRun } from './useImportRun';
 import { Field, Notice, START_IMPORT_CLS } from './wizardUi';
@@ -21,13 +23,7 @@ async function saveProfile(authFetch, draft) {
 
 function Summary({ draft }) {
   const { warnings } = qualityVerdict(draft.quality, draft.threshold);
-  const rows = [
-    ['Source', `${draft.source?.displayName ?? '—'} (${draft.source?.rowCount ?? '—'} rows)`],
-    ['Mode', draft.runMode === 'full' ? 'Full: closes what the list no longer contains' : 'Delta: changes only what is in the list'],
-    ['Entities', draft.recipe.entities.map(e => e.type).join(', ') || '—'],
-    ['Relations', draft.recipe.relations.map(r => `${r.from} ${r.predicate} ${r.to}`).join(', ') || '—'],
-    ['Link rules', draft.linkRules.map(r => `${r.entityType}: ${ruleTitle(r)} (${r.signals.length} signals)`).join(', ') || 'none'],
-  ];
+  const rows = confirmRows(draft);
   return (
     <div className="space-y-2">
       <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1 text-sm">
@@ -42,9 +38,6 @@ function Summary({ draft }) {
 }
 
 function RunProgress({ run }) {
-  const stats = run.stats ?? {};
-  const byType = stats.entities?.byType ?? {};
-  const links = stats.links ?? {};
   return (
     <div className="space-y-2" aria-live="polite">
       {run.status !== 'completed' && run.status !== 'failed' && (
@@ -52,11 +45,7 @@ function RunProgress({ run }) {
       )}
       {run.status === 'failed' && <Notice variant="error">The import failed: {run.error ?? 'unknown error'}</Notice>}
       {run.status === 'completed' && (
-        <Notice variant="success">
-          Import completed: {stats.rows ?? 0} rows
-          {Object.keys(byType).length > 0 && `; ${Object.entries(byType).map(([t, n]) => `${n} ${t}`).join(', ')}`}
-          {links.linked != null && `; ${links.linked} linked, ${links.proposed ?? 0} proposed for review, ${links.none ?? 0} without a match`}.
-        </Notice>
+        <Notice variant="success">{runSummary(run.stats ?? {})}</Notice>
       )}
     </div>
   );
@@ -100,7 +89,7 @@ export default function StepConfirm({ draft, update, onBack, onError, onClose })
         <WizardNav onNext={() => onClose(run.status === 'completed')} nextLabel="Close" />
       ) : (
         <WizardNav onBack={run ? undefined : onBack} onNext={run ? undefined : startImport} nextLabel="Start import" nextCls={START_IMPORT_CLS}
-          nextDisabled={saving || busy || !stepReady(6, draft)} />
+          nextDisabled={saving || busy || !stepReady(7, draft)} />
       )}
     </div>
   );
