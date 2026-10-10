@@ -57,7 +57,9 @@ export function generateSampleDates({ days = 180, points = 13 } = {}) {
 // ── As-of CTE builders ───────────────────────────────────────────────
 
 // Alive rows of a surrogate-id table at @asof, as (key text, state jsonb).
-function asofSurrogateCte(name, table, tableName) {
+// Exported for the analytics as-of metric (analytics/asOfQuery.js), which adds
+// the tombstone and not-yet-loaded filters this matrix path does not apply.
+export function asofSurrogateCte(name, table, tableName) {
   return `${name} AS (
     SELECT x."rowId" AS key, x."prevData" AS state FROM (
       SELECT h."rowId", h."prevData",

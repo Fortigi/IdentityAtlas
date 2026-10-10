@@ -61,6 +61,7 @@ import lookupsRouter from './routes/lookups.js';
 import reportsRouter from './routes/reports.js';
 import nlReportsRouter from './routes/nlReports.js';
 import contextAssistantRouter from './routes/contextAssistant.js';
+import analyticsRouter from './routes/analytics.js';
 import adminRouter from './routes/admin.js';
 import authRolesRouter from './routes/authRoles.js';
 import llmRouter from './routes/llm.js';
@@ -399,6 +400,9 @@ export function createApp() {
   // Context assistant — builds context trees from search terms, optionally proposed by
   // the same local model. Feature and permission gates per route, as above.
   app.use('/api', authMiddleware, contextAssistantRouter);
+  // Analytics profiles + aggregate datasets for Power BI (/api/analytics/v1).
+  // Feature and permission gates per route, as above.
+  app.use('/api', authMiddleware, analyticsRouter);
   // Context plugins (Admin → Contexts) — admin-only across the board.
   // Permission gates are applied PER ROUTE inside each router (not on the /api
   // mount) — a mount-level requirePermission on the shared '/api' prefix runs

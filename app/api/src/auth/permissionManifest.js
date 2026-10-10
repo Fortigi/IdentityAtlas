@@ -39,6 +39,9 @@ export const GATED_ENDPOINTS = {
   // permissionMatrix.test.js.
   'data.read.reports':     { method: 'GET',  path: '/api/nl-reports/conversations' },
   'data.write.contexts':   { method: 'POST', path: '/api/context-assistant/evaluate', body: { recipe: {} } },
+  // Checked before the analytics feature flag, so an allowed caller gets past
+  // the gate (404 while the feature is off) and a denied one gets 403.
+  'admin.analytics':       { method: 'POST', path: '/api/analytics/v1/profiles/validate', body: {} },
   'admin.llm':             { method: 'GET',  path: '/api/admin/llm/config' },
   'admin.context-plugins': { method: 'GET',  path: '/api/context-plugins' },
   'admin.csv-import':      { method: 'GET',  path: '/api/admin/crawler-configs/1/files' },

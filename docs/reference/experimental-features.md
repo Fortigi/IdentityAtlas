@@ -176,6 +176,35 @@ profile, or an Azure parameter), and it is shared with custom reports.
 
 ---
 
+## Analytics (Power BI)
+
+Analytics Profiles and the read-only aggregate API that Power BI imports
+(`/api/analytics/v1`). See [Power BI analytics](../admin/power-bi-analytics.md) for using it
+and [Analytics Profiles & Power BI](../architecture/analytics-profiles.md) for the design and
+what history it can and cannot show. It is experimental because it is new, because it lets
+read-only API keys pull aggregates about people, and because its Power BI side has not yet
+been verified in Power BI Desktop or the Service.
+
+Environment variable: `FEATURE_ANALYTICS=true`. There is no card on **Admin → Experimental**
+yet; switch it with the environment variable or
+`POST /api/admin/features/toggle` `{ "feature": "analytics", "enabled": true }`.
+
+### What the switch does, precisely
+
+**On** — signed-in users and read-only API keys can read the analytics catalog, profiles,
+their metadata and their datasets; users with the **Analytics profiles** (`admin.analytics`)
+permission can create, change and retire profiles.
+
+**Off** — the API answers `404` on every `/api/analytics/*` endpoint. The permission is
+checked first, so a caller without it always gets `403`.
+
+### What the switch does *not* do
+
+Turning it off **does not delete any profile** or its version history; they are served again
+when the feature is switched back on. Nothing else in the app reads them.
+
+---
+
 ## Leaving experimental behind
 
 The label is temporary by design. Once a feature has run against enough real

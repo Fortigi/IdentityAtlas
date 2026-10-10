@@ -58,6 +58,14 @@ export const FEATURE_FLAGS = {
     key: 'CONTEXT_ASSISTANT',
     envDefault: env => env.FEATURE_CONTEXT_ASSISTANT === 'true',
   },
+  // Analytics profiles + the /api/analytics/v1 aggregate API for Power BI
+  // (docs/architecture/analytics-profiles.md). New and outward-facing (read
+  // tokens can pull aggregates), so it ships switched OFF; while off every
+  // /api/analytics endpoint answers 404. Profiles already saved are kept.
+  analytics: {
+    key: 'ANALYTICS',
+    envDefault: env => env.FEATURE_ANALYTICS === 'true',
+  },
 };
 
 // WorkerConfig key for a flag name, e.g. 'riskScoring' → 'FEATURE_RISK_SCORING'.

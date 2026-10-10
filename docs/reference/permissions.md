@@ -56,6 +56,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 | `admin.context-plugins` | Context plugins | `/api/context-plugins…` (run/configure clustering, manager-hierarchy, etc.) |
 | `admin.csv-import` | CSV import | `/api/admin/crawler-configs/:id/files` (any upload-supporting crawler type), custom-connector ingest |
 | `admin.read-tokens` | Manage read API keys | `GET/DELETE /api/admin/read-tokens` (list/revoke tokens minted by others) |
+| `admin.analytics` | Analytics profiles | `POST /api/analytics/v1/profiles/validate`, `POST/PUT/DELETE /api/analytics/v1/profiles…` — which attributes are reporting dimensions, which combinations Power BI may pull, the minimum group size. Reading profiles, their metadata and their aggregate datasets (`GET /api/analytics/v1/…`) needs any mapped permission or an `fgr_` read token. Only takes effect while the experimental **Analytics** feature is switched on. See [Power BI analytics](../admin/power-bi-analytics.md). |
 | `admin.feature-flags` | Feature flags | `POST /api/admin/features/toggle` |
 | `admin.auth` | Authentication & roles | `GET/PUT/DELETE /api/admin/roles` — edits this very mapping. A self-lockout guard prevents a save that would strip your own `admin.auth`. |
 
