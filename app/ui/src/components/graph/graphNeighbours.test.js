@@ -79,7 +79,7 @@ describe('loadNeighbours', () => {
     expect(relations.map(r => [r.key, r.label, r.dir, r.count, r.items?.length ?? null])).toEqual([
       ['members-direct', 'member of', 'in', 2, 2],
       ['members-eligible', 'eligible', 'in', 9, null],
-      ['org:direct|Klant|displayName', 'name', 'out', 1, 1],
+      ['org:type:Klant', 'name', 'out', 1, 1],
     ]);
     expect(relations[0].items[0]).toMatchObject({ entityKind: 'user', entityId: 'u1', label: 'Ann Contoso', edgeLabel: 'member of' });
     // The 9 eligible members are not fetched until their cluster is opened.

@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 //
-// Organisation → Model against a stubbed GET /model: nodes and edges drawn from
-// it, the table view sorted by count, the filters reaching the URL, the Mermaid
-// copy, the dark palette, the empty model and the 501 path.
+// Organisation → Model against a stubbed GET /model: the model canvas is the whole
+// tab (no overview diagram, table or per-source filter above it), the totals line,
+// include-closed reaching the URL, the Mermaid copy, the empty model and the 501 path.
 import { describe, it, expect, vi } from 'vitest';
-import { renderWithProviders, makeAuthFetch, jsonResponse, screen, userEvent, waitFor, within } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, makeAuthFetch, jsonResponse, screen, userEvent, waitFor } from '@ui/test-utils/renderWithProviders';
 
 vi.mock('@ui/utils/clipboard', () => ({ copyText: vi.fn(async () => true) }));
 const { copyText } = await import('@ui/utils/clipboard');
@@ -47,27 +47,13 @@ function render({ routes = {}, theme, auth = IMPORTER } = {}) {
 }
 
 describe('ModelTab', () => {
-  it('draws one node per type and one edge per predicate and link', async () => {
-    const { container } = render();
-    await screen.findByRole('img', { name: 'Organisation model diagram' });
-    const nodes = [...container.querySelectorAll('[data-node]')].map(n => n.getAttribute('data-node'));
-    expect(nodes).toEqual(['t:Project', 't:Person', 's:Principal']);
-    const edges = [...container.querySelectorAll('[data-edge]')].map(e => e.getAttribute('data-edge'));
-    expect(edges).toEqual([
-      'p:Project:owner:Person', 'p:Project:sponsor:Person', 'e:Person:team:Project',
-      'l:Person:Principal:displayName', 'l:Person:Principal:email',
-    ]);
-    expect(nodes).not.toContain('s:OrgEntity');
-    expect(container.querySelector('[data-edge="l:Person:Principal:displayName"]')).toHaveAttribute('stroke-dasharray', '5 4');
-    expect(container.querySelector('[data-edge="l:Person:Principal:displayName"]')).not.toHaveAttribute('marker-end');
-    expect(container.querySelector('[data-edge="e:Person:team:Project"]')).toHaveAttribute('stroke-dasharray', '5 4');
-    expect(container.querySelector('[data-edge="e:Person:team:Project"]')).toHaveAttribute('marker-end', 'url(#ot-arrow-link)');
-    expect(container.querySelector('[data-edge="p:Project:owner:Person"]')).toHaveAttribute('marker-end', 'url(#ot-arrow)');
-    expect(screen.getByText('name: 51 accepted · 9 proposed')).toBeInTheDocument();
-    expect(screen.getByText('email: 3 accepted')).toBeInTheDocument();
-    expect(screen.getByText('team: 7 accepted · 1 proposed')).toBeInTheDocument();
-    expect(screen.getByText('owner 85')).toBeInTheDocument();
+  it('shows the model canvas and the totals, without an overview diagram, table or source filter', async () => {
+    render();
+    await screen.findByRole('group', { name: 'Model canvas' });
     expect(screen.getByTestId('model-totals')).toHaveTextContent('147 entities · 175 relations · 60 links · 2 sources');
+    expect(screen.queryByRole('img', { name: 'Organisation model diagram' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Table' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Source' })).toBeNull();
   });
 
   it('shows the model canvas under the overview and reloads the model after a rename', async () => {
@@ -79,50 +65,12 @@ describe('ModelTab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Rename Project' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'New name for Project' }), 's{Enter}');
     await waitFor(() => expect(modelCalls()).toBe(before + 1));
-    await userEvent.click(screen.getByRole('button', { name: 'Table' }));
-    expect(screen.getByRole('heading', { name: 'Model canvas' })).toBeInTheDocument();
   });
 
-  it('puts the attribute keys and sources in the node tooltip', async () => {
-    const { container } = render();
-    await screen.findByRole('img', { name: 'Organisation model diagram' });
-    expect(container.querySelector('[data-node="t:Project"] title').textContent)
-      .toBe('Project: 87 entities (0 proposed)\nAttributes: budget, costCenter\nSources: 2');
-    expect(container.querySelector('[data-node="t:Person"] title').textContent).toContain('Attributes: none');
-    expect(container.querySelector('[data-node="s:Principal"] title').textContent).toBe('Principal: 1127 in the connected systems');
-  });
-
-  it('uses the dark palette in dark mode', async () => {
-    const { container } = render({ theme: { isDark: true, mode: 'dark' } });
-    await screen.findByRole('img', { name: 'Organisation model diagram' });
-    expect(container.querySelector('[data-node="t:Project"] rect')).toHaveAttribute('fill', '#3730a3');
-  });
-
-  it('shows the same data as tables, sortable by count', async () => {
-    render();
-    await userEvent.click(await screen.findByRole('button', { name: 'Table' }));
-    const types = within(screen.getByRole('table', { name: 'Entity types' }));
-    const typeNames = () => types.getAllByRole('row').slice(1).map(r => r.cells[0].textContent);
-    expect(typeNames()).toEqual(['Project', 'Person']);
-    expect(types.getByText('budget, costCenter')).toBeInTheDocument();
-    await userEvent.click(types.getByRole('button', { name: /Count/ }));
-    expect(typeNames()).toEqual(['Person', 'Project']);
-
-    const preds = within(screen.getByRole('table', { name: 'Predicates' }));
-    const predNames = () => preds.getAllByRole('row').slice(1).map(r => r.cells[0].textContent);
-    expect(predNames()).toEqual(['sponsor', 'owner']);
-    await userEvent.click(preds.getByRole('button', { name: /Count/ }));
-    expect(predNames()).toEqual(['owner', 'sponsor']);
-
-    await userEvent.click(screen.getByRole('button', { name: 'Diagram' }));
-    expect(screen.getByRole('img', { name: 'Organisation model diagram' })).toBeInTheDocument();
-  });
-
-  it('sends the source and include-closed filters to the API', async () => {
+  it('sends the include-closed filter to the API', async () => {
     const { authFetch } = render();
-    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Source' }), 's1');
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Include closed' }));
-    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/org-truth/model?sourceId=s1&includeClosed=1'));
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Include closed' }));
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/org-truth/model?includeClosed=1'));
   });
 
   it('copies the model as Mermaid text', async () => {
@@ -138,12 +86,8 @@ describe('ModelTab', () => {
     expect(screen.getByText('No model yet')).toBeInTheDocument();
   });
 
-  it('hides the source filter when the sources cannot be read, and says 501 is not available yet', async () => {
-    render({ routes: {
-      '/api/org-truth/model': jsonResponse({}, { ok: false, status: 501 }),
-      '/api/org-truth/sources': jsonResponse({}, { ok: false, status: 501 }),
-    } });
+  it('says 501 is not available yet', async () => {
+    render({ routes: { '/api/org-truth/model': jsonResponse({}, { ok: false, status: 501 }) } });
     expect(await screen.findByText('Model — not available yet')).toBeInTheDocument();
-    expect(screen.queryByRole('combobox', { name: 'Source' })).toBeNull();
   });
 });

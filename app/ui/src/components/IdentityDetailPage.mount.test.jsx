@@ -172,7 +172,15 @@ describe('IdentityDetailPage (mounted)', () => {
     await screen.findByText('Dana Doe');
     await user.click(screen.getByRole('tab', { name: /Relationships/i }));
 
+    // Three customers, linked two ways, are ONE "Klant" node with the count until it is opened.
+    const cluster = await screen.findByRole('button', { name: '3 Klant, press to show them' });
+    expect(container.querySelectorAll('[data-node^="org-entity:"]')).toHaveLength(0);
+    expect(container.querySelector('[data-edge="identity:id-1->cluster:identity:id-1:org:type:Klant"]')?.textContent)
+      .toBe('eigenaar · worked on (Uren)');
+    await user.click(cluster);
+
     await screen.findByRole('button', { name: 'Klant Contoso BV, press to expand' });
+    expect(container.querySelectorAll('[data-node^="org-entity:"]')).toHaveLength(3);
     const edgeText = (to) => container.querySelector(`[data-edge="identity:id-1->org-entity:${to}"]`)?.textContent;
     expect(edgeText('k1')).toBe('eigenaar');
     expect(edgeText('k2')).toBe('worked on · 1,491 h (Uren)');

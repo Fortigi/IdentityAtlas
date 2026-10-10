@@ -96,24 +96,51 @@ function orgItem(item, edgeLabel) {
   return node;
 }
 
-function groupRelation(group) {
-  const through = group.kind === 'through';
-  const list = group.items || [];
-  const items = list.map(i => orgItem(i, through ? throughLabel(group, i) : null));
+const groupLabel = (group) => (group.kind === 'through' ? `worked on (${group.sourceType || 'other'})` : viaLabel(group.via));
+const itemLabel = (group, item) => (group.kind === 'through' ? throughLabel(group, item) : viaLabel(group.via));
+const MAX_RELATION_LABELS = 3;
+
+function joinLabels(labels) {
+  const shown = labels.slice(0, MAX_RELATION_LABELS).join(' · ');
+  return labels.length > MAX_RELATION_LABELS ? `${shown} …` : shown;
+}
+
+// One relation per entity TYPE, however many attributes linked it: a person who
+// owns 14 customers, is on the team of 3 and wrote hours on 4 gets ONE "Klant"
+// relation (a cluster with the count, like business roles or memberships), not
+// three fans of customer nodes. Each customer, once the cluster is opened, gets
+// one edge that lists every way it is linked ("eigenaar · worked on · 120 h (Uren)").
+function typeRelation(entityType, groups) {
+  const byEntity = new Map();
+  for (const group of groups) {
+    for (const item of group.items || []) {
+      const seen = byEntity.get(item.entityId) ?? { item, labels: [] };
+      seen.labels.push(itemLabel(group, item));
+      byEntity.set(item.entityId, seen);
+    }
+  }
+  const items = [...byEntity.values()].map(({ item, labels }) => orgItem(item, labels.join(' · ')));
+  const truncated = groups.some(g => g.truncated);
   const relation = {
-    key: `org:${group.key}`,
-    title: group.label,
-    label: through ? `worked on (${group.sourceType || 'other'})` : viaLabel(group.via),
+    key: `org:type:${entityType}`,
+    title: entityType,
+    label: joinLabels([...new Set(groups.map(groupLabel))]),
     dir: 'out',
-    count: Number(group.count) || items.length,
+    count: truncated ? Math.max(items.length, ...groups.map(g => Number(g.count) || 0)) : items.length,
     items,
+    cluster: items.length > 1,
   };
-  const note = groupNote({ ...group, items: list });
-  if (note) relation.note = note;
+  const notes = groups.map(g => groupNote({ ...g, items: g.items || [] })).filter(Boolean);
+  if (notes.length > 0) relation.note = notes.join(' · ');
   return relation;
 }
 
-/** The organisation payload → graph relations (see graphModel.js); [] without one. */
+/** The organisation payload → graph relations, one per entity type (see graphModel.js); [] without one. */
 export function orgRelations(orgLinked) {
-  return (orgLinked?.groups || []).map(groupRelation);
+  const byType = new Map();
+  for (const group of orgLinked?.groups || []) {
+    const type = group.entityType || 'Organisation';
+    byType.set(type, [...(byType.get(type) ?? []), group]);
+  }
+  return [...byType.entries()].map(([type, groups]) => typeRelation(type, groups));
 }

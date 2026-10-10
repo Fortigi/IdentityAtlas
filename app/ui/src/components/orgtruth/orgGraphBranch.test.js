@@ -117,40 +117,59 @@ describe('orgRelations', () => {
     expect(orgRelations({ groups: [] })).toEqual([]);
   });
 
-  it('turns a direct group into one relation labelled with the linking attribute, objects as direct neighbours', () => {
-    const [owner, name] = orgRelations(LINKED);
-    expect(owner).toEqual({
-      key: 'org:direct|Klant|eigenaar', title: 'Klant · eigenaar', label: 'eigenaar', dir: 'out', count: 2,
-      items: [
-        { key: 'org-entity:k1', label: 'Contoso BV', kind: 'item', entityKind: 'org-entity', entityId: 'k1', resourceType: 'Klant' },
-        { key: 'org-entity:k2', label: 'k2', kind: 'item', entityKind: 'org-entity', entityId: 'k2', resourceType: 'Klant' },
-      ],
+  it('bundles every group of one entity type into ONE clustered relation with the distinct count', () => {
+    const relations = orgRelations(LINKED);
+    expect(relations).toHaveLength(1);
+    const [klant] = relations;
+    expect(klant).toMatchObject({
+      key: 'org:type:Klant', title: 'Klant', dir: 'out', count: 4, cluster: true,
+      // the relation edge lists how this type is linked; a display-name match reads "name"
+      label: 'eigenaar · name · worked on (Uren)',
+      note: '12 Uren rows point at no Klant',
     });
-    // A match on the display name reads "name", not "displayName".
-    expect(name.label).toBe('name');
-    expect(name.items.map(i => i.edgeLabel)).toEqual([undefined]);
+    expect(klant.items.map(i => [i.key, i.label, i.edgeLabel])).toEqual([
+      ['org-entity:k1', 'Contoso BV', 'eigenaar'],
+      ['org-entity:k2', 'k2', 'eigenaar'],
+      ['org-entity:k9', 'Northwind', 'name'],
+      ['org-entity:k3', 'Fabrikam', 'worked on · 1,491 h (Uren)'],
+    ]);
+    expect(klant.items[3].detail).toBe('1491 h · 3 rows · until 2026-01');
   });
 
-  it('labels each through edge with the hours it adds up to, and keeps the note for the list', () => {
-    const worked = orgRelations(LINKED)[2];
-    expect(worked.label).toBe('worked on (Uren)');
-    expect(worked.items[0].edgeLabel).toBe('worked on · 1,491 h (Uren)');
-    expect(worked.items[0].detail).toBe('1491 h · 3 rows · until 2026-01');
-    expect(worked.note).toBe('12 Uren rows point at no Klant');
+  it('one entity linked several ways is ONE item whose edge lists every way', () => {
+    const team = { ...OWNER, key: 'direct|Klant|team', via: 'team', items: [OWNER.items[0]] };
+    const alsoWorked = { ...WORKED, unlinkedRows: 0, items: [{ ...WORKED.items[0], entityId: 'k1', hours: 8 }] };
+    const [klant] = orgRelations({ groups: [OWNER, team, alsoWorked] });
+    expect(klant.count).toBe(2);
+    expect(klant.items.find(i => i.entityId === 'k1').edgeLabel).toBe('eigenaar · team · worked on · 8 h (Uren)');
+    expect(klant.note).toBeUndefined();
   });
 
-  it('copes with a through item without hours, a group without items, count or source type', () => {
+  it('a single entity of a type stays inline (no cluster), and each type gets its own relation', () => {
+    const person = { key: 'direct|Maten|displayName', entityType: 'Maten', via: 'displayName', kind: 'direct', count: 1, items: [{ entityId: 'm1', entityType: 'Maten', label: 'Ann' }] };
+    const [klant, maten] = orgRelations({ groups: [NAME, person] });
+    expect([klant.title, klant.cluster, klant.count]).toEqual(['Klant', false, 1]);
+    expect([maten.title, maten.cluster, maten.label]).toEqual(['Maten', false, 'name']);
+  });
+
+  it('shortens the relation label past three kinds of link', () => {
+    const groups = ['a', 'b', 'c', 'd'].map(via => ({ ...OWNER, key: via, via }));
+    expect(orgRelations({ groups })[0].label).toBe('a · b · c …');
+  });
+
+  it('copes with a through item without hours, a group without items, count, source or entity type', () => {
     const odd = { groups: [
       { key: 't', kind: 'through', label: 'T', items: [{ entityId: 'z', hours: null }] },
       { key: 'g', kind: 'direct', via: 'team', label: 'G' },
     ] };
-    const [t, g] = orgRelations(odd);
-    expect(t.items[0]).toEqual({ key: 'org-entity:z', label: 'z', kind: 'item', entityKind: 'org-entity', entityId: 'z', edgeLabel: 'worked on (other)' });
-    expect(t.count).toBe(1);
-    expect(g).toEqual({ key: 'org:g', title: 'G', label: 'team', dir: 'out', count: 0, items: [] });
+    const [rel] = orgRelations(odd);
+    expect(rel.title).toBe('Organisation');
+    expect(rel.label).toBe('worked on (other) · team');
+    expect(rel.items).toEqual([{ key: 'org-entity:z', label: 'z', kind: 'item', entityKind: 'org-entity', entityId: 'z', edgeLabel: 'worked on (other)' }]);
+    expect([rel.count, rel.cluster]).toEqual([1, false]);
   });
 
-  it('keeps the server count when the list was capped', () => {
+  it('keeps the server count when a list was capped', () => {
     const capped = orgRelations({ groups: [{ ...OWNER, count: 250, truncated: true }] })[0];
     expect(capped.count).toBe(250);
     expect(capped.note).toBe('showing the first 2 of 250');

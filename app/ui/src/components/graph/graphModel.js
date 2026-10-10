@@ -129,9 +129,11 @@ function relationSize(relation) {
   return relation.items ? relation.items.length : Number(relation.count) || 0;
 }
 
-// Inline when the objects are loaded and few enough; a cluster otherwise.
+// Inline when the objects are loaded and few enough; a cluster otherwise, or
+// when the relation asks for one (`cluster: true` — organisation relations
+// bundle every entity of one type behind a single node with the count).
 export function isClustered(relation) {
-  return !relation.items || relation.items.length > CLUSTER_THRESHOLD;
+  return relation.cluster === true || !relation.items || relation.items.length > CLUSTER_THRESHOLD;
 }
 
 export function expandNode(state, sourceKey, relations) {

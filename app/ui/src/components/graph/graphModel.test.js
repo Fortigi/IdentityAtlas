@@ -124,6 +124,9 @@ describe('clusters', () => {
     expect(isClustered({ items: null })).toBe(true);
     expect(isClustered({ items: users(CLUSTER_THRESHOLD) })).toBe(false);
     expect(isClustered({ items: users(CLUSTER_THRESHOLD + 1) })).toBe(true);
+    // A relation may ask for a cluster however few its objects (organisation relations do).
+    expect(isClustered({ items: users(2), cluster: true })).toBe(true);
+    expect(isClustered({ items: users(2), cluster: false })).toBe(false);
   });
 
   it(`opening a cluster replaces it by its first ${CLUSTER_ITEM_CAP} objects plus a "+N more" node`, () => {
