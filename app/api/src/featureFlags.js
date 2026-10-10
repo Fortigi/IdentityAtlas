@@ -58,6 +58,14 @@ export const FEATURE_FLAGS = {
     key: 'CONTEXT_ASSISTANT',
     envDefault: env => env.FEATURE_CONTEXT_ASSISTANT === 'true',
   },
+  // Identity Atlas Interviews: the API a native interview app uses to look up who a
+  // spoken name refers to and to keep evidence-linked claims for review. Experimental
+  // and about personal data, so OFF by default; while off, every /api/v1/interviews
+  // endpoint answers 404. Turning it off keeps stored interviews (it does not delete).
+  interviews: {
+    key: 'INTERVIEWS',
+    envDefault: env => env.FEATURE_INTERVIEWS === 'true',
+  },
 };
 
 // WorkerConfig key for a flag name, e.g. 'riskScoring' → 'FEATURE_RISK_SCORING'.

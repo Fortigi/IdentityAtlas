@@ -1,0 +1,46 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for Identity Atlas Interviews (experimental, feature `interviews`): the resolution state machine and candidate classification, the review gate, evidence fingerprinting, the request contracts, the mention search, the team context read, the store, and the routes. Scoped like the sibling API configs -- these files plus their own unit tests, which are self-contained (no filesystem outside the sandbox, no PostgreSQL). WHY THESE FILES: the failures that matter here are silent and they are about trust. A classifier that picks the first of two Peters, a transition table that lets a detector confirm, a review gate that approves a revised claim, an evidence check that keeps words a local-only interview promised not to keep -- each returns 200 and looks right, and each turns 'someone said this' into 'Atlas knows this' without a human in between. MUTATOR SET: StringLiteral and ObjectLiteral disabled, matching the sibling API configs -- so the SQL strings are not mutated and this cannot tell you a query is right; that stays the contract tests' job (contract-tests/interviews.contract.test.js). Run: cd app/api && npm run test:mutation:interviews. NOT YET MEASURED: this config ships with the feature; `break` is deliberately absent until a first run measures a score. Add `{ pkg: api, name: interviews, label: 'API interviews' }` to .github/workflows/js-mutation.yml once it is measured, and set the floor a few points under what it reports.",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.interviews.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-interviews.json"
+  },
+  "mutate": [
+    "src/interviews/claims.js",
+    "src/interviews/contextRead.js",
+    "src/interviews/contracts.js",
+    "src/interviews/evidence.js",
+    "src/interviews/http/claims.js",
+    "src/interviews/http/gates.js",
+    "src/interviews/http/lookup.js",
+    "src/interviews/http/sessions.js",
+    "src/interviews/resolution.js",
+    "src/interviews/review.js",
+    "src/interviews/search.js",
+    "src/interviews/store.js"
+  ],
+  "mutationExclusions": {
+    "src/routes/interviews.js": "Composition only: three router.use lines in a fixed order and no logic of its own. The one decision it encodes -- the lookup router is composed first so /v1/interviews/context is never taken for an interview id -- is asserted by the route tests, which call /v1/interviews/context and get the context answer rather than a 404 from the id loader."
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70
+  },
+  "concurrency": 2,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false,
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  }
+}

@@ -49,6 +49,14 @@ tags:
       is stored as the parameters of the `context-recipe` context plugin. Every route answers
       404 while the feature is off. The caller's permission is checked first, so a caller without
       it gets 403 whether or not the feature is on.
+  - name: Interviews
+    description: >
+      Experimental (feature flag `interviews`), versioned under `/v1`. The API a native
+      interview app uses to look up who a spoken name refers to and to keep evidence-linked
+      CLAIMS for review. Nothing here changes Identity Atlas data: an approval records a
+      decision only. No audio or transcript is accepted. Every route answers 404 while the
+      feature is off; the permission is checked first; read API keys are refused. Design:
+      docs/architecture/interviews.md.
 
 paths:
   # ─── Ingest Endpoints ──────────────────────────────────────────
@@ -2167,6 +2175,477 @@ paths:
                     nullable: true
                   runId: { type: string, format: uuid }
 
+  # ─── Interviews (experimental, feature `interviews`) ───────────
+  /v1/interviews/entities/search:
+    get:
+      tags: [Interviews]
+      summary: Find who or what a spoken mention may refer to
+      operationId: searchInterviewEntities
+      description: >
+        Ranked candidates for a mentioned name, with a short distinguishing label (job title,
+        department, system) and no contact details. Rate-limited to 120 lookups a minute per
+        caller. `outcome` is what the search alone may say: `suggested` for one strong
+        candidate, or for the only strong candidate inside the scope; `unresolved` when two
+        or more remain (a homonym is never narrowed by score); `not_found` when nothing
+        matches. It is never `confirmed` — only an analyst confirms. The query text is not
+        logged. Requires `data.read`; refuses read API keys.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - { name: q, in: query, required: true, description: The mentioned words., schema: { type: string, minLength: 2, maxLength: 100 } }
+        - { name: kind, in: query, required: false, description: What to look for (default identity)., schema: { type: string, enum: [identity, account, resource, context] } }
+        - { name: scopeContextId, in: query, required: false, description: The interview's team context; candidates inside it rank first., schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: The candidates and the search's own outcome
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InterviewEntitySearch'
+              examples:
+                william:
+                  summary: '"William" — one match, suggested'
+                  value:
+                    kind: identity
+                    scoped: true
+                    candidates:
+                      - { id: a1b2c3d4-0000-4000-8000-000000000001, kind: identity, displayName: William de Boer, label: Platform engineer · ICT Beheer, score: 0.71, inScope: true }
+                    truncated: false
+                    outcome: { state: suggested, entityId: a1b2c3d4-0000-4000-8000-000000000001, reason: single-candidate }
+                peter:
+                  summary: '"Peter" — two matches, stays ambiguous'
+                  value:
+                    kind: identity
+                    scoped: true
+                    candidates:
+                      - { id: a1b2c3d4-0000-4000-8000-000000000002, kind: identity, displayName: Peter Jansen, label: Database administrator · ICT Beheer, score: 0.64, inScope: false }
+                      - { id: a1b2c3d4-0000-4000-8000-000000000003, kind: identity, displayName: Peter de Vries, label: Controller · Finance, score: 0.64, inScope: false }
+                    truncated: false
+                    outcome: { state: unresolved, entityId: null, reason: ambiguous }
+                productieomgeving:
+                  summary: '"productieomgeving" — not found'
+                  value:
+                    kind: resource
+                    scoped: false
+                    candidates: []
+                    truncated: false
+                    outcome: { state: not_found, entityId: null, reason: no-candidates }
+        '400':
+          $ref: '#/components/responses/InterviewsBadRequest'
+        '403':
+          $ref: '#/components/responses/InterviewsForbidden'
+        '404':
+          $ref: '#/components/responses/InterviewsDisabled'
+        '429':
+          description: More than 120 lookups in a minute
+        '500':
+          $ref: '#/components/responses/InterviewsFailed'
+
+  /v1/interviews/context:
+    get:
+      tags: [Interviews]
+      summary: The person interviewed and their team, before the interview
+      operationId: getInterviewContext
+      description: >
+        The subject (an Identity) and the team scope (a Context of identities or accounts):
+        its members, each with counts of Direct / Indirect / Eligible access, and the
+        resources the team holds most widely. Capped at 200 members and 50 resources; each
+        list carries `total` and `truncated`, and the entity search reaches anyone outside
+        the cap. Read-only. Requires `data.read`; refuses read API keys.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - { name: subjectIdentityId, in: query, required: false, description: The person interviewed., schema: { type: string, format: uuid } }
+        - { name: scopeContextId, in: query, required: false, description: The team; a context of people., schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Subject and scope (either may be null when not asked for)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subject: { type: object, nullable: true }
+                  scope: { type: object, nullable: true }
+        '400':
+          $ref: '#/components/responses/InterviewsBadRequest'
+        '403':
+          $ref: '#/components/responses/InterviewsForbidden'
+        '404':
+          description: The subject or scope does not exist, or the feature is off
+        '500':
+          $ref: '#/components/responses/InterviewsFailed'
+
+  /v1/interviews:
+    post:
+      tags: [Interviews]
+      summary: Start an interview record
+      operationId: createInterview
+      description: >
+        Refused unless `noticeConfirmed` is true — no hidden recording. The server never
+        accepts audio or a transcript; `storagePolicy` decides whether evidence excerpts may
+        be kept (`evidence-excerpt`) or only their SHA-256 (`local-only`, the default).
+        Requires `data.write.contexts`.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [interviewType, noticeConfirmed, noticeVersion]
+              properties:
+                interviewType: { type: string, enum: [role-mining, data-owner] }
+                title: { type: string, maxLength: 200 }
+                noticeConfirmed: { type: boolean, description: Must be true. }
+                noticeVersion: { type: string, maxLength: 100, description: Which notice text the participant was shown. }
+                storagePolicy: { type: string, enum: [local-only, evidence-excerpt], default: local-only }
+                retentionDays: { type: integer, minimum: 1, maximum: 3650, default: 90 }
+                subjectIdentityId: { type: string, format: uuid }
+                scopeContextId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Created; owned by the caller
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          $ref: '#/components/responses/InterviewsBadRequest'
+        '403':
+          $ref: '#/components/responses/InterviewsForbidden'
+        '404':
+          $ref: '#/components/responses/InterviewsDisabled'
+        '500':
+          $ref: '#/components/responses/InterviewsFailed'
+    get:
+      tags: [Interviews]
+      summary: My interviews
+      operationId: listInterviews
+      description: The caller's own interviews that are within their retention period (at most 200, newest first). Requires `data.read`.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The caller's interviews
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { type: object } }
+        '403':
+          $ref: '#/components/responses/InterviewsForbidden'
+        '404':
+          $ref: '#/components/responses/InterviewsDisabled'
+        '500':
+          $ref: '#/components/responses/InterviewsFailed'
+
+  /v1/interviews/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Interviews]
+      summary: Everything recorded under one interview
+      operationId: getInterview
+      description: >
+        Mentions with their current resolution, every statement version with its evidence,
+        and the proposals with their review state. Only for the interview's owner; anyone
+        else, and anyone after the retention date, gets 404. Requires `data.read`.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The interview record
+          content:
+            application/json:
+              schema: { type: object }
+        '403':
+          $ref: '#/components/responses/InterviewsForbidden'
+        '404':
+          $ref: '#/components/responses/InterviewsNotFound'
+        '500':
+          $ref: '#/components/responses/InterviewsFailed'
+    delete:
+      tags: [Interviews]
+      summary: Delete an interview
+      operationId: deleteInterview
+      description: >
+        Deletes the interview and everything recorded under it, also after its retention
+        date. The audit trail keeps one `deleted` event with counts only. Owner only.
+        Requires `data.write.contexts`.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: boolean }
+                  removed: { type: object, properties: { mentions: { type: integer }, statements: { type: integer }, proposals: { type: integer } } }
+        '403':
+          $ref: '#/components/responses/InterviewsForbidden'
+        '404':
+          $ref: '#/components/responses/InterviewsNotFound'
+        '500':
+          $ref: '#/components/responses/InterviewsFailed'
+
+  /v1/interviews/{id}/mentions:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Interviews]
+      summary: Record mentions
+      operationId: addInterviewMentions
+      description: Up to 100 mentions, each with its transcript segment id, milliseconds and character span. Requires `data.write.contexts`.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mentions]
+              properties:
+                mentions:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [segmentId, literalText, startMs, endMs, spanStart, spanEnd]
+                    properties:
+                      segmentId: { type: string, maxLength: 100 }
+                      literalText: { type: string, maxLength: 200 }
+                      startMs: { type: integer, minimum: 0 }
+                      endMs: { type: integer, minimum: 0 }
+                      spanStart: { type: integer, minimum: 0 }
+                      spanEnd: { type: integer, minimum: 1 }
+                      entityKindHint: { type: string, enum: [identity, account, resource, context] }
+                      detector: { type: string, description: 'Detector and version, e.g. lexicon@1' }
+      responses:
+        '201':
+          description: The recorded mentions, unresolved
+          content:
+            application/json:
+              schema: { type: object, properties: { data: { type: array, items: { type: object } } } }
+        '400':
+          $ref: '#/components/responses/InterviewsBadRequest'
+        '403':
+          $ref: '#/components/responses/InterviewsForbidden'
+        '404':
+          $ref: '#/components/responses/InterviewsNotFound'
+        '500':
+          $ref: '#/components/responses/InterviewsFailed'
+
+  /v1/interviews/{id}/mentions/{mentionId}/resolutions:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: mentionId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Interviews]
+      summary: Resolve a mention (append-only)
+      operationId: resolveInterviewMention
+      description: >
+        Appends the next resolution; earlier ones are kept. A `detector` may only set
+        unresolved, suggested or not_found; confirmed, rejected and deferred are an analyst's.
+        `matchScore` is match confidence, not claim confidence. A linked entity must exist.
+        409 for a move the state machine refuses. Requires `data.write.contexts`.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state: { type: string, enum: [unresolved, suggested, confirmed, rejected, not_found, deferred] }
+                origin: { type: string, enum: [analyst, detector], default: analyst }
+                entityKind: { type: string, enum: [identity, account, resource, context] }
+                entityId: { type: string, format: uuid }
+                matchScore: { type: number, minimum: 0, maximum: 1 }
+                candidateCount: { type: integer, minimum: 0 }
+                rationale: { type: string, maxLength: 1000 }
+      responses:
+        '201':
+          description: The appended resolution
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          $ref: '#/components/responses/InterviewsBadRequest'
+        '403':
+          $ref: '#/components/responses/InterviewsForbidden'
+        '404':
+          $ref: '#/components/responses/InterviewsNotFound'
+        '409':
+          $ref: '#/components/responses/InterviewsConflict'
+        '500':
+          $ref: '#/components/responses/InterviewsFailed'
+
+  /v1/interviews/{id}/statements:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Interviews]
+      summary: Record a claim with its evidence
+      operationId: addInterviewStatement
+      description: >
+        A claim attributed to the interview — not a fact. Each evidence item is a segment,
+        milliseconds, a character span and the SHA-256 (lowercase hex, UTF-8, NFC) of the
+        excerpt. Excerpt text is accepted only on an `evidence-excerpt` interview and only
+        when its hash matches; on a `local-only` interview it is refused. Requires
+        `data.write.contexts`.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InterviewStatementInput'
+      responses:
+        '201':
+          description: Version 1 of the claim
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          $ref: '#/components/responses/InterviewsBadRequest'
+        '403':
+          $ref: '#/components/responses/InterviewsForbidden'
+        '404':
+          $ref: '#/components/responses/InterviewsNotFound'
+        '500':
+          $ref: '#/components/responses/InterviewsFailed'
+
+  /v1/interviews/{id}/statements/{statementId}/revisions:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: statementId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Interviews]
+      summary: Revise a claim
+      operationId: reviseInterviewStatement
+      description: >
+        Adds the next version with its own evidence; the earlier version and its evidence
+        stay as they were. Only the latest version can be revised (409 otherwise). Requires
+        `data.write.contexts`.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InterviewStatementInput'
+      responses:
+        '201':
+          description: The new version
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          $ref: '#/components/responses/InterviewsBadRequest'
+        '403':
+          $ref: '#/components/responses/InterviewsForbidden'
+        '404':
+          $ref: '#/components/responses/InterviewsNotFound'
+        '409':
+          $ref: '#/components/responses/InterviewsConflict'
+        '500':
+          $ref: '#/components/responses/InterviewsFailed'
+
+  /v1/interviews/{id}/proposals:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Interviews]
+      summary: Propose a claim for review
+      operationId: addInterviewProposal
+      description: A proposal is about one statement version. Requires `data.write.contexts`.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [proposalKind, statementId, summary]
+              properties:
+                proposalKind: { type: string, enum: [relationship, role, responsibility, new-entity] }
+                statementId: { type: string, format: uuid }
+                summary: { type: string, maxLength: 200 }
+      responses:
+        '201':
+          description: The proposal, in review state `proposed`
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          $ref: '#/components/responses/InterviewsBadRequest'
+        '403':
+          $ref: '#/components/responses/InterviewsForbidden'
+        '404':
+          $ref: '#/components/responses/InterviewsNotFound'
+        '500':
+          $ref: '#/components/responses/InterviewsFailed'
+
+  /v1/interviews/{id}/proposals/{proposalId}/reviews:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: proposalId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Interviews]
+      summary: Approve, reject or defer a proposal
+      operationId: reviewInterviewProposal
+      description: >
+        Records the decision. `targetVersion` must be the statement version the proposal is
+        about; approving is refused when the statement has been revised since; approve and
+        reject are final. An approval does NOT change Identity Atlas data — the response
+        carries `promoted: false`. Requires `data.write.contexts`.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, targetVersion]
+              properties:
+                action: { type: string, enum: [approve, reject, defer] }
+                targetVersion: { type: integer, minimum: 1 }
+                rationale: { type: string, maxLength: 1000, description: Required for a rejection. }
+      responses:
+        '201':
+          description: The recorded decision
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  decision: { type: object }
+                  reviewState: { type: string, enum: [approved, rejected, deferred] }
+                  promoted: { type: boolean, enum: [false] }
+        '400':
+          $ref: '#/components/responses/InterviewsBadRequest'
+        '403':
+          $ref: '#/components/responses/InterviewsForbidden'
+        '404':
+          $ref: '#/components/responses/InterviewsNotFound'
+        '409':
+          $ref: '#/components/responses/InterviewsConflict'
+        '500':
+          $ref: '#/components/responses/InterviewsFailed'
+
 components:
   securitySchemes:
     CrawlerApiKey:
@@ -2180,6 +2659,62 @@ components:
       description: Entra ID JWT token
 
   schemas:
+    InterviewEntitySearch:
+      type: object
+      properties:
+        kind: { type: string, enum: [identity, account, resource, context] }
+        scoped: { type: boolean }
+        candidates:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              kind: { type: string }
+              displayName: { type: string }
+              label: { type: string, description: 'Distinguishing label, e.g. "Controller · Finance".' }
+              score: { type: number, description: 'Match confidence, 0 to 1. Not claim confidence.' }
+              inScope: { type: boolean }
+        truncated: { type: boolean, description: More candidates exist than shown; refine the query or the scope. }
+        outcome:
+          type: object
+          properties:
+            state: { type: string, enum: [suggested, unresolved, not_found] }
+            entityId: { type: string, format: uuid, nullable: true }
+            reason: { type: string, enum: [single-candidate, only-candidate-in-scope, weak-match, ambiguous, no-candidates] }
+    InterviewStatementInput:
+      type: object
+      required: [subject, predicate, object, evidence]
+      properties:
+        subject: { $ref: '#/components/schemas/InterviewClaimRef' }
+        predicate: { type: string, maxLength: 100 }
+        object: { $ref: '#/components/schemas/InterviewClaimRef' }
+        attribution: { type: string, maxLength: 200, description: Who said it (a participant role). }
+        claimConfidence: { type: number, minimum: 0, maximum: 1, description: How sure the extractor is the claim was made — not that it is true. }
+        extractor: { type: string, description: 'Engine and version, e.g. rules@1; default analyst' }
+        evidence:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            required: [segmentId, startMs, endMs, spanStart, spanEnd, excerptHash]
+            properties:
+              segmentId: { type: string, maxLength: 100 }
+              startMs: { type: integer, minimum: 0 }
+              endMs: { type: integer, minimum: 0 }
+              spanStart: { type: integer, minimum: 0 }
+              spanEnd: { type: integer, minimum: 1 }
+              excerptHash: { type: string, pattern: '^[0-9a-f]{64}$' }
+              excerpt: { type: string, maxLength: 1000, description: Only on an evidence-excerpt interview. }
+              sttEngine: { type: string, maxLength: 100 }
+    InterviewClaimRef:
+      type: object
+      description: A mention of this interview, or an unresolved literal. Never a bare canonical id.
+      properties:
+        mentionId: { type: string, format: uuid }
+        literal: { type: string, maxLength: 200 }
     ContextRecipe:
       type: object
       description: >
@@ -2752,6 +3287,41 @@ components:
                 items:
                   type: string
     ContextAssistantFailed:
+      description: The request failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    InterviewsForbidden:
+      description: >
+        The caller lacks the permission (data.read for reads, data.write.contexts for writes),
+        is using a read API key, or is signed in without an object id. Checked before the
+        feature flag.
+    InterviewsDisabled:
+      description: The `interviews` feature is not enabled
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    InterviewsNotFound:
+      description: Not found, not the caller's, past its retention date, or the feature is off
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    InterviewsBadRequest:
+      description: The request is invalid; `error` says why in a sentence
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    InterviewsConflict:
+      description: The move is refused (resolution state machine, stale statement version, or a final review)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    InterviewsFailed:
       description: The request failed
       content:
         application/json:

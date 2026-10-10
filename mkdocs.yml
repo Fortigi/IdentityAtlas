@@ -215,6 +215,7 @@ nav:
           - Assignment Model Redesign: architecture/assignment-model-redesign.md
           - IdentityType Design: architecture/identitytype-design.md
           - Risk Scoring Plugins (proposal): architecture/risk-scoring-plugins.md
+          - Identity Atlas Interviews (experimental): architecture/interviews.md
           - Rule Mining Discussion: architecture/rule-mining-discussion.md
       - Quality & audits:
           - Documentation Gap Audit: docs-gap-audit.md
