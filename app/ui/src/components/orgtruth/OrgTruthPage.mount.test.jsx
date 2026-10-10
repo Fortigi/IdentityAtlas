@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// The Organisation page shell: four tabs, the import button only for someone who
+// The Organisation page shell: five tabs, the import button only for someone who
 // may import, and the wizard opening (new, or in repeat mode from a source's
 // "Import again") and closing. The wizard itself is workstream T5's and is
 // replaced by a probe here, so this test pins only what the page hands it.
@@ -36,9 +36,10 @@ function renderPage({ auth = IMPORTER, features = { orgTruth: true } } = {}) {
 }
 
 describe('OrgTruthPage', () => {
-  it('shows the four tabs and starts on Sources', async () => {
+  it('shows the five tabs and starts on Sources', async () => {
     renderPage();
-    expect(screen.getAllByRole('tab').map(t => t.textContent)).toEqual(ORG_TABS.map(t => t.label));
+    expect(screen.getAllByRole('tab').map(t => t.textContent)).toEqual(['Sources', 'Model', 'Entities', 'Signals', 'Review']);
+    expect(ORG_TABS.map(t => t.key)).toEqual(['sources', 'model', 'entities', 'signals', 'review']);
     expect(screen.getByRole('tab', { name: 'Sources' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Organisation');
     expect(await screen.findByRole('button', { name: 'Contoso projects' })).toBeInTheDocument();
@@ -49,6 +50,12 @@ describe('OrgTruthPage', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Review' }));
     expect(screen.getByRole('tab', { name: 'Review' })).toHaveAttribute('aria-selected', 'true');
     expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
+  });
+
+  it('opens the Signals panel, which says so when there is no collection yet', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: 'Signals' }));
+    expect(await screen.findByText('No collections yet')).toBeInTheDocument();
   });
 
   it('has exactly one import button, in the Sources tab, and only for someone who may import', async () => {

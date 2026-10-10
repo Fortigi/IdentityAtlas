@@ -241,3 +241,27 @@ describe('IdentityDetailPage (mounted)', () => {
     expect(onCacheData).toHaveBeenCalledWith('id-1', 'identity', { core: detail });
   });
 });
+
+describe('IdentityDetailPage organisation enrichment and activity', () => {
+  it('adds the enrichment to the attributes with its source chip and shows the activity summary', async () => {
+    const authFetch = routes({
+      '/api/org-truth/enrichment/Identity/id-1': { groups: [{ source: 'Maten', attributes: { level: 'Senior' } }] },
+      '/api/org-truth/activity/actor/Identity/id-1': { groups: [{ type: 'Uren', unit: 'h', subjects: [{ targetType: 'OrgEntity', targetId: 'k1', label: 'Contoso', total: 4, lastOn: '2026-01-01', isMember: true }] }] },
+    });
+    renderWithProviders(h(IdentityDetailPage, baseProps), { auth: { authFetch }, features: { orgTruth: true } });
+    const row = (await screen.findByText('level')).closest('tr');
+    expect(row).toHaveTextContent('Senior');
+    expect(row).toHaveTextContent('Maten');
+    const table = await screen.findByRole('table', { name: 'Uren' });
+    expect(table.querySelector('tbody tr').textContent).toBe('Contoso4 hJanuary 2026yes');
+  });
+
+  it('shows neither when the routes are not there', async () => {
+    const authFetch = routes({ '/api/org-truth/': jsonResponse({ error: 'off' }, { ok: false, status: 501 }) });
+    renderWithProviders(h(IdentityDetailPage, baseProps), { auth: { authFetch }, features: { orgTruth: true } });
+    await screen.findByText('Dana Doe');
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/org-truth/activity/actor/Identity/id-1'));
+    expect(screen.queryByText('Activity in imported lists')).toBeNull();
+    expect(screen.queryByTitle('From the imported list', { exact: false })).toBeNull();
+  });
+});

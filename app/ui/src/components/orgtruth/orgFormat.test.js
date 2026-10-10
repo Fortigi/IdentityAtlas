@@ -145,3 +145,28 @@ describe('attributeEntries', () => {
     expect(attributeEntries({})).toHaveLength(5);
   });
 });
+
+describe('isCollectionTemplate / isMissingRoute / readErrorDetail', () => {
+  it('treats a missing template as a collection and every other template as not one', async () => {
+    const { isCollectionTemplate } = await import('./orgFormat');
+    expect(isCollectionTemplate(undefined)).toBe(true);
+    expect(isCollectionTemplate(null)).toBe(true);
+    expect(isCollectionTemplate('collection')).toBe(true);
+    for (const t of ['enrichment', 'activity', 'relation', '']) expect(isCollectionTemplate(t)).toBe(false);
+  });
+
+  it('calls a 404 or 501 a missing route, and no other failure', async () => {
+    const { isMissingRoute } = await import('./orgFormat');
+    expect(isMissingRoute(new Error('HTTP 404'))).toBe(true);
+    expect(isMissingRoute(new Error('HTTP 501'))).toBe(true);
+    expect(isMissingRoute(new Error('HTTP 500'))).toBe(false);
+    expect(isMissingRoute(null)).toBe(false);
+  });
+
+  it('reads the error sentence of a refusal, and nothing from a body without one or that is not JSON', async () => {
+    const { readErrorDetail } = await import('./orgFormat');
+    expect(await readErrorDetail({ json: async () => ({ error: 'bad target' }) })).toBe('bad target');
+    expect(await readErrorDetail({ json: async () => ({}) })).toBe('');
+    expect(await readErrorDetail({ json: async () => { throw new Error('not json'); } })).toBe('');
+  });
+});

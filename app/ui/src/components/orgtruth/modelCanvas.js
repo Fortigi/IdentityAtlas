@@ -9,6 +9,9 @@
 //                 the model has but no profile describes is drawn read-only
 //                 from its attribute keys. Each card carries its profile as a
 //                 chip (`owner`).
+//                 Only COLLECTION types get a card: an enrichment is an
+//                 attribute block on its target system card, an activity and a
+//                 relation are edges (templateCanvas.js).
 //   system cards  one per system target (Account, Person, Group/resource,
 //                 Context) with a row per matchable field (all targets).
 //
@@ -23,10 +26,12 @@ import { LABEL_H, labelWidth, staggerLabels } from './modelGraph';
 import {
   SYSTEM_TARGETS, viaLabel, lineField, targetTitle, targetFieldLabel, ruleCounts, lineLabel,
 } from './linkRulesDraft';
+import { isCollectionTemplate } from './orgFormat';
 
 export const BOX_W = 200;
 export const HEADER_H = 44;
 export const ROW_H = 26;
+export const BLOCK_H = 22;
 const HANDLE_MIN = 40;
 
 function entityBox(type, attributes, count, profile) {
@@ -61,6 +66,7 @@ function ownedBoxes(profiles, counts) {
   const boxes = [];
   const seen = new Set();
   for (const profile of profiles ?? []) {
+    if (!isCollectionTemplate(profile?.recipe?.template)) continue;
     for (const e of profile?.recipe?.entities ?? []) {
       if (seen.has(e.type)) continue;
       seen.add(e.type);
@@ -70,10 +76,17 @@ function ownedBoxes(profiles, counts) {
   return boxes;
 }
 
-function orphanBoxes(entityTypes, owned, counts) {
-  const seen = new Set(owned.map(b => b.entityType));
+// The types an enrichment, activity or relation profile describes: never a card.
+function templateTypes(profiles) {
+  return (profiles ?? []).filter(p => !isCollectionTemplate(p?.recipe?.template)).flatMap(({ recipe }) => [
+    ...(recipe.entities ?? []).map(e => e.type), recipe.relation?.type, recipe.activity?.type,
+  ]).filter(Boolean);
+}
+
+function orphanBoxes(entityTypes, owned, counts, skip) {
+  const seen = new Set([...owned.map(b => b.entityType), ...skip]);
   return (entityTypes ?? [])
-    .filter(t => !seen.has(t.type))
+    .filter(t => !seen.has(t.type) && isCollectionTemplate(t.template))
     .sort((a, b) => a.type.localeCompare(b.type))
     .map(t => entityBox(t.type, [NAME_ATTRIBUTE, ...(t.attributeKeys ?? []).filter(k => k !== NAME_ATTRIBUTE)], counts.get(t.type) ?? null, null));
 }
@@ -84,7 +97,7 @@ export function canvasBoxes(model) {
   const systemCounts = countsBy(model?.systemTypes, 'targetType');
   return [
     ...owned,
-    ...orphanBoxes(model?.entityTypes, owned, counts),
+    ...orphanBoxes(model?.entityTypes, owned, counts, templateTypes(model?.profiles)),
     ...SYSTEM_TARGETS.map(s => systemBox(s, systemCounts.get(s.targetType) ?? null)),
   ];
 }
@@ -96,7 +109,7 @@ export function ruleEntries(profiles, drafts = {}) {
     .map((rule, index) => ({ key: `${p.name}#${index}`, profile: p.name, index, rule })));
 }
 
-export const boxHeight = (box) => HEADER_H + box.rows.length * ROW_H;
+export const boxHeight = (box) => HEADER_H + box.rows.length * ROW_H + (box.blocks?.length ?? 0) * BLOCK_H;
 
 // The cards at their positions ({ [id]: { x, y } }; a card without one sits
 // at 0,0), with every row's own coordinates (cy = the row's middle).
@@ -109,6 +122,7 @@ export function placeBoxes(boxes, positions) {
         const ry = y + HEADER_H + k * ROW_H;
         return { ...r, boxId: b.id, boxTitle: b.title, x, y: ry, cy: ry + ROW_H / 2 };
       }),
+      blocks: (b.blocks ?? []).map((k, i) => ({ ...k, x, y: y + HEADER_H + b.rows.length * ROW_H + i * BLOCK_H })),
     };
   });
 }
@@ -140,7 +154,7 @@ function lineName(rule) {
   return `Edit link ${rule.entityType} ${viaLabel(ruleVia(rule))} to ${targetTitle(rule.targetType, rule.targetEntityType)} ${field}`;
 }
 
-const withLabelYs = (lines) => {
+export const withLabelYs = (lines) => {
   const ys = staggerLabels(lines.map(l => ({ x: l.mid.x, y: l.mid.y, w: l.labelW, h: LABEL_H, dir: 1 })));
   return lines.map((l, i) => ({ ...l, labelX: l.mid.x, labelY: ys[i] }));
 };

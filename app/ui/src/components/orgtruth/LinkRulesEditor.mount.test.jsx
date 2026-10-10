@@ -436,4 +436,28 @@ describe('LinkRulesEditor — readers and edge cases', () => {
       { auth: { authFetch: makeAuthFetch({}), ...IMPORTER }, features: { orgTruth: true } });
     expect(container.querySelector('section')).toBeNull();
   });
+
+  it('draws templates that are not collections as a block on the system card and dashed edges, never as cards', async () => {
+    const EXPERTISE = { id: 'p3', name: 'Expertise list', version: 1,
+      recipe: { version: 1, template: 'enrichment', enrich: { targetType: 'Identity' }, entities: [{ type: 'Maten', nameColumn: 'Name', attributes: [{ column: 'Exp', name: 'expertises' }] }] },
+      linkRules: [] };
+    const model = {
+      ...MODEL,
+      entityTypes: [...MODEL.entityTypes, { type: 'Maten', template: 'enrichment', count: 30 }, { type: 'Incompatibility', template: 'relation', count: 4 }],
+      profiles: [...MODEL.profiles, EXPERTISE],
+      enrichments: [{ type: 'Maten', targetType: 'Identity', profileName: 'Expertise list', attributes: [{ name: 'expertises' }, { name: 'level' }] }],
+      activities: [{ type: 'Uren', profileName: 'Hours', actorTypes: ['Principal'], subjectType: 'OrgEntity', subjectEntityType: 'Customer', rows: 1152, unit: 'h' }],
+      pairs: [{ type: 'Incompatibility', predicate: 'incompatibleWith', leftType: 'Resource', rightType: 'Resource', count: 4 }],
+    };
+    const { container } = await render({ model });
+    expect(container.querySelector('[data-box="e:Maten"]')).toBeNull();
+    expect(container.querySelector('[data-box="e:Incompatibility"]')).toBeNull();
+    const block = container.querySelector('[data-box="s:Identity"] [data-block="x:Expertise list"]');
+    expect(block).not.toBeNull();
+    expect(block.textContent).toContain('+ expertises · level');
+    expect(block.textContent).toContain('(Maten)');
+    expect(container.querySelector('[data-box="s:Principal"] [data-block]')).toBeNull();
+    expect(container.querySelector('[data-edge="a:Hours"]').textContent).toContain('Uren · 1,152 rows · h');
+    expect(container.querySelector('[data-edge="r:Incompatibility:incompatibleWith"]').textContent).toContain('incompatibleWith 4');
+  });
 });

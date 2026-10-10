@@ -4,7 +4,9 @@
 // `profiles`) is a card with its list as a chip, next to the system cards
 // (Account, Person, Group/resource, Context); every link rule of every profile
 // is a line from attribute row to field row, and the organisation relations
-// are dashed lines between cards (modelCanvas.js). Cards are dragged by their
+// are dashed lines between cards (modelCanvas.js). Only collection types are
+// cards: enrichments, activities and relation pairs are drawn as blocks and
+// edges (templateCanvas.js). Cards are dragged by their
 // header (or moved with the arrow keys), the canvas pans and zooms
 // (useCanvasGestures), and the layout is shared through the API
 // (useCanvasLayout); "Reset layout" goes back to the automatic one
@@ -28,6 +30,7 @@ import {
   addRule, replaceRule, removeRuleAt, newRule, rowAction, ruleLabel, renameEntityType, canRename,
 } from './linkRulesDraft';
 import { canvasBoxes, ruleEntries, placeBoxes, canvasLines, predicateLines } from './modelCanvas';
+import { withEnrichmentBlocks, templateEdges } from './templateCanvas';
 import { autoLayout, mergePositions, canvasBounds } from './canvasLayout';
 import { useCanvasLayout } from './useCanvasLayout';
 import { useCanvasGestures } from './useCanvasGestures';
@@ -144,13 +147,14 @@ export default function LinkRulesEditor({ model, onRelinked }) {
   const [error, setError] = useState(null);
   const editable = canEdit && !Object.values(busy).some(Boolean);
 
-  const boxes = useMemo(() => canvasBoxes(model), [model]);
+  const boxes = useMemo(() => withEnrichmentBlocks(canvasBoxes(model), model?.enrichments), [model]);
   const auto = useMemo(() => autoLayout(boxes), [boxes]);
   const positions = useMemo(() => mergePositions(boxes, auto, layout.saved), [boxes, auto, layout.saved]);
   const placed = useMemo(() => placeBoxes(boxes, positions), [boxes, positions]);
   const entries = useMemo(() => ruleEntries(profiles, edits.drafts), [profiles, edits.drafts]);
   const lines = useMemo(() => canvasLines(placed, entries, model), [placed, entries, model]);
   const predicates = useMemo(() => predicateLines(placed, model), [placed, model]);
+  const edges = useMemo(() => templateEdges(placed, model), [placed, model]);
   const owner = (type) => ownerOf(profiles, boxes, type);
   const renamer = useRename({ owner, drafts: edits.drafts, discard: edits.discard, onRelinked, setError });
 
@@ -191,7 +195,7 @@ export default function LinkRulesEditor({ model, onRelinked }) {
       <SaveErrors error={error} />
       {layout.ready && (
         <RuleCanvas
-          placed={placed} lines={lines} predicates={predicates} ghost={gestures.ghost} view={gestures.view}
+          placed={placed} lines={lines} predicates={predicates} edges={edges} ghost={gestures.ghost} view={gestures.view}
           svgRef={gestures.svgRef} handlers={gestures.handlers}
           selection={selection} canEdit={editable} highlight={highlight}
           onRow={onRow} onLine={l => editable && edits.openEdit(l.profile, l.index)} onNudge={nudge}

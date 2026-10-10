@@ -153,4 +153,15 @@ describe('ReviewTab', () => {
     render({ groups: jsonResponse({}, { ok: false, status: 501 }) });
     expect(await screen.findByText('Review — not available yet')).toBeInTheDocument();
   });
+
+  it('shows the activity references below the link cards', async () => {
+    const authFetch = makeAuthFetch((url) => {
+      if (url.startsWith('/api/org-truth/activity-keys')) return { data: [{ id: 'k1', role: 'subject', rawValue: 'Contoso BV', rows: 3, status: 'unmatched', candidates: [] }], total: 1 };
+      if (url.startsWith('/api/org-truth/review/groups')) return GROUPS;
+      return { entityTypes: [] };
+    });
+    renderWithProviders(<ReviewTab onOpenDetail={() => {}} />, { auth: { authFetch, ...IMPORTER }, features: { orgTruth: true } });
+    expect(await screen.findByRole('listitem', { name: 'On what “Contoso BV”' })).toBeInTheDocument();
+    expect(await card(HARBOUR_TITLE)).toBeTruthy();
+  });
 });
