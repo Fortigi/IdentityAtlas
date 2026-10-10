@@ -79,6 +79,10 @@ describe('the team SQL', () => {
     expect(RESOURCES_SQL).toContain('count(DISTINCT tp."personId")');
   });
 
+  it('lists an Identity member even when it has no accounts', () => {
+    expect(MEMBERS_SQL).toMatch(/people AS \(\s*SELECT cm\."memberId" AS "personId"[\s\S]*cm\."memberType" = 'Identity'\s*UNION/);
+  });
+
   it('caps both lists and reports the total alongside', () => {
     expect(MEMBERS_SQL).toMatch(/LIMIT 200$/);
     expect(RESOURCES_SQL).toMatch(/LIMIT 50$/);

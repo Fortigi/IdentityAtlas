@@ -4,11 +4,9 @@ import request from 'supertest';
 import { mountRouter, mountRouterAs } from '../../test-utils/routeTestKit.js';
 import { scriptedDb } from '../../test-utils/scriptedDb.js';
 
-const auth = vi.hoisted(() => ({ enabled: false }));
-vi.mock('../config/authConfig.js', () => ({
-  isAuthEnabled: () => auth.enabled,
-  getJwksClient: () => null, getTenantId: () => '', getClientId: () => '', getRequiredRoles: () => null, getRolePermissions: () => ({}),
-}));
+// Auth stays off here (no auth config is loaded), so the permission gates pass and the
+// caller is whoever mountRouterAs stamps on the request. Permission checks with auth on
+// are in interviews.lookup.test.js.
 vi.mock('../db/connection.js');
 
 import { query } from '../db/connection.js';
@@ -26,7 +24,6 @@ const CANONICAL = /"(Resources|ResourceAssignments|ResourceRelationships|Princip
 
 beforeEach(() => {
   query.mockReset();
-  auth.enabled = false;
   process.env.FEATURE_INTERVIEWS = 'true';
 });
 

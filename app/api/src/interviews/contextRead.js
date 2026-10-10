@@ -43,8 +43,17 @@ const TEAM_PRINCIPALS = `team_principals AS (
 const LIVE_ASSIGNMENT = `ra."deletedAt" IS NULL AND r."deletedAt" IS NULL AND r."resourceType" NOT IN ${OWNERSHIP_TYPES_SQL}`;
 
 // A "person" is the Identity when the account is linked to one, otherwise the account.
+// Identity members are people in their own right: one without (live) accounts is still
+// on the team, with zero access — found by the contract test, where team_principals alone
+// returned nobody.
 export const MEMBERS_SQL = `${SCOPE_CTE}, ${TEAM_PRINCIPALS},
-  people AS (SELECT DISTINCT "personId" FROM team_principals)
+  people AS (
+    SELECT cm."memberId" AS "personId"
+      FROM "ContextMembers" cm JOIN scope s ON s."id" = cm."contextId"
+     WHERE cm."memberType" = 'Identity'
+    UNION
+    SELECT "personId" FROM team_principals
+  )
   SELECT pe."personId" AS "id",
          CASE WHEN i."id" IS NOT NULL THEN 'identity' ELSE 'account' END AS "kind",
          COALESCE(i."displayName", p."displayName") AS "displayName",
