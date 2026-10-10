@@ -1,4 +1,4 @@
-// Import wizard step 4 — Links: per entity type, detect which of its attributes
+// Import wizard step 5 — Links: per entity type, detect which of its attributes
 // match which system fields (POST /api/org-truth/links/detect
 // { sourceId, recipe, entityType } → candidates
 // { attribute, targetType, targetField, type, unique, multiple, none, uniquePct, suggestedWeight }),
@@ -6,13 +6,16 @@
 // rules. Accepting a candidate files it under the rule for its attribute and
 // target type ("owner → Principal", "Project name → Resource"), so one entity
 // can link several attributes to several target types. Link rules are
-// optional: an entity without one is imported but not linked.
+// optional: an entity without one is imported but not linked — except for an
+// enrichment, which needs the rule that links its list to its target type
+// (wizardDraft.enrichKeyRule) before Next opens.
 import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { WizardNav } from '@ui/components/crawler/wizardFields';
 import {
-  acceptCandidate, candidateSentence, recipeForApi, removeRule, removeSignal, ruleKey, ruleTitle, setDetection, stepReady, updateSignal,
+  acceptCandidate, candidateSentence, enrichKeyRule, recipeForApi, removeRule, removeSignal, ruleKey, ruleTitle, setDetection, stepReady, updateSignal,
 } from './wizardDraft';
+import { templateOf } from './templateDraft';
 import { asList, sendJson } from './wizardApi';
 import { CARD_CLS, CELL_INPUT_CLS, LINK_BTN_CLS, Notice, SMALL_BTN_CLS } from './wizardUi';
 
@@ -123,15 +126,24 @@ function EntityLinks({ draft, type, update }) {
   );
 }
 
+function EnrichmentRule({ draft }) {
+  const type = draft.recipe.entities[0]?.type ?? '';
+  const target = draft.recipe.enrich?.targetType;
+  if (enrichKeyRule(draft)) return <Notice variant="success">{type} is linked to {target}: its attributes become attributes of the matched {target}.</Notice>;
+  return <Notice variant="warning">Required: a rule that links {type} to {target}. Detect the candidates and accept one on {target}.</Notice>;
+}
+
 export default function StepLinks({ draft, update, onBack, onNext }) {
   const types = draft.recipe.entities.map(e => e.type.trim()).filter(Boolean);
+  const enrichment = templateOf(draft.recipe) === 'enrichment';
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-700 dark:text-gray-300">
         How should each entity type be matched to accounts, identities, groups or contexts? Detect the candidates and accept the ones that fit.
       </p>
+      {enrichment && <EnrichmentRule draft={draft} />}
       {types.map(t => <EntityLinks key={t} draft={draft} type={t} update={update} />)}
-      <WizardNav onBack={onBack} onNext={onNext} nextDisabled={!stepReady(4, draft)} />
+      <WizardNav onBack={onBack} onNext={onNext} nextDisabled={!stepReady(5, draft)} />
     </div>
   );
 }

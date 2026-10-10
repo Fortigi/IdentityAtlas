@@ -488,53 +488,84 @@ describe('stepReady and navigation', () => {
     expect(W.stepReady(1, W.emptyDraft(PROFILE))).toBe(true);
   });
 
-  it('2: needs a source; 3: needs a sound recipe; 4: always', () => {
+  it('2: needs a source; 3 (kind): always; 4: needs a sound recipe', () => {
     expect(W.stepReady(2, W.emptyDraft())).toBe(false);
     expect(W.stepReady(2, modelled())).toBe(true);
-    expect(W.stepReady(3, W.emptyDraft())).toBe(false);
-    expect(W.stepReady(3, modelled())).toBe(true);
-    expect(W.stepReady(4, W.emptyDraft())).toBe(true);
+    expect(W.stepReady(3, W.emptyDraft())).toBe(true);
+    expect(W.stepReady(4, W.emptyDraft())).toBe(false);
+    expect(W.stepReady(4, modelled())).toBe(true);
   });
 
-  it('5: needs a fresh report whose verdict lets the run start', () => {
+  it('5: always for a collection; an enrichment needs a rule from its list to its target type', () => {
+    expect(W.stepReady(5, W.emptyDraft())).toBe(true);
+    const enrich = { ...W.chooseTemplate(modelled(), 'enrichment') };
+    const named = W.updateEntity(enrich, 0, { type: 'Expertise', nameColumn: 'OwnerEmail' });
+    expect(W.stepReady(5, named)).toBe(false);
+    const toPrincipal = W.acceptCandidate(W.editTemplate(named, r => ({ ...r, enrich: { targetType: 'Principal' } })), 'Expertise',
+      { attribute: 'displayName', targetType: 'Principal', targetField: 'email', type: 'exact', suggestedWeight: 90 });
+    expect(W.stepReady(5, toPrincipal)).toBe(true);
+    expect(W.enrichKeyRule(toPrincipal)).toMatchObject({ entityType: 'Expertise', targetType: 'Principal', via: 'displayName' });
+    // a rule to another target type does not count
+    expect(W.stepReady(5, W.editTemplate(toPrincipal, r => ({ ...r, enrich: { targetType: 'Identity' } })))).toBe(false);
+    // nor a rule of another entity type
+    expect(W.enrichKeyRule({ ...toPrincipal, linkRules: toPrincipal.linkRules.map(r => ({ ...r, entityType: 'Other' })) })).toBeNull();
+  });
+
+  it('6: needs a fresh report whose verdict lets the run start', () => {
     const rule = { entityType: 'Owner', targetType: 'Principal', via: 'email' };
     const ok = W.setQuality(modelled(), { links: { r: { ...rule, unique: 3, none: 0 } } });
-    expect(W.stepReady(5, ok)).toBe(true);
-    expect(W.stepReady(5, modelled())).toBe(false);
-    expect(W.stepReady(5, W.setThreshold(ok, 70))).toBe(false);
-    expect(W.stepReady(5, W.setQuality(modelled(), { links: { r: { ...rule, unique: 0, none: 3 } } }))).toBe(false);
-  });
-
-  it('6: needs a profile name; any other step is never ready', () => {
+    expect(W.stepReady(6, ok)).toBe(true);
     expect(W.stepReady(6, modelled())).toBe(false);
-    expect(W.stepReady(6, { ...modelled(), profileName: '  ' })).toBe(false);
-    expect(W.stepReady(6, { ...modelled(), profileName: 'Projects' })).toBe(true);
-    expect(W.stepReady(7, modelled())).toBe(false);
+    expect(W.stepReady(6, W.setThreshold(ok, 70))).toBe(false);
+    expect(W.stepReady(6, W.setQuality(modelled(), { links: { r: { ...rule, unique: 0, none: 3 } } }))).toBe(false);
   });
 
-  it('shouldAutoPropose: a shown step, a source, nothing proposed and nothing modelled', () => {
+  it('7: needs a profile name; any other step is never ready', () => {
+    expect(W.stepReady(7, modelled())).toBe(false);
+    expect(W.stepReady(7, { ...modelled(), profileName: '  ' })).toBe(false);
+    expect(W.stepReady(7, { ...modelled(), profileName: 'Projects' })).toBe(true);
+    expect(W.stepReady(8, modelled())).toBe(false);
+  });
+
+  it('shouldAutoPropose: a shown step, a source, nothing proposed, chosen or modelled', () => {
     const fresh = W.setSource(W.emptyDraft(), SOURCE);
     expect(W.shouldAutoPropose(fresh)).toBe(true);
     expect(W.shouldAutoPropose(W.emptyDraft())).toBe(false);
     expect(W.shouldAutoPropose({ ...fresh, proposalOrigin: 'heuristic' })).toBe(false);
     expect(W.shouldAutoPropose(W.addEntity(fresh))).toBe(false);
+    // the analyst picked a kind (even collection, with an empty recipe): no unforced proposal over it
+    expect(W.shouldAutoPropose(W.chooseTemplate(fresh, 'collection'))).toBe(false);
+    expect(W.shouldAutoPropose({ ...fresh, recipe: { version: 1, template: 'activity', entities: [], relations: [] } })).toBe(false);
     const repeat = { ...W.emptyDraft(PROFILE), source: SOURCE, recipe: { version: 1, entities: [], relations: [] } };
     expect(W.shouldAutoPropose(repeat)).toBe(false);
     expect(W.shouldAutoPropose({ ...repeat, adjust: true })).toBe(true);
   });
 
-  it('skips the model step in a repeat unless adjusting', () => {
+  it('skips kind and model in a repeat unless adjusting, and links for activity and relation', () => {
     const repeat = W.emptyDraft(PROFILE);
     expect(W.modelStepShown(repeat)).toBe(false);
-    expect(W.nextStep(2, repeat)).toBe(4);
-    expect(W.prevStep(4, repeat)).toBe(2);
+    expect([1, 2, 3, 4, 5, 6, 7].map(n => W.stepShown(n, repeat))).toEqual([true, true, false, false, true, true, true]);
+    expect(W.nextStep(2, repeat)).toBe(5);
+    expect(W.prevStep(5, repeat)).toBe(2);
     const adjust = { ...repeat, adjust: true };
     expect(W.modelStepShown(adjust)).toBe(true);
     expect(W.nextStep(2, adjust)).toBe(3);
-    expect(W.prevStep(4, adjust)).toBe(3);
+    expect(W.nextStep(3, adjust)).toBe(4);
+    expect(W.prevStep(5, adjust)).toBe(4);
     expect(W.nextStep(2, W.emptyDraft())).toBe(3);
-    expect(W.nextStep(4, repeat)).toBe(5);
-    expect(W.prevStep(6, repeat)).toBe(5);
+    expect(W.nextStep(5, repeat)).toBe(6);
+    expect(W.prevStep(7, repeat)).toBe(6);
+    const activity = W.chooseTemplate(W.emptyDraft(), 'activity');
+    expect([3, 4, 5].map(n => W.stepShown(n, activity))).toEqual([true, true, false]);
+    expect(W.nextStep(4, activity)).toBe(6);
+    expect(W.prevStep(6, activity)).toBe(4);
+    expect(W.stepShown(5, W.chooseTemplate(W.emptyDraft(), 'relation'))).toBe(false);
+    expect(W.stepShown(5, W.chooseTemplate(W.emptyDraft(), 'enrichment'))).toBe(true);
+    // a repeat of an activity profile goes from the source straight to quality
+    expect(W.nextStep(2, { ...activity, mode: 'repeat' })).toBe(6);
+    expect(W.prevStep(6, { ...activity, mode: 'repeat' })).toBe(2);
+    expect(W.nextStep(7, repeat)).toBe(8);
+    expect(W.prevStep(1, repeat)).toBe(0);
   });
 });
 

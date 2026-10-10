@@ -1,4 +1,4 @@
-// Import wizard step 5 — Quality: a dry run (POST /api/org-truth/runs/dry-run
+// Import wizard step 6 — Quality: a dry run (POST /api/org-truth/runs/dry-run
 // { sourceId, recipe, linkRules, mode } → report, nothing written) shown as one
 // card per entity type: entries, duplicate / empty keys, what a full run would
 // close, and per link rule ("Project.owner → Principal", n values scored) the
@@ -6,11 +6,14 @@
 // threshold slider (the AccountLinkingSettings range input) writes the threshold
 // into every rule; samples of ambiguous and unmatched entries. The verdict
 // (wizardDraft.qualityVerdict) decides whether the import may start.
-import { useState } from 'react';
-import { useAuth } from '@ui/auth/AuthGate';
+// An activity report (it carries `keys`) shows its parsed rows and key match
+// counts instead. Activity and relation imports carry no link rules, so they
+// get no threshold slider and no way back to a links step.
 import { WizardNav, WIZARD_BACK_CLS } from '@ui/components/crawler/wizardFields';
-import { dryRunBody, linkBlockLabel, linkShares, qualityVerdict, setQuality, setThreshold, stepReady } from './wizardDraft';
-import { sendJson } from './wizardApi';
+import { linkBlockLabel, linkShares, qualityVerdict, setThreshold, stepReady } from './wizardDraft';
+import { linksTemplate, templateOf } from './templateDraft';
+import { useDryRun } from './useDryRun';
+import { ActivityPreview } from './templateUi';
 import { CARD_CLS, Notice, SMALL_BTN_CLS } from './wizardUi';
 
 const SHARE_FILL = { unique: 'bg-green-300', ambiguous: 'bg-amber-300', none: 'bg-gray-300 dark:bg-gray-500' };
@@ -111,26 +114,8 @@ function Verdict({ draft }) {
   );
 }
 
-export default function StepQuality({ draft, update, onBack, onNext, onGoto }) {
-  const { authFetch } = useAuth();
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState(null);
-
-  const check = async () => {
-    setNotice(null);
-    setBusy(true);
-    try {
-      const report = await sendJson(authFetch, '/runs/dry-run', dryRunBody(draft));
-      update(d => setQuality(d, report));
-    } catch (e) {
-      setNotice(e.notAvailable ? e.message : `The check failed: ${e.message}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
+function ThresholdCard({ draft, update }) {
   return (
-    <div className="space-y-4">
       <div className={CARD_CLS}>
         <div className="flex items-center justify-between mb-1">
           <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Link certainty</h4>
@@ -140,20 +125,30 @@ export default function StepQuality({ draft, update, onBack, onNext, onGoto }) {
           onChange={e => update(d => setThreshold(d, e.target.value))} className="w-full accent-blue-600" />
         <p className="text-xs text-gray-600 dark:text-gray-400">Below it a match is proposed for review instead of linked.</p>
       </div>
+  );
+}
+
+export default function StepQuality({ draft, update, onBack, onNext, onGoto }) {
+  const { busy, notice, check } = useDryRun(draft, update);
+  const links = linksTemplate(templateOf(draft.recipe));
+
+  return (
+    <div className="space-y-4">
+      {links && <ThresholdCard draft={draft} update={update} />}
 
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={check} disabled={busy || !draft.source} className={SMALL_BTN_CLS}>
           {busy ? 'Checking…' : draft.quality ? 'Re-run check' : 'Run check'}
         </button>
-        <button type="button" onClick={() => onGoto(4)} className={WIZARD_BACK_CLS}>Back to links</button>
+        {links && <button type="button" onClick={() => onGoto(5)} className={WIZARD_BACK_CLS}>Back to links</button>}
       </div>
 
       {notice && <Notice variant="warning">{notice}</Notice>}
       {draft.qualityStale && <Notice variant="warning">The threshold changed since this check. Re-run it before you continue.</Notice>}
-      {draft.quality && <Report draft={draft} />}
+      {draft.quality && (draft.quality.keys ? <ActivityPreview report={draft.quality} /> : <Report draft={draft} />)}
       {draft.quality && <Verdict draft={draft} />}
 
-      <WizardNav onBack={onBack} onNext={onNext} nextDisabled={!stepReady(5, draft)} />
+      <WizardNav onBack={onBack} onNext={onNext} nextDisabled={!stepReady(6, draft)} />
     </div>
   );
 }
