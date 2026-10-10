@@ -27,6 +27,8 @@
 // 'context-current'). Attribute conditions (e.g. department) reconstruct fully.
 
 import { UUID_RE, collectContextIds } from './filterSql.js';
+import { orgConditionClause } from './orgCondition.js';
+import { isEnrichmentField, enrichmentConditionClause } from './enrichmentCondition.js';
 import { GROUP_PRINCIPAL_TYPE } from '../lib/principalTypes.js';
 import { shouldHideDefaultResourceTypes, visibleResourceTypesSql } from '../lib/resourceVisibility.js';
 
@@ -177,6 +179,36 @@ function contextClause({ entity, stateAlias, contextId, includeChildren, ctxType
   return null;
 }
 
+// Org links and enrichment rows are read as they are NOW, the same way contexts
+// use current membership — so such a condition flags the timeline
+// 'context-current' (`current: true`), like a context condition does.
+function currentDataClause(built) {
+  return built.warning ? { warning: `history: ${built.warning}` } : { clause: built.clause, current: true };
+}
+
+// One condition → { clause, current? } or { warning, current? }.
+function scopeConditionClause({ entity, stateAlias, cond, validColumns, contextTypes, bind }) {
+  const idExpr = `(${stateAlias}->>'id')::uuid`;
+  if (cond.kind === 'context') {
+    const clause = contextClause({
+      entity, stateAlias, contextId: cond.contextId,
+      includeChildren: !!cond.includeChildren,
+      ctxType: contextTypes.get(cond.contextId),
+      bind,
+    });
+    return clause ? { clause, current: true } : { warning: `history: context condition dropped (${cond.contextId})`, current: true };
+  }
+  if (cond.kind === 'attribute' && isEnrichmentField(cond.field)) {
+    return currentDataClause(enrichmentConditionClause({ entity, idExpr, field: cond.field, values: cond.values, bind }));
+  }
+  if (cond.kind === 'attribute') {
+    const clause = attributeClause(stateAlias, cond.field, cond.values, validColumns, bind);
+    return clause ? { clause } : { warning: `history: attribute condition dropped (${cond.field})` };
+  }
+  if (cond.kind === 'org') return currentDataClause(orgConditionClause({ entity, idExpr, cond, bind }));
+  return { warning: `history: unknown condition kind ${cond.kind}` };
+}
+
 // Build the WHERE fragment (include AND, exclude AS NOT TRUE) for one entity
 // block, against the as-of `state` alias. Returns { where, usedContext }.
 function scopeWhere({ entity, stateAlias, block, validColumns, contextTypes, bind, warnings }) {
@@ -188,24 +220,10 @@ function scopeWhere({ entity, stateAlias, block, validColumns, contextTypes, bin
     if (!Array.isArray(conds)) return;
     conds.forEach((cond) => {
       if (!cond || typeof cond !== 'object') return;
-      let clause = null;
-      if (cond.kind === 'context') {
-        usedContext = true;
-        clause = contextClause({
-          entity, stateAlias, contextId: cond.contextId,
-          includeChildren: !!cond.includeChildren,
-          ctxType: contextTypes.get(cond.contextId),
-          bind,
-        });
-        if (!clause) { warnings.push(`history: context condition dropped (${cond.contextId})`); return; }
-      } else if (cond.kind === 'attribute') {
-        clause = attributeClause(stateAlias, cond.field, cond.values, validColumns, bind);
-        if (!clause) { warnings.push(`history: attribute condition dropped (${cond.field})`); return; }
-      } else {
-        warnings.push(`history: unknown condition kind ${cond.kind}`);
-        return;
-      }
-      (target === 'inc' ? inc : exc).push(clause);
+      const built = scopeConditionClause({ entity, stateAlias, cond, validColumns, contextTypes, bind });
+      if (built.current) usedContext = true;
+      if (built.warning) { warnings.push(built.warning); return; }
+      (target === 'inc' ? inc : exc).push(built.clause);
     });
   };
   handle(block?.include, 'inc');

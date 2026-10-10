@@ -17,9 +17,11 @@ import ReportError from '@ui/components/reports/ReportError';
 import DescribePanel from './DescribePanel';
 import TermsPanel from './TermsPanel';
 import MatchesPanel from './MatchesPanel';
+import TargetSwitch from './TargetSwitch';
 import { BuilderHeader, CARD, H3, SettingsPanel } from './ContextBuilderParts';
 import {
-  addTerm, EMPTY_RECIPE, mergeTerms, removeTerm, saveBlocker, setObjectChoice, setTermMatch, toggleListValue, toggleTerm,
+  addTerm, EMPTY_RECIPE, memberCountOf, memberUnit, mergeTerms, removeTerm, saveBlocker, setObjectChoice, setOrgChoice,
+  setPrincipalChoice, setTarget, setTermMatch, toggleAssignmentType, toggleListValue, toggleTerm,
 } from './recipeDraft';
 import { useRecipeEvaluation } from './useRecipeEvaluation';
 import { useTermConversation } from './useTermConversation';
@@ -62,7 +64,11 @@ export default function ContextBuilderPage({ builderId, onClose, onOpenDetail, o
     authFetch,
     recipe,
     initialQuestion: saved?.question || '',
-    onTerms: (reply) => setRecipe(r => ({ ...mergeTerms(r, reply.terms), name: r.name || reply.name })),
+    onTerms: (reply) => setRecipe(r => {
+      const next = { ...mergeTerms(r, reply.terms), name: r.name || reply.name };
+      // The model's reading of the description preselects the target; the analyst can switch.
+      return reply.target ? setTarget(next, reply.target) : next;
+    }),
   });
   const { evaluation, evaluating, error: evaluateError } = useRecipeEvaluation(authFetch, recipe);
   const saving = useContextSave({
@@ -75,12 +81,13 @@ export default function ContextBuilderPage({ builderId, onClose, onOpenDetail, o
   if (stop) return stop;
 
   const fieldLabels = Object.fromEntries(options.fields.map(f => [f.name, f.label]));
-  const memberCount = evaluation?.memberCount ?? 0;
+  const memberCount = memberCountOf(recipe, evaluation);
 
   return (
     <section className="mx-auto max-w-6xl space-y-4" aria-labelledby="ctx-builder-heading">
       <BuilderHeader
         contextId={saving.contextId} memberCount={memberCount} evaluating={evaluating}
+        unit={memberUnit(recipe)}
         blocker={saveBlocker(recipe, memberCount)} saving={saving.saving} message={saving.message}
         onSave={() => saving.save(recipe, conversation.question)}
         onOpenContext={() => onOpenDetail?.('context', saving.contextId, recipe.name)}
@@ -89,12 +96,15 @@ export default function ContextBuilderPage({ builderId, onClose, onOpenDetail, o
       <div className={CARD}>
         <h3 className={H3}>Describe it <span className="font-normal text-gray-600 dark:text-gray-400">— optional, the local model proposes search terms</span></h3>
         <DescribePanel conversation={conversation} hasTerms={recipe.terms.length > 0} />
+        <div className="mt-3">
+          <TargetSwitch recipe={recipe} onTarget={update(setTarget)} onToggleAccess={update(toggleAssignmentType)} />
+        </div>
       </div>
 
       <div className={CARD}>
         <h3 className={H3}>Search terms</h3>
         <TermsPanel
-          recipe={recipe} stats={evaluation?.terms} evaluation={evaluation} fieldLabels={fieldLabels} memberCount={memberCount}
+          recipe={recipe} stats={evaluation?.terms} evaluation={evaluation} fieldLabels={fieldLabels} memberCount={evaluation?.memberCount ?? 0}
           actions={{
             toggle: update(toggleTerm), match: update(setTermMatch), remove: update(removeTerm),
             add: update(addTerm), addRelated: update((r, word) => addTerm(r, word, 'related')),
@@ -114,7 +124,8 @@ export default function ContextBuilderPage({ builderId, onClose, onOpenDetail, o
         <h3 className={H3}>What the terms find</h3>
         {evaluateError && <p className="mb-2 text-sm text-red-700 dark:text-red-300" role="alert">{evaluateError}</p>}
         <MatchesPanel evaluation={evaluation} recipe={recipe} fieldLabels={fieldLabels}
-          onChoose={update(setObjectChoice)} onOpenDetail={onOpenDetail} />
+          onChoose={update(setObjectChoice)} onChooseOrg={update(setOrgChoice)} onChoosePrincipal={update(setPrincipalChoice)}
+          onOpenDetail={onOpenDetail} />
       </div>
     </section>
   );

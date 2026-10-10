@@ -23,6 +23,8 @@ export default defineConfig({
   test: {
     include: [
       'src/components/contexts/assistant/recipeDraft.test.js',
+      'src/components/contexts/assistant/recipeDraft.target.test.js',
+      'src/components/contexts/assistant/MatchesPanel.mount.test.jsx',
       'src/components/contexts/assistant/useContextSave.test.jsx',
       'src/components/contexts/assistant/useRecipeEvaluation.test.jsx',
       'src/components/contexts/assistant/useTermConversation.test.jsx',

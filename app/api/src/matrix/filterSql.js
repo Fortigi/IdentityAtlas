@@ -11,6 +11,8 @@
 // Each condition is one of:
 //   { kind: 'context',   contextId,  includeChildren }
 //   { kind: 'attribute', field,      values: [...] }   // values are OR'd
+//   { kind: 'org',       entityType, entityIds?, attribute?, via? }  // see orgCondition.js
+//   { kind: 'attribute', field: 'org.<SourceType>.<attr>', values }    // see enrichmentCondition.js
 //
 // `buildEntitySubquery` turns a `{ include, exclude }` block into a parenthesised
 // `(SELECT id FROM "<Table>" WHERE …)` that the matrix data and preview queries
@@ -21,7 +23,10 @@
 // for every context referenced anywhere in the filter — the caller injects this
 // map into `buildEntitySubquery` so the module stays free of DB knowledge.
 
-export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { orgConditionClause } from './orgCondition.js';
+import { isEnrichmentField, enrichmentConditionClause } from './enrichmentCondition.js';
+
+export const UUID_RE =/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SAFE_IDENT_RE = /^[a-zA-Z0-9_]+$/;
 const EXT_PREFIX = 'ext.';
 
@@ -90,50 +95,12 @@ export function buildEntitySubquery({
     if (!Array.isArray(conditions)) return;
     conditions.forEach((cond) => {
       if (!cond || typeof cond !== 'object') return;
-
-      // ─── context membership ─────────────────────────────────────
-      if (cond.kind === 'context') {
-        if (!UUID_RE.test(cond.contextId || '')) {
-          warnings.push('context with invalid id dropped');
-          return;
-        }
-        const ctxType = contextTypes.get(cond.contextId);
-        if (!ctxType) {
-          warnings.push(`context ${cond.contextId} not found — dropped`);
-          return;
-        }
-        const clause = buildContextClause({
-          entity,
-          contextId: cond.contextId,
-          includeChildren: !!cond.includeChildren,
-          contextTargetType: ctxType,
-          bind,
-        });
-        if (!clause) {
-          warnings.push(`context type ${ctxType} incompatible with entity ${entity} — dropped`);
-          return;
-        }
-        (target === 'inc' ? includeClauses : excludeClauses).push(clause);
+      const built = buildConditionClause({ entity, cond, validColumns, contextTypes, bind });
+      if (built.warning) {
+        warnings.push(built.warning);
         return;
       }
-
-      // ─── attribute match ────────────────────────────────────────
-      if (cond.kind === 'attribute') {
-        const clause = buildAttributeClause({
-          field: cond.field,
-          values: cond.values,
-          validColumns,
-          bind,
-        });
-        if (!clause) {
-          warnings.push(`attribute condition for ${cond.field} dropped`);
-          return;
-        }
-        (target === 'inc' ? includeClauses : excludeClauses).push(clause);
-        return;
-      }
-
-      warnings.push(`unknown condition kind: ${cond.kind}`);
+      (target === 'inc' ? includeClauses : excludeClauses).push(built.clause);
     });
   };
 
@@ -158,6 +125,40 @@ export function buildEntitySubquery({
 }
 
 // ─── Internals ──────────────────────────────────────────────────────
+
+// One condition → { clause } or { warning } (the condition is then dropped).
+function buildConditionClause({ entity, cond, validColumns, contextTypes, bind }) {
+  // ─── context membership ─────────────────────────────────────
+  if (cond.kind === 'context') {
+    if (!UUID_RE.test(cond.contextId || '')) return { warning: 'context with invalid id dropped' };
+    const ctxType = contextTypes.get(cond.contextId);
+    if (!ctxType) return { warning: `context ${cond.contextId} not found — dropped` };
+    const clause = buildContextClause({
+      entity,
+      contextId: cond.contextId,
+      includeChildren: !!cond.includeChildren,
+      contextTargetType: ctxType,
+      bind,
+    });
+    return clause ? { clause } : { warning: `context type ${ctxType} incompatible with entity ${entity} — dropped` };
+  }
+
+  // ─── enrichment attribute (see enrichmentCondition.js) ──────
+  if (cond.kind === 'attribute' && isEnrichmentField(cond.field)) {
+    return enrichmentConditionClause({ entity, idExpr: 'id', field: cond.field, values: cond.values, bind });
+  }
+
+  // ─── attribute match ────────────────────────────────────────
+  if (cond.kind === 'attribute') {
+    const clause = buildAttributeClause({ field: cond.field, values: cond.values, validColumns, bind });
+    return clause ? { clause } : { warning: `attribute condition for ${cond.field} dropped` };
+  }
+
+  // ─── organisation entities (see orgCondition.js) ─────────────
+  if (cond.kind === 'org') return orgConditionClause({ entity, idExpr: 'id', cond, bind });
+
+  return { warning: `unknown condition kind: ${cond.kind}` };
+}
 
 function buildAttributeClause({ field, values, validColumns, bind }) {
   if (typeof field !== 'string') return null;

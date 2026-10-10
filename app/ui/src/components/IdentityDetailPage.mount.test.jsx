@@ -68,6 +68,7 @@ function routes(overrides = {}) {
   return makeAuthFetch({
     '/api/risk-scores/identities/id-1': riskData,
     '/api/identities/id-1/timeline': timeline,
+    '/api/identities/id-1/contexts': [{ id: 'ctx-9', displayName: 'Engineering' }],
     '/api/identities/id-1': detail,
     ...overrides,
   });
@@ -118,14 +119,79 @@ describe('IdentityDetailPage (mounted)', () => {
     await screen.findByText('Dana Doe');
     await user.click(screen.getByRole('tab', { name: /Relationships/i }));
 
-    expect(await screen.findByText('dana@corp.com')).toBeInTheDocument();
-    expect(screen.getByText('ddoe@legacy')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'dana@corp.com' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ddoe@legacy' })).toBeInTheDocument();
     // Each account is shown with its source system and enabled state.
     expect(screen.getAllByRole('columnheader').map(th => th.textContent))
       .toEqual(['System', 'Account', 'Enabled', 'Type', 'Actions']);
     const row = screen.getByRole('button', { name: 'ddoe@legacy' }).closest('tr');
     expect(row).toHaveTextContent('HR CSV');
     expect(row).toHaveTextContent('No');
+  });
+
+  it('asks the organisation lists nothing while the feature is off, and shows no organisation neighbours on a 404 or 501', async () => {
+    const off = routes();
+    const first = renderWithProviders(h(IdentityDetailPage, baseProps), { auth: { authFetch: off } });
+    await screen.findByText('Dana Doe');
+    await userEvent.setup().click(screen.getByRole('tab', { name: /Relationships/i }));
+    await screen.findByRole('button', { name: /^User dana@corp\.com/ });
+    expect(off.mock.calls.some(([u]) => String(u).includes('/org-truth/'))).toBe(false);
+    first.unmount();
+
+    for (const status of [404, 501]) {
+      const authFetch = routes({ '/api/org-truth/linked/': jsonResponse({ error: 'off' }, { ok: false, status }) });
+      const { unmount, container } = renderWithProviders(h(IdentityDetailPage, baseProps), { auth: { authFetch }, features: { orgTruth: true } });
+      const user = userEvent.setup();
+      await screen.findByText('Dana Doe');
+      await user.click(screen.getByRole('tab', { name: /Relationships/i }));
+      await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/org-truth/linked/Identity/id-1'));
+      await screen.findByRole('button', { name: /^User dana@corp\.com/ });
+      expect(container.querySelector('[data-node^="org-entity:"]')).toBeNull();
+      expect(screen.queryByText('Organisation')).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('draws organisation entities as direct neighbours: linked by attribute, or by the hours worked', async () => {
+    const linked = {
+      total: 3,
+      groups: [
+        { key: 'direct|Klant|eigenaar', entityType: 'Klant', via: 'eigenaar', kind: 'direct', label: 'Klant · eigenaar', count: 1,
+          items: [{ entityId: 'k1', entityType: 'Klant', label: 'Contoso BV', detail: null }] },
+        { key: 'through|Klant|Uren|klant', entityType: 'Klant', via: 'klant', kind: 'through', sourceType: 'Uren', label: 'Klant · worked on (Uren)',
+          count: 2, unlinkedRows: 12, items: [
+            { entityId: 'k2', entityType: 'Klant', label: 'Fabrikam', detail: '1491 h · 3 rows · until 2026-01', hours: 1491 },
+            { entityId: 'k3', entityType: 'Klant', label: 'Northwind', detail: '1 h · 1 rows', hours: 1 },
+          ] },
+      ],
+    };
+    const onOpenDetail = vi.fn();
+    const authFetch = routes({ '/api/org-truth/linked/Identity/id-1': linked });
+    const { container } = renderWithProviders(h(IdentityDetailPage, { ...baseProps, onOpenDetail }), { auth: { authFetch }, features: { orgTruth: true } });
+    const user = userEvent.setup();
+    await screen.findByText('Dana Doe');
+    await user.click(screen.getByRole('tab', { name: /Relationships/i }));
+
+    // Three customers, linked two ways, are ONE "Klant" node with the count until it is opened.
+    const cluster = await screen.findByRole('button', { name: '3 Klant, press to show them' });
+    expect(container.querySelectorAll('[data-node^="org-entity:"]')).toHaveLength(0);
+    expect(container.querySelector('[data-edge="identity:id-1->cluster:identity:id-1:org:type:Klant"]')?.textContent)
+      .toBe('eigenaar · worked on (Uren)');
+    await user.click(cluster);
+
+    await screen.findByRole('button', { name: 'Klant Contoso BV, press to expand' });
+    expect(container.querySelectorAll('[data-node^="org-entity:"]')).toHaveLength(3);
+    const edgeText = (to) => container.querySelector(`[data-edge="identity:id-1->org-entity:${to}"]`)?.textContent;
+    expect(edgeText('k1')).toBe('eigenaar');
+    expect(edgeText('k2')).toBe('worked on · 1,491 h (Uren)');
+    expect(edgeText('k3')).toBe('worked on · 1 h (Uren)');
+    // No Organisation bucket and no "Klant · eigenaar" bucket in between.
+    expect(screen.queryByText('Organisation')).toBeNull();
+    expect(screen.queryByText('Klant · eigenaar')).toBeNull();
+
+    await user.click(screen.getByRole('link', { name: 'Open Northwind' }));
+    expect(onOpenDetail).toHaveBeenCalledWith('org-entity', 'k3', 'Northwind');
+    expect(authFetch.mock.calls.filter(([u]) => String(u).startsWith('/api/org-truth/linked/'))).toHaveLength(1);
   });
 
   it('switches to the Timeline tab and triggers the timeline fetch', async () => {
@@ -173,5 +239,29 @@ describe('IdentityDetailPage (mounted)', () => {
 
     await screen.findByText('Dana Doe');
     expect(onCacheData).toHaveBeenCalledWith('id-1', 'identity', { core: detail });
+  });
+});
+
+describe('IdentityDetailPage organisation enrichment and activity', () => {
+  it('adds the enrichment to the attributes with its source chip and shows the activity summary', async () => {
+    const authFetch = routes({
+      '/api/org-truth/enrichment/Identity/id-1': { groups: [{ source: 'Maten', attributes: { level: 'Senior' } }] },
+      '/api/org-truth/activity/actor/Identity/id-1': { groups: [{ type: 'Uren', unit: 'h', subjects: [{ targetType: 'OrgEntity', targetId: 'k1', label: 'Contoso', total: 4, lastOn: '2026-01-01', isMember: true }] }] },
+    });
+    renderWithProviders(h(IdentityDetailPage, baseProps), { auth: { authFetch }, features: { orgTruth: true } });
+    const row = (await screen.findByText('level')).closest('tr');
+    expect(row).toHaveTextContent('Senior');
+    expect(row).toHaveTextContent('Maten');
+    const table = await screen.findByRole('table', { name: 'Uren' });
+    expect(table.querySelector('tbody tr').textContent).toBe('Contoso4 hJanuary 2026yes');
+  });
+
+  it('shows neither when the routes are not there', async () => {
+    const authFetch = routes({ '/api/org-truth/': jsonResponse({ error: 'off' }, { ok: false, status: 501 }) });
+    renderWithProviders(h(IdentityDetailPage, baseProps), { auth: { authFetch }, features: { orgTruth: true } });
+    await screen.findByText('Dana Doe');
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/org-truth/activity/actor/Identity/id-1'));
+    expect(screen.queryByText('Activity in imported lists')).toBeNull();
+    expect(screen.queryByTitle('From the imported list', { exact: false })).toBeNull();
   });
 });

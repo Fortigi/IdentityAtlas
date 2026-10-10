@@ -22,24 +22,39 @@ const CONTEXT_TYPE = 'ContextRecipe';
 const ROOT = 'root';
 const PINNED = 'pinned';
 
+// What the descriptions call the members: a principal recipe holds users.
+const nounOf = (recipe) => (recipe.target === 'principal' ? 'users' : 'objects');
+
+function rootAttributes(recipe, kept) {
+  const attrs = { builtWith: 'context-assistant', terms: kept, fields: recipe.fields, resourceTypes: recipe.resourceTypes };
+  if (recipe.target === 'principal') Object.assign(attrs, { target: 'principal', assignmentTypes: recipe.access.assignmentTypes });
+  return attrs;
+}
+
 function rootNode(recipe, memberCount) {
   const kept = recipe.terms.filter(t => t.state === 'accepted').map(t => t.text);
+  const noun = nounOf(recipe);
   return {
     externalId: ROOT,
     displayName: recipe.name || 'Context',
     contextType: CONTEXT_TYPE,
     description: kept.length
-      ? `${memberCount} objects found by: ${kept.join(', ')}.`
-      : `${memberCount} objects added by hand.`,
-    extendedAttributes: { builtWith: 'context-assistant', terms: kept, fields: recipe.fields, resourceTypes: recipe.resourceTypes },
+      ? `${memberCount} ${noun} found by: ${kept.join(', ')}.`
+      : `${memberCount} ${noun} added by hand.`,
+    extendedAttributes: rootAttributes(recipe, kept),
   };
 }
 
 /**
- * Shape the plugin output for a validated recipe and its computed matches.
+ * Shape the plugin output for a validated recipe and its computed members.
+ *
+ * `result` is computeMatches() for a resource recipe, or computePrincipals() for a
+ * principal recipe — both carry memberIds and termMembers; the members no kept term
+ * finds are `pinnedIds` when given, else the matches included by hand.
  * @returns {import('./types.js').PluginRunResult}
  */
 export function buildTree(recipe, result) {
+  const noun = nounOf(recipe);
   const contexts = [rootNode(recipe, result.memberIds.length)];
   const members = [];
   if (recipe.structure === 'flat') {
@@ -57,24 +72,35 @@ export function buildTree(recipe, result) {
       parentExternalId: ROOT,
       displayName: term.text,
       contextType: CONTEXT_TYPE,
-      description: `${ids.length} objects found by "${term.text}".`,
+      description: `${ids.length} ${noun} found by "${term.text}".`,
       extendedAttributes: { term: term.text, match: term.match },
     });
     for (const id of ids) members.push({ contextExternalId: externalId, memberId: id });
   }
 
-  const pinnedOnly = result.matches.filter(m => m.status === 'included').map(m => m.id);
+  const pinnedOnly = result.pinnedIds ?? result.matches.filter(m => m.status === 'included').map(m => m.id);
   if (pinnedOnly.length) {
     contexts.push({
       externalId: PINNED,
       parentExternalId: ROOT,
       displayName: 'Added by hand',
       contextType: CONTEXT_TYPE,
-      description: `${pinnedOnly.length} objects included by hand.`,
+      description: `${pinnedOnly.length} ${noun} included by hand.`,
     });
     for (const id of pinnedOnly) members.push({ contextExternalId: PINNED, memberId: id });
   }
   return { contexts, members };
+}
+
+/**
+ * The validated recipe of a run, for the plugin of its target. A recipe that cannot run,
+ * or was saved for the other plugin, fails the run rather than building a wrong tree.
+ */
+export function recipeFor(params, target) {
+  const { ok, recipe, errors } = validateRecipe(params.recipe);
+  if (!ok) throw new Error(`The context recipe cannot be used: ${errors.join(' ')}`);
+  if (recipe.target !== target) throw new Error(`This recipe collects ${recipe.target}s; it belongs to the other context-recipe plugin.`);
+  return recipe;
 }
 
 /** @type {import('./types.js').ContextPlugin} */
@@ -93,8 +119,7 @@ export default {
   },
 
   async run(params, ctx = {}) {
-    const { ok, recipe, errors } = validateRecipe(params.recipe);
-    if (!ok) throw new Error(`The context recipe cannot be used: ${errors.join(' ')}`);
+    const recipe = recipeFor(params, 'resource');
     const { rows, scopeTotal, truncated } = await loadCandidates(recipe, ctx.tx || tx);
     if (truncated) ctx.log?.(`More than ${rows.length} objects matched; the rest were left out.`);
     return buildTree(recipe, computeMatches(rows, recipe, scopeTotal));

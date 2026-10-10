@@ -8,6 +8,12 @@
 // therefore always offers a search box, and for a truncated column it asks the
 // server (/matrix/column-values) for matches beyond the preloaded page, so
 // every stored value stays reachable (#928).
+//
+// Organisation enrichment fields (`org.<list>.<attribute>`, e.g.
+// org.Maten.expertises) arrive in the same column list with a server label
+// ("expertises (Maten)") and `multi` when one object may hold several values;
+// they are listed in their own group, and a multi-valued one says that ticking
+// a value matches anyone who holds it among others.
 
 import { useMemo, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
@@ -23,6 +29,17 @@ import { attributeLabel } from '@ui/utils/formatters';
 // attributeOptions() in MatrixFilterWizard), where a near-unique value has
 // nothing to group by.
 const HIDDEN_COLUMNS = ['id', 'principalId', 'resourceId', 'identityId'];
+const ORG_PREFIX = 'org.';
+
+function ColumnOption({ c }) {
+  return (
+    <option value={c.column}>
+      {/* Name shown, key sent: the option value stays the stored column so
+          the filter still addresses the real attribute (#872). */}
+      {c.label || attributeLabel(c.column) || c.column} ({c.values.length}{c.truncated ? '+' : ''}){c.multi ? ' · multiple values' : ''}
+    </option>
+  );
+}
 
 export default function AttributePicker({ entity, columns, onPick, onClose }) {
   const { authFetch } = useAuth();
@@ -40,6 +57,8 @@ export default function AttributePicker({ entity, columns, onPick, onClose }) {
       .filter(c => Array.isArray(c.values));
   }, [columns]);
 
+  const systemColumns = filterable.filter(c => !c.column.startsWith(ORG_PREFIX));
+  const orgColumns = filterable.filter(c => c.column.startsWith(ORG_PREFIX));
   const selectedColumn = filterable.find(c => c.column === field);
   const preloaded = useMemo(() => selectedColumn?.values || [], [selectedColumn]);
   const truncated = !!selectedColumn?.truncated;
@@ -99,13 +118,12 @@ export default function AttributePicker({ entity, columns, onPick, onClose }) {
           className="w-full px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 mb-3"
         >
           <option value="">— select a field —</option>
-          {filterable.map(c => (
-            <option key={c.column} value={c.column}>
-              {/* Name shown, key sent: the option value stays the stored column so
-                  the filter still addresses the real attribute (#872). */}
-              {c.label || attributeLabel(c.column) || c.column} ({c.values.length}{c.truncated ? '+' : ''})
-            </option>
-          ))}
+          {systemColumns.map(c => <ColumnOption key={c.column} c={c} />)}
+          {orgColumns.length > 0 && (
+            <optgroup label="Organisation">
+              {orgColumns.map(c => <ColumnOption key={c.column} c={c} />)}
+            </optgroup>
+          )}
         </select>
 
         {field && (
@@ -121,6 +139,11 @@ export default function AttributePicker({ entity, columns, onPick, onClose }) {
               placeholder="Type to narrow the list…"
               className="w-full px-2 py-1 mb-2 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 dark:placeholder-gray-500"
             />
+            {selectedColumn?.multi && (
+              <p className="text-[10px] text-gray-600 dark:text-gray-400 mb-2">
+                One object can hold several of these values; it matches when any of its values is ticked.
+              </p>
+            )}
             {truncated && (
               <p className="text-[10px] text-gray-600 dark:text-gray-400 mb-2">
                 Showing the first {preloaded.length} values of more than can be listed — search to find any of the others.

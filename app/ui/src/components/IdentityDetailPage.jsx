@@ -5,6 +5,8 @@ import EntityDetailPage from './EntityDetailPage';
 import RiskScoreSection from './RiskScoreSection';
 import LinkedAccountsPanel from './LinkedAccountsPanel';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
+import OrgActivitySummary from '@ui/components/orgtruth/OrgActivitySummary';
+import { useOrgEnrichment } from '@ui/components/orgtruth/enrichment';
 
 const SYSTEM_COLS = new Set([
   'SysStartTime', 'SysEndTime', 'ValidFrom', 'ValidTo',
@@ -69,6 +71,7 @@ function IdentityHeader({ data, onOpenDetail }) {
 export default function IdentityDetailPage({ identityId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
   const features = useFeatures();
+  const enrichment = useOrgEnrichment('Identity', identityId);
   const [riskData, setRiskData] = useState(null);
   const [busyMember, setBusyMember] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -122,6 +125,8 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
       getDisplayName={(data) => data.identity?.displayName}
       getTabs={getTabs}
       getAttributeEntries={getIdentityAttributeEntries}
+      extraAttributeEntries={enrichment}
+      renderAttributesExtra={() => <OrgActivitySummary targetType="Identity" id={identityId} onOpenDetail={onOpenDetail} />}
       renderHeader={(data) => <IdentityHeader data={data} onOpenDetail={onOpenDetail} />}
       headerCard
       renderRelationshipsExtra={(data) => (

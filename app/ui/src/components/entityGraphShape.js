@@ -1,6 +1,6 @@
 // ─── entityGraphShape ────────────────────────────────────────────────
 // Central description of the fanout graph: for every entity kind we
-// care about (user, resource, access-package, identity, context), this
+// care about (user, resource, access-package, identity, context, org-entity), this
 // module knows:
 //
 //   1. getRootNodes(core)        — the first-ring category nodes you
@@ -21,8 +21,9 @@
 //                                  we show individual items as the
 //                                  next ring.
 //
-// The detail pages drive expansion by storing a path of clicked nodes;
-// each expansion step just asks this module what to fetch next.
+// The relationship graph (components/graph/graphNeighbours.js) turns each
+// category into one relation of the object: an edge label and direction on top
+// of what this module fetches.
 
 // ─── Item shape ──────────────────────────────────────────────────────
 // Items we fetch from the API come in many shapes (user rows, resource
@@ -31,29 +32,8 @@
 //
 //   { key, label, kind: 'item', entityKind, entityId }
 //
-// So the caller can click an item node and recurse into getRootNodes
-// for that entityKind. `kind: 'item'` suppresses the count badge in
-// the graph and renders an initial letter instead.
-
-export const MAX_ITEMS_PER_FANOUT = 10;
-
-// Cap a fanout for the GRAPH ring only (too many orbiting nodes is unreadable):
-// keep the first N-1 and append a non-clickable "+N more" marker. The list
-// below the graph (ExpandedItemsList) receives the FULL, uncapped list, so the
-// "+N more" in the graph is just a hint — the complete set is shown (and
-// clickable) in the list.
-export function capItems(items) {
-  if (!items) return [];
-  if (items.length <= MAX_ITEMS_PER_FANOUT) return items;
-  const shown = items.slice(0, MAX_ITEMS_PER_FANOUT - 1);
-  shown.push({
-    key: '__overflow__',
-    label: `+${items.length - (MAX_ITEMS_PER_FANOUT - 1)} more in the list below`,
-    kind: 'item',
-    overflow: true,
-  });
-  return shown;
-}
+// So the graph can expand an item by recursing into getRootNodes for its
+// entityKind, and the list below the graph can show and open it.
 
 // ─── User ────────────────────────────────────────────────────────────
 
@@ -350,6 +330,33 @@ async function fetchContextItems(_contextId, categoryKey, _authFetch, extras = {
   return [];
 }
 
+// ─── Org entity (organisation truth) ─────────────────────────────────
+// The org-entity detail page and any org entity drilled into from another
+// graph. GET /api/org-truth/entities/:id/graph answers the first ring as
+// `categories` ([{ key, label, count }], e.g. 'rel:out:owner', 'link:Principal'),
+// and ?category=<key> the items of one ring as { items: [{ key, label,
+// entityKind, entityId, entityType?, resourceType? }] }. entityKind is one the
+// graph already routes ('org-entity', 'user', 'resource', 'access-package',
+// 'identity', 'context'); a 'group' is still read as 'resource' defensively.
+
+const ORG_ITEM_KIND = { group: 'resource' };
+
+function orgEntityRootNodes(core) {
+  return (core?.categories || []).map(c => ({
+    key: c.key, label: c.label, count: Number(c.count) || 0, kind: 'category',
+  }));
+}
+
+async function fetchOrgEntityItems(entityId, categoryKey, authFetch) {
+  const url = `/api/org-truth/entities/${encodeURIComponent(entityId)}/graph?category=${encodeURIComponent(categoryKey)}`;
+  const d = await authFetch(url).then(r => (r.ok ? r.json() : {}));
+  return (d.items || []).map(it => toItem(
+    { id: it.entityId, displayName: it.label },
+    ORG_ITEM_KIND[it.entityKind] || it.entityKind || 'leaf',
+    it.resourceType || it.entityType || null,
+  ));
+}
+
 // ─── Public API ──────────────────────────────────────────────────────
 
 function toItem(row, entityKind, resourceType = null) {
@@ -376,6 +383,7 @@ export function getRootNodes(entityKind, core, extras = {}) {
     case 'access-package': base = accessPackageRootNodes(core); break;
     case 'identity':       base = identityRootNodes(core); break;
     case 'context':        base = contextRootNodes(core); break;
+    case 'org-entity':     base = orgEntityRootNodes(core); break;
     default:               return [];
   }
   // Recent-change pseudo-categories go first so they read as "see this
@@ -408,6 +416,7 @@ export async function fetchCategoryItems(entityKind, entityId, categoryKey, auth
     case 'access-package': items = await fetchAccessPackageItems(entityId, categoryKey, authFetch, extras); break;
     case 'identity':       items = await fetchIdentityItems(entityId, categoryKey, authFetch, extras); break;
     case 'context':        items = await fetchContextItems(entityId, categoryKey, authFetch, extras); break;
+    case 'org-entity':     items = await fetchOrgEntityItems(entityId, categoryKey, authFetch); break;
   }
   // Tag items that were added inside the recent window so the graph can
   // highlight them inside regular fanouts too.
@@ -415,8 +424,8 @@ export async function fetchCategoryItems(entityKind, entityId, categoryKey, auth
   if (addedIds && addedIds.size > 0 && items.length > 0) {
     items = items.map(it => addedIds.has(it.entityId) ? { ...it, recent: 'added' } : it);
   }
-  // Return the FULL list — the graph ring is capped in useExpandableGraph; the
-  // list below shows everything.
+  // Return the FULL list — the graph clusters big relations itself; the list
+  // below shows everything.
   return items;
 }
 
@@ -429,6 +438,7 @@ export async function fetchEntityCore(entityKind, entityId, authFetch) {
     'access-package': `/api/access-package/${encodeURIComponent(entityId)}`,
     'identity':       `/api/identities/${encodeURIComponent(entityId)}`,
     'context':        `/api/contexts/${encodeURIComponent(entityId)}`,
+    'org-entity':     `/api/org-truth/entities/${encodeURIComponent(entityId)}/graph`,
   }[entityKind];
   if (!url) return null;
   const r = await authFetch(url);
@@ -439,7 +449,7 @@ export async function fetchEntityCore(entityKind, entityId, authFetch) {
 // Some item kinds (leaf, policy row, review row) can't expand further —
 // the graph should just open the detail tab on click or do nothing.
 export function isExpandableItem(entityKind) {
-  return ['user', 'resource', 'access-package', 'identity', 'context'].includes(entityKind);
+  return ['user', 'resource', 'access-package', 'identity', 'context', 'org-entity'].includes(entityKind);
 }
 
 // Pull the extras the fetchers need from a freshly-loaded core payload.

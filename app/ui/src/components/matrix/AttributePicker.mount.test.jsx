@@ -119,3 +119,42 @@ describe('AttributePicker displayName field (#927)', () => {
     expect(onPick).toHaveBeenCalledWith('displayName', ['SG-Engineering']);
   });
 });
+
+describe('AttributePicker organisation fields', () => {
+  const orgColumns = [
+    { column: 'department', values: ['Finance'], truncated: false },
+    { column: 'org.Maten.expertises', label: 'expertises (Maten)', multi: true, values: ['Azure', 'IAM'], truncated: false },
+    { column: 'org.Maten.level', label: 'level (Maten)', values: ['Senior'], truncated: false },
+  ];
+
+  function renderOrg(onPick = vi.fn()) {
+    renderWithProviders(h(AttributePicker, { entity: 'Identity', columns: orgColumns, onPick, onClose: vi.fn() }), { auth: { authFetch: makeAuthFetch({}) } });
+    return onPick;
+  }
+
+  it('lists the org fields under their own group, by label, with a hint on the multi-valued one', () => {
+    renderOrg();
+    const select = screen.getByRole('combobox', { name: /field/i });
+    const group = select.querySelector('optgroup');
+    expect(group.getAttribute('label')).toBe('Organisation');
+    expect(Array.from(group.querySelectorAll('option')).map(o => [o.value, o.textContent])).toEqual([
+      ['org.Maten.expertises', 'expertises (Maten) (2) · multiple values'],
+      ['org.Maten.level', 'level (Maten) (1)'],
+    ]);
+    // A system column stays outside the group.
+    expect(Array.from(select.querySelectorAll(':scope > option')).map(o => o.value)).toEqual(['', 'department']);
+  });
+
+  it('explains matching on a multi-valued field only, and hands back the org field key', async () => {
+    const onPick = renderOrg();
+    const user = userEvent.setup();
+    const select = screen.getByRole('combobox', { name: /field/i });
+    await user.selectOptions(select, 'org.Maten.level');
+    expect(screen.queryByText(/matches when any of its values is ticked/)).toBeNull();
+    await user.selectOptions(select, 'org.Maten.expertises');
+    expect(screen.getByText(/matches when any of its values is ticked/)).toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'IAM' }));
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    expect(onPick).toHaveBeenCalledWith('org.Maten.expertises', ['IAM']);
+  });
+});

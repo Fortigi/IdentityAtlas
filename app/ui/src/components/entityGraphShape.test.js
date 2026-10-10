@@ -1,7 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  MAX_ITEMS_PER_FANOUT,
-  capItems,
   getRootNodes,
   fetchCategoryItems,
   fetchEntityCore,
@@ -18,31 +16,6 @@ function stub(map = {}) {
     return { ok: true, status: 200, json: async () => map[key] };
   };
 }
-
-describe('capItems', () => {
-  it('returns [] for null/undefined', () => {
-    expect(capItems(null)).toEqual([]);
-    expect(capItems(undefined)).toEqual([]);
-  });
-
-  it('returns the list unchanged when at or below the cap', () => {
-    const items = Array.from({ length: MAX_ITEMS_PER_FANOUT }, (_, i) => ({ key: `k${i}` }));
-    expect(capItems(items)).toBe(items);
-  });
-
-  it('caps and appends a non-clickable overflow marker when over the cap', () => {
-    const items = Array.from({ length: MAX_ITEMS_PER_FANOUT + 5 }, (_, i) => ({ key: `k${i}` }));
-    const out = capItems(items);
-    expect(out).toHaveLength(MAX_ITEMS_PER_FANOUT);
-    const overflow = out[out.length - 1];
-    expect(overflow.overflow).toBe(true);
-    expect(overflow.key).toBe('__overflow__');
-    // 15 total, keep first 9, marker counts the remaining 6.
-    expect(overflow.label).toContain('+6 more');
-    // The first N-1 originals are preserved.
-    expect(out.slice(0, MAX_ITEMS_PER_FANOUT - 1)).toEqual(items.slice(0, MAX_ITEMS_PER_FANOUT - 1));
-  });
-});
 
 describe('getRootNodes', () => {
   it('returns [] for an unknown entity kind', () => {
@@ -528,5 +501,72 @@ describe('toItem behaviour via item shapes', () => {
       members: [{}],
     });
     expect(out[0]).toMatchObject({ key: 'user:', label: '(unknown)', entityId: '' });
+  });
+});
+
+describe('org-entity (organisation truth)', () => {
+  const GRAPH = {
+    core: { id: 'e1', entityType: 'Project', displayName: 'Northwind Portal' },
+    categories: [
+      { key: 'rel:out:owner', label: 'owner →', count: 2, kind: 'category' },
+      { key: 'link:Principal', label: 'Accounts', count: '3' },
+      { key: 'rel:in:partOf', label: '← partOf' },
+    ],
+  };
+
+  it('builds the first ring from the graph categories, counts as numbers', () => {
+    expect(getRootNodes('org-entity', GRAPH)).toEqual([
+      { key: 'rel:out:owner', label: 'owner →', count: 2, kind: 'category' },
+      { key: 'link:Principal', label: 'Accounts', count: 3, kind: 'category' },
+      { key: 'rel:in:partOf', label: '← partOf', count: 0, kind: 'category' },
+    ]);
+    expect(getRootNodes('org-entity', {})).toEqual([]);
+    expect(getRootNodes('org-entity', null)).toEqual([]);
+  });
+
+  it('fetches one ring by category key and keeps the routable entity kinds', async () => {
+    const calls = [];
+    const af = async (url) => {
+      calls.push(url);
+      return { ok: true, json: async () => ({ items: [
+        { key: 'org-entity:e2', label: 'Alice Contoso', kind: 'item', entityKind: 'org-entity', entityId: 'e2', entityType: 'Person' },
+        { key: 'resource:g1', label: 'GRP-Portal', kind: 'item', entityKind: 'resource', entityId: 'g1', resourceType: 'Group' },
+        { key: 'access-package:b1', label: 'BR Portal', kind: 'item', entityKind: 'access-package', entityId: 'b1', resourceType: 'BusinessRole' },
+        { key: 'group:g2', label: 'Legacy', kind: 'item', entityKind: 'group', entityId: 'g2' },
+        { key: 'x', label: 'No kind', kind: 'item', entityId: 'z' },
+      ] }) };
+    };
+    const items = await fetchCategoryItems('org-entity', 'e 1', 'rel:out:owner', af);
+    expect(calls).toEqual(['/api/org-truth/entities/e%201/graph?category=rel%3Aout%3Aowner']);
+    expect(items).toEqual([
+      { key: 'org-entity:e2', label: 'Alice Contoso', kind: 'item', entityKind: 'org-entity', entityId: 'e2', resourceType: 'Person' },
+      { key: 'resource:g1', label: 'GRP-Portal', kind: 'item', entityKind: 'resource', entityId: 'g1', resourceType: 'Group' },
+      { key: 'access-package:b1', label: 'BR Portal', kind: 'item', entityKind: 'access-package', entityId: 'b1', resourceType: 'BusinessRole' },
+      { key: 'resource:g2', label: 'Legacy', kind: 'item', entityKind: 'resource', entityId: 'g2' },
+      { key: 'leaf:z', label: 'No kind', kind: 'item', entityKind: 'leaf', entityId: 'z' },
+    ]);
+  });
+
+  it('returns no items when the ring route fails or answers nothing', async () => {
+    expect(await fetchCategoryItems('org-entity', 'e1', 'link:Principal', stub())).toEqual([]);
+    expect(await fetchCategoryItems('org-entity', 'e1', 'link:Principal', stub({ '/graph': {} }))).toEqual([]);
+  });
+
+  it('loads the core of a drilled-into org entity from its graph route and expands it', async () => {
+    const calls = [];
+    const af = async (url) => { calls.push(url); return { ok: true, json: async () => GRAPH }; };
+    expect(await fetchEntityCore('org-entity', 'e1', af)).toEqual(GRAPH);
+    expect(calls).toEqual(['/api/org-truth/entities/e1/graph']);
+    expect(isExpandableItem('org-entity')).toBe(true);
+    expect(extrasFromCore('org-entity', GRAPH)).toEqual({});
+  });
+});
+
+describe('no Organisation bucket', () => {
+  // Organisation links are the graph's own relations now (graphNeighbours.js),
+  // not a category of the entity: an orgLinked extra no longer adds a node.
+  it('ignores extras.orgLinked', () => {
+    const nodes = getRootNodes('user', { membershipByType: {} }, { orgLinked: { total: 2, groups: [] } });
+    expect(nodes.some(n => n.key === 'org' || n.label === 'Organisation')).toBe(false);
   });
 });

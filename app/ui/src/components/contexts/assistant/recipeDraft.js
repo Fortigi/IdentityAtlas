@@ -67,16 +67,109 @@ export function removeTerm(recipe, key) {
   return { ...recipe, terms: recipe.terms.filter(t => t.key !== key) };
 }
 
+/** Put an id in one hand-picked list, keep it out with the other, or drop it from both. */
+function setChoice(recipe, includeKey, excludeKey, id, choice) {
+  const include = (recipe[includeKey] || []).filter(x => x !== id);
+  const exclude = (recipe[excludeKey] || []).filter(x => x !== id);
+  if (choice === 'include') include.push(id);
+  if (choice === 'exclude') exclude.push(id);
+  return { ...recipe, [includeKey]: include, [excludeKey]: exclude };
+}
+
 /**
- * Put an object in, keep it out, or return it to what the terms decide.
+ * Put an object (a resource) in, keep it out, or return it to what the terms decide.
  * @param {'include'|'exclude'|'auto'} choice
  */
 export function setObjectChoice(recipe, id, choice) {
-  const include = recipe.include.filter(x => x !== id);
-  const exclude = recipe.exclude.filter(x => x !== id);
-  if (choice === 'include') include.push(id);
-  if (choice === 'exclude') exclude.push(id);
-  return { ...recipe, include, exclude };
+  return setChoice(recipe, 'include', 'exclude', id, choice);
+}
+
+/** Same, for an organisation entity of a users recipe. */
+export function setOrgChoice(recipe, id, choice) {
+  return setChoice(recipe, 'orgInclude', 'orgExclude', id, choice);
+}
+
+/** Same, for one user of a users recipe. */
+export function setPrincipalChoice(recipe, id, choice) {
+  return setChoice(recipe, 'principalInclude', 'principalExclude', id, choice);
+}
+
+// ── Target: a context of resources, or of the users who have access ───────────
+
+export const TARGET_LABELS = { resource: 'Resources', principal: 'Users with access' };
+export const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible'];
+export const DEFAULT_ASSIGNMENT_TYPES = ['Direct', 'Indirect'];
+const PRINCIPAL_FIELDS = ['target', 'access', 'orgTypes', 'orgInclude', 'orgExclude', 'principalInclude', 'principalExclude'];
+
+/** A recipe without a target is a resource recipe, as the server reads it. */
+export function recipeTarget(recipe) {
+  return recipe?.target === 'principal' ? 'principal' : 'resource';
+}
+
+/**
+ * Switch the draft between the two targets. A resource draft carries none of the users
+ * fields, so it is sent exactly as before users recipes existed; a users draft keeps
+ * whatever it already had (an edited saved recipe) and fills in the defaults.
+ */
+export function setTarget(recipe, target) {
+  if (target !== 'principal') {
+    if (!PRINCIPAL_FIELDS.some(f => f in recipe)) return recipe;
+    const next = { ...recipe };
+    for (const f of PRINCIPAL_FIELDS) delete next[f];
+    return next;
+  }
+  return {
+    ...recipe,
+    target: 'principal',
+    access: { assignmentTypes: recipe.access?.assignmentTypes?.length ? recipe.access.assignmentTypes : DEFAULT_ASSIGNMENT_TYPES },
+    orgInclude: recipe.orgInclude || [],
+    orgExclude: recipe.orgExclude || [],
+    principalInclude: recipe.principalInclude || [],
+    principalExclude: recipe.principalExclude || [],
+  };
+}
+
+/** Which kinds of assignment give a user access, in a fixed order; never leaves the list empty. */
+export function toggleAssignmentType(recipe, type) {
+  const current = recipe.access?.assignmentTypes || DEFAULT_ASSIGNMENT_TYPES;
+  const next = current.includes(type)
+    ? current.filter(t => t !== type)
+    : ASSIGNMENT_TYPES.filter(t => t === type || current.includes(t));
+  return next.length ? { ...recipe, access: { ...recipe.access, assignmentTypes: next } } : recipe;
+}
+
+/** What the context will hold: resources, or for a users recipe the users reached. */
+export function memberCountOf(recipe, evaluation) {
+  return recipeTarget(recipe) === 'principal' ? evaluation?.principals?.total ?? 0 : evaluation?.memberCount ?? 0;
+}
+
+/** What the header counts the members as. */
+export function memberUnit(recipe) {
+  return recipeTarget(recipe) === 'principal' ? 'users' : 'objects';
+}
+
+/** How many ids are picked by hand to put members in without a term. */
+export function handPicked(recipe) {
+  const lists = recipeTarget(recipe) === 'principal' ? ['include', 'orgInclude', 'principalInclude'] : ['include'];
+  return lists.reduce((n, l) => n + (recipe[l]?.length || 0), 0);
+}
+
+/** One "via" chip of a user: why that user is in the context. */
+export function viaText(via) {
+  if (via.kind === 'org') return `${via.entityType} ${via.label}${via.link ? ` · ${via.link}` : ''}`;
+  if (via.assignmentType === 'Eligible') return `eligible for ${via.label}`;
+  return `member of ${via.label}${via.assignmentType === 'Indirect' ? ' · indirect' : ''}`;
+}
+
+/** The assistant's lookup; a resource lookup goes without a kind, as it always did. */
+export function lookupUrl(text, kind) {
+  const q = `q=${encodeURIComponent(String(text ?? '').trim())}`;
+  return kind ? `/api/context-assistant/lookup?kind=${encodeURIComponent(kind)}&${q}` : `/api/context-assistant/lookup?${q}`;
+}
+
+/** An organisation entity's state, read as a match row's status (so it offers the same actions). */
+export function orgRowAction(state) {
+  return rowAction(state === 'matched' ? 'member' : state);
 }
 
 /** Add or remove one value of a list setting (resourceTypes, fields); never leaves it empty. */
@@ -94,7 +187,7 @@ export function termCounts(recipe) {
 /** Can the draft be saved as a context? Returns the reason it cannot, or null. */
 export function saveBlocker(recipe, memberCount) {
   if (!recipe.name.trim()) return 'Give the context a name.';
-  if (termCounts(recipe).kept === 0 && recipe.include.length === 0) return 'Keep at least one term, or include an object by hand.';
+  if (termCounts(recipe).kept === 0 && handPicked(recipe) === 0) return 'Keep at least one term, or include an object by hand.';
   if (memberCount === 0) return 'Nothing matches yet.';
   return null;
 }

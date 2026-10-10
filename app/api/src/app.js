@@ -67,6 +67,7 @@ import llmRouter from './routes/llm.js';
 import riskProfilesRouter from './routes/riskProfiles.js';
 import riskScoringRunsRouter from './routes/riskScoringRuns.js';
 import accountLinkingRouter from './routes/accountLinking.js';
+import orgTruthRouter from './routes/orgTruth.js';
 import { adminCrawlersRouter, selfServiceCrawlersRouter } from './routes/crawlers.js';
 import { crawlerAuthMiddleware } from './middleware/crawlerAuth.js';
 import ingestRouter from './routes/ingest.js';
@@ -423,6 +424,9 @@ export function createApp() {
   // Listing existing runs is read-only; triggering one is admin. Per-handler in the router.
   app.use('/api', authMiddleware, riskScoringRunsRouter);
   app.use('/api', authMiddleware, accountLinkingRouter);
+  // Organisation truth — uploaded org lists → entities, relations, links to the
+  // system truth. Feature and permission gates per route inside the sub-routers.
+  app.use('/api', authMiddleware, orgTruthRouter);
   app.use('/api', authMiddleware, crawlerFilesRouter);
   app.use('/api', authMiddleware, governanceRouter);
   // Bulk list endpoints used by Power Query / BI tools (read API keys honoured)

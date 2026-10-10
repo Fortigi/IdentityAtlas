@@ -5,7 +5,9 @@ vi.mock('../nlreports/settings.js', () => ({ getReportModel: vi.fn(async () => '
 vi.mock('../featureFlags.js', () => ({ isFeatureEnabled: vi.fn(async () => true) }));
 
 import { chat, warm } from '../nlreports/llm.js';
-import { containsOwnWord, interpret, isGenericTerm, ownWords, schemaFor, shapeTerms, suggestMore, warmAtStartup } from './service.js';
+import {
+  containsOwnWord, interpret, isGenericTerm, ownWords, principalName, schemaFor, shapeTerms, suggestMore, targetFromQuestion, targetOf, warmAtStartup,
+} from './service.js';
 import { buildContextPrompt, MORE_TERMS_SCHEMA, RESPONSE_SCHEMA, TERMS_ONLY_SCHEMA } from './prompt.js';
 import { isFeatureEnabled } from '../featureFlags.js';
 import { validateRecipe } from '../contexts/recipe/recipe.js';
@@ -178,5 +180,74 @@ describe('reply grammar', () => {
     // An example about a test subject makes the model copy it and the test pass for the wrong reason.
     const prompt = buildContextPrompt().toLowerCase();
     for (const subject of ['inkoop', 'procurement', 'hamis', 'devops', 'licen']) expect(prompt).not.toContain(subject);
+  });
+});
+
+describe('targetFromQuestion', () => {
+  it('asks for users when the analyst names people, in Dutch or English', () => {
+    for (const q of [
+      'give me all users who have access to a resource that has something to do with Contoso',
+      'Welke gebruikers horen bij Contoso?', 'medewerkers van Northwind', 'alle mensen rond Contoso', 'personen bij Northwind',
+      'Wie zit er op Contoso', 'staff on Northwind', 'which accounts belong to Contoso', 'people around Northwind',
+    ]) expect(targetFromQuestion(q), q).toBe('principal');
+  });
+
+  it('asks for users when the analyst asks who has access to, or works on, something', () => {
+    for (const q of ['toegang tot Contoso', 'rechten op Northwind', 'werken aan Contoso', 'werken op Northwind', 'access to Contoso', 'working on Northwind']) {
+      expect(targetFromQuestion(q), q).toBe('principal');
+    }
+  });
+
+  it('has no opinion on a request for groups, also when it says what they give access to', () => {
+    for (const q of ['groepen rond het salarisproces', 'everything to do with Contoso', 'groups that give access to Northwind', 'rollen met rechten op Contoso']) {
+      expect(targetFromQuestion(q), q).toBeNull();
+    }
+    // A phrase must be whole words: "excess to" is not "access to", "toegangtot" is not "toegang tot".
+    expect(targetFromQuestion('excess to Contoso')).toBeNull();
+    expect(targetFromQuestion('toegangtot Contoso')).toBeNull();
+  });
+});
+
+describe('targetOf / principalName', () => {
+  it('lets the analyst\'s words decide over the model, and the model decide when the words do not', () => {
+    expect(targetOf('users of Contoso', { target: 'resource' })).toBe('principal');
+    expect(targetOf('Contoso', { target: 'principal' })).toBe('principal');
+    expect(targetOf('Contoso', { target: 'person' })).toBe('resource');
+    expect(targetOf('Contoso', {})).toBe('resource');
+  });
+
+  it('names a users context after the subject, unless the name already says users', () => {
+    expect(principalName('Contoso')).toBe('Users with access to Contoso');
+    expect(principalName('Contoso gebruikers')).toBe('Contoso gebruikers');
+    expect(principalName('')).toBe('');
+  });
+});
+
+describe('interpret — target', () => {
+  it('answers target principal for a users question even when the model says resource, with a users name', async () => {
+    chat.mockResolvedValueOnce(reply({ kind: 'terms', name: 'Contoso', target: 'resource', terms: [{ text: 'Contoso', why: 'name' }], notes: [] }));
+    const r = await interpret({ question: 'welke gebruikers hebben toegang tot Contoso' });
+    expect(r).toMatchObject({ kind: 'terms', target: 'principal', name: 'Users with access to Contoso' });
+    // The people words are not subject words: only the subject's term arrives ticked.
+    expect(r.terms.map(t => [t.text, t.state])).toEqual([['Contoso', 'accepted']]);
+  });
+
+  it('keeps the model\'s resource answer and name for a groups question', async () => {
+    chat.mockResolvedValueOnce(reply({ kind: 'terms', name: 'Contoso', target: 'resource', terms: [{ text: 'Contoso', why: 'name' }], notes: [] }));
+    expect(await interpret({ question: 'groepen voor Contoso' })).toMatchObject({ target: 'resource', name: 'Contoso' });
+  });
+
+  it('asks the model for a target on interpret, not on suggest', () => {
+    expect(TERMS_ONLY_SCHEMA.required).toContain('target');
+    expect(TERMS_ONLY_SCHEMA.properties.target.enum).toEqual(['resource', 'principal']);
+    expect(MORE_TERMS_SCHEMA.properties.target).toBeUndefined();
+    expect(MORE_TERMS_SCHEMA.required).not.toContain('target');
+  });
+});
+
+describe('ownWords — users questions', () => {
+  it('does not take the words of a users request for subject words', () => {
+    expect(ownWords('which users have access to Contoso')).toEqual(['contoso']);
+    expect(ownWords('welke medewerkers hebben rechten op Northwind, wie werken er')).toEqual(['northwind']);
   });
 });
