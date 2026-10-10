@@ -143,6 +143,15 @@ describe('orgConditionClause', () => {
     expect(out.params).toEqual(['Klant', ['eigenaar', 'Uren']]);
     expect(out.sql).toContain(`AND l."orgEntityId" IN (SELECT "id" FROM org_e) AND COALESCE(l."via", 'displayName') = ANY($2::text[])`);
     expect(out.sql).toContain(`AND tl."targetId" IN (SELECT "id" FROM org_e) AND f."entityType" = ANY($2::text[])`);
+    // …and to activity rows by their activity type.
+    expect(out.sql).toContain(`WHERE sk."targetId" IN (SELECT "id" FROM org_e) AND a."activityType" = ANY($2::text[])`);
+  });
+
+  it('counts the actors of accepted activity on the chosen entities, only through accepted keys', () => {
+    const { sql } = build({ entityType: 'Klant' });
+    expect(sql).toContain(`JOIN "OrgActivityKeys" sk ON sk."id" = a."subjectKeyId" AND sk."status" = 'accepted' AND sk."targetType" = 'OrgEntity'`);
+    expect(sql).toContain(`JOIN "OrgActivityKeys" ak ON ak."id" = a."actorKeyId" AND ak."status" = 'accepted' AND ak."targetType" IN ('Principal', 'Identity', 'Resource')`);
+    expect(sql).toMatch(/WHERE sk\."targetId" IN \(SELECT "id" FROM org_e\)\s*\)/);
   });
 
   it('follows through-links only from accepted, current fact rows that link by an attribute', () => {

@@ -110,7 +110,20 @@ function linksSql(spec, bind) {
         JOIN "OrgLinks" fl ON fl."orgEntityId" = f."id" AND fl."status" = 'accepted' AND fl."targetType" IN ${LINK_TARGET_TYPES}
        WHERE tl."status" = 'accepted' AND tl."targetType" = 'OrgEntity'
          AND COALESCE(tl."via", 'displayName') <> 'displayName'
-         AND tl."targetId" IN (SELECT "id" FROM org_e)${throughVia}`;
+         AND tl."targetId" IN (SELECT "id" FROM org_e)${throughVia}
+      UNION
+      ${activitySql(viaP)}`;
+}
+
+// Activity (a timesheet imported with the activity template): the actors whose
+// accepted activity rows point at one of the chosen entities. The via name of an
+// activity is its activity type ('Uren'), like the fact list's type above.
+function activitySql(viaP) {
+  const typeVia = viaP ? ` AND a."activityType" = ANY(${viaP}::text[])` : '';
+  return `SELECT DISTINCT ak."targetType", ak."targetId" FROM "OrgActivities" a
+        JOIN "OrgActivityKeys" sk ON sk."id" = a."subjectKeyId" AND sk."status" = 'accepted' AND sk."targetType" = 'OrgEntity'
+        JOIN "OrgActivityKeys" ak ON ak."id" = a."actorKeyId" AND ak."status" = 'accepted' AND ak."targetType" IN ('Principal', 'Identity', 'Resource')
+       WHERE sk."targetId" IN (SELECT "id" FROM org_e)${typeVia}`;
 }
 
 const contextMembers = (memberType) =>
