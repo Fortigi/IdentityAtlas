@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Fixed release publishing so a patch release cut from an older release branch no longer stops halfway, and the documentation deploy no longer fails when a release is published
+
+## Changes in this PR
+
+- Removed a moderate-severity dependency advisory (sprintf-js) by switching the API's YAML parser to a maintained library
+
+## Changes in this PR
+
 - Fixed an intermittent test failure in the people picker that could turn unrelated pull requests red
 
 ## Changes in this PR

@@ -10,6 +10,10 @@
 #   3. Go to Actions → Cut Hotfix → Run workflow
 #   4. Enter the branch name and new version (e.g. "5.2.1")
 #   5. After the hotfix ships, open a PR to cherry-pick the fix into main
+#
+# For a long-lived release branch (release/5.9) that predates the scripts
+# this file calls, dispatch it from that branch so its own copy runs:
+#   gh workflow run cut-hotfix.yml --ref release/5.9 -f branch=release/5.9 -f version=5.9.3
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Cut Hotfix
@@ -51,6 +55,23 @@ jobs:
           ref: ${{ github.event.inputs.branch }}
           token: ${{ steps.bot-token.outputs.token }}
           fetch-depth: 0
+
+      # The workflow file runs from the ref it was dispatched on (main by
+      # default) but builds the checked-out branch. An older release branch
+      # lacks the shared files below, so check before the tag is pushed rather
+      # than fail halfway with a tag and Docker images but no GitHub release.
+      - name: Check the branch has the files this workflow calls
+        env:
+          BRANCH: ${{ github.event.inputs.branch }}
+        run: |
+          missing=0
+          for f in .github/scripts/build_portable_zips.sh                    .github/scripts/release_prev_tag.sh                    tools/release-notes/dependency-delta.py                    tools/release-notes/portable-downloads.md; do
+            if [ ! -f "$f" ]; then
+              echo "::error::$f is missing on $BRANCH. Run this workflow from that branch instead: gh workflow run cut-hotfix.yml --ref $BRANCH -f branch=$BRANCH -f version=<x.y.z>"
+              missing=1
+            fi
+          done
+          exit $missing
 
       - name: Create and push hotfix tag
         run: |
@@ -167,6 +188,8 @@ jobs:
           echo "--- release-notes.md final ---"
           cat release-notes.md
 
+      # Publishing the release triggers docs.yml, which deploys the stable docs.
+      # Don't deploy them here as well: two pushes to gh-pages race and one fails.
       - name: Create GitHub release with portable ZIPs
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
@@ -177,11 +200,6 @@ jobs:
             --title "$TAG" \
             --notes-file release-notes.md \
             --latest
-
-      - name: Deploy versioned docs
-        run: |
-          pip install --quiet -r docs/requirements.txt
-          mike deploy --push --title "$VERSION" stable
 
       - name: Post run summary
         run: |
