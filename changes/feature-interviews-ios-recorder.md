@@ -1,0 +1,3 @@
+- Added the first version of the Identity Atlas Interviews iPhone app (experimental): it records a conversation and transcribes it live in Dutch on the phone itself, with a timestamp per sentence, without sending anything to a server
+- The recorder keeps going when transcription is unavailable, survives a locked screen, and shows interrupted sessions instead of losing them
+- The app is built and delivered through TestFlight automatically, so no Mac is needed to develop it

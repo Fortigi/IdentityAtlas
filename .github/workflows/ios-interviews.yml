@@ -1,0 +1,129 @@
+name: iOS Interviews app
+
+# Builds the Identity Atlas Interviews recorder (clients/ios-interviews) on a GitHub-hosted
+# Mac — nobody on the team needs a Mac. Pull requests: core-package tests + an unsigned
+# simulator build (no secrets). Pushes to feature/interviews-ios* and manual runs: also a
+# signed archive uploaded to TestFlight, once the App Store Connect secrets exist.
+
+on:
+  pull_request:
+    paths:
+      - 'clients/ios-interviews/**'
+      - '.github/workflows/ios-interviews.yml'
+  push:
+    branches:
+      - 'feature/interviews-ios*'
+    paths:
+      - 'clients/ios-interviews/**'
+      - '.github/workflows/ios-interviews.yml'
+  workflow_dispatch:
+    inputs:
+      testflight:
+        description: 'Upload the build to TestFlight'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-interviews-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Core tests + simulator build
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+      - name: InterviewsCore tests
+        working-directory: clients/ios-interviews
+        run: swift test
+      - name: Generate Xcode project
+        working-directory: clients/ios-interviews/App
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Build app for the simulator
+        working-directory: clients/ios-interviews/App
+        run: |
+          xcodebuild build \
+            -project InterviewRecorder.xcodeproj \
+            -scheme InterviewRecorder \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO
+
+  testflight:
+    name: Archive + upload to TestFlight
+    needs: build
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.testflight)
+    runs-on: macos-26
+    timeout-minutes: 40
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - name: Check signing secrets
+        id: secrets
+        run: |
+          if [ -z "$ASC_KEY_ID" ] || [ -z "$ASC_ISSUER_ID" ] || [ -z "$ASC_KEY_P8" ] || [ -z "$APPLE_TEAM_ID" ]; then
+            echo "::notice::App Store Connect secrets not set — skipping the TestFlight upload."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.secrets.outputs.ready == 'true'
+      - name: Write App Store Connect key
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/AuthKey.p8"
+      - name: Generate Xcode project
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: clients/ios-interviews/App
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Archive (signed, cloud-managed certificate)
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: clients/ios-interviews/App
+        run: |
+          xcodebuild archive \
+            -project InterviewRecorder.xcodeproj \
+            -scheme InterviewRecorder \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/InterviewRecorder.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}"
+      - name: Export + upload to App Store Connect
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: clients/ios-interviews/App
+        run: |
+          cp ExportOptions.plist "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c "Add :teamID string $APPLE_TEAM_ID" "$RUNNER_TEMP/ExportOptions.plist"
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/InterviewRecorder.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          echo "::notice::Build ${{ github.run_number }} uploaded — it appears in TestFlight after Apple's processing (usually 5–30 min)."
+      - name: Remove key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"

@@ -61,6 +61,28 @@ Checked against Apple's developer documentation on 2026-10-10 (doc JSON for the 
 5. **Deliverable**: a go/no-go table per device class and the privacy data-flow diagram below,
    updated with what was measured.
 
+### Step 1 built: the recorder app (`clients/ios-interviews/App`)
+
+The spike's steps 1–2 exist as a real app, **IA Interviews**, built and uploaded to TestFlight by
+`.github/workflows/ios-interviews.yml` on a GitHub-hosted Mac (no team Mac needed):
+
+- `AVAudioEngine` tap → `audio.m4a` first, then a converted copy to `SpeechTranscriber` (`nl-NL`,
+  volatile results, `audioTimeRange`). A transcriber failure leaves the recording running and is
+  written into the session as a note.
+- The session (`session.json`, model in `InterviewsCore/Recording.swift`) is saved after every
+  final sentence and every 30 s diagnostics sample (battery, thermal state); a session still marked
+  `recording` at app start becomes `interrupted`, ending at its last evidence.
+- One audio file per session, not 5-minute segments: AAC written through `AVAudioFile` is closed on
+  stop; a crash mid-recording may leave the tail unreadable. Measure in the one-hour test before
+  adding segmenting.
+- No fallback transcriber yet (`DictationTranscriber`, `SFSpeechRecognizer`): the iPhone 17 pilot
+  device runs iOS 26, so `SpeechTranscriber` is the one to measure first.
+
+What the first device test must report, from the app's *Logboek* and session screen: whether `nl-NL`
+resolved and downloaded, word accuracy on a 10-minute Fortigi conversation (names in particular),
+battery % and hottest thermal state over 60 minutes with the screen locked, and behaviour across a
+phone call.
+
 ## 3. Privacy data flow
 
 ```
@@ -158,7 +180,7 @@ examples.
 
 ## 6. Not built (next slices)
 
-- The iOS app (Phase 0 spike first), a dedicated `data.write.interviews` permission, a retention
+- The iOS app beyond step 1 (live lookup, proposals, question suggestions, speech), a dedicated `data.write.interviews` permission, a retention
   purge job, `Participant` rows, an admin card for the flag, and **promotion** of approved proposals
   into canonical data — which, when built, goes through org truth (§7), not through this store.
 

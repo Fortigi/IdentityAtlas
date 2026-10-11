@@ -1,0 +1,43 @@
+# XcodeGen spec — the .xcodeproj is generated in CI (`xcodegen generate`), never committed.
+name: InterviewRecorder
+options:
+  bundleIdPrefix: io.identityatlas
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+packages:
+  InterviewsCore:
+    path: ..
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    TARGETED_DEVICE_FAMILY: "1,2"
+targets:
+  InterviewRecorder:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+      - Resources
+    dependencies:
+      - package: InterviewsCore
+    info:
+      path: Generated/Info.plist
+      properties:
+        CFBundleDisplayName: IA Interviews
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSMicrophoneUsageDescription: De app neemt het gesprek op, zodat het lokaal op deze iPhone kan worden getranscribeerd.
+        NSSpeechRecognitionUsageDescription: Spraak wordt op deze iPhone omgezet in tekst; er wordt niets verstuurd.
+        UIBackgroundModes: [audio]
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.identityatlas.interviews
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
