@@ -1,4 +1,3 @@
-// NOT COMPILED OR RUN: written on Windows. Run with `swift test` on a Mac.
 import XCTest
 @testable import InterviewsCore
 
