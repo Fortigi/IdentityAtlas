@@ -6,6 +6,7 @@ import RiskScoreSection from './RiskScoreSection';
 import LinkedAccountsPanel from './LinkedAccountsPanel';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
 import OrgActivitySummary from '@ui/components/orgtruth/OrgActivitySummary';
+import InterviewStatementsPanel from '@ui/components/orgtruth/knowledge/InterviewStatementsPanel';
 import { useOrgEnrichment } from '@ui/components/orgtruth/enrichment';
 
 const SYSTEM_COLS = new Set([
@@ -126,7 +127,12 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
       getTabs={getTabs}
       getAttributeEntries={getIdentityAttributeEntries}
       extraAttributeEntries={enrichment}
-      renderAttributesExtra={() => <OrgActivitySummary targetType="Identity" id={identityId} onOpenDetail={onOpenDetail} />}
+      renderAttributesExtra={() => (
+        <>
+          <OrgActivitySummary targetType="Identity" id={identityId} onOpenDetail={onOpenDetail} />
+          <InterviewStatementsPanel targetType="Identity" targetId={identityId} />
+        </>
+      )}
       renderHeader={(data) => <IdentityHeader data={data} onOpenDetail={onOpenDetail} />}
       headerCard
       renderRelationshipsExtra={(data) => (

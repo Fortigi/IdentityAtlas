@@ -2,8 +2,8 @@
 //
 // One tab for everything that is built and tested but has not yet had much
 // exposure to real-world data. Flags today (each card below says what it does):
-// experimental crawlers, matrix sharing, custom reports, the context assistant
-// and Org Info. The first three in more detail:
+// experimental crawlers, matrix sharing, custom reports, the context assistant,
+// Org Info and knowledge extraction. The first three in more detail:
 //   • Experimental crawlers — whether crawler types marked `experimental: true`
 //     in their CrawlerMeta.js / crawler.json are offered in Add Crawler.
 //   • Matrix sharing (#1166) — whether analysts can share a matrix with named
@@ -133,6 +133,22 @@ function OrgInfoCard({ features }) {
   );
 }
 
+// Knowledge extraction (flag `knowledgeExtraction`): interview transcripts read by the
+// deployment's own local model, which proposes mentions, statements and findings.
+// Needs Org Info on; off hides the Knowledge tab and the API answers 404 on
+// /api/org-truth/knowledge; transcripts and decisions are kept.
+function KnowledgeExtractionCard({ features }) {
+  return (
+    <FlagCard features={features} flag="knowledgeExtraction" title="Knowledge extraction" noun="knowledge extraction">
+      Adds a <span className="font-medium">Knowledge</span> tab to <span className="font-medium">Organisation</span>: upload an
+      interview transcript and the model running on this deployment proposes who and what it mentions, and the statements it
+      makes, each with the exact quote. Needs Org Info on and a local model (see <span className="font-medium">Admin → LLM</span>).
+      Transcripts are read only by this deployment's own model, never sent to an external AI, and everything it proposes waits
+      for review. Turning this off hides the tab; transcripts and review decisions are kept.
+    </FlagCard>
+  );
+}
+
 export default function ExperimentalFeaturesSection({ features, version }) {
   const { toggle, toggling, error } = useFeatureToggle('experimentalCrawlers');
 
@@ -187,6 +203,7 @@ export default function ExperimentalFeaturesSection({ features, version }) {
       <CustomReportsCard features={features} />
       <ContextAssistantCard features={features} />
       <OrgInfoCard features={features} />
+      <KnowledgeExtractionCard features={features} />
     </div>
   );
 }

@@ -208,6 +208,42 @@ Contexts already generated from collections stay as they are until the next refr
 
 ---
 
+## Knowledge extraction
+
+Builds on Org Info: an analyst uploads or pastes an interview transcript (plain text,
+Markdown, SRT or VTT), and the deployment's **own local model** (the report generator)
+reads it in small steps: which people, teams, customers and applications are mentioned,
+and which statements are made about them — each with the exact quote from the transcript.
+The mentions are matched to the people, accounts, groups, contexts and imported lists that
+already exist; the analyst confirms or rejects the matches and, separately, the statements.
+Accepted statements appear on the detail pages of what they are about. See
+[Knowledge extraction](../architecture/org-knowledge-extraction.md). It is experimental
+because a small local model reads Dutch interviews imperfectly: everything it proposes waits
+for review.
+
+Environment variable: `FEATURE_KNOWLEDGE_EXTRACTION=true` (Org Info must be on as well, and a
+local model must be configured: `NL_REPORTS_LLM_URL`).
+
+### What the switch does, precisely
+
+**On** — the Org Info page gets a **Knowledge** tab: users with **Build contexts**
+(`data.write.contexts`) can add transcripts, run the extraction and review it; every
+signed-in user can read it, except transcripts classified *restricted*, which only their
+uploader and administrators see. Detail pages show a **From interviews** panel once a
+statement about that object has been accepted.
+
+**Off** — the tab and the panels are hidden and every `/api/org-truth/knowledge/*` endpoint
+answers `404`.
+
+### What the switch does *not* do
+
+It never sends a transcript to an external AI: with no local model configured, extraction
+refuses to start. It never changes access, group memberships or any crawled data — a
+statement that contradicts the directory becomes a review question, not a change. Turning it
+off deletes nothing.
+
+---
+
 ## Leaving experimental behind
 
 The label is temporary by design. Once a feature has run against enough real

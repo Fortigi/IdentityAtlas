@@ -25,16 +25,16 @@ const API_KEY = process.env.NL_REPORTS_LLM_API_KEY || '';
 const SLOT = 0;
 export const MAX_REPLY_TOKENS = 450;
 
-const call = (method, path, body) => httpJson({
-  url: `${BASE_URL}${path}`,
+const call = (method, path, body, baseUrl = BASE_URL) => httpJson({
+  url: `${baseUrl.replace(/\/$/, '')}${path}`,
   method,
   body,
   headers: API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {},
   timeoutMs: TIMEOUT_MS,
 });
 
-async function ok(method, path, body) {
-  const r = await call(method, path, body);
+async function ok(method, path, body, baseUrl) {
+  const r = await call(method, path, body, baseUrl);
   if (r.status < 200 || r.status >= 300) {
     throw new Error(`LLM server returned ${r.status}: ${(r.json?.error?.message || r.text).slice(0, 300)}`);
   }
@@ -109,11 +109,13 @@ function completionBody(messages, { schema, maxTokens }) {
 /**
  * @returns {Promise<{ content: string, timing: object }>}
  */
-export async function chat({ messages, schema }) {
-  // 450, not 1200: the largest sensible reply is ~250 tokens, and at about a
-  // token a second on the CPU box every token past that is a minute nobody
-  // waits for. A reply cut here was a loop, and is reported as one.
-  const j = await ok('POST', '/v1/chat/completions', completionBody(messages, { schema, maxTokens: MAX_REPLY_TOKENS }));
+export async function chat({ messages, schema, maxTokens = MAX_REPLY_TOKENS, baseUrl }) {
+  // 450 by default, not 1200: the largest sensible report reply is ~250 tokens, and
+  // at about a token a second on the CPU box every token past that is a minute
+  // nobody waits for. A reply cut here was a loop, and is reported as one. A caller
+  // with a known larger reply (a batch extraction) passes its own cap; `baseUrl`
+  // points one caller at another server (knowledge extraction's own test double).
+  const j = await ok('POST', '/v1/chat/completions', completionBody(messages, { schema, maxTokens }), baseUrl);
   const t = j.timings || {};
   return {
     content: j.choices?.[0]?.message?.content ?? '',

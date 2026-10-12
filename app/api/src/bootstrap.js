@@ -360,6 +360,16 @@ export async function bootstrapWorker() {
       }
     } catch { /* CrawlerJobs table may not exist on first boot */ }
 
+    // Knowledge extraction runs in this process: one left running is dead now
+    // (its stage cache stays, so starting it again resumes).
+    try {
+      const { failInterruptedRuns } = await import('./orgtruth/knowledge/store.js');
+      const n = await failInterruptedRuns();
+      if (n) console.log(`Marked ${n} interrupted knowledge extraction run(s) as failed`);
+    } catch (err) {
+      console.warn('Knowledge extraction run cleanup skipped:', err.message);
+    }
+
     // Staged loads live in memory; any stage table left by a previous run is
     // unreachable now (see ingest/stages.js).
     try {

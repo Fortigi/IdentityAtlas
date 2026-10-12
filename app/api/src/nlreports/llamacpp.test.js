@@ -61,6 +61,15 @@ describe('llama.cpp client', () => {
     });
   });
 
+  it('a caller may raise the reply cap and point one call at another server', async () => {
+    vi.resetModules();
+    process.env.NL_REPORTS_LLM_URL = 'http://127.0.0.1:1'; // the default server is unreachable: only baseUrl can answer
+    const { chat } = await import('./llamacpp.js');
+    await chat({ messages: [{ role: 'user', content: 'q' }], maxTokens: 900, baseUrl: `http://127.0.0.1:${port}/` });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ method: 'POST', url: '/v1/chat/completions', body: { max_tokens: 900 } });
+  });
+
   it('warm-up restores a saved prompt cache without reading the prompt again', async () => {
     routes['POST /slots/0?action=restore'] = () => [200, { n_restored: 4200 }];
     const { warm, cacheFileName } = await client();

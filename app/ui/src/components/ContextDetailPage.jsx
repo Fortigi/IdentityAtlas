@@ -1,6 +1,7 @@
 import { useState, useEffect, useReducer, useCallback } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
+import InterviewStatementsPanel from '@ui/components/orgtruth/knowledge/InterviewStatementsPanel';
 import ContextDetailHeader from './ContextDetailHeader';
 import ContextAttributesTab from './ContextAttributesTab';
 import ContextRelationshipsTab from './ContextRelationshipsTab';
@@ -171,6 +172,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
             onDeleted={() => onClose?.()}
           />
         )}
+        {activeTab === 'attributes' && <InterviewStatementsPanel targetType="Context" targetId={contextId} />}
 
         {activeTab === 'relationships' && (
           <ContextRelationshipsTab

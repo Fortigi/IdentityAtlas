@@ -24,6 +24,8 @@ import {
 } from '../import/sourceStore.js';
 import { refreshProjections } from '../projection/refresh.js';
 import { actorOf, handle, isUuid, parseOr400 } from '../import/httpHelpers.js';
+import { canSee } from '../knowledge/access.js';
+import { getTranscript } from '../knowledge/store.js';
 
 export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const SUPPORTED_KINDS = ['list'];
@@ -78,6 +80,9 @@ router.get('/org-truth/sources/:id', ...READ_GATE, handle('read the source', asy
 router.get('/org-truth/sources/:id/download', ...READ_GATE, handle('download the source', async (req, res) => {
   const row = await getSourceWithContent(req.params.id);
   if (!row?.content) return res.status(404).json({ error: 'Source not found.' });
+  // A transcript classified restricted is only for its uploader and administrators,
+  // here as in /knowledge (knowledge/access.js) — this route must not be the way round.
+  if (row.kind === 'transcript' && !canSee(req, await getTranscript(row.id))) return res.status(404).json({ error: 'Source not found.' });
   res.attachment(row.fileName || row.displayName);
   res.set('Content-Type', row.mimeType || 'application/octet-stream');
   res.send(Buffer.from(row.content));

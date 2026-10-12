@@ -51,6 +51,16 @@ describe('workerConfigKey', () => {
 });
 
 describe('env-var defaults (no stored override)', () => {
+  it('knowledge extraction is OFF unless FEATURE_KNOWLEDGE_EXTRACTION says exactly "true"', async () => {
+    delete process.env.FEATURE_KNOWLEDGE_EXTRACTION;
+    expect(await isFeatureEnabled('knowledgeExtraction')).toBe(false);
+    process.env.FEATURE_KNOWLEDGE_EXTRACTION = 'yes';
+    expect(await isFeatureEnabled('knowledgeExtraction')).toBe(false);
+    process.env.FEATURE_KNOWLEDGE_EXTRACTION = 'true';
+    expect(await isFeatureEnabled('knowledgeExtraction')).toBe(true);
+    delete process.env.FEATURE_KNOWLEDGE_EXTRACTION;
+  });
+
   it('Org Info (orgTruth) is OFF unless FEATURE_ORG_INFO — or the earlier FEATURE_ORG_TRUTH — says exactly "true"', async () => {
     expect(await isFeatureEnabled('orgTruth')).toBe(false);
     process.env.FEATURE_ORG_INFO = 'TRUE';         // not exactly "true"
@@ -179,7 +189,7 @@ describe('readFeatures', () => {
     process.env.FEATURE_EXPERIMENTAL_CRAWLERS = 'true';
     const payload = await readFeatures();
     expect(Object.keys(payload).sort()).toEqual(Object.keys(FEATURE_FLAGS).sort());
-    expect(payload).toEqual({ riskScoring: false, accountLinking: true, experimentalCrawlers: true, matrixSharing: false, customReports: false, contextAssistant: false, orgTruth: false });
+    expect(payload).toEqual({ riskScoring: false, accountLinking: true, experimentalCrawlers: true, matrixSharing: false, customReports: false, contextAssistant: false, orgTruth: false, knowledgeExtraction: false });
   });
 });
 

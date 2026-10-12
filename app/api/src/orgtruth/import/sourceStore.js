@@ -28,6 +28,7 @@ export async function listSources() {
            (SELECT count(*)::int FROM "OrgImportRuns" r WHERE r."sourceId" = s."id") AS "runCount",
            (SELECT max(r."createdAt") FROM "OrgImportRuns" r WHERE r."sourceId" = s."id") AS "lastRunAt"
       FROM "OrgSources" s
+     WHERE s."kind" <> 'transcript'
      ORDER BY s."createdAt" DESC`);
   return r.rows;
 }

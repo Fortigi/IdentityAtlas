@@ -1,0 +1,10 @@
+- Added knowledge extraction from interview transcripts (experimental, on top of Org Info): upload or paste a transcript and the deployment's own local model proposes the people, teams, customers and applications it mentions and the statements made about them, each with the exact quote from the transcript
+- Mentions are matched to existing people, accounts, groups, contexts and imported lists, with the reason for each match; ambiguous and unknown names stay open instead of being guessed
+- Reviewers confirm or reject matches and statements separately, see review questions (unknown names, self-corrections, statements that disagree with the directory) and can export everything as JSON
+- Accepted statements show up on the detail pages of the people, groups and customers they are about
+- Nothing is sent to an external AI and nothing changes access: without a local model the extraction does not start
+- Every statement now has a confidence score, and statements are grouped as high, medium and low so a reviewer can accept or reject a whole group (or everything still open) in one click
+- Statements are checked against the data already in Identity Atlas: group and context memberships, imported lists and hours on a customer confirm a statement, and a membership the directory doesn't have lowers it
+- Reviewers can rename a mention or change its type (for example a misspelled name in the transcript); the change applies everywhere in that interview, the original spelling stays visible, and it survives a re-run
+- The full transcript can be read in the app, and the original uploaded file can be downloaded again
+- Fixed: a transcript marked restricted could be downloaded through the general Org Info source download by users who could not see it

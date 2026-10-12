@@ -50,6 +50,11 @@ services:
       # Custom reports on, but no model server in this stack: the e2e suite proves
       # the builder works by hand and that the assistant reports itself unavailable.
       FEATURE_CUSTOM_REPORTS: "true"
+      # Knowledge extraction reads with a deterministic stand-in model (the
+      # knowledge-model service below), never the report generator: its CI check
+      # (tools/knowledge-extraction/ci-demo-check.mjs) switches its two flags on for
+      # itself only and puts them back, so the rest of the run sees them off.
+      ORG_KNOWLEDGE_LLM_URL: "http://knowledge-model:8080"
       PORT: "3001"
       # Mirrors docker-compose.prod.yml: the vault master key lives on a
       # web-only volume, not on job_data (which the worker mounts).
@@ -65,6 +70,18 @@ services:
       - no-new-privileges:true
     cap_drop: [ALL]
     pids_limit: 2048
+
+  # The fake model for knowledge extraction (tools/knowledge-extraction/fake-model.mjs):
+  # node builtins only, read-only mount, no network beyond this stack.
+  knowledge-model:
+    image: node:22-alpine
+    command: ["node", "/srv/fake-model.mjs", "8080"]
+    volumes:
+      - ./tools/knowledge-extraction:/srv:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 256
 
   worker:
     image: identity-atlas-worker:ci

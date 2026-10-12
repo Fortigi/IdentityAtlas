@@ -59,7 +59,8 @@ export function reviewParams({ status, entityType, page } = {}) {
 
 // ─── Links queue ────────────────────────────────────────────────────────
 const LINK_FILTER = `FROM "OrgLinks" l JOIN "OrgEntities" e ON e."id" = l."orgEntityId"
-  WHERE l."status" = $1 AND e."validTo" IS NULL AND ($2::text IS NULL OR e."entityType" = $2)`;
+  WHERE l."status" = $1 AND e."validTo" IS NULL AND ($2::text IS NULL OR e."entityType" = $2)
+    AND e."entityType" NOT LIKE 'Mentioned %'`;
 
 const LINK_PAGE_SQL = `SELECT l."id", l."orgEntityId", l."targetType", l."targetId", l."confidence", l."signals",
     l."matchedField", l."matchedValue", l."origin", l."status", l."analystOverride", l."overriddenBy",
@@ -119,14 +120,17 @@ export async function listReview(params) {
 }
 
 // ─── Claims queue (model output waiting for an analyst) ────────────────
-const ENTITY_CLAIMS_FILTER = `FROM "OrgEntities" WHERE "status" = $1 AND "validTo" IS NULL AND ($2::text IS NULL OR "entityType" = $2)`;
+// Transcript mentions and their statements have their own review (knowledge/), not this queue.
+const NOT_MENTION = (alias) => `${alias}"entityType" NOT LIKE 'Mentioned %'`;
+const ENTITY_CLAIMS_FILTER = `FROM "OrgEntities" WHERE "status" = $1 AND "validTo" IS NULL AND ($2::text IS NULL OR "entityType" = $2) AND ${NOT_MENTION('')}`;
 const ENTITY_CLAIMS_SQL = `SELECT "id", "entityType", "displayName", "attributes", "origin", "confidence", "sourceId",
     "sourceLocator", "observedAt", "createdBy" ${ENTITY_CLAIMS_FILTER}
   ORDER BY "confidence" ASC NULLS FIRST, "id" ASC LIMIT $3 OFFSET $4`;
 
 const RELATION_CLAIMS_FILTER = `FROM "OrgRelations" r
   JOIN "OrgEntities" f ON f."id" = r."fromEntityId" JOIN "OrgEntities" t ON t."id" = r."toEntityId"
-  WHERE r."status" = $1 AND r."validTo" IS NULL AND ($2::text IS NULL OR f."entityType" = $2 OR t."entityType" = $2)`;
+  WHERE r."status" = $1 AND r."validTo" IS NULL AND ($2::text IS NULL OR f."entityType" = $2 OR t."entityType" = $2)
+    AND ${NOT_MENTION('f.')}`;
 const RELATION_CLAIMS_SQL = `SELECT r."id", r."predicate", r."fromEntityId", f."displayName" AS "fromDisplayName",
     r."toEntityId", t."displayName" AS "toDisplayName", r."origin", r."confidence", r."sourceId", r."sourceLocator",
     r."observedAt", r."createdBy" ${RELATION_CLAIMS_FILTER}

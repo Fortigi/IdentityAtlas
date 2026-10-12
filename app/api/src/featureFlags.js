@@ -69,6 +69,16 @@ export const FEATURE_FLAGS = {
     key: 'ORG_TRUTH',
     envDefault: env => env.FEATURE_ORG_INFO === 'true' || env.FEATURE_ORG_TRUTH === 'true',
   },
+  // Knowledge extraction (Admin → Experimental, on top of Org Info): an analyst
+  // uploads an interview transcript and the deployment's own local model proposes
+  // the people, teams, customers and statements in it, each with an exact quote,
+  // matched to existing objects for review. Needs orgTruth on as well and a local
+  // model (the report generator); nothing is sent to an external AI. See
+  // docs/architecture/org-knowledge-extraction.md.
+  knowledgeExtraction: {
+    key: 'KNOWLEDGE_EXTRACTION',
+    envDefault: env => env.FEATURE_KNOWLEDGE_EXTRACTION === 'true',
+  },
 };
 
 // WorkerConfig key for a flag name, e.g. 'riskScoring' → 'FEATURE_RISK_SCORING'.

@@ -28,6 +28,7 @@ const CANDIDATE_ROWS_SQL = `
          MAX(l."confidence")::int AS confidence, COUNT(DISTINCT l."orgEntityId")::int AS entities
     FROM "OrgLinks" l JOIN "OrgEntities" e ON e."id" = l."orgEntityId"
    WHERE l."status" = $1 AND e."validTo" IS NULL AND ($2::text IS NULL OR e."entityType" = $2)
+     AND e."entityType" NOT LIKE 'Mentioned %'
    GROUP BY 1, 2, 3, 4, 5`;
 
 /** Pure: candidate rows → groups, weakest best-candidate first, then most entities. */

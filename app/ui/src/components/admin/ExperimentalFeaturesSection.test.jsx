@@ -34,11 +34,11 @@ const EDGE_VERSION = '5.649.20260908.1151';
 
 // matrixSharing defaults to the OPPOSITE of experimentalCrawlers, so the two
 // cards never agree: a switch wired to the wrong flag shows the wrong state.
-// customReports, contextAssistant and orgTruth (Org Info) follow matrixSharing for the same reason.
+// customReports, contextAssistant, orgTruth (Org Info) and knowledgeExtraction follow matrixSharing for the same reason.
 function render(experimentalCrawlers, toggleResponse, matrixSharing = !experimentalCrawlers) {
   return renderWithProviders(
     h(ExperimentalFeaturesSection, {
-      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing, orgTruth: matrixSharing },
+      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing, orgTruth: matrixSharing, knowledgeExtraction: matrixSharing },
       version: EDGE_VERSION,
     }),
     { auth: { authFetch: makeAuthFetch({ '/api/admin/features/toggle': toggleResponse ?? {} }) } },
@@ -50,9 +50,9 @@ describe('ExperimentalFeaturesSection', () => {
     render(false);
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
-    // Five cards: experimental crawlers off; matrix sharing, custom reports, the context assistant and Org Info on.
+    // Six cards: experimental crawlers off; matrix sharing, custom reports, the context assistant, Org Info and knowledge extraction on.
     expect(screen.getAllByText('Disabled')).toHaveLength(1);
-    expect(screen.getAllByText('Enabled')).toHaveLength(4);
+    expect(screen.getAllByText('Enabled')).toHaveLength(5);
   });
 
   it('shows the flag as Enabled when the feature is on', async () => {
@@ -60,7 +60,7 @@ describe('ExperimentalFeaturesSection', () => {
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
     expect(screen.getAllByText('Enabled')).toHaveLength(1);
-    expect(screen.getAllByText('Disabled')).toHaveLength(4);
+    expect(screen.getAllByText('Disabled')).toHaveLength(5);
   });
 
   it('lists the experimental crawlers this build ships, by name — so the switch says what it covers', async () => {
@@ -183,6 +183,32 @@ describe('ExperimentalFeaturesSection', () => {
       await userEvent.click(await screen.findByRole('switch', { name: 'Org Info' }));
       expect(await screen.findByText('Org Info toggle failed')).toBeInTheDocument();
       expect(reload).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Knowledge extraction', () => {
+    it('reads the knowledgeExtraction flag, not Org Info', async () => {
+      renderWithProviders(h(ExperimentalFeaturesSection, {
+        features: { experimentalCrawlers: false, orgTruth: true, knowledgeExtraction: false },
+        version: EDGE_VERSION,
+      }), { auth: { authFetch: makeAuthFetch({}) } });
+      expect(await screen.findByRole('switch', { name: 'Knowledge extraction' })).toHaveAttribute('aria-checked', 'false');
+      expect(screen.getByRole('switch', { name: 'Org Info' })).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it.each([[false, true], [true, false]])('from %s posts knowledgeExtraction:%s, then reloads', async (from, to) => {
+      const { authFetch } = render(!from, undefined, from);
+      await userEvent.click(await screen.findByRole('switch', { name: 'Knowledge extraction' }));
+      await waitFor(() => expect(reload).toHaveBeenCalled());
+      const [, opts] = authFetch.mock.calls.find(([u]) => String(u).includes('/features/toggle'));
+      expect(JSON.parse(opts.body)).toEqual({ feature: 'knowledgeExtraction', enabled: to });
+    });
+
+    it('says it needs Org Info and a local model, keeps transcripts local and waits for review', async () => {
+      render(false);
+      expect(await screen.findByText(/Needs Org Info on and a local model/)).toBeInTheDocument();
+      expect(screen.getByText(/read only by this deployment's own model, never sent to an external AI/)).toBeInTheDocument();
+      expect(screen.getByText(/everything it proposes waits for review/)).toBeInTheDocument();
     });
   });
 

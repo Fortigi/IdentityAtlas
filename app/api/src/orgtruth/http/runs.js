@@ -70,6 +70,7 @@ router.get('/org-truth/runs', ...READ_GATE, handle('list the runs', async (req, 
   const r = await query(`
     SELECT * FROM "OrgImportRuns"
      WHERE ($1::uuid IS NULL OR "sourceId" = $1) AND ($2::uuid IS NULL OR "profileId" = $2)
+       AND "mode" <> 'extract'
      ORDER BY "createdAt" DESC
      LIMIT ${RUN_LIST_LIMIT}`, [filters.sourceId ?? null, filters.profileId ?? null]);
   res.json(r.rows);

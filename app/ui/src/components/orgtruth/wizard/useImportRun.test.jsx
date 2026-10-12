@@ -17,8 +17,10 @@ function sequence(...answers) {
 const tick = () => act(async () => { await vi.advanceTimersByTimeAsync(POLL_MS); });
 
 describe('isFinished', () => {
-  it('is true only for completed and failed', () => {
+  it('is true only for completed, failed and cancelled', () => {
     expect(isFinished({ status: 'completed' })).toBe(true);
+    expect(isFinished({ status: 'cancelled' })).toBe(true);
+    expect(isFinished({ status: 'queued' })).toBe(false);
     expect(isFinished({ status: 'failed' })).toBe(true);
     expect(isFinished({ status: 'running' })).toBe(false);
     expect(isFinished(null)).toBe(false);
@@ -108,6 +110,20 @@ describe('useImportRun', () => {
     expect(onFinish).toHaveBeenCalledWith({ id: 'r8', status: 'failed' });
     expect(result.current.busy).toBe(false);
     expect(authFetch).not.toHaveBeenCalled();
+  });
+
+  it('polls under the base path it is given and stops on cancelled', async () => {
+    const next = sequence({ id: 'k1', status: 'running', pct: 40 }, { id: 'k1', status: 'cancelled' });
+    const authFetch = makeAuthFetch((url) => (url === '/api/org-truth/knowledge/runs/k1' ? next() : undefined));
+    const onFinish = vi.fn();
+    const { result } = renderHook(() => useImportRun({ base: '/knowledge' }), makeWrapper({ auth: { authFetch } }));
+    act(() => result.current.track({ id: 'k1', status: 'queued' }, onFinish));
+    await tick();
+    expect(result.current.run.pct).toBe(40);
+    await tick();
+    expect(onFinish).toHaveBeenCalledWith({ id: 'k1', status: 'cancelled' });
+    expect(result.current.busy).toBe(false);
+    expect(authFetch.mock.calls.map(c => c[0])).toEqual(['/api/org-truth/knowledge/runs/k1', '/api/org-truth/knowledge/runs/k1']);
   });
 
   it('stops polling on unmount', async () => {

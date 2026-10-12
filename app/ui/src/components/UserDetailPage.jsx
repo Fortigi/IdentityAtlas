@@ -12,6 +12,7 @@ import { useIsDark } from '@ui/contexts/ThemeContext';
 import { tagPillStyle } from '@ui/utils/colors';
 import { Avatar } from './DepartmentBadges';
 import OrgActivitySummary from '@ui/components/orgtruth/OrgActivitySummary';
+import InterviewStatementsPanel from '@ui/components/orgtruth/knowledge/InterviewStatementsPanel';
 import { useOrgEnrichment } from '@ui/components/orgtruth/enrichment';
 
 const ACCOUNT_TYPE_COLORS = {
@@ -162,6 +163,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
         <>
           <UserActivitySection userId={userId} authFetch={authFetch} onOpenDetail={onOpenDetail} />
           <OrgActivitySummary targetType="Principal" id={userId} onOpenDetail={onOpenDetail} />
+          <InterviewStatementsPanel targetType="Principal" targetId={userId} />
         </>
       )}
       renderRisk={(data) => (

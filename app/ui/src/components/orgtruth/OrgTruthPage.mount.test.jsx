@@ -27,6 +27,8 @@ const ROUTES = {
   '/api/org-truth/runs': [{ id: 'r1', sourceId: 's1', profileId: 'p7', mode: 'full', status: 'completed', createdAt: '2026-10-01T10:00:00Z' }],
   '/api/org-truth/review': { data: [], total: 0 },
   '/api/org-truth/model': { entityTypes: [] },
+  '/api/org-truth/knowledge/status': { configured: true, reachable: true, model: 'm' },
+  '/api/org-truth/knowledge/sources': [],
 };
 
 function renderPage({ auth = IMPORTER, features = { orgTruth: true } } = {}) {
@@ -43,6 +45,16 @@ describe('OrgTruthPage', () => {
     expect(screen.getByRole('tab', { name: 'Sources' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Organisation');
     expect(await screen.findByRole('button', { name: 'Contoso projects' })).toBeInTheDocument();
+  });
+
+  it('adds the Knowledge tab only with the knowledgeExtraction flag, and opens it', async () => {
+    renderPage({ features: { orgTruth: true, knowledgeExtraction: false } });
+    expect(screen.queryByRole('tab', { name: 'Knowledge' })).toBeNull();
+    renderPage({ features: { orgTruth: true, knowledgeExtraction: true } });
+    expect(screen.getAllByRole('tab').slice(-1)[0]).toHaveTextContent('Knowledge');
+    await userEvent.click(screen.getByRole('tab', { name: 'Knowledge' }));
+    expect(screen.getByRole('tab', { name: 'Knowledge' })).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByText('No transcripts yet')).toBeInTheDocument();
   });
 
   it('switches panels when a tab is clicked', async () => {

@@ -36,6 +36,7 @@ import OrgActivitySection from './OrgActivitySection';
 import { subjectEmpty } from './activity';
 import { OrgEntityHeader, OrgEntityRelations } from './OrgEntitySections';
 import { FetchState, InlineError } from './orgUi';
+import InterviewStatementsPanel from './knowledge/InterviewStatementsPanel';
 
 export default function OrgEntityDetailPage({ entityId, onOpenDetail, onClose, onCacheData }) {
   const { authFetch } = useAuth();
@@ -87,6 +88,7 @@ export default function OrgEntityDetailPage({ entityId, onOpenDetail, onClose, o
         </Section>
         <OrgActivitySection state={activityState} onOpenDetail={onOpenDetail} />
         <OrgEvidenceSection entityId={entityId} onOpenDetail={onOpenDetail} compact={!subjectEmpty(activityState.data)} />
+        <InterviewStatementsPanel targetType="OrgEntity" targetId={entityId} />
       </EntityDetailLayout>
     </div>
   );

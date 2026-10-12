@@ -33,3 +33,9 @@ paths-ignore:
   # the API and never copied into an image. js/indirect-command-line-injection and
   # js/file-access-to-http are describing the tool's contract, not a flaw in it.
   - tools/nl-reports/eval.mjs
+
+  # tools/knowledge-extraction/ci-demo-check.mjs is the CI check that uploads the
+  # synthetic demo interview (a fixture in the same folder) to the CI stack's own
+  # API and asserts on the result. Reading that fixture and sending it over HTTP is
+  # the test (js/file-access-to-http). Never imported by the API, never in an image.
+  - tools/knowledge-extraction/ci-demo-check.mjs

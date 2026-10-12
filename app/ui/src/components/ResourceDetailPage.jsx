@@ -4,6 +4,7 @@ import { useIsDark } from '@ui/contexts/ThemeContext';
 import { tagPillStyle } from '@ui/utils/colors';
 import useFeatures from '@ui/hooks/useFeatures';
 import EntityDetailPage from './EntityDetailPage';
+import InterviewStatementsPanel from '@ui/components/orgtruth/knowledge/InterviewStatementsPanel';
 import RiskScoreSection from './RiskScoreSection';
 import { RISK_FIELDS } from './RiskScoreSection.constants.js';
 import DeletedBadge from './DeletedBadge';
@@ -105,6 +106,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
       getTabs={getTabs}
       getAttributeEntries={getResourceAttributeEntries}
       renderHeader={(data) => <ResourceHeader data={data} />}
+      renderAttributesExtra={() => <InterviewStatementsPanel targetType="Resource" targetId={resourceId} />}
       renderRisk={(data) => (
         <RiskScoreSection attributes={data.attributes} entityType="group" entityId={resourceId} authFetch={authFetch} />
       )}

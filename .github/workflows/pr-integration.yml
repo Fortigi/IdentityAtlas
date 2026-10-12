@@ -564,6 +564,12 @@ jobs:
             -ApiKey '${{ steps.apikey.outputs.key }}'
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
+      # Knowledge extraction (Org Info, experimental) on the real demo dataset:
+      # upload the synthetic demo interview, extract with the fake model, resolve
+      # against the demo's people and groups, re-run, export, delete.
+      - name: 'Test: Knowledge extraction on demo data'
+        run: node tools/knowledge-extraction/ci-demo-check.mjs --base http://localhost:3001
+
       - name: 'Test: Detail page counts'
         shell: pwsh
         run: |

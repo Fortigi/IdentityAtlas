@@ -14,9 +14,12 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { getJson, sendJson } from './wizardApi';
 
 export const POLL_MS = 1500;
-export const isFinished = (run) => run?.status === 'completed' || run?.status === 'failed';
+// A knowledge-extraction run can also end 'cancelled'.
+const DONE = ['completed', 'failed', 'cancelled'];
+export const isFinished = (run) => DONE.includes(run?.status);
 
-export function useImportRun() {
+// `base` prefixes the run routes ('/knowledge' polls /api/org-truth/knowledge/runs/:id).
+export function useImportRun({ base = '' } = {}) {
   const { authFetch } = useAuth();
   const [run, setRun] = useState(null);
   const [error, setError] = useState(null);
@@ -30,12 +33,12 @@ export function useImportRun() {
     stop();
     timer.current = setInterval(async () => {
       try {
-        const next = await getJson(authFetch, `/runs/${encodeURIComponent(id)}`);
+        const next = await getJson(authFetch, `${base}/runs/${encodeURIComponent(id)}`);
         setRun(next);
         if (isFinished(next)) { stop(); setBusy(false); onFinish?.(next); }
       } catch { /* keep polling */ }
     }, POLL_MS);
-  }, [authFetch]);
+  }, [authFetch, base]);
 
   // Show and poll a run that is already created; onFinish(run) runs once when
   // it completes or fails (from the poll, never from an effect).
@@ -50,7 +53,7 @@ export function useImportRun() {
     setError(null);
     setBusy(true);
     try {
-      const created = await sendJson(authFetch, '/runs', body);
+      const created = await sendJson(authFetch, `${base}/runs`, body);
       track(created);
       return created;
     } catch (e) {
@@ -58,7 +61,7 @@ export function useImportRun() {
       setBusy(false);
       return null;
     }
-  }, [authFetch, track]);
+  }, [authFetch, base, track]);
 
   return { run, error, busy, start, track };
 }

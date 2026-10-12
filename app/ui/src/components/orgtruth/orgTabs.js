@@ -7,3 +7,6 @@ export const ORG_TABS = [
   { key: 'signals', label: 'Signals' },
   { key: 'review', label: 'Review' },
 ];
+
+// Shown only with the knowledgeExtraction flag on (experimental).
+export const KNOWLEDGE_TAB = { key: 'knowledge', label: 'Knowledge' };

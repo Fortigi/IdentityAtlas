@@ -6,6 +6,7 @@
 //   Entities  the entities themselves, searchable, with a detail fan-out      (EntitiesTab, T6)
 //   Signals   what imported activity says about a collection type     (SignalsTab)
 //   Review    proposed links and claims waiting for an analyst                (ReviewTab, T6)
+//   Knowledge interview transcripts read by the local model (flag knowledgeExtraction; knowledge/KnowledgeTab)
 // plus the import wizard (ImportWizard, T5), opened from the Sources tab's
 // "Import additional information" button (new import) or from a source's "Import
 // again" (repeat mode, `profileId` of its last run). Every panel gets onImport /
@@ -21,12 +22,16 @@ import EntitiesTab from './EntitiesTab';
 import ReviewTab from './ReviewTab';
 import SignalsTab from './SignalsTab';
 import ImportWizard from './wizard/ImportWizard';
-import { ORG_TABS } from './orgTabs';
+import KnowledgeTab from './knowledge/KnowledgeTab';
+import { useFeatureFlags } from '@ui/contexts/FeaturesContext';
+import { ORG_TABS, KNOWLEDGE_TAB } from './orgTabs';
 
-const PANELS = { sources: SourcesTab, model: ModelTab, entities: EntitiesTab, signals: SignalsTab, review: ReviewTab };
+const PANELS = { sources: SourcesTab, model: ModelTab, entities: EntitiesTab, signals: SignalsTab, review: ReviewTab, knowledge: KnowledgeTab };
 
 export default function OrgTruthPage({ onOpenDetail }) {
   const [tab, setTab] = useState('sources');
+  const knowledgeOn = useFeatureFlags().knowledgeExtraction === true;
+  const tabs = knowledgeOn ? [...ORG_TABS, KNOWLEDGE_TAB] : ORG_TABS;
   // null = closed; { profileId? } = open (a profileId opens it in repeat mode).
   const [wizard, setWizard] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -51,7 +56,7 @@ export default function OrgTruthPage({ onOpenDetail }) {
 
       {wizard && <ImportWizard onClose={closeWizard} profileId={wizard.profileId} />}
 
-      <TabBar tabs={ORG_TABS} active={tab} onChange={setTab} />
+      <TabBar tabs={tabs} active={tab} onChange={setTab} />
       <Panel
         key={`${tab}-${refreshKey}`}
         onOpenDetail={onOpenDetail}
