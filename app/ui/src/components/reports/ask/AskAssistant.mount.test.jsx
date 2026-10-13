@@ -3,6 +3,8 @@
 // "Describe the report you want" — what this pins down:
 //   • with no model server there is no question box at all, and the reason the
 //     API gave (model missing vs. server unreachable) is the reason shown
+//   • while the status check is still waiting (a cold-starting model server) the
+//     analyst sees that it is starting rather than an empty card
 //   • while the prompt cache is still being prepared the analyst is warned that
 //     questions are slow — but may still ask one
 //   • a reply that carries a definition is handed to the builder together with
@@ -123,6 +125,25 @@ describe('AskAssistant', () => {
     // And no model is loaded on behalf of a server that isn't there.
     expect(bodiesFor(authFetch, '/nl-reports/warm')).toHaveLength(0);
   });
+
+  it('says the model server is starting while the status check waits on a cold start, then shows the box', async () => {
+    // The status call waits for the model server; on a cold start that is minutes.
+    // Hold it open, and only answer once the page has called it a cold start.
+    let answer;
+    const held = new Promise((resolve) => { answer = resolve; });
+    renderAsk({ status: () => held });
+
+    expect(await screen.findByText(/^Checking the model server… \ds$/)).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+
+    expect(await screen.findByText(/The model server is starting up .* can take a few minutes/, {}, { timeout: 8000 }))
+      .toBeInTheDocument();
+    expect(screen.queryByText(/Checking the model server/)).not.toBeInTheDocument();
+
+    answer(READY_STATUS);
+    expect(await screen.findByRole('textbox', { name: /Describe the report you want/ })).toBeEnabled();
+    expect(screen.queryByText(/starting up/)).not.toBeInTheDocument();
+  }, 15000);
 
   it('blames the unreachable server, not a missing model, when that is the reason given', async () => {
     renderAsk({ status: { available: false, model: 'qwen2.5-coder:7b', reason: 'server-unreachable' } });

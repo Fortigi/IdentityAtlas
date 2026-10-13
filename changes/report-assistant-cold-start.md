@@ -1,0 +1,1 @@
+- The "Describe it" box in the report builder now says it is checking the model server, and after a few seconds that the model server is starting up and can take a few minutes, instead of showing an empty card while a scaled-down model server starts

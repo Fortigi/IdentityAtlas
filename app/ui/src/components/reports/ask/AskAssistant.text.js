@@ -11,6 +11,18 @@ export function warmStatusText(warm, elapsed) {
   }
 }
 
+// After this long without a /status answer, the model server is taken to be starting
+// from cold (on Azure it scales to zero when unused) rather than just answering.
+export const COLD_START_AFTER_S = 5;
+
+// What shows while /status has not answered yet. The status call waits for the model
+// server, so a cold start holds it for minutes — say so, or the box just looks missing.
+export function statusWaitText(elapsed) {
+  return elapsed < COLD_START_AFTER_S
+    ? `Checking the model server… ${elapsed}s`
+    : `The model server is starting up — it shuts down when unused, so this can take a few minutes. You can build the report with the definition editor below in the meantime… ${elapsed}s`;
+}
+
 // Why the generator can't be used, from the /status answer.
 export function unavailableReason(status) {
   return status?.reason === 'model-not-installed'

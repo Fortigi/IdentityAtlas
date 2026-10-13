@@ -1,11 +1,14 @@
 // The words around the question box — what this pins down:
 //   • each warm-up state has its own status line, and the two long waits say
 //     how long they usually take; a ready or idle model says nothing
+//   • a status check that takes longer than a normal answer is called a cold start
 //   • the unavailable reason names the missing model only when that is the reason
 //   • answering a clarifying question wins over changing the current definition
 //   • the timing line reports the numbers it was given, not rounded-away ones
 import { describe, it, expect } from 'vitest';
-import { formatTiming, questionPrompt, unavailableReason, warmStatusText } from './AskAssistant.text';
+import {
+  COLD_START_AFTER_S, formatTiming, questionPrompt, statusWaitText, unavailableReason, warmStatusText,
+} from './AskAssistant.text';
 
 describe('warmStatusText', () => {
   it('counts the seconds while loading, and tells the two long waits apart', () => {
@@ -21,6 +24,22 @@ describe('warmStatusText', () => {
   it('says nothing once the model is ready, or before warming started', () => {
     expect(warmStatusText('ready', 5)).toBe('');
     expect(warmStatusText('idle', 5)).toBe('');
+  });
+});
+
+describe('statusWaitText', () => {
+  it('only says it is checking while the answer could still be a normal one', () => {
+    expect(statusWaitText(0)).toBe('Checking the model server… 0s');
+    expect(statusWaitText(COLD_START_AFTER_S - 1)).toBe(`Checking the model server… ${COLD_START_AFTER_S - 1}s`);
+  });
+
+  it('calls it a cold start from the threshold on, says it takes minutes, and keeps counting', () => {
+    for (const s of [COLD_START_AFTER_S, 187]) {
+      const text = statusWaitText(s);
+      expect(text).toMatch(/^The model server is starting up — .* can take a few minutes\./);
+      expect(text).toMatch(/definition editor below/);
+      expect(text.endsWith(`… ${s}s`)).toBe(true);
+    }
   });
 });
 

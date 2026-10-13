@@ -16,7 +16,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import Turn from './AskAssistant.Turn';
 import { MUTED, PRIMARY } from './AskAssistant.styles';
-import { questionPrompt, unavailableReason, warmStatusText } from './AskAssistant.text';
+import { questionPrompt, statusWaitText, unavailableReason, warmStatusText } from './AskAssistant.text';
 import { useAskConversation } from './useAskConversation';
 import { isWarmLoading, useElapsed, useModelWarmup } from './useAskWarmup';
 
@@ -64,9 +64,9 @@ export default function AskAssistant({ currentSpec, onReport, conversation }) {
   const convo = conversation ?? own;
   const { input, setInput, turns, busy, error, ask, confirmChoice } = convo;
   const loading = isWarmLoading(warm);
-  const elapsed = useElapsed(busy || loading);
+  const elapsed = useElapsed(busy || loading || statusLoading);
 
-  if (statusLoading) return null;
+  if (statusLoading) return <p className={MUTED} aria-live="polite">{statusWaitText(elapsed)}</p>;
   if (!status?.available) return <Unavailable status={status} />;
 
   const prompt = questionPrompt({ awaitingAnswer: convo.awaitingAnswer, currentSpec });
