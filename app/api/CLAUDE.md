@@ -67,6 +67,8 @@ Migration files are numbered sequentially (`001_core_schema.sql`, `002_governanc
 
 **No runtime DDL.** Don't create/alter schema from route, ingest, or startup code — no `CREATE TABLE IF NOT EXISTS` "just in case" (this pattern was removed for `SavedMatrixFilters` in #794). The migration runner owns all schema; a table a route depends on must exist as a migration, not be lazily materialised on first request (which hides drift, races under concurrency, and needs write privileges at request time).
 
+**Describe it in the core ontology.** A migration that adds or changes a column on a core table (Systems, Principals, Resources, Identities, Contexts and the five edge tables), or a new closed value list / relationship type in `ingest/validation.js`, also updates `/ontology/core.ttl` — `npm run ontology:check` and `contract-tests/coreOntology.contract.test.js` fail otherwise. The type lists in `validation.js` are exported for that check; add values there, never to a second list. Tooling lives in `src/ontology/` (dev/CI only, never imported by the server). See `docs/contributing/maintaining-the-ontology.md`.
+
 ## Key Patterns
 
 - **Column cache:** Use `db/columnCache.js` for column discovery — it has a 5-minute TTL. Don't run `information_schema` queries per-request.

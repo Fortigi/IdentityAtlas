@@ -33,6 +33,7 @@ The four governance-specific tables (`GovernanceCatalogs`, `AssignmentPolicies`,
 
 ## Governance Entity Diagram
 
+<!-- ontology: validated -->
 ```mermaid
 erDiagram
     GovernanceCatalogs {

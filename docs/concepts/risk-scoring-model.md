@@ -41,6 +41,7 @@ Scoring reads the **inputs** and writes the **outputs**. The inputs change only 
 
 ## Entity Relationship Diagram
 
+<!-- ontology: out-of-scope — risk-scoring tables are not part of the core graph model -->
 ```mermaid
 erDiagram
     RiskScores {

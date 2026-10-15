@@ -63,122 +63,128 @@ Systems (technical sync root — each Principal, Resource, and synced Context be
 
 ## Entity Relationship Diagram
 
+The diagram below is **generated from the [core ontology](../reference/core-model.md)** — the formal, version-controlled description of these tables. It shows each core table's identifier, foreign keys and type columns; every column is listed in the [Core Model Reference](../reference/core-model.md).
+
+<!-- BEGIN GENERATED: ontology core-erd -->
 ```mermaid
 erDiagram
-    Identities {
-        guid id PK
+    ContextMembers {
+        string addedBy "sync, algorithm, analyst"
+        uuid contextId FK
+        uuid memberId FK
+        string memberType "Identity, Resource, Principal, System"
+    }
+    Contexts {
+        uuid id PK
         string displayName
-        string email
-        string employeeId
-        string department
-        string jobTitle
-        guid primaryPrincipalId FK
-        guid managerIdentityId FK
-        bool isHrAnchored
-        int linkConfidence
-        json linkSignals
-        timestamp linkedAt
+        uuid parentContextId FK
+        int scopeSystemId FK
+        string targetType "Identity, Resource, Principal, System"
+        string variant "synced, generated, manual"
+    }
+    Identities {
+        uuid id PK
+        string displayName
+        uuid managerIdentityId FK
+        uuid primaryPrincipalId FK
     }
     IdentityMembers {
-        guid identityId FK
-        guid principalId FK
-        int linkConfidence
-        json linkSignals
-        timestamp linkedAt
-        string accountType
-        string analystOverride
+        string displayName
+        uuid identityId FK
+        uuid principalId FK
+    }
+    PrincipalRelationships {
+        uuid principalId FK
+        uuid relatedPrincipalId FK
+        string relationshipType "Owner, Sponsor"
+        int systemId FK
+    }
+    Principals {
+        uuid id PK
+        string displayName
+        uuid managerId FK
+        string principalType "User, ServicePrincipal, ManagedIdentity, WorkloadIdentity, AIAgent, ExternalUser, SharedMailbox"
+        int systemId FK
+    }
+    ResourceAssignments {
+        string assignmentType "Direct, Indirect, Eligible"
+        string effect "allow, deny, eligible, notset"
+        uuid identityId FK
+        string origin "Automatic, Requested, Discovered"
+        uuid principalId FK
+        string propagationScope "self, descendants, selfAndDescendants"
+        uuid resourceId FK
+        int systemId FK
+    }
+    ResourceRelationships {
+        uuid childResourceId FK
+        uuid parentResourceId FK
+        string relationshipType "Contains, GrantsAccessTo, HasAppRole, DelegatesScope, HasApplicationPermission, HasOwnership, HasAppOwnership"
+        int systemId FK
+    }
+    Resources {
+        uuid id PK
+        string displayName
+        string resourceType "open vocabulary"
+        int systemId FK
     }
     Systems {
         int id PK
+        int directorySystemId FK
         string displayName
-        string systemType
-        bool enabled
     }
-    Resources {
-        guid id PK
-        int systemId FK
-        string displayName
-        string resourceType
-        string extendedAttributes
-        guid catalogId
-        decimal riskScore
-    }
-    Principals {
-        guid id PK
-        int systemId FK
-        string displayName
-        string principalType
-        string extendedAttributes
-        decimal riskScore
-    }
-    Contexts {
-        guid id PK
-        string variant
-        string targetType
-        string contextType
-        string displayName
-        guid parentContextId FK
-        int scopeSystemId FK
-        guid sourceAlgorithmId FK
-    }
-    ContextMembers {
-        guid contextId FK
-        string memberType
-        guid memberId
-        string addedBy
-    }
-    ResourceAssignments {
-        guid resourceId FK
-        guid principalId "nullable FK — XOR with identityId"
-        guid identityId "nullable FK — XOR with principalId"
-        string assignmentType
-        int systemId FK
-        string principalType
-        string origin
-        string originDetail
-        string complianceState
-        string policyId
-        string state
-        string extendedAttributes
-    }
-    ResourceRelationships {
-        guid parentResourceId FK
-        guid childResourceId FK
-        string relationshipType
-        string roleName
-    }
+
+    Contexts |o--o{ ContextMembers : "contextId"
+    Identities |o--o{ ContextMembers : "memberId"
+    Resources |o--o{ ContextMembers : "memberId"
+    Principals |o--o{ ContextMembers : "memberId"
+    Systems |o--o{ ContextMembers : "memberId"
+    Contexts |o--o{ Contexts : "parentContextId"
+    Systems |o--o{ Contexts : "scopeSystemId"
+    Identities |o--o{ Identities : "managerIdentityId"
+    Principals |o--o{ Identities : "primaryPrincipalId"
+    Identities |o--o{ IdentityMembers : "identityId"
+    Principals |o--o{ IdentityMembers : "principalId"
+    Principals |o--o{ PrincipalRelationships : "principalId"
+    Principals |o--o{ PrincipalRelationships : "relatedPrincipalId"
+    Systems |o--o{ PrincipalRelationships : "systemId"
+    Principals |o--o{ Principals : "managerId"
+    Systems |o--o{ Principals : "systemId"
+    Identities |o--o{ ResourceAssignments : "identityId"
+    Principals |o--o{ ResourceAssignments : "principalId"
+    Resources |o--o{ ResourceAssignments : "resourceId"
+    Systems |o--o{ ResourceAssignments : "systemId"
+    Resources |o--o{ ResourceRelationships : "childResourceId"
+    Resources |o--o{ ResourceRelationships : "parentResourceId"
+    Systems |o--o{ ResourceRelationships : "systemId"
+    Systems |o--o{ Resources : "systemId"
+    Systems |o--o{ Systems : "directorySystemId"
+```
+<!-- END GENERATED: ontology core-erd -->
+
+Two satellite tables hang off the core model. They are not part of the ontology yet (see [Core Ontology](../architecture/core-ontology.md#scope)):
+
+<!-- ontology: validated -->
+```mermaid
+erDiagram
     PrincipalActivity {
         guid principalId FK
         guid resourceId FK
-        int systemId FK
         string activityType
-        datetime lastActivityDateTime
-        int activityCount
+        datetime lastSignInDateTime
+        int signInCount
     }
     RiskScores {
         guid entityId
         string entityType
-        decimal riskScore
+        int riskScore
         string riskTier
-        string classifierMatches
+        string riskClassifierMatches
     }
-
-    Identities ||--o{ IdentityMembers : "aggregates"
-    Principals ||--o{ IdentityMembers : "linked via"
-    Contexts ||--o{ ContextMembers : "has members"
-    ContextMembers }o--|| Identities : "memberType=Identity"
-    ContextMembers }o--|| Principals : "memberType=Principal"
-    ContextMembers }o--|| Resources : "memberType=Resource"
-    Systems ||--o{ Resources : "hosts"
-    Systems ||--o{ Principals : "hosts"
-    Systems ||--o{ Contexts : "scopes (synced)"
-    Resources ||--o{ ResourceAssignments : "granted via"
-    Principals |o--o{ ResourceAssignments : "receives (account-level)"
-    Identities |o--o{ ResourceAssignments : "receives (person-level)"
-    Resources ||--o{ ResourceRelationships : "parent in"
-    Resources ||--o{ ResourceRelationships : "child in"
     Principals ||--o{ PrincipalActivity : "has activity"
     Resources ||--o{ PrincipalActivity : "accessed in"
+    Principals ||--o| RiskScores : "entityType=Principal"
+    Resources ||--o| RiskScores : "entityType=Resource"
 ```
 
 ---
@@ -346,11 +352,11 @@ High-frequency activity signals: sign-ins, per-app usage, AI agent invocations. 
 
 | Property | Value |
 |---|---|
-| Primary Key | Composite: `principalId` + `resourceId` + `systemId` + `activityType` |
+| Primary Key | Composite: `principalId` + `resourceId` + `activityType` |
 | Audit history | No (upsert-based) |
-| Created by | Migration `001_core_schema.sql` |
+| Created by | Migration `017_principal_activity.sql` |
 
-Key columns: `activityType`, `lastActivityDateTime`, `activityCount`.
+Key columns: `activityType`, `lastSignInDateTime`, `lastNonInteractiveSignInDateTime`, `lastSuccessfulSignInDateTime`, `lastFailedSignInDateTime`, `signInCount`.
 
 ---
 
@@ -465,7 +471,7 @@ Principals is tracked by the `_history` audit trigger, which records a JSONB sna
 
 **What PrincipalActivity does instead:**
 
-Each row stores the latest known activity per `(principalId, resourceId, systemId, activityType)` combination. Sync functions upsert into this table, overwriting the previous value in place. No history is retained — the table is always a current snapshot.
+Each row stores the latest known activity per `(principalId, resourceId, activityType)` combination. Sync functions upsert into this table, overwriting the previous value in place. No history is retained — the table is always a current snapshot.
 
 **Activity types:**
 

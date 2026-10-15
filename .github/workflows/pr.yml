@@ -14,7 +14,8 @@
 #   1. lint-ps    — PSScriptAnalyzer on all PowerShell files
 #   2. lint-js    — ESLint on the frontend (app/ui)
 #   3. unit-tests — Pester tests with code coverage report
-#   4. unit-js    — Vitest tests for the API (validation, middleware, docs structure)
+#   4. unit-js    — Vitest tests for the API (validation, middleware, docs structure,
+#                   core ontology check)
 #   5. unit-ui    — Vitest tests for the UI
 #   6. node-launcher-ui-build — crawler wizard bundle check
 #   7. openapi    — Spectral lint on app/api/src/openapi.yaml
@@ -199,6 +200,8 @@ jobs:
               - 'app/desktop/*.test.js'
               # So do the scale test fixture generator's.
               - 'tools/scale-dataset/**'
+              # The core ontology is checked by the API suite (unit check + contract test).
+              - 'ontology/**'
             ui:
               - 'app/ui/src/**'
               - 'app/ui/package.json'
@@ -454,6 +457,14 @@ jobs:
       - name: Install dependencies
         working-directory: app/api
         run: npm ci
+
+      # ontology/core.ttl must agree with the ingest registries, the ownership /
+      # visibility lists and the docs diagrams (docs/architecture/core-ontology.md).
+      # Also asserted inside the suite (src/ontology/ontology.guard.test.js); this
+      # step just names the failure. The real-database half is a contract test.
+      - name: Core ontology check
+        working-directory: app/api
+        run: npm run ontology:check
 
       - name: Run Vitest (with coverage)
         working-directory: app/api
