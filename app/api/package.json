@@ -30,7 +30,7 @@
     "@eslint/js": "^10.0.1",
     "@stryker-mutator/core": "^10.0.0",
     "@stryker-mutator/vitest-runner": "^10.0.0",
-    "@testcontainers/postgresql": "^12.1.0",
+    "@testcontainers/postgresql": "^12.2.0",
     "@vitest/coverage-v8": "^5.0.3",
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",
