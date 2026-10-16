@@ -275,8 +275,34 @@ describe('POST /tags/:id/assign-by-filter', () => {
       const { bind } = createParams();
       bind(VALID); // the tag id is bound first in the bulk query
       const expected = buildSearchWhere(entity, 'e', 'CI0012345', { extended: extendedSearch, linkedPrincipals: entity === 'identity' }, bind);
-      expect(String(query.mock.calls[0][0])).toContain(`WHERE (1=1${expected})`);
+      expect(String(query.mock.calls[0][0])).toContain(`${expected})`);
     }
+  });
+
+  // "Tag all N matching" must leave out what the list left out before any
+  // search: deleted rows (unless "Include deleted" is ticked) and, on the
+  // Resources list, business roles.
+  it.each([
+    ['user', false, ['e."deletedAt" IS NULL'], ['resourceType']],
+    ['user', true, [], ['deletedAt', 'resourceType']],
+    ['resource', false, ['e."deletedAt" IS NULL', `e."resourceType" NOT IN ('BusinessRole')`], []],
+    ['resource', true, [`e."resourceType" NOT IN ('BusinessRole')`], ['deletedAt']],
+    ['identity', false, [], ['deletedAt', 'resourceType']],
+    ['group', false, [], ['deletedAt', 'resourceType']],
+  ])('%s, includeDeleted=%s: scoped like its list', async (entityType, includeDeleted, present, absent) => {
+    queryOne.mockResolvedValueOnce({ id: VALID, targetType: 'Principal' });
+    query.mockResolvedValueOnce({ rowCount: 0 });
+    await request(app).post(`/api/tags/${VALID}/assign-by-filter`).send({ entityType, includeDeleted });
+    const sql = String(query.mock.calls[0][0]);
+    for (const p of present) expect(sql).toContain(p);
+    for (const a of absent) expect(sql).not.toContain(a);
+  });
+
+  it('only a literal true includes deleted rows', async () => {
+    queryOne.mockResolvedValueOnce({ id: VALID, targetType: 'Principal' });
+    query.mockResolvedValueOnce({ rowCount: 0 });
+    await request(app).post(`/api/tags/${VALID}/assign-by-filter`).send({ entityType: 'user', includeDeleted: 'true' });
+    expect(String(query.mock.calls[0][0])).toContain('e."deletedAt" IS NULL');
   });
 
   it('only a literal true switches the bulk search to extended', async () => {

@@ -270,6 +270,8 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
           search: debouncedSearch || undefined,
           // Same mode as the list, or "Tag all N matching" tags a different N.
           extendedSearch: extendedActive || undefined,
+          // …and the same deleted rows left out, or included.
+          includeDeleted: includeDeleted || undefined,
           filters: filtersObj || undefined,
         }),
       });

@@ -139,6 +139,12 @@ describe('useEntityPage', () => {
 
     const call = af.mock.calls.find((c) => String(c[0]).endsWith('/assign-by-filter'));
     expect(JSON.parse(call[1].body)).toEqual({ entityType: 'user', search: 'CI0012345', extendedSearch: true });
+
+    // Ticking "Include deleted" widens the bulk tag the same way it widens the list.
+    act(() => { result.current.setIncludeDeleted(true); result.current.setActionTag('t1'); });
+    await act(async () => { await result.current.assignTagToAll(); });
+    const calls = af.mock.calls.filter((c) => String(c[0]).endsWith('/assign-by-filter'));
+    expect(JSON.parse(calls[calls.length - 1][1].body)).toMatchObject({ includeDeleted: true });
   });
 
   it('paginates via offset = page * PAGE_SIZE', async () => {

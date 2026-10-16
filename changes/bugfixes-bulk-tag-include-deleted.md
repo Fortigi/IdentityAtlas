@@ -1,0 +1,2 @@
+- Fixed "Tag all N matching" on the Users and Resources lists also tagging deleted accounts and resources the list was hiding. It now follows the "Include deleted" checkbox, just like the list.
+- Fixed "Tag all N matching" on the Resources list also tagging business roles, which that list does not show.

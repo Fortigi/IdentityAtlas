@@ -15,6 +15,7 @@ import { recalcMemberCountsForChain } from '../../contexts/memberCounts.js';
 import { requirePermission } from '../../middleware/auth.js';
 import { createParams } from '../../db/sqlParams.js';
 import { buildSearchWhere } from '../../lib/entitySearch.js';
+import { visibleResourceTypesSql } from '../../lib/resourceVisibility.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, ENTITY_TO_TARGET, UUID_RE } from './shared.js';
 import { extractRelFilters, buildRelationshipWhere, storeForEntityType } from '../../lib/referenceFilters.js';
 import { extractSystemFilter, systemFilterWhere } from '../../lib/systemFilter.js';
@@ -250,6 +251,18 @@ export function buildAssignSearchWhere(entityType, alias, search, extended, bind
   return buildSearchWhere(entity, alias, search, { extended, linkedPrincipals: entity === 'identity' }, bind);
 }
 
+// What a list leaves out before any search or filter, so the bulk tag leaves it
+// out too: the Users and Resources lists hide soft-deleted rows unless "Include
+// deleted" is ticked (routes/tags/entities.js, routes/resources/list.js), and
+// the Resources list hides business roles (lib/resourceVisibility.js). The
+// legacy `group` list (/api/groups) and the Identities list hide neither.
+export function buildAssignScopeWhere(entityType, alias, includeDeleted) {
+  if (entityType !== 'user' && entityType !== 'resource') return '';
+  let where = includeDeleted ? '' : ` AND ${alias}."deletedAt" IS NULL`;
+  if (entityType === 'resource') where += ` AND ${visibleResourceTypesSql(`${alias}."resourceType"`)}`;
+  return where;
+}
+
 // Attribute + reference-field (rel.*) + virtual `__system` filter clauses for the
 // bulk-assign query. Every virtual key the list pages can send has to be applied
 // here for the same reason rel.* is: bulk-tag re-runs the list's filter set, so a
@@ -273,7 +286,7 @@ async function buildAssignFilterWhere(entityType, filters, alias, bind, p) {
 router.post('/tags/:id/assign-by-filter', writeTags, async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
-    const { entityType, search: rawSearch, filters, extendedSearch } = req.body;
+    const { entityType, search: rawSearch, filters, extendedSearch, includeDeleted } = req.body;
     if (!entityType) return res.status(400).json({ error: 'entityType required' });
 
     const p = await db.getPool();
@@ -294,6 +307,7 @@ router.post('/tags/:id/assign-by-filter', writeTags, async (req, res) => {
     const { params, bind } = createParams();
     const tagIdPh = bind(tagId);
     let where = '1=1';
+    where += buildAssignScopeWhere(entityType, alias, includeDeleted === true);
     where += buildAssignSearchWhere(entityType, alias, search, extendedSearch === true, bind);
 
     // Reference-field (rel.*) filters MUST be applied too: bulk-tag re-runs the
