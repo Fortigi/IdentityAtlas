@@ -393,10 +393,13 @@ export async function bootstrapWorker() {
     // Both assistants that use the generator get their prompt prepared, one after the
     // other: the server has a single slot, so preparing them at the same time would only
     // queue behind itself. Each is skipped unless its own feature is on.
+    // The paths are literals on purpose: the portable build bundles the API with
+    // esbuild, which only follows import() of a literal, so a path in a variable
+    // there resolves to a file that does not exist and the warm-up never ran.
     void (async () => {
-      for (const module of ['./nlreports/service.js', './contextAssistant/service.js']) {
+      for (const load of [() => import('./nlreports/service.js'), () => import('./contextAssistant/service.js')]) {
         try {
-          const { warmAtStartup } = await import(module);
+          const { warmAtStartup } = await load();
           await warmAtStartup();
         } catch (err) {
           console.warn('Report generator warm-up skipped:', err.message);
