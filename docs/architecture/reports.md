@@ -86,7 +86,7 @@ know renders an explanatory panel rather than breaking the page.
 | Name | Form | What it lists |
 |------|------|---------------|
 | `orphaned-accounts` | `list` | Accounts with no `IdentityMembers` row — i.e. belonging to no identity — excluding service principals, managed identities and AI agents, with the detected account type for each. |
-| `application-access-review` | `list` | One row per entitlement of a named logical application, sectioned into *requestable, not in a role* / *not requestable, not in a role* / *part of a role*, with the certification frequency and entitlement owner as stored and the holders split Direct vs Indirect. |
+| `application-access-review` | `list` | *Entitlement Pivot* (slug kept from its first name, Application Access Review, so links and saved views keep working) — one row per resource of one or more contexts of resources (a logical application, a department, a tag; any resource type), with the business roles that grant it and its holders split Direct vs via a role. The other columns, and the rows and filters of its two pivots, are **fields the reader picks** — see [Columns the reader picks](#columns-the-reader-picks). |
 
 Orphaned Accounts shares its definition with the `orphaned-accounts` **context plugin** via
 `app/api/src/accountlinking/orphanQuery.js`. That is deliberate: the report and the context answer
@@ -103,13 +103,19 @@ runs over all of them.
 A template says so with one annotation, and nothing else changes:
 
 ```js
-applications: {
+contexts: {
   type: 'array',
-  title: 'Logical applications',
-  'x-lookup': 'logical-applications',        // a source name, not a query
-  'x-lookupPlaceholder': 'Search logical applications…',
+  title: 'Contexts',
+  'x-lookup': 'resource-contexts',           // a source name, not a query
+  'x-lookupPlaceholder': 'Search contexts…',
 },
 ```
+
+When the options depend on an earlier choice, the parameter says which with
+`'x-lookupDependsOn': ['contexts']`. The form hands those values to the picker, the picker sends them
+along as query parameters (`?q=…&contexts=a,b`), and the route passes every parameter that is not its
+own (`q`, `limit`, `ids`) to the source as `params` — capped at ten keys of 200 values each. The
+access review's field picker uses this to offer only the attributes the picked contexts carry.
 
 `SchemaConfigForm` checks `x-lookup` **before** `type`, because it says what the value *means* while
 `type` only says how it is carried, and renders `components/inputs/EntityLookup`. The stored value is
@@ -120,7 +126,7 @@ The server half is a registry with the same shape as the report registry — `ap
 
 | Piece | Job |
 |---|---|
-| `lookups/types.js` | the `LookupSource` contract: `name`, `displayName`, `search({q, limit})`, optional `resolve({ids})` |
+| `lookups/types.js` | the `LookupSource` contract: `name`, `displayName`, `search({q, limit, params})`, optional `resolve({ids, params})` |
 | `lookups/sources/<name>.js` | one source; returns **options** (`value` / `label` / `hint`), never rows |
 | `lookups/sources/index.js` | the one registration line |
 | `lookups/registry.js` | `registerLookup` / `getLookup` / `listLookups` |
@@ -178,10 +184,10 @@ gates two.)
 A workbook opens on a **Summary** tab — report name, run line, the declared constant columns as
 label/value pairs, then every notice — followed by a **Data** tab that holds only the table, header on
 row 1. The serializer writes each declared column once, on the Summary tab, and leaves it out of the
-table. So a review pack for **one** application opens with what the application is — name, owner,
-description, CMDB reference, connection type, onboarding sector, abbreviation, manager — instead of
-repeating those eight values down 21,000 rows. A run over **several** applications declares nothing
-constant, because they genuinely vary per row.
+table. So a review pack for **one** context opens with what the context is — whichever of its fields
+and attributes the reader picked (name, owner, a CMDB reference…) — instead of repeating those values
+down 21,000 rows. A run over **several** contexts declares nothing constant, because they genuinely
+vary per row.
 
 **Exception — a column a pivot is built on stays in the table** (and is still stated on the Summary
 tab). A pivot can only read what the table holds, and the owner reads the pivot the same way for one
@@ -217,10 +223,10 @@ Two more consequences worth knowing:
 
 A template may declare `pivots` — each `{ name, rows, filters, values }` in column keys, values
 summed — and the xlsx download then has one ready-made pivot per declaration, each on its own tab
-after Data. The Application Access Review declares the two its owners used to build by hand:
-*Direct assignments* (filters: Requestable, Users assigned via a role; rows: Application owner →
-Application → Entitlement owner → Certification frequency → Entitlement) and *Assignments via roles*
-(filter: Users assigned via a role; rows: Granted by role(s) → Entitlement).
+after Data. The Entitlement Pivot has the two its owners used to build by hand: *Direct assignments*
+(rows: the picked pivot rows → Entitlement; filters: the picked pivot filters + Users assigned via a
+role) and *Assignments via roles* (rows: Granted by role(s) → Entitlement; filters: the picked pivot
+filters). Because they depend on the run's parameters, the run returns them — see below.
 
 ExcelJS 4.4 (the released line) writes no pivot tables, so `reports/xlsxPivots.js` adds them to the
 zip ExcelJS produced: one pivot cache over the Data table, shared by every pivot and marked
@@ -228,6 +234,64 @@ zip ExcelJS produced: one pivot cache over the Data table, shared by every pivot
 part per tab. The declaration is metadata (`reportMetadata` carries `pivots`), so the serializer still
 never asks which report it is writing. Measured in Excel: a 50,000-row workbook has both pivots ready
 about 4 s after opening, and the pivots add ~0.5 s and ~1 MB to the export.
+
+## Columns the reader picks
+
+A template's `columns` and `pivots` are a declaration, but a run may return its own: `run()` can
+return `columns` and `pivots` next to `rows`, and `routes/reports.js` then serves those instead (a
+value that is not a list leaves the declaration standing). The screen, the CSV and the workbook all
+read the payload, so they follow the run. The listing (`GET /api/reports`) still shows the
+declaration, which should describe a run with every parameter left at its default.
+
+The Entitlement Pivot uses this to name no attribute of any one deployment. Its columns between the
+entitlement and its counts are **field keys** from `reports/accessReviewFields.js`, the one place a key
+is turned into a heading and a value:
+
+| Key | What it reads |
+|---|---|
+| `context.name` / `.type` / `.description` / `.owner` | the context's own facts |
+| `entitlement.type` / `.system` / `.description` / `.owner` / `.ownerEmail` / `.eligibleAssignments` | the resource's own facts, its owner through the ownership model, its Eligible holders |
+| `context.ext.<key>` | any scalar the context's source stored in `extendedAttributes` |
+| `entitlement.ext.<key>` | any scalar the resource's source stored in `extendedAttributes` |
+
+Three parameters take field keys — `fields` (columns), `pivotRows`, `pivotFilters` — each picked
+through the `access-review-fields` lookup, which offers the built-ins plus the attributes the picked
+contexts and their live resources actually carry, with how many rows carry each. A field used in a
+pivot becomes a column even when it was not picked as one (a pivot can only read the table), and a
+field that is a row of a pivot is left off that pivot's filters (Excel refuses one field on two axes).
+`extendedAttributes` keys are read in JavaScript from rows already fetched — a key never reaches SQL.
+A picked attribute no row carries is reported in one notice rather than left as a mysterious empty
+column.
+
+This replaced a version with one customer's catalogue in the code: a `requestable` flag that split
+the rows into three sections, a certification frequency with its own typo check, and eight catalogue
+columns (CMDB reference, onboarding sector, …) read under every spelling that had been seen. On any
+other deployment those were empty, and a missing `requestable` silently put every entitlement in the
+"information only" section. Those values are now attributes like any other: pick them.
+
+## Saved views
+
+A **view** is a built-in report with its parameters filled in and a name, shared across the deployment
+(`ReportViews`, migration 090; `reports/views.js`; `routes/reportViews.js`). It is served through
+`registerReportSource` as a report named `view-<id>`, so the Reports page, the report tab, Refresh and
+every download format work for it with no new code. The template a view becomes:
+
+- runs the built-in report with `{ ...savedParams, ...runParams }`, so the tab can still adjust one
+  run without changing the view;
+- carries the built-in report's `parametersSchema` with the saved values as each property's `default`,
+  and drops from `required` whatever the view fills, so its tab opens with its own choices filled in;
+- declares `source: 'view'` and `view: { id, reportName, reportDisplayName }`, which `reportMetadata`
+  passes through so the UI can say what it is a view of and offer *Edit view*.
+
+On save, only the parameters the report's schema declares are kept, each as text or a list of text
+(capped), and an update can never move a view to another report. A view whose report has been removed
+disappears from the list rather than failing it. Writes need `data.write.reports`; unlike custom
+reports there is no feature flag, because a view only stores settings for a report everyone already has.
+
+The *Save as view* wizard (`ui/.../reports/ReportViewWizard.jsx`) is report-agnostic too. A template
+groups its parameters into wizard steps with `x-step` on each property; the Entitlement Pivot declares
+*Scope*, *Columns* and *Excel pivots*. A property without one goes into a *Settings* step, and the
+last step names the view.
 
 ## Counting assignments at scale
 

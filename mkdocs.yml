@@ -112,6 +112,7 @@ nav:
           - Reading the Matrix: architecture/matrix.md
           - Scope Statistics: architecture/matrix-scope-statistics.md
           - Sharing a Matrix: ui/sharing-a-matrix.md
+      - Entitlement Pivot and Saved Views: ui/entitlement-pivot.md
       - Custom Reports: ui/custom-reports.md
       - Contexts: ui/contexts.md
       - Building a Context by Describing It: ui/context-assistant.md

@@ -7,6 +7,10 @@
 // a source on the server and an `x-lookup` annotation on the schema — no change
 // here.
 //
+// A source whose options follow an earlier choice — the fields of an access
+// review follow the contexts picked — gets those values as `dependsOn`, sent
+// along as query parameters (`x-lookupDependsOn` on the schema).
+//
 // What it stores is the **id**, never the label. That is the whole point: a
 // name can match several entities and a report parameterised by a typed name
 // silently runs over all of them. Picking from the list pins one.
@@ -20,8 +24,11 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
+import { dependencyQuery, disambiguate } from './EntityLookup.helpers';
 
-const RESULT_LIMIT = 20;
+// The server's own cap. A field list offers built-ins plus every attribute the
+// data carries, so twenty would hide most of it until something was typed.
+const RESULT_LIMIT = 50;
 const DEBOUNCE_MS = 250;
 
 /** `{ value: label }` for everything the control has ever been told about. */
@@ -31,27 +38,17 @@ function rememberLabels(known, options) {
   return next;
 }
 
-/**
- * Options whose labels collide inside ONE result list, with the head of their
- * id appended to the hint. A catalogue with three applications under one name
- * is exactly the case this control exists for, so it must not offer three rows
- * a person cannot tell apart.
- */
-export function disambiguate(options) {
-  const seen = new Map();
-  for (const option of options) seen.set(option.label, (seen.get(option.label) || 0) + 1);
-  return options.map(option => (seen.get(option.label) > 1
-    ? { ...option, hint: [option.hint, `id ${String(option.value).slice(0, 8)}`].filter(Boolean).join(' · ') }
-    : option));
-}
-
 // `label` is optional because a caller may already own it: SchemaConfigForm
 // draws `<label htmlFor={id}>` from the schema, and a second one here would
 // give the field two accessible names.
 export default function EntityLookup({
   source, value = [], onChange, label, help, inputId = 'entity-lookup', placeholder = 'Start typing…',
+  dependsOn,
 }) {
   const { authFetch } = useAuth();
+  // A string, not the object, in the effect deps: the caller builds a fresh
+  // object every render, and the search must re-run only when a value changes.
+  const extra = dependencyQuery(dependsOn);
   const [query, setQuery] = useState('');
   const debounced = useDebouncedValue(query, DEBOUNCE_MS);
   const term = debounced.trim();
@@ -70,7 +67,7 @@ export default function EntityLookup({
 
   useEffect(() => {
     let cancelled = false;
-    authFetch(`/api/lookups/${encodeURIComponent(source)}?q=${encodeURIComponent(term)}&limit=${RESULT_LIMIT}`)
+    authFetch(`/api/lookups/${encodeURIComponent(source)}?q=${encodeURIComponent(term)}&limit=${RESULT_LIMIT}${extra}`)
       .then(r => (r.ok ? r.json() : { q: term, data: [] }))
       .then(body => {
         // The server echoes the term it searched; a reply for an older term is
@@ -82,7 +79,7 @@ export default function EntityLookup({
       })
       .catch(() => { if (!cancelled) setFound({ term, options: [] }); });
     return () => { cancelled = true; };
-  }, [authFetch, source, term]);
+  }, [authFetch, source, term, extra]);
 
   // Ids that arrived without a label — a bookmarked report, or a link someone
   // was sent — are resolved so the chips read as names rather than uuids.
@@ -90,12 +87,12 @@ export default function EntityLookup({
   useEffect(() => {
     if (!unresolved) return undefined;
     let cancelled = false;
-    authFetch(`/api/lookups/${encodeURIComponent(source)}?ids=${encodeURIComponent(unresolved)}`)
+    authFetch(`/api/lookups/${encodeURIComponent(source)}?ids=${encodeURIComponent(unresolved)}${extra}`)
       .then(r => (r.ok ? r.json() : { data: [] }))
       .then(body => { if (!cancelled) setLabels(Array.isArray(body?.data) ? body.data : []); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [authFetch, source, unresolved]);
+  }, [authFetch, source, unresolved, extra]);
 
   useEffect(() => {
     const onClick = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };

@@ -59,6 +59,7 @@ import contextsRouter from './routes/contexts.js';
 import contextPluginsRouter from './routes/contextPlugins.js';
 import lookupsRouter from './routes/lookups.js';
 import reportsRouter from './routes/reports.js';
+import reportViewsRouter from './routes/reportViews.js';
 import nlReportsRouter from './routes/nlReports.js';
 import contextAssistantRouter from './routes/contextAssistant.js';
 import adminRouter from './routes/admin.js';
@@ -391,6 +392,9 @@ export function createApp() {
   // doesn't already show), so plain auth, no admin permission gate.
   app.use('/api', authMiddleware, lookupsRouter);
   app.use('/api', authMiddleware, reportsRouter);
+  // Saved views of the standard reports. Reading one is plain auth; writing is
+  // gated per route (data.write.reports), for the same reason as below.
+  app.use('/api', authMiddleware, reportViewsRouter);
   // Custom reports + the local-model report generator (read-only queries).
   // The experimental-feature gate and the permission gate are applied PER ROUTE
   // inside the router: a requireFeature on this shared '/api' mount would answer

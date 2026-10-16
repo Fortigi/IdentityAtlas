@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement as h } from 'react';
-import ContextAccessCounts, { accessCountParts } from './ContextAccessCounts';
+import ContextAccessCounts from './ContextAccessCounts';
+import { accessCountParts } from './ContextAccessCounts.helpers';
 
 const counted = {
   resourceCount: 39072, directAssignmentCount: 1200, indirectAssignmentCount: 44200,

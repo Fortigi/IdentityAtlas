@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { mkdirSync, readFileSync } from 'fs';
 import { createRequire } from 'module';
 import { resolveDataDir, selectDatabase, apiEnv, installCrashLog } from './launcherConfig.mjs';
+import { llmConfigFromEnv, llmFeatureEnv, startLlmSupervisor } from './llmSupervisor.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = dirname(__filename);
@@ -58,6 +59,15 @@ if (DATABASE.external) {
   await pgInstance.exec('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
 
   globalThis.__pgliteInstance = pgInstance;
+}
+
+// Started with -WithLLM: the report model's supervisor has to be listening, and
+// its address in the environment, before the API bundle is imported — the
+// report generator client reads its URL at import time.
+const LLM = llmConfigFromEnv(process.env, DATA_DIR);
+if (LLM) {
+  const { env } = await startLlmSupervisor(LLM);
+  Object.assign(process.env, env, llmFeatureEnv(process.env));
 }
 
 await import(pathToFileURL(join(__dirname, 'app-bundle.mjs')).href);

@@ -4,9 +4,11 @@
 // and put it in the array. Nothing else — not the registry, not the route, not
 // the parameter form — knows a source by name.
 
-import logicalApplications from './logical-applications.js';
+import accessReviewFields from './access-review-fields.js';
+import resourceContexts from './resource-contexts.js';
 
 /** @type {import('../types.js').LookupSource[]} */
 export const BUILT_IN_LOOKUPS = [
-  logicalApplications,
+  accessReviewFields,
+  resourceContexts,
 ];

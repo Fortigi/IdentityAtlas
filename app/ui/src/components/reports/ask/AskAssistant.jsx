@@ -20,9 +20,6 @@ import { questionPrompt, statusWaitText, unavailableReason, warmStatusText } fro
 import { useAskConversation } from './useAskConversation';
 import { isWarmLoading, useElapsed, useModelWarmup } from './useAskWarmup';
 
-// Kept exported from here: the rest of the report builder imports it from this module.
-export { postJson } from './AskAssistant.api';
-
 const EXAMPLES = [
   'Guest accounts that don\'t have a manager, or whose manager is disabled',
   'Groups that have "Finance" in the name',

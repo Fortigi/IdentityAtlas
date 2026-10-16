@@ -23,6 +23,17 @@
     waiting after the warning; it never kills a process that is still starting.
 .PARAMETER NoBrowser
     Do not open the browser once the app is ready.
+.PARAMETER WithLLM
+    Also run the local report model, so custom reports can be described in plain
+    language. Needs llama.cpp's llama-server (about 20 MB) and the model (2.5 GB),
+    neither of which is in the ZIP: each is used from the LLM folder when it is
+    already there, and downloaded once (checked against a pinned SHA-256) when it
+    is not. The model is loaded on first use and unloaded after 15 minutes idle.
+    When anything is missing or blocked, the app starts without it.
+.PARAMETER LlmRoot
+    The LLM folder. Defaults to llm\ next to this script when that exists, else
+    llm\ in the data directory. On a machine without internet access, copy
+    llama-b11306-bin-win-cpu-x64.zip and Qwen3-4B-Instruct-2507-Q4_K_M.gguf in.
 #>
 [CmdletBinding()]
 param(
@@ -31,7 +42,9 @@ param(
     [ValidateRange(1024, 65535)][int]$PostgresPort = 5433,
     [ValidateRange(1024, 65535)][int]$Port = 3001,
     [ValidateRange(10, 86400)][int]$StartupTimeoutSec = 300,
-    [switch]$NoBrowser
+    [switch]$NoBrowser,
+    [switch]$WithLLM,
+    [string]$LlmRoot
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Launcher.Functions.ps1')
@@ -62,7 +75,12 @@ $node = $null
 $exitCode = 0
 try {
     $null = Stop-OrphanedNode -DataDir $dataDir
+    $null = Stop-OrphanedLlamaServer -DataDir $dataDir
     if (Get-AppHealth -Port $Port) { throw "Something else is already serving $url. Stop it, or pass -Port." }
+
+    # Before the database starts, so a first-run download does not keep it waiting.
+    $llm = if ($WithLLM) { Initialize-Llm -Root (Resolve-LlmRoot -Override $LlmRoot -ScriptDir $PSScriptRoot -DataDir $dataDir) }
+    Set-ChildLlmEnvironment -Llm $llm
 
     $choice = Resolve-DatabaseChoice -Requested $Database -DataDir $dataDir `
         -PgRoot (Resolve-PostgresRoot -Override $PostgresRoot -ScriptDir $PSScriptRoot)
@@ -92,6 +110,8 @@ try {
 } finally {
     # Node first, so it is not left talking to a database that is going away.
     Stop-NodeProcess -Node $node
+    # node.exe stops the model server on a clean exit; not when it had to be killed.
+    $null = Stop-OrphanedLlamaServer -DataDir $dataDir
     Clear-LauncherState -DataDir $dataDir
     if ($pgRoot) { Stop-PostgresServer -PgRoot $pgRoot -PgHome $pgHome }
     $lock.Dispose()

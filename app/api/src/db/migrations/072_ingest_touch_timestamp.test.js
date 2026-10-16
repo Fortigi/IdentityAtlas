@@ -30,7 +30,7 @@ describe('migration 072 — last-ingested stamp', () => {
   it('adds "updatedAt" idempotently to every table the reconcile can target', () => {
     for (const t of RECONCILED) {
       expect(sql, `${t} must gain the column`)
-        // eslint-disable-next-line security/detect-non-literal-regexp -- t is a table name from the RECONCILED constant, not input
+         
         .toMatch(new RegExp(`ALTER TABLE "${t}"\\s+ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ DEFAULT now\\(\\)`));
     }
   });
@@ -76,7 +76,7 @@ describe('migration 072 — last-ingested stamp', () => {
     // sequential scan of a table with tens of millions of rows.
     for (const t of RECONCILED) {
       expect(code, `${t} needs a reconcile index`)
-        // eslint-disable-next-line security/detect-non-literal-regexp -- t is a table name from the RECONCILED constant, not input
+         
         .toMatch(new RegExp(`CREATE INDEX IF NOT EXISTS "[^"]+"\\s+ON "${t}" \\("systemId", "updatedAt"\\)`));
     }
   });

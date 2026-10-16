@@ -432,6 +432,14 @@ what it does today.
   generator's public address at all is untested. Deploy the generator only in the default public
   network mode until it can be made reachable from inside the VNet.
 
+### Desktop (portable)
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1 -WithLLM
+```
+
+The same model runs on the machine itself, with no container and no Python. llama.cpp's `llama-server.exe` is started by the app's own `node.exe` on first use and stopped when idle, as the Docker supervisor does. Neither the model (2.5 GB) nor llama.cpp is in the ZIP. The launcher downloads each once and checks it against a pinned SHA-256, or uses files copied into its LLM folder beforehand on a machine without internet access. llama.cpp's binaries are not signed, so a machine with application control needs hash rules for them. Details, including the folder layout and measurements, are in [Portable Windows Launcher → Report model](../architecture/desktop-portable.md#report-model-withllm).
+
 ### Updating an existing installation
 
 Custom reports arrive with a normal update; **the generator does not install itself.**
@@ -442,7 +450,7 @@ Custom reports arrive with a normal update; **the generator does not install its
 | **Docker, auto-update** | The [auto-update agent](../admin/auto-updates.md) updates the services in `IA_SERVICES` (`web worker` by default). Add `report-generator` there so the model image follows the channel too. |
 | **Azure** | Re-run the deployment with `deployReportGenerator=true`. Existing resources are updated in place. |
 | **Azure, auto-update** | Set `IA_REPORT_GENERATOR_APP=<prefix>-report-generator` for the Azure update agent, next to `IA_WORKER_APP`, so the model image follows the channel. Without it the generator keeps the previous release's model — it still works, but it is no longer the combination that was measured. |
-| **Desktop (portable)** | Not supported — the portable launcher runs no extra containers. The definition editor works. |
+| **Desktop (portable)** | Start the launcher with `-WithLLM`. It downloads llama.cpp and the model once (or uses copies placed in its LLM folder) and runs them without Docker. See [Desktop (portable)](#desktop-portable). |
 
 In all cases the feature stays **off** until someone enables it in Admin → Experimental, and the first
 warm-up after the update rebuilds the prompt cache in the background (a few minutes, once). An install

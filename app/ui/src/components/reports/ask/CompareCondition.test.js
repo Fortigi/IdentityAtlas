@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { referenceEntities, newCompareCondition } from './CompareCondition';
+import { referenceEntities, newCompareCondition } from './CompareCondition.helpers';
 
 const rel = (name, target, cardinality = 'many') => ({ name, label: name, target, cardinality });
 const CATALOG = {
