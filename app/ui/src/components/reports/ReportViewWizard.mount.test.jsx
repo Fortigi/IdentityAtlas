@@ -18,7 +18,7 @@ const SCHEMA = {
     days: { type: 'integer', title: 'Days', 'x-step': 'Columns' },
   },
 };
-const REPORT = { name: 'access-review', displayName: 'Access Review', parametersSchema: SCHEMA };
+const REPORT = { name: 'access-review', displayName: 'Entitlement Pivot', parametersSchema: SCHEMA };
 const VIEW = { ...REPORT, name: 'view-v1', displayName: 'Ledger review', view: { id: 'v1', reportName: 'access-review' } };
 const SAVED = { id: 'v2', report: 'view-v2', name: 'Ledger review' };
 
@@ -46,7 +46,7 @@ const sent = (authFetch) => {
 describe('ReportViewWizard', () => {
   it('walks the report\'s own steps, then asks for a name, and saves what was set up', async () => {
     const { authFetch, onSaved } = mount();
-    expect(screen.getByRole('heading', { name: 'Save "Access Review" as a view' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Save "Entitlement Pivot" as a view' })).toBeInTheDocument();
     // Step 1 shows only the Scope parameters.
     expect(screen.getByLabelText('Contexts')).toBeInTheDocument();
     expect(screen.queryByLabelText('Days')).not.toBeInTheDocument();

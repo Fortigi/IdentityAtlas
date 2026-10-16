@@ -1,13 +1,13 @@
 ---
 type: task
 prereq: ui/contexts.md
-outcome: You can run an access review over any context of resources, choose its columns and its Excel pivots, and save that setup as a view your colleagues can open from the Reports page.
+outcome: You can run the Entitlement Pivot over any context of resources, choose its columns and its Excel pivots, and save that setup as a view your colleagues can open from the Reports page.
 ---
 
-# Access Review and saved views
+# Entitlement Pivot and saved views
 
-The **Access Review** report lists every resource of one or more contexts: a logical application
-synced from a catalogue, a department's file shares, everything tagged *PCI*. Any context whose members
+The **Entitlement Pivot** report (formerly *Application Access Review*) lists every resource of one or
+more contexts: a logical application synced from a catalogue, a department's file shares, everything tagged *PCI*. Any context whose members
 are resources works, and so does any resource type (groups, app roles, entitlements). For each
 resource it shows:
 
@@ -70,5 +70,5 @@ To change a view, open it and choose **Edit view**. **Save changes** updates it 
 Saving, changing and deleting views needs the **Build custom reports** permission
 (`data.write.reports`). Unlike custom reports, views need no experimental feature.
 
-Saved views work for every standard report that has settings, not only the Access Review. For how it
+Saved views work for every standard report that has settings, not only the Entitlement Pivot. For how it
 works inside, see [Reports](../architecture/reports.md).

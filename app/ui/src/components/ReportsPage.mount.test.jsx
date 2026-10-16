@@ -227,7 +227,7 @@ describe('ReportsPage — standard and custom reports apart', () => {
 describe('ReportsPage — saved views', () => {
   const VIEW = {
     ...ORPHANS, name: 'view-v1', displayName: 'Ledger review', description: 'For the ledger owner.',
-    source: 'view', view: { id: 'v1', reportName: 'access-review', reportDisplayName: 'Access Review' },
+    source: 'view', view: { id: 'v1', reportName: 'access-review', reportDisplayName: 'Entitlement Pivot' },
     author: { createdBy: 'ann@example.com', updatedBy: 'ann@example.com', updatedAt: null },
   };
 
@@ -237,7 +237,7 @@ describe('ReportsPage — saved views', () => {
     expect(linksIn('Saved views')).toEqual([expect.stringContaining('Ledger review')]);
     expect(linksIn('Standard reports')).toEqual([expect.stringContaining('Orphaned Accounts')]);
     expect(linksIn('Custom reports')).toEqual([expect.stringContaining('Guests without a manager')]);
-    expect(within(screen.getByRole('region', { name: 'Saved views' })).getByText('View of Access Review')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Saved views' })).getByText('View of Entitlement Pivot')).toBeInTheDocument();
   });
 
   it('shows no views section when there are none, and does not call a views-only catalogue empty', async () => {

@@ -12,7 +12,7 @@
 // without being changed. Nothing is snapshotted except the choices.
 //
 // Generic: any built-in report that declares parameters can have views. Nothing
-// here knows the access review.
+// here knows the Entitlement Pivot.
 
 import { randomUUID } from 'crypto';
 import { query, queryOne } from '../db/connection.js';

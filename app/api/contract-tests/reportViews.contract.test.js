@@ -3,7 +3,7 @@
 // The unit tests mock the database, so they cannot say whether migration 090
 // and the store's statements agree: column names, the JSONB round trip of the
 // params, and the case-insensitive unique name that turns into a 409. This runs
-// the whole path — save a view of the access review, list it in /api/reports,
+// the whole path — save a view of the Entitlement Pivot, list it in /api/reports,
 // run it, change it, delete it.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

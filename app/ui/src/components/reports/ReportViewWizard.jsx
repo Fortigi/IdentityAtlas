@@ -3,7 +3,7 @@
 // A view is shared across the deployment and listed on the Reports page as a
 // report of its own (see app/api/src/reports/views.js). The wizard walks the
 // report's parameters in the steps the report declares (`x-step`), so the
-// access review asks for its contexts, then its columns, then its Excel pivots,
+// Entitlement Pivot asks for its contexts, then its columns, then its Excel pivots,
 // then a name. Report-agnostic: the steps, fields and pickers all come from the
 // report's parametersSchema.
 //

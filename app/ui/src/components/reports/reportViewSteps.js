@@ -1,7 +1,7 @@
 // The steps of the "save as view" wizard, derived from a report's parameters.
 //
 // A report groups its parameters into steps with `x-step` on each property —
-// the access review asks for its scope, then its columns, then its Excel pivots.
+// the Entitlement Pivot asks for its scope, then its columns, then its Excel pivots.
 // A property without one lands in a "Settings" step, so a report that never
 // heard of the wizard still gets one. The last step names the view. Nothing here
 // knows any particular report.

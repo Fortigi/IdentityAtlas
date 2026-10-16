@@ -289,7 +289,7 @@ disappears from the list rather than failing it. Writes need `data.write.reports
 reports there is no feature flag, because a view only stores settings for a report everyone already has.
 
 The *Save as view* wizard (`ui/.../reports/ReportViewWizard.jsx`) is report-agnostic too. A template
-groups its parameters into wizard steps with `x-step` on each property; the Access Review declares
+groups its parameters into wizard steps with `x-step` on each property; the Entitlement Pivot declares
 *Scope*, *Columns* and *Excel pivots*. A property without one goes into a *Settings* step, and the
 last step names the view.
 

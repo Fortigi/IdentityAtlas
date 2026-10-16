@@ -345,7 +345,7 @@ describe('ReportViewPage — saved views', () => {
       properties: { contexts: { type: 'array', title: 'Contexts', 'x-step': 'Scope', default: ['c1'] } },
     },
   };
-  const VIEW = { ...PARAMS, displayName: 'Ledger review', view: { id: 'v1', reportName: 'access-review', reportDisplayName: 'Access Review' } };
+  const VIEW = { ...PARAMS, displayName: 'Ledger review', view: { id: 'v1', reportName: 'access-review', reportDisplayName: 'Entitlement Pivot' } };
 
   it('offers to save a report with parameters as a view, and opens the new view in its own tab', async () => {
     const onOpenDetail = vi.fn();
@@ -379,7 +379,7 @@ describe('ReportViewPage — saved views', () => {
     renderWithProviders(
       <ReportViewPage reportName="view-v1" onOpenDetail={() => {}} onCacheData={onCacheData} />, { auth: { authFetch } });
 
-    expect(await screen.findByText('A saved view of Access Review')).toBeInTheDocument();
+    expect(await screen.findByText('A saved view of Entitlement Pivot')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Edit view' }));
     fireEvent.click(screen.getByRole('button', { name: /Go to step 2: Name/ }));
     await waitFor(() => expect(screen.getByLabelText('Name')).toHaveValue('Ledger review'));
