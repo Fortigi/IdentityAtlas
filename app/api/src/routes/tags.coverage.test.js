@@ -361,6 +361,39 @@ describe('GET /users', () => {
     expect(String(sql)).not.toMatch(/u\."__system"/);
   });
 
+  it('a normal search also matches the employee id and external id', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ total: 0 }] });
+    await request(app).get('/api/users?search=E-77');
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toContain('u."employeeId" ILIKE $1');
+    expect(sql).toContain('u."externalId" ILIKE $1');
+    expect(sql).not.toContain('ia_search_text');
+  });
+
+  it('an extended search finds a phone number written differently and says where', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [{
+        id: VALID, displayName: 'Jan', userPrincipalName: 'jan@x.nl', tagString: null,
+        extendedAttributes: { mobilePhone: '+31 6 1234 5678' },
+      }] })
+      .mockResolvedValueOnce({ rows: [{ total: 1 }] });
+    const res = await request(app).get('/api/users?search=0612345678&extendedSearch=true');
+    const [sql, params] = query.mock.calls[0];
+    expect(String(sql)).toContain('public.ia_search_text(ARRAY[u."id"::text');
+    expect(params.slice(0, 2)).toEqual(['%0612345678%', '%612345678%']);
+    expect(res.body.data[0].matchedOn).toEqual(['mobilePhone']);
+  });
+
+  it('matchedOn names email under the column it came from, not its userPrincipalName alias', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [{ id: VALID, displayName: 'X', userPrincipalName: 'jan@x.nl', tagString: null, extendedAttributes: null }] })
+      .mockResolvedValueOnce({ rows: [{ total: 1 }] });
+    const res = await request(app).get('/api/users?search=jan@x&extendedSearch=1');
+    expect(res.body.data[0].matchedOn).toEqual(['email']);
+  });
+
   it('500 when the query rejects', async () => {
     query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get('/api/users');
@@ -377,6 +410,14 @@ describe('GET /groups', () => {
     const res = await request(app).get(`/api/groups?search=g&tagId=${VALID}&resourceType=Group&filters=${filters}`);
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(1);
+  });
+
+  it('an extended search runs over the resource index expression', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ total: 0 }] });
+    await request(app).get('/api/groups?search=CI0012345&extendedSearch=true');
+    expect(String(query.mock.calls[0][0])).toContain('public.ia_search_text(ARRAY[r."id"::text');
   });
 
   it('200 accepts __resourceTag filter alias', async () => {

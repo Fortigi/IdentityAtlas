@@ -11,6 +11,7 @@ import { createParams } from '../../db/sqlParams.js';
 import { buildOrderBy } from '../../lib/listSort.js';
 import { useSql, db, hasTable } from './shared.js';
 import { parseTagString, buildIdentityListWhere, fetchIdentitySummary, fetchIdentityColumns } from './listQuery.js';
+import { parseExtendedSearch, withMatchedOn } from '../../lib/entitySearch.js';
 
 const router = Router();
 
@@ -66,8 +67,9 @@ router.get('/identities', async (req, res) => {
 
     // Build the filtered query.
     const { params, bind } = createParams();
+    const extendedSearch = parseExtendedSearch(req.query);
     const { where, identityTagJoin } = buildIdentityListWhere(
-      { search, minAccounts, confidence, hrAnchored, orphanStatus, attrFilters, identityTagFilter, hasHrCols },
+      { search, extendedSearch, minAccounts, confidence, hrAnchored, orphanStatus, attrFilters, identityTagFilter, hasHrCols },
       bind,
     );
 
@@ -87,7 +89,7 @@ router.get('/identities', async (req, res) => {
           i."linkConfidence", NULL AS "linkSignals", i.department, i."jobTitle",
           NULL AS "managerId", i.email AS mail,
           i."givenName", i.surname, i."employeeId", i."companyName", NULL AS "employeeType",
-          i.city, i.country, i."officeLocation",
+          i.city, i.country, i."officeLocation", i."extendedAttributes",
           NULL AS "accountEnabled", i."linkedAt"
           ${hasHrCols ? ', i."isHrAnchored", NULL AS "hrAccountId", i."orphanStatus"' : ''}
         FROM "Identities" i
@@ -123,10 +125,11 @@ router.get('/identities', async (req, res) => {
     } else {
       dataResult = await timedQuery(p, 'identity-list', res, dataSql, params);
     }
-    const data = dataResult.rows.map(row => {
+    const rows = dataResult.rows.map(row => {
       const { tagString, ...rest } = row;
       return { ...rest, tags: parseTagString(tagString) };
     });
+    const data = withMatchedOn('identity', rows, search, { extended: extendedSearch, fallback: 'linkedAccount' });
 
     res.json({
       available: true,

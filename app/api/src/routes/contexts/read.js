@@ -7,7 +7,8 @@
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
-import { likeContains } from '../../db/sqlParams.js';
+import { createParams, likeContains } from '../../db/sqlParams.js';
+import { buildSearchWhere, parseExtendedSearch, withMatchedOn } from '../../lib/entitySearch.js';
 import { useSql, UUID_RE, TARGET_TYPES } from './shared.js';
 
 const router = Router();
@@ -69,22 +70,35 @@ export const OWNER_JOIN = `
 // ─── GET /api/contexts ───────────────────────────────────────────────
 // List all root contexts (parentContextId IS NULL). Optional filters:
 // ?targetType, ?variant, ?contextType, ?scopeSystemId.
+//
+// ?search= looks at every level, not only the roots — the logical application
+// you are looking for by its CMDB reference usually sits under a catalogue —
+// and returns at most SEARCH_LIMIT matches, each with its parent and the
+// fields it matched on. ?extendedSearch=true searches every attribute
+// (lib/entitySearch.js).
+export const SEARCH_LIMIT = 1000;
+
+export function buildContextListWhere(query, bind) {
+  const search = String(query.search ?? '').trim().slice(0, 200);
+  const clauses = search ? [] : ['c."parentContextId" IS NULL'];
+  const eq = (col, val) => clauses.push(`c."${col}" = ${bind(val)}`);
+  if (query.targetType && TARGET_TYPES.has(query.targetType)) eq('targetType', query.targetType);
+  if (query.variant && VARIANTS.has(query.variant))           eq('variant', query.variant);
+  if (query.contextType) eq('contextType', String(query.contextType).slice(0, 100));
+  if (query.scopeSystemId) {
+    const sys = parseInt(query.scopeSystemId, 10);
+    if (!Number.isNaN(sys)) eq('scopeSystemId', sys);
+  }
+  const extended = parseExtendedSearch(query);
+  const where = (clauses.join(' AND ') || 'TRUE') + buildSearchWhere('context', 'c', search, { extended }, bind);
+  return { where, search, extended };
+}
+
 router.get('/contexts', async (req, res) => {
   if (!useSql) return res.json({ data: [], total: 0 });
   try {
-    const clauses = ['c."parentContextId" IS NULL'];
-    const params = [];
-    const pushFilter = (col, val) => {
-      params.push(val);
-      clauses.push(`c."${col}" = $${params.length}`);
-    };
-    if (req.query.targetType && TARGET_TYPES.has(req.query.targetType))    pushFilter('targetType', req.query.targetType);
-    if (req.query.variant     && VARIANTS.has(req.query.variant))          pushFilter('variant', req.query.variant);
-    if (req.query.contextType) pushFilter('contextType', String(req.query.contextType).slice(0, 100));
-    if (req.query.scopeSystemId) {
-      const sys = parseInt(req.query.scopeSystemId, 10);
-      if (!Number.isNaN(sys)) pushFilter('scopeSystemId', sys);
-    }
+    const { params, bind } = createParams();
+    const { where, search, extended } = buildContextListWhere(req.query, bind);
 
     const r = await db.query(`
       SELECT c.id, c.variant, c."targetType", c."contextType", c."displayName",
@@ -95,15 +109,18 @@ router.get('/contexts', async (req, res) => {
              s."displayName" AS "scopeSystemName",
              a.name AS "sourceAlgorithmName",
              a."displayName" AS "sourceAlgorithmDisplayName",
+             ${search ? 'c."parentContextId", c."extendedAttributes",' : ''}
              ${OWNER_COLUMNS}
         FROM "Contexts" c
         LEFT JOIN "Systems" s ON c."scopeSystemId" = s.id
         LEFT JOIN "ContextAlgorithms" a ON c."sourceAlgorithmId" = a.id${OWNER_JOIN}
-       WHERE ${clauses.join(' AND ')}
+       WHERE ${where}
        ORDER BY c."contextType", COALESCE(c."totalMemberCount", 0) DESC, c."displayName"
+       ${search ? `LIMIT ${SEARCH_LIMIT}` : ''}
     `, params);
 
-    res.json({ data: r.rows, total: r.rows.length });
+    const data = withMatchedOn('context', r.rows, search, { extended });
+    res.json({ data, total: data.length });
   } catch (err) {
     console.error('GET /contexts failed:', err.message);
     res.status(500).json({ error: 'Failed to load contexts' });

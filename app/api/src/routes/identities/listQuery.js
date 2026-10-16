@@ -7,7 +7,7 @@
 import { timedQuery } from '../../perf/sqlTimer.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { db } from './shared.js';
-import { likeContains } from '../../db/sqlParams.js';
+import { buildSearchWhere } from '../../lib/entitySearch.js';
 
 // Whitelisted columns the useEntityPage filter bar can filter on (equality).
 const IDENTITY_FILTER_COLS = new Set([
@@ -56,13 +56,12 @@ function attrFilterClauses(attrFilters, bind) {
 // Build the WHERE clause + optional tag JOIN for the identity list, binding
 // values through the caller's `bind`. Returns { where, identityTagJoin }.
 export function buildIdentityListWhere(f, bind) {
-  const { search, minAccounts, confidence, hrAnchored, orphanStatus, attrFilters, identityTagFilter, hasHrCols } = f;
+  const { search, extendedSearch, minAccounts, confidence, hrAnchored, orphanStatus, attrFilters, identityTagFilter, hasHrCols } = f;
 
+  // An extended search also finds the identity through its linked accounts:
+  // the phone number is on the Entra account, not on the identity.
   let where = 'WHERE 1=1';
-  if (search) {
-    const s = bind(likeContains(search));
-    where += ` AND ("displayName" ILIKE ${s} ESCAPE '\\' OR email ILIKE ${s} ESCAPE '\\' OR "jobTitle" ILIKE ${s} ESCAPE '\\' OR "employeeId" ILIKE ${s} ESCAPE '\\')`;
-  }
+  where += buildSearchWhere('identity', 'i', search, { extended: extendedSearch, linkedPrincipals: true }, bind);
   if (minAccounts) {
     const min = parseInt(minAccounts);
     if (min > 1) where += ` AND "accountCount" >= ${bind(min)}`;

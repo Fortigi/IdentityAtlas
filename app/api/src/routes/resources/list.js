@@ -8,7 +8,7 @@ import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { buildFilterWhere, parseTags } from '../tags.js';
 import { extractRelFilters, buildRelationshipWhere } from '../../lib/referenceFilters.js';
 import { parseListParams } from '../../lib/listParams.js';
-import { likeContains } from '../../db/sqlParams.js';
+import { buildSearchWhere } from '../../lib/entitySearch.js';
 import { visibleResourceTypesSql } from '../../lib/resourceVisibility.js';
 import { extractSystemFilter, systemFilterWhere } from '../../lib/systemFilter.js';
 
@@ -16,7 +16,7 @@ import { extractSystemFilter, systemFilterWhere } from '../../lib/systemFilter.j
 // filter is pulled out of the attribute object (which extractRelFilters then
 // mutates) so it isn't validated as a real column.
 export function parseResourceListParams(req) {
-  const { search, limit, offset, attrFilters } = parseListParams(req);
+  const { search, extendedSearch, limit, offset, attrFilters } = parseListParams(req);
   const resourceType = (req.query.resourceType || '').trim();
   const systemId = (req.query.systemId || '').trim();
   const tagId = req.query.tagId ? String(req.query.tagId) : null;
@@ -37,21 +37,18 @@ export function parseResourceListParams(req) {
   // Reference-field (rel.*) filters — applied as correlated count subqueries.
   const relFilters = extractRelFilters(attrFilters);
 
-  return { search, resourceType, systemId, tagId, limit, offset, attrFilters, resourceTagFilter, relFilters, systemFilter };
+  return { search, extendedSearch, resourceType, systemId, tagId, limit, offset, attrFilters, resourceTagFilter, relFilters, systemFilter };
 }
 
 // Build the WHERE clause + optional tag-filter JOIN for the list query, binding
 // values through the caller's `bind`. Returns { where, resourceTagJoin }.
 export function buildResourceListWhere(req, parsed, colNames, bind) {
-  const { search, resourceType, systemId, tagId, attrFilters, resourceTagFilter, relFilters, systemFilter } = parsed;
+  const { search, extendedSearch, resourceType, systemId, tagId, attrFilters, resourceTagFilter, relFilters, systemFilter } = parsed;
 
   let where = '1=1';
   // Hide soft-deleted resources by default; ?includeDeleted=true reveals them.
   if (req.query.includeDeleted !== 'true') where += ` AND r."deletedAt" IS NULL`;
-  if (search) {
-    const s = bind(likeContains(search));
-    where += ` AND (r."displayName" ILIKE ${s} ESCAPE '\\' OR r."description" ILIKE ${s} ESCAPE '\\')`;
-  }
+  where += buildSearchWhere('resource', 'r', search, { extended: extendedSearch }, bind);
   if (resourceType) {
     where += ` AND r."resourceType" = ${bind(resourceType)}`;
   } else if (req.query.includeBusinessRoles !== 'true') {

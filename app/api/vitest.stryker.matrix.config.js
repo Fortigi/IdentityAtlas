@@ -48,6 +48,11 @@ import base from './vitest.config.js';
 // through src/routes/ingest/matrixViews.js and the classify handler, so both ingest
 // route tests that drive the refresh are included with its own test.
 //
+// The list search (src/lib/entitySearch.js) is reached through the users/groups,
+// resources, identities and contexts list routes, so their tests are included with its
+// own two (entitySearch.migration.test.js reads migration 091, which is inside app/api
+// and therefore inside the sandbox).
+//
 // If you add a module to this scope's `mutate` list, trace its importers and widen this
 // include to match, rather than assuming the co-located test is the only killer.
 
@@ -70,6 +75,11 @@ export default defineConfig({
       'src/ingest/viewRefresh.test.js',
       'src/routes/ingest.coverage.test.js',
       'src/routes/ingest.classify.test.js',
+      'src/lib/entitySearch.test.js',
+      'src/lib/entitySearch.migration.test.js',
+      'src/routes/tags.coverage.test.js',
+      'src/routes/identities/listQuery.test.js',
+      'src/routes/contexts.coverage.test.js',
     ],
     exclude: ['**/node_modules/**'],
     coverage: { ...base.test.coverage, thresholds: undefined },

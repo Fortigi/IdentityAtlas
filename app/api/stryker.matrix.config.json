@@ -26,6 +26,7 @@
     "src/matrix/rollupBuilders.js",
     "src/matrix/scopeHistory.js",
     "src/lib/attributeLabels.js",
+    "src/lib/entitySearch.js",
     "src/routes/attributeLabels.js",
     "src/routes/matrix/savedFilterHistory.js"
   ],

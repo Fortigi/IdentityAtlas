@@ -8,10 +8,11 @@
 
 import { Router } from 'express';
 import { getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues, getResourceColumnValues } from '../../db/columnCache.js';
-import { createParams, likeContains } from '../../db/sqlParams.js';
+import { createParams } from '../../db/sqlParams.js';
 import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { buildOrderBy } from '../../lib/listSort.js';
 import { parseListParams } from '../../lib/listParams.js';
+import { buildSearchWhere, parseExtendedSearch, withMatchedOn } from '../../lib/entitySearch.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, UUID_RE, parseTags } from './shared.js';
 import { extractRelFilters, buildRelationshipWhere, discoverReferenceFields } from '../../lib/referenceFilters.js';
 import { withAttributeLabels } from '../../lib/attributeLabels.js';
@@ -140,7 +141,7 @@ router.get('/users', async (req, res) => {
   try {
     if (!useSql) return res.json({ data: [], total: 0 });
 
-    const { search, limit, offset, attrFilters } = parseListParams(req);
+    const { search, extendedSearch, limit, offset, attrFilters } = parseListParams(req);
     const tagId = req.query.tagId && UUID_RE.test(String(req.query.tagId)) ? String(req.query.tagId) : null;
 
     let userTagFilter = null;
@@ -167,10 +168,7 @@ router.get('/users', async (req, res) => {
     let where = '1=1';
     // Hide soft-deleted principals by default; ?includeDeleted=true reveals them.
     if (req.query.includeDeleted !== 'true') where += ` AND u."deletedAt" IS NULL`;
-    if (search) {
-      const s = bind(likeContains(search));
-      where += ` AND (u."displayName" ILIKE ${s} ESCAPE '\\' OR u."email" ILIKE ${s} ESCAPE '\\')`;
-    }
+    where += buildSearchWhere('principal', 'u', search, { extended: extendedSearch }, bind);
     if (tagId) {
       where += ` AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta WHERE ta."tagId" = ${bind(tagId)} AND ta."entityId" = UPPER(u.id::text))`;
     }
@@ -236,13 +234,16 @@ router.get('/users', async (req, res) => {
        ORDER BY ${orderBy}`;
     const dataResult = await db.query(baseSql, params);
 
-    const data = dataResult.rows.map(r => {
+    const rows = dataResult.rows.map(r => {
       const { tagString, extendedAttributes, ...rest } = r;
       // pg returns JSONB already parsed; parseJsonbColumn also handles a raw
       // string (older shim path). Either way the UI / Power Query gets a
       // record or null.
       const parsedExt = parseJsonbColumn(extendedAttributes);
       return { ...rest, extendedAttributes: parsedExt, tags: parseTags(tagString) };
+    });
+    const data = withMatchedOn('principal', rows, search, {
+      extended: extendedSearch, aliases: { email: 'userPrincipalName' },
     });
 
     let total = null;
@@ -278,17 +279,15 @@ function parseGroupsListParams(req) {
     delete attrFilters['__resourceTag'];
   }
   const systemFilter = extractSystemFilter(attrFilters);
-  return { search, tagId, limit, offset, resourceType, attrFilters, groupTagFilter, systemFilter };
+  const extendedSearch = parseExtendedSearch(req.query);
+  return { search, extendedSearch, tagId, limit, offset, resourceType, attrFilters, groupTagFilter, systemFilter };
 }
 
 // Build the /groups WHERE + optional tag-filter JOIN, binding via `bind`.
 function buildGroupsListWhere(parsed, colNames, bind) {
-  const { search, tagId, resourceType, attrFilters, groupTagFilter, systemFilter } = parsed;
+  const { search, extendedSearch, tagId, resourceType, attrFilters, groupTagFilter, systemFilter } = parsed;
   let where = '1=1';
-  if (search) {
-    const s = bind(likeContains(search));
-    where += ` AND (r."displayName" ILIKE ${s} ESCAPE '\\' OR r."description" ILIKE ${s} ESCAPE '\\')`;
-  }
+  where += buildSearchWhere('resource', 'r', search, { extended: extendedSearch }, bind);
   if (resourceType) where += ` AND r."resourceType" = ${bind(resourceType)}`;
   if (tagId) {
     where += ` AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta INNER JOIN "GraphTags" t ON ta."tagId" = t.id WHERE ta."tagId" = ${bind(tagId)} AND ta."entityId" = UPPER(r.id::text) AND t."entityType" IN ('resource', 'group'))`;
