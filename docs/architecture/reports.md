@@ -86,7 +86,7 @@ know renders an explanatory panel rather than breaking the page.
 | Name | Form | What it lists |
 |------|------|---------------|
 | `orphaned-accounts` | `list` | Accounts with no `IdentityMembers` row — i.e. belonging to no identity — excluding service principals, managed identities and AI agents, with the detected account type for each. |
-| `application-access-review` | `list` | *Access Review* — one row per resource of one or more contexts of resources (a logical application, a department, a tag; any resource type), with the business roles that grant it and its holders split Direct vs via a role. The other columns, and the rows and filters of its two pivots, are **fields the reader picks** — see [Columns the reader picks](#columns-the-reader-picks). |
+| `application-access-review` | `list` | *Entitlement Pivot* (slug kept from its first name, Application Access Review, so links and saved views keep working) — one row per resource of one or more contexts of resources (a logical application, a department, a tag; any resource type), with the business roles that grant it and its holders split Direct vs via a role. The other columns, and the rows and filters of its two pivots, are **fields the reader picks** — see [Columns the reader picks](#columns-the-reader-picks). |
 
 Orphaned Accounts shares its definition with the `orphaned-accounts` **context plugin** via
 `app/api/src/accountlinking/orphanQuery.js`. That is deliberate: the report and the context answer
@@ -223,7 +223,7 @@ Two more consequences worth knowing:
 
 A template may declare `pivots` — each `{ name, rows, filters, values }` in column keys, values
 summed — and the xlsx download then has one ready-made pivot per declaration, each on its own tab
-after Data. The Access Review has the two its owners used to build by hand: *Direct assignments*
+after Data. The Entitlement Pivot has the two its owners used to build by hand: *Direct assignments*
 (rows: the picked pivot rows → Entitlement; filters: the picked pivot filters + Users assigned via a
 role) and *Assignments via roles* (rows: Granted by role(s) → Entitlement; filters: the picked pivot
 filters). Because they depend on the run's parameters, the run returns them — see below.
@@ -243,7 +243,7 @@ value that is not a list leaves the declaration standing). The screen, the CSV a
 read the payload, so they follow the run. The listing (`GET /api/reports`) still shows the
 declaration, which should describe a run with every parameter left at its default.
 
-The Access Review uses this to name no attribute of any one deployment. Its columns between the
+The Entitlement Pivot uses this to name no attribute of any one deployment. Its columns between the
 entitlement and its counts are **field keys** from `reports/accessReviewFields.js`, the one place a key
 is turned into a heading and a value:
 
