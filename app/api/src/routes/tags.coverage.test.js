@@ -23,6 +23,8 @@ vi.mock('../bootstrap.js', () => ({ getOrCreateTagRoot: vi.fn(async () => 'root-
 vi.mock('../contexts/memberCounts.js', () => ({ recalcMemberCountsForChain: vi.fn(async () => {}) }));
 
 const { default: router } = await import('./tags.js');
+const { createParams } = await import('../db/sqlParams.js');
+const { buildSearchWhere } = await import('../lib/entitySearch.js');
 const app = mountRouter(router);
 
 const VALID = '11111111-1111-1111-1111-111111111111';
@@ -255,6 +257,33 @@ describe('POST /tags/:id/assign-by-filter', () => {
       .send({ entityType: 'identity', search: 'bob', filters: { department: 'X' } });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true, inserted: 0 });
+  });
+
+  // "Tag all N matching" must tag the rows the list showed: same columns, same
+  // mode. Each case compares against the list's own search fragment.
+  it.each([
+    ['user', 'principal', 'Principal'],
+    ['identity', 'identity', 'Identity'],
+    ['resource', 'resource', 'Resource'],
+    ['group', 'resource', 'Resource'],
+  ])('%s: the bulk search is the list search, in both modes', async (entityType, entity, targetType) => {
+    for (const extendedSearch of [false, true]) {
+      query.mockReset();
+      queryOne.mockResolvedValueOnce({ id: VALID, targetType });
+      query.mockResolvedValueOnce({ rowCount: 1 });
+      await request(app).post(`/api/tags/${VALID}/assign-by-filter`).send({ entityType, search: 'CI0012345', extendedSearch });
+      const { bind } = createParams();
+      bind(VALID); // the tag id is bound first in the bulk query
+      const expected = buildSearchWhere(entity, 'e', 'CI0012345', { extended: extendedSearch, linkedPrincipals: entity === 'identity' }, bind);
+      expect(String(query.mock.calls[0][0])).toContain(`WHERE (1=1${expected})`);
+    }
+  });
+
+  it('only a literal true switches the bulk search to extended', async () => {
+    queryOne.mockResolvedValueOnce({ id: VALID, targetType: 'Principal' });
+    query.mockResolvedValueOnce({ rowCount: 0 });
+    await request(app).post(`/api/tags/${VALID}/assign-by-filter`).send({ entityType: 'user', search: 'CI0012345', extendedSearch: 'yes' });
+    expect(String(query.mock.calls[0][0])).not.toContain('ia_search_text');
   });
 
   it('applies the __system filter so bulk-tag cannot over-tag other systems', async () => {

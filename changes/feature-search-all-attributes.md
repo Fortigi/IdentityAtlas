@@ -2,4 +2,5 @@
 - Added an extended search to the Users, Identities, Resources, Groups and Contexts lists that matches every attribute a source sends, such as a CMDB reference on a logical application, an employee number or a phone number. Each result says which field matched.
 - Extended search finds a phone number however it is written: "+31 6 1234 5678", "06-12345678" and "0612345678" find each other.
 - Extended search on Identities also finds a person through their linked accounts, for example by the mobile number on their Entra account.
+- Fixed "Tag all N matching" on the Identities list tagging a different set than the list showed: a search that matched on job title or employee ID was not applied to the bulk tag. Bulk tagging now always uses the same search as the list, including extended search.
 - Searching Contexts now looks at every level, not only the top-level contexts, so a logical application under a catalogue can be found directly.
