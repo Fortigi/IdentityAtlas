@@ -1,53 +1,52 @@
-// Unit tests for the application-access-review report template.
+// Unit tests for the access-review report template.
 //
 // The db mock is SQL-blind, so the recordsets are dispatched on a fragment of
-// each statement rather than on call order — the four reads run inside one
-// Promise.all and an order-keyed mock would pass or fail on scheduling.
+// each statement rather than on call order — the four reads after the first
+// run inside one Promise.all, and an order-keyed mock would pass or fail on
+// scheduling.
 //
-// The inputs are chosen to discriminate, not merely to execute: every section
-// case is paired with the mutation that would break it (a requestable
-// entitlement that is ALSO in a role, a "0" string that truthiness calls yes, a
-// direct-only and an indirect-only entitlement with different numbers so a
-// swapped column fails, percentages over 8 rows so a rounding change shows).
+// The inputs are chosen to discriminate, not merely to execute: a direct-only
+// and an indirect-only entitlement with different numbers so a swapped column
+// fails, two contexts whose names sort the other way round from their
+// entitlements, and percentages over 8 rows so a rounding change shows.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../db/connection.js');
 import { query, queryOne } from '../../db/connection.js';
 import report, {
-  FREQUENCY_NOT_SET, MAX_APPLICATIONS, MAX_ROWS,
-  SECTION_IN_ROLE, SECTION_NOT_REQUESTABLE, SECTION_REQUESTABLE,
-  certificationFrequency, editDistance, groupOwners, isRequestable, nearDuplicateFrequencies,
-  parseList, percentage, pickAttribute, sectionFor,
+  DEFAULT_FIELDS, DEFAULT_PIVOT_ROWS, MAX_CONTEXTS, MAX_ROWS,
+  buildLayout, emptyFieldNotices, fieldParameters, groupOwners, parseList, percentage,
 } from './application-access-review.js';
+import { resolveFields } from '../accessReviewFields.js';
 
 // ─── staging ──────────────────────────────────────────────────────────────
 
-const APP_ID = '11111111-1111-1111-1111-111111111111';
+const CTX_ID = '11111111-1111-1111-1111-111111111111';
+const CTX2_ID = '22222222-2222-2222-2222-222222222222';
 
-const app = (over) => ({
-  id: APP_ID,
+const context = (over) => ({
+  id: CTX_ID,
   displayName: 'Ledger Engineering 0006',
+  contextType: 'LogicalApplication',
   description: 'The general ledger.',
   ownerUserId: '10007339',
   ownerName: 'Ada Lovelace',
-  ownerEmail: 'ada@example.com',
-  extendedAttributes: {
-    abbreviation: 'LE00006', cmdbReference: 'CI5505557',
-    connectionType: 'SaaS', onboardingArea: 'Sector H', applicationOwner: '10007339',
-  },
+  extendedAttributes: { cmdbReference: 'CI5505557', connectionType: 'SaaS' },
   ...over,
 });
 
 const ent = (id, over = {}) => ({
-  id, displayName: `ENT_${id}`, appId: APP_ID,
-  extendedAttributes: { requestable: 1, certfrequency: 'Annually', ...over },
+  id, displayName: `ENT_${id}`, contextId: CTX_ID, resourceType: 'Entitlement',
+  systemName: 'IdentityIQ', description: null,
+  extendedAttributes: { certfrequency: 'Annually' },
+  ...over,
 });
 
 // Each read is recognised by a fragment only that statement contains.
-function stage({ apps = [app()], entitlements = [], counts = [], roles = [], owners = [], users = 0 }) {
+function stage({ contexts = [context()], entitlements = [], counts = [], roles = [], owners = [], users = 0 }) {
   query.mockImplementation(async (sql) => {
-    if (sql.includes('"contextType" = \'LogicalApplication\'')) return { rows: apps };
+    if (sql.includes('FROM "Contexts" c')) return { rows: contexts };
     if (sql.includes('"memberType" = \'Resource\'')) return { rows: entitlements };
     if (sql.includes('FILTER (WHERE d.t = \'Direct\')')) return { rows: counts };
     if (sql.includes('\'BusinessRole\'')) return { rows: roles };
@@ -57,9 +56,10 @@ function stage({ apps = [app()], entitlements = [], counts = [], roles = [], own
   queryOne.mockResolvedValue({ users });
 }
 
-const run = (params = { applications: 'Ledger Engineering 0006' }) => report.run(params, {});
+const run = (params = {}) => report.run({ contexts: 'Ledger Engineering 0006', ...params }, {});
 const noticeText = (result) => result.notices.map(n => n.text).join('\n');
 const rowFor = (result, id) => result.rows.find(r => r.entitlement === `ENT_${id}`);
+const keys = columns => columns.map(c => c.key);
 
 beforeEach(() => {
   query.mockReset();
@@ -68,96 +68,212 @@ beforeEach(() => {
 
 // ─── the contract ─────────────────────────────────────────────────────────
 
-describe('application-access-review — template contract', () => {
-  it('is a list report parameterised by application, with the reviewable facts as columns', () => {
+describe('access review — template contract', () => {
+  it('is a list report over contexts, with columns and pivot axes picked from a field lookup', () => {
     expect(report).toMatchObject({ name: 'application-access-review', form: 'list' });
-    expect(report.parametersSchema.required).toEqual(['applications']);
-    expect(report.parametersSchema.properties.applications.type).toBe('array');
-    // The five facts the owner decides on, plus the split that drives the
-    // decision. A column dropped here is a column dropped from the export.
-    expect(report.columns.map(c => c.key)).toEqual(expect.arrayContaining([
-      'entitlement', 'section', 'requestable', 'certificationFrequency',
-      'entitlementOwner', 'entitlementOwnerEmail', 'businessRoles',
-      'directAssignments', 'viaRoleAssignments',
-      'application', 'applicationDescription', 'applicationOwner',
-      'abbreviation', 'cmdbReference', 'connectionType', 'onboardingSector', 'applicationManager',
-    ]));
+    const { required, properties } = report.parametersSchema;
+    expect(required).toEqual(['contexts']);
+    expect(properties.contexts['x-lookup']).toBe('resource-contexts');
+    for (const name of ['fields', 'pivotRows', 'pivotFilters']) {
+      expect(properties[name]['x-lookup'], name).toBe('access-review-fields');
+      // The attributes on offer follow the contexts picked.
+      expect(properties[name]['x-lookupDependsOn'], name).toEqual(['contexts']);
+    }
+    expect(properties.fields.default).toEqual(DEFAULT_FIELDS);
+    expect(properties.pivotRows.default).toEqual(DEFAULT_PIVOT_ROWS);
+    expect(properties.pivotFilters.default).toEqual([]);
   });
 
-  it('ships the two pivots owners build by hand, each over columns the report has', () => {
-    // The decisions, not a copy of the literal: which count each pivot sums,
-    // what it is broken down by, outermost first, and what it filters on.
-    const [direct, viaRole] = report.pivots;
-    expect(report.pivots).toHaveLength(2);
-    expect([direct.name, viaRole.name]).toEqual(['Direct assignments', 'Assignments via roles']);
-    expect([direct.values, viaRole.values]).toEqual([['directAssignments'], ['viaRoleAssignments']]);
-    expect(direct.rows[0]).toBe('applicationOwner');
-    expect(direct.rows.at(-1)).toBe('entitlement');
-    expect(direct.rows.indexOf('entitlementOwner')).toBeLessThan(direct.rows.indexOf('certificationFrequency'));
-    expect(viaRole.rows.join(' > ')).toBe('businessRoles > entitlement');
-    expect(direct.filters).toContain('requestable');
-    expect(viaRole.filters).not.toContain('requestable');
-    // A renamed column would otherwise only surface as a failed download.
-    const keys = new Set(report.columns.map(c => c.key));
+  it('names no customer attribute — its defaults are facts every deployment has', () => {
+    for (const key of [...DEFAULT_FIELDS, ...DEFAULT_PIVOT_ROWS]) expect(key, key).not.toMatch(/\.ext\./);
+    expect(resolveFields([...DEFAULT_FIELDS, ...DEFAULT_PIVOT_ROWS]).unknown).toEqual([]);
+  });
+
+  it('declares the layout an untouched run produces, pivots over columns it has', () => {
+    expect(keys(report.columns)).toEqual([
+      'entitlement', ...DEFAULT_FIELDS, 'businessRoles', 'directAssignments', 'viaRoleAssignments',
+    ]);
+    const columnKeys = new Set(keys(report.columns));
     for (const pivot of report.pivots) {
-      for (const key of [...pivot.filters, ...pivot.rows, ...pivot.values]) expect(keys, `${pivot.name}: ${key}`).toContain(key);
+      for (const key of [...pivot.filters, ...pivot.rows, ...pivot.values]) expect(columnKeys, `${pivot.name}: ${key}`).toContain(key);
     }
   });
 });
 
-// ─── the three sections ───────────────────────────────────────────────────
+// ─── the layout ───────────────────────────────────────────────────────────
 
-describe('application-access-review — sections', () => {
-  it('puts each entitlement in exactly one of the three sections, role membership winning', async () => {
-    stage({
-      entitlements: [
-        ent('a'),                                       // requestable, no role
-        ent('b', { requestable: 0 }),                   // not requestable, no role
-        ent('c'),                                       // requestable AND in a role
-        ent('d', { requestable: 0 }),                   // not requestable AND in a role
-      ],
-      roles: [{ id: 'c', roles: 'Ledger Clerk' }, { id: 'd', roles: 'Ledger Clerk' }],
-    });
-    const result = await run();
-
-    expect(rowFor(result, 'a').section).toBe(SECTION_REQUESTABLE);
-    expect(rowFor(result, 'b').section).toBe(SECTION_NOT_REQUESTABLE);
-    // The discriminating pair: 'c' is requestable, so a rule that checked
-    // requestable first would put it in section 1.
-    expect(rowFor(result, 'c').section).toBe(SECTION_IN_ROLE);
-    expect(rowFor(result, 'c').requestable).toBe('Yes');
-    expect(rowFor(result, 'd').section).toBe(SECTION_IN_ROLE);
+describe('access review — layout', () => {
+  const fieldsFor = list => resolveFields(list).fields;
+  const layoutOf = ({ fields = [], pivotRows = [], pivotFilters = [] }) => buildLayout({
+    fields: fieldsFor(fields), pivotRows: fieldsFor(pivotRows), pivotFilters: fieldsFor(pivotFilters),
   });
 
-  it('orders the rows action-list first, then information, then role-managed', async () => {
-    stage({
-      entitlements: [ent('a'), ent('b', { requestable: 0 }), ent('c')],
-      roles: [{ id: 'c', roles: 'Ledger Clerk' }],
-    });
-    const result = await run();
-    expect(result.rows.map(r => r.section)).toEqual(
-      [SECTION_REQUESTABLE, SECTION_NOT_REQUESTABLE, SECTION_IN_ROLE]);
+  it('puts the picked fields between the entitlement and its counts, in the order picked', () => {
+    const { columns } = layoutOf({ fields: ['entitlement.ext.certfrequency', 'context.name'] });
+    expect(keys(columns)).toEqual([
+      'entitlement', 'entitlement.ext.certfrequency', 'context.name',
+      'businessRoles', 'directAssignments', 'viaRoleAssignments',
+    ]);
+    expect(columns[1].label).toBe('certfrequency');
   });
 
-  it('names every role an entitlement belongs to, not just the first', async () => {
-    stage({
-      entitlements: [ent('a')],
-      roles: [{ id: 'a', roles: 'Ledger Clerk, Ledger Supervisor' }],
+  it('makes a pivot field a column even when it was not picked as one, once', () => {
+    const { columns } = layoutOf({
+      fields: ['context.name'],
+      pivotRows: ['context.name', 'entitlement.owner'],
+      pivotFilters: ['entitlement.ext.costcentercode'],
     });
-    const result = await run();
-    expect(rowFor(result, 'a').businessRoles).toBe('Ledger Clerk, Ledger Supervisor');
-    expect(rowFor(result, 'a').section).toBe(SECTION_IN_ROLE);
+    expect(keys(columns)).toEqual([
+      'entitlement', 'context.name', 'entitlement.owner', 'entitlement.ext.costcentercode',
+      'businessRoles', 'directAssignments', 'viaRoleAssignments',
+    ]);
   });
 
-  it('leaves the role column empty for an entitlement no role contains', async () => {
-    stage({ entitlements: [ent('a')], roles: [{ id: 'other', roles: 'Ledger Clerk' }] });
-    expect(rowFor(await run(), 'a').businessRoles).toBeNull();
+  it('builds the direct pivot from the picked rows, entitlement innermost, filterable on the role count', () => {
+    const [direct, viaRole] = layoutOf({
+      pivotRows: ['context.owner', 'entitlement.ext.certfrequency'],
+      pivotFilters: ['entitlement.ext.requestable'],
+    }).pivots;
+    expect(direct).toEqual({
+      name: 'Direct assignments',
+      rows: ['context.owner', 'entitlement.ext.certfrequency', 'entitlement'],
+      filters: ['entitlement.ext.requestable', 'viaRoleAssignments'],
+      values: ['directAssignments'],
+    });
+    // The role pivot is broken down by role whatever was picked, and filters on
+    // the same fields.
+    expect(viaRole).toEqual({
+      name: 'Assignments via roles',
+      rows: ['businessRoles', 'entitlement'],
+      filters: ['entitlement.ext.requestable'],
+      values: ['viaRoleAssignments'],
+    });
+  });
+
+  it('never puts one field on two axes of one pivot', () => {
+    // Excel refuses a field that is both a row and a filter of the same pivot.
+    const [direct] = layoutOf({ pivotRows: ['context.name'], pivotFilters: ['context.name', 'entitlement.type'] }).pivots;
+    expect(direct.rows).toContain('context.name');
+    expect(direct.filters).toEqual(['entitlement.type', 'viaRoleAssignments']);
   });
 });
 
-// ─── assignment counts ────────────────────────────────────────────────────
+// ─── parameters ───────────────────────────────────────────────────────────
 
-describe('application-access-review — assignment counts', () => {
+describe('access review — field parameters', () => {
+  it('falls back to each default when a list was not sent, or sent empty', () => {
+    for (const params of [{}, { fields: '', pivotRows: ' , ', pivotFilters: [] }, undefined]) {
+      const picks = fieldParameters(params);
+      expect(keys(picks.fields)).toEqual(DEFAULT_FIELDS);
+      expect(keys(picks.pivotRows)).toEqual(DEFAULT_PIVOT_ROWS);
+      expect(picks.pivotFilters).toEqual([]);
+      expect(picks.notices).toEqual([]);
+    }
+  });
+
+  it('uses what was sent, and names a key that is not a field once, wherever it was sent', () => {
+    const picks = fieldParameters({
+      fields: 'entitlement.ext.costcentercode,bogus',
+      pivotRows: 'bogus',
+      pivotFilters: ['context.type', 'also.bogus'],
+    });
+    expect(keys(picks.fields)).toEqual(['entitlement.ext.costcentercode']);
+    // Every pivot-row key was unknown, which is not the same as none sent.
+    expect(picks.pivotRows).toEqual([]);
+    expect(keys(picks.pivotFilters)).toEqual(['context.type']);
+    expect(picks.notices).toEqual([{
+      severity: 'warning', text: 'Left out "bogus", "also.bogus": not a field this report knows.',
+    }]);
+  });
+});
+
+describe('access review — contexts', () => {
+  it('runs nothing and explains itself when no context is named', async () => {
+    const result = await report.run({}, {});
+    expect(result.rows).toEqual([]);
+    expect(query).not.toHaveBeenCalled();
+    expect(noticeText(result)).toMatch(/Pick one or more contexts to review/);
+  });
+
+  it('still accepts the parameter under its old name, so a bookmark keeps working', async () => {
+    stage({ entitlements: [ent('a')] });
+    const result = await report.run({ applications: CTX_ID }, {});
+    expect(result.rows).toHaveLength(1);
+    expect(query.mock.calls[0][1]).toEqual([[CTX_ID]]);
+  });
+
+  it('looks contexts up by lower-cased name or id, among contexts of resources of any type', async () => {
+    stage({ entitlements: [ent('a')] });
+    await run({ contexts: `Ledger ENGINEERING 0006,${CTX_ID}` });
+    const [sql, params] = query.mock.calls[0];
+    expect(params).toEqual([['ledger engineering 0006', CTX_ID]]);
+    expect(sql).toContain(`c."targetType" = 'Resource'`);
+    expect(sql).not.toContain('"contextType" =');
+  });
+
+  it('caps the list of contexts, because it is user input reaching a query', async () => {
+    stage({ contexts: [] });
+    const many = Array.from({ length: MAX_CONTEXTS + 20 }, (_, i) => `ctx-${i}`);
+    await run({ contexts: many });
+    expect(query.mock.calls[0][1][0]).toHaveLength(MAX_CONTEXTS);
+  });
+
+  it('warns about a name that matches no context, and still returns the run\'s columns', async () => {
+    stage({ contexts: [] });
+    const result = await run({ contexts: 'Ledger Engineering 0006, Typo Ledger', fields: 'entitlement.type' });
+    expect(noticeText(result)).toMatch(/No context of resources matches "Ledger Engineering 0006", "Typo Ledger"/);
+    expect(result.rows).toEqual([]);
+    expect(keys(result.columns)).toContain('entitlement.type');
+  });
+
+  it('warns when one name matches several contexts and includes them all', async () => {
+    stage({
+      contexts: [context(), context({ id: CTX2_ID, contextType: 'Tag' })],
+      entitlements: [ent('a'), ent('b', { contextId: CTX2_ID })],
+    });
+    const result = await run();
+    expect(noticeText(result)).toMatch(/1 name\(s\) match more than one context \(ledger engineering 0006\)/);
+    expect(result.rows).toHaveLength(2);
+  });
+
+  it('reports a context with no resources as empty rather than as a failure', async () => {
+    stage({ entitlements: [] });
+    const result = await run();
+    expect(result.rows).toEqual([]);
+    expect(noticeText(result)).toMatch(/"Ledger Engineering 0006" has no resources as members/);
+    // No point counting assignments for an empty set.
+    expect(queryOne).not.toHaveBeenCalled();
+  });
+});
+
+// ─── rows ─────────────────────────────────────────────────────────────────
+
+describe('access review — rows', () => {
+  it('reads every picked field into its own column, under its key', async () => {
+    stage({
+      entitlements: [ent('a', { extendedAttributes: { certfrequency: 'Quarterly', costcentercode: 4410 } })],
+      owners: [{ id: 'a', ownerId: 'p1', ownerName: 'Grace Hopper', ownerEmail: 'grace@example.com' }],
+    });
+    const result = await run({
+      fields: 'context.name,context.owner,context.ext.cmdbReference,entitlement.ext.certfrequency,'
+        + 'entitlement.ext.costcentercode,entitlement.owner,entitlement.system',
+    });
+    expect(rowFor(result, 'a')).toEqual({
+      entitlement: 'ENT_a',
+      'context.name': 'Ledger Engineering 0006',
+      'context.owner': 'Ada Lovelace',
+      'context.ext.cmdbReference': 'CI5505557',
+      'entitlement.ext.certfrequency': 'Quarterly',
+      'entitlement.ext.costcentercode': 4410,
+      'entitlement.owner': 'Grace Hopper',
+      'entitlement.system': 'IdentityIQ',
+      businessRoles: null,
+      directAssignments: 0,
+      viaRoleAssignments: 0,
+      _entity: { kind: 'resource', id: 'a' },
+    });
+  });
+
   it('keeps direct and via-role holders in their own columns', async () => {
     stage({
       entitlements: [ent('a'), ent('b'), ent('c')],
@@ -173,240 +289,118 @@ describe('application-access-review — assignment counts', () => {
     expect(rowFor(result, 'c')).toMatchObject({ directAssignments: 0, viaRoleAssignments: 0 });
   });
 
-  it('reports Eligible holders separately instead of folding them into either column', async () => {
-    stage({
-      entitlements: [ent('a')],
-      counts: [{ id: 'a', direct: 2, indirect: 1, eligible: 7 }],
-    });
-    const result = await run();
-    expect(rowFor(result, 'a')).toMatchObject({ directAssignments: 2, viaRoleAssignments: 1 });
-    expect(noticeText(result)).toMatch(/7 holder\(s\) in scope are Eligible/);
-  });
-
-  it('says nothing about Eligible when there are none', async () => {
-    stage({ entitlements: [ent('a')], counts: [{ id: 'a', direct: 2, indirect: 1, eligible: 0 }] });
-    expect(noticeText(await run())).not.toMatch(/Eligible/);
-  });
-});
-
-// ─── owners ───────────────────────────────────────────────────────────────
-
-describe('application-access-review — entitlement owners', () => {
-  it('shows the owner as a person, and leaves the columns empty when there is none', async () => {
+  it('names every role an entitlement belongs to, and leaves the column empty when there is none', async () => {
     stage({
       entitlements: [ent('a'), ent('b')],
-      owners: [{ id: 'a', ownerId: 'p1', ownerName: 'Grace Hopper', ownerEmail: 'grace@example.com' }],
+      roles: [{ id: 'a', roles: 'Ledger Clerk, Ledger Supervisor' }, { id: 'other', roles: 'X' }],
     });
     const result = await run();
-    expect(rowFor(result, 'a')).toMatchObject({
-      entitlementOwner: 'Grace Hopper', entitlementOwnerEmail: 'grace@example.com',
-    });
-    // "No owner" is the common case, so the row must still be complete.
-    expect(rowFor(result, 'b')).toMatchObject({
-      entitlementOwner: null, entitlementOwnerEmail: null, section: SECTION_REQUESTABLE,
-    });
+    expect(rowFor(result, 'a').businessRoles).toBe('Ledger Clerk, Ledger Supervisor');
+    expect(rowFor(result, 'b').businessRoles).toBeNull();
   });
 
-  it('counts owners as people, not as ownership links', async () => {
+  it('includes a resource of any type — the type is a column, not a filter', async () => {
+    stage({ entitlements: [ent('a', { resourceType: 'Group' }), ent('b', { resourceType: 'AppRole' })] });
+    const result = await run({ fields: 'entitlement.type' });
+    expect(result.rows.map(r => r['entitlement.type'])).toEqual(['Group', 'AppRole']);
+  });
+
+  it('orders by context, then by entitlement — even when the context is not a column', async () => {
     stage({
-      entitlements: [ent('a'), ent('b'), ent('c')],
-      owners: [
-        { id: 'a', ownerId: 'p1', ownerName: 'Grace Hopper', ownerEmail: 'grace@example.com' },
-        { id: 'a', ownerId: 'p2', ownerName: 'Ada Lovelace', ownerEmail: 'ada@example.com' },
-        { id: 'b', ownerId: 'p1', ownerName: 'Grace Hopper', ownerEmail: 'grace@example.com' },
-      ],
+      contexts: [context(), context({ id: CTX2_ID, displayName: 'Archive' })],
+      entitlements: [ent('b'), ent('a'), ent('z', { contextId: CTX2_ID })],
     });
-    const result = await run();
-    // Three ownership links, two people, one entitlement with no owner at all.
-    expect(noticeText(result)).toMatch(/2 distinct entitlement owner\(s\); 1 entitlement\(s\) have no owner/);
-    expect(rowFor(result, 'a').entitlementOwner).toBe('Grace Hopper, Ada Lovelace');
+    const result = await run({ contexts: `${CTX_ID},${CTX2_ID}`, fields: 'entitlement.type' });
+    expect(result.rows.map(r => r.entitlement)).toEqual(['ENT_z', 'ENT_a', 'ENT_b']);
   });
 });
 
-// ─── certification frequency ──────────────────────────────────────────────
+// ─── the run's columns and constants ──────────────────────────────────────
 
-describe('application-access-review — certification frequency', () => {
-  it('shows a missing frequency as a value rather than a blank', async () => {
-    stage({
-      entitlements: [
-        ent('a', { certfrequency: null }),
-        ent('b', { certfrequency: '  ' }),
-        ent('c', { certfrequency: undefined }),
-        ent('d', { certfrequency: 'Quarterly' }),
-      ],
-    });
-    const result = await run();
-    for (const id of ['a', 'b', 'c']) {
-      expect(rowFor(result, id).certificationFrequency).toBe(FREQUENCY_NOT_SET);
-    }
-    expect(rowFor(result, 'd').certificationFrequency).toBe('Quarterly');
-  });
-
-  it('shows dirty values exactly as stored and reports the near-duplicates', async () => {
-    stage({
-      entitlements: [
-        ent('a', { certfrequency: 'Quarterly' }),
-        ent('b', { certfrequency: 'Quaterly' }),
-        ent('c', { certfrequency: 'Monthly' }),
-        ent('d', { certfrequency: 'No certification' }),
-      ],
-    });
-    const result = await run();
-    // Not normalised: the owner who typed the misspelling has to see it.
-    expect(rowFor(result, 'b').certificationFrequency).toBe('Quaterly');
-    const text = noticeText(result);
-    expect(text).toMatch(/near-duplicate spellings: "Quarterly" \/ "Quaterly"/);
-    // …and Monthly vs No certification are NOT flagged as duplicates.
-    expect(text).not.toMatch(/Monthly" \//);
-  });
-
-  it('raises no data-quality warning when the vocabulary is clean', async () => {
-    stage({
-      entitlements: [ent('a', { certfrequency: 'Monthly' }), ent('b', { certfrequency: 'Annually' })],
-    });
-    expect(noticeText(await run())).not.toMatch(/near-duplicate/);
-  });
-});
-
-// ─── application context ──────────────────────────────────────────────────
-
-describe('application-access-review — application context', () => {
-  it('carries the application facts onto every row, so the export stands alone', async () => {
+describe('access review — columns of a run', () => {
+  it('returns the columns and pivots it was asked for', async () => {
     stage({ entitlements: [ent('a')] });
-    expect(rowFor(await run(), 'a')).toMatchObject({
-      application: 'Ledger Engineering 0006',
-      applicationDescription: 'The general ledger.',
-      applicationOwner: 'Ada Lovelace',
-      abbreviation: 'LE00006',
-      cmdbReference: 'CI5505557',
-      connectionType: 'SaaS',
-      onboardingSector: 'Sector H',
-      applicationManager: '10007339',
-    });
-  });
-
-  it('falls back to the stored owner id when no account matches it', async () => {
-    stage({ apps: [app({ ownerName: null, ownerEmail: null })], entitlements: [ent('a')] });
-    expect(rowFor(await run(), 'a').applicationOwner).toBe('10007339');
-  });
-
-  it('declares the application columns constant for a run over ONE application', async () => {
-    // The Excel export states them once above the table instead of repeating
-    // them down 21,000 rows. Every key must be a real column, or the serializer
-    // silently drops nothing.
-    stage({ entitlements: [ent('a')] });
-    const result = await run();
-    const keys = report.columns.map(c => c.key);
-    expect(result.constantColumns).toEqual([
-      'application', 'applicationOwner', 'applicationDescription', 'cmdbReference',
-      'connectionType', 'onboardingSector', 'abbreviation', 'applicationManager',
+    const result = await run({ fields: 'entitlement.ext.certfrequency', pivotRows: 'entitlement.ext.certfrequency' });
+    expect(keys(result.columns)).toEqual([
+      'entitlement', 'entitlement.ext.certfrequency', 'businessRoles', 'directAssignments', 'viaRoleAssignments',
     ]);
-    for (const key of result.constantColumns) expect(keys, key).toContain(key);
+    expect(result.pivots[0].rows).toEqual(['entitlement.ext.certfrequency', 'entitlement']);
   });
 
-  it('declares nothing constant when the run covers several applications', async () => {
-    // The discriminating case: ONE name matching THREE contexts resolves to
-    // three applications whose details differ per row. A check on the number of
-    // names asked for rather than the number resolved would wrongly collapse
-    // them into one header block.
-    const second = '22222222-2222-2222-2222-222222222222';
+  it('declares the picked context fields constant for a run over ONE context', async () => {
+    // The Excel export states them once on its Summary tab instead of repeating
+    // them down 21,000 rows.
+    stage({ entitlements: [ent('a')] });
+    const result = await run({ fields: 'entitlement.type,context.name,context.ext.cmdbReference' });
+    expect(result.constantColumns).toEqual(['context.name', 'context.ext.cmdbReference']);
+  });
+
+  it('declares nothing constant when one name resolved to several contexts', async () => {
+    // The discriminating case: ONE name matching TWO contexts. A check on the
+    // number of names asked for rather than the number resolved would wrongly
+    // collapse them into one header block.
     stage({
-      apps: [app(), app({ id: second, displayName: 'Ledger Engineering 0006' })],
-      entitlements: [ent('a'), { ...ent('b'), appId: second }],
+      contexts: [context(), context({ id: CTX2_ID })],
+      entitlements: [ent('a'), ent('b', { contextId: CTX2_ID })],
     });
-    const result = await run();
-    expect(result.constantColumns).toEqual([]);
-    expect(result.rows).toHaveLength(2);
-  });
-
-  it('declares nothing constant when there is nothing to describe', async () => {
-    stage({ entitlements: [] });
-    expect((await run()).constantColumns).toBeUndefined();
-  });
-
-  it('reads the deployment-specific catalogue fields under either spelling', async () => {
-    stage({
-      apps: [app({ extendedAttributes: { onboardingSector: 'Sector A', cmdbreference: 'CI1', applicationManager: 'Ada' } })],
-      entitlements: [ent('a')],
-    });
-    expect(rowFor(await run(), 'a')).toMatchObject({
-      onboardingSector: 'Sector A', cmdbReference: 'CI1', applicationManager: 'Ada', abbreviation: null,
-    });
+    expect((await run({ fields: 'context.name' })).constantColumns).toEqual([]);
   });
 });
 
-// ─── the summaries ────────────────────────────────────────────────────────
+// ─── owners and summaries ─────────────────────────────────────────────────
 
-describe('application-access-review — summaries', () => {
-  it('states all five summaries with the numbers the rows actually hold', async () => {
-    // 8 entitlements: 2 in a role (25%), frequencies 4 Not set (50%),
-    // 3 Annually (37.5%), 1 Monthly (12.5%) — chosen so a wrong denominator
-    // or a dropped decimal shows up.
-    const entitlements = [
-      ent('a'), ent('b'), ent('c', { certfrequency: null }), ent('d', { certfrequency: null }),
-      ent('e', { certfrequency: null }), ent('f', { certfrequency: null }),
-      ent('g', { certfrequency: 'Monthly' }), ent('h'),
-    ];
+describe('access review — summaries', () => {
+  it('states the four summaries with the numbers the rows actually hold', async () => {
+    // 8 entitlements: 2 in a role (25%), 1 owned, so a wrong denominator or a
+    // count of links instead of people shows up.
+    const entitlements = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map(id => ent(id));
     stage({
       entitlements,
       roles: [{ id: 'a', roles: 'R1' }, { id: 'b', roles: 'R1' }],
-      owners: [{ id: 'a', ownerId: 'p1', ownerName: 'Grace Hopper', ownerEmail: 'g@example.com' }],
+      owners: [
+        { id: 'a', ownerId: 'p1', ownerName: 'Grace Hopper', ownerEmail: 'g@example.com' },
+        { id: 'a', ownerId: 'p2', ownerName: 'Ada Lovelace', ownerEmail: 'a@example.com' },
+        { id: 'c', ownerId: 'p1', ownerName: 'Grace Hopper', ownerEmail: 'g@example.com' },
+      ],
       users: 1234,
     });
     const text = noticeText(await run());
-
     expect(text).toMatch(/1,234 unique user\(s\) hold at least one assignment in "Ledger Engineering 0006"/);
     expect(text).toMatch(/8 entitlement\(s\) in scope/);
-    expect(text).toMatch(/1 distinct entitlement owner\(s\); 7 entitlement\(s\) have no owner/);
+    expect(text).toMatch(/2 distinct entitlement owner\(s\); 6 entitlement\(s\) have no owner/);
     expect(text).toMatch(/25% of entitlements are part of a business role \(2 of 8\)/);
-    expect(text).toMatch(/Certification frequency: Not set 50%, Annually 37\.5%, Monthly 12\.5%/);
   });
 
-  it('reports an application with no entitlements as empty rather than as a failure', async () => {
-    stage({ entitlements: [] });
+  it('reports Eligible holders separately, and says nothing when there are none', async () => {
+    stage({ entitlements: [ent('a')], counts: [{ id: 'a', direct: 2, indirect: 1, eligible: 7 }] });
     const result = await run();
-    expect(result.rows).toEqual([]);
-    expect(noticeText(result)).toMatch(/has no entitlements loaded/);
-    // No point counting assignments for an empty set.
-    expect(queryOne).not.toHaveBeenCalled();
+    expect(rowFor(result, 'a')).toMatchObject({ directAssignments: 2, viaRoleAssignments: 1 });
+    expect(noticeText(result)).toMatch(/7 holder\(s\) in scope are Eligible/);
+
+    stage({ entitlements: [ent('a')], counts: [{ id: 'a', direct: 2, indirect: 1, eligible: 0 }] });
+    expect(noticeText(await run())).not.toMatch(/Eligible/);
+  });
+
+  it('says once which picked attribute no row has a value for', async () => {
+    stage({ entitlements: [ent('a'), ent('b')] });
+    const text = noticeText(await run({
+      fields: 'entitlement.ext.certfrequency,entitlement.ext.costcentercode,entitlement.description',
+    }));
+    expect(text).toMatch(/No row in scope has a value for "costcentercode"\./);
+    // A built-in field left empty is not a missing attribute.
+    expect(text).not.toMatch(/"Description"/);
+  });
+
+  it('describes several contexts by number', async () => {
+    stage({
+      contexts: [context(), context({ id: CTX2_ID, displayName: 'Archive' })],
+      entitlements: [],
+    });
+    expect(noticeText(await run({ contexts: `${CTX_ID},${CTX2_ID}` }))).toMatch(/^2 contexts has no resources/m);
   });
 });
 
-// ─── parameters ───────────────────────────────────────────────────────────
-
-describe('application-access-review — parameters', () => {
-  it('runs nothing and explains itself when no application is named', async () => {
-    const result = await report.run({}, {});
-    expect(result.rows).toEqual([]);
-    expect(query).not.toHaveBeenCalled();
-    expect(noticeText(result)).toMatch(/Name one or more logical applications/);
-  });
-
-  it('warns about a name that matches no application', async () => {
-    stage({ apps: [] });
-    const result = await run({ applications: 'Ledger Engineering 0006, Typo Ledger' });
-    expect(noticeText(result)).toMatch(/No logical application matches "Ledger Engineering 0006", "Typo Ledger"/);
-    expect(result.rows).toEqual([]);
-  });
-
-  it('warns when one name matches several applications and includes them all', async () => {
-    const second = '22222222-2222-2222-2222-222222222222';
-    stage({
-      apps: [app(), app({ id: second })],
-      entitlements: [ent('a'), { ...ent('b'), appId: second }],
-    });
-    const result = await run();
-    expect(noticeText(result)).toMatch(/match more than one logical application/);
-    expect(result.rows).toHaveLength(2);
-  });
-
-  it('matches an application by id as well as by name', async () => {
-    stage({ entitlements: [ent('a')] });
-    const result = await run({ applications: APP_ID });
-    expect(noticeText(result)).not.toMatch(/No logical application matches/);
-    expect(result.rows).toHaveLength(1);
-  });
-
+describe('access review — row cap', () => {
   it('caps a run that would return more rows than one response should carry', async () => {
     const entitlements = Array.from({ length: MAX_ROWS + 1 }, (_, i) => ent(String(i)));
     stage({ entitlements });
@@ -415,8 +409,7 @@ describe('application-access-review — parameters', () => {
     expect(result.truncated).toBe(true);
     // Pinned to en-US: a notice that read "50.000" on a Dutch host and
     // "50,000" on an American one would be a host-dependent API response.
-    expect(noticeText(result)).toMatch(`shows the first ${MAX_ROWS.toLocaleString('en-US')}`);
-    expect(noticeText(result)).toMatch('shows the first 50,000');
+    expect(noticeText(result)).toMatch('holds 50,001 entitlements; this run shows the first 50,000');
   });
 
   it('does not claim truncation for a run that fits', async () => {
@@ -429,52 +422,9 @@ describe('application-access-review — parameters', () => {
 
 // ─── the pure rules ───────────────────────────────────────────────────────
 
-describe('application-access-review — rules', () => {
-  it('parses a list from either a comma string or an array, dropping blanks', () => {
+describe('access review — rules', () => {
+  it('re-exports the list parser the parameters go through', () => {
     expect(parseList('a, b ,, c')).toEqual(['a', 'b', 'c']);
-    expect(parseList(['a', ' b '])).toEqual(['a', 'b']);
-    expect(parseList(undefined)).toEqual([]);
-    expect(parseList('')).toEqual([]);
-  });
-
-  it('caps the list, because the parameter is user input reaching a query', () => {
-    const many = Array.from({ length: MAX_APPLICATIONS + 50 }, (_, i) => `app-${i}`);
-    expect(parseList(many)).toHaveLength(MAX_APPLICATIONS);
-    expect(parseList(many.join(','))).toHaveLength(MAX_APPLICATIONS);
-    // The cap truncates, it does not empty — the first 500 are still answered.
-    expect(parseList(many)[0]).toBe('app-0');
-  });
-
-  it('reads requestable out of every shape a source writes it in', () => {
-    for (const yes of [true, 1, '1', 'true', 'Y', 'yes', ' TRUE ']) {
-      expect(isRequestable(yes), String(yes)).toBe(true);
-    }
-    // '0' and 'false' are truthy strings: a bare `!!value` would pass them.
-    for (const no of [false, 0, '0', 'false', '', null, undefined, 'maybe']) {
-      expect(isRequestable(no), String(no)).toBe(false);
-    }
-  });
-
-  it('never rewrites a stored frequency', () => {
-    expect(certificationFrequency(' Quaterly ')).toBe('Quaterly');
-    expect(certificationFrequency('No')).toBe('No');
-    expect(certificationFrequency('')).toBe(FREQUENCY_NOT_SET);
-    expect(certificationFrequency(null)).toBe(FREQUENCY_NOT_SET);
-  });
-
-  it('measures edit distance', () => {
-    expect(editDistance('quarterly', 'quaterly')).toBe(1);
-    expect(editDistance('annual', 'annually')).toBe(2);
-    expect(editDistance('monthly', 'annually')).toBeGreaterThan(2);
-    expect(editDistance('same', 'same')).toBe(0);
-  });
-
-  it('pairs only the spellings that are the same word twice', () => {
-    expect(nearDuplicateFrequencies(['Quarterly', 'Quaterly', 'Monthly'])).toEqual(['"Quarterly" / "Quaterly"']);
-    expect(nearDuplicateFrequencies(['Annually', 'annually'])).toEqual(['"Annually" / "annually"']);
-    expect(nearDuplicateFrequencies(['Monthly', 'Annually', 'No certification'])).toEqual([]);
-    // The report's own word for "unset" is not a stored spelling.
-    expect(nearDuplicateFrequencies([FREQUENCY_NOT_SET, 'Not Applicable'])).toEqual([]);
   });
 
   it('rounds a percentage to one decimal and survives an empty denominator', () => {
@@ -484,19 +434,14 @@ describe('application-access-review — rules', () => {
     expect(percentage(0, 0)).toBe(0);
   });
 
-  it('picks the first catalogue spelling that carries a value', () => {
-    expect(pickAttribute({ b: 'x' }, ['a', 'b'])).toBe('x');
-    expect(pickAttribute({ a: '  ', b: 'x' }, ['a', 'b'])).toBe('x');
-    expect(pickAttribute({ a: 0 }, ['a'])).toBe('0');
-    expect(pickAttribute(null, ['a'])).toBeNull();
-    expect(pickAttribute({}, ['a'])).toBeNull();
-  });
-
-  it('decides the section from role membership first', () => {
-    expect(sectionFor({ roles: 'R1', requestable: true })).toBe(SECTION_IN_ROLE);
-    expect(sectionFor({ roles: 'R1', requestable: false })).toBe(SECTION_IN_ROLE);
-    expect(sectionFor({ roles: null, requestable: true })).toBe(SECTION_REQUESTABLE);
-    expect(sectionFor({ roles: null, requestable: false })).toBe(SECTION_NOT_REQUESTABLE);
+  it('flags only attributes, and only those empty on every row', () => {
+    const fields = resolveFields(['entitlement.ext.x', 'entitlement.ext.y', 'entitlement.owner']).fields;
+    const rows = [
+      { 'entitlement.ext.x': null, 'entitlement.ext.y': 0, 'entitlement.owner': null },
+      { 'entitlement.ext.x': null, 'entitlement.ext.y': null, 'entitlement.owner': null },
+    ];
+    expect(emptyFieldNotices(rows, fields)).toEqual([{ severity: 'info', text: 'No row in scope has a value for "x".' }]);
+    expect(emptyFieldNotices(rows, fields.slice(1))).toEqual([]);
   });
 
   it('folds owner links into one entry per entitlement while keeping the people apart', () => {
@@ -507,6 +452,5 @@ describe('application-access-review — rules', () => {
     ]);
     expect(grouped.get('e1')).toEqual({ ownerName: 'A, B', ownerEmail: 'a@x', ownerIds: ['p1', 'p2'] });
     expect(grouped.get('e2').ownerIds).toEqual(['p1']);
-    expect([...new Set([...grouped.values()].flatMap(o => o.ownerIds))]).toEqual(['p1', 'p2']);
   });
 });

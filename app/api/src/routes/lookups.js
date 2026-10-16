@@ -4,6 +4,9 @@
 // GET /api/lookups/:source?q=      — options matching a search term
 // GET /api/lookups/:source?ids=…   — stored ids turned back into labels
 //
+// Any other query parameter is a form value the lookup depends on — the
+// schema's `x-lookupDependsOn` — handed to the source as `params`.
+//
 // Generic, the same way routes/reports.js is: `:source` is a registry lookup
 // and the response carries whatever options that source returned. Nothing here
 // names a source, and a guard test fails the PR if it does.
@@ -37,6 +40,26 @@ function parseIds(value) {
   return parts.map(v => String(v ?? '').trim()).filter(Boolean).slice(0, MAX_IDS);
 }
 
+// The route's own query parameters; everything else is a form value the source
+// asked to see (`x-lookupDependsOn`).
+const OWN_PARAMS = new Set(['q', 'limit', 'ids']);
+const MAX_DEPENDENCIES = 10;
+
+/**
+ * The other form values a dependent lookup was sent — the contexts a field list
+ * depends on, say — each as a capped list, because a value is a list of ids
+ * however it was entered. Bounded in count as well as in length: it is user
+ * input reaching a source's query.
+ */
+export function parseDependencies(query) {
+  const params = {};
+  for (const [key, value] of Object.entries(query || {})) {
+    if (OWN_PARAMS.has(key) || Object.keys(params).length >= MAX_DEPENDENCIES) continue;
+    params[key] = parseIds(value);
+  }
+  return params;
+}
+
 // GET /api/lookups
 router.get('/lookups', (req, res) => {
   const data = listLookups().map(s => ({ name: s.name, displayName: s.displayName }));
@@ -50,13 +73,14 @@ router.get('/lookups/:source', async (req, res) => {
 
   const q = String(req.query.q ?? '').trim().slice(0, MAX_TERM);
   const ids = req.query.ids === undefined ? null : parseIds(req.query.ids);
+  const params = parseDependencies(req.query);
 
   try {
     // Resolving ids and searching are the same shape of answer, so they are the
     // same endpoint: the client asks by whichever it has.
     const data = ids
-      ? (source.resolve ? await source.resolve({ ids }) : [])
-      : await source.search({ q, limit: parseLimit(req.query.limit) });
+      ? (source.resolve ? await source.resolve({ ids, params }) : [])
+      : await source.search({ q, limit: parseLimit(req.query.limit), params });
     res.json({ source: source.name, q, data, total: data.length });
   } catch (err) {
     // The source name comes from the registry, never from the raw URL, so

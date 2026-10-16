@@ -762,7 +762,9 @@ paths:
       description: >
         Runs the named report template against the current data and returns its rows. Content is
         computed per request — there are no stored runs, so a re-fetch always reflects the latest
-        data. Any query parameters are passed to the template as its parameters.
+        data. Any query parameters are passed to the template as its parameters. `columns` and
+        `pivots` are this run's: a report whose columns are picked through its parameters returns
+        the ones it was asked for, which may differ from what `GET /reports` declares.
       security:
         - EntraIdBearer: []
       parameters:

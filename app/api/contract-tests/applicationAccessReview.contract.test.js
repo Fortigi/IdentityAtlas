@@ -1,7 +1,6 @@
-// Contract test — the application-access-review template against a real
-// PostgreSQL schema.
+// Contract test — the access-review template against a real PostgreSQL schema.
 //
-// The unit tests mock the DB, so they prove the section rule and the notice
+// The unit tests mock the DB, so they prove the layout and the notice
 // arithmetic but say nothing about whether five joins across Contexts,
 // ContextMembers, Resources, ResourceRelationships, ResourceAssignments and
 // Principals are valid SQL selecting the right rows. That is this file's job,
@@ -9,18 +8,25 @@
 // ownership resource -> Direct assignment -> Principal) is actually traversed.
 //
 // The database is shared with the other contract files, so everything this file
-// seeds hangs off its own system and its own application context.
+// seeds hangs off its own system and its own contexts.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'crypto';
+import JSZip from 'jszip';
 import { bootContractApp } from '../test-utils/contractApp.js';
 import { asBinary, headerLabels, sheetNamed } from '../test-utils/xlsxDownload.js';
 
 const SYSTEM_NAME = 'contract-app-access-review';
 const APP_NAME = 'Contract Ledger Application';
-// A second application, so the multi-application case is a real run rather than
-// a simulated one: its details differ per row and must stay in the table.
-const SECOND_APP_NAME = 'Contract Archive Application';
+// A second context of another type, so "several contexts" is a real run and
+// "any context of resources" is not just a logical application.
+const SECOND_NAME = 'Contract Archive Tag';
+
+// What the customer's catalogue looks like: the fields are picked, not built in.
+const FIELDS = [
+  'context.name', 'context.owner', 'context.ext.cmdbReference',
+  'entitlement.type', 'entitlement.ext.certfrequency', 'entitlement.owner', 'entitlement.ownerEmail',
+].join(',');
 
 let agent;
 let pool;
@@ -30,9 +36,9 @@ const id = {
   app: randomUUID(),
   app2: randomUUID(),
   plain2: randomUUID(),
-  plain: randomUUID(),        // requestable, no role, two direct holders
-  quiet: randomUUID(),        // not requestable, no role, no holders
-  roled: randomUUID(),        // requestable AND in two roles -> section 3
+  plain: randomUUID(),        // two direct holders, one via a role, an owner
+  quiet: randomUUID(),        // no holders, a Group rather than an Entitlement
+  roled: randomUUID(),        // in two roles
   role1: randomUUID(),
   role2: randomUUID(),
   ownership: randomUUID(),
@@ -41,56 +47,47 @@ const id = {
   holderB: randomUUID(),
 };
 
+async function context(contextId, contextType, displayName, attrs) {
+  await pool.query(
+    `INSERT INTO "Contexts" ("id","variant","targetType","contextType","displayName","description",
+                             "scopeSystemId","ownerUserId","extendedAttributes")
+     VALUES ($1,'synced','Resource',$2,$3,'Ledger of record',$4,'EMP-1',$5::jsonb)`,
+    [contextId, contextType, displayName, systemId, JSON.stringify(attrs)]);
+}
+
+const member = (contextId, memberId) => pool.query(
+  `INSERT INTO "ContextMembers" ("contextId","memberType","memberId","addedBy")
+   VALUES ($1,'Resource',$2,'sync')`, [contextId, memberId]);
+
 async function seed() {
   const sys = await pool.query(
     `INSERT INTO "Systems" ("systemType", "displayName") VALUES ('test', $1) RETURNING "id"`, [SYSTEM_NAME]);
   systemId = sys.rows[0].id;
 
-  await pool.query(
-    `INSERT INTO "Contexts" ("id","variant","targetType","contextType","displayName","description",
-                             "scopeSystemId","ownerUserId","extendedAttributes")
-     VALUES ($1,'synced','Resource','LogicalApplication',$2,'Ledger of record',$3,'EMP-1',
-             '{"abbreviation":"CLA","cmdbReference":"CI-1","connectionType":"SaaS","onboardingArea":"Sector Q","applicationOwner":"EMP-1"}'::jsonb)`,
-    [id.app, APP_NAME, systemId]);
+  await context(id.app, 'LogicalApplication', APP_NAME, { cmdbReference: 'CI-1', connectionType: 'SaaS' });
 
-  // The application owner is found through Principals."employeeId", the other
+  // The context owner is found through Principals."employeeId", the other
   // spelling a catalogue uses for a person.
   await principal(id.owner, 'Owner Person', 'owner@example.com', 'EMP-1');
   await principal(id.holderA, 'Holder A', 'a@example.com');
   await principal(id.holderB, 'Holder B', 'b@example.com');
 
-  await resource(id.plain, 'ENT_PLAIN', 'Entitlement',
-    { requestable: 1, certfrequency: 'Quarterly' });
-  await resource(id.quiet, 'ENT_QUIET', 'Entitlement',
-    { requestable: 0, certfrequency: null });
-  await resource(id.roled, 'ENT_ROLED', 'Entitlement',
-    { requestable: 1, certfrequency: 'Quaterly' });
+  await resource(id.plain, 'ENT_PLAIN', 'Entitlement', { certfrequency: 'Quarterly', costcentercode: 4410 });
+  await resource(id.quiet, 'ENT_QUIET', 'Group', {});
+  await resource(id.roled, 'ENT_ROLED', 'Entitlement', { certfrequency: 'Annually' });
   await resource(id.role1, 'Ledger Clerk', 'BusinessRole', {});
   await resource(id.role2, 'Ledger Supervisor', 'BusinessRole', {});
   await resource(id.ownership, 'ENT_PLAIN', 'ResourceOwnership',
     { ownedResourceId: 'ENT_PLAIN', ownedResourceType: 'Entitlement' });
 
-  for (const member of [id.plain, id.quiet, id.roled]) {
-    await pool.query(
-      `INSERT INTO "ContextMembers" ("contextId","memberType","memberId","addedBy")
-       VALUES ($1,'Resource',$2,'sync')`, [id.app, member]);
-  }
+  for (const m of [id.plain, id.quiet, id.roled]) await member(id.app, m);
 
-  // A second application with its own details, so "several applications" is a
-  // real run rather than a simulated one.
-  await pool.query(
-    `INSERT INTO "Contexts" ("id","variant","targetType","contextType","displayName","description",
-                             "scopeSystemId","ownerUserId","extendedAttributes")
-     VALUES ($1,'synced','Resource','LogicalApplication',$2,'Archive of record',$3,'EMP-1',
-             '{"abbreviation":"CAA","cmdbReference":"CI-2","connectionType":"LDAP","onboardingArea":"Sector R"}'::jsonb)`,
-    [id.app2, SECOND_APP_NAME, systemId]);
-  await resource(id.plain2, 'ENT_ARCHIVE', 'Entitlement', { requestable: 1, certfrequency: 'Annually' });
-  await pool.query(
-    `INSERT INTO "ContextMembers" ("contextId","memberType","memberId","addedBy")
-     VALUES ($1,'Resource',$2,'sync')`, [id.app2, id.plain2]);
+  await context(id.app2, 'Tag', SECOND_NAME, { cmdbReference: 'CI-2' });
+  await resource(id.plain2, 'ENT_ARCHIVE', 'Entitlement', { certfrequency: 'Monthly' });
+  await member(id.app2, id.plain2);
 
-  // A business role is NOT a member of the application context — it grants into
-  // it. Two roles on one entitlement, so the report has to aggregate them.
+  // A business role is NOT a member of the context — it grants into it. Two
+  // roles on one entitlement, so the report has to aggregate them.
   await relationship(id.role1, id.roled, 'Contains');
   await relationship(id.role2, id.roled, 'Contains');
   await relationship(id.plain, id.ownership, 'HasOwnership');
@@ -125,9 +122,8 @@ const assignment = (resourceId, principalId, type, { deleted = false } = {}) => 
    VALUES ($1,$2,$3,$4,$5)`,
   [resourceId, principalId, type, systemId, deleted ? new Date() : null]);
 
-async function rows(applications = APP_NAME) {
-  const res = await agent.get('/api/reports/application-access-review/rows')
-    .query({ applications });
+async function rows(contexts = APP_NAME, extra = { fields: FIELDS }) {
+  const res = await agent.get('/api/reports/application-access-review/rows').query({ contexts, ...extra });
   expect(res.status).toBe(200);
   return res.body;
 }
@@ -153,24 +149,19 @@ afterAll(async () => {
 });
 
 describe('GET /reports/application-access-review/rows', () => {
-  it('returns one row per entitlement of the named application, in section order', async () => {
+  it('returns one row per resource of the context, whatever its type, by name', async () => {
     const body = await rows();
-    // Action list, then information only, then what a role already manages.
     expect(body.rows.map(r => r.entitlement)).toEqual(['ENT_PLAIN', 'ENT_QUIET', 'ENT_ROLED']);
+    expect(rowFor(body, 'ENT_QUIET')['entitlement.type']).toBe('Group');
     expect(body.total).toBe(3);
     expect(body.truncated).toBe(false);
   });
 
-  it('assigns each of the three sections from the data, role membership winning', async () => {
+  it('serves the columns that were picked, in the order picked', async () => {
     const body = await rows();
-    expect(rowFor(body, 'ENT_PLAIN').section).toBe('requestable, not in a role');
-    expect(rowFor(body, 'ENT_QUIET').section).toBe('not requestable, not in a role');
-    // ENT_ROLED is requestable too; the Contains relationships override that.
-    expect(rowFor(body, 'ENT_ROLED')).toMatchObject({
-      section: 'part of a role',
-      requestable: 'Yes',
-      businessRoles: 'Ledger Clerk, Ledger Supervisor',
-    });
+    expect(body.columns.map(c => c.key)).toEqual([
+      'entitlement', ...FIELDS.split(','), 'businessRoles', 'directAssignments', 'viaRoleAssignments',
+    ]);
   });
 
   it('counts distinct holders per column and ignores a soft-deleted assignment', async () => {
@@ -178,38 +169,31 @@ describe('GET /reports/application-access-review/rows', () => {
     // Holder A (direct + indirect) and Holder B (direct) — the deleted row for
     // the owner must not raise directAssignments to 3.
     expect(rowFor(body, 'ENT_PLAIN')).toMatchObject({ directAssignments: 2, viaRoleAssignments: 1 });
-    expect(rowFor(body, 'ENT_ROLED')).toMatchObject({ directAssignments: 0, viaRoleAssignments: 1 });
-    expect(rowFor(body, 'ENT_QUIET')).toMatchObject({ directAssignments: 0, viaRoleAssignments: 0 });
+    expect(rowFor(body, 'ENT_ROLED')).toMatchObject({
+      directAssignments: 0, viaRoleAssignments: 1, businessRoles: 'Ledger Clerk, Ledger Supervisor',
+    });
+    expect(rowFor(body, 'ENT_QUIET')).toMatchObject({ directAssignments: 0, viaRoleAssignments: 0, businessRoles: null });
   });
 
   it('resolves the entitlement owner through the ownership resource to a person', async () => {
     const body = await rows();
     expect(rowFor(body, 'ENT_PLAIN')).toMatchObject({
-      entitlementOwner: 'Owner Person', entitlementOwnerEmail: 'owner@example.com',
+      'entitlement.owner': 'Owner Person', 'entitlement.ownerEmail': 'owner@example.com',
     });
-    // The ownership resource itself is not an entitlement, so it is not a row.
+    // The ownership resource itself is not a member, so it is not a row.
     expect(body.rows.filter(r => r.entitlement === 'ENT_PLAIN')).toHaveLength(1);
-    expect(rowFor(body, 'ENT_QUIET').entitlementOwner).toBeNull();
+    expect(rowFor(body, 'ENT_QUIET')['entitlement.owner']).toBeNull();
   });
 
-  it('carries the application context, with the owner resolved by employee number', async () => {
+  it('reads the picked attributes of the context and of the resource as stored', async () => {
     const body = await rows();
     expect(rowFor(body, 'ENT_PLAIN')).toMatchObject({
-      application: APP_NAME,
-      applicationDescription: 'Ledger of record',
-      applicationOwner: 'Owner Person',
-      abbreviation: 'CLA',
-      cmdbReference: 'CI-1',
-      connectionType: 'SaaS',
-      onboardingSector: 'Sector Q',
+      'context.name': APP_NAME,
+      'context.owner': 'Owner Person',
+      'context.ext.cmdbReference': 'CI-1',
+      'entitlement.ext.certfrequency': 'Quarterly',
     });
-  });
-
-  it('shows an unset frequency as a value and reports the misspelling next to it', async () => {
-    const body = await rows();
-    expect(rowFor(body, 'ENT_QUIET').certificationFrequency).toBe('Not set');
-    expect(rowFor(body, 'ENT_ROLED').certificationFrequency).toBe('Quaterly');
-    expect(noticeText(body)).toMatch(/near-duplicate spellings: "Quarterly" \/ "Quaterly"/);
+    expect(rowFor(body, 'ENT_QUIET')['entitlement.ext.certfrequency']).toBeNull();
   });
 
   it('summarises the scope with numbers taken from the real rows', async () => {
@@ -222,67 +206,87 @@ describe('GET /reports/application-access-review/rows', () => {
     expect(text).toMatch(/33\.3% of entitlements are part of a business role \(1 of 3\)/);
   });
 
-  it('matches the application by id as well as by name', async () => {
-    const body = await rows(id.app);
-    expect(body.total).toBe(3);
+  it('matches a context by id as well as by name, and takes a context of any type', async () => {
+    expect((await rows(id.app)).total).toBe(3);
+    expect((await rows(SECOND_NAME)).rows.map(r => r.entitlement)).toEqual(['ENT_ARCHIVE']);
   });
 
-  it('says so when a name matches no application, rather than returning an empty table', async () => {
+  it('still answers to the parameter\'s old name', async () => {
+    const res = await agent.get('/api/reports/application-access-review/rows').query({ applications: APP_NAME });
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(3);
+  });
+
+  it('says so when a name matches no context, rather than returning an empty table', async () => {
     const body = await rows('No Such Application');
     expect(body.rows).toEqual([]);
-    expect(noticeText(body)).toMatch(/No logical application matches "No Such Application"/);
+    expect(noticeText(body)).toMatch(/No context of resources matches "No Such Application"/);
   });
 });
 
 describe('GET /reports/application-access-review/export', () => {
-  it('serves the rows as CSV with the declared columns and no notices', async () => {
+  it('serves the rows as CSV with the picked columns and no notices', async () => {
     const res = await agent.get('/api/reports/application-access-review/export')
-      .query({ applications: APP_NAME, format: 'csv' });
+      .query({ contexts: APP_NAME, fields: 'entitlement.ext.costcentercode', format: 'csv' });
 
     expect(res.status).toBe(200);
     const [header, ...lines] = res.text.split('\r\n');
-    expect(header).toContain('"Users assigned directly","Users assigned via a role"');
+    expect(header).toBe(
+      '"Entitlement","costcentercode","Context","Entitlement owner",'
+      + '"Granted by role(s)","Users assigned directly","Users assigned via a role"');
     expect(lines).toHaveLength(3);
     expect(res.text).toContain('"Ledger Clerk, Ledger Supervisor"');
-    expect(res.text).toContain('"Not set"');
+    expect(res.text).toContain('"4410"');
   });
 
-  /** One tab of the workbook a run over `applications` produces. */
-  async function workbookFor(applications, tab = 'Data') {
-    const res = await asBinary(
-      agent.get('/api/reports/application-access-review/export').query({ applications, format: 'xlsx' }));
+  /** One tab of the workbook a run over `contexts` produces. */
+  async function workbookFor(contexts, tab = 'Data', extra = {}) {
+    const res = await asBinary(agent.get('/api/reports/application-access-review/export')
+      .query({ contexts, fields: FIELDS, format: 'xlsx', ...extra }));
     expect(res.status).toBe(200);
     return sheetNamed(res.body, tab);
   }
 
-  it('opens the workbook with the application, and keeps in the table only what the pivots need', async () => {
-    // The Summary tab: what the application IS, before the entitlements.
+  it('opens the workbook with the context, and keeps in the table only what the pivots need', async () => {
     const block = {};
     (await workbookFor(APP_NAME, 'Summary')).eachRow(row => {
       const label = row.getCell(1).value;
       if (typeof label === 'string' && !(label in block)) block[label] = row.getCell(2).value;
     });
-    expect(block.Application).toBe(APP_NAME);
-    expect(block['Application owner']).toBe('Owner Person');
-    expect(block['Application description']).toBe('Ledger of record');
-    expect(block['CMDB reference']).toBe('CI-1');
-    expect(block['Connection type']).toBe('SaaS');
-    expect(block['Onboarding sector']).toBe('Sector Q');
+    expect(block.Context).toBe(APP_NAME);
+    expect(block['Context owner']).toBe('Owner Person');
+    expect(block['Context · cmdbReference']).toBe('CI-1');
 
-    // …and the table carries what varies per entitlement, plus the two
-    // one-value columns the owner pivot is built on — the description, CMDB
-    // reference and the rest are stated once on the Summary tab and nowhere else.
+    // The default pivot rows are the context and the entitlement owner, so the
+    // context name stays in the table as well; the CMDB reference does not.
     expect(headerLabels(await workbookFor(APP_NAME), 'Entitlement')).toEqual([
-      'Entitlement', 'Section', 'Requestable', 'Certification frequency',
-      'Entitlement owner', 'Entitlement owner email', 'Granted by role(s)',
-      'Users assigned directly', 'Users assigned via a role', 'Application', 'Application owner',
+      'Entitlement', 'Context', 'Resource type', 'certfrequency', 'Entitlement owner',
+      'Entitlement owner email', 'Granted by role(s)', 'Users assigned directly', 'Users assigned via a role',
     ]);
   });
 
-  it('keeps the application on every row when the run covers more than one', async () => {
-    const labels = headerLabels(await workbookFor(`${APP_NAME},${SECOND_APP_NAME}`), 'Entitlement');
-    // They vary per row now, so they stay in the table and there is no block.
-    expect(labels).toContain('Application');
-    expect(labels).toContain('CMDB reference');
+  it('builds the pivots on the fields picked for them', async () => {
+    const res = await asBinary(agent.get('/api/reports/application-access-review/export').query({
+      contexts: APP_NAME, fields: 'entitlement.type', format: 'xlsx',
+      pivotRows: 'entitlement.ext.certfrequency', pivotFilters: 'entitlement.type',
+    }));
+    expect(res.status).toBe(200);
+    const zip = await JSZip.loadAsync(res.body);
+    const read = path => zip.file(path).async('string');
+    // Field names in cache order, then the indexes each axis of pivot 1 uses.
+    const names = [...(await read('xl/pivotCache/pivotCacheDefinition1.xml')).matchAll(/<cacheField name="([^"]*)"/g)]
+      .map(m => m[1]);
+    const table = await read('xl/pivotTables/pivotTable1.xml');
+    const rowBlock = /<rowFields[^>]*>(.*?)<\/rowFields>/.exec(table)?.[1] ?? '';
+    const pageBlock = /<pageFields[^>]*>(.*?)<\/pageFields>/.exec(table)?.[1] ?? '';
+    const named = (block, pattern) => [...block.matchAll(pattern)].map(m => names[Number(m[1])]);
+    expect(named(rowBlock, /<field x="(\d+)"/g)).toEqual(['certfrequency', 'Entitlement']);
+    expect(named(pageBlock, /fld="(\d+)"/g)).toEqual(['Resource type', 'Users assigned via a role']);
+  });
+
+  it('keeps the context on every row when the run covers more than one', async () => {
+    const labels = headerLabels(await workbookFor(`${APP_NAME},${SECOND_NAME}`), 'Entitlement');
+    expect(labels).toContain('Context');
+    expect(labels).toContain('Context · cmdbReference');
   });
 });

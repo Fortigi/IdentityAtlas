@@ -256,6 +256,55 @@ describe('GET /api/reports/:name/export', () => {
     }
   });
 
+  it('serves the columns and pivots a run chose over the ones the template declared', async () => {
+    // A report whose columns the reader picks only knows them once it has run.
+    // The declaration has a column the run dropped and lacks one it added, so a
+    // route that kept the metadata — or merged the two — fails both ways.
+    const picked = registerReport({
+      name: 'picked-report',
+      displayName: 'Picked Report',
+      form: 'list',
+      columns: [{ key: 'thing', label: 'Thing' }, { key: 'declared', label: 'Declared' }],
+      pivots: [{ name: 'Declared pivot', rows: ['declared'], values: [] }],
+      run: async () => ({
+        rows: [{ thing: 'widget', chosen: 'yes' }],
+        columns: [{ key: 'thing', label: 'Thing' }, { key: 'chosen', label: 'Chosen' }],
+        pivots: [{ name: 'Chosen pivot', rows: ['chosen'], values: [] }],
+      }),
+    });
+    try {
+      const rows = await request(app).get('/api/reports/picked-report/rows').expect(200);
+      expect(rows.body.columns.map(c => c.key)).toEqual(['thing', 'chosen']);
+      expect(rows.body.pivots.map(p => p.name)).toEqual(['Chosen pivot']);
+      // …and the download follows the run too: it is the same payload.
+      const csv = await request(app).get('/api/reports/picked-report/export?format=csv').expect(200);
+      expect(csv.text).toBe('"Thing","Chosen"\r\n"widget","yes"');
+      // The listing still describes the report as declared — nothing has run.
+      const list = await request(app).get('/api/reports').expect(200);
+      expect(list.body.data.find(r => r.name === 'picked-report').columns.map(c => c.key)).toEqual(['thing', 'declared']);
+    } finally {
+      picked();
+    }
+  });
+
+  it('keeps the declared columns and pivots when a run returns something that is not a list', async () => {
+    const odd = registerReport({
+      name: 'odd-report',
+      displayName: 'Odd Report',
+      form: 'list',
+      columns: [{ key: 'thing', label: 'Thing' }],
+      pivots: [{ name: 'Declared pivot', rows: ['thing'], values: [] }],
+      run: async () => ({ rows: [{ thing: 'widget' }], columns: 'thing', pivots: {} }),
+    });
+    try {
+      const rows = await request(app).get('/api/reports/odd-report/rows').expect(200);
+      expect(rows.body.columns).toEqual([{ key: 'thing', label: 'Thing' }]);
+      expect(rows.body.pivots.map(p => p.name)).toEqual(['Declared pivot']);
+    } finally {
+      odd();
+    }
+  });
+
   it('defaults the run-constant columns to an empty list for a template that says nothing', async () => {
     const rows = await request(app).get('/api/reports/downloadable-report/rows').expect(200);
     expect(rows.body.constantColumns).toEqual([]);

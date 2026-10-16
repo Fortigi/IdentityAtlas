@@ -18,7 +18,16 @@ const INPUT_CLASS = 'w-full text-sm px-2 py-1.5 rounded border border-gray-300 d
  * One editable input for a single JSON-schema property. Exported for callers
  * that need a single field outside a full form.
  */
-export function FieldInput({ prop, value, onChange, id }) {
+/**
+ * The form values a lookup said it depends on (`x-lookupDependsOn`), picked out
+ * of the whole form so the lookup sees those and nothing else.
+ */
+export function lookupDependencies(prop, params) {
+  const keys = Array.isArray(prop?.['x-lookupDependsOn']) ? prop['x-lookupDependsOn'] : [];
+  return Object.fromEntries(keys.map(key => [key, params?.[key]]));
+}
+
+export function FieldInput({ prop, value, onChange, id, params }) {
   // `x-lookup` names a server-side lookup source, so a parameter that means an
   // ENTITY is picked from a list instead of typed from memory — and what gets
   // stored is that entity's id rather than a name that may match three of them.
@@ -33,6 +42,7 @@ export function FieldInput({ prop, value, onChange, id }) {
         onChange={(next) => onChange(next.length ? next : undefined)}
         inputId={id}
         placeholder={prop['x-lookupPlaceholder'] || 'Start typing…'}
+        dependsOn={lookupDependencies(prop, params)}
       />
     );
   }
@@ -99,7 +109,8 @@ export default function SchemaConfigForm({ schema, params, onChange, emptyHint, 
               {p.title || k}
             </label>
             {p.description && <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">{p.description}</p>}
-            <FieldInput id={id} prop={p} value={params[k]} onChange={(nv) => onChange({ ...params, [k]: nv })} />
+            <FieldInput id={id} prop={p} value={params[k]} params={params}
+              onChange={(nv) => onChange({ ...params, [k]: nv })} />
           </div>
         );
       })}

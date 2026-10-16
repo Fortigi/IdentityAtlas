@@ -5,8 +5,8 @@
 // caller owning the values.
 
 import { describe, it, expect, vi } from 'vitest';
-import { renderWithProviders, screen, fireEvent, makeAuthFetch } from '@ui/test-utils/renderWithProviders';
-import SchemaConfigForm, { FieldInput } from '@ui/components/SchemaConfigForm';
+import { renderWithProviders, screen, fireEvent, waitFor, makeAuthFetch } from '@ui/test-utils/renderWithProviders';
+import SchemaConfigForm, { FieldInput, lookupDependencies } from '@ui/components/SchemaConfigForm';
 
 const SCHEMA = {
   properties: {
@@ -175,7 +175,7 @@ describe('FieldInput', () => {
     renderWithProviders(
       <FieldInput
         id="apps"
-        prop={{ type: 'array', title: 'Applications', 'x-lookup': 'logical-applications' }}
+        prop={{ type: 'array', title: 'Contexts', 'x-lookup': 'resource-contexts' }}
         value={[]}
         onChange={() => {}}
       />,
@@ -221,5 +221,38 @@ describe('FieldInput', () => {
       { auth: { authFetch: makeAuthFetch({ '/api/lookups/': { source: 'x', q: '', data: [] } }) } },
     );
     expect(screen.getByText('a1')).toBeInTheDocument();
+  });
+
+  it('hands a lookup the other form values it depends on, from the whole form', async () => {
+    // The field picker of the access review offers the attributes of the
+    // contexts picked one field up — so the form, not the field, has to supply them.
+    const authFetch = makeAuthFetch({ '/api/lookups/': { source: 'x', q: '', data: [] } });
+    renderWithProviders(
+      <SchemaConfigForm
+        schema={{ properties: {
+          contexts: { type: 'array', 'x-lookup': 'resource-contexts' },
+          fields: { type: 'array', 'x-lookup': 'access-review-fields', 'x-lookupDependsOn': ['contexts'] },
+        } }}
+        params={{ contexts: ['c1'], fields: [] }}
+        onChange={() => {}}
+      />,
+      { auth: { authFetch } },
+    );
+    fireEvent.focus(screen.getAllByRole('combobox')[1]);
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/lookups\/access-review-fields\?q=&limit=50&contexts=c1$/)));
+    // The context picker depends on nothing, so it sends nothing extra.
+    expect(authFetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/lookups\/resource-contexts\?q=&limit=50$/));
+  });
+});
+
+describe('lookupDependencies', () => {
+  it('picks out exactly the values the property declared, and nothing without a declaration', () => {
+    const params = { contexts: ['c1'], fields: ['f1'], other: 'x' };
+    expect(lookupDependencies({ 'x-lookupDependsOn': ['contexts', 'missing'] }, params))
+      .toEqual({ contexts: ['c1'], missing: undefined });
+    expect(lookupDependencies({}, params)).toEqual({});
+    expect(lookupDependencies({ 'x-lookupDependsOn': 'contexts' }, params)).toEqual({});
+    expect(lookupDependencies({ 'x-lookupDependsOn': ['contexts'] }, undefined)).toEqual({ contexts: undefined });
   });
 });

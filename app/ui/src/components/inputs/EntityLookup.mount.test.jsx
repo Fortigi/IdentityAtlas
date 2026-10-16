@@ -4,10 +4,11 @@
 // that may match three of them, so the assertions are about what leaves the
 // component (`onChange`) as much as about what it draws.
 
+import { useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { renderWithProviders, screen, fireEvent, waitFor, makeAuthFetch, jsonResponse }
   from '@ui/test-utils/renderWithProviders';
-import EntityLookup, { disambiguate } from '@ui/components/inputs/EntityLookup';
+import EntityLookup, { dependencyQuery, disambiguate } from '@ui/components/inputs/EntityLookup';
 
 const OPTIONS = [
   { value: 'app-1', label: 'Ledger Engineering', hint: '16,387 members · Catalogue' },
@@ -143,6 +144,44 @@ describe('EntityLookup', () => {
     expect(screen.queryByText('Pick a thing')).not.toBeInTheDocument();
     rerender(<EntityLookup source="things" value={[]} onChange={() => {}} inputId="pick" label="Pick a thing" />);
     expect(screen.getByText('Pick a thing')).toBeInTheDocument();
+  });
+
+  it('sends the values it depends on with every search and every resolve', async () => {
+    // The fields of an access review follow the contexts picked; a search that
+    // left them off would offer every attribute in the deployment, or none.
+    const { authFetch } = mount({ value: ['app-2'], dependsOn: { contexts: ['c1', 'c2'] } });
+    fireEvent.focus(box());
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith(expect.stringMatching(/\?q=&limit=50&contexts=c1%2Cc2$/)));
+    expect(authFetch).toHaveBeenCalledWith(expect.stringMatching(/\?ids=app-2&contexts=c1%2Cc2$/));
+  });
+
+  it('searches again when a value it depends on changes, and not when it is merely rebuilt', async () => {
+    // A parent that rebuilds the dependency object on every render, as a form does.
+    function Harness() {
+      const [contexts, setContexts] = useState(['c1']);
+      return (
+        <>
+          <button type="button" onClick={() => setContexts(['c1'])}>same</button>
+          <button type="button" onClick={() => setContexts(['c1', 'c3'])}>more</button>
+          <EntityLookup source="things" value={[]} onChange={() => {}} inputId="pick" dependsOn={{ contexts }} />
+        </>
+      );
+    }
+    const { authFetch } = renderWithProviders(<Harness />, { auth: { authFetch: lookupFetch() } });
+    await waitFor(() => expect(authFetch).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'same' }));
+    fireEvent.click(screen.getByRole('button', { name: 'more' }));
+    await waitFor(() => expect(authFetch).toHaveBeenCalledTimes(2));
+    expect(authFetch).toHaveBeenLastCalledWith(expect.stringContaining('contexts=c1%2Cc3'));
+  });
+});
+
+describe('dependencyQuery', () => {
+  it('encodes each dependency as one comma-joined parameter, leaving out empty ones', () => {
+    expect(dependencyQuery({ contexts: ['a b', 'c&d'], other: 'x', none: [], unset: undefined }))
+      .toBe('&contexts=a%20b%2Cc%26d&other=x');
+    expect(dependencyQuery(undefined)).toBe('');
   });
 });
 

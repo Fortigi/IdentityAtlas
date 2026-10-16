@@ -1,267 +1,186 @@
-// Access review pack for a logical application owner.
+// Access review pack: the entitlements a context holds, and who holds them.
 //
-// A logical application owner is accountable for who can reach their
-// application. They do not run the review themselves: they decide, per
-// entitlement, whether it is worth reviewing and how often, and who the
-// entitlement owner is. The entitlement owner then approves or denies the
-// assignments. This report is what that first conversation is held over.
+// An owner is accountable for who can reach "their" thing — a logical
+// application, a department's file shares, everything tagged PCI. In Identity
+// Atlas that thing is a Context whose members are resources. This report lists
+// those resources, one row per entitlement, with how many people hold each one
+// directly and how many through a business role, and which roles those are.
+// When a role grants an entitlement, the role's policy manages who holds it, so
+// the split is what decides what an owner has to review — an entitlement with
+// one direct holder is almost always an admin or a service account, and "45,000
+// holders, 44,200 of them through roles" leads to the opposite decision from
+// "45,000 direct".
 //
-// Two distinctions decide what an owner looks at, and they are the reason the
-// rows carry a `section` rather than being three reports:
-//
-//   * Requestable or not. An entitlement people can ask for is one the owner
-//     has to make a decision about; one nobody can ask for is information.
-//   * Part of a business role or not. When a role grants an entitlement, the
-//     role's policy manages who holds it, so reviewing it at entitlement level
-//     reviews nothing. Role membership therefore WINS over requestable.
-//
-// The assignment counts are split Direct / Indirect on purpose. "45,000
-// assignments, 44,200 of them through roles" and "45,000 direct" lead to
-// opposite decisions, and an entitlement with one holder is almost always an
-// admin or service account. Splitting is the whole value of the column.
+// Everything else on the row is the reader's choice. The columns between the
+// entitlement and its counts are FIELDS picked when the report is run — the
+// context's own facts, the resource's, or any attribute either one's source
+// stored — and so are the rows and filters of the two pivot tables the xlsx
+// download opens with. Nothing here names a customer's attribute; see
+// ../accessReviewFields.js for what a field is.
 //
 // Measured shape this is designed for (a large IdentityIQ-style deployment):
 // ~800k entitlements, the largest single application ~39k of them, ~46M
-// assignments, 96.7% of entitlements with NO certification frequency, and a
-// dirty frequency vocabulary. Hence: export is the primary artefact, "Not set"
-// is a value rather than a blank, raw values are never normalised, and the
-// counts are set-based aggregates over an explicit id ARRAY rather than a CTE
-// sub-select the planner has to guess the size of. That last one is worth 12×
-// on measured data and needs no new index — see
-// docs/architecture/reports.md -> "Counting assignments at scale".
+// assignments. Hence: export is the primary artefact, and the counts are
+// set-based aggregates over an explicit id ARRAY rather than a CTE sub-select
+// the planner has to guess the size of. That last one is worth 12× on measured
+// data and needs no new index — see docs/architecture/reports.md -> "Counting
+// assignments at scale".
 
 import * as db from '../../db/connection.js';
 import { OWNERSHIP_RELATIONSHIP_TYPES_SQL, OWNERSHIP_TYPES_SQL } from '../../lib/ownershipTypes.js';
+import { MAX_LIST, parseList, resolveFields } from '../accessReviewFields.js';
+
+export { parseList };
 
 // The row cap. The largest application measured on a production catalogue holds
-// 39,072 entitlements; a request naming every application would otherwise pull
-// the whole catalogue into one response. A capped run says so (`truncated`),
-// because presenting the first N rows as the answer is the one thing a review
-// pack may not do.
+// 39,072 entitlements; a request naming every context would otherwise pull the
+// whole catalogue into one response. A capped run says so (`truncated`), because
+// presenting the first N rows as the answer is the one thing a review pack may
+// not do.
 export const MAX_ROWS = 50000;
 
-// The application's own facts, in the order an owner reads them. On a run over
-// ONE application every row repeats these eight values, so a format with a
-// header states them once there instead — the review pack an owner is handed
-// opens with what the application is, then lists its entitlements. On a run
-// over several they genuinely vary per row and stay in the table.
-//
-// Declared here rather than derived from the rows: a column can hold one
-// distinct value by accident (every entitlement in a small application being
-// non-requestable), and a serializer that guessed would delete a real column.
-const APPLICATION_COLUMNS = [
-  'application', 'applicationOwner', 'applicationDescription', 'cmdbReference',
-  'connectionType', 'onboardingSector', 'abbreviation', 'applicationManager',
+// A review is held per context; 500 is already far past any real request.
+export const MAX_CONTEXTS = MAX_LIST;
+
+// What a run shows when nobody picked anything: facts every deployment has.
+export const DEFAULT_FIELDS = ['context.name', 'entitlement.type', 'entitlement.system', 'entitlement.owner'];
+// The owner conversation's own breakdown: per context, per entitlement owner.
+export const DEFAULT_PIVOT_ROWS = ['context.name', 'entitlement.owner'];
+
+// The columns every run has, whatever was picked: what is being reviewed, and
+// the split that decides how. The picked fields go between them.
+const LEADING_COLUMNS = [{ key: 'entitlement', label: 'Entitlement' }];
+const TRAILING_COLUMNS = [
+  { key: 'businessRoles', label: 'Granted by role(s)' },
+  { key: 'directAssignments', label: 'Users assigned directly' },
+  { key: 'viaRoleAssignments', label: 'Users assigned via a role' },
 ];
 
-// The three mutually exclusive buckets, worded as the owner reads them.
-export const SECTION_REQUESTABLE = 'requestable, not in a role';
-export const SECTION_NOT_REQUESTABLE = 'not requestable, not in a role';
-export const SECTION_IN_ROLE = 'part of a role';
-
-// Screen order: what the owner must act on first, then the information-only
-// rows, then the ones a role already manages.
-const SECTION_ORDER = [SECTION_REQUESTABLE, SECTION_NOT_REQUESTABLE, SECTION_IN_ROLE];
-
-// A certification frequency that was never set. A first-class value, not a
-// blank cell: closing this gap is the point of the exercise, so it has to be
-// countable and filterable in the export.
-export const FREQUENCY_NOT_SET = 'Not set';
-
-// Two frequency spellings this close apart are the same intent typed twice
-// ('Quarterly' / 'Quaterly'). Anything further apart is left alone — 'Monthly'
-// and 'Annually' are not a data-quality problem.
-const NEAR_DUPLICATE_DISTANCE = 2;
-
-// House rule for every array input (CLAUDE.md -> app/api -> Input validation).
-// A review is held per application; 500 names is already far past any real
-// request and well short of a query no planner can parse.
-export const MAX_APPLICATIONS = 500;
+const FIELD_LOOKUP = {
+  'x-lookup': 'access-review-fields',
+  // The attributes on offer are the ones the picked contexts actually carry.
+  'x-lookupDependsOn': ['contexts'],
+  'x-lookupPlaceholder': 'Search fields and attributes…',
+};
 
 /**
- * A list parameter, however it arrived: `?applications=a,b` is one string,
- * `applications[]=a&applications[]=b` is an array, and the form sends the
- * comma-joined form. Blank entries are dropped rather than matched, and the
- * list is capped — the parameter is user input reaching a query.
+ * The run's columns and pivots from the fields it was asked for.
+ *
+ * A pivot can only read what the table holds, so a field used in a pivot is a
+ * column even when it was not picked as one. One field cannot sit on two axes
+ * of one pivot, so a filter that is also a row of that pivot is left off it.
  */
-export function parseList(value, max = MAX_APPLICATIONS) {
-  const parts = Array.isArray(value) ? value : String(value ?? '').split(',');
-  return parts.map(v => String(v ?? '').trim()).filter(Boolean).slice(0, max);
-}
-
-/**
- * Whether a source's `requestable` attribute means yes. Sources write this as a
- * SQL bit (1/0), a boolean, or a string, so a bare truthiness test would call
- * the string "0" requestable. Anything unrecognised is NOT requestable, which
- * is the safe default: it puts the entitlement in the information-only section
- * instead of on the owner's action list.
- */
-export function isRequestable(value) {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value !== 0;
-  const text = String(value ?? '').trim().toLowerCase();
-  return text === '1' || text === 'true' || text === 'y' || text === 'yes';
-}
-
-/**
- * The certification frequency exactly as the source stores it, or `Not set`.
- * Deliberately NOT normalised: an owner who typed a value has to see the value
- * they typed, misspelling included, or they cannot correct it. The near-
- * duplicate spellings are reported separately, as a notice.
- */
-export function certificationFrequency(value) {
-  const text = String(value ?? '').trim();
-  return text || FREQUENCY_NOT_SET;
-}
-
-/** Levenshtein distance, capped: only used on the handful of distinct frequency values. */
-export function editDistance(a, b) {
-  if (a === b) return 0;
-  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= a.length; i++) {
-    const row = [i];
-    for (let j = 1; j <= b.length; j++) {
-      row[j] = Math.min(
-        prev[j] + 1,
-        row[j - 1] + 1,
-        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
-      );
-    }
-    prev = row;
+export function buildLayout({ fields, pivotRows, pivotFilters }) {
+  const picked = [...fields];
+  for (const field of [...pivotRows, ...pivotFilters]) {
+    if (!picked.some(f => f.key === field.key)) picked.push(field);
   }
-  return prev[b.length];
-}
+  const columns = [...LEADING_COLUMNS, ...picked.map(({ key, label }) => ({ key, label })), ...TRAILING_COLUMNS];
 
-/**
- * Pairs of stored frequency values that differ only by a typo or by case, as
- * `"a" / "b"` strings. `Not set` never pairs with anything — it is this
- * report's own word, not a stored value.
- */
-export function nearDuplicateFrequencies(values) {
-  const distinct = [...new Set(values)].filter(v => v !== FREQUENCY_NOT_SET).sort();
-  const pairs = [];
-  for (let i = 0; i < distinct.length; i++) {
-    for (let j = i + 1; j < distinct.length; j++) {
-      const a = distinct[i];
-      const b = distinct[j];
-      const same = a.toLowerCase() === b.toLowerCase();
-      if (same || editDistance(a.toLowerCase(), b.toLowerCase()) <= NEAR_DUPLICATE_DISTANCE) {
-        pairs.push(`"${a}" / "${b}"`);
-      }
-    }
-  }
-  return pairs;
-}
-
-/** `n` as a share of `total`, one decimal, or 0 when there is nothing to divide. */
-export function percentage(n, total) {
-  return total > 0 ? Math.round((n / total) * 1000) / 10 : 0;
-}
-
-/**
- * The first of `keys` the object actually carries, as a trimmed string or null.
- * The catalogue field names are deployment-specific — one installation writes
- * `onboardingArea`, another `onboardingSector` — so each is read through the
- * spellings that have been seen rather than one guess that silently returns
- * nothing.
- */
-export function pickAttribute(attrs, keys) {
-  for (const key of keys) {
-    const value = attrs?.[key];
-    const text = value === null || value === undefined ? '' : String(value).trim();
-    if (text) return text;
-  }
-  return null;
-}
-
-// How one row's section is decided. Exported so the rule is testable without a
-// database: role membership wins, and only then does requestable split the rest.
-export function sectionFor({ roles, requestable }) {
-  if (roles) return SECTION_IN_ROLE;
-  return requestable ? SECTION_REQUESTABLE : SECTION_NOT_REQUESTABLE;
-}
-
-export default {
-  name: 'application-access-review',
-  displayName: 'Application Access Review',
-  description:
-    'One row per entitlement of a logical application, split into what the application owner '
-    + 'must review (requestable, not granted by a business role), what is information only, and '
-    + 'what a business role already manages. Carries the certification frequency and entitlement '
-    + 'owner as stored, and how many people hold the entitlement directly versus through a role.',
-  form: 'list',
-  parametersSchema: {
-    type: 'object',
-    required: ['applications'],
-    properties: {
-      applications: {
-        type: 'array',
-        title: 'Logical applications',
-        description: 'Pick one or more. Picking from the list stores the application\'s id, so a '
-          + 'name shared by several applications can no longer select all of them by accident.',
-        // Offered as a searchable list rather than typed from memory. The value
-        // is still an array of strings, so a hand-written URL and an older
-        // bookmark keep working — see app/api/src/lookups/.
-        'x-lookup': 'logical-applications',
-        'x-lookupPlaceholder': 'Search logical applications…',
-      },
-    },
-  },
-  columns: [
-    { key: 'entitlement', label: 'Entitlement' },
-    { key: 'section', label: 'Section' },
-    { key: 'requestable', label: 'Requestable' },
-    { key: 'certificationFrequency', label: 'Certification frequency' },
-    { key: 'entitlementOwner', label: 'Entitlement owner' },
-    { key: 'entitlementOwnerEmail', label: 'Entitlement owner email' },
-    { key: 'businessRoles', label: 'Granted by role(s)' },
-    { key: 'directAssignments', label: 'Users assigned directly' },
-    { key: 'viaRoleAssignments', label: 'Users assigned via a role' },
-    { key: 'application', label: 'Application' },
-    { key: 'applicationDescription', label: 'Application description' },
-    { key: 'applicationOwner', label: 'Application owner' },
-    { key: 'abbreviation', label: 'Abbreviation' },
-    { key: 'cmdbReference', label: 'CMDB reference' },
-    { key: 'connectionType', label: 'Connection type' },
-    { key: 'onboardingSector', label: 'Onboarding sector' },
-    { key: 'applicationManager', label: 'Application manager' },
-  ],
-  // The two views every owner conversation builds by hand from the export: who
-  // holds what directly, broken down by owner and certification frequency, and
-  // what the business roles hand out.
-  pivots: [
+  const rowKeys = pivotRows.map(f => f.key);
+  const filterKeys = pivotFilters.map(f => f.key);
+  const directRows = [...rowKeys, 'entitlement'];
+  const roleRows = ['businessRoles', 'entitlement'];
+  const pivots = [
     {
+      // `viaRoleAssignments` as a filter answers "which of these does no role
+      // hand out" — pick 0 — without leaving the pivot.
       name: 'Direct assignments',
-      filters: ['requestable', 'viaRoleAssignments'],
-      rows: ['applicationOwner', 'application', 'entitlementOwner', 'certificationFrequency', 'entitlement'],
+      filters: [...filterKeys, 'viaRoleAssignments'].filter(k => !directRows.includes(k)),
+      rows: directRows,
       values: ['directAssignments'],
     },
     {
       name: 'Assignments via roles',
-      filters: ['viaRoleAssignments'],
-      rows: ['businessRoles', 'entitlement'],
+      filters: filterKeys.filter(k => !roleRows.includes(k)),
+      rows: roleRows,
       values: ['viaRoleAssignments'],
     },
-  ],
+  ];
+  return { fields: picked, columns, pivots };
+}
+
+// What a run with every parameter left at its default looks like — declared as
+// the report's metadata, so the list page and an untouched run agree.
+const DEFAULT_LAYOUT = buildLayout({
+  fields: resolveFields(DEFAULT_FIELDS).fields,
+  pivotRows: resolveFields(DEFAULT_PIVOT_ROWS).fields,
+  pivotFilters: [],
+});
+
+export default {
+  name: 'application-access-review',
+  displayName: 'Access Review',
+  description:
+    'One row per entitlement of one or more contexts — a logical application, a department\'s '
+    + 'resources, a tag — with how many people hold it directly and how many through a business '
+    + 'role. You choose the columns, and the rows and filters of the two pivot tables the Excel '
+    + 'download opens with.',
+  form: 'list',
+  parametersSchema: {
+    type: 'object',
+    required: ['contexts'],
+    properties: {
+      contexts: {
+        type: 'array',
+        title: 'Contexts',
+        description: 'Whose resources to review. Any context of resources works: a logical application, '
+          + 'a department, a tag. Picking from the list stores the context\'s id, so a name shared by '
+          + 'several contexts cannot select all of them by accident.',
+        'x-lookup': 'resource-contexts',
+        'x-lookupPlaceholder': 'Search contexts…',
+      },
+      fields: {
+        type: 'array',
+        title: 'Columns',
+        description: 'Shown between the entitlement and its assignment counts, in the order picked. '
+          + 'The attributes on offer are the ones the picked contexts and their resources carry.',
+        default: DEFAULT_FIELDS,
+        ...FIELD_LOOKUP,
+      },
+      pivotRows: {
+        type: 'array',
+        title: 'Pivot rows (Excel)',
+        description: 'How the "Direct assignments" pivot is broken down, outermost first. The '
+          + 'entitlement is always the innermost row.',
+        default: DEFAULT_PIVOT_ROWS,
+        ...FIELD_LOOKUP,
+      },
+      pivotFilters: {
+        type: 'array',
+        title: 'Pivot filters (Excel)',
+        description: 'Fields both pivots can be filtered on.',
+        default: [],
+        ...FIELD_LOOKUP,
+      },
+    },
+  },
+  columns: DEFAULT_LAYOUT.columns,
+  pivots: DEFAULT_LAYOUT.pivots,
 
   async run(params, ctx) {
-    const wanted = parseList(params?.applications);
-    if (wanted.length === 0) return noApplicationsNamed();
+    // `applications` is what the parameter was called while this report only
+    // knew logical applications; a bookmark from then still opens.
+    const wanted = parseList(params?.contexts ?? params?.applications, MAX_CONTEXTS);
+    if (wanted.length === 0) return noContextsNamed();
 
-    const apps = await resolveApplications(wanted);
-    const notices = applicationNotices(wanted, apps);
-    if (apps.length === 0) return { rows: [], notices };
+    const picks = fieldParameters(params);
+    const layout = buildLayout(picks);
+    const contexts = await resolveContexts(wanted);
+    const notices = [...contextNotices(wanted, contexts), ...picks.notices];
+    const shape = { columns: layout.columns, pivots: layout.pivots };
+    if (contexts.length === 0) return { rows: [], notices, ...shape };
 
-    const entitlements = await fetchEntitlements(apps.map(a => a.id));
+    const entitlements = await fetchEntitlements(contexts.map(c => c.id));
     const truncated = entitlements.length > MAX_ROWS;
     const capped = truncated ? entitlements.slice(0, MAX_ROWS) : entitlements;
     if (capped.length === 0) {
       notices.push({
         severity: 'info',
-        text: `${describe(apps)} has no entitlements loaded. Either nothing has been synced for it `
-          + 'yet, or its entitlements are not members of the application context.',
+        text: `${describe(contexts)} has no resources as members. Either nothing has been synced for it `
+          + 'yet, or it groups something other than resources.',
       });
-      return { rows: [], notices };
+      return { rows: [], notices, ...shape };
     }
 
     const ids = capped.map(e => e.id);
@@ -269,51 +188,86 @@ export default {
       fetchAssignmentCounts(ids), fetchRoles(ids), fetchOwners(ids), fetchUserTotal(ids),
     ]);
 
-    const byApp = new Map(apps.map(a => [a.id, a]));
-    const rows = capped.map(e => buildRow(e, byApp.get(e.appId), counts, roles, owners));
-    rows.sort(compareRows);
+    const byContext = new Map(contexts.map(c => [c.id, c]));
+    const rows = capped
+      .map(e => ({
+        entitlement: e,
+        context: byContext.get(e.contextId),
+        count: counts.get(e.id),
+        roles: roles.get(e.id) || null,
+        owner: owners.get(e.id),
+      }))
+      .sort(compareSources)
+      .map(source => buildRow(layout.fields, source));
 
     const eligible = [...counts.values()].reduce((sum, c) => sum + (c.eligible || 0), 0);
-    notices.push(...summaries(rows, { users, eligible }, apps, owners));
+    notices.push(...summaries(rows, { users, eligible }, contexts, owners));
+    notices.push(...emptyFieldNotices(rows, layout.fields));
     if (truncated) {
       notices.push({
         severity: 'warning',
-        text: `${describe(apps)} holds ${entitlements.length.toLocaleString('en-US')} entitlements; this `
-          + `run shows the first ${MAX_ROWS.toLocaleString('en-US')}. Run it per application to see all of them.`,
+        text: `${describe(contexts)} holds ${entitlements.length.toLocaleString('en-US')} entitlements; this `
+          + `run shows the first ${MAX_ROWS.toLocaleString('en-US')}. Run it per context to see all of them.`,
       });
     }
 
-    ctx?.log?.(`application-access-review report: ${rows.length} entitlement(s) across ${apps.length} application(s)`);
-    // One application resolved — not one NAME asked for. A name that matches
-    // three contexts resolves to three, and their details differ per row.
-    return {
-      rows, notices, truncated,
-      constantColumns: apps.length === 1 ? APPLICATION_COLUMNS : [],
-    };
+    ctx?.log?.(`access review report: ${rows.length} entitlement(s) across ${contexts.length} context(s)`);
+    // One context resolved — not one NAME asked for. A name that matches three
+    // contexts resolves to three, and their details differ per row.
+    const constantColumns = contexts.length === 1
+      ? layout.fields.filter(f => f.key.startsWith('context.')).map(f => f.key)
+      : [];
+    return { rows, notices, truncated, constantColumns, ...shape };
   },
 };
 
-// ─── Resolving the applications ───────────────────────────────────────────
+// ─── Parameters ───────────────────────────────────────────────────────────
 
-// A logical application is a Context, so the parameter is matched against the
-// two things a person can reasonably have to hand: the name they see, and the
-// id a deep link carries. Name matching is case-insensitive because a catalogue
-// and the people reading it never agree on capitals.
-async function resolveApplications(wanted) {
+/**
+ * The three field lists a run was given, resolved — each falling back to its
+ * default when it was not sent — plus a warning naming any key that is not a
+ * field. A key like that comes from an old bookmark or a hand-edited URL; it is
+ * left out rather than failing the run.
+ */
+export function fieldParameters(params) {
+  const list = (value, fallback) => {
+    const keys = parseList(value);
+    return keys.length ? keys : fallback;
+  };
+  const fields = resolveFields(list(params?.fields, DEFAULT_FIELDS));
+  const pivotRows = resolveFields(list(params?.pivotRows, DEFAULT_PIVOT_ROWS));
+  const pivotFilters = resolveFields(list(params?.pivotFilters, []));
+  const unknown = [...new Set([...fields.unknown, ...pivotRows.unknown, ...pivotFilters.unknown])];
+  return {
+    fields: fields.fields,
+    pivotRows: pivotRows.fields,
+    pivotFilters: pivotFilters.fields,
+    notices: unknown.length
+      ? [{ severity: 'warning', text: `Left out ${unknown.map(k => `"${k}"`).join(', ')}: not a field this report knows.` }]
+      : [],
+  };
+}
+
+// ─── Resolving the contexts ───────────────────────────────────────────────
+
+// Any context whose members are resources. Matched against the two things a
+// person can reasonably have to hand: the name they see, and the id a picker or
+// a deep link carries. Name matching is case-insensitive because a catalogue and
+// the people reading it never agree on capitals.
+async function resolveContexts(wanted) {
   const names = wanted.map(w => w.toLowerCase());
   const { rows } = await db.query(
-    `SELECT c.id, c."displayName", c.description, c."ownerUserId", c."extendedAttributes",
-            p."displayName" AS "ownerName", p.email AS "ownerEmail"
+    `SELECT c.id, c."displayName", c."contextType", c.description, c."ownerUserId", c."extendedAttributes",
+            p."displayName" AS "ownerName"
        FROM "Contexts" c
        LEFT JOIN LATERAL (
-            SELECT pr."displayName", pr.email
+            SELECT pr."displayName"
               FROM "Principals" pr
              WHERE pr."deletedAt" IS NULL
                AND (pr."externalId" = c."ownerUserId" OR pr."employeeId" = c."ownerUserId")
              ORDER BY (pr."externalId" = c."ownerUserId") DESC
              LIMIT 1) p ON TRUE
-      WHERE c."contextType" = 'LogicalApplication'
-        AND c."targetType" = 'Resource'
+      WHERE c."targetType" = 'Resource'
         AND (lower(c."displayName") = ANY($1::text[]) OR c.id::text = ANY($1::text[]))
       ORDER BY c."displayName"`, [names]);
   return rows;
@@ -322,45 +276,45 @@ async function resolveApplications(wanted) {
 // What the run could not do with what it was given. Both cases are warnings
 // rather than silence: an empty table is indistinguishable from "that name is
 // spelled differently in the catalogue".
-function applicationNotices(wanted, apps) {
+function contextNotices(wanted, contexts) {
   const notices = [];
-  const found = new Set(apps.flatMap(a => [a.displayName.toLowerCase(), a.id.toLowerCase()]));
+  const found = new Set(contexts.flatMap(c => [c.displayName.toLowerCase(), c.id.toLowerCase()]));
   const missing = wanted.filter(w => !found.has(w.toLowerCase()));
   if (missing.length) {
     notices.push({
       severity: 'warning',
-      text: `No logical application matches ${missing.map(m => `"${m}"`).join(', ')}. `
-        + 'Check the spelling against the Contexts page, or name the application by its id.',
+      text: `No context of resources matches ${missing.map(m => `"${m}"`).join(', ')}. `
+        + 'Check the spelling against the Contexts page, or pick it from the list.',
     });
   }
   const counted = new Map();
-  for (const a of apps) {
-    const key = a.displayName.toLowerCase();
+  for (const c of contexts) {
+    const key = c.displayName.toLowerCase();
     counted.set(key, (counted.get(key) || 0) + 1);
   }
   const ambiguous = [...counted].filter(([, n]) => n > 1).map(([name]) => name);
   if (ambiguous.length) {
     notices.push({
       severity: 'warning',
-      text: `${ambiguous.length} name(s) match more than one logical application `
-        + `(${ambiguous.join(', ')}); all of them are included. Name the application by its id to pick one.`,
+      text: `${ambiguous.length} name(s) match more than one context `
+        + `(${ambiguous.join(', ')}); all of them are included. Pick from the list to choose one.`,
     });
   }
   return notices;
 }
 
-function noApplicationsNamed() {
+function noContextsNamed() {
   return {
     rows: [],
     notices: [{
       severity: 'info',
-      text: 'Name one or more logical applications to review. A run over every application at once '
-        + 'is not offered: an access review is held per application, with its owner.',
+      text: 'Pick one or more contexts to review. A run over every context at once is not offered: '
+        + 'an access review is held per context, with its owner.',
     }],
   };
 }
 
-const describe = apps => (apps.length === 1 ? `"${apps[0].displayName}"` : `${apps.length} applications`);
+const describe = contexts => (contexts.length === 1 ? `"${contexts[0].displayName}"` : `${contexts.length} contexts`);
 
 // ─── The five data reads ─────────────────────────────────────────────────
 
@@ -369,17 +323,21 @@ const describe = apps => (apps.length === 1 ? `"${apps[0].displayName}"` : `${ap
 // row estimate for it, falls back to its default, picks a merge join and scans
 // the whole assignment table. Measured on the same 4.97M-row data, same result:
 // 12,478 ms as a CTE against 809 ms as an array.
-async function fetchEntitlements(appIds) {
+//
+// Any resource type: a context groups whatever its source put in it, and the
+// type is a column the reader can pick rather than a filter decided here.
+async function fetchEntitlements(contextIds) {
   const { rows } = await db.query(
-    `SELECT r.id, r."displayName", r."extendedAttributes", cm."contextId" AS "appId"
+    `SELECT r.id, r."displayName", r."resourceType", r.description, r."extendedAttributes",
+            s."displayName" AS "systemName", cm."contextId"
        FROM "ContextMembers" cm
        JOIN "Resources" r ON r.id = cm."memberId"
+       LEFT JOIN "Systems" s ON s.id = r."systemId"
       WHERE cm."contextId" = ANY($1::uuid[])
         AND cm."memberType" = 'Resource'
-        AND r."resourceType" = 'Entitlement'
         AND r."deletedAt" IS NULL
       ORDER BY r."displayName", r.id
-      LIMIT ${MAX_ROWS + 1}`, [appIds]);
+      LIMIT ${MAX_ROWS + 1}`, [contextIds]);
   return rows;
 }
 
@@ -412,7 +370,7 @@ async function fetchAssignmentCounts(ids) {
 
 // The business roles that contain each entitlement. An entitlement may sit in
 // several; all of them are named, because "which role do I talk to" is the
-// question a section-3 row exists to answer.
+// question that column exists to answer.
 async function fetchRoles(ids) {
   const { rows } = await db.query(
     `SELECT rr."childResourceId" AS id, string_agg(DISTINCT br."displayName", ', ') AS "roles"
@@ -490,94 +448,57 @@ async function fetchUserTotal(ids) {
 
 // ─── Shaping ──────────────────────────────────────────────────────────────
 
-function buildRow(entitlement, app, counts, roles, owners) {
-  const attrs = entitlement.extendedAttributes || {};
-  const count = counts.get(entitlement.id);
-  const owner = owners.get(entitlement.id);
-  const rolesFor = roles.get(entitlement.id) || null;
-  const requestable = isRequestable(attrs.requestable);
-
-  return {
-    entitlement: entitlement.displayName,
-    section: sectionFor({ roles: rolesFor, requestable }),
-    requestable: requestable ? 'Yes' : 'No',
-    certificationFrequency: certificationFrequency(attrs.certfrequency ?? attrs.certFrequency),
-    entitlementOwner: owner?.ownerName ?? null,
-    entitlementOwnerEmail: owner?.ownerEmail ?? null,
-    businessRoles: rolesFor,
-    directAssignments: count?.direct ?? 0,
-    viaRoleAssignments: count?.indirect ?? 0,
-    ...applicationColumns(app),
-    _entity: { kind: 'group', id: entitlement.id },
-  };
+/**
+ * One row: the entitlement, every picked field, then the role split.
+ *
+ * The context's picked facts repeat on every one of its rows on purpose: notices
+ * are screen-only, and the CSV is the artefact that gets mailed to someone with
+ * no access to this screen. A file that does not say what it describes is not
+ * reviewable. The xlsx states them once instead, when the run covers one context.
+ */
+export function buildRow(fields, source) {
+  const row = { entitlement: source.entitlement.displayName };
+  for (const field of fields) {
+    const value = field.read(source);
+    row[field.key] = value === undefined || value === '' ? null : value;
+  }
+  row.businessRoles = source.roles;
+  row.directAssignments = source.count?.direct ?? 0;
+  row.viaRoleAssignments = source.count?.indirect ?? 0;
+  row._entity = { kind: 'resource', id: source.entitlement.id };
+  return row;
 }
 
 /**
- * The application's own facts, repeated on every one of its rows.
- *
- * Repetition is the point: notices are screen-only, and the CSV is the artefact
- * that gets mailed to an entitlement owner who has no access to this screen. A
- * file that does not say which application it describes is not reviewable.
- *
- * The catalogue field names are deployment-specific, which is why each is read
- * through the spellings that have been seen rather than one guess.
+ * By context, then by entitlement name, so two runs of the same report compare
+ * — sorted on the sources, because the context name need not be a column.
  */
-export function applicationColumns(app) {
-  const attrs = app?.extendedAttributes || {};
-  return {
-    application: app?.displayName ?? null,
-    applicationDescription: app?.description ?? null,
-    applicationOwner: app?.ownerName ?? app?.ownerUserId ?? null,
-    abbreviation: pickAttribute(attrs, ['abbreviation']),
-    cmdbReference: pickAttribute(attrs, ['cmdbReference', 'cmdbreference']),
-    connectionType: pickAttribute(attrs, ['connectionType', 'connectiontype']),
-    onboardingSector: pickAttribute(attrs, ['onboardingSector', 'onboardingArea']),
-    applicationManager: pickAttribute(attrs, ['applicationManager', 'applicationOwner', 'applicationowner']),
-  };
-}
-
-// Action list first, then information, then what a role already manages; inside
-// a section by application and name, so two runs of the same report compare.
-function compareRows(a, b) {
-  return SECTION_ORDER.indexOf(a.section) - SECTION_ORDER.indexOf(b.section)
-    || String(a.application ?? '').localeCompare(String(b.application ?? ''))
-    || String(a.entitlement ?? '').localeCompare(String(b.entitlement ?? ''));
+export function compareSources(a, b) {
+  return String(a.context?.displayName ?? '').localeCompare(String(b.context?.displayName ?? ''))
+    || String(a.entitlement.displayName ?? '').localeCompare(String(b.entitlement.displayName ?? ''));
 }
 
 // ─── The summaries ────────────────────────────────────────────────────────
 
-// Five statements about the rows, plus the two the data itself forces: holders
-// that are neither direct nor via-role, and frequency values that are the same
-// word typed twice.
-export function summaries(rows, scope, apps, owners) {
-  const total = rows.length;
-  const inRole = rows.filter(r => r.section === SECTION_IN_ROLE).length;
-  const people = new Set([...owners.values()].flatMap(o => o.ownerIds));
-  const frequencies = rows.map(r => r.certificationFrequency);
+/** `n` as a share of `total`, one decimal, or 0 when there is nothing to divide. */
+export function percentage(n, total) {
+  return total > 0 ? Math.round((n / total) * 1000) / 10 : 0;
+}
 
-  const perFrequency = new Map();
-  for (const f of frequencies) perFrequency.set(f, (perFrequency.get(f) || 0) + 1);
-  const breakdown = [...perFrequency]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([value, n]) => `${value} ${percentage(n, total)}%`)
-    .join(', ');
+// Four statements about the rows, plus the one the data itself forces: holders
+// that are neither direct nor via-role.
+export function summaries(rows, scope, contexts, owners) {
+  const total = rows.length;
+  const inRole = rows.filter(r => r.businessRoles).length;
+  const people = new Set([...owners.values()].flatMap(o => o.ownerIds));
+  const unowned = rows.filter(r => !owners.has(r._entity.id)).length;
 
   const notices = [
-    { severity: 'info', text: `${scope.users.toLocaleString('en-US')} unique user(s) hold at least one assignment in ${describe(apps)}.` },
+    { severity: 'info', text: `${scope.users.toLocaleString('en-US')} unique user(s) hold at least one assignment in ${describe(contexts)}.` },
     { severity: 'info', text: `${total.toLocaleString('en-US')} entitlement(s) in scope.` },
-    { severity: 'info', text: `${people.size.toLocaleString('en-US')} distinct entitlement owner(s); ${rows.filter(r => !r.entitlementOwner).length.toLocaleString('en-US')} entitlement(s) have no owner.` },
+    { severity: 'info', text: `${people.size.toLocaleString('en-US')} distinct entitlement owner(s); ${unowned.toLocaleString('en-US')} entitlement(s) have no owner.` },
     { severity: 'info', text: `${percentage(inRole, total)}% of entitlements are part of a business role (${inRole.toLocaleString('en-US')} of ${total.toLocaleString('en-US')}).` },
-    { severity: 'info', text: `Certification frequency: ${breakdown}.` },
   ];
-
-  const duplicates = nearDuplicateFrequencies(frequencies);
-  if (duplicates.length) {
-    notices.push({
-      severity: 'warning',
-      text: `Certification frequency is stored with near-duplicate spellings: ${duplicates.join('; ')}. `
-        + 'The values are shown exactly as stored — correct them in the source system, not here.',
-    });
-  }
   if (scope.eligible > 0) {
     notices.push({
       severity: 'warning',
@@ -586,4 +507,18 @@ export function summaries(rows, scope, apps, owners) {
     });
   }
   return notices;
+}
+
+/**
+ * A picked attribute that no row carries. Said once, rather than left as an
+ * empty column to puzzle over: it is either the wrong attribute for these
+ * contexts, or a gap in the source worth closing.
+ */
+export function emptyFieldNotices(rows, fields) {
+  const empty = fields.filter(f => f.attribute && rows.every(r => r[f.key] === null));
+  if (!empty.length) return [];
+  return [{
+    severity: 'info',
+    text: `No row in scope has a value for ${empty.map(f => `"${f.label}"`).join(', ')}.`,
+  }];
 }

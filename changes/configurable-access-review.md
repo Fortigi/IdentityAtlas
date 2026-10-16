@@ -1,0 +1,6 @@
+- The Application Access Review is now the **Access Review** and works for any context of resources — a logical application, a department, a tag — and for every resource type in it, not only IdentityIQ entitlements.
+- You choose the report's columns: the context's and the resource's own facts (name, type, owner, system, description) plus any attribute their source stored. The picker only offers attributes the contexts you picked actually carry, and shows how many resources carry each one.
+- You choose the rows and filters of the two pivot tables in the Excel download.
+- Removed the built-in "requestable" sections, the certification-frequency summaries and the fixed catalogue columns (CMDB reference, onboarding sector, …). Those values are still available as attributes you can pick.
+- The report tells you when a picked attribute has no value on any row in scope.
+- Existing links that name applications with the old `applications` parameter still open.
