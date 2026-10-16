@@ -21,6 +21,7 @@ const DETAIL_TARGET = {
   'access-package': 'access-package',
   identity:         'identity',
   context:          'context',
+  'org-entity':     'org-entity',
 };
 
 function downloadCsv(filename, csv) {
@@ -50,7 +51,7 @@ function SortHeader({ label, active, dir, onClick, align = 'left' }) {
   );
 }
 
-export default function ExpandedItemsList({ label, items, loading, onOpenDetail }) {
+export default function ExpandedItemsList({ label, items, note, loading, onOpenDetail }) {
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' });
   const sorted = useMemo(() => sortItems(items, sort.key === 'type' ? 'type' : 'name', sort.dir), [items, sort]);
 
@@ -65,6 +66,7 @@ export default function ExpandedItemsList({ label, items, loading, onOpenDetail 
     return (
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center text-sm text-gray-600 dark:text-gray-500 italic">
         Nothing to show for this relationship.
+        {note && <p className="mt-1 not-italic text-xs">{note}</p>}
       </div>
     );
   }
@@ -93,6 +95,9 @@ export default function ExpandedItemsList({ label, items, loading, onOpenDetail 
           </button>
         </div>
       </div>
+      {note && (
+        <p className="px-4 py-2 text-xs text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">{note}</p>
+      )}
       <div className="max-h-[460px] overflow-y-auto overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
@@ -118,6 +123,9 @@ export default function ExpandedItemsList({ label, items, loading, onOpenDetail 
                       </button>
                     ) : (
                       <span className="text-gray-900 dark:text-gray-100">{it.label}</span>
+                    )}
+                    {it.detail && (
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{it.detail}</div>
                     )}
                     {it.via && (
                       <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">

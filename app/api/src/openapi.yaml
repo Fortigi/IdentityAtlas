@@ -1966,6 +1966,60 @@ paths:
                               fields:
                                 type: array
                                 items: { type: string }
+                  target:
+                    type: string
+                    enum: [principal]
+                    description: Present only for a principal recipe, with the fields below.
+                  orgMatches:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        entityType: { type: string }
+                        label: { type: string }
+                        termKeys:
+                          type: array
+                          items: { type: string }
+                        linkedPrincipals: { type: integer }
+                        state:
+                          type: string
+                          enum: [matched, included, excluded]
+                  orgTruncated:
+                    type: boolean
+                    description: More organisation entities matched than were used.
+                  principals:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      sample:
+                        type: array
+                        maxItems: 200
+                        description: The first users by name.
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string, format: uuid }
+                            displayName: { type: string, nullable: true }
+                            upn: { type: string, nullable: true }
+                            principalType: { type: string, nullable: true }
+                            via:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  kind:
+                                    type: string
+                                    enum: [access, org]
+                                  resourceId: { type: string, format: uuid }
+                                  entityId: { type: string, format: uuid }
+                                  label: { type: string, nullable: true }
+                                  assignmentType: { type: string }
+                                  entityType: { type: string }
+                  termPrincipals:
+                    type: object
+                    description: Per kept term key, the users it reaches through resources and organisation entities.
+                    additionalProperties: { type: integer }
         '400':
           $ref: '#/components/responses/ContextAssistantBadRequest'
         '403':
@@ -2042,6 +2096,13 @@ paths:
             type: string
             minLength: 2
             maxLength: 100
+        - name: kind
+          in: query
+          required: false
+          description: principal searches users (accounts); anything else searches resources.
+          schema:
+            type: string
+            enum: [resource, principal]
       responses:
         '200':
           description: Matching objects (empty for a query shorter than 2 characters)
@@ -2059,6 +2120,10 @@ paths:
                         name: { type: string }
                         type: { type: string }
                         score: { type: number }
+                        upn:
+                          type: string
+                          nullable: true
+                          description: kind=principal only — the account's sign-in name.
         '403':
           $ref: '#/components/responses/ContextAssistantForbidden'
         '404':
@@ -2110,7 +2175,7 @@ paths:
       summary: Build the context tree, or refresh an existing one
       operationId: saveContextRecipe
       description: >
-        Runs the `context-recipe` plugin with this recipe and waits for it. Without `contextId` it
+        Runs the `context-recipe` plugin (`context-recipe-principals` for a principal recipe) with this recipe and waits for it. Without `contextId` it
         creates a new tree (201); with one it refreshes that tree in place (200), keeping the
         analyst's renames and re-parenting. The recipe is stored as the run's parameters, so the
         tree is refreshed with it after every crawl. Requires `data.write.contexts`; answers 404
@@ -2154,6 +2219,8 @@ paths:
           $ref: '#/components/responses/ContextAssistantForbidden'
         '404':
           description: The context to refresh was not built with the assistant, or the feature is off
+        '409':
+          description: The context to refresh was built for the other target (resources or users)
         '500':
           description: The run failed
           content:
@@ -2196,7 +2263,48 @@ components:
           maxLength: 200
         target:
           type: string
-          enum: [resource]
+          enum: [resource, principal]
+          description: >
+            resource (default) collects the matched resources; principal collects the users who
+            have access to them or belong to matching organisation entities, as a Principal context
+            tree built by the `context-recipe-principals` plugin.
+        access:
+          type: object
+          description: Principal recipes only — which assignments count as access.
+          properties:
+            assignmentTypes:
+              type: array
+              description: Defaults to Direct and Indirect.
+              items:
+                type: string
+                enum: [Direct, Indirect, Eligible]
+        orgTypes:
+          type: array
+          maxItems: 50
+          description: >
+            Principal recipes only — the collection entity types whose names the terms are also
+            matched against. Absent means every collection type; an empty list means none.
+          items: { type: string }
+        orgInclude:
+          type: array
+          maxItems: 2000
+          description: Principal recipes only — organisation entities added by hand.
+          items: { type: string, format: uuid }
+        orgExclude:
+          type: array
+          maxItems: 2000
+          description: Principal recipes only — organisation entities kept out.
+          items: { type: string, format: uuid }
+        principalInclude:
+          type: array
+          maxItems: 2000
+          description: Principal recipes only — users added by hand.
+          items: { type: string, format: uuid }
+        principalExclude:
+          type: array
+          maxItems: 2000
+          description: Principal recipes only — users kept out; wins over everything.
+          items: { type: string, format: uuid }
         resourceTypes:
           type: array
           maxItems: 20
@@ -2257,7 +2365,14 @@ components:
           enum: [terms, clarify, error]
         name:
           type: string
-          description: A name for the context, proposed by the model.
+          description: A name for the context, proposed by the model ("Users with access to …" for a principal target).
+        target:
+          type: string
+          enum: [resource, principal]
+          description: >
+            Interpret only — whether the analyst asked for resources or for the users who have access.
+            Words in the question (users, gebruikers, medewerkers, wie, who, "access to", "toegang tot"…)
+            decide over the model's choice.
         terms:
           type: array
           items:

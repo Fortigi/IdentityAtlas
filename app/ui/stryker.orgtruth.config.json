@@ -1,0 +1,98 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the organisation-truth UI: the permission+flag gate, and the wizard's pure logic (recipe draft edits, link-rule edits, the data-quality verdict that decides whether the run may start) as the workstreams add it. WHY: a draft helper that silently drops a mapped column or a verdict that lets a run start with every owner unmatched produces an import that looks fine and links nothing. MUTATOR SET: StringLiteral and ObjectLiteral disabled, matching the sibling UI configs. SCOPE RULE: every new non-test .js/.jsx under src/components/orgtruth/ (and src/hooks/useCanImportOrgTruth.js) must be added to `mutate` here, or be given a written reason in `mutationExclusions` (mutationScope.guard.test.js in the API package matches paths exactly, no globs). Presentational panels go in exclusions, pure helpers and hooks go in mutate. NOT YET MEASURED: ships with the MVP; `break` is absent until a first run measures a score. Run: cd app/ui && npm run test:mutation:orgtruth",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.orgtruth.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-orgtruth.json"
+  },
+  "mutate": [
+    "src/hooks/useCanImportOrgTruth.js",
+    "src/components/orgtruth/wizard/wizardDraft.js",
+    "src/components/orgtruth/wizard/wizardApi.js",
+    "src/components/orgtruth/wizard/useImportRun.js",
+    "src/components/orgtruth/wizard/templateDraft.js",
+    "src/components/orgtruth/wizard/wizardSummary.js",
+    "src/components/orgtruth/wizard/useDryRun.js",
+    "src/components/orgtruth/wizard/useCollectionTypes.js",
+    "src/components/orgtruth/orgFormat.js",
+    "src/components/orgtruth/modelGraph.js",
+    "src/components/orgtruth/reviewRows.js",
+    "src/components/orgtruth/sourceDownload.js",
+    "src/components/orgtruth/sourceDelete.js",
+    "src/components/orgtruth/useLinkOverride.js",
+    "src/components/orgtruth/evidence.js",
+    "src/components/orgtruth/reviewGroups.js",
+    "src/components/orgtruth/linkRulesDraft.js",
+    "src/components/orgtruth/modelCanvas.js",
+    "src/components/orgtruth/canvasLayout.js",
+    "src/components/orgtruth/canvasView.js",
+    "src/components/orgtruth/useCanvasLayout.js",
+    "src/components/orgtruth/useCanvasGestures.js",
+    "src/components/orgtruth/orgGraphBranch.js",
+    "src/components/orgtruth/orgCondition.js",
+    "src/components/orgtruth/activity.js",
+    "src/components/orgtruth/signals.js",
+    "src/components/orgtruth/activityKeys.js",
+    "src/components/orgtruth/templateCanvas.js",
+    "src/components/orgtruth/enrichment.js"
+  ],
+  "mutationExclusions": {
+    "src/components/orgtruth/OrgConditionPicker.jsx": "The matrix wizard's + Organisation dialog: three useFetch calls (kinds, filter options, entity search) and the checkbox lists they fill. Every decision about the condition it hands back (required type, empty values, via omitted when all links are ticked, labels) is buildOrgCondition()/viasForSide() in orgCondition.js (mutated); OrgConditionPicker.mount.test.jsx asserts the exact condition JSON per path.",
+    "src/components/orgtruth/OrgTruthPage.jsx": "Composition, not logic: tab state, the header button gated by the hook (which is mutated), and which panel shows. Covered end to end by OrgTruthPage.mount.test.jsx.",
+    "src/components/orgtruth/NotBuiltYet.jsx": "Placeholder panel the workstreams replace; renders an EmptyState from two props and nothing else.",
+    "src/components/orgtruth/orgTabs.js": "Declaration, not logic: the ordered list of the page's sub-tabs. The mount test asserts the exact list.",
+    "src/components/orgtruth/wizard/ImportWizard.jsx": "Composition only: the draft state, the current step, the step list and which panel shows; navigation and readiness are wizardDraft.js functions (mutated). Covered end to end by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/StepStart.jsx": "Presentational import-wizard panel: it renders the draft and hands every edit to a wizardDraft.js function (mutated). Step 1 (mode, profile picker, run mode, adjust) is walked by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/StepSource.jsx": "Presentational import-wizard panel: it renders the draft and hands every edit to a wizardDraft.js function (mutated). Step 2 (file choice, FormData upload, column list) is walked by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/StepModel.jsx": "Presentational import-wizard panel: it renders the draft and hands every edit to a wizardDraft.js function (mutated). Step 4 for a collection (Propose again, status and stale-column notices) is walked by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/ModelEditor.jsx": "Presentational import-wizard panel: it renders the draft and hands every edit to a wizardDraft.js function (mutated). The entity/attribute/relation editor on MappingRows is driven by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/StepLinks.jsx": "Presentational import-wizard panel: it renders the draft and hands every edit to a wizardDraft.js function (mutated). Step 5 (detect, accept, weights, retarget, remove) is walked by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/StepQuality.jsx": "Presentational import-wizard panel: it renders the draft and hands every edit to a wizardDraft.js function (mutated). Step 6 (dry run, cards, slider, verdict) is walked by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/StepConfirm.jsx": "Presentational import-wizard panel: it renders the draft and hands every edit to a wizardDraft.js function (mutated). Step 7 (summary, profile save, start and poll via useImportRun, mutated) is walked by ImportWizard.mount.test.jsx.",
+    "src/components/orgtruth/wizard/StepKind.jsx": "Presentational import-wizard panel: the four kind cards, the automatic first proposal and the re-proposal with { template } when another card is picked. Which kind is preselected, what the request body holds and how the answer becomes the draft are wizardDraft.js / templateDraft.js functions (mutated); ImportWizard.mount.test.jsx and ImportWizard.templates.mount.test.jsx assert the exact propose bodies and the preselected card.",
+    "src/components/orgtruth/wizard/StepEnrichment.jsx": "Presentational import-wizard panel for an enrichment: list name, target type, key column and attributes with the multiple-values toggle, each edit a wizardDraft.js / templateDraft.js call (mutated). ImportWizard.templates.mount.test.jsx asserts the exact enrichment recipe it produces.",
+    "src/components/orgtruth/wizard/StepActivity.jsx": "Presentational import-wizard panel for an activity: actor, subject and its target, when (date or year + month), measure, attributes and the dry-run preview, each edit a templateDraft.js call (mutated) and the preview the useDryRun hook (mutated). ImportWizard.templates.mount.test.jsx asserts the exact activity recipe and the preview rows.",
+    "src/components/orgtruth/wizard/StepRelation.jsx": "Presentational import-wizard panel for a relation: name, predicate, left and right column with their targets, attributes, each edit a templateDraft.js call (mutated). ImportWizard.templates.mount.test.jsx asserts the exact relation recipe.",
+    "src/components/orgtruth/wizard/templateUi.jsx": "Markup-only pieces the template steps share (column select, target select, attribute rows, activity preview table, step footer). Driven by ImportWizard.templates.mount.test.jsx.",
+    "src/components/orgtruth/wizard/wizardUi.jsx": "Markup-only primitives for the wizard (labelled field, select, notice, chip, class constants); no logic beyond passing props through.",
+    "src/components/orgtruth/SourcesTab.jsx": "Panel composition: two useFetch calls, a table and an expandable runs row. Its decisions (runs per source, last profile, stats summary, download) live in orgFormat.js and sourceDownload.js, which are mutated; SourcesTab.mount.test.jsx covers the wiring.",
+    "src/components/orgtruth/ModelTab.jsx": "Panel composition: the include-closed filter, the totals line and the model canvas. The Mermaid export lives in modelGraph.js, which is mutated; ModelTab.mount.test.jsx covers the wiring.",
+    "src/components/orgtruth/EntitiesTab.jsx": "Panel composition: filter controls, a debounced search and a paged table. The query building and paging conversion live in orgFormat.js (mutated); EntitiesTab.mount.test.jsx asserts the exact URLs sent.",
+    "src/components/orgtruth/ReviewTab.jsx": "Panel composition: two useFetch calls, filters and a card per distinct decision group. Titles, candidate order, filter options, read-only rule, decision bodies, toasts and errors live in reviewGroups.js (mutated); ReviewTab.mount.test.jsx asserts the exact PUT bodies and reloads.",
+    "src/components/orgtruth/OrgLinkTable.jsx": "Presentational table of link candidates with Confirm/Reject/Move/Undo buttons. Move option choice lives in reviewRows.js (mutated); OrgEntityDetailPage.mount.test.jsx drives every button.",
+    "src/components/orgtruth/OrgEntitySections.jsx": "Presentational header and relations list of the org-entity detail page; no logic beyond picking the other side of a relation, asserted by OrgEntityDetailPage.mount.test.jsx.",
+    "src/components/orgtruth/OrgEntityDetailPage.jsx": "Detail page composition: two useFetch calls, the expandable graph hook and the shared sections. Its logic lives in orgFormat.js, reviewRows.js, useLinkOverride.js (mutated); OrgEntityDetailPage.mount.test.jsx covers it.",
+    "src/components/orgtruth/orgUi.jsx": "Shared presentational pieces (status/type pills, fetch-state panels, class constants). The pill colour choice and the not-available test live in orgFormat.js, which is mutated.",
+    "src/components/orgtruth/OrgEvidenceSection.jsx": "Presentational evidence section: one useFetch, a verdict pill and three kinds of people table. The verdict, the activity line, the worked-on-it wording and the people counts live in evidence.js (mutated); OrgEvidenceSection.mount.test.jsx asserts the rendered rows.",
+    "src/components/orgtruth/LinkRulesEditor.jsx": "Composition of the model canvas: the rule drafts per profile, the selection, the popover, the rename flow and the toolbar. Every decision (merged cards, rule entries, row actions, defaults, duplicates, the POST bodies) lives in modelCanvas.js and linkRulesDraft.js, the layout in canvasLayout.js, the pointer math in canvasView.js, and the drag and layout state in useCanvasGestures.js / useCanvasLayout.js, all mutated; LinkRulesEditor.mount.test.jsx drives every flow, including which profile an edit is saved to.",
+    "src/components/orgtruth/RuleCanvas.jsx": "Presentational SVG of the model canvas: draws the cards, rows, rule and relation lines that modelCanvas.js (mutated) computes inside the pan/zoom group of useCanvasGestures.js (mutated), and wires rows, lines and card headers as buttons/drag handles; row names come from linkRulesDraft.rowName (mutated). Driven by LinkRulesEditor.mount.test.jsx.",
+    "src/components/orgtruth/RulePopover.jsx": "Presentational editor of one rule: signal rows, threshold and buttons, each edit a linkRulesDraft.js function (mutated). Driven by LinkRulesEditor.mount.test.jsx.",
+    "src/components/orgtruth/ProfileRules.jsx": "Presentational strip of one import profile under the model canvas: name, version, run status, the Save and link again button, the run progress and the rule list. The POST body is linkRulesDraft.relinkProfile and the polling useImportRun (both mutated); LinkRulesEditor.mount.test.jsx asserts which profile is posted, the progress lines and the 400 reasons.",
+    "src/components/orgtruth/SignalsTab.jsx": "Panel composition of Organisation → Signals: the model and findings fetches, the collection type picker and four finding lists. Which types are collections, the row sentences, the links each row opens and the as-of line live in signals.js (mutated); SignalsTab.mount.test.jsx asserts the counts, rows and links.",
+    "src/components/orgtruth/SignalsSettings.jsx": "The settings form of one collection type: a fetch, three fields and a PUT gated by useCanImportOrgTruth (mutated). The draft, validation and the PUT body (every other type kept) are signals.js functions (mutated); SignalsTab.mount.test.jsx asserts the exact PUT body, the refusal and the read-only view.",
+    "src/components/orgtruth/ActivityKeysSection.jsx": "Review's Activity references list: one useFetch, two filters, a row per distinct value and a PUT per decision. The candidates, which buttons show, the PUT bodies, toasts and errors live in activityKeys.js (mutated); ActivityKeysSection.mount.test.jsx asserts the exact bodies, filters and reloads.",
+    "src/components/orgtruth/OrgActivitySection.jsx": "Presentational Activity section of a collection entity: a bar per month and a people table. Bar heights, ordering, the member wording and the summary line are activity.js functions (mutated); OrgEntityDetailPage.mount.test.jsx asserts the bars, rows and links.",
+    "src/components/orgtruth/OrgActivitySummary.jsx": "Presentational activity summary on user and identity pages: one feature-gated useFetch and a table per activity list. Grouping, ordering and formatting live in activity.js (mutated); UserDetailPage and IdentityDetailPage mount tests assert the rows and the feature gate."
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70
+  },
+  "concurrency": 2,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false,
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  }
+}

@@ -435,3 +435,35 @@ describe('as-of condition guards', () => {
     expect(out.warnings).toEqual([]);
   });
 });
+
+// The organisation condition in the as-of query: matched on the reconstructed
+// row id, resolved against CURRENT links (flagged like a context), dropped with
+// a history warning when malformed.
+describe('as-of org conditions', () => {
+  const org = (extra = {}) => ({ kind: 'org', entityType: 'Klant', ...extra });
+  const flat = (sql) => sql.replace(/\s+/g, ' ');
+
+  it('matches the reconstructed principal id and flags current-link resolution', () => {
+    const out = build({ ...EMPTY, subject: { include: [org({ via: ['eigenaar'] })], exclude: [] } });
+    expect(flat(out.sql)).toContain(`(sp.state->>'id')::uuid IN ( WITH org_e AS`);
+    expect(out.scopeMode).toBe('context-current');
+    expect(out.params).toEqual(['Klant', ['eigenaar']]);
+    expect(out.warnings).toEqual([]);
+  });
+
+  it('matches the reconstructed resource id on the resource side, excluded with IS NOT TRUE', () => {
+    const out = build({ ...EMPTY, resource: { include: [], exclude: [org()] } });
+    expect(flat(out.sql)).toContain(`((sr.state->>'id')::uuid IN ( WITH org_e AS`);
+    expect(flat(out.sql)).toMatch(/SELECT tid FROM org_l WHERE tt = 'Resource' UNION SELECT cm\."memberId".*\) IS NOT TRUE/);
+    expect(out.scopeMode).toBe('context-current');
+  });
+
+  it('drops a malformed org condition with a history warning and keeps the attribute scope mode', () => {
+    const out = build({ ...EMPTY, subject: { include: [org({ via: 'eigenaar' })], exclude: [] } });
+    expect(out.warnings).toEqual(['history: org condition dropped: via must be a list']);
+    expect(out.sql).not.toContain('org_e');
+    expect(out.params).toEqual([]);
+    // Nothing was resolved against current links, so the timeline is exact.
+    expect(out.scopeMode).toBe('attribute');
+  });
+});

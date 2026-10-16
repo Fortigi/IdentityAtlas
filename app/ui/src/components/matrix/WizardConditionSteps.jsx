@@ -13,7 +13,12 @@ import ContextPicker from '@ui/components/contexts/ContextPicker';
 import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 import AttributePicker from './AttributePicker';
 import { axisHeadings } from './MatrixFilterWizard.helpers';
-import { ChoiceGroup, CheckboxToggle, Disclosure } from './wizardControls';
+import { useFeatureFlags } from '@ui/contexts/FeaturesContext';
+import OrgConditionPicker from '@ui/components/orgtruth/OrgConditionPicker';
+import OrgConditionRow from './OrgConditionRow';
+import {
+  ChoiceGroup, CheckboxToggle, Disclosure, CONDITION_CHIP as CHIP, RemoveConditionButton as RemoveButton,
+} from './wizardControls';
 
 const ROW_TYPE_OPTIONS = [
   { key: 'principal', title: 'User accounts', description: 'One subject per account. Best for clean-up sweeps and per-account audits.' },
@@ -119,6 +124,9 @@ const ADD_BUTTON = 'text-[11px] px-2 py-0.5 rounded border border-dashed border-
 function ConditionList({ title, conditions, contextMeta, columns, entity, onContextResolved, onAdd, onRemove, onUpdate, emptyHint, allowedTargets }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [attrOpen, setAttrOpen] = useState(false);
+  const [orgOpen, setOrgOpen] = useState(false);
+  // Organisation conditions only where the Organisation tab itself is on.
+  const orgTruth = useFeatureFlags().orgTruth === true;
 
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded">
@@ -127,6 +135,7 @@ function ConditionList({ title, conditions, contextMeta, columns, entity, onCont
         <div className="flex items-center gap-1">
           <button type="button" onClick={() => setPickerOpen(true)} className={ADD_BUTTON}>+ Context</button>
           <button type="button" onClick={() => setAttrOpen(true)} className={ADD_BUTTON}>+ Attribute</button>
+          {orgTruth && <button type="button" onClick={() => setOrgOpen(true)} className={ADD_BUTTON}>+ Organisation</button>}
         </div>
       </div>
       <div className="p-2 space-y-1.5">
@@ -168,15 +177,17 @@ function ConditionList({ title, conditions, contextMeta, columns, entity, onCont
           onClose={() => setAttrOpen(false)}
         />
       )}
+      {orgOpen && (
+        <OrgConditionPicker
+          entity={entity}
+          onPick={(condition) => {
+            onAdd(condition);
+            setOrgOpen(false);
+          }}
+          onClose={() => setOrgOpen(false)}
+        />
+      )}
     </div>
-  );
-}
-
-const CHIP = 'inline-flex items-center gap-1 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded px-2 py-1 flex-1 min-w-0';
-
-function RemoveButton({ onClick }) {
-  return (
-    <button type="button" onClick={onClick} className="text-gray-600 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400" aria-label="Remove">×</button>
   );
 }
 
@@ -212,6 +223,7 @@ function ConditionRow({ cond, contextMeta, onRemove, onUpdate }) {
   if (cond.kind === 'context') {
     return <ContextConditionRow cond={cond} contextMeta={contextMeta} onRemove={onRemove} onUpdate={onUpdate} />;
   }
+  if (cond.kind === 'org') return <OrgConditionRow cond={cond} onRemove={onRemove} />;
   if (cond.kind !== 'attribute') return null;
   return (
     <div className="flex items-center gap-2 text-xs">

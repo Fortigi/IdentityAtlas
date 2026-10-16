@@ -89,6 +89,8 @@ describe('NewContextWizard (mounted)', () => {
   it('offers "Describe it" and opens the builder in its own tab', async () => {
     const cb = renderWizard(routes());
     const user = userEvent.setup();
+    // The card says it can build a context of users too, not only of groups.
+    expect(await screen.findByText(/pick the groups or organisation entities, and get those resources or the users who have access/)).toBeInTheDocument();
     await user.click(await screen.findByText('Describe it'));
     await user.click(screen.getByText('Open the context builder →'));
     expect(cb.onOpenBuilder).toHaveBeenCalled();

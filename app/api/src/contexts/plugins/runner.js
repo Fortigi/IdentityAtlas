@@ -98,8 +98,9 @@ export async function enqueueRun(pluginName, params, triggeredBy, opts = {}) {
 // refresh (this removes any need for separate per-plugin scheduling). Each tree
 // is re-run with its original parameters + instanceKey, so reconcile updates it
 // in place (no duplicates, analyst edits preserved). Opt a tree out by setting
-// its run parameters' `autoRefresh` to false.
-export async function refreshGeneratedContexts(triggeredBy = 'crawl-refresh', { awaitCompletion = false } = {}) {
+// its run parameters' `autoRefresh` to false. `algorithms` limits the refresh to the
+// trees of those plugins (an org import refreshes only what reads org truth).
+export async function refreshGeneratedContexts(triggeredBy = 'crawl-refresh', { awaitCompletion = false, algorithms = null } = {}) {
   const trees = (await db.query(`
     SELECT a.name AS algo,
            c."sourceAlgorithmId" AS "algorithmId",
@@ -110,8 +111,9 @@ export async function refreshGeneratedContexts(triggeredBy = 'crawl-refresh', { 
       JOIN "ContextAlgorithms" a ON a.id = c."sourceAlgorithmId"
       LEFT JOIN "ContextAlgorithmRuns" r ON r.id = c."sourceRunId"
      WHERE c.variant = 'generated' AND c."sourceAlgorithmId" IS NOT NULL
+       AND ($1::text[] IS NULL OR a.name = ANY($1::text[]))
      GROUP BY a.name, c."sourceAlgorithmId", c."scopeSystemId", c."sourceInstanceKey"
-  `)).rows;
+  `, [algorithms])).rows;
 
   let started = 0;
   for (const t of trees) {

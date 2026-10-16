@@ -176,6 +176,38 @@ profile, or an Azure parameter), and it is shared with custom reports.
 
 ---
 
+## Org Info
+
+Lets analysts import the organisation's own lists next to what the crawlers found:
+customers, projects and assets (a *collection* people and resources belong to), staff lists
+with extra attributes such as expertises (an *enrichment*), timesheets and logs (*activity*),
+and lists of pairs such as incompatible authorisations (a *relation*). Each list is linked to
+the accounts, people and resources it names, with a confidence score and a review queue, and
+then shows up in the matrix filter, the relationship graph, the signals and the context
+assistant. See [Organisation information](../architecture/org-truth.md) for how it works. It
+is experimental because it is new, and because how well a list is recognised and linked
+depends on how the organisation writes its lists.
+
+Environment variable: `FEATURE_ORG_INFO=true` (the earlier `FEATURE_ORG_TRUTH=true` is still read).
+
+### What the switch does, precisely
+
+**On** — every signed-in user sees the **Organisation** tab, the matrix wizard's
+**+ Organisation** condition and the organisation edges in the relationship graph; users with
+the **Build contexts** (`data.write.contexts`) permission can run **Import additional
+information**, decide links in Review and change the model.
+
+**Off** — all of that is hidden, and the API answers `404` on every `/api/org-truth/*`
+endpoint.
+
+### What the switch does *not* do
+
+Turning it off **does not delete anything**: the uploaded lists, their entities, links,
+activity and review decisions are kept, so turning it back on restores them as they were.
+Contexts already generated from collections stay as they are until the next refresh.
+
+---
+
 ## Leaving experimental behind
 
 The label is temporary by design. Once a feature has run against enough real

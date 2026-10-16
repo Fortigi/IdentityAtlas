@@ -21,8 +21,11 @@ export default defineConfig({
     ...base.test,
     include: [
       'src/contextAssistant/service.test.js',
+      'src/contexts/plugins/context-recipe-principals.test.js',
       'src/contexts/plugins/context-recipe.test.js',
       'src/contexts/recipe/matches.test.js',
+      'src/contexts/recipe/principalSql.test.js',
+      'src/contexts/recipe/principals.test.js',
       'src/contexts/recipe/recipe.test.js',
       'src/contexts/recipe/relatedWords.test.js',
       'src/nlreports/service.test.js',

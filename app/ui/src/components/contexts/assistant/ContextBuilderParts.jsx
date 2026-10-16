@@ -8,7 +8,7 @@ const PRIMARY = 'rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white 
 const SECONDARY = 'rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600';
 const INPUT = 'w-full rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100';
 
-export function BuilderHeader({ contextId, memberCount, evaluating, blocker, saving, message, onSave, onOpenContext }) {
+export function BuilderHeader({ contextId, memberCount, unit = 'objects', evaluating, blocker, saving, message, onSave, onOpenContext }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
@@ -17,7 +17,7 @@ export function BuilderHeader({ contextId, memberCount, evaluating, blocker, sav
           <span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 align-middle text-xs font-medium text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">experimental</span>
         </h2>
         <p className={MUTED} aria-live="polite">
-          {evaluating ? 'Checking what the terms find…' : `${memberCount} objects in the context`}
+          {evaluating ? 'Checking what the terms find…' : `${memberCount} ${unit} in the context`}
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">

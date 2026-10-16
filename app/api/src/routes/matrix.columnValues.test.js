@@ -39,11 +39,17 @@ vi.mock('./matrix/shared.js', async (importOriginal) => ({
   getIdentityColumnValuesMeta: (...a) => identityCache.getIdentityColumnValuesMeta(...a),
 }));
 
+// The enrichment fields (matrix/enrichmentFields.js) read through the db mock.
+vi.mock('../db/connection.js');
+const { query } = await import('../db/connection.js');
+
 const { default: router } = await import('./matrix.js');
 const app = mountRouter(router);
 
 beforeEach(() => {
   for (const fn of [...Object.values(columnCache), ...Object.values(identityCache)]) fn.mockReset();
+  query.mockReset();
+  query.mockResolvedValue({ rows: [] });
   columnCache.getResourceColumns.mockResolvedValue([
     { name: 'description', rawName: 'description', type: 'text' },
     { name: 'notes',       rawName: 'notes',       type: 'text' },
@@ -74,6 +80,33 @@ describe('GET /matrix/columns', () => {
 
   it('rejects an unknown entity', async () => {
     expect((await request(app).get('/api/matrix/columns?entity=Nope')).status).toBe(400);
+  });
+
+  it('appends the enrichment fields after the own columns, with their label and multi flag', async () => {
+    identityCache.getIdentityColumns.mockResolvedValue([{ name: 'department', rawName: 'department', type: 'text' }]);
+    identityCache.getIdentityColumnValuesMeta.mockResolvedValue({ values: { department: ['Sales'] }, truncated: {} });
+    query.mockResolvedValue({ rows: [
+      { source: 'Maten', key: 'expertises', value: 'Azure', multi: true, distinctCount: 2 },
+      { source: 'Maten', key: 'expertises', value: 'IAM', multi: false, distinctCount: 2 },
+    ] });
+    const res = await request(app).get('/api/matrix/columns?entity=Identity');
+    expect(res.status).toBe(200);
+    expect(res.body.map(c => c.column)).toEqual(['department', 'org.Maten.expertises']);
+    expect(res.body[1]).toEqual({
+      column: 'org.Maten.expertises', key: 'org.Maten.expertises', type: 'text', values: ['Azure', 'IAM'],
+      truncated: false, label: 'expertises (Maten)', multi: true,
+    });
+    // the identity picker sees enrichments about identities and about accounts
+    const enrichCall = query.mock.calls.find(([sql]) => String(sql).includes('enr') || String(sql).includes('jsonb_each'));
+    expect(enrichCall[1][0]).toEqual(['Identity', 'Principal']);
+  });
+
+  it('keeps the own columns when the enrichment read fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    query.mockRejectedValue(new Error('no such table'));
+    const res = await request(app).get('/api/matrix/columns?entity=Resource');
+    expect(res.status).toBe(200);
+    expect(res.body.map(c => c.column)).toEqual(['description', 'notes', 'ext.costCenter']);
   });
 });
 
@@ -136,6 +169,16 @@ describe('GET /matrix/column-values (#928)', () => {
     const res = await request(app)
       .get('/api/matrix/column-values?entity=Resource&column=secret%22%3B%20DROP&q=x');
     expect(res.status).toBe(400);
+    expect(columnCache.searchColumnValues).not.toHaveBeenCalled();
+  });
+
+  it('searches an enrichment field in its own rows, never in the entity table', async () => {
+    query.mockResolvedValue({ rows: [{ source: 'Maten', key: 'expertises', value: 'IAM', multi: true, distinctCount: 1 }] });
+    const res = await request(app).get('/api/matrix/column-values?entity=Principal&column=org.Maten.expertises&q=ia');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ column: 'org.Maten.expertises', values: ['IAM'], truncated: false });
+    expect(query.mock.calls[0][1]).toEqual([['Principal', 'Identity'], 'Maten', 'expertises', '%ia%', 200]);
+    expect(columnCache.getPrincipalColumnValuesMeta).not.toHaveBeenCalled();
     expect(columnCache.searchColumnValues).not.toHaveBeenCalled();
   });
 

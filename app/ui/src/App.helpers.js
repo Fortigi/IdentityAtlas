@@ -6,6 +6,7 @@
 export const DETAIL_PREFIXES = [
   'user', 'group', 'resource', 'access-package',
   'department', 'context', 'identity', 'run', 'report', 'report-builder', 'context-builder',
+  'org-entity',
 ];
 
 // True when a hash page-key addresses a detail tab.
@@ -68,6 +69,7 @@ const CLOSE_FALLBACK = {
   'context-builder': 'contexts',
   identity: 'identities',
   resource: 'resources',
+  'org-entity': 'organisation',
 };
 export function closeFallbackPage(type) {
   return CLOSE_FALLBACK[type] || 'matrix';
@@ -83,6 +85,7 @@ const DETAIL_TAB_ICON_BG = {
   'context-builder': 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300',
   report: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
   'report-builder': 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
+  'org-entity': 'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300',
 };
 const DETAIL_TAB_ICON_BG_DEFAULT =
   'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300';

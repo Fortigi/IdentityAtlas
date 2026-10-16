@@ -20,6 +20,14 @@ describe('hasSearch', () => {
     expect(hasSearch({ terms: [{ text: 'a' }], include: [] })).toBe(true);
     expect(hasSearch({ terms: [], include: ['id'] })).toBe(true);
   });
+
+  it('a users draft can search on an organisation entity or a user picked by hand alone; a resource draft cannot', () => {
+    const users = { target: 'principal', terms: [], include: [], orgInclude: [], principalInclude: [] };
+    expect(hasSearch(users)).toBe(false);
+    expect(hasSearch({ ...users, orgInclude: ['o1'] })).toBe(true);
+    expect(hasSearch({ ...users, principalInclude: ['u1'] })).toBe(true);
+    expect(hasSearch({ terms: [], include: [], principalInclude: ['u1'] })).toBe(false);
+  });
 });
 
 describe('useRecipeEvaluation', () => {

@@ -12,6 +12,7 @@ const IdentityDetailPage = lazy(() => import('@ui/components/IdentityDetailPage'
 const ReportViewPage = lazy(() => import('@ui/components/reports/ReportViewPage'));
 const ReportBuilderPage = lazy(() => import('@ui/components/reports/ask/ReportBuilderPage'));
 const ContextBuilderPage = lazy(() => import('@ui/components/contexts/assistant/ContextBuilderPage'));
+const OrgEntityDetailPage = lazy(() => import('@ui/components/orgtruth/OrgEntityDetailPage'));
 
 // hash type → { detail page component, its id prop, whether it takes the cache }.
 // #group: is backward-compat and reuses ResourceDetailPage.
@@ -32,6 +33,8 @@ const DETAIL_ROUTES = {
   'report-builder':  { Comp: ReportBuilderPage,        idProp: 'builderId' },
   // Create (id new-<n>) or edit (id = root context id) a context built with the context assistant.
   'context-builder': { Comp: ContextBuilderPage,       idProp: 'builderId' },
+  // An entity of the organisation truth (a project, an asset, a person …).
+  'org-entity':      { Comp: OrgEntityDetailPage,      idProp: 'entityId' },
 };
 
 // Renders the detail page for the current hash, or null when the hash is not a

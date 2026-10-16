@@ -1,7 +1,9 @@
 // Admin → Experimental.
 //
 // One tab for everything that is built and tested but has not yet had much
-// exposure to real-world data. Three flags today:
+// exposure to real-world data. Flags today (each card below says what it does):
+// experimental crawlers, matrix sharing, custom reports, the context assistant
+// and Org Info. The first three in more detail:
 //   • Experimental crawlers — whether crawler types marked `experimental: true`
 //     in their CrawlerMeta.js / crawler.json are offered in Add Crawler.
 //   • Matrix sharing (#1166) — whether analysts can share a matrix with named
@@ -41,34 +43,42 @@ function CrawlerList({ types }) {
   );
 }
 
+// One switch card for one flag: reads `features[flag]`, posts the flipped value,
+// and shows a failed toggle under the copy. `noun` completes "Enable …/Disable …".
+function FlagCard({ features, flag, title, noun, children }) {
+  const { toggle, toggling, error } = useFeatureToggle(flag);
+  const enabled = features?.[flag] === true;
+  return (
+    <FeatureToggleCard
+      title={title}
+      enabled={enabled}
+      busy={toggling}
+      disabled={features == null}
+      onToggle={() => { if (features) toggle(!enabled); }}
+      toggleTitle={`${enabled ? 'Disable' : 'Enable'} ${noun}`}
+    >
+      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{children}</p>
+      {error && (
+        <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">{error}</div>
+      )}
+    </FeatureToggleCard>
+  );
+}
+
 // Matrix sharing reaches people outside the analyst team, so it is off until an
 // operator switches it on. Off hides every sharing control and the Shared
 // Matrices tab, and the API refuses the share endpoints — resolve included, so
 // links that were already sent stop opening. Nothing is deleted: switching it
 // back on restores the shares and their usage history.
 function MatrixSharingCard({ features }) {
-  const { toggle, toggling, error } = useFeatureToggle('matrixSharing');
-  const enabled = features?.matrixSharing === true;
   return (
-    <FeatureToggleCard
-      title="Matrix sharing"
-      enabled={enabled}
-      busy={toggling}
-      disabled={features == null}
-      onToggle={() => { if (features) toggle(!enabled); }}
-      toggleTitle={enabled ? 'Disable matrix sharing' : 'Enable matrix sharing'}
-    >
-      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-        Lets users with the <span className="font-medium">Create matrix share links</span> permission share a
-        matrix with named colleagues from the wizard's <span className="font-medium">Share</span> step or the
-        matrix bar's <span className="font-medium">Share…</span>, and manage those links under
-        <span className="font-medium"> Admin → Shared Matrices</span>. Turning this off hides all of that and
-        stops existing share links from opening; the shares themselves are kept, so turning it back on restores them.
-      </p>
-      {error && (
-        <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">{error}</div>
-      )}
-    </FeatureToggleCard>
+    <FlagCard features={features} flag="matrixSharing" title="Matrix sharing" noun="matrix sharing">
+      Lets users with the <span className="font-medium">Create matrix share links</span> permission share a
+      matrix with named colleagues from the wizard's <span className="font-medium">Share</span> step or the
+      matrix bar's <span className="font-medium">Share…</span>, and manage those links under
+      <span className="font-medium"> Admin → Shared Matrices</span>. Turning this off hides all of that and
+      stops existing share links from opening; the shares themselves are kept, so turning it back on restores them.
+    </FlagCard>
   );
 }
 
@@ -81,27 +91,13 @@ function MatrixSharingCard({ features }) {
 // whole feature is off until an operator switches it on. Off hides the builder and
 // stops saved reports being listed; nothing is deleted.
 function CustomReportsCard({ features }) {
-  const { toggle, toggling, error } = useFeatureToggle('customReports');
-  const enabled = features?.customReports === true;
   return (
-    <FeatureToggleCard
-      title="Custom reports"
-      enabled={enabled}
-      busy={toggling}
-      disabled={features == null}
-      onToggle={() => { if (features) toggle(!enabled); }}
-      toggleTitle={enabled ? 'Disable custom reports' : 'Enable custom reports'}
-    >
-      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-        Lets analysts build their own reports on the <span className="font-medium">Reports</span> tab — by hand, or
-        by describing them in plain language to a model running on this deployment (see
-        <span className="font-medium"> Admin → LLM</span> for its status). Turning this off hides the builder and
-        stops saved reports from being listed or run; the saved reports themselves are kept.
-      </p>
-      {error && (
-        <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">{error}</div>
-      )}
-    </FeatureToggleCard>
+    <FlagCard features={features} flag="customReports" title="Custom reports" noun="custom reports">
+      Lets analysts build their own reports on the <span className="font-medium">Reports</span> tab — by hand, or
+      by describing them in plain language to a model running on this deployment (see
+      <span className="font-medium"> Admin → LLM</span> for its status). Turning this off hides the builder and
+      stops saved reports from being listed or run; the saved reports themselves are kept.
+    </FlagCard>
   );
 }
 
@@ -110,27 +106,30 @@ function CustomReportsCard({ features }) {
 // the new-context wizard and the builder; trees already built are ordinary generated
 // contexts and keep refreshing after each crawl.
 function ContextAssistantCard({ features }) {
-  const { toggle, toggling, error } = useFeatureToggle('contextAssistant');
-  const enabled = features?.contextAssistant === true;
   return (
-    <FeatureToggleCard
-      title="Context assistant"
-      enabled={enabled}
-      busy={toggling}
-      disabled={features == null}
-      onToggle={() => { if (features) toggle(!enabled); }}
-      toggleTitle={enabled ? 'Disable the context assistant' : 'Enable the context assistant'}
-    >
-      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-        Adds <span className="font-medium">Describe it</span> to <span className="font-medium">Contexts → New context tree</span>:
-        analysts describe a process, application or project, pick search terms — typed, or proposed by the model running on
-        this deployment — and choose the groups that belong to it. Turning this off hides the builder; contexts already
-        built are kept and keep refreshing after each crawl.
-      </p>
-      {error && (
-        <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">{error}</div>
-      )}
-    </FeatureToggleCard>
+    <FlagCard features={features} flag="contextAssistant" title="Context assistant" noun="the context assistant">
+      Adds <span className="font-medium">Describe it</span> to <span className="font-medium">Contexts → New context tree</span>:
+      analysts describe a process, application or project, pick search terms — typed, or proposed by the model running on
+      this deployment — and choose the groups that belong to it. Turning this off hides the builder; contexts already
+      built are kept and keep refreshing after each crawl.
+    </FlagCard>
+  );
+}
+
+// Org Info (flag `orgTruth`): the organisation's own lists — customers, projects,
+// staff lists, timesheets — imported next to the crawled data. Off hides the
+// Organisation tab, the matrix's Organisation condition and the organisation edges
+// in the relationship graph, and the API answers 404 on /api/org-truth; nothing
+// imported is deleted, so switching it back on restores everything.
+function OrgInfoCard({ features }) {
+  return (
+    <FlagCard features={features} flag="orgTruth" title="Org Info" noun="Org Info">
+      Adds the <span className="font-medium">Organisation</span> tab, where the organisation's own lists — customers,
+      projects, staff lists, timesheets — are imported with <span className="font-medium">Import additional information</span>,
+      linked to the accounts, people and resources the crawlers found, and used in the matrix, the relationship graph and
+      the signals. Turning this off hides all of that; the imported lists and their links are kept, so turning it back on
+      restores them.
+    </FlagCard>
   );
 }
 
@@ -187,6 +186,7 @@ export default function ExperimentalFeaturesSection({ features, version }) {
       <MatrixSharingCard features={features} />
       <CustomReportsCard features={features} />
       <ContextAssistantCard features={features} />
+      <OrgInfoCard features={features} />
     </div>
   );
 }

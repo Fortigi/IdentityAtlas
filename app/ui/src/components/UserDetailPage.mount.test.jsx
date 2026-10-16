@@ -122,3 +122,50 @@ describe('UserDetailPage risk tab', () => {
     expect(screen.queryByRole('tab', { name: /^Risk$/i })).not.toBeInTheDocument();
   });
 });
+
+describe('UserDetailPage organisation enrichment and activity', () => {
+  const ENRICHMENT = { groups: [{ source: 'Maten', profileName: 'Expertise list', attributes: { expertises: ['IAM', 'Azure'], level: 'Senior' } }] };
+  const ACTIVITY = { groups: [{ type: 'Uren', unit: 'h', subjects: [
+    { targetType: 'OrgEntity', targetId: 'k1', label: 'Contoso', total: 8, lastOn: '2026-02-01', isMember: true },
+    { targetType: 'OrgEntity', targetId: 'k2', label: 'Northwind', total: 30.5, lastOn: '2026-03-01', isMember: false },
+  ] }] };
+
+  function renderOrg({ orgTruth = true } = {}) {
+    const onOpenDetail = vi.fn();
+    const authFetch = makeAuthFetch((url) => {
+      const s = String(url);
+      if (s === '/api/org-truth/enrichment/Principal/u1') return ENRICHMENT;
+      if (s === '/api/org-truth/activity/actor/Principal/u1') return ACTIVITY;
+      if (s.includes('/api/user/')) return user();
+      return undefined;
+    });
+    renderWithProviders(<UserDetailPage userId="u1" onClose={() => {}} onOpenDetail={onOpenDetail} />, { auth: { authFetch }, features: { orgTruth } });
+    return { authFetch, onOpenDetail };
+  }
+
+  it('shows the enrichment as ordinary attribute rows with the list as a chip', async () => {
+    renderOrg();
+    const label = await screen.findByText('expertises');
+    const row = label.closest('tr');
+    expect(row).toHaveTextContent('IAM, Azure');
+    expect(row).toHaveTextContent('Maten');
+    expect(screen.getByText('level').closest('tr')).toHaveTextContent('Senior');
+    expect(screen.getAllByTitle('From the imported list Maten')).toHaveLength(2);
+  });
+
+  it('summarises the activity per subject, most first, and opens the subject', async () => {
+    const { onOpenDetail } = renderOrg();
+    const table = await screen.findByRole('table', { name: 'Uren' });
+    const rows = table.querySelectorAll('tbody tr');
+    expect([...rows].map(r => r.textContent)).toEqual(['Northwind30.5 hMarch 2026no', 'Contoso8 hFebruary 2026yes']);
+    rows[0].querySelector('button').click();
+    expect(onOpenDetail).toHaveBeenCalledWith('org-entity', 'k2', 'Northwind');
+  });
+
+  it('asks the organisation routes nothing with the feature off', async () => {
+    const { authFetch } = renderOrg({ orgTruth: false });
+    await screen.findByRole('heading', { name: 'Ada Lovelace' });
+    expect(screen.queryByText('expertises')).toBeNull();
+    expect(authFetch.mock.calls.some(c => String(c[0]).startsWith('/api/org-truth/'))).toBe(false);
+  });
+});

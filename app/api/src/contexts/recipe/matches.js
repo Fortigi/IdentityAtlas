@@ -22,7 +22,7 @@ export const STATEMENT_TIMEOUT = '15s';
 
 const ALIAS = 'r';
 // Lowercase, every run of non-alphanumerics → one space, padded with a space both ends.
-const normalizedSql = (expr) => `(' ' || btrim(regexp_replace(lower(coalesce(${expr}, '')), '[^[:alnum:]]+', ' ', 'g')) || ' ')`;
+export const normalizedSql = (expr) => `(' ' || btrim(regexp_replace(lower(coalesce(${expr}, '')), '[^[:alnum:]]+', ' ', 'g')) || ' ')`;
 
 /**
  * The candidate query for a validated recipe. Every identifier comes from the catalog;

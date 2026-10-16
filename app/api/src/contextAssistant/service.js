@@ -12,7 +12,7 @@ import { createWarmup, prepareAtStartup } from '../nlreports/warmup.js';
 import { isFeatureEnabled } from '../featureFlags.js';
 import { getReportModel } from '../nlreports/settings.js';
 import { DEFAULT_STOPWORDS } from '../contexts/plugins/resource-cluster/tokenize.js';
-import { defaultMatchFor, normalizeText, TERM_ORIGINS } from '../contexts/recipe/recipe.js';
+import { defaultMatchFor, normalizeText, TARGETS, TERM_ORIGINS } from '../contexts/recipe/recipe.js';
 import {
   buildContextPrompt, buildMoreTermsMessage, MORE_TERMS_SCHEMA, RESPONSE_SCHEMA, TERMS_ONLY_SCHEMA,
 } from './prompt.js';
@@ -52,6 +52,9 @@ const REQUEST_WORDS = new Set([
   'have', 'has', 'give', 'hand', 'out', 'show', 'find', 'list', 'want', 'need', 'please', 'context', 'process',
   'alle', 'alles', 'rond', 'rondom', 'over', 'onze', 'hun', 'welke', 'die', 'dat', 'wat', 'geef', 'toon', 'zoek',
   'hebben', 'heeft', 'groepen', 'proces',
+  // Asking for the users who have access ("users with access to …") says who, not what.
+  'access', 'toegang', 'rechten', 'rights', 'users', 'gebruikers', 'accounts', 'medewerkers', 'mensen', 'personen',
+  'people', 'staff', 'werken', 'work', 'works', 'working', 'wie',
   'the', 'with', 'and', 'for', 'from', 'into', 'this', 'these', 'those', 'what', 'where', 'there', 'some', 'any', 'only', 'are', 'was', 'can', 'use', 'used',
 ]);
 
@@ -141,6 +144,48 @@ function termsAnswer({ raw, reply, timing }, known, own) {
   };
 }
 
+// Words that ask for people rather than for groups, and phrases that ask who has access.
+const PEOPLE_WORDS = new Set([
+  'user', 'users', 'account', 'accounts', 'people', 'person', 'persons', 'staff', 'employee', 'employees', 'who',
+  'gebruiker', 'gebruikers', 'medewerker', 'medewerkers', 'mensen', 'persoon', 'personen', 'wie',
+]);
+const ACCESS_PHRASES = [
+  'access to', 'rights on', 'work on', 'works on', 'working on',
+  'toegang tot', 'rechten op', 'werken op', 'werken aan', 'werkt op', 'werkt aan',
+];
+// "groups that give access to SAP" asks for groups: an access phrase alone does not
+// decide when the request names groups, roles or applications.
+const RESOURCE_WORDS = new Set([
+  'group', 'groups', 'role', 'roles', 'resource', 'resources', 'application', 'applications',
+  'groep', 'groepen', 'rol', 'rollen', 'applicatie', 'applicaties',
+]);
+
+/**
+ * What the analyst asks for, from their words alone: 'principal' when they ask for people
+ * (users, medewerkers, wie…) or for who has access to / works on something, null when the
+ * words do not say. Decides over the model; the analyst can always switch in the builder.
+ * @param {string} question
+ * @returns {'principal'|null}
+ */
+export function targetFromQuestion(question) {
+  const words = normalizeText(question).split(' ');
+  if (words.some(w => PEOPLE_WORDS.has(w))) return 'principal';
+  const padded = ` ${words.join(' ')} `;
+  const asksAccess = ACCESS_PHRASES.some(p => padded.includes(` ${p} `));
+  return asksAccess && !words.some(w => RESOURCE_WORDS.has(w)) ? 'principal' : null;
+}
+
+/** The context name for a principal recipe: "Users with access to RDW". */
+export function principalName(name) {
+  if (!name) return '';
+  return normalizeText(name).split(' ').some(w => PEOPLE_WORDS.has(w)) ? name : `Users with access to ${name}`;
+}
+
+/** The target of an interpreted request: the analyst's words first, then the model's choice. */
+export function targetOf(question, reply) {
+  return targetFromQuestion(question) ?? (TARGETS.includes(reply?.target) ? reply.target : 'resource');
+}
+
 /**
  * @param {object} args
  * @param {string} args.question
@@ -149,7 +194,12 @@ function termsAnswer({ raw, reply, timing }, known, own) {
 export async function interpret({ question, history = [] }) {
   const messages = [{ role: 'system', content: buildContextPrompt() }, ...history, { role: 'user', content: question }];
   const answer = await ask(messages, schemaFor(history));
-  if (answer.reply?.kind === 'terms') return termsAnswer(answer, new Set(), ownWords(question, history));
+  if (answer.reply?.kind === 'terms') {
+    const result = termsAnswer(answer, new Set(), ownWords(question, history));
+    result.target = targetOf(question, answer.reply);
+    if (result.target === 'principal') result.name = principalName(result.name);
+    return result;
+  }
   if (answer.reply?.kind === 'clarify') {
     return {
       kind: 'clarify',

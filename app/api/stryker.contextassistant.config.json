@@ -15,8 +15,11 @@
   },
   "mutate": [
     "src/contextAssistant/service.js",
+    "src/contexts/plugins/context-recipe-principals.js",
     "src/contexts/plugins/context-recipe.js",
     "src/contexts/recipe/matches.js",
+    "src/contexts/recipe/principalSql.js",
+    "src/contexts/recipe/principals.js",
     "src/contexts/recipe/recipe.js",
     "src/contexts/recipe/relatedWords.js",
     "src/nlreports/assistantHttp.js",

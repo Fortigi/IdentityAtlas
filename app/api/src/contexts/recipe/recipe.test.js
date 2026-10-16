@@ -136,3 +136,67 @@ describe('validateRecipe', () => {
     expect(recipe.terms[0].why).toBe('system');
   });
 });
+
+describe('validateRecipe — target', () => {
+  const ID_C = '33333333-3333-4333-8333-333333333333';
+  const ids = (n) => Array.from({ length: n }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+
+  it('normalises a recipe without a target exactly as before principal recipes existed', () => {
+    // Every key and value, so a principal field leaking into resource recipes fails here.
+    const raw = { name: 'Inkoop', terms: ['inkoop'], include: [ID_A], orgInclude: [ID_B], principalInclude: [ID_C], access: { assignmentTypes: ['Eligible'] } };
+    for (const target of [undefined, 'resource', 'account', 42]) {
+      expect(validateRecipe({ ...raw, target }).recipe).toEqual({
+        version: 1, name: 'Inkoop', target: 'resource', resourceTypes: ['Group'], fields: ['displayName', 'description'],
+        terms: [{ text: 'inkoop', key: 'inkoop', match: 'wordStart', state: 'accepted', origin: 'analyst' }],
+        include: [ID_A], exclude: [], structure: 'byTerm',
+      });
+    }
+  });
+
+  it('gives a principal recipe Direct + Indirect access and no orgTypes by default', () => {
+    const { ok, recipe } = validateRecipe({ target: 'principal', terms: ['contoso'] });
+    expect(ok).toBe(true);
+    expect(recipe).toMatchObject({
+      target: 'principal', access: { assignmentTypes: ['Direct', 'Indirect'] },
+      orgInclude: [], orgExclude: [], principalInclude: [], principalExclude: [],
+    });
+    expect('orgTypes' in recipe).toBe(false);   // absent = every collection type
+  });
+
+  it('keeps Eligible only when asked for, and drops assignment types that do not exist', () => {
+    expect(validateRecipe({ target: 'principal', terms: ['contoso'], access: { assignmentTypes: ['Eligible', 'Owner', 'Direct'] } })
+      .recipe.access.assignmentTypes).toEqual(['Eligible', 'Direct']);
+    // Nothing valid left → the default, not an empty list that would find nobody by access.
+    expect(validateRecipe({ target: 'principal', terms: ['contoso'], access: { assignmentTypes: ['Governed'] } })
+      .recipe.access.assignmentTypes).toEqual(['Direct', 'Indirect']);
+  });
+
+  it('keeps an empty orgTypes list (= no organisation entity by term) apart from an absent one', () => {
+    expect(validateRecipe({ target: 'principal', terms: ['contoso'], orgTypes: [] }).recipe.orgTypes).toEqual([]);
+    expect(validateRecipe({ target: 'principal', terms: ['contoso'], orgTypes: [' Klant ', 'Klant', '', 7] }).recipe.orgTypes).toEqual(['Klant']);
+  });
+
+  it('lets exclude win over include for org entities and users alike', () => {
+    const { recipe } = validateRecipe({
+      target: 'principal', terms: ['contoso'],
+      orgInclude: [ID_A, ID_B, 'nope'], orgExclude: [ID_B], principalInclude: [ID_A, ID_C], principalExclude: [ID_C],
+    });
+    expect([recipe.orgInclude, recipe.orgExclude]).toEqual([[ID_A], [ID_B]]);
+    expect([recipe.principalInclude, recipe.principalExclude]).toEqual([[ID_A], [ID_C]]);
+  });
+
+  it('is usable with only a hand-picked org entity or user, but not with only exclusions', () => {
+    expect(validateRecipe({ target: 'principal', orgInclude: [ID_A] }).ok).toBe(true);
+    expect(validateRecipe({ target: 'principal', principalInclude: [ID_A] }).ok).toBe(true);
+    expect(validateRecipe({ target: 'principal', principalExclude: [ID_A], orgExclude: [ID_B] }).ok).toBe(false);
+    // The same hand-picked user does not make a RESOURCE recipe usable.
+    expect(validateRecipe({ principalInclude: [ID_A] }).ok).toBe(false);
+  });
+
+  it('caps hand-picked users and org entities at the pinned limit', () => {
+    const { recipe, errors } = validateRecipe({ target: 'principal', terms: ['contoso'], principalExclude: ids(MAX_PINNED + 1), orgInclude: ids(MAX_PINNED) });
+    expect(recipe.principalExclude).toHaveLength(MAX_PINNED);
+    expect(recipe.orgInclude).toHaveLength(MAX_PINNED);
+    expect(errors).toEqual([`At most ${MAX_PINNED} excluded user objects.`]);
+  });
+});

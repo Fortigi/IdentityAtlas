@@ -58,6 +58,17 @@ export const FEATURE_FLAGS = {
     key: 'CONTEXT_ASSISTANT',
     envDefault: env => env.FEATURE_CONTEXT_ASSISTANT === 'true',
   },
+  // Org Info (Admin → Experimental): analysts import the organisation's own lists
+  // (customers, projects, staff lists, timesheets) and link them to the accounts,
+  // groups and contexts the crawlers synced. Off by default; while off, every
+  // /api/org-truth endpoint answers 404 and the Organisation tab is hidden. See
+  // docs/architecture/org-truth.md. The env var is FEATURE_ORG_INFO; the MVP's
+  // FEATURE_ORG_TRUTH is still read so existing deployments keep their setting.
+  // The admin toggle's WorkerConfig key stays FEATURE_ORG_TRUTH (derived from `key`).
+  orgTruth: {
+    key: 'ORG_TRUTH',
+    envDefault: env => env.FEATURE_ORG_INFO === 'true' || env.FEATURE_ORG_TRUTH === 'true',
+  },
 };
 
 // WorkerConfig key for a flag name, e.g. 'riskScoring' → 'FEATURE_RISK_SCORING'.

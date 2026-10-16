@@ -27,7 +27,9 @@ export default function EntityDetailLayout({ left, right, children }) {
 // entries so this component stays presentation-only.
 //
 // entries: [ [label, value, meta?] ]   meta.extended=true shows a faded
-// "ext" tag so readers can still distinguish JSON-derived fields.
+// "ext" tag so readers can still distinguish JSON-derived fields;
+// meta.label replaces the shown name and meta.source adds a chip naming the
+// imported list a value came from (organisation enrichment).
 //
 // A key with a server-resolved display name (an Entra directory-extension
 // attribute, #872) renders that name VERBATIM — `sAMAccountName`, not the
@@ -63,9 +65,12 @@ export function AttributesTable({ title = 'Attributes', entries }) {
                 <tr key={key} className="border-b border-gray-50 dark:border-gray-700/50 last:border-b-0 hover:bg-gray-50/50 dark:hover:bg-gray-700/30">
                   <td className="py-1.5 pl-4 pr-3 text-gray-500 dark:text-gray-400 align-top break-words">
                     <span className="inline-flex items-start gap-1.5">
-                      <span className="break-all" title={attributeLabel(key) ? key : undefined}>{attributeLabel(key) || friendlyLabel(key)}</span>
+                      <span className="break-all" title={attributeLabel(key) || meta?.label ? key : undefined}>{meta?.label || attributeLabel(key) || friendlyLabel(key)}</span>
                       {meta?.extended && (
                         <span className="inline-block px-1 py-0 rounded text-[9px] font-mono text-gray-600 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 shrink-0" title="From extendedAttributes">ext</span>
+                      )}
+                      {meta?.source && (
+                        <span className="inline-block px-1 py-0 rounded text-[9px] text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 shrink-0" title={`From the imported list ${meta.source}`}>{meta.source}</span>
                       )}
                     </span>
                   </td>

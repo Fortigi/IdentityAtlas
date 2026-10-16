@@ -79,6 +79,14 @@ describe('refreshGeneratedContexts', () => {
     expect(runInsert()[1][2].instanceKey).toBe('existing-key');
   });
 
+  it('selects every tree by default, and only the named plugins\' trees when asked', async () => {
+    wire([]);
+    await refreshGeneratedContexts('crawl-refresh');
+    await refreshGeneratedContexts('org-import', { algorithms: ['context-recipe-principals'] });
+    const selects = query.mock.calls.filter(([sql]) => /array_agg\(r\.parameters/.test(sql));
+    expect(selects.map(([, params]) => params)).toEqual([[null], [['context-recipe-principals']]]);
+  });
+
   it('skips trees opted out via autoRefresh=false', async () => {
     wire([{ algo: 'ad-ou-from-dn', algorithmId: 'algo-1', scopeSystemId: 1, ikey: 'k', params: { scopeSystemId: 1, autoRefresh: false } }]);
 

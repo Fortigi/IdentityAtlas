@@ -39,6 +39,11 @@ describe('parseDetailRoute', () => {
     expect(parseDetailRoute('report:orphaned-accounts')).toEqual({ type: 'report', id: 'orphaned-accounts' });
   });
 
+  it('reads an organisation-truth entity tab', () => {
+    expect(parseDetailRoute('org-entity:5f0c-1')).toEqual({ type: 'org-entity', id: '5f0c-1' });
+    expect(isDetailPage('organisation')).toBe(false);
+  });
+
   it('keeps colons inside the id', () => {
     expect(parseDetailRoute('resource:a:b:c')).toEqual({ type: 'resource', id: 'a:b:c' });
   });
@@ -102,6 +107,8 @@ describe('closeFallbackPage', () => {
     expect(closeFallbackPage('resource')).toBe('resources');
     // Closing a report lands back on the list it was opened from.
     expect(closeFallbackPage('report')).toBe('reports');
+    // Closing an org entity lands back on the Organisation page.
+    expect(closeFallbackPage('org-entity')).toBe('organisation');
   });
 
   it('falls back to the matrix for everything else', () => {
@@ -119,6 +126,8 @@ describe('detailTabIconBg', () => {
     expect(detailTabIconBg('department')).toContain('green');
     expect(detailTabIconBg('context')).toContain('sky');
     expect(detailTabIconBg('report')).toContain('amber');
+    expect(detailTabIconBg('org-entity')).toContain('teal');
+    expect(detailTabIconBg('org-entity')).toContain('dark:');
   });
 
   it('falls back to indigo for identity / run / unknown types', () => {

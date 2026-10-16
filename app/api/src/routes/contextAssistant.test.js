@@ -24,16 +24,27 @@ vi.mock('../contexts/recipe/matches.js', () => ({
   loadCandidates: vi.fn(async () => ({ rows: [], scopeTotal: 158, truncated: false })),
   computeMatches: vi.fn(() => ({ terms: [{ key: 'inkoop', hits: 3 }], matches: [{ id: 'g1', status: 'member' }], memberIds: ['g1'], addedByModel: 0 })),
 }));
+vi.mock('../contexts/recipe/principals.js', () => ({
+  evaluatePrincipals: vi.fn(async () => ({
+    target: 'principal',
+    orgMatches: [{ id: 'o1', entityType: 'Klant', label: 'Contoso', termKeys: ['contoso'], linkedPrincipals: 2, state: 'matched' }],
+    orgTruncated: false,
+    principals: { total: 1, sample: [{ id: 'p1', displayName: 'Ann Example', upn: 'ann@contoso.com', principalType: 'User', via: [] }] },
+    termPrincipals: { contoso: 1 },
+  })),
+}));
 vi.mock('../contexts/recipe/relatedWords.js', () => ({
   loadScopeNames: vi.fn(async () => [{ id: 'g1', displayName: 'Inkoop' }]),
   relatedWords: vi.fn(() => [{ word: 'vsts', inContext: 2, outside: 0, lift: 3 }]),
 }));
 vi.mock('../contexts/plugins/runner.js', () => ({ enqueueRun: vi.fn(async () => 'run-1'), getRun: vi.fn(async () => ({ status: 'succeeded', membersAdded: 4, membersRemoved: 1 })) }));
 
-import { queryOne } from '../db/connection.js';
+import { query, queryOne } from '../db/connection.js';
 import { interpret, suggestMore } from '../contextAssistant/service.js';
 import { computeMatches, loadCandidates } from '../contexts/recipe/matches.js';
 import { relatedWords } from '../contexts/recipe/relatedWords.js';
+import { evaluatePrincipals } from '../contexts/recipe/principals.js';
+import { searchNames } from '../nlreports/references.js';
 import { enqueueRun, getRun } from '../contexts/plugins/runner.js';
 import router from './contextAssistant.js';
 
@@ -41,6 +52,7 @@ const app = mountRouter(router);
 const api = () => request(app);
 const CONTEXT_ID = '3f1c2a9e-6b1d-4c2e-9a7b-1234567890ab';
 const RECIPE = { name: 'Inkoop', terms: ['inkoop'] };
+const USERS_RECIPE = { name: 'Users with access to Contoso', target: 'principal', terms: ['contoso'] };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -134,6 +146,34 @@ describe('POST /context-assistant/evaluate', () => {
   it('refuses a body without a recipe', async () => {
     expect((await api().post('/api/context-assistant/evaluate').send({})).status).toBe(400);
   });
+
+  it('answers a resource recipe exactly as before: no target, no users, no org lookup', async () => {
+    const res = await api().post('/api/context-assistant/evaluate').send({ recipe: RECIPE });
+    expect(Object.keys(res.body).sort()).toEqual(
+      ['addedByModel', 'errors', 'matches', 'memberCount', 'recipe', 'scopeTotal', 'terms', 'truncated']);
+    expect(evaluatePrincipals).not.toHaveBeenCalled();
+  });
+
+  it('adds the org matches, the users and the per-term user counts for a principal recipe', async () => {
+    const res = await api().post('/api/context-assistant/evaluate').send({ recipe: USERS_RECIPE });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      target: 'principal', memberCount: 1, termPrincipals: { contoso: 1 },
+      principals: { total: 1, sample: [{ displayName: 'Ann Example', principalType: 'User' }] },
+    });
+    expect(res.body.orgMatches[0]).toMatchObject({ entityType: 'Klant', linkedPrincipals: 2, state: 'matched' });
+    // Handed the validated recipe and the resource rows the matches were computed from.
+    const [recipe, rows, scopeTotal] = evaluatePrincipals.mock.calls[0];
+    expect(recipe).toMatchObject({ target: 'principal', access: { assignmentTypes: ['Direct', 'Indirect'] } });
+    expect([rows, scopeTotal]).toEqual([[], 158]);
+  });
+
+  it('answers 500 without detail when reading the users fails', async () => {
+    evaluatePrincipals.mockRejectedValueOnce(new Error('relation "OrgLinks" does not exist'));
+    const res = await api().post('/api/context-assistant/evaluate').send({ recipe: USERS_RECIPE });
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(res.body)).not.toContain('OrgLinks');
+  });
 });
 
 describe('POST /context-assistant/related', () => {
@@ -151,6 +191,35 @@ describe('GET /context-assistant/lookup', () => {
     expect(res.body.data).toEqual([{ id: 'r1', name: 'Inkoop', type: 'Group' }]);
     expect((await api().get('/api/context-assistant/lookup?q=i')).body).toEqual({ data: [] });
   });
+
+  it('looks up accounts for kind=principal in the resource lookup shape, plus each account\'s upn', async () => {
+    searchNames.mockResolvedValueOnce([
+      { id: 'p1', name: 'Ann Example', type: 'User', score: 0.9 },
+      { id: 'p2', name: 'Ann Example', type: 'ServicePrincipal', score: 0.9 },
+    ]);
+    query.mockResolvedValueOnce({ rows: [{ id: 'p1', upn: 'ann@contoso.com' }] });
+    const res = await api().get('/api/context-assistant/lookup?q=ann&kind=principal');
+    expect(searchNames.mock.calls[0].slice(1)).toEqual(['account', 'ann']);
+    expect(res.body).toEqual({ data: [
+      { id: 'p1', name: 'Ann Example', type: 'User', score: 0.9, upn: 'ann@contoso.com' },
+      { id: 'p2', name: 'Ann Example', type: 'ServicePrincipal', score: 0.9, upn: null },
+    ] });
+    expect(query.mock.calls[0][1]).toEqual([['p1', 'p2']]);
+  });
+
+  it('without kind (or any other kind) the lookup stays a resource lookup, with no upn query', async () => {
+    const plain = await api().get('/api/context-assistant/lookup?q=ann');
+    await api().get('/api/context-assistant/lookup?q=ann&kind=group');
+    expect(searchNames.mock.calls.map(c => c[1])).toEqual(['resource', 'resource']);
+    expect(plain.body).toEqual({ data: [{ id: 'r1', name: 'Inkoop', type: 'Group' }] });
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('asks no upn query when no account matches', async () => {
+    searchNames.mockResolvedValueOnce([]);
+    expect((await api().get('/api/context-assistant/lookup?q=zz&kind=principal')).body).toEqual({ data: [] });
+    expect(query).not.toHaveBeenCalled();
+  });
 });
 
 describe('GET /context-assistant/recipe/:id', () => {
@@ -160,6 +229,14 @@ describe('GET /context-assistant/recipe/:id', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ contextId: CONTEXT_ID, question: 'inkoopgroepen' });
     expect(res.body.recipe.terms[0].text).toBe('inkoop');
+  });
+
+  it('hands back a principal recipe with its principal parts, from either recipe plugin', async () => {
+    queryOne.mockResolvedValueOnce({ id: CONTEXT_ID, sourceInstanceKey: 'key-2', plugin: 'context-recipe-principals',
+      parameters: { recipe: { ...USERS_RECIPE, orgTypes: ['Klant'], access: { assignmentTypes: ['Eligible'] } } } });
+    const res = await api().get(`/api/context-assistant/recipe/${CONTEXT_ID}`);
+    expect(res.body.recipe).toMatchObject({ target: 'principal', orgTypes: ['Klant'], access: { assignmentTypes: ['Eligible'] } });
+    expect(queryOne.mock.calls[0][1]).toEqual([CONTEXT_ID, ['context-recipe', 'context-recipe-principals']]);
   });
 
   it('is 404 for a context built by something else, and for a non-id', async () => {
@@ -185,11 +262,32 @@ describe('POST /context-assistant/save', () => {
 
   it('refreshes an existing tree in place, on its own instance key', async () => {
     queryOne
-      .mockResolvedValueOnce({ id: CONTEXT_ID, sourceInstanceKey: 'key-1', parameters: {} })  // the tree being edited
+      .mockResolvedValueOnce({ id: CONTEXT_ID, sourceInstanceKey: 'key-1', plugin: 'context-recipe', parameters: {} })  // the tree being edited
       .mockResolvedValueOnce({ id: CONTEXT_ID });
     const res = await api().post('/api/context-assistant/save').send({ recipe: RECIPE, contextId: CONTEXT_ID });
     expect(res.status).toBe(200);
     expect(enqueueRun.mock.calls[0][1].instanceKey).toBe('key-1');
+  });
+
+  it('builds a principal recipe with the users plugin', async () => {
+    queryOne.mockResolvedValueOnce({ id: 'ctx-users' });
+    const res = await api().post('/api/context-assistant/save').send({ recipe: USERS_RECIPE });
+    expect(res.status).toBe(201);
+    expect(enqueueRun.mock.calls[0][0]).toBe('context-recipe-principals');
+    expect(enqueueRun.mock.calls[0][1].recipe.target).toBe('principal');
+  });
+
+  it('refreshes a users tree on its key, and refuses to turn a tree into the other kind', async () => {
+    queryOne
+      .mockResolvedValueOnce({ id: CONTEXT_ID, sourceInstanceKey: 'key-2', plugin: 'context-recipe-principals', parameters: {} })
+      .mockResolvedValueOnce({ id: CONTEXT_ID });
+    expect((await api().post('/api/context-assistant/save').send({ recipe: USERS_RECIPE, contextId: CONTEXT_ID })).status).toBe(200);
+    expect(enqueueRun.mock.calls[0].slice(0, 2)).toMatchObject(['context-recipe-principals', { instanceKey: 'key-2' }]);
+
+    queryOne.mockResolvedValueOnce({ id: CONTEXT_ID, sourceInstanceKey: 'key-1', plugin: 'context-recipe', parameters: {} });
+    const res = await api().post('/api/context-assistant/save').send({ recipe: USERS_RECIPE, contextId: CONTEXT_ID });
+    expect(res.status).toBe(409);
+    expect(enqueueRun).toHaveBeenCalledTimes(1);
   });
 
   it('refuses to save a context without a name, or one nothing can match', async () => {

@@ -28,6 +28,10 @@ describe('tabBadge', () => {
     expect(tabBadge('context-builder')).toBe('EDIT');
   });
 
+  it('shows ORG (not AP) for an organisation-entity tab', () => {
+    expect(tabBadge('org-entity')).toBe('ORG');
+  });
+
   it('falls back to AP for an unknown type', () => {
     expect(tabBadge('something-else')).toBe('AP');
   });

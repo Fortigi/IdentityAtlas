@@ -21,6 +21,7 @@ function stageRows(rows) {
 const ENV_KEYS = [
   'USE_SQL', 'FEATURE_RISK_SCORING', 'FEATURE_ACCOUNT_LINKING',
   'FEATURE_ACCOUNT_CORRELATION', 'FEATURE_EXPERIMENTAL_CRAWLERS', 'FEATURE_MATRIX_SHARING',
+  'FEATURE_ORG_INFO', 'FEATURE_ORG_TRUTH',
 ];
 let saved;
 
@@ -50,6 +51,17 @@ describe('workerConfigKey', () => {
 });
 
 describe('env-var defaults (no stored override)', () => {
+  it('Org Info (orgTruth) is OFF unless FEATURE_ORG_INFO — or the earlier FEATURE_ORG_TRUTH — says exactly "true"', async () => {
+    expect(await isFeatureEnabled('orgTruth')).toBe(false);
+    process.env.FEATURE_ORG_INFO = 'TRUE';         // not exactly "true"
+    expect(await isFeatureEnabled('orgTruth')).toBe(false);
+    process.env.FEATURE_ORG_INFO = 'true';
+    expect(await isFeatureEnabled('orgTruth')).toBe(true);
+    delete process.env.FEATURE_ORG_INFO;
+    process.env.FEATURE_ORG_TRUTH = 'true';        // the name deployments already use keeps working
+    expect(await isFeatureEnabled('orgTruth')).toBe(true);
+  });
+
   it('matrixSharing is OFF unless the env var says exactly "true"', async () => {
     expect(workerConfigKey('matrixSharing')).toBe('FEATURE_MATRIX_SHARING');
     expect(await isFeatureEnabled('matrixSharing')).toBe(false);
@@ -167,7 +179,7 @@ describe('readFeatures', () => {
     process.env.FEATURE_EXPERIMENTAL_CRAWLERS = 'true';
     const payload = await readFeatures();
     expect(Object.keys(payload).sort()).toEqual(Object.keys(FEATURE_FLAGS).sort());
-    expect(payload).toEqual({ riskScoring: false, accountLinking: true, experimentalCrawlers: true, matrixSharing: false, customReports: false, contextAssistant: false });
+    expect(payload).toEqual({ riskScoring: false, accountLinking: true, experimentalCrawlers: true, matrixSharing: false, customReports: false, contextAssistant: false, orgTruth: false });
   });
 });
 

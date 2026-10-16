@@ -15,6 +15,7 @@ export function tabBadge(type) {
     case 'report':      return 'RPT';
     case 'report-builder': return 'EDIT';
     case 'context-builder': return 'EDIT';
+    case 'org-entity':  return 'ORG';
     case 'access-package':
     default:            return 'AP';
   }

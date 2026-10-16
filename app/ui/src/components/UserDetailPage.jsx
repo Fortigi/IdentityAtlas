@@ -11,6 +11,8 @@ import { formatDate } from '@ui/utils/formatters';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import { tagPillStyle } from '@ui/utils/colors';
 import { Avatar } from './DepartmentBadges';
+import OrgActivitySummary from '@ui/components/orgtruth/OrgActivitySummary';
+import { useOrgEnrichment } from '@ui/components/orgtruth/enrichment';
 
 const ACCOUNT_TYPE_COLORS = {
   Member:           'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-700',
@@ -103,6 +105,7 @@ function UserHeader({ data }) {
 export default function UserDetailPage({ userId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
   const features = useFeatures();
+  const enrichment = useOrgEnrichment('Principal', userId);
   const [identityInfo, setIdentityInfo] = useState(undefined);
   const [manager, setManager] = useState(null);
 
@@ -153,9 +156,13 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
       graphCenterLabel="User"
       getTabs={getTabs}
       getAttributeEntries={getUserAttributeEntries}
+      extraAttributeEntries={enrichment}
       renderHeader={(data) => <UserHeader data={data} />}
       renderAttributesExtra={() => (
-        <UserActivitySection userId={userId} authFetch={authFetch} onOpenDetail={onOpenDetail} />
+        <>
+          <UserActivitySection userId={userId} authFetch={authFetch} onOpenDetail={onOpenDetail} />
+          <OrgActivitySummary targetType="Principal" id={userId} onOpenDetail={onOpenDetail} />
+        </>
       )}
       renderRisk={(data) => (
         <RiskScoreSection attributes={data.attributes} entityType="user" entityId={userId} authFetch={authFetch} />

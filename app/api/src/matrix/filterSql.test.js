@@ -354,3 +354,72 @@ describe('collectContextIds rejects malformed conditions', () => {
     expect(ids).toEqual([CTX_RESOURCE]);
   });
 });
+
+// The organisation condition (orgCondition.js) routed through the live
+// subquery: the include/exclude split, the per-entity expansion and the
+// drop-with-a-warning path have to hold here, not just in the clause builder.
+describe('org conditions', () => {
+  const ORG_ID = 'e0000000-0000-4000-8000-00000000000a';
+  const org = (extra = {}) => ({ kind: 'org', entityType: 'Klant', ...extra });
+  const flat = (sql) => sql.replace(/\s+/g, ' ');
+
+  it('includes the principals linked to the chosen entities', () => {
+    const out = buildPrincipal([org({ entityIds: [ORG_ID] })]);
+    expect(out.warnings).toEqual([]);
+    expect(flat(out.sql)).toMatch(/^\(SELECT id FROM "Principals" WHERE id IN \( WITH org_e AS/);
+    expect(out.sql).not.toContain('IS NOT TRUE');
+    expect(out.params).toEqual(['Klant', [ORG_ID]]);
+  });
+
+  it('excludes them with IS NOT TRUE, so unlinked principals stay', () => {
+    const out = buildPrincipal([], [org()]);
+    expect(flat(out.sql)).toMatch(/WHERE \(id IN \( WITH org_e AS .*\) IS NOT TRUE\)$/);
+  });
+
+  it('ANDs an org condition with an attribute condition in bind order', () => {
+    const out = buildPrincipal([
+      { kind: 'attribute', field: 'department', values: ['Finance'] },
+      org({ via: ['eigenaar'] }),
+    ]);
+    expect(out.params).toEqual(['Finance', 'Klant', ['eigenaar']]);
+    expect(flat(out.sql)).toContain(`"department"::text IN ($1) AND id IN ( WITH org_e AS (SELECT e."id" FROM "OrgEntities" e WHERE e."entityType" = $2`);
+  });
+
+  it('uses the identity expansion for an Identity subject', () => {
+    const { params, bind } = createParams();
+    const out = buildEntitySubquery({ entity: 'Identity', include: [org()], validColumns: new Set(), contextTypes: new Map(), bind });
+    expect(out.sql).toMatch(/^\(SELECT id FROM "Identities" WHERE id IN/);
+    expect(flat(out.sql)).toContain(`SELECT im."identityId" FROM "IdentityMembers" im JOIN org_l x ON x.tt = 'Principal'`);
+    expect(params).toEqual(['Klant']);
+  });
+
+  it('drops a malformed org condition with a warning and no fragment', () => {
+    const out = buildPrincipal([org({ attribute: { key: 'iso27001', values: [] } })]);
+    expect(out).toEqual({ sql: null, warnings: ['org condition dropped: attribute needs at least one value'], params: [] });
+  });
+
+  it('keeps the valid org condition when a malformed one next to it is dropped', () => {
+    const out = buildPrincipal([org({ entityType: '' }), org()]);
+    expect(out.warnings).toEqual(['org condition dropped: entityType is required']);
+    expect(out.params).toEqual(['Klant']);
+    expect(out.sql.match(/WITH org_e/g)).toHaveLength(1);
+  });
+});
+
+describe('condition dispatch', () => {
+  it('drops a condition of an unknown kind with a warning naming the kind', () => {
+    const out = buildPrincipal([{ kind: 'orgg', entityType: 'Klant' }]);
+    expect(out).toEqual({ sql: null, warnings: ['unknown condition kind: orgg'], params: [] });
+  });
+
+  it('reads ext.<key> from extendedAttributes with the values bound', () => {
+    const out = buildPrincipal([{ kind: 'attribute', field: 'ext.costCenter', values: ['42', ''] }]);
+    expect(out.sql).toBe(`(SELECT id FROM "Principals" WHERE "extendedAttributes"->>'costCenter' IN ($1))`);
+    expect(out.params).toEqual(['42']);
+  });
+
+  it('refuses an ext.<key> that is not a plain identifier', () => {
+    const out = buildPrincipal([{ kind: 'attribute', field: "ext.a'b", values: ['x'] }]);
+    expect(out).toEqual({ sql: null, warnings: ["attribute condition for ext.a'b dropped"], params: [] });
+  });
+});

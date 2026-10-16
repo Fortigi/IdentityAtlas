@@ -4,12 +4,13 @@
 
 import { useEffect, useState } from 'react';
 import { postJson } from '@ui/components/reports/ask/AskAssistant.api';
+import { handPicked } from './recipeDraft';
 
 export const EVALUATE_DELAY_MS = 350;
 
 /** A draft worth sending: something to search for, or something pinned. */
 export function hasSearch(recipe) {
-  return recipe.terms.length > 0 || recipe.include.length > 0;
+  return recipe.terms.length > 0 || handPicked(recipe) > 0;
 }
 
 /**

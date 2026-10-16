@@ -27,6 +27,7 @@ import {
 } from '../db/columnCache.js';
 import { explainInheritance } from '../matrix/inheritedAccess.js';
 import { withAttributeLabels } from '../lib/attributeLabels.js';
+import { listEnrichmentFields, enrichmentFieldValues } from '../matrix/enrichmentFields.js';
 import savedFiltersRouter from './matrix/savedFilters.js';
 import sharesRouter from './matrix/shares.js';
 import scopeRouter from './matrix/scope.js';
@@ -202,6 +203,18 @@ function entityColumnValues(entity) {
   return getResourceColumnValuesMeta();
 }
 
+// The org.<SourceType>.<attr> enrichment fields (matrix/enrichmentFields.js),
+// appended after the entity's own columns. A failure here must not cost the
+// picker its ordinary columns, so it reads as no enrichment fields.
+async function enrichmentFieldsOrNone(entity) {
+  try {
+    return await listEnrichmentFields(entity);
+  } catch (err) {
+    console.error('matrix/columns enrichment fields failed:', err.message);
+    return [];
+  }
+}
+
 // ─── GET /api/matrix/columns ────────────────────────────────────────
 router.get('/matrix/columns', async (req, res) => {
   const entity = req.query.entity;
@@ -225,7 +238,7 @@ router.get('/matrix/columns', async (req, res) => {
     // subset — and the rest is reachable via /matrix/column-values (#928).
     const { values, truncated } = await entityColumnValues(entity);
     // Preserve column order from the schema, fold in values when present.
-    return res.json(await withAttributeLabels(
+    const labelled = await withAttributeLabels(
       cols.map(c => ({
         column:    c.name,
         type:      c.type,
@@ -238,7 +251,9 @@ router.get('/matrix/columns', async (req, res) => {
           .map(([k, vals]) => ({ column: k, type: 'text', values: vals, truncated: !!truncated[k] }))
       ),
       entity.toLowerCase()
-    ));
+    );
+    // org.<SourceType>.<attr> enrichment fields last; they carry their own label.
+    return res.json(labelled.concat(await enrichmentFieldsOrNone(entity)));
   } catch (err) {
     console.error('matrix/columns failed:', err.message);
     return res.json([]);
@@ -261,6 +276,9 @@ router.get('/matrix/column-values', async (req, res) => {
   if (!useSql) return res.json({ column, values: [], truncated: false });
 
   try {
+    // org.<SourceType>.<attr>: an enrichment field, searched in its own rows.
+    const enriched = await enrichmentFieldValues(entity, column, q);
+    if (enriched) return res.json(enriched);
     const { values, truncated } = await entityColumnValues(entity);
     // Allowlist: only columns/ext keys we actually discovered are accepted —
     // the name is interpolated into the SQL, the search term never is.

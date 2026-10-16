@@ -84,6 +84,15 @@ describe('navTabs', () => {
     expect(shown).toContain('admin');
   });
 
+  it('shows Organisation only while the orgTruth feature is on, and never as an optional tab', () => {
+    const off = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: null, canSeeAdmin: true }));
+    expect(off).not.toContain('organisation');
+    const on = keys(computeNavTabs({ features: { ...ENABLE_ALL_FEATURES, orgTruth: true }, visibleTabs: [], canSeeAdmin: true }));
+    expect(on).toContain('organisation');
+    expect(on.indexOf('organisation')).toBe(on.indexOf('contexts') + 1);
+    expect(keys(availableOptionalTabs({ ...ENABLE_ALL_FEATURES, orgTruth: true }))).not.toContain('organisation');
+  });
+
   it('still gates the Admin tab on permission and feature flags', () => {
     const noAdmin = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: [], canSeeAdmin: false }));
     expect(noAdmin).not.toContain('admin');
