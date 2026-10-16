@@ -29,8 +29,10 @@ import { baseEntityOf, humanType } from './compare.js';
 import { likeContains } from '../db/sqlParams.js';
 
 const TYPE_COLUMN = { Resources: 'resourceType', Principals: 'principalType' };
-const MIN_SIMILARITY = 0.25;
-const MIN_WORD_SIMILARITY = 0.6;
+// Exported for the interview mention search (interviews/search.js), so "a name matches"
+// means the same thing there as here.
+export const MIN_SIMILARITY = 0.25;
+export const MIN_WORD_SIMILARITY = 0.6;
 const MAX_CHOICES = 5;
 
 const typeSelect = (entity, t) => (TYPE_COLUMN[entity.table] ? `${t}."${TYPE_COLUMN[entity.table]}"` : 'NULL');

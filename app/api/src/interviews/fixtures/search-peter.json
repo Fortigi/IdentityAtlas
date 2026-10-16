@@ -1,0 +1,28 @@
+{
+  "kind": "identity",
+  "scoped": true,
+  "candidates": [
+    {
+      "id": "a1b2c3d4-0000-4000-8000-000000000002",
+      "kind": "identity",
+      "displayName": "Peter Jansen",
+      "label": "Database administrator · ICT Beheer",
+      "score": 0.64,
+      "inScope": false
+    },
+    {
+      "id": "a1b2c3d4-0000-4000-8000-000000000003",
+      "kind": "identity",
+      "displayName": "Peter de Vries",
+      "label": "Controller · Finance",
+      "score": 0.64,
+      "inScope": false
+    }
+  ],
+  "truncated": false,
+  "outcome": {
+    "state": "unresolved",
+    "entityId": null,
+    "reason": "ambiguous"
+  }
+}

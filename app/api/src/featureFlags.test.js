@@ -21,6 +21,7 @@ function stageRows(rows) {
 const ENV_KEYS = [
   'USE_SQL', 'FEATURE_RISK_SCORING', 'FEATURE_ACCOUNT_LINKING',
   'FEATURE_ACCOUNT_CORRELATION', 'FEATURE_EXPERIMENTAL_CRAWLERS', 'FEATURE_MATRIX_SHARING',
+  'FEATURE_INTERVIEWS',
 ];
 let saved;
 
@@ -73,6 +74,15 @@ describe('env-var defaults (no stored override)', () => {
     expect(await isFeatureEnabled('experimentalCrawlers')).toBe(false);
     process.env.FEATURE_EXPERIMENTAL_CRAWLERS = 'true';
     expect(await isFeatureEnabled('experimentalCrawlers')).toBe(true);
+  });
+
+  it('interviews is OFF on a fresh install (personal data) and ON only for the exact string "true"', async () => {
+    expect(workerConfigKey('interviews')).toBe('FEATURE_INTERVIEWS');
+    expect(await isFeatureEnabled('interviews')).toBe(false);
+    process.env.FEATURE_INTERVIEWS = 'True';
+    expect(await isFeatureEnabled('interviews')).toBe(false);
+    process.env.FEATURE_INTERVIEWS = 'true';
+    expect(await isFeatureEnabled('interviews')).toBe(true);
   });
 
   it('riskScoring is OFF on a fresh install and ON only for the exact string "true"', async () => {
@@ -167,7 +177,7 @@ describe('readFeatures', () => {
     process.env.FEATURE_EXPERIMENTAL_CRAWLERS = 'true';
     const payload = await readFeatures();
     expect(Object.keys(payload).sort()).toEqual(Object.keys(FEATURE_FLAGS).sort());
-    expect(payload).toEqual({ riskScoring: false, accountLinking: true, experimentalCrawlers: true, matrixSharing: false, customReports: false, contextAssistant: false });
+    expect(payload).toEqual({ riskScoring: false, accountLinking: true, experimentalCrawlers: true, matrixSharing: false, customReports: false, contextAssistant: false, interviews: false });
   });
 });
 

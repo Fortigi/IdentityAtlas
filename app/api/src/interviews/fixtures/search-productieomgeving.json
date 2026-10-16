@@ -1,0 +1,11 @@
+{
+  "kind": "resource",
+  "scoped": false,
+  "candidates": [],
+  "truncated": false,
+  "outcome": {
+    "state": "not_found",
+    "entityId": null,
+    "reason": "no-candidates"
+  }
+}

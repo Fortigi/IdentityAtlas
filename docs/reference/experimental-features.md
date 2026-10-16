@@ -176,6 +176,26 @@ profile, or an Azure parameter), and it is shared with custom reports.
 
 ---
 
+## Interviews (API only)
+
+The server side of **Identity Atlas Interviews**, a planned native app for role-mining
+interviews: a rate-limited lookup of who a spoken name may refer to, a read of the
+interviewed manager's team, and a store for evidence-linked *claims* that an analyst reviews.
+There is no app and no screen yet, and nothing in it changes Identity Atlas data — an approval
+is recorded as a decision only. See [Identity Atlas Interviews](../architecture/interviews.md).
+
+Environment variable: `FEATURE_INTERVIEWS=true`. This flag has **no card under Admin →
+Experimental yet**; set the variable, or call `POST /api/admin/features/toggle` with
+`{ "feature": "interviews", "enabled": true }` (needs `admin.feature-flags`).
+
+**On** — `/api/v1/interviews/*` answers. Reads need **Read all data**; writes need **Build
+contexts** (`data.write.contexts`, reused for now). Read API keys are refused.
+
+**Off** — every `/api/v1/interviews/*` endpoint answers `404` (after the permission check).
+Interviews already stored are kept, not deleted.
+
+---
+
 ## Leaving experimental behind
 
 The label is temporary by design. Once a feature has run against enough real
