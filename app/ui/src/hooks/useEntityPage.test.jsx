@@ -88,6 +88,59 @@ describe('useEntityPage', () => {
     expect(result.current.hasAnyFilter).toBeTruthy();
   });
 
+  it('"All attributes" sends extendedSearch only with a term of 3+ characters', async () => {
+    const { af, result } = setup();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => { result.current.setExtendedSearch(true); result.current.setSearch('NL'); });
+    await waitFor(() => expect(lastListUrl(af)).toContain('search=NL'));
+    expect(lastListUrl(af)).not.toContain('extendedSearch');
+    expect(result.current.extendedActive).toBe(false);
+
+    act(() => result.current.setSearch('0612345678'));
+    await waitFor(() => expect(lastListUrl(af)).toContain('extendedSearch=true'));
+    expect(result.current.extendedActive).toBe(true);
+
+    act(() => result.current.setExtendedSearch(false));
+    await waitFor(() => expect(lastListUrl(af)).not.toContain('extendedSearch'));
+  });
+
+  it('remembers "All attributes" per list', async () => {
+    const first = setup();
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+    act(() => first.result.current.setExtendedSearch(true));
+    first.unmount();
+
+    const again = setup();
+    expect(again.result.current.extendedSearch).toBe(true);
+    const other = setup({ entityType: 'identity' });
+    expect(other.result.current.extendedSearch).toBe(false);
+  });
+
+  // "Tag all N matching" must tag the N the list showed.
+  it('assignTagToAll sends the list\'s search mode with the search', async () => {
+    const af = makeAuthFetch({
+      [COLUMNS]: [],
+      [LIST]: { data: [{ id: '1' }], total: 40 },
+      '/assign-by-filter': jsonResponse({ inserted: 40 }),
+      '/api/tags': [],
+    });
+    const { wrapper } = makeWrapper({ auth: { authFetch: af } });
+    const { result } = renderHook(
+      () => useEntityPage({ authFetch: af, entityType: 'user', listEndpoint: LIST, columnsEndpoint: COLUMNS, tagFilterKey: '__userTag' }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    act(() => { result.current.setExtendedSearch(true); result.current.setSearch('CI0012345'); });
+    await waitFor(() => expect(result.current.extendedActive).toBe(true));
+    act(() => result.current.setActionTag('t1'));
+
+    await act(async () => { await result.current.assignTagToAll(); });
+
+    const call = af.mock.calls.find((c) => String(c[0]).endsWith('/assign-by-filter'));
+    expect(JSON.parse(call[1].body)).toEqual({ entityType: 'user', search: 'CI0012345', extendedSearch: true });
+  });
+
   it('paginates via offset = page * PAGE_SIZE', async () => {
     const { af, result } = setup();
     await waitFor(() => expect(result.current.loading).toBe(false));

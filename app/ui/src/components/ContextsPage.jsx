@@ -174,6 +174,7 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
             selectedRootId={effectiveRootId}
             onSelectRoot={setSelectedRootId}
             onNewTree={() => setNewModalOpen(true)}
+            onOpenContext={open}
             loading={rootsLoading}
           />
         </div>

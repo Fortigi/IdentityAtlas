@@ -4,6 +4,7 @@
 
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
+import { isExtendedSearchActive } from '@ui/utils/matchedOn';
 
 export function useContextRoots() {
   const { authFetch } = useAuth();
@@ -29,6 +30,30 @@ export function useContextSubtree(rootId) {
     },
   );
   return { nodes, loading, error: error ? (error.message || 'Failed to load subtree') : null, reload };
+}
+
+// The search URL for the Contexts pane, or null for no search. Searching looks
+// at every level (the API drops the roots-only rule), so a logical
+// application under its catalogue is found directly. Pure, for the tests.
+export function contextSearchUrl(term, extended) {
+  const t = String(term ?? '').trim();
+  if (!t) return null;
+  const qs = new URLSearchParams({ search: t });
+  if (isExtendedSearchActive(extended, t)) qs.set('extendedSearch', 'true');
+  return `/api/contexts?${qs}`;
+}
+
+export function useContextSearch(term, extended) {
+  const { authFetch } = useAuth();
+  const url = contextSearchUrl(term, extended);
+  const { data: results, loading, error } = useFetch(url, {
+    authFetch,
+    enabled: !!url,
+    initialData: [],
+    transform: (body) => body.data || [],
+    onError: (err) => console.error('Context search failed:', err),
+  });
+  return { results: url ? results : [], loading: !!url && loading, error: error ? (error.message || 'Search failed') : null };
 }
 
 // Flattens a nested tree (children-of-children) into an indent-aware list.

@@ -2,6 +2,7 @@ import { useState, useEffect, useReducer, useCallback, useMemo, useRef } from 'r
 import { useDebouncedValue } from './useDebouncedValue';
 import usePersistedState from './usePersistedState';
 import { useDialog } from '@ui/components/dialogContext';
+import { isExtendedSearchActive } from '@ui/utils/matchedOn';
 
 const PAGE_SIZE = 100;
 
@@ -48,6 +49,11 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   // Filter state
   const [search, setSearch] = usePersistedState(skey('search'), '');
   const debouncedSearch = useDebouncedValue(search, 400);
+  // Search every attribute (a phone number, a CMDB reference) instead of only
+  // the identifying columns. Off by default: "IT" or "NL" would otherwise
+  // match half the tenant.
+  const [extendedSearch, setExtendedSearch] = usePersistedState(skey('extendedSearch'), false);
+  const extendedActive = isExtendedSearchActive(extendedSearch, debouncedSearch);
   // Page resets to 0 on return — the persisted filters/search are what matter,
   // and starting at page 1 avoids landing on a now-empty page if the data moved.
   const [page, setPage] = useState(0);
@@ -74,7 +80,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
 
   // Reset page & selection when filters change — during render via a
   // value-signature compare, so no synchronous setState lives in an effect.
-  const filterResetSig = JSON.stringify({ debouncedSearch, activeFilters, baseFilters, includeDeleted, sortCol, sortDir });
+  const filterResetSig = JSON.stringify({ debouncedSearch, extendedActive, activeFilters, baseFilters, includeDeleted, sortCol, sortDir });
   const [seenFilterResetSig, setSeenFilterResetSig] = useState(filterResetSig);
   if (filterResetSig !== seenFilterResetSig) {
     setSeenFilterResetSig(filterResetSig);
@@ -135,6 +141,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
     setLoading(true);
     const params = new URLSearchParams({ limit: PAGE_SIZE, offset: page * PAGE_SIZE });
     if (debouncedSearch) params.set('search', debouncedSearch);
+    if (extendedActive) params.set('extendedSearch', 'true');
     if (filtersObj) params.set('filters', JSON.stringify(filtersObj));
     if (includeDeleted) params.set('includeDeleted', 'true');
     // Sort is applied server-side over the full result set — a column header
@@ -163,7 +170,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
         if (version === fetchVersion.current) setError(err);
       })
       .finally(() => { if (version === fetchVersion.current) setLoading(false); });
-  }, [page, debouncedSearch, filtersObj, authFetch, listEndpoint, includeDeleted, entityType, sortCol, sortDir]);
+  }, [page, debouncedSearch, extendedActive, filtersObj, authFetch, listEndpoint, includeDeleted, entityType, sortCol, sortDir]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
@@ -261,6 +268,8 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
         body: JSON.stringify({
           entityType,
           search: debouncedSearch || undefined,
+          // Same mode as the list, or "Tag all N matching" tags a different N.
+          extendedSearch: extendedActive || undefined,
           filters: filtersObj || undefined,
         }),
       });
@@ -346,6 +355,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
     page, setPage, totalPages, PAGE_SIZE,
     // Search & Filters
     search, setSearch, debouncedSearch,
+    extendedSearch, setExtendedSearch, extendedActive,
     includeDeleted, setIncludeDeleted,
     activeFilters, addFilter, removeFilter, clearAllFilters,
     hasAnyFilter, activeTagFilter, filtersObj,

@@ -35,6 +35,30 @@ function renderPage(authFetch) {
   );
 }
 
+describe('EntityListPage extended search', () => {
+  it('shows a "Matched on" column only while an extended search is running', async () => {
+    const af = makeAuthFetch((url) => {
+      const s = String(url);
+      if (s.includes(COLUMNS) || s.includes('/api/tags')) return [];
+      if (s.includes(LIST)) {
+        return s.includes('extendedSearch=true')
+          ? { data: [{ id: '1', displayName: 'Jan', matchedOn: ['mobilePhone', 'employeeOrgData.costCenter'] }], total: 1 }
+          : { data: [{ id: '1', displayName: 'Jan' }], total: 1 };
+      }
+      return undefined;
+    });
+    renderPage(af);
+    expect(await screen.findByText('Jan')).toBeInTheDocument();
+    expect(screen.queryByText('Matched on')).toBeNull();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'All attributes' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search' }), { target: { value: '0612345678' } });
+
+    expect(await screen.findByText('Mobile phone, Employee org data › Cost center')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Matched on' })).toBeInTheDocument();
+  });
+});
+
 describe('EntityListPage pagination', () => {
   it('clicking Next does not crash when the endpoint omits total on later pages', async () => {
     // Mirrors the real list endpoints: total is returned only on page 1 (offset 0);

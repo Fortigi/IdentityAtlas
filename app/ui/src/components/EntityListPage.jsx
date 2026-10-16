@@ -3,6 +3,8 @@ import { useAuth } from '@ui/auth/AuthGate';
 import useEntityPage from '@ui/hooks/useEntityPage';
 import FilterBar from './FilterBar';
 import EmptyState from './EmptyState';
+import ExtendedSearchToggle from './ExtendedSearchToggle';
+import { formatMatchedOn } from '@ui/utils/matchedOn';
 import { TAG_COLORS, tagPillStyle } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 
@@ -168,6 +170,7 @@ export default function EntityListPage({
           placeholder={searchPlaceholder}
           className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs w-64 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
         />
+        <ExtendedSearchToggle checked={ep.extendedSearch} onChange={ep.setExtendedSearch} />
 
         {showIncludeDeleted && (
           <label
@@ -248,6 +251,7 @@ export default function EntityListPage({
         ep={ep}
         label={label}
         tableColumns={tableColumns}
+        fieldLabels={fieldLabels}
         renderEntityCell={renderEntityCell}
         renderDataCells={renderDataCells}
         onOpenDetail={onOpenDetail}
@@ -285,7 +289,7 @@ export default function EntityListPage({
 
 // The list body's four states (loading / error / empty / table) are their
 // own component so EntityListPage's render stays under the complexity ceiling.
-function EntityListTable({ ep, label, tableColumns, renderEntityCell, renderDataCells, onOpenDetail, isDark }) {
+function EntityListTable({ ep, label, tableColumns, fieldLabels, renderEntityCell, renderDataCells, onOpenDetail, isDark }) {
   return (
     ep.loading ? (
         <div className="text-center text-gray-500 dark:text-gray-400 py-12">Loading {label}...</div>
@@ -348,6 +352,9 @@ function EntityListTable({ ep, label, tableColumns, renderEntityCell, renderData
                     </span>
                   </th>
                 ))}
+                {ep.extendedActive && (
+                  <th className="text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300">Matched on</th>
+                )}
                 <th className="text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300">Tags</th>
               </tr>
             </thead>
@@ -371,6 +378,11 @@ function EntityListTable({ ep, label, tableColumns, renderEntityCell, renderData
                   </td>
                   {renderEntityCell(item, onOpenDetail)}
                   {renderDataCells(item)}
+                  {ep.extendedActive && (
+                    <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400">
+                      {formatMatchedOn(item.matchedOn, fieldLabels)}
+                    </td>
+                  )}
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-1">
                       {(item.tags || []).map(t => (
