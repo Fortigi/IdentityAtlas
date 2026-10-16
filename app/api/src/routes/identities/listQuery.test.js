@@ -49,6 +49,13 @@ describe('buildIdentityListWhere', () => {
     expect(where.match(/ILIKE \$2/g)).toHaveLength(2);
   });
 
+  it('hrAnchored=false also takes the not-yet-classified (NULL) rows; orphanStatus=none means no status', () => {
+    const { where } = buildIdentityListWhere({ hrAnchored: 'false', orphanStatus: 'none', attrFilters: {}, hasHrCols: true }, binder());
+    expect(where).toContain('("isHrAnchored" = false OR "isHrAnchored" IS NULL)');
+    expect(where).toContain('"orphanStatus" IS NULL');
+    expect(where).not.toContain('"isHrAnchored" = true');
+  });
+
   it('ignores minAccounts of 1 (only >1 filters)', () => {
     const { where } = buildIdentityListWhere({ minAccounts: '1', attrFilters: {} }, binder());
     expect(where).not.toContain('accountCount');
