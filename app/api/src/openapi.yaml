@@ -868,6 +868,99 @@ paths:
         '500':
           description: The report template failed to run
 
+  # ─── Report views ──────────────────────────────────────────────
+  /report-views:
+    post:
+      tags: [Reports]
+      summary: Save a view of a standard report
+      operationId: createReportView
+      description: >
+        Stores a standard report's parameters under a name, shared across the deployment. The
+        view is then listed and run through `GET /reports` as a report named `view-<id>`, which
+        runs the standard report with these parameters (overlaid by any given on the run).
+        Only parameters the report declares are kept. Needs `data.write.reports`.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportViewInput'
+      responses:
+        '201':
+          description: The saved view
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportView' }
+        '400':
+          description: No name, or not a standard report that takes parameters
+        '403':
+          description: The caller may not save views
+        '409':
+          description: A view with that name already exists
+  /report-views/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Reports]
+      summary: One saved report view, for editing
+      operationId: getReportView
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The view
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportView' }
+        '404':
+          description: No such view
+    put:
+      tags: [Reports]
+      summary: Change a saved view's name, description or parameters
+      operationId: updateReportView
+      description: The report a view is of cannot change. Needs `data.write.reports`.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportViewInput'
+      responses:
+        '200':
+          description: The updated view
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportView' }
+        '400':
+          description: No name
+        '403':
+          description: The caller may not change views
+        '404':
+          description: No such view
+        '409':
+          description: A view with that name already exists
+    delete:
+      tags: [Reports]
+      summary: Delete a saved view
+      operationId: deleteReportView
+      description: Needs `data.write.reports`.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '204':
+          description: Deleted
+        '403':
+          description: The caller may not delete views
+        '404':
+          description: No such view
+
   # ─── Custom Reports (experimental) ─────────────────────────────
   /nl-reports/catalog:
     get:
@@ -2305,6 +2398,37 @@ components:
           nullable: true
         membersAdded: { type: integer }
         membersRemoved: { type: integer }
+    ReportViewInput:
+      type: object
+      required: [name]
+      properties:
+        reportName:
+          type: string
+          description: The standard report this is a view of. Required on create; ignored on update.
+        name: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 2000 }
+        params:
+          type: object
+          description: >
+            The report's parameters, as its `parametersSchema` declares them. Each value is a
+            string or a list of strings; undeclared keys and empty values are dropped.
+          additionalProperties: true
+    ReportView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        report:
+          type: string
+          description: The name the view is listed and run under in `/reports` (`view-<id>`).
+        reportName: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        params:
+          type: object
+          additionalProperties: true
+        createdBy: { type: string, nullable: true }
+        updatedBy: { type: string, nullable: true }
+        updatedAt: { type: string, format: date-time, nullable: true }
     ReportMetadata:
       type: object
       description: Everything a client needs to list and render a report — no report-specific knowledge.
@@ -2357,10 +2481,19 @@ components:
               values: { type: array, items: { type: string }, description: "Summed fields." }
         source:
           type: string
-          enum: [builtin, custom]
+          enum: [builtin, custom, view]
           description: >
             `builtin` ships with Identity Atlas; `custom` was built by someone in this
-            deployment (the experimental custom reports feature). Clients list the two apart.
+            deployment (the experimental custom reports feature); `view` is a saved view of a
+            built-in report. Clients list them apart.
+        view:
+          type: object
+          nullable: true
+          description: For a saved view, which view it is and which standard report it runs. Null otherwise.
+          properties:
+            id: { type: string, format: uuid }
+            reportName: { type: string }
+            reportDisplayName: { type: string }
         author:
           type: object
           nullable: true

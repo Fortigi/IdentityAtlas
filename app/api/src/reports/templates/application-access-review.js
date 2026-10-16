@@ -129,6 +129,7 @@ export default {
           + 'several contexts cannot select all of them by accident.',
         'x-lookup': 'resource-contexts',
         'x-lookupPlaceholder': 'Search contexts…',
+        'x-step': 'Scope',
       },
       fields: {
         type: 'array',
@@ -137,6 +138,7 @@ export default {
           + 'The attributes on offer are the ones the picked contexts and their resources carry.',
         default: DEFAULT_FIELDS,
         ...FIELD_LOOKUP,
+        'x-step': 'Columns',
       },
       pivotRows: {
         type: 'array',
@@ -145,6 +147,7 @@ export default {
           + 'entitlement is always the innermost row.',
         default: DEFAULT_PIVOT_ROWS,
         ...FIELD_LOOKUP,
+        'x-step': 'Excel pivots',
       },
       pivotFilters: {
         type: 'array',
@@ -152,6 +155,7 @@ export default {
         description: 'Fields both pivots can be filtered on.',
         default: [],
         ...FIELD_LOOKUP,
+        'x-step': 'Excel pivots',
       },
     },
   },

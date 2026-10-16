@@ -84,11 +84,15 @@ export function reportMetadata(template) {
     exportFormats: [...EXPORT_FORMAT_NAMES],
     // Pivot tables a workbook download opens with, declared in column keys.
     pivots: template.pivots || [],
-    // Where the report came from: shipped with Identity Atlas, or built by someone
-    // in this deployment. The Reports page lists the two apart.
+    // Where the report came from: shipped with Identity Atlas, built by someone in
+    // this deployment, or a saved view of a shipped one. The Reports page lists
+    // them apart.
     source: template.source || 'builtin',
     // Who built a custom report and who changed it last. Null for built-in reports.
     author: template.author || null,
     editable: template.editable || null,
+    // A saved view of a built-in report: its id, and which report it is a view
+    // of — so the tab can offer to save it again, and the list can say what it is.
+    view: template.view || null,
   };
 }

@@ -8,12 +8,16 @@
 // drawn from that metadata. Adding a report to the deployment adds it to this
 // page with no UI change at all.
 //
+// Saved views — a standard report with its settings saved under a name — get a
+// section of their own between the two; they are edited from their own tab.
+//
 // Custom reports (experimental) are listed apart from the standard ones, with who
 // built them and who changed them last — they are shared across the deployment, so
 // "whose is this?" is the first question about one. "New report" and "Edit" open
 // the report builder in its own tab (#report-builder:<id>).
 
 import { useAuth } from '@ui/auth/AuthGate';
+import { useHasPermission } from '@ui/auth/usePermissions';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useDialog } from '@ui/components/dialogContext';
 import { useCanBuildReports } from '@ui/hooks/useCanBuildReports';
@@ -22,6 +26,7 @@ import { formatDateOnly } from '@ui/utils/formatters';
 import ReportError from './reports/ReportError';
 
 const SECONDARY = 'rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600';
+const DANGER = 'rounded border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/20';
 const SECTION_TITLE = 'text-base font-semibold text-gray-900 dark:text-white';
 const SECTION_HINT = 'mt-0.5 text-sm text-gray-600 dark:text-gray-400';
 
@@ -29,6 +34,7 @@ export default function ReportsPage({ onOpenDetail }) {
   const { authFetch } = useAuth();
   const dialog = useDialog();
   const canBuild = useCanBuildReports();
+  const canSaveViews = useHasPermission('data.write.reports');
 
   const { data: reports, loading, error, reload } = useFetch('/api/reports', {
     authFetch,
@@ -38,12 +44,17 @@ export default function ReportsPage({ onOpenDetail }) {
 
   const newReport = () => onOpenDetail?.('report-builder', `new-${Date.now()}`, 'New report');
 
+  // A custom report and a saved view are deleted the same way, at their own address.
   const deleteReport = async (report) => {
-    if (!(await dialog.confirm({ message: `Delete the report "${report.displayName}"? This cannot be undone.`, confirmLabel: 'Delete', danger: true }))) return;
-    const res = await authFetch(`/api/nl-reports/saved/${encodeURIComponent(report.editable.builderId)}`, { method: 'DELETE' });
+    const what = report.view ? 'view' : 'report';
+    if (!(await dialog.confirm({ message: `Delete the ${what} "${report.displayName}"? This cannot be undone.`, confirmLabel: 'Delete', danger: true }))) return;
+    const url = report.view
+      ? `/api/report-views/${encodeURIComponent(report.view.id)}`
+      : `/api/nl-reports/saved/${encodeURIComponent(report.editable.builderId)}`;
+    const res = await authFetch(url, { method: 'DELETE' });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      dialog.alert(body.error || 'Failed to delete the report');
+      dialog.alert(body.error || `Failed to delete the ${what}`);
       return;
     }
     reload();
@@ -54,7 +65,8 @@ export default function ReportsPage({ onOpenDetail }) {
   }
   if (error) return <ReportError title="Error loading reports" message={error.message} />;
 
-  const standard = reports.filter(r => r.source !== 'custom');
+  const standard = reports.filter(r => r.source !== 'custom' && r.source !== 'view');
+  const views = reports.filter(r => r.source === 'view');
   const custom = reports.filter(r => r.source === 'custom');
   // The custom section is there for whoever can add to it, or whenever there is
   // something in it. A reader on an install without the feature sees no trace of it.
@@ -68,7 +80,7 @@ export default function ReportsPage({ onOpenDetail }) {
         and downloaded.
       </p>
 
-      {standard.length === 0 && !showCustom ? (
+      {standard.length === 0 && views.length === 0 && !showCustom ? (
         <EmptyState title="No reports available" hint="This deployment has no report templates registered." />
       ) : (
         <div className="space-y-8">
@@ -80,6 +92,30 @@ export default function ReportsPage({ onOpenDetail }) {
                 {standard.map(report => (
                   <li key={report.name} className="flex items-stretch gap-2">
                     <ReportListItem report={report} onOpenDetail={onOpenDetail} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {views.length > 0 && (
+            <section aria-labelledby="reports-views">
+              <h3 id="reports-views" className={SECTION_TITLE}>Saved views</h3>
+              <p className={`${SECTION_HINT} mb-3`}>
+                Standard reports with their settings saved under a name, shared with everyone who can read data.
+                Open one and choose “Edit view” to change it.
+              </p>
+              <ul className="space-y-2">
+                {views.map(report => (
+                  <li key={report.name} className="flex items-stretch gap-2">
+                    <ReportListItem report={report} onOpenDetail={onOpenDetail} />
+                    {canSaveViews && (
+                      <div className="flex flex-col justify-center">
+                        <button type="button" aria-label={`Delete ${report.displayName}`} onClick={() => deleteReport(report)} className={DANGER}>
+                          Delete
+                        </button>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -116,7 +152,7 @@ export default function ReportsPage({ onOpenDetail }) {
                             Edit
                           </button>
                           <button type="button" aria-label={`Delete ${report.displayName}`} onClick={() => deleteReport(report)}
-                            className="rounded border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/20">
+                            className={DANGER}>
                             Delete
                           </button>
                         </div>
@@ -171,6 +207,9 @@ function ReportListItem({ report, onOpenDetail }) {
     >
       <div>
         <h4 className="text-base font-semibold text-blue-700 dark:text-blue-300">{report.displayName}</h4>
+        {report.view && (
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">View of {report.view.reportDisplayName}</p>
+        )}
         {report.description && (
           <p className="mt-1 max-w-3xl text-sm text-gray-600 dark:text-gray-400">{report.description}</p>
         )}

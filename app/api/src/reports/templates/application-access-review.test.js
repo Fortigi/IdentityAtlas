@@ -79,6 +79,9 @@ describe('access review — template contract', () => {
       // The attributes on offer follow the contexts picked.
       expect(properties[name]['x-lookupDependsOn'], name).toEqual(['contexts']);
     }
+    // The saved-view wizard asks for them in this order, one step each.
+    expect(Object.values(properties).map(p => p['x-step']))
+      .toEqual(['Scope', 'Columns', 'Excel pivots', 'Excel pivots']);
     expect(properties.fields.default).toEqual(DEFAULT_FIELDS);
     expect(properties.pivotRows.default).toEqual(DEFAULT_PIVOT_ROWS);
     expect(properties.pivotFilters.default).toEqual([]);

@@ -269,6 +269,30 @@ columns (CMDB reference, onboarding sector, …) read under every spelling that 
 other deployment those were empty, and a missing `requestable` silently put every entitlement in the
 "information only" section. Those values are now attributes like any other: pick them.
 
+## Saved views
+
+A **view** is a built-in report with its parameters filled in and a name, shared across the deployment
+(`ReportViews`, migration 090; `reports/views.js`; `routes/reportViews.js`). It is served through
+`registerReportSource` as a report named `view-<id>`, so the Reports page, the report tab, Refresh and
+every download format work for it with no new code. The template a view becomes:
+
+- runs the built-in report with `{ ...savedParams, ...runParams }`, so the tab can still adjust one
+  run without changing the view;
+- carries the built-in report's `parametersSchema` with the saved values as each property's `default`,
+  and drops from `required` whatever the view fills, so its tab opens with its own choices filled in;
+- declares `source: 'view'` and `view: { id, reportName, reportDisplayName }`, which `reportMetadata`
+  passes through so the UI can say what it is a view of and offer *Edit view*.
+
+On save, only the parameters the report's schema declares are kept, each as text or a list of text
+(capped), and an update can never move a view to another report. A view whose report has been removed
+disappears from the list rather than failing it. Writes need `data.write.reports`; unlike custom
+reports there is no feature flag, because a view only stores settings for a report everyone already has.
+
+The *Save as view* wizard (`ui/.../reports/ReportViewWizard.jsx`) is report-agnostic too. A template
+groups its parameters into wizard steps with `x-step` on each property; the Access Review declares
+*Scope*, *Columns* and *Excel pivots*. A property without one goes into a *Settings* step, and the
+last step names the view.
+
 ## Counting assignments at scale
 
 A report that counts assignments per resource is the one shape in this framework that can degenerate

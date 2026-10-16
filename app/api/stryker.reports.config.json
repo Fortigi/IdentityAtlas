@@ -63,7 +63,9 @@
     "src/routes/details/userActivity.js",
     "src/routes/lookups.js",
     "src/routes/nlReports.js",
-    "src/routes/reports.js"
+    "src/routes/reportViews.js",
+    "src/routes/reports.js",
+    "src/reports/views.js"
   ],
   "mutationExclusions": {
     "src/contexts/assignmentCounts.js": "Three SQL statements and a short wrapper that runs them in one transaction. The statements are strings, and StringLiteral mutation is off in every config here, so Stryker has almost nothing to mutate; the decisions that matter are inside those strings (what is de-duplicated, what is excluded, which rows are written) and no unit test can observe them through a SQL-blind mock. They are proven where the statements actually run: contract-tests/contextAssignmentCounts.contract.test.js, against real PostgreSQL, with every expected number distinct. The wrapper's own branches (the order, the one transaction, the row count from pg or from the embedded database, a failure passing through) are pinned by assignmentCounts.test.js.",

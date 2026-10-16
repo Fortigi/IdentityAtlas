@@ -30,6 +30,8 @@ export default defineConfig({
       'src/reports/templates/application-access-review.test.js',
       'src/reports/templates/orphaned-accounts.test.js',
       'src/routes/reports.test.js',
+      'src/routes/reportViews.test.js',
+      'src/reports/views.test.js',
       'src/accountlinking/orphanQuery.test.js',
       'src/nlreports/compare.test.js',
       'src/nlreports/compile.test.js',

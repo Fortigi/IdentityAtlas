@@ -1,0 +1,5 @@
+- Save a standard report's settings as a named **view** that everyone can open from the new **Saved views** section of the Reports page, so a configured Access Review (contexts, columns, Excel pivots) no longer has to be set up again for every run.
+- **Save as view** walks through the report's settings step by step: for the Access Review that is Scope, Columns and Excel pivots, followed by a name.
+- Open a view and choose **Edit view** to change it for everyone, or save it as a new view. Delete views from the Reports page.
+- Saving, changing and deleting views needs the Build custom reports permission; no experimental feature has to be switched on.
+- Added a documentation page for the Access Review and saved views.

@@ -23,6 +23,8 @@
     "src/components/reports/ReportError.jsx",
     "src/components/reports/ReportNotices.jsx",
     "src/components/reports/ReportViewPage.jsx",
+    "src/components/reports/ReportViewWizard.jsx",
+    "src/components/reports/reportViewSteps.js",
     "src/components/reports/ask/AskAssistant.api.js",
     "src/components/reports/ask/AskAssistant.text.js",
     "src/components/reports/ask/CompareCondition.jsx",

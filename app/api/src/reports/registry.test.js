@@ -91,6 +91,7 @@ describe('report registry', () => {
       source: 'builtin',
       author: null,
       editable: null,
+      view: null,
     });
     expect(meta.run).toBeUndefined();
   });

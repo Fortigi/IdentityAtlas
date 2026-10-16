@@ -23,7 +23,7 @@ export const PERMISSIONS = Object.freeze({
   'data.write.tags':           { label: 'Manage tags',             group: 'Write',
     description: 'Create, edit, delete tags and apply them to entities.' },
   'data.write.reports':        { label: 'Build custom reports',    group: 'Write',
-    description: 'Create, edit and delete custom reports, and describe a report in plain language to the local model. Running and downloading an existing report only needs Read data.' },
+    description: 'Create, edit and delete custom reports and saved report views, and describe a report in plain language to the local model. Running and downloading an existing report only needs Read data.' },
   'data.write.contexts':       { label: 'Build contexts',          group: 'Write',
     description: 'Create manual contexts and edit their members, and build contexts with the context assistant. Viewing contexts only needs Read data; running any other context plugin needs Context plugins.' },
   'data.write.categories':     { label: 'Manage categories',       group: 'Write',
