@@ -41,7 +41,8 @@ Describe 'Resolve-LlmRoot' {
         Resolve-LlmRoot -ScriptDir $dir -DataDir 'D:\data' | Should -BeExactly (Join-Path $dir 'llm')
     }
     It 'otherwise uses llm\ in the data directory' {
-        Resolve-LlmRoot -ScriptDir (Join-Path $TestDrive 'empty-pkg') -DataDir 'D:\data' | Should -BeExactly (Join-Path 'D:\data' 'llm')
+        $data = Join-Path $TestDrive 'data'   # a real path: Join-Path needs the drive to exist on Linux runners
+        Resolve-LlmRoot -ScriptDir (Join-Path $TestDrive 'empty-pkg') -DataDir $data | Should -BeExactly (Join-Path $data 'llm')
     }
 }
 
