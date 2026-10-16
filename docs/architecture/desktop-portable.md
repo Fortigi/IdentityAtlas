@@ -118,6 +118,8 @@ All persistent data lives in one data directory, chosen in this order: `IA_DATA_
 | `.builtin-worker-key` | Internal API key for the crawler worker |
 | `startup-error.log` | Written when the app stops on an unexpected error — send this file along with a bug report |
 | `launcher.lock`, `launcher.state.json` | Keep two launchers off one data directory; let the next start recognise a leftover process |
+| `llm\` | `-WithLLM` only, unless an `llm\` folder sits next to the launcher: llama.cpp and the report model (see [Report model](#report-model-withllm)) |
+| `llm-slots\`, `llm-server.log`, `llm-server.pid` | `-WithLLM` only: the saved prompt cache, the model server's output, and its process id while it runs |
 
 To back up all data, stop the app and copy this folder. To reset to a clean state, delete it (the app re-initializes on next start).
 
@@ -175,6 +177,8 @@ pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1
 | `-Port` | `3001` | Loopback port for the app |
 | `-StartupTimeoutSec` | `300` | When to warn that startup is slow. The launcher keeps waiting and **never kills a process that is still starting**, because on a large database that kill is what makes the next start slower |
 | `-NoBrowser` | off | Do not open the browser |
+| `-WithLLM` | off | Also run the local report model; see [Report model](#report-model-withllm) |
+| `-LlmRoot` | see [The LLM folder](#the-llm-folder) | Where llama.cpp and the model are found or downloaded to |
 
 Setting `DATABASE_URL` or `POSTGRES_HOST` before starting the launcher points the app at an existing server instead, and the launcher starts none.
 
@@ -211,6 +215,61 @@ Measured on 2026-09-26 on an 8 GB Windows 11 machine, as a non-administrator, fr
 | Closed window / killed launcher to nothing left running | 0.3–2.4 s, clean shutdown checkpoint |
 
 The zip grows from ~56 MB to ~80 MB with `postgres\` included: 1,112 files, 63 MB unpacked. The subset omits pgAdmin, StackBuilder, headers, docs and translations.
+
+---
+
+## Report model (`-WithLLM`)
+
+[Custom reports](../reference/report-generator.md) can turn a question in plain language into a report definition, using a small model that runs on the machine itself. Docker runs that model in a separate container. The portable launcher runs it when it is started with `-WithLLM`:
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1 -WithLLM
+```
+
+It is the same model as Docker's (Qwen3-4B-Instruct-2507, 4-bit), run by llama.cpp's `llama-server.exe`. **Neither is in the ZIP.** The model alone is 2.5 GB, which is more than a release asset or `Compress-Archive` can hold. The launcher therefore finds or fetches both:
+
+| File | Size | Where it comes from |
+|---|---|---|
+| `llama-b11306-bin-win-cpu-x64.zip` | 19 MB | llama.cpp's official Windows CPU release on GitHub. Only the 23 files `llama-server.exe` loads are unpacked, into `llama.cpp\`. |
+| `Qwen3-4B-Instruct-2507-Q4_K_M.gguf` | 2.5 GB | Hugging Face. This is the exact file the Docker image ships. |
+
+Both are pinned by SHA-256 in `Launcher.Llm.ps1`. A guard test keeps the model, its checksum and the server flags equal to the Docker image's. A download goes into `<name>.partial`, so an interrupted one resumes on the next start. The file gets its real name only once the checksum matches. Downloads go through the system proxy with the user's Windows credentials.
+
+### The LLM folder
+
+The launcher uses the first of these:
+
+1. `-LlmRoot <folder>`
+2. `llm\` next to `Start-IdentityAtlas.ps1`, when that folder exists
+3. `llm\` in the [data directory](#data-location)
+
+**Without internet access**, download the two files above on another machine and copy them into that folder. The launcher then unpacks the zip and checks both files, and downloads nothing. A model file that passed its check is not hashed again until it changes; that check takes about 10 seconds. A `llama-server.exe` that is already unpacked there, either in `llama.cpp\` or loose in the folder, is used as it is.
+
+### What happens at runtime
+
+- The launcher runs `llama-server.exe --version` before anything else, just as it checks the PostgreSQL binaries. If application control blocks the file, or a DLL is missing, it says so and **does not download the model**.
+- `node.exe` runs a small supervisor (`llmSupervisor.mjs`, the Node port of the Docker image's `supervisor.py`) on a random loopback port. It starts `llama-server.exe` (127.0.0.1 only, with a random API key per start) when the first question needs it, and stops it after 15 minutes without use. That returns its ~3.6 GB of memory. `REPORT_GENERATOR_IDLE_SECONDS` changes the idle time; `0` keeps the model loaded.
+- Custom reports are switched on. An explicit `FEATURE_CUSTOM_REPORTS=false`, or a switch-off in Admin → Experimental, still wins.
+- The prompt cache is prepared in the background at startup (a few minutes on a laptop CPU, once) and kept in `llm-slots\` in the data directory (~900 MB), so later starts restore it in under a second.
+- `llama-server.exe` is a separate process that Windows does not stop together with `node.exe`. Its process id is kept in `llm-server.pid`. The launcher's Ctrl+C handling and the watchdog both stop a leftover server, and so does the next start.
+
+**Anything that fails, fails soft.** That covers a blocked download, a checksum mismatch, too little disk space (the model needs 2.8 GB free), and a blocked binary. Each prints a warning naming the cause, and what to download and where to put it when a download failed. The app then starts without the model and with custom reports left as they were (off by default). Switched on in Admin → Experimental, report definitions can still be built by hand.
+
+!!! danger "llama.cpp's binaries are not signed"
+    As with the PostgreSQL binaries, `llama-server.exe` and its DLLs carry no Authenticode signature (checked on 2026-10-16 for build b11306). On a machine whose application-control policy trusts publishers, IT has to add **hash rules** for the 23 files in `llama.cpp\`, or a path rule for that folder. Unlike PostgreSQL, the build needs no Visual C++ runtime. The launcher's preflight reports a refusal by name.
+
+### Measured
+
+Measured on 2026-10-16 on a Windows 11 laptop, as a non-administrator:
+
+| Step | Time |
+|---|---|
+| First `-WithLLM` start with the model copied in (download and unpack llama.cpp, hash the model) | 9 s |
+| Later starts | no extra time |
+| Prompt-cache preparation, in the background after the first start (once) | 237 s |
+| Question with the prompt cache prepared (model already loaded) | 14–18 s |
+| `llama-server.exe` memory while loaded | 3.6 GB |
+| Closed window / killed launcher to `node.exe` and `llama-server.exe` gone | under 12 s |
 
 ---
 

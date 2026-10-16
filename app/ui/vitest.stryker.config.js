@@ -54,6 +54,7 @@ export default defineConfig({
       'src/components/matrix/saveStepState.test.js',
       'src/components/matrix/matrixRequests.test.js',
       'src/components/matrix/matrixHistoryText.test.js',
+      'src/components/inputs/PeoplePicker.mount.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },

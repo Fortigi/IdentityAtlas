@@ -31,14 +31,20 @@
  * @property {string} name         Stable slug, unique in the registry; the URL
  *                                  path parameter and the `x-lookup` value.
  * @property {string} displayName  What the source is, for a human.
- * @property {Function} search     ({ q, limit }) => Promise<LookupOption[]>.
+ * @property {Function} search     ({ q, limit, params }) => Promise<LookupOption[]>.
  *                                  An empty `q` means "the first `limit`
  *                                  options", so focusing an empty box offers
  *                                  something rather than nothing.
- * @property {Function} [resolve]  ({ ids }) => Promise<LookupOption[]>. Turns
- *                                  stored ids back into labels, so a report
- *                                  opened from a bookmarked URL shows names
- *                                  rather than the raw ids it was given.
+ * @property {Function} [resolve]  ({ ids, params }) => Promise<LookupOption[]>.
+ *                                  Turns stored ids back into labels, so a
+ *                                  report opened from a bookmarked URL shows
+ *                                  names rather than the raw ids it was given.
+ *
+ * `params` holds the other form values the parameter declared it depends on
+ * (`x-lookupDependsOn: ['contexts']`), each as a list of strings — so the
+ * options can follow an earlier choice, as the fields of an access review
+ * follow the contexts picked. Always an object; a source that depends on
+ * nothing ignores it.
  */
 
 export {};

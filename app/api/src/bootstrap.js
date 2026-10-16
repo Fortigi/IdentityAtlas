@@ -295,6 +295,29 @@ export async function getOrCreateTagRoot(targetType) {
 // (this is what hit a customer during a version upgrade). Migrating first
 // guarantees a newer version always upgrades the schema before anything else
 // touches the database.
+// The assistants that use the report generator, each warmed only where its own
+// feature is on and a model server is configured (their warmAtStartup decides).
+// The paths are literals on purpose: the portable build bundles the API with
+// esbuild, which only follows import() of a literal, so a path in a variable
+// there resolves to a file that does not exist and the warm-up never ran.
+export const GENERATOR_WARMUPS = [
+  () => import('./nlreports/service.js'),
+  () => import('./contextAssistant/service.js'),
+];
+
+// One after the other: the server has a single slot, so preparing both prompts at
+// once would only queue behind itself. A failure in one never stops the next.
+export async function warmReportGenerators(loaders = GENERATOR_WARMUPS, warn = console.warn) {
+  for (const load of loaders) {
+    try {
+      const { warmAtStartup } = await load();
+      await warmAtStartup();
+    } catch (err) {
+      warn('Report generator warm-up skipped:', err.message);
+    }
+  }
+}
+
 export async function migrateDatabase() {
   if (process.env.USE_SQL !== 'true') return;
   const pool = await db.getPool();
@@ -388,21 +411,8 @@ export async function bootstrapWorker() {
       console.warn('Matrix-view population skipped:', err.message);
     }
     // Report generator (experimental): prepare the model's prompt cache in the
-    // background — only where custom reports are on and a model server is configured.
-    // Never blocks startup.
-    // Both assistants that use the generator get their prompt prepared, one after the
-    // other: the server has a single slot, so preparing them at the same time would only
-    // queue behind itself. Each is skipped unless its own feature is on.
-    void (async () => {
-      for (const module of ['./nlreports/service.js', './contextAssistant/service.js']) {
-        try {
-          const { warmAtStartup } = await import(module);
-          await warmAtStartup();
-        } catch (err) {
-          console.warn('Report generator warm-up skipped:', err.message);
-        }
-      }
-    })();
+    // background. Never blocks startup.
+    void warmReportGenerators();
     console.log('Bootstrap complete');
   } catch (err) {
     console.error('Bootstrap failed (will retry on next request):', err.message);

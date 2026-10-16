@@ -8,7 +8,8 @@
 // selection on the display name instead of the sign-in name — fails here.
 
 import { describe, it, expect, vi } from 'vitest';
-import PeoplePicker, { toPerson } from './PeoplePicker';
+import PeoplePicker from './PeoplePicker';
+import { toPerson } from './PeoplePicker.helpers';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, within, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
 
 const ANN = { id: '3fa85f64-5717-4562-b3fc-2c963f66afa6', displayName: 'Ann Manager', userPrincipalName: 'ann@contoso.com' };

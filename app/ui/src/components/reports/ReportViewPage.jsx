@@ -10,6 +10,7 @@
 
 import { createElement, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useHasPermission } from '@ui/auth/usePermissions';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useCanBuildReports } from '@ui/hooks/useCanBuildReports';
 import { formatDate } from '@ui/utils/formatters';
@@ -17,6 +18,7 @@ import EmptyState from '@ui/components/EmptyState';
 import SchemaConfigForm from '@ui/components/SchemaConfigForm';
 import ReportError from './ReportError';
 import ReportNotices from './ReportNotices';
+import ReportViewWizard from './ReportViewWizard';
 import { resolveFormRenderer } from './formRenderers';
 import { downloadReport } from './reportExport';
 import { paramsQueryString, withSchemaDefaults } from './reportParams';
@@ -26,6 +28,10 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
   // The same test the Reports list applies: a reader who opens a custom report
   // runs and downloads it, and is not offered an editor they cannot save from.
   const canBuild = useCanBuildReports();
+  // Saving a view needs the same permission as building a report, but no
+  // experimental flag: a view only stores the parameters of a standard report.
+  const canSaveViews = useHasPermission('data.write.reports');
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [downloading, setDownloading] = useState(null);
   const [downloadError, setDownloadError] = useState(null);
   // What the user set, not what the report ran with: an untouched parameter
@@ -48,6 +54,19 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
   useEffect(() => {
     if (displayName) onCacheData?.(reportName, 'report', { displayName });
   }, [displayName, reportName, onCacheData]);
+
+  // A new view opens in its own tab; an edited one stays here and re-runs with
+  // what was saved, so the form shows the view's values rather than leftovers.
+  function viewSaved(saved, { created }) {
+    setWizardOpen(false);
+    if (created) {
+      onOpenDetail?.('report', saved.report, saved.name);
+      return;
+    }
+    setParams({});
+    onCacheData?.(reportName, 'report', { displayName: saved.name });
+    reload();
+  }
 
   async function download(format) {
     setDownloading(format);
@@ -72,26 +91,12 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
   // the same shape as the app's page-route dispatch, and the reason this page
   // needs no per-report code.
   const renderer = resolveFormRenderer(report.form);
+  const hasParameters = Object.keys(schema?.properties || {}).length > 0;
 
   return (
     <section className="mx-auto max-w-6xl" aria-label={report.displayName}>
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{report.displayName}</h2>
-          {report.description && (
-            <p className="mt-1 max-w-3xl text-sm text-gray-600 dark:text-gray-400">{report.description}</p>
-          )}
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            {report.truncated ? 'First ' : ''}{report.total} {report.total === 1 ? 'row' : 'rows'}
-            {report.generatedAt && <> · generated {formatDate(report.generatedAt)}</>}
-          </p>
-          {report.truncated && (
-            <p role="status" className="mt-2 max-w-3xl rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
-              This report stopped at {report.total} rows, so there are more than shown here — and more than
-              the download contains. Narrow it with another condition to see all of them.
-            </p>
-          )}
-        </div>
+        <ReportHeading report={report} />
 
         <div className="flex flex-wrap items-center gap-2">
           {report.editable && canBuild && onOpenDetail && (
@@ -101,6 +106,15 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
               className="rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
             >
               Edit
+            </button>
+          )}
+          {hasParameters && canSaveViews && !wizardOpen && (
+            <button
+              type="button"
+              onClick={() => setWizardOpen(true)}
+              className="rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+            >
+              {report.view ? 'Edit view' : 'Save as view'}
             </button>
           )}
           {(report.exportFormats || []).map(format => (
@@ -123,17 +137,12 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
         </div>
       </div>
 
-      {/* Parameters apply on change: the fetch URL carries them, so editing a
-          threshold re-runs the report the same way Refresh does. */}
-      {Object.keys(schema?.properties || {}).length > 0 && (
-        <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
-          <SchemaConfigForm
-            schema={schema}
-            params={formValues}
-            onChange={setParams}
-            idPrefix={`report-${reportName}`}
-          />
-        </div>
+      {wizardOpen ? (
+        <ReportViewWizard report={report} initialParams={formValues} onSaved={viewSaved}
+          onCancel={() => setWizardOpen(false)} />
+      ) : (
+        <ReportParameters show={hasParameters} schema={schema} values={formValues} onChange={setParams}
+          idPrefix={`report-${reportName}`} />
       )}
 
       <ReportNotices notices={report.notices} />
@@ -153,6 +162,42 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
         />
       )}
     </section>
+  );
+}
+
+// What the report is, what it is a view of, and how much it returned.
+function ReportHeading({ report }) {
+  return (
+    <div>
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{report.displayName}</h2>
+      {report.view && (
+        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">A saved view of {report.view.reportDisplayName}</p>
+      )}
+      {report.description && (
+        <p className="mt-1 max-w-3xl text-sm text-gray-600 dark:text-gray-400">{report.description}</p>
+      )}
+      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+        {report.truncated ? 'First ' : ''}{report.total} {report.total === 1 ? 'row' : 'rows'}
+        {report.generatedAt && <> · generated {formatDate(report.generatedAt)}</>}
+      </p>
+      {report.truncated && (
+        <p role="status" className="mt-2 max-w-3xl rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+          This report stopped at {report.total} rows, so there are more than shown here — and more than
+          the download contains. Narrow it with another condition to see all of them.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Parameters apply on change: the fetch URL carries them, so editing a
+// threshold re-runs the report the same way Refresh does.
+function ReportParameters({ show, schema, values, onChange, idPrefix }) {
+  if (!show) return null;
+  return (
+    <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+      <SchemaConfigForm schema={schema} params={values} onChange={onChange} idPrefix={idPrefix} />
+    </div>
   );
 }
 

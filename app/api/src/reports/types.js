@@ -59,6 +59,12 @@
  *                            about the run, and deriving it would silently
  *                            delete a real column. `columns` itself does not
  *                            change — the screen shows all of them.
+ * @property {ReportColumn[]} [columns]  This run's columns, when they depend on
+ *                            its parameters (a report whose columns the reader
+ *                            picks). Replaces the template's `columns` in the
+ *                            response; omitted, the declaration stands.
+ * @property {ReportPivot[]} [pivots]  Likewise for the pivots — each must name
+ *                            only keys in the run's columns.
  */
 
 /**

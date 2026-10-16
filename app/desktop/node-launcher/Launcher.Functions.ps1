@@ -8,6 +8,9 @@
 #              postgres\ (or -PostgresRoot), as the current user, on loopback.
 # See docs/architecture/desktop-portable.md.
 
+# The report model (-WithLLM) has its own file; the cleanup below needs it too.
+. (Join-Path $PSScriptRoot 'Launcher.Llm.ps1')
+
 $script:DbName = 'identityatlas'
 $script:DbUser = 'identityatlas'
 
@@ -509,16 +512,18 @@ function Start-AppProcess {
 
 # ── After the launcher ends ──────────────────────────────────────────────────
 
-# What must not outlive a launcher: its node.exe and its PostgreSQL. Run by the
-# watchdog once the launcher process is gone. Takes the lock first, so it never
-# touches processes a newer launcher already owns; after a normal Ctrl+C the
-# launcher has already done all of this and every step is a no-op.
+# What must not outlive a launcher: its node.exe, the report model server that
+# node.exe started, and its PostgreSQL. Run by the watchdog once the launcher
+# process is gone. Takes the lock first, so it never touches processes a newer
+# launcher already owns; after a normal Ctrl+C the launcher has already done all
+# of this and every step is a no-op.
 function Invoke-LauncherCleanup {
     param([Parameter(Mandatory)][string]$DataDir, [string]$PgRoot, [int]$WaitMs = 5000)
     $lock = Enter-LauncherLock -DataDir $DataDir -WaitMs $WaitMs
     if (-not $lock) { return $false }
     try {
         $null = Stop-OrphanedNode -DataDir $DataDir
+        $null = Stop-OrphanedLlamaServer -DataDir $DataDir
         if ($PgRoot) { Stop-PostgresServer -PgRoot $PgRoot -PgHome (Join-Path $DataDir 'postgres') }
     } finally {
         $lock.Dispose()

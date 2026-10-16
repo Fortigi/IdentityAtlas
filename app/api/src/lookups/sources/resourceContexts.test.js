@@ -1,4 +1,4 @@
-// Unit tests for the logical-applications lookup source.
+// Unit tests for the resource-contexts lookup source.
 //
 // The db mock is SQL-blind, so these assert on the PARAMETERS the source binds
 // and on the options it shapes — the two things a wrong answer here would come
@@ -9,11 +9,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../db/connection.js');
 import { query } from '../../db/connection.js';
-import source from './logical-applications.js';
+import source from './resource-contexts.js';
 
 const row = (over = {}) => ({
   id: '11111111-1111-1111-1111-111111111111',
   displayName: 'Ledger Engineering 0006',
+  contextType: 'LogicalApplication',
   members: 2700,
   systemName: 'Catalogue',
   ...over,
@@ -24,31 +25,31 @@ const sqlOf = () => query.mock.calls[0][0];
 
 beforeEach(() => { query.mockReset(); query.mockResolvedValue({ rows: [] }); });
 
-describe('logical-applications lookup — search', () => {
-  it('shapes a catalogue row into an option whose value is the id, not the name', async () => {
+describe('resource-contexts lookup — search', () => {
+  it('shapes a context row into an option whose value is the id, not the name', async () => {
     query.mockResolvedValue({ rows: [row()] });
     expect(await source.search({ q: 'ledger' })).toEqual([{
       value: '11111111-1111-1111-1111-111111111111',
       label: 'Ledger Engineering 0006',
-      hint: '2,700 members · Catalogue',
+      hint: 'LogicalApplication · 2,700 members · Catalogue',
     }]);
   });
 
-  it('puts the size in the hint even when there is no system to name', async () => {
-    query.mockResolvedValue({ rows: [row({ systemName: null, members: 0 })] });
-    expect((await source.search({ q: '' }))[0].hint).toBe('0 members');
+  it('tells two same-named contexts of different types apart by the type', async () => {
+    query.mockResolvedValue({ rows: [row({ contextType: 'Tag', systemName: null, members: 0 })] });
+    expect((await source.search({ q: '' }))[0].hint).toBe('Tag · 0 members');
   });
 
-  it('formats the size for a reader, not as a raw integer', async () => {
-    query.mockResolvedValue({ rows: [row({ members: 16387 })] });
-    expect((await source.search({ q: '' }))[0].hint).toContain('16,387 members');
+  it('leaves out a type it was not given rather than printing a blank', async () => {
+    query.mockResolvedValue({ rows: [row({ contextType: null, systemName: null, members: 16387 })] });
+    expect((await source.search({ q: '' }))[0].hint).toBe('16,387 members');
   });
 
   it('escapes the ILIKE wildcards, so an underscore means an underscore', async () => {
     // Entitlement and application names are full of underscores. Unescaped,
     // `MAI23_LEG` would match almost every row and the list would be useless.
     await source.search({ q: 'MAI23_LEG%X' });
-    expect(paramsOf()[1]).toBe('MAI23\\_LEG\\%X');
+    expect(paramsOf()[0]).toBe('MAI23\\_LEG\\%X');
     // …and the statement declares the escape character it just used. Escaping
     // the term without it would put a literal backslash into the match.
     expect(sqlOf()).toContain("ESCAPE '\\'");
@@ -56,23 +57,26 @@ describe('logical-applications lookup — search', () => {
 
   it('asks for the biggest first, so an empty box offers something useful', async () => {
     await source.search({ q: '', limit: 5 });
-    expect(paramsOf()).toEqual(['LogicalApplication', '', 5]);
+    expect(paramsOf()).toEqual(['', 5]);
     expect(sqlOf()).toMatch(/ORDER BY[\s\S]*"directMemberCount" DESC/);
   });
 
-  it('filters to resource-targeted logical applications, never other contexts', async () => {
+  it('offers every context of resources, whatever its type', async () => {
     await source.search({ q: 'x' });
-    expect(paramsOf()[0]).toBe('LogicalApplication');
     expect(sqlOf()).toContain(`"targetType" = 'Resource'`);
+    // The old source pinned one context type; that is what made the review a
+    // one-catalogue report.
+    expect(sqlOf()).not.toContain('"contextType" =');
   });
 });
 
-describe('logical-applications lookup — resolve', () => {
+describe('resource-contexts lookup — resolve', () => {
   it('turns stored ids back into labels', async () => {
     query.mockResolvedValue({ rows: [row()] });
     const options = await source.resolve({ ids: ['11111111-1111-1111-1111-111111111111'] });
     expect(options[0].label).toBe('Ledger Engineering 0006');
     expect(paramsOf()[0]).toEqual(['11111111-1111-1111-1111-111111111111']);
+    expect(sqlOf()).toContain(`"targetType" = 'Resource'`);
   });
 
   it('drops anything that is not a uuid instead of sending it to postgres', async () => {

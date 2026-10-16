@@ -337,3 +337,78 @@ describe('ReportViewPage — editing a custom report from its tab', () => {
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
   });
 });
+
+describe('ReportViewPage — saved views', () => {
+  const PARAMS = {
+    parametersSchema: {
+      type: 'object', required: ['contexts'],
+      properties: { contexts: { type: 'array', title: 'Contexts', 'x-step': 'Scope', default: ['c1'] } },
+    },
+  };
+  const VIEW = { ...PARAMS, displayName: 'Ledger review', view: { id: 'v1', reportName: 'access-review', reportDisplayName: 'Entitlement Pivot' } };
+
+  it('offers to save a report with parameters as a view, and opens the new view in its own tab', async () => {
+    const onOpenDetail = vi.fn();
+    const authFetch = makeAuthFetch((url, init) => {
+      if (init?.method === 'POST') return { id: 'v2', report: 'view-v2', name: 'Mine' };
+      return rowsBody([ROW], PARAMS);
+    });
+    renderWithProviders(<ReportViewPage reportName="access-review" onOpenDetail={onOpenDetail} />, { auth: { authFetch } });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Save as view' }));
+    // The wizard replaces the parameter form while it is open, so one field is not drawn twice.
+    expect(screen.getAllByLabelText('Contexts')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mine' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save view' }));
+
+    await waitFor(() => expect(onOpenDetail).toHaveBeenCalledWith('report', 'view-v2', 'Mine'));
+    // Saved with the values on the tab — here the schema's default.
+    const [, init] = authFetch.mock.calls.find(([, i]) => i?.method === 'POST');
+    expect(JSON.parse(init.body).params).toEqual({ contexts: ['c1'] });
+    expect(screen.queryByRole('button', { name: 'Save view' })).toBeNull();
+  });
+
+  it('edits a view in place: it says what it is a view of, then re-runs and relabels the tab after saving', async () => {
+    const onCacheData = vi.fn();
+    const authFetch = makeAuthFetch((url, init) => {
+      if (init?.method === 'PUT') return { id: 'v1', report: 'view-v1', name: 'Renamed' };
+      if (String(url).startsWith('/api/report-views/')) return { id: 'v1', name: 'Ledger review', description: null };
+      return rowsBody([ROW], VIEW);
+    });
+    renderWithProviders(
+      <ReportViewPage reportName="view-v1" onOpenDetail={() => {}} onCacheData={onCacheData} />, { auth: { authFetch } });
+
+    expect(await screen.findByText('A saved view of Entitlement Pivot')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit view' }));
+    fireEvent.click(screen.getByRole('button', { name: /Go to step 2: Name/ }));
+    await waitFor(() => expect(screen.getByLabelText('Name')).toHaveValue('Ledger review'));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed' } });
+    const rowCalls = () => authFetch.mock.calls.filter(([u]) => String(u).includes('/rows')).length;
+    const before = rowCalls();
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(onCacheData).toHaveBeenCalledWith('view-v1', 'report', { displayName: 'Renamed' }));
+    await waitFor(() => expect(rowCalls()).toBeGreaterThan(before));
+  });
+
+  it('offers no view to a reader, who may run the report but not save it', async () => {
+    renderReport({ rows: rowsBody([ROW], PARAMS), auth: { hasWildcard: false, permissions: new Set(['data.read']) } });
+    await screen.findByRole('heading', { name: 'Orphaned Accounts' });
+    expect(screen.queryByRole('button', { name: 'Save as view' })).toBeNull();
+  });
+
+  it('offers no view on a report without parameters', async () => {
+    renderReport();
+    await screen.findByRole('heading', { name: 'Orphaned Accounts' });
+    expect(screen.queryByRole('button', { name: 'Save as view' })).toBeNull();
+  });
+
+  it('closes the wizard on Cancel and brings the parameters back', async () => {
+    renderReport({ rows: rowsBody([ROW], PARAMS) });
+    fireEvent.click(await screen.findByRole('button', { name: 'Save as view' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByRole('button', { name: 'Save as view' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Contexts')).toBeInTheDocument();
+  });
+});

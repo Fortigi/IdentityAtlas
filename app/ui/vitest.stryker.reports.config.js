@@ -43,6 +43,8 @@ export default defineConfig({
       'src/components/UserActivitySection.mount.test.jsx',
       'src/components/reports/ReportNotices.mount.test.jsx',
       'src/components/reports/reportParams.test.js',
+      'src/components/reports/ReportViewWizard.mount.test.jsx',
+      'src/components/reports/reportViewSteps.test.js',
     ],
     exclude: ['**/node_modules/**'],
   },

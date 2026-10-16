@@ -65,6 +65,7 @@ export function notSignedInFor(spec, question) {
   };
 }
 
+// eslint-disable-next-line security/detect-unsafe-regex -- fixed word list, optional suffixes only, nothing repeats
 const GUEST_RE = /\b(gast(en|accounts?|gebruikers?)?|guests?( accounts?| users?)?|externe (gebruikers?|accounts?)|external (users?|accounts?)|b2b(-| )?(users?|gasten|accounts?)?)\b/i;
 
 /**
@@ -93,6 +94,7 @@ export function guestsWhenAsked(spec, question) {
 // A yes/no question about one person: "heeft Bram de rol Global Administrator?",
 // "does bram have global admin", "is anna a member of the finance group", also
 // behind a lead-in ("kan je me vertellen of …", "can you check whether …").
+// eslint-disable-next-line security/detect-unsafe-regex -- anchored at ^, each lead-in is fixed words joined by \s+
 const LEAD_IN_RE = /^\s*(?:(?:kan|kun|zou|wil)\s+(?:je|u|jij)\s+(?:me|mij|even|eens|ook)?\s*(?:vertellen|zeggen|nagaan|checken|controleren|kijken|uitzoeken|opzoeken)\s+(?:of|dat)|(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:tell me|check|find out|see|verify|confirm)\s+(?:if|whether)|weet je of|(?:do you know|i wonder|i'd like to know|i want to know)\s+(?:if|whether)|i want to know|ik wil weten of|ik ben benieuwd of)\s+/i;
 const YES_NO_RE = /^(?:heeft|is|zit|mag|kan|beschikt|hoort|behoort|does|is|has|have|can|do|did|was)\s+\p{L}/iu;
 const LISTING_RE = /\b(welke|which|what|wat|lijst|list|alle|all|hoeveel|how many|wie|who|overzicht|overview|show|toon|laat|geef|give|every|elke|iedereen|everyone)\b/i;

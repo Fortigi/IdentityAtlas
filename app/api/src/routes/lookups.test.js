@@ -44,7 +44,7 @@ describe('GET /api/lookups/:source', () => {
   it('returns the source\'s options and echoes the term it searched', async () => {
     const res = await request(app).get('/api/lookups/test-things?q=alp').expect(200);
     expect(res.body).toEqual({ source: 'test-things', q: 'alp', data: [OPTION], total: 1 });
-    expect(search).toHaveBeenCalledWith({ q: 'alp', limit: 20 });
+    expect(search).toHaveBeenCalledWith({ q: 'alp', limit: 20, params: {} });
   });
 
   it('echoes the term so a late reply for an earlier keystroke can be discarded', async () => {
@@ -58,7 +58,32 @@ describe('GET /api/lookups/:source', () => {
   it('searches with an empty term when none is given, rather than refusing', async () => {
     // Focusing an empty box should offer something.
     await request(app).get('/api/lookups/test-things').expect(200);
-    expect(search).toHaveBeenCalledWith({ q: '', limit: 20 });
+    expect(search).toHaveBeenCalledWith({ q: '', limit: 20, params: {} });
+  });
+
+  it('hands the source the form values it depends on, as lists, and keeps its own parameters', async () => {
+    // `contexts` is a dependency; q, limit and ids are the route's own and must
+    // not reach the source as if they were form values.
+    await request(app).get('/api/lookups/test-things?q=cost&limit=7&contexts=c1,%20c2,,').expect(200);
+    expect(search).toHaveBeenCalledWith({ q: 'cost', limit: 7, params: { contexts: ['c1', 'c2'] } });
+
+    await request(app).get('/api/lookups/test-things?ids=f1&contexts=c1').expect(200);
+    expect(resolve).toHaveBeenCalledWith({ ids: ['f1'], params: { contexts: ['c1'] } });
+  });
+
+  it('bounds how many dependencies, and how many values each, one request may send', async () => {
+    const extras = Array.from({ length: 15 }, (_, i) => `d${i}=x`).join('&');
+    const many = Array.from({ length: 250 }, (_, i) => `v${i}`).join(',');
+    await request(app).get(`/api/lookups/test-things?${extras}&zz=${many}`).expect(200);
+    const { params } = search.mock.calls[0][0];
+    expect(Object.keys(params)).toHaveLength(10);
+    expect(params.d0).toEqual(['x']);
+    // The 16th key was past the bound, so its oversized list was never parsed.
+    expect(params.zz).toBeUndefined();
+
+    search.mockClear();
+    await request(app).get(`/api/lookups/test-things?zz=${many}`).expect(200);
+    expect(search.mock.calls[0][0].params.zz).toHaveLength(200);
   });
 
   it('trims the term and caps its length', async () => {
@@ -79,7 +104,7 @@ describe('GET /api/lookups/:source', () => {
 
   it('resolves ids instead of searching when ids are given', async () => {
     const res = await request(app).get('/api/lookups/test-things?ids=a1,b2').expect(200);
-    expect(resolve).toHaveBeenCalledWith({ ids: ['a1', 'b2'] });
+    expect(resolve).toHaveBeenCalledWith({ ids: ['a1', 'b2'], params: {} });
     expect(search).not.toHaveBeenCalled();
     expect(res.body.data).toEqual([OPTION]);
   });

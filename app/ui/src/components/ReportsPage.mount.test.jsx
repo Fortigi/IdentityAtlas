@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import {
-  renderWithProviders, makeAuthFetch, jsonResponse, screen, within,
+  renderWithProviders, makeAuthFetch, jsonResponse, screen, within, fireEvent, waitFor,
 } from '@ui/test-utils/renderWithProviders';
 import ReportsPage from '@ui/components/ReportsPage';
 
@@ -221,5 +221,61 @@ describe('ReportsPage — standard and custom reports apart', () => {
     renderPage({ list: [], features: { customReports: true } });
     expect(await screen.findByRole('button', { name: 'New report' })).toBeInTheDocument();
     expect(screen.queryByText('No reports available')).toBeNull();
+  });
+});
+
+describe('ReportsPage — saved views', () => {
+  const VIEW = {
+    ...ORPHANS, name: 'view-v1', displayName: 'Ledger review', description: 'For the ledger owner.',
+    source: 'view', view: { id: 'v1', reportName: 'access-review', reportDisplayName: 'Entitlement Pivot' },
+    author: { createdBy: 'ann@example.com', updatedBy: 'ann@example.com', updatedAt: null },
+  };
+
+  it('lists views in their own section, saying which report each is a view of', async () => {
+    renderPage({ list: [BUILTIN, VIEW, GUESTS], features: { customReports: true } });
+    await screen.findByRole('region', { name: 'Saved views' });
+    expect(linksIn('Saved views')).toEqual([expect.stringContaining('Ledger review')]);
+    expect(linksIn('Standard reports')).toEqual([expect.stringContaining('Orphaned Accounts')]);
+    expect(linksIn('Custom reports')).toEqual([expect.stringContaining('Guests without a manager')]);
+    expect(within(screen.getByRole('region', { name: 'Saved views' })).getByText('View of Entitlement Pivot')).toBeInTheDocument();
+  });
+
+  it('shows no views section when there are none, and does not call a views-only catalogue empty', async () => {
+    renderPage({ list: [BUILTIN] });
+    await screen.findByRole('region', { name: 'Standard reports' });
+    expect(screen.queryByRole('region', { name: 'Saved views' })).toBeNull();
+
+    renderPage({ list: [VIEW], auth: READER });
+    expect(await screen.findAllByRole('region', { name: 'Saved views' })).toHaveLength(1);
+    expect(screen.queryByText('No reports available')).toBeNull();
+  });
+
+  it('deletes a view at its own address after asking, without needing the custom-reports feature', async () => {
+    const authFetch = makeAuthFetch((url, init) => {
+      if (init?.method === 'DELETE') return jsonResponse(null, { status: 204 });
+      return { data: [VIEW] };
+    });
+    renderWithProviders(<ReportsPage onOpenDetail={() => {}} />, { auth: { authFetch } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Ledger review' }));
+    expect(await screen.findByText('Delete the view "Ledger review"? This cannot be undone.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/report-views/v1', { method: 'DELETE' }));
+  });
+
+  it('says why a delete failed', async () => {
+    const authFetch = makeAuthFetch((url, init) => {
+      if (init?.method === 'DELETE') return jsonResponse({}, { ok: false, status: 500 });
+      return { data: [VIEW] };
+    });
+    renderWithProviders(<ReportsPage onOpenDetail={() => {}} />, { auth: { authFetch } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Ledger review' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    expect(await screen.findByText('Failed to delete the view')).toBeInTheDocument();
+  });
+
+  it('lets a reader open views but not delete them', async () => {
+    renderPage({ list: [VIEW], auth: READER });
+    await screen.findByRole('region', { name: 'Saved views' });
+    expect(screen.queryByRole('button', { name: /Delete/ })).toBeNull();
   });
 });

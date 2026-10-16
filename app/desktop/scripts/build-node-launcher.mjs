@@ -8,8 +8,11 @@
 //   @electric-sql/pglite/ — PGlite WebAssembly package
 //   desktop-worker.cjs    — crawler job dispatcher
 //   dist-frontend/        — built React UI
-//   Start-IdentityAtlas.ps1, Launcher.Functions.ps1, Watch-IdentityAtlas.ps1, launcherConfig.mjs
-//   postgres/             — only with --with-postgres: PostgreSQL server binaries
+//   Start-IdentityAtlas.ps1, Launcher.Functions.ps1, Launcher.Llm.ps1, Watch-IdentityAtlas.ps1,
+//   launcherConfig.mjs, llmSupervisor.mjs
+//                         — the report model (-WithLLM) is NOT in the zip: the launcher
+//                           downloads it on first use (see Launcher.Llm.ps1)
+//   postgres/            — only with --with-postgres: PostgreSQL server binaries
 //
 // Usage (from repo root or app/api/):
 //   node app/desktop/scripts/build-node-launcher.mjs [--skip-ui-build] [--ui-only] [--with-postgres]
@@ -211,8 +214,10 @@ const LAUNCHER_SRC = join(DESKTOP_DIR, 'node-launcher');
 copyFileSync(join(LAUNCHER_SRC, 'bootstrap.mjs'),             join(STAGE_DIR, 'bootstrap.mjs'));
 copyFileSync(join(LAUNCHER_SRC, 'Start-IdentityAtlas.ps1'),   join(STAGE_DIR, 'Start-IdentityAtlas.ps1'));
 copyFileSync(join(LAUNCHER_SRC, 'Launcher.Functions.ps1'),    join(STAGE_DIR, 'Launcher.Functions.ps1'));
+copyFileSync(join(LAUNCHER_SRC, 'Launcher.Llm.ps1'),          join(STAGE_DIR, 'Launcher.Llm.ps1'));
 copyFileSync(join(LAUNCHER_SRC, 'Watch-IdentityAtlas.ps1'),   join(STAGE_DIR, 'Watch-IdentityAtlas.ps1'));
 copyFileSync(join(LAUNCHER_SRC, 'launcherConfig.mjs'),        join(STAGE_DIR, 'launcherConfig.mjs'));
+copyFileSync(join(LAUNCHER_SRC, 'llmSupervisor.mjs'),         join(STAGE_DIR, 'llmSupervisor.mjs'));
 copyFileSync(join(DESKTOP_DIR,  'desktop-worker.cjs'),        join(STAGE_DIR, 'desktop-worker.cjs'));
 
 // Copy bundled PowerShell scripts (crawlers, demo dataset, scheduler)

@@ -1,5 +1,24 @@
 ## Changes in this PR
 
+- Added `-WithLLM` to the portable launcher (`Start-IdentityAtlas.ps1`): custom reports can now be described in plain language on a laptop without Docker. The local report model and llama.cpp are downloaded once on first use and checked against a pinned checksum, or taken from files copied into the LLM folder beforehand on a machine without internet access (`-LlmRoot` picks the folder). The model loads on first use and is unloaded after 15 minutes idle; when anything is missing or blocked, the app still starts and reports can be built by hand.
+- Fixed the report generator's startup warm-up never running in the portable build, which made the first question there take minutes longer than it should.
+
+## Changes in this PR
+
+- The Application Access Review is renamed **Entitlement Pivot**. It now works for any context of resources (a logical application, a department, a tag) and for every resource type in it, not only IdentityIQ entitlements.
+- You choose the report's columns: the context's and the resource's own facts (name, type, owner, system, description) plus any attribute their source stored. The picker only offers attributes the contexts you picked actually carry, and shows how many resources carry each one.
+- You choose the rows and filters of the two pivot tables in the Excel download.
+- Removed the built-in "requestable" sections, the certification-frequency summaries and the fixed catalogue columns (CMDB reference, onboarding sector, …). Those values are still available as attributes you can pick.
+- The report tells you when a picked attribute has no value on any row in scope.
+- Existing links to the report, including ones that name applications with the old `applications` parameter, still open.
+- Save a standard report's settings as a named **view** that everyone can open from the new **Saved views** section of the Reports page, so a configured Entitlement Pivot (contexts, columns, Excel pivots) no longer has to be set up again for every run.
+- **Save as view** walks through the report's settings step by step: for the Entitlement Pivot that is Scope, Columns and Excel pivots, followed by a name.
+- Open a view and choose **Edit view** to change it for everyone, or save it as a new view. Delete views from the Reports page.
+- Saving, changing and deleting views needs the Build custom reports permission; no experimental feature has to be switched on.
+- Added a documentation page for the Entitlement Pivot and saved views.
+
+## Changes in this PR
+
 - The "Describe it" box in the report builder now says it is checking the model server, and after a few seconds that the model server is starting up and can take a few minutes, instead of showing an empty card while a scaled-down model server starts
 
 ## Changes in this PR
