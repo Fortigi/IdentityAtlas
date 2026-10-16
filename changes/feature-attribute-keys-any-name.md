@@ -1,0 +1,2 @@
+- Attributes whose name contains a space, dash, dot or accented letter (such as "CMDB Reference" or "Cost-Center") can now be used everywhere other attributes can: as a filter on the Users and Resources lists, as a matrix filter or grouping, and as a column or condition in the report builder. Before, they were stored and shown on the detail page but silently left out of all of these.
+- Added the External ID to the Context entity in the report builder, so a report of logical applications can list the id the source knows each one by.

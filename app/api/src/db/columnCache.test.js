@@ -9,6 +9,7 @@
 // slip back in.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { EXT_KEY_SQL_RE } from '../lib/extKeys.js';
 
 // We mock `./connection.js` with a query spy that each test can program.
 // Vitest hoists vi.mock() above imports, so this runs before columnCache
@@ -322,8 +323,8 @@ describe('discoverExtendedAttrValues — surfaces JSONB keys as ext.<key>', () =
 
     expect(grouped["ext.badKey'; DROP TABLE--"]).toEqual(['x']);
     for (const [sql] of queryMock.mock.calls) expect(sql).not.toMatch(/DROP TABLE/);
-    // The safe-identifier guard lives in the query itself.
-    expect(extSql()).toContain("e.key ~ '^[a-zA-Z0-9_]+$'");
+    // The key guard (lib/extKeys.js) lives in the query itself.
+    expect(extSql()).toContain(`e.key ~ '${EXT_KEY_SQL_RE}'`);
   });
 });
 
@@ -560,7 +561,7 @@ describe('discoverExtendedAttrValues — key cap', () => {
     expect(sql).toMatch(/ORDER BY sum\(rows\) DESC, col/);
     expect(sql).toMatch(/k\.krank <= 25/);
     expect(sql).toMatch(/p\.rn <= 11/);
-    expect(sql).toContain("e.key ~ '^[a-zA-Z0-9_]+$'");
+    expect(sql).toContain(`e.key ~ '${EXT_KEY_SQL_RE}'`);
   });
 
   it('defaults the cap to MAX_EXTENDED_ATTR_KEYS (300)', async () => {

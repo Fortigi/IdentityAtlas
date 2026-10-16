@@ -519,6 +519,26 @@ describe('the context entity', () => {
     expect(text).not.toContain('LogicalApplication');
   });
 
+  // The customer's catalogue writes the key as "CMDB Reference": it has to be a
+  // column, a condition and a column alias, and the value stays bound.
+  it('reports and filters on a key with a space, next to the external id', () => {
+    const spaced = { context: extFieldsFor('context', ['CMDB Reference']) };
+    const raw = {
+      entity: 'context',
+      conditions: [{ type: 'field', field: 'ext.CMDB Reference', op: 'contains', value: 'CI00' }],
+      columns: ['displayName', 'externalId', 'system', 'ext.CMDB Reference'],
+    };
+    const { ok, spec, errors } = validateSpec(raw, values, spaced);
+    expect(errors ?? []).toEqual([]);
+    expect(ok).toBe(true);
+    const { text, params, columns } = compileSpec(spec, spaced);
+    expect(columns.map(c => c.key)).toEqual(raw.columns);
+    expect(text).toContain(`"extendedAttributes"->>'CMDB Reference' AS "ext.CMDB Reference"`);
+    expect(text).toMatch(/\w+\."externalId" AS "externalId"/);
+    expect(text).not.toContain('CI00');
+    expect(params.some(p => String(p).includes('CI00'))).toBe(true);
+  });
+
   it('reads the stored counts instead of counting when the report is run', () => {
     // Counting at request time took 101 s for one column at 41 million
     // assignments; the numbers are kept on the context (migration 083).

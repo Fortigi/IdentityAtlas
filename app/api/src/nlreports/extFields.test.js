@@ -50,12 +50,20 @@ describe('extFieldsFor', () => {
     expect(Object.keys(resource)).toEqual(['ext.userType']);
   });
 
-  it('drops anything that is not a plain identifier, so nothing unsafe reaches the SQL', () => {
-    // SAFE_KEY.test(undefined) tests the string "undefined" and passes, so the
+  it('drops keys with quotes or backslashes and non-strings, so nothing unsafe reaches the SQL', () => {
+    // A regex test on undefined tests the string "undefined" and passes, so the
     // type check has to come first.
     const hostile = `bad'); DROP TABLE "Principals"; --`;
-    const fields = extFieldsFor('user', ['ok_1', hostile, 'has space', undefined, null, 42], {});
+    const fields = extFieldsFor('user', ['ok_1', hostile, 'a"b', 'a\\b', undefined, null, 42], {});
     expect(Object.keys(fields)).toEqual(['ext.ok_1']);
+  });
+
+  // The CMDB case: a key with a space is a report field like any other.
+  it('offers a key with a space or a dash, quoted in its SQL', () => {
+    const fields = extFieldsFor('context', ['CMDB Reference', 'Cost-Center'], {});
+    expect(Object.keys(fields)).toEqual(['ext.CMDB Reference', 'ext.Cost-Center']);
+    expect(fields['ext.CMDB Reference'].sql('t0')).toBe(`t0."extendedAttributes"->>'CMDB Reference'`);
+    expect(fields['ext.CMDB Reference'].extKey).toBe('CMDB Reference');
   });
 });
 

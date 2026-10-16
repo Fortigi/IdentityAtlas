@@ -543,6 +543,13 @@ const CONTEXT = {
     id: { label: 'ID', type: 'text', sql: idText, description: 'unique context id' },
     displayName: { label: 'Name', type: 'text', sql: col('displayName'), description: 'display name' },
     description: { label: 'Description', type: 'text', sql: col('description') },
+    // The source's own id for the grouping — for a logical application from a
+    // catalogue, usually the id the CMDB knows it by. Only on Context: it is the
+    // one entity the model is not shown, so adding it changes no prompt.
+    externalId: {
+      label: 'External ID', type: 'text', sql: col('externalId'),
+      description: 'the id the source system knows this context by',
+    },
     contextType: {
       label: 'Context type', type: 'enum', sql: col('contextType'), valuesFrom: 'contextType',
       description: 'what kind of grouping this is (department, tag, application, …)',

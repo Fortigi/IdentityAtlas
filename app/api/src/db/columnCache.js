@@ -14,6 +14,7 @@
 // pre-universal-resource-model fallback and have been dead code since v3.1.
 
 import * as db from './connection.js';
+import { EXT_KEY_SQL_RE, isExtKey, extKeyLiteral, extValueSql } from '../lib/extKeys.js';
 import {
   COLUMN_CACHE_TTL, STALE_GRACE, createValueCache, valuePageSize,
   DEFAULT_VALUE_PAGE_SIZE, MAX_VALUE_PAGE_SIZE, VALUE_SEARCH_LIMIT,
@@ -122,9 +123,9 @@ function columnValueExpr(rawName) {
   return `"${rawName}"::text`;
 }
 
-// …and for one `extendedAttributes` key.
+// …and for one `extendedAttributes` key (any key lib/extKeys.js accepts).
 function extValueExpr(key) {
-  return `"extendedAttributes"->>'${key}'`;
+  return extValueSql(key);
 }
 
 // ─── Query planning for the value preload ───────────────────────
@@ -283,9 +284,10 @@ export const MAX_EXTENDED_ATTR_KEYS = 300;
 // first. We use jsonb_typeof on the value so we only keep keys whose typical
 // content is something a user would filter on; if a key is mixed (string in some
 // rows, object in others) we'd lose the object rows, but the filter still matches
-// the scalar ones. Keys that are not safe identifiers are dropped in SQL, before
-// the cap, so they cannot use up the budget; the JS filter stays as defence in
-// depth — every caller interpolates these keys into SQL.
+// the scalar ones. Keys lib/extKeys.js refuses (a quote, a backslash, a control
+// character, over 128 characters) are dropped in SQL, before the cap, so they
+// cannot use up the budget; the JS filter stays as defence in depth — every
+// caller puts these keys into SQL. "CMDB Reference" and "Cost-Center" pass.
 //
 // Shared with the report builder's field catalog (nlreports/extFields.js), which
 // offers the same keys as report fields: one discovery rule, so an attribute you
@@ -298,13 +300,13 @@ export async function discoverExtendedAttrKeys(table, maxKeys = MAX_EXTENDED_ATT
        FROM "${table}", jsonb_object_keys("extendedAttributes") AS key
       WHERE "extendedAttributes" IS NOT NULL
         AND jsonb_typeof("extendedAttributes"->key) IN ('string', 'number', 'boolean')
-        AND key ~ '^[a-zA-Z0-9_]+$'
+        AND key ~ '${EXT_KEY_SQL_RE}'
       GROUP BY key
       ORDER BY COUNT(*) DESC, key
       LIMIT $1`,
     [maxKeys]
   );
-  return keysRes.rows.map(r => r.key).filter(k => SAFE_IDENT_RE.test(k));
+  return keysRes.rows.map(r => r.key).filter(isExtKey);
 }
 
 // The keys AND their values in ONE pass over the table.
@@ -327,7 +329,7 @@ export function extendedAttrValuesSql(table, pageSize, maxKeys) {
                 CASE WHEN jsonb_typeof(t."extendedAttributes") = 'object'
                      THEN t."extendedAttributes" END) e
         WHERE jsonb_typeof(e.value) IN ('string', 'number', 'boolean')
-          AND e.key ~ '^[a-zA-Z0-9_]+$'
+          AND e.key ~ '${EXT_KEY_SQL_RE}'
         GROUP BY 1, 2
      ), keys AS (
        SELECT col, row_number() OVER (ORDER BY sum(rows) DESC, col) AS krank
@@ -359,9 +361,9 @@ export async function searchColumnValues(table, column, q, allowedColumns) {
 
   const isExt = column.startsWith('ext.');
   const key = isExt ? column.slice(4) : column;
-  if (!SAFE_IDENT_RE.test(key)) throw new Error(`Invalid column name: ${column}`);
+  if (!(isExt ? isExtKey(key) : SAFE_IDENT_RE.test(key))) throw new Error(`Invalid column name: ${column}`);
   const valExpr = isExt ? extValueExpr(key) : columnValueExpr(key);
-  const presence = isExt ? `"extendedAttributes" ? '${key}'` : `"${key}" IS NOT NULL`;
+  const presence = isExt ? `"extendedAttributes" ? ${extKeyLiteral(key)}` : `"${key}" IS NOT NULL`;
 
   // strpos on the lower-cased pair, not ILIKE: a `%` or `_` typed into the
   // search box is a literal character to the user, not a wildcard.

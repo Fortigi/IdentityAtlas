@@ -26,13 +26,13 @@
 
 import { discoverExtendedAttrKeys } from '../db/columnCache.js';
 import { getAttributeLabels } from '../lib/attributeLabels.js';
+import { EXT_PREFIX, isExtKey, extValueSql } from '../lib/extKeys.js';
 import { MODEL_ENTITIES, staticExtKeys } from './catalog.js';
 
-export const EXT_PREFIX = 'ext.';
+export { EXT_PREFIX };
 
-// Mirrors db/columnCache.js's own filter. Everything here is interpolated into
-// SQL, so it is checked again on this side of the call.
-const SAFE_KEY = /^[A-Za-z0-9_]+$/;
+// One word as the question scan below tokenises it.
+const WORD_KEY = /^[A-Za-z0-9_]+$/;
 
 // Which table each entity reads, and the attribute-label target for it.
 const TARGETS = [
@@ -65,18 +65,19 @@ export function clearExtFieldsCache() {
  */
 export function extFieldsFor(entityName, keys, labels = {}) {
   const covered = staticExtKeys(entityName);
-  // A plain object is safe here: every property name starts with "ext." and the
-  // rest is [A-Za-z0-9_], so no key can be "__proto__" or "constructor".
+  // A plain object is safe here: every property name starts with "ext.", so no
+  // key can be "__proto__" or "constructor".
   const fields = {};
   for (const key of keys) {
-    // `typeof` first: SAFE_KEY.test(undefined) tests the STRING "undefined" and
-    // passes, which would put a field called `ext.undefined` in the catalog.
-    if (typeof key !== 'string' || !SAFE_KEY.test(key) || covered.has(key)) continue;
+    // isExtKey checks the type first: a regex test on undefined tests the
+    // STRING "undefined", which would put `ext.undefined` in the catalog.
+    // Any key lib/extKeys.js accepts — "CMDB Reference" included.
+    if (!isExtKey(key) || covered.has(key)) continue;
 
     fields[EXT_PREFIX + key] = {
       label: Object.hasOwn(labels, key) ? labels[key] : key,
       type: 'text',
-      sql: (t) => `${t}."extendedAttributes"->>'${key}'`,
+      sql: (t) => extValueSql(key, t),
       extKey: key,
       discovered: true,
     };
@@ -154,7 +155,7 @@ export function matchQuestionAttributes(question, extFields) {
   // own anchored regex: WORD is global, and `.test` on a global regex carries
   // lastIndex from the previous call — it would answer differently every time.
   for (const [alias, entry] of index) {
-    if (!SAFE_KEY.test(alias) && alias.length >= 3 && text.includes(alias)) found.set(entry.key, entry);
+    if (!WORD_KEY.test(alias) && alias.length >= 3 && text.includes(alias)) found.set(entry.key, entry);
   }
 
   return [...found.values()].slice(0, MAX_ATTRIBUTE_MATCHES);

@@ -309,7 +309,7 @@ describe('as-of scope conditions', () => {
     });
 
     it.each([
-      ['ext.bad-key', 'an unsafe extendedAttributes key'],
+      ["ext.bad'key", 'an extendedAttributes key with a quote in it'],
       ['bad-key', 'an unsafe column name'],
       ['notAColumn', 'a column the entity does not have'],
     ])('drops %s (%s)', (field) => {
@@ -317,7 +317,14 @@ describe('as-of scope conditions', () => {
       // is what stops a crafted field name reaching the query text.
       const out = withSubject([{ kind: 'attribute', field, values: ['x'] }]);
       expect(out.warnings.some((w) => /attribute condition dropped/.test(w))).toBe(true);
-      expect(norm(out.sql)).not.toContain('bad-key');
+      expect(norm(out.sql)).not.toMatch(/bad'key|bad-key/);
+    });
+
+    // A source's own key — "CMDB Reference", "Cost-Center" — is a key like any other.
+    it('keeps an extendedAttributes key with a space or a dash, as a quoted literal', () => {
+      const out = withSubject([{ kind: 'attribute', field: 'ext.CMDB Reference', values: ['CI001'] }]);
+      expect(out.warnings).toEqual([]);
+      expect(norm(out.sql)).toContain(`->'extendedAttributes'->>'CMDB Reference') IN (`);
     });
   });
 });

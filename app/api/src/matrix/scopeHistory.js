@@ -29,9 +29,9 @@
 import { UUID_RE, collectContextIds } from './filterSql.js';
 import { GROUP_PRINCIPAL_TYPE } from '../lib/principalTypes.js';
 import { shouldHideDefaultResourceTypes, visibleResourceTypesSql } from '../lib/resourceVisibility.js';
+import { EXT_PREFIX, extKeyOf, extKeyLiteral } from '../lib/extKeys.js';
 
 const SAFE_IDENT_RE = /^[a-zA-Z0-9_]+$/;
-const EXT_PREFIX = 'ext.';
 const GROUP_TYPE = GROUP_PRINCIPAL_TYPE;
 
 // ── Sample dates ─────────────────────────────────────────────────────
@@ -139,9 +139,9 @@ function attributeClause(stateAlias, field, values, validColumns, bind) {
   const ph = vals.map(v => bind(v));
 
   if (field.startsWith(EXT_PREFIX)) {
-    const key = field.slice(EXT_PREFIX.length);
-    if (!SAFE_IDENT_RE.test(key)) return null;
-    return `(${stateAlias}->'extendedAttributes'->>'${key}') IN (${ph.join(',')})`;
+    const key = extKeyOf(field);
+    if (key === null) return null;
+    return `(${stateAlias}->'extendedAttributes'->>${extKeyLiteral(key)}) IN (${ph.join(',')})`;
   }
   if (!SAFE_IDENT_RE.test(field)) return null;
   if (validColumns && !validColumns.has(field)) return null;

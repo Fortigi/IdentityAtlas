@@ -16,6 +16,7 @@
   "mutate": [
     "src/db/valueCache.js",
     "src/lib/resourceVisibility.js",
+    "src/lib/extKeys.js",
     "src/ingest/viewRefresh.js",
     "src/matrix/attrExpr.js",
     "src/matrix/attributeCut.js",

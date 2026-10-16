@@ -57,6 +57,12 @@ export default defineConfig({
     ...base.test,
     include: [
       'src/lib/resourceVisibility.test.js',
+      // lib/extKeys.js — which extendedAttributes keys may be named in SQL. Its
+      // matrix callers' tests are already above; the list filter and the report
+      // builder's are added so a mutant only they kill does not read as a survivor.
+      'src/lib/extKeys.test.js',
+      'src/routes/buildFilterWhere.test.js',
+      'src/nlreports/extFields.test.js',
       'src/matrix/**/*.test.js',
       'src/routes/matrix/**/*.test.js',
       'src/routes/matrix.*.test.js',
