@@ -1,4 +1,5 @@
-// Access review pack: the entitlements a context holds, and who holds them.
+// Entitlement Pivot (built as an access review pack): the entitlements a
+// context holds, and who holds them.
 //
 // An owner is accountable for who can reach "their" thing — a logical
 // application, a department's file shares, everything tagged PCI. In Identity
@@ -109,8 +110,10 @@ const DEFAULT_LAYOUT = buildLayout({
 });
 
 export default {
+  // The slug predates the rename and stays: saved views and bookmarked report
+  // tabs address the report by it. Only the name people see changed.
   name: 'application-access-review',
-  displayName: 'Access Review',
+  displayName: 'Entitlement Pivot',
   description:
     'One row per entitlement of one or more contexts — a logical application, a department\'s '
     + 'resources, a tag — with how many people hold it directly and how many through a business '

@@ -70,7 +70,8 @@ beforeEach(() => {
 
 describe('access review — template contract', () => {
   it('is a list report over contexts, with columns and pivot axes picked from a field lookup', () => {
-    expect(report).toMatchObject({ name: 'application-access-review', form: 'list' });
+    // Renamed for people, not for links: the slug is what saved views and bookmarks address.
+    expect(report).toMatchObject({ name: 'application-access-review', displayName: 'Entitlement Pivot', form: 'list' });
     const { required, properties } = report.parametersSchema;
     expect(required).toEqual(['contexts']);
     expect(properties.contexts['x-lookup']).toBe('resource-contexts');
