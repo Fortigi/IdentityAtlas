@@ -8,7 +8,8 @@ import { useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { renderWithProviders, screen, fireEvent, waitFor, makeAuthFetch, jsonResponse }
   from '@ui/test-utils/renderWithProviders';
-import EntityLookup, { dependencyQuery, disambiguate } from '@ui/components/inputs/EntityLookup';
+import EntityLookup from '@ui/components/inputs/EntityLookup';
+import { dependencyQuery, disambiguate } from '@ui/components/inputs/EntityLookup.helpers';
 
 const OPTIONS = [
   { value: 'app-1', label: 'Ledger Engineering', hint: '16,387 members · Catalogue' },

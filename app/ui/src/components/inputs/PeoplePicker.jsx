@@ -15,18 +15,9 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
+import { toPerson } from './PeoplePicker.helpers';
 
 const RESULT_LIMIT = 10;
-
-// The picker's value shape, from a /api/users row. `userKey` is the sign-in
-// name; `principalId` keeps the directory id so a later rename still resolves.
-export function toPerson(row) {
-  return {
-    principalId: row.id || null,
-    userKey: row.userPrincipalName || row.email || '',
-    displayName: row.displayName || row.userPrincipalName || row.email || '',
-  };
-}
 
 export default function PeoplePicker({ value = [], onChange, label = 'Search people', help, inputId = 'people-picker' }) {
   const { authFetch } = useAuth();

@@ -24,44 +24,18 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
+import { dependencyQuery, disambiguate } from './EntityLookup.helpers';
 
 // The server's own cap. A field list offers built-ins plus every attribute the
 // data carries, so twenty would hide most of it until something was typed.
 const RESULT_LIMIT = 50;
 const DEBOUNCE_MS = 250;
 
-/**
- * `&contexts=a,b` for the form values a source said it depends on, so its
- * options can follow an earlier choice. Empty values are left out; the order is
- * the caller's, so the string is stable for an unchanged form.
- */
-export function dependencyQuery(dependsOn) {
-  return Object.entries(dependsOn || {})
-    .map(([key, value]) => [key, Array.isArray(value) ? value.join(',') : String(value ?? '')])
-    .filter(([, value]) => value)
-    .map(([key, value]) => `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
-    .join('');
-}
-
 /** `{ value: label }` for everything the control has ever been told about. */
 function rememberLabels(known, options) {
   const next = { ...known };
   for (const option of options) if (option?.value) next[option.value] = option.label || option.value;
   return next;
-}
-
-/**
- * Options whose labels collide inside ONE result list, with the head of their
- * id appended to the hint. A catalogue with three applications under one name
- * is exactly the case this control exists for, so it must not offer three rows
- * a person cannot tell apart.
- */
-export function disambiguate(options) {
-  const seen = new Map();
-  for (const option of options) seen.set(option.label, (seen.get(option.label) || 0) + 1);
-  return options.map(option => (seen.get(option.label) > 1
-    ? { ...option, hint: [option.hint, `id ${String(option.value).slice(0, 8)}`].filter(Boolean).join(' · ') }
-    : option));
 }
 
 // `label` is optional because a caller may already own it: SchemaConfigForm

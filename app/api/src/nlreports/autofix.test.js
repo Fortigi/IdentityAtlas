@@ -534,6 +534,20 @@ describe('first-person words that are about the conversation, not the caller', (
     expect(selfWord(q)).toBe(word);
   });
 
+  // A long gap after the verb used to be split every way by two overlapping
+  // whitespace runs: ~6 s per question at this length. Linear now, so the
+  // budget below has three orders of magnitude of headroom.
+  it.each([
+    ['kan ik', 'lijst', null],
+    ['kan ik', 'x', 'ik'],
+    ['my', 'question', null],
+    ['my', 'groups', 'my'],
+  ])('reads "%s <long gap> %s" in linear time', (head, tail, word) => {
+    const started = performance.now();
+    expect(selfWord(`${head}${' '.repeat(100_000)}${tail}`)).toBe(word);
+    expect(performance.now() - started).toBeLessThan(250);
+  });
+
   it('leaves the two-sided comparison alone when the only first-person word is asker talk', () => {
     const ME = '@me';
     const bram = [{ type: 'field', field: 'displayName', op: 'contains', value: 'bram' }];

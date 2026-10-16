@@ -70,7 +70,8 @@
     "src/components/matrix/saveStepState.js",
     "src/components/matrix/matrixRequests.js",
     "src/components/matrix/matrixHistoryText.js",
-    "src/auth/authMeState.js"
+    "src/auth/authMeState.js",
+    "src/components/inputs/PeoplePicker.helpers.js"
   ],
   "thresholds": {
     "high": 90,

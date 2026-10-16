@@ -7,24 +7,9 @@
 import { useId } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
+import { referenceEntities } from './CompareCondition.helpers';
 
 const INPUT = 'rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
-
-/** Entities that have the same relation reaching the same table — valid references. */
-export function referenceEntities(catalog, entity, relation) {
-  const rel = catalog.entities[entity].relations.find(r => r.name === relation);
-  if (!rel) return [];
-  const targetTable = catalog.entities[rel.target].table;
-  return Object.entries(catalog.entities)
-    .filter(([, e]) => e.relations.some(r => r.name === relation && catalog.entities[r.target].table === targetTable))
-    .map(([name]) => name);
-}
-
-export function newCompareCondition(catalog, entity) {
-  const relation = catalog.entities[entity].compareRelations[0];
-  const refEntity = referenceEntities(catalog, entity, relation)[0] || entity;
-  return { type: 'compare', relation, measure: 'identical', reference: { entity: refEntity, name: '' } };
-}
 
 export default function CompareCondition({ entity, condition, catalog, onChange, onRemove, RemoveButton }) {
   const { authFetch } = useAuth();

@@ -10,6 +10,7 @@
 // third caller should use it too rather than growing a second one.
 
 import EntityLookup from '@ui/components/inputs/EntityLookup';
+import { lookupDependencies } from './SchemaConfigForm.helpers';
 
 const INPUT_CLASS = 'w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 '
   + 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100';
@@ -18,15 +19,6 @@ const INPUT_CLASS = 'w-full text-sm px-2 py-1.5 rounded border border-gray-300 d
  * One editable input for a single JSON-schema property. Exported for callers
  * that need a single field outside a full form.
  */
-/**
- * The form values a lookup said it depends on (`x-lookupDependsOn`), picked out
- * of the whole form so the lookup sees those and nothing else.
- */
-export function lookupDependencies(prop, params) {
-  const keys = Array.isArray(prop?.['x-lookupDependsOn']) ? prop['x-lookupDependsOn'] : [];
-  return Object.fromEntries(keys.map(key => [key, params?.[key]]));
-}
-
 export function FieldInput({ prop, value, onChange, id, params }) {
   // `x-lookup` names a server-side lookup source, so a parameter that means an
   // ENTITY is picked from a list instead of typed from memory — and what gets

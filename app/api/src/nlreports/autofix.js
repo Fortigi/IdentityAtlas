@@ -64,10 +64,15 @@ const SELF_RE = /\b(ik|mijn|mijne|my|mine|myself)\b|\bI\b/;
 // account" and put the caller into a report nobody asked for. These phrases
 // are blanked before the first-person test, so a later real one still counts
 // ("I'd like the groups I own" is still about the caller, through the second I).
+// The optional word carries its own trailing \s* — an optional word followed by
+// a bare \s* after a \s+ lets the two runs split a long gap every way, which is
+// quadratic on a run of spaces (security/detect-unsafe-regex).
 const ASKER_TALK = [
-  /\b(mijn|my)\s+(vorige|laatste|eerdere|previous|last|earlier|first|eerste)?\s*(vraag|vragen|question|questions|antwoord|answer|verzoek|request|opmerking|zoekopdracht|search|rapport|rapportage|report)\b/gi,
+  // eslint-disable-next-line security/detect-unsafe-regex -- linear, pinned by the long-gap test
+  /\b(mijn|my)\s+(?:(vorige|laatste|eerdere|previous|last|earlier|first|eerste)\s*)?(vraag|vragen|question|questions|antwoord|answer|verzoek|request|opmerking|zoekopdracht|search|rapport|rapportage|report)\b/gi,
   /\b(ik|I)(?:\s+|'d\s+|'m\s+|'ve\s+)(wil|wilde|zou|zoek|vraag|vroeg|bedoel|bedoelde|ben benieuwd|want|wanted|need|would like|like|am looking|looking|was wondering|wonder|mean|meant|asked|ask)\b/g,
-  /\b(kan|kun|mag|zou|can|could|may|would)\s+(ik|I)\s+(hier\s+)?(een|a|an|the|de|het|dat|this|that)?\s*(lijst|lijstje|overzicht|list|overview|rapport|report|zien|krijgen|see|get|have)\b/gi,
+  // eslint-disable-next-line security/detect-unsafe-regex -- linear, pinned by the long-gap test
+  /\b(kan|kun|mag|zou|can|could|may|would)\s+(ik|I)\s+(hier\s+)?(?:(een|a|an|the|de|het|dat|this|that)\s*)?(lijst|lijstje|overzicht|list|overview|rapport|report|zien|krijgen|see|get|have)\b/gi,
 ];
 const withoutAskerTalk = (text) => ASKER_TALK.reduce((t, re) => t.replace(re, (m) => ' '.repeat(m.length)), text);
 export const selfWord = (question) => withoutAskerTalk(String(question ?? '')).match(SELF_RE)?.[0] ?? null;

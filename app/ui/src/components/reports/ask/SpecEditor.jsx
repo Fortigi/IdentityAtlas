@@ -5,7 +5,8 @@
 // all/any, remove a condition, add one, pick columns. Everything is driven by
 // the catalog from GET /api/nl-reports/catalog — no field list lives here.
 
-import CompareCondition, { newCompareCondition } from './CompareCondition';
+import CompareCondition from './CompareCondition';
+import { newCompareCondition } from './CompareCondition.helpers';
 
 const INPUT = 'rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
 const LINK_BUTTON = 'text-sm text-blue-700 hover:underline dark:text-blue-300';

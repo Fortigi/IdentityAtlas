@@ -6,7 +6,8 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { renderWithProviders, screen, fireEvent, waitFor, makeAuthFetch } from '@ui/test-utils/renderWithProviders';
-import SchemaConfigForm, { FieldInput, lookupDependencies } from '@ui/components/SchemaConfigForm';
+import SchemaConfigForm, { FieldInput } from '@ui/components/SchemaConfigForm';
+import { lookupDependencies } from '@ui/components/SchemaConfigForm.helpers';
 
 const SCHEMA = {
   properties: {
