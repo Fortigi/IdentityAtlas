@@ -13,7 +13,7 @@ import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
 import { keepThePerson } from './autofix.followup.js';
 import { businessRoleTypeWhenAsked, guestsWhenAsked, isYesNoAboutPerson, listsEverythingOfPerson, notSignedInFor } from './autofix.activity.js';
-import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, autofixSpec, canonicaliseSelf, isRelationLeaf, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, rolesOfPersonAsResources, selfWord } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, autofixSpec, canonicaliseSelf, isRelationLeaf, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relationColumnsAsNames, relocateSelf, resolveSelfAgainstPerson, rolesOfPersonAsResources, selfWord } from './autofix.js';
 import { ME } from './caller.js';
 import { buildReplySchemas, buildSystemPrompt, buildValuesBlock } from './prompt.js';
 import { attributeFieldNames, attributesBlock, loadExtFields, matchQuestionAttributes } from './extFields.js';
@@ -502,7 +502,7 @@ export async function interpret({ question, context = '', history = [], model = 
   // once more before a repair round is spent on it. What was corrected rides
   // along as `fixes`, so the answer can say so.
   ctx.validate = (spec) => {
-    const grouping = dropUnaskedGrouping(nameWrittenAsId(listEqualsToIn(dedupeConditions(spec).spec).spec).spec, ctx.question);
+    const grouping = dropUnaskedGrouping(nameWrittenAsId(listEqualsToIn(dedupeConditions(relationColumnsAsNames(spec).spec).spec).spec).spec, ctx.question);
     const roles = rolesOfPersonAsResources(grouping.spec, ctx.question);
     const negated = negatedBusinessRole(accessPackageAsRelation(roles.spec).spec, ctx.question);
     const typed = businessRoleTypeWhenAsked(negated.spec, ctx.question);

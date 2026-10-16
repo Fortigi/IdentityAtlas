@@ -5,7 +5,7 @@
 // under a new name.
 
 import { describe, it, expect } from 'vitest';
-import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, canonicaliseSelf, autofixSpec, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relocateSelf, resolveSelfAgainstPerson, rolesOfPersonAsResources, selfWord } from './autofix.js';
+import { accessPackageAsRelation, addAskedColumns, addMissingSelf, askedForLeaf, asksForCounts, canonicaliseSelf, autofixSpec, dedupeConditions, dropUnaskedGrouping, dropUnaskedSelf, genericCompareToRelation, leaves, listEqualsToIn, lostLeaves, nameWrittenAsId, negatedBusinessRole, refineFromPrevious, relationColumnsAsNames, relocateSelf, resolveSelfAgainstPerson, rolesOfPersonAsResources, selfWord } from './autofix.js';
 import { validateSpec } from './spec.js';
 
 const field = (f, op, value) => ({ type: 'field', field: f, op, value });
@@ -530,8 +530,50 @@ describe('first-person words that are about the conversation, not the caller', (
     ['Which groups do I own?', 'I'],
     ["I'd like the groups I own", 'I'],
     ['ik wil weten welke groepen ik heb', 'ik'],
+    // Lower-case "i": the question that came in as "it doesn't know who I is".
+    ["can you give me a report of groups i'm in", 'i'],
+    ['can you give me a report of groups i’m in', 'i'],
+    ['which groups do i own', 'i'],
+    ['what groups am i in?', 'i'],
+    ["i'm looking for the groups i own", 'i'],
+    // "me" only as the one the access is assigned to.
+    ['give me the groups assigned to me', 'assigned to me'],
+    ['groups owned by me', 'owned by me'],
+    ['welke groepen zijn van mij', 'van mij'],
+    // Case-insensitive at the start of a sentence.
+    ['My groups, please', 'My'],
+    ['Mijn groepen', 'Mijn'],
   ])('still reads "%s" as about the caller', (q, word) => {
     expect(selfWord(q)).toBe(word);
+  });
+
+  it.each([
+    'give me a list of all groups with their owners',
+    'show me the guests, i.e. external users',
+    "i'm looking for disabled accounts",
+    'can i see the members of the finance group?',
+  ])('does not make "%s" about the caller either', (q) => {
+    expect(selfWord(q)).toBeNull();
+  });
+
+  it('keeps the @me the model wrote for "groups i\'m in"', () => {
+    const ME = '@me';
+    const mine = { entity: 'group', match: 'all', conditions: [
+      { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: ME }] },
+    ] };
+    const kept = dropUnaskedSelf(mine, "can you give me a report of groups i'm in", ME);
+    expect(kept.spec).toBe(mine);
+    expect(kept.notes).toEqual([]);
+  });
+
+  it('puts the caller in when the model left them out of "groups i\'m in"', () => {
+    const ME = '@me';
+    const everyone = { entity: 'group', match: 'all', conditions: [] };
+    const { spec, notes } = addMissingSelf(everyone, "can you give me a report of groups i'm in", ME);
+    expect(spec.conditions).toEqual([
+      { type: 'relation', relation: 'members', quantifier: 'some', match: 'all', conditions: [{ type: 'field', field: 'id', op: 'eq', value: ME }] },
+    ]);
+    expect(notes).toEqual(['Read "i" as you: the report is about your own account.']);
   });
 
   it('leaves the two-sided comparison alone when the only first-person word is asker talk', () => {
@@ -540,5 +582,55 @@ describe('first-person words that are about the conversation, not the caller', (
     const rel = (quantifier) => ({ type: 'relation', relation: 'memberOf', quantifier, match: 'all', conditions: bram });
     const both = { entity: 'user', match: 'all', conditions: [rel('some'), rel('none')] };
     expect(resolveSelfAgainstPerson(both, 'I want to know which groups bram has that bram does not', ME).notes).toEqual([]);
+  });
+});
+
+describe('a relation column written in a shape that does not exist', () => {
+  // "All groups with the group owner" came back as owners.displayName — the
+  // one-to-one shape on a many relation — which validation rejects, and the
+  // repair round then settled for the owner count nobody asked for.
+  const group = (columns) => ({ entity: 'group', match: 'all', conditions: [], columns });
+
+  it.each([
+    [['displayName', 'owners.displayName'], ['displayName', 'owners.names']],
+    [['displayName', 'owners.email'], ['displayName', 'owners.names']],
+    [['displayName', 'owner'], ['displayName', 'owners.names']],
+    [['displayName', 'owners'], ['displayName', 'owners.names']],
+    [['displayName', 'contexts.displayName', 'context'], ['displayName', 'contexts.names']],
+    [['displayName', 'member.count'], ['displayName', 'members.count']],
+  ])('reads %j as %j', (columns, expected) => {
+    const { spec, notes } = relationColumnsAsNames(group(columns));
+    expect(spec.columns).toEqual(expected);
+    expect(notes).toEqual([]);
+    expect(validateSpec(spec, {}).ok).toBe(true);
+  });
+
+  it('reads a one-to-one relation written as a name as its displayName', () => {
+    const user = { entity: 'user', match: 'all', conditions: [], columns: ['displayName', 'manager.name', 'manager'] };
+    expect(relationColumnsAsNames(user).spec.columns).toEqual(['displayName', 'manager.displayName']);
+  });
+
+  it('leaves alone what already exists, and what it cannot read', () => {
+    const fine = group(['displayName', 'ownerCount', 'owners.names', 'members.count', 'ext.sfCode', 'compare.similarity']);
+    expect(relationColumnsAsNames(fine).spec).toBe(fine);
+    const user = { entity: 'user', match: 'all', conditions: [], columns: ['manager.email', 'manager.displayName.x', 'unknown.names'] };
+    expect(relationColumnsAsNames(user).spec).toBe(user);
+    const noColumns = { entity: 'group', match: 'all', conditions: [] };
+    expect(relationColumnsAsNames(noColumns).spec).toBe(noColumns);
+    const unknownEntity = { entity: 'spaceship', columns: ['owner'] };
+    expect(relationColumnsAsNames(unknownEntity).spec).toBe(unknownEntity);
+  });
+});
+
+describe('the columns a question about owners and contexts asks for', () => {
+  it('adds the owners and the contexts of each group', () => {
+    const spec = { entity: 'group', match: 'all', conditions: [], columns: [] };
+    expect(addAskedColumns(spec, 'can you give me a list of all groups with the group owner and the contexts it is part of').spec.columns)
+      .toEqual(['displayName', 'owners.names', 'contexts.names']);
+  });
+
+  it('adds the contexts of each user, in Dutch too', () => {
+    const spec = { entity: 'user', match: 'all', conditions: [], columns: ['displayName'] };
+    expect(addAskedColumns(spec, 'gebruikers met hun contexten').spec.columns).toEqual(['displayName', 'contexts.names']);
   });
 });

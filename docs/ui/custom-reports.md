@@ -29,8 +29,10 @@ can open, run and download the result.
    identities and AI agents), Resources (roles, applications, permissions, business roles, Azure
    resources), Persons (identities, with their linked accounts) or Contexts (groupings such as
    departments, tags or the applications of an application catalogue — pick the kind with a
-   *Context type is …* condition). Contexts are built here in the editor; the *Ask* box does not
-   produce them yet. For a context that groups resources you can also show and filter on how much
+   *Context type is …* condition). Reports on contexts themselves are built here in the editor; the
+   *Ask* box does not produce them yet. It can, like the editor, show the contexts each row of a
+   group, resource, user or person report is part of (*Contexts* column) and filter on them
+   ("groups in the Crown Jewels context"). For a context that groups resources you can also show and filter on how much
    access it carries — *Resource count*, *Assignments* (direct and via a role), *Holders* — as
    counted after the last sync.
 3. **Add conditions.**

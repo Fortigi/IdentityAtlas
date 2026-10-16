@@ -15,6 +15,24 @@ import { OWNERSHIP_TYPES_SQL, OWNERSHIP_RELATIONSHIP_TYPES_SQL } from '../lib/ow
 
 const notDeleted = (t) => `${t}."deletedAt" IS NULL`;
 
+// The contexts a record is a member of — the reverse of a context's resources /
+// accounts / persons relations below. "All groups with the contexts they are
+// part of" had no way to be written while only the context side could reach
+// its members.
+const contextsOf = (memberType, noun) => ({
+  label: 'Contexts', target: 'context', cardinality: 'many',
+  compareNoun: 'contexts',
+  some: 'is in a context', none: 'is not in any context',
+  description: `contexts (tags, departments, catalogue applications, …) this ${noun} is part of`,
+  from: (outer, inner, u) => {
+    const cm = u();
+    return {
+      from: `"ContextMembers" ${cm} JOIN "Contexts" ${inner} ON ${inner}."id" = ${cm}."contextId"`,
+      where: `${cm}."memberId" = ${outer}."id" AND ${cm}."memberType" = '${memberType}'`,
+    };
+  },
+});
+
 // Sign-in activity, read through the same helpers as the standard activity
 // reports, so "last sign-in" and "stale" mean the same thing in a custom report as
 // in Never Signed In / Stale Accounts. Activity is a snapshot per system: the
@@ -246,6 +264,7 @@ const BASE = {
           };
         },
       },
+      contexts: contextsOf('Principal', 'account'),
     },
   },
 
@@ -302,6 +321,7 @@ const BASE = {
           where: `${inner}."id" = ${outer}."managerIdentityId"`,
         }),
       },
+      contexts: contextsOf('Identity', 'person'),
     },
   },
 
@@ -344,7 +364,7 @@ const BASE = {
           WHERE ra."resourceId" = ${t}."id" AND ra."deletedAt" IS NULL AND ra."assignmentType" IN ${HELD})`,
       },
       ownerCount: {
-        label: 'Owner count', type: 'number', counts: 'owners', description: 'number of owners',
+        label: 'Owner count', type: 'number', counts: 'owners', description: 'number of owners — WHO the owners are is the owners.names column',
         sql: (t) => `(SELECT count(*) FROM "ResourceRelationships" rr JOIN "ResourceAssignments" ra ON ra."resourceId" = rr."childResourceId"
           WHERE rr."parentResourceId" = ${t}."id" AND rr."relationshipType" IN ${OWNERSHIP_RELATIONSHIPS} AND ra."deletedAt" IS NULL)`,
       },
@@ -407,6 +427,7 @@ const BASE = {
           };
         },
       },
+      contexts: contextsOf('Resource', 'group or resource'),
     },
   },
 };
@@ -520,7 +541,11 @@ const CHANGE = {
 // part of the system prompt and of the reply grammar, and adding to either
 // changes what the published accuracy figures were measured on. It is built in
 // the definition editor until an evaluation run says the model handles it —
-// the same reasoning as NOT_OFFERED_TO_MODEL in prompt.js.
+// the same reasoning as NOT_OFFERED_TO_MODEL in prompt.js. There is a budget
+// reason too: its fields alone are ~1,000 prompt tokens, and the prompt already
+// sits near the model's 8k context (ollama.js). What the model CAN do is the
+// other direction — the `contexts` relation of a group, resource, account or
+// person (contextsOf, above), which costs one line per entity.
 const memberOfType = (memberType, table) => (outer, inner, u) => {
   const cm = u();
   return {
@@ -738,7 +763,8 @@ export const GLOSSARY = [
   { terms: ['service principal', 'app identity', 'service account'], means: 'an account with principalType ServicePrincipal' },
   { terms: ['guest', 'external user', 'B2B user', 'gast', 'externe gebruiker'], means: 'userType Guest' },
   { terms: ['disabled', 'inactive', 'blocked', 'uitgeschakeld'], means: 'accountEnabled false' },
-  { terms: ['owner', 'eigenaar'], means: 'the owners / owns relation — never membership' },
+  { terms: ['owner', 'eigenaar'], means: 'the owners / owns relation — never membership. "with the owner(s)" = the owners.names column' },
+  { terms: ['context', 'tag', 'label', 'contexten'], means: 'the contexts relation — the column contexts.names; "in context X" = contexts some with displayName contains X' },
   { terms: ['eligible', 'PIM', 'can activate', 'can request', 'may request', 'in aanmerking', 'kan aanvragen', 'kan activeren', 'aanvraagbaar'], means: 'an assignment of type Eligible: the eligibleMembers relation of a resource ("who can request X") or the eligibleFor relation of a user ("what can X activate"); members and access are what is held NOW' },
   { terms: ['rights', 'rechten', 'permissions', 'entitlements', 'toegang', 'toegangsrechten', 'bevoegdheden'], means: 'every kind of resource an account holds. "Which rights does X have" = the resource entity with NO resourceType condition and members some for X; "who has right X" = the user entity with the access relation' },
   { terms: ['change', 'changed', 'changes', 'added', 'removed', 'new', 'recent', 'recently', 'lately', 'wijziging', 'wijzigingen', 'veranderd', 'toegevoegd', 'verwijderd', 'nieuw'], means: 'the change entity — what was added or removed over time. Every other entity only describes the present. "added" / "toegevoegd" = action Added; "removed" / "verwijderd" = action Removed; "added or removed", "changes", "updates" = no condition on action. The account changed is the account relation, the group is the resource relation (resourceType Group).' },

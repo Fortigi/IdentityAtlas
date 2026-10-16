@@ -208,6 +208,13 @@ const EXAMPLES = [
     ], columns: [] } },
   },
   {
+    // WHO the owners are is the owners.names column, never the owner count; the
+    // contexts a group is in are its contexts relation.
+    q: 'a list of all groups with the group owner and the contexts it is part of',
+    a: { kind: 'report', assumptions: [], spec: { entity: 'group', match: 'all', conditions: [],
+      columns: ['displayName', 'owners.names', 'contexts.names'] } },
+  },
+  {
     q: 'Users in Finance that are in a group with Admin in the name. Show name, email and which groups.',
     a: { kind: 'report', assumptions: ['"in Finance" means the department contains Finance.'], spec: { entity: 'user', match: 'all', conditions: [
       { type: 'field', field: 'department', op: 'contains', value: 'Finance' },

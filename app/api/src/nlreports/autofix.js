@@ -53,10 +53,27 @@ export function dropUnaskedGrouping(spec, question) {
 
 const show = (v) => (typeof v === 'string' ? `"${v}"` : String(v));
 
-// First-person words that make a question about the person asking. "me" is
-// left out on purpose: "geef me een lijstje" / "give me a list" is not about
-// the caller. "I" only as the capital word (the English pronoun).
-const SELF_RE = /\b(ik|mijn|mijne|my|mine|myself)\b|\bI\b/;
+// First-person words that make a question about the person asking, matched
+// in any case ("My groups" opens a sentence). A bare "me" is left out on
+// purpose: "geef me een lijstje" / "give me a list" is not about the caller —
+// only "me" / "mij" as the one access is assigned to, owned by or reports to
+// counts ("groups assigned to me", "groepen van mij").
+//
+// "I" is the capital word (the English pronoun), and lower-case "i" too where
+// it can only be that pronoun: before an apostrophe, a space, a question mark
+// or the end ("groups i'm in", "what do i own") — never "i.e.". Without the
+// lower-case form "can you give me a report of groups i'm in" had no
+// first-person word at all, and dropUnaskedSelf() took out the @me the model
+// had rightly written: a report of every group, for a question about one person.
+const SELF_RES = [
+  /\b(ik|mijn|mijne|my|mine|myself)\b/i,
+  /\bI\b/,
+  /\bi(?=['’]|\s|[?!,]|$)/,
+  /\b(?:assigned to|granted to|given to|owned by|managed by|belongs? to|belonging to|reports? to|reporting to|toegewezen aan|van|aan|door)\s+(?:me|mij)\b/i,
+];
+/** The first first-person word in the text, as a match (with `.index`), or null. */
+const firstSelf = (text) => SELF_RES.map(re => text.match(re)).filter(Boolean)
+  .reduce((first, m) => (!first || m.index < first.index ? m : first), null);
 
 // First-person words that are about the CONVERSATION, not the caller's access:
 // "wat was mijn vraag", "I want to know which guests…", "kan ik een lijst
@@ -66,11 +83,11 @@ const SELF_RE = /\b(ik|mijn|mijne|my|mine|myself)\b|\bI\b/;
 // ("I'd like the groups I own" is still about the caller, through the second I).
 const ASKER_TALK = [
   /\b(mijn|my)\s+(vorige|laatste|eerdere|previous|last|earlier|first|eerste)?\s*(vraag|vragen|question|questions|antwoord|answer|verzoek|request|opmerking|zoekopdracht|search|rapport|rapportage|report)\b/gi,
-  /\b(ik|I)(?:\s+|'d\s+|'m\s+|'ve\s+)(wil|wilde|zou|zoek|vraag|vroeg|bedoel|bedoelde|ben benieuwd|want|wanted|need|would like|like|am looking|looking|was wondering|wonder|mean|meant|asked|ask)\b/g,
+  /\b(ik|I)(?:\s+|['’]d\s+|['’]m\s+|['’]ve\s+)(wil|wilde|zou|zoek|vraag|vroeg|bedoel|bedoelde|ben benieuwd|want|wanted|need|would like|like|am looking|looking|was wondering|wonder|mean|meant|asked|ask)\b/gi,
   /\b(kan|kun|mag|zou|can|could|may|would)\s+(ik|I)\s+(hier\s+)?(een|a|an|the|de|het|dat|this|that)?\s*(lijst|lijstje|overzicht|list|overview|rapport|report|zien|krijgen|see|get|have)\b/gi,
 ];
 const withoutAskerTalk = (text) => ASKER_TALK.reduce((t, re) => t.replace(re, (m) => ' '.repeat(m.length)), text);
-export const selfWord = (question) => withoutAskerTalk(String(question ?? '')).match(SELF_RE)?.[0] ?? null;
+export const selfWord = (question) => firstSelf(withoutAskerTalk(String(question ?? '')))?.[0] ?? null;
 
 /**
  * "Groups I have that bram does not" written with bram on BOTH sides:
@@ -86,7 +103,7 @@ export const selfWord = (question) => withoutAskerTalk(String(question ?? '')).m
  */
 export function resolveSelfAgainstPerson(spec, question, me) {
   const text = withoutAskerTalk(String(question ?? ''));
-  const self = text.match(SELF_RE);
+  const self = firstSelf(text);
   if (!self) return { spec, notes: [] };
   const relations = (spec?.conditions ?? []).filter(c => c.type === 'relation');
   const some = relations.find(c => c.quantifier !== 'none' && (c.conditions ?? []).length);
@@ -177,11 +194,13 @@ export function canonicaliseSelf(spec, me, literal) {
 // member column is a page that does not answer the question; the column is
 // added. A column is only ever added, never removed, and only when the
 // report's entity has that relation.
+const CONTEXT_WORDS = /\b(context(s|en)?|tags?|labels?)\b/i;
 const ASKED_COLUMNS = {
   resource: [
     [/\b(leden|lid|members?|wie zit|wie zitten|who is in|who are in)\b/i, 'members.names'],
     [/\b(eigenaar|eigenaren|owners?|owned by)\b/i, 'owners.names'],
     [/\b(access ?packages?|business ?roles?|bedrijfsrol(len)?|toegangspakket(ten)?)\b/i, 'businessRoles.names'],
+    [CONTEXT_WORDS, 'contexts.names'],
   ],
   user: [
     // "Van welke groepen ben ik eigenaar" is about the groups OWNED: the owner
@@ -191,6 +210,7 @@ const ASKED_COLUMNS = {
     [/\b(access ?packages?|business ?roles?|bedrijfsrol(len)?|toegangspakket(ten)?)\b/i, 'businessRoles.names'],
     [/\b(rechten|rights|permissions|toegang|access(?! ?packages?))\b/i, 'access.names'], // "access package" is the rule above's
     [/\b(manager|leidinggevende)\b/i, 'manager.displayName'],
+    [CONTEXT_WORDS, 'contexts.names'],
   ],
 };
 
@@ -215,6 +235,38 @@ export function addAskedColumns(spec, question) {
   // the name column too, as the prompt tells the model.
   const columns = [...(have.size ? spec.columns : ['displayName']), ...wanted];
   return { spec: { ...spec, columns }, notes: [] };
+}
+
+/**
+ * The column written as the relation's records, in a shape that does not exist.
+ *
+ * "All groups with the group owner" came back with an owner COUNT, or with
+ * `owners.displayName` — the one-to-one shape (`manager.displayName`) used on
+ * a many relation, which validation rejects, so the repair round fell back to
+ * the count the analyst did not ask for. A many relation has exactly one
+ * column that shows its records, `<relation>.names`, so every other reading of
+ * it is that: `owners.displayName`, `owners.email`, a bare `owner` / `owners`
+ * on an entity with no such field. A one relation written as `manager.name` is
+ * its displayName. A column is only ever renamed, never added or removed.
+ * @returns {{ spec: object, notes: string[] }}
+ */
+export function relationColumnsAsNames(spec) {
+  const entity = ENTITIES[spec?.entity];
+  if (!entity || !Array.isArray(spec.columns)) return { spec, notes: [] };
+  const relationFor = (word) => entity.relations?.[word] ? word
+    : Object.keys(entity.relations ?? {}).find(r => r === `${word}s`) ?? null;
+  const rename = (ref) => {
+    if (typeof ref !== 'string' || entity.fields[ref]) return ref;
+    const [head, sub, extra] = ref.split('.');
+    const relName = relationFor(head);
+    const rel = relName ? entity.relations[relName] : null;
+    if (!rel || extra !== undefined) return ref;
+    if (rel.cardinality === 'many') return sub === 'count' ? `${relName}.count` : `${relName}.names`;
+    return sub === undefined || sub === 'name' || sub === 'names' ? `${relName}.displayName` : ref;
+  };
+  const renamed = [...new Set(spec.columns.map(rename))];
+  const changed = renamed.length !== spec.columns.length || renamed.some((c, i) => c !== spec.columns[i]);
+  return changed ? { spec: { ...spec, columns: renamed }, notes: [] } : { spec, notes: [] };
 }
 
 const isBusinessRoleType = (c) => c?.type === 'field' && c.field === 'resourceType' && c.op === 'eq' && String(c.value).toLowerCase() === 'businessrole';

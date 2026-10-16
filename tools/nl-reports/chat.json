@@ -1662,5 +1662,26 @@
     "category": "ambiguous",
     "question": "Who is in the group?",
     "expectKind": "clarify"
+  },
+  {
+    "id": "c-groups-im-in-lowercase-en",
+    "category": "question",
+    "question": "can you give me a report of groups i'm in",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "relation": "members",
+          "quantifier": "some",
+          "conditions": [
+            {
+              "field": "id",
+              "op": "eq",
+              "value": "@me"
+            }
+          ]
+        }
+      ]
+    }
   }
 ]

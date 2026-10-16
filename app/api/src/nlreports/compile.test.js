@@ -607,6 +607,55 @@ describe('the context entity', () => {
   });
 });
 
+describe('the contexts a record is part of', () => {
+  // "All groups with the group owner and the contexts it is part of" could not
+  // be written: only a context reached its members, nothing reached back.
+  const compileFor = (raw) => {
+    const { ok, spec, errors } = validateSpec(raw, { contextType: ['Department', 'Tag'] });
+    if (!ok) throw new Error(errors.join('; '));
+    return compileSpec(spec);
+  };
+
+  it.each([
+    ['group', 'Resource'],
+    ['resource', 'Resource'],
+    ['user', 'Principal'],
+    ['account', 'Principal'],
+    ['identity', 'Identity'],
+  ])('lists the contexts of a %s through member type %s', (entity, memberType) => {
+    const { text, columns } = compileFor({ entity, conditions: [], columns: ['displayName', 'contexts.names'] });
+    expect(columns.map(c => c.key)).toEqual(['displayName', 'contexts.names']);
+    expect(text).toMatch(/FROM "ContextMembers" (\w+) JOIN "Contexts" (\w+) ON \2\."id" = \1\."contextId"/);
+    expect(text).toMatch(/\w+\."memberId" = \w+\."id"/);
+    expect(text).toContain(`."memberType" = '${memberType}'`);
+    // Only its own kind of member: a group never picks up the contexts of an
+    // account that happens to share its id.
+    for (const other of ['Resource', 'Principal', 'Identity'].filter(t => t !== memberType)) {
+      expect(text).not.toContain(`."memberType" = '${other}'`);
+    }
+  });
+
+  it('filters on the contexts a group is in, by name and by kind', () => {
+    const { text, params } = compileFor({
+      entity: 'group',
+      conditions: [{ type: 'relation', relation: 'contexts', quantifier: 'some', match: 'all', conditions: [
+        { type: 'field', field: 'contextType', op: 'eq', value: 'Tag' },
+        { type: 'field', field: 'displayName', op: 'contains', value: 'Crown jewels' },
+      ] }],
+    });
+    expect(text).toMatch(/EXISTS \(SELECT 1 FROM "ContextMembers" \w+ JOIN "Contexts" \w+ ON/);
+    expect(text).toMatch(/\w+\."contextType" = \$\d/);
+    expect(params).toEqual(expect.arrayContaining(['Tag', '%Crown jewels%']));
+  });
+
+  it('finds the groups that are in no context at all', () => {
+    const { text } = compileFor({
+      entity: 'group', conditions: [{ type: 'relation', relation: 'contexts', quantifier: 'none', match: 'all', conditions: [] }],
+    });
+    expect(text).toMatch(/NOT EXISTS \(SELECT 1 FROM "ContextMembers"/);
+  });
+});
+
 describe('entities kept away from the language model', () => {
   it('offers the context entity to the editor but not to the model', () => {
     expect(Object.keys(ENTITIES)).toContain('context');
@@ -623,6 +672,18 @@ describe('entities kept away from the language model', () => {
       expect(grammar, word).not.toContain(word);
     }
     expect(grammar).toContain('"identity"');
+  });
+
+  it('does offer the contexts a group, user or person is part of — one line each, not the entity', () => {
+    const prompt = buildSystemPrompt();
+    const grammar = JSON.stringify(buildReplySchemas([]));
+    expect(prompt.match(/^- contexts \(many → context\)/gm)).toHaveLength(Object.keys(MODEL_ENTITIES)
+      .filter(n => MODEL_ENTITIES[n].relations.contexts).length);
+    expect(Object.keys(MODEL_ENTITIES).filter(n => MODEL_ENTITIES[n].relations.contexts))
+      .toEqual(['user', 'group', 'identity', 'account', 'resource']);
+    expect(grammar).toContain('"contexts"');
+    // The example that shows who owns a group and which contexts it is in.
+    expect(prompt).toContain('"columns":["displayName","owners.names","contexts.names"]');
   });
 
   it('never tells the model about an attribute of an entity it cannot name', () => {

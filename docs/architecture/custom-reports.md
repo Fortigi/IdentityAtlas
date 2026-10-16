@@ -69,7 +69,11 @@ implied type is accepted and normalised away.
 question vocabulary and the per-question attribute block are built from. The entity is still validated,
 compiled and offered in the definition editor. The point is that the system prompt stays byte-identical:
 the prompt cache prepared at build time remains valid and the published accuracy figures still describe
-what ships. Offering such an entity to the model is one flag — and an evaluation run.
+what ships. Offering such an entity to the model is one flag — and an evaluation run, and a look at the
+prompt budget: the context entity's fields alone are about a thousand tokens, and the prompt already sits
+close to the model's 8k context. The other direction is offered: groups, resources, accounts and persons
+have a `contexts` relation (one prompt line each), so "all groups with the contexts they are part of" and
+"groups in context X" can be asked.
 
 **A context means whatever the deployment says it means.** The `context` entity has no notion of a
 department or an application: the kind is the `contextType` value, and what a source stamps on its
