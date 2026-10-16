@@ -909,6 +909,9 @@ paths:
       tags: [Reports]
       summary: One saved report view, for editing
       operationId: getReportView
+      description: >
+        The stored view: its name, description and the parameters it saves. Running it goes
+        through `GET /reports/view-<id>/rows`. Any signed-in reader may fetch it.
       security:
         - EntraIdBearer: []
       responses:

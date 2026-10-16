@@ -96,25 +96,7 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
   return (
     <section className="mx-auto max-w-6xl" aria-label={report.displayName}>
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{report.displayName}</h2>
-          {report.view && (
-            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">A saved view of {report.view.reportDisplayName}</p>
-          )}
-          {report.description && (
-            <p className="mt-1 max-w-3xl text-sm text-gray-600 dark:text-gray-400">{report.description}</p>
-          )}
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            {report.truncated ? 'First ' : ''}{report.total} {report.total === 1 ? 'row' : 'rows'}
-            {report.generatedAt && <> · generated {formatDate(report.generatedAt)}</>}
-          </p>
-          {report.truncated && (
-            <p role="status" className="mt-2 max-w-3xl rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
-              This report stopped at {report.total} rows, so there are more than shown here — and more than
-              the download contains. Narrow it with another condition to see all of them.
-            </p>
-          )}
-        </div>
+        <ReportHeading report={report} />
 
         <div className="flex flex-wrap items-center gap-2">
           {report.editable && canBuild && onOpenDetail && (
@@ -155,22 +137,12 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
         </div>
       </div>
 
-      {/* Parameters apply on change: the fetch URL carries them, so editing a
-          threshold re-runs the report the same way Refresh does. */}
-      {wizardOpen && (
+      {wizardOpen ? (
         <ReportViewWizard report={report} initialParams={formValues} onSaved={viewSaved}
           onCancel={() => setWizardOpen(false)} />
-      )}
-
-      {hasParameters && !wizardOpen && (
-        <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
-          <SchemaConfigForm
-            schema={schema}
-            params={formValues}
-            onChange={setParams}
-            idPrefix={`report-${reportName}`}
-          />
-        </div>
+      ) : (
+        <ReportParameters show={hasParameters} schema={schema} values={formValues} onChange={setParams}
+          idPrefix={`report-${reportName}`} />
       )}
 
       <ReportNotices notices={report.notices} />
@@ -190,6 +162,42 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
         />
       )}
     </section>
+  );
+}
+
+// What the report is, what it is a view of, and how much it returned.
+function ReportHeading({ report }) {
+  return (
+    <div>
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{report.displayName}</h2>
+      {report.view && (
+        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">A saved view of {report.view.reportDisplayName}</p>
+      )}
+      {report.description && (
+        <p className="mt-1 max-w-3xl text-sm text-gray-600 dark:text-gray-400">{report.description}</p>
+      )}
+      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+        {report.truncated ? 'First ' : ''}{report.total} {report.total === 1 ? 'row' : 'rows'}
+        {report.generatedAt && <> · generated {formatDate(report.generatedAt)}</>}
+      </p>
+      {report.truncated && (
+        <p role="status" className="mt-2 max-w-3xl rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+          This report stopped at {report.total} rows, so there are more than shown here — and more than
+          the download contains. Narrow it with another condition to see all of them.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Parameters apply on change: the fetch URL carries them, so editing a
+// threshold re-runs the report the same way Refresh does.
+function ReportParameters({ show, schema, values, onChange, idPrefix }) {
+  if (!show) return null;
+  return (
+    <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+      <SchemaConfigForm schema={schema} params={values} onChange={onChange} idPrefix={idPrefix} />
+    </div>
   );
 }
 

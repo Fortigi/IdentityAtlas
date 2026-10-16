@@ -73,22 +73,7 @@ export default function ReportViewWizard({ report, initialParams, onSaved, onCan
         <SchemaConfigForm schema={stepSchema(schema, step.keys)} params={params} onChange={setParams}
           idPrefix={`view-${report.name}`} />
       ) : (
-        <div className="max-w-xl space-y-3">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            A view is shared: everyone who can read data finds it on the Reports page, and it always runs on
-            the latest data.
-          </p>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-            Name
-            <input type="text" className={INPUT} value={name} maxLength={200}
-              onChange={e => setField('name', e.target.value)} />
-          </label>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-            Description (optional)
-            <textarea className={INPUT} rows={2} value={description} maxLength={2000}
-              onChange={e => setField('description', e.target.value)} />
-          </label>
-        </div>
+        <NameStep name={name} description={description} onChange={setField} />
       )}
 
       {blocked.length > 0 && (
@@ -97,26 +82,57 @@ export default function ReportViewWizard({ report, initialParams, onSaved, onCan
         </p>
       )}
 
-      <div className="mt-5 flex flex-wrap gap-2">
-        {current > 1 && (
-          <button type="button" className={SECONDARY} onClick={() => setCurrent(current - 1)}>Back</button>
-        )}
-        {!isLast && (
-          <button type="button" className={PRIMARY} disabled={blocked.length > 0} onClick={() => setCurrent(current + 1)}>
-            Next
-          </button>
-        )}
-        {isLast && (
-          <button type="button" className={PRIMARY} disabled={saving || !name.trim()} onClick={() => save(false)}>
-            {saving ? 'Saving…' : (editing ? 'Save changes' : 'Save view')}
-          </button>
-        )}
-        {isLast && editing && (
-          <button type="button" className={SECONDARY} disabled={saving || !name.trim()} onClick={() => save(true)}>
-            Save as a new view
-          </button>
-        )}
-      </div>
+      <WizardButtons
+        current={current} isLast={isLast} editing={editing} blocked={blocked.length > 0}
+        canSave={!saving && Boolean(name.trim())} saving={saving} onStep={setCurrent} onSave={save}
+      />
     </WizardShell>
+  );
+}
+
+// The last step: what the view is called, and what it is for.
+function NameStep({ name, description, onChange }) {
+  return (
+    <div className="max-w-xl space-y-3">
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        A view is shared: everyone who can read data finds it on the Reports page, and it always runs on
+        the latest data.
+      </p>
+      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+        Name
+        <input type="text" className={INPUT} value={name} maxLength={200}
+          onChange={e => onChange('name', e.target.value)} />
+      </label>
+      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+        Description (optional)
+        <textarea className={INPUT} rows={2} value={description} maxLength={2000}
+          onChange={e => onChange('description', e.target.value)} />
+      </label>
+    </div>
+  );
+}
+
+// Back / Next while there are steps left; Save (and, for a view, Save as new) on the last.
+function WizardButtons({ current, isLast, editing, blocked, canSave, saving, onStep, onSave }) {
+  const saveLabel = editing ? 'Save changes' : 'Save view';
+  return (
+    <div className="mt-5 flex flex-wrap gap-2">
+      {current > 1 && (
+        <button type="button" className={SECONDARY} onClick={() => onStep(current - 1)}>Back</button>
+      )}
+      {!isLast && (
+        <button type="button" className={PRIMARY} disabled={blocked} onClick={() => onStep(current + 1)}>Next</button>
+      )}
+      {isLast && (
+        <button type="button" className={PRIMARY} disabled={!canSave} onClick={() => onSave(false)}>
+          {saving ? 'Saving…' : saveLabel}
+        </button>
+      )}
+      {isLast && editing && (
+        <button type="button" className={SECONDARY} disabled={!canSave} onClick={() => onSave(true)}>
+          Save as a new view
+        </button>
+      )}
+    </div>
   );
 }
