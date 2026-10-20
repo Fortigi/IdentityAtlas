@@ -8,9 +8,6 @@
     "imageChannel": {
       "value": "stable"
     },
-    "imageTag": {
-      "value": ""
-    },
     "containerRegistryResourceId": {
       "value": ""
     },

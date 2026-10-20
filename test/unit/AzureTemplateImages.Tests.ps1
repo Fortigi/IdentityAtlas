@@ -119,6 +119,16 @@ Describe 'The image version a deployment runs' {
         $script:Template.parameters.imageTag.defaultValue | Should -BeExactly ''
     }
 
+    # deploy.ps1 always passes this file. A value for imageTag in it — even an
+    # empty one — replaces the template's own default, so a template whose
+    # default pins a release would quietly follow the channel instead.
+    It 'is not set by the parameters file deploy.ps1 passes by default' {
+        $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+        $file = Get-Content (Join-Path $root 'azure/main.parameters.example.json') -Raw | ConvertFrom-Json
+        $file.parameters.PSObject.Properties.Name | Should -Not -Contain 'imageTag'
+        $file.parameters.PSObject.Properties.Name | Should -Contain 'imageChannel' -Because 'the check above is only meaningful on the real file'
+    }
+
     It 'gives all three images that same version' -ForEach @(
         @{ Module = 'app-service';              Repo = 'fortigi/identity-atlas' }
         @{ Module = 'aca-app-worker';           Repo = 'fortigi/identity-atlas-worker' }
