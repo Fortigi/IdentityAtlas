@@ -59,6 +59,43 @@ describe('every cut-* workflow refuses code that is not on main', () => {
   });
 });
 
+// The Azure template package (IdentityAtlas-azure-<version>.zip) pins the
+// template to the images of the release it ships with. The version it stamps
+// must be the tag docker-publish pushes for that release — X.Y.Z.0 for a
+// release, the version itself for a pre-release — or the package deploys an
+// image that does not exist.
+describe('every cut-* workflow ships the Azure template pinned to its own images', () => {
+  it.each([
+    ['cut-release.yml', '${VERSION}.0'],
+    ['cut-hotfix.yml', '${VERSION}.0'],
+    ['cut-beta.yml', '${VERSION}'],
+  ])('%s packages it for image version %s and attaches it', (file, imageVersion) => {
+    const all = steps(read(`.github/workflows/${file}`));
+    const pack = all.findIndex((s) => s.includes('New-AzureTemplatePackage.ps1'));
+    const publish = all.findIndex((s) => s.includes('gh release create'));
+    expect(pack).toBeGreaterThanOrEqual(0);
+    expect(publish).toBeGreaterThan(pack);
+
+    const step = all[pack];
+    // Main's copy, so an older hotfix branch without the script is still packaged.
+    expect(step).toMatch(/git show "\$GITHUB_WORKFLOW_SHA:tools\/release\/New-AzureTemplatePackage\.ps1" > "\$RUNNER_TEMP\/package-azure\.ps1"/);
+    const version = step.match(/-Version "([^"]+)"/)?.[1];
+    expect(version).toBe(imageVersion);
+    const out = step.match(/-OutFile "([^"]+)"/)?.[1];
+    expect(out).toBe('$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip');
+
+    // Attached only when written: a template from before imageTag gets none,
+    // and that must not fail the release.
+    expect(all[publish]).toContain(`if [ -f "${out}" ]; then\n            ASSETS+=("${out}")`);
+  });
+
+  it('stamps the same image tags docker-publish pushes', () => {
+    const publish = read('.github/workflows/docker-publish.yml');
+    expect(publish).toMatch(/Stable release tag: v5\.2\.0 → version 5\.2\.0\.0\n\s+VERSION="\$\{REF#v\}\.0"/);
+    expect(publish).toMatch(/Pre-release tag: v5\.2\.0-beta\.1 → version 5\.2\.0-beta\.1 \(no \.0 suffix\)\n\s+VERSION="\$\{REF#v\}"/);
+  });
+});
+
 describe('cut-hotfix checks the branch before tagging it', () => {
   const all = steps(read('.github/workflows/cut-hotfix.yml'));
   const check = all.findIndex((s) => s.startsWith('      - name: Check the branch has the files this workflow calls'));

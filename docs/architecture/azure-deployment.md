@@ -161,6 +161,16 @@ its own version for all three images: `X.Y.Z.0` for a release, `X.Y.Z-beta.N`
 (or `-rc.N` / `-alpha.N`) for a pre-release. When `imageTag` is set it overrides
 `imageChannel`. When it is empty, the deployment follows the channel as before.
 
+**Every release also ships its template, already pinned.** The GitHub release
+has `IdentityAtlas-azure-<version>.zip` attached: the `azure/` folder as it is
+at that release, with `imageTag` defaulting to that release's images. A
+template taken from that package deploys exactly the images it was released
+with, without anyone filling in a version, so template and images cannot drift
+apart. It is the copy to keep in your own repository when you manage the
+deployment as code: an upgrade then brings the template changes and the new
+images in together. (The Deploy to Azure button keeps reading `main`'s
+template, which is not pinned and follows `imageChannel`.)
+
 With the version pinned:
 
 - **Every deployment is reproducible.** The same template and parameters run the

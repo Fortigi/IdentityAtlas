@@ -94,6 +94,16 @@ jobs:
       - name: Build portable Windows ZIPs
         run: bash .github/scripts/build_portable_zips.sh
 
+      # The Azure template, pinned to THIS release's images: azure/ at this tag
+      # with imageTag defaulting to the image version, attached to the release as
+      # IdentityAtlas-azure-<version>.zip. Loaded from this workflow's own commit
+      # (like the main-only check), so an older hotfix branch without the script
+      # is still packaged; a template from before imageTag gets no package.
+      - name: Package the Azure template
+        run: |
+          git show "$GITHUB_WORKFLOW_SHA:tools/release/New-AzureTemplatePackage.ps1" > "$RUNNER_TEMP/package-azure.ps1"
+          pwsh -NoProfile -File "$RUNNER_TEMP/package-azure.ps1" -Version "${VERSION}" -OutFile "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip"
+
       - name: Generate release notes
         run: |
           # Latest release of any kind (beta, rc, stable) — excludes the tag just created
@@ -175,9 +185,13 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
+          ASSETS=(app/api/dist-node-launcher/release/IdentityAtlas-portable.zip
+                  app/api/dist-node-launcher/release/IdentityAtlas-portable-postgres.zip)
+          if [ -f "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip" ]; then
+            ASSETS+=("$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip")
+          fi
           gh release create "$TAG" \
-            app/api/dist-node-launcher/release/IdentityAtlas-portable.zip \
-            app/api/dist-node-launcher/release/IdentityAtlas-portable-postgres.zip \
+            "${ASSETS[@]}" \
             --title "$TAG" \
             --notes-file release-notes.md \
             --prerelease

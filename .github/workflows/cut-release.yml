@@ -8,8 +8,9 @@
 #   2. Enter the version (e.g. "5.2.0" — major.minor.patch) and optionally a ref (default: main)
 #   3. The workflow creates tag v5.2.0 on that ref — which must be a commit on
 #      main (tools/release/Assert-ReleaseFromMain.ps1 refuses anything else)
-#   4. A GitHub release is created with IdentityAtlas-portable.zip and
-#      IdentityAtlas-portable-postgres.zip attached
+#   4. A GitHub release is created with IdentityAtlas-portable.zip,
+#      IdentityAtlas-portable-postgres.zip and IdentityAtlas-azure-X.Y.Z.zip
+#      (the Azure template pinned to this release's images) attached
 #   5. docker-publish builds and pushes :latest + :5.2.0.0
 #
 # Hotfixes (shipping a bugfix without including features already on main):
@@ -98,6 +99,16 @@ jobs:
       # script so cut-release / cut-beta / cut-hotfix cannot drift apart.
       - name: Build portable Windows ZIPs
         run: bash .github/scripts/build_portable_zips.sh
+
+      # The Azure template, pinned to THIS release's images: azure/ at this tag
+      # with imageTag defaulting to the image version, attached to the release as
+      # IdentityAtlas-azure-<version>.zip. Loaded from this workflow's own commit
+      # (like the main-only check), so an older hotfix branch without the script
+      # is still packaged; a template from before imageTag gets no package.
+      - name: Package the Azure template
+        run: |
+          git show "$GITHUB_WORKFLOW_SHA:tools/release/New-AzureTemplatePackage.ps1" > "$RUNNER_TEMP/package-azure.ps1"
+          pwsh -NoProfile -File "$RUNNER_TEMP/package-azure.ps1" -Version "${VERSION}.0" -OutFile "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip"
 
       - name: Generate release notes
         run: |
@@ -195,9 +206,13 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
+          ASSETS=(app/api/dist-node-launcher/release/IdentityAtlas-portable.zip
+                  app/api/dist-node-launcher/release/IdentityAtlas-portable-postgres.zip)
+          if [ -f "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip" ]; then
+            ASSETS+=("$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip")
+          fi
           gh release create "$TAG" \
-            app/api/dist-node-launcher/release/IdentityAtlas-portable.zip \
-            app/api/dist-node-launcher/release/IdentityAtlas-portable-postgres.zip \
+            "${ASSETS[@]}" \
             --title "$TAG" \
             --notes-file release-notes.md \
             --latest

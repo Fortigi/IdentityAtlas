@@ -1,0 +1,1 @@
+- Every release now includes `IdentityAtlas-azure-<version>.zip`: the Azure template as it is at that release, set to deploy exactly that release's images by default. Keep it in your own repository to manage the deployment as code: the template and the images it runs can no longer drift apart, and an upgrade brings template changes and new images in together.
