@@ -379,7 +379,7 @@ A crawler configuration only runs one job at a time. If a schedule comes due whi
 
 When a full and a delta come due in the same minute, the full goes first.
 
-Scheduled jobs appear in the "Recent Jobs" table like any other job.
+Scheduled jobs appear in the "Recent Jobs" table like any other job. That table shows the ten newest jobs plus each crawler's last full run and last delta run, so frequent deltas do not push the last full run out of view. It reads `GET /api/admin/crawler-jobs?limit=10&latestPerMode=true`.
 
 ---
 

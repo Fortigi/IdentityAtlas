@@ -3,4 +3,5 @@
 - A delta run on an Entra ID crawler that has never completed a sync now runs as a full sync, so a new crawler never shows users without their groups.
 - Crawler schedules can now run every 5, 10, 15, 20 or 30 minutes: pick "Every few minutes" as the frequency. A new Entra ID crawler proposes a delta every 15 minutes plus a daily full sync.
 - A scheduled full run that comes due while another run of the same crawler is still going now waits and starts as soon as that run finishes, for up to an hour, instead of being skipped until the next day. When a full and a delta are due in the same minute, the full goes first.
+- The Recent Jobs list on the Crawlers page now always includes each crawler's last full run and last delta run, so a crawler with frequent deltas still shows when its last full sync ran and how it went.
 - Connectors can now remove individual assignments in a delta sync by naming them (`deletedKeys` on the ingest API), for example a group member that was removed.

@@ -392,7 +392,9 @@ export default function CrawlersPage({ onNavigate, features }) {
 
   const fetchJobs = useCallback(async () => {
     try {
-      const r = await authFetch('/api/admin/crawler-jobs?limit=10');
+      // latestPerMode: also each crawler's last full and last delta run, so a
+      // crawler with frequent deltas still shows when its last full ran.
+      const r = await authFetch('/api/admin/crawler-jobs?limit=10&latestPerMode=true');
       if (!r.ok) return;
       const data = await r.json();
       if (!Array.isArray(data)) return;
