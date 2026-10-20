@@ -145,7 +145,9 @@
     "tools/crawlers/shared/Invoke-CrawlerIngestStage.ps1",
     "tools/crawlers/mssql/SqlCrawler.Sweep.ps1",
     "tools/crawlers/shared/Invoke-CrawlerDeltaToken.ps1",
-    "tools/crawlers/mssql/SqlCrawler.Delta.ps1"
+    "tools/crawlers/mssql/SqlCrawler.Delta.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.DeltaScope.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.GroupDelta.ps1"
   ],
   "tests": {
     "tools/crawlers/shared/Invoke-CrawlerIngestStream.ps1": [
@@ -562,6 +564,12 @@
     ],
     "tools/crawlers/shared/Invoke-CrawlerDeltaToken.ps1": [
       "test/unit/CrawlerDeltaToken.Tests.ps1"
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.DeltaScope.ps1": [
+      "test/unit/EntraIDCrawlerDeltaScope.Tests.ps1"
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.GroupDelta.ps1": [
+      "test/unit/EntraIDCrawlerGroupDelta.Tests.ps1"
     ],
     "tools/crawlers/mssql/SqlCrawler.Delta.ps1": [
       "test/unit/SqlCrawlerDelta.Tests.ps1"

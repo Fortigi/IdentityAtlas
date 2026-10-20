@@ -20,16 +20,25 @@ import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/c
 import { normalizePresenceQuery, lookupCrawlerPresence } from '../../ingest/crawlerPresence.js';
 import { parseReconcileRequest, reconcileStale, countTouched, ReconcileRequestError } from '../../ingest/reconcileStale.js';
 import { oneLineForLog } from '../../lib/oneLineForLog.js';
+import { validateDeletedKeys } from '../../ingest/deleteByKeys.js';
 import { viewRefresh } from './matrixViews.js';
 import { buildSyncLogRow, classifyScope, classifyStatements } from './dataPlane.js';
 import {
   applyIngestDefaults, coerceSystemsSyncMode, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
-  handleSessionPath, applyDeleteByIds, lookupSystemIds, linkSystemDirectories, writeAuditLog, ingestErrorResponse, ingestBatch,
+  handleSessionPath, applyDeletes, lookupSystemIds, linkSystemDirectories, writeAuditLog, ingestErrorResponse, ingestBatch,
   unownedContextWarning,
 } from './helpers.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
+
+// The envelope checks, then the deletedKeys entries — those need the entity's
+// key spec, so they live with the delete itself (ingest/deleteByKeys.js).
+// Returns an array of error strings, empty when the envelope passes.
+export function envelopeErrors(body, entityType) {
+  const env = validateEnvelope(body, entityType);
+  return env.valid ? validateDeletedKeys(body, entityType) : env.errors;
+}
 
 // Checks on the normalized batch before anything is written: the extendedAttributes
 // bounds (every caller, L-16) and, for a key restricted to specific systems, the
@@ -74,10 +83,10 @@ function createIngestHandler(entityType) {
 
     const body = req.body;
 
-    const envResult = validateEnvelope(body, entityType);
-    if (!envResult.valid) {
-      console.warn(`Ingest validation failed [${entityType}]:`, envResult.errors);
-      return res.status(400).json({ error: 'Validation failed', details: envResult.errors });
+    const envErrors = envelopeErrors(body, entityType);
+    if (envErrors.length) {
+      console.warn(`Ingest validation failed [${entityType}]:`, envErrors);
+      return res.status(400).json({ error: 'Validation failed', details: envErrors });
     }
     if (entityType !== 'systems' && !crawlerHasSystemAccess(req, body.systemId)) {
       return res.status(403).json({ error: `Crawler does not have access to system ${body.systemId}` });
@@ -132,7 +141,7 @@ function createIngestHandler(entityType) {
         restrictSystemIds: allowed, preserveColumns,
       });
 
-      const delErr = await applyDeleteByIds(body, tableName, result, allowed);
+      const delErr = await applyDeletes(body, entityType, tableName, result, allowed);
       if (delErr) return res.status(delErr.status).json(delErr.body);
 
       // A single batch IS the whole principals load (a crawler that needs more

@@ -153,7 +153,25 @@ Response — `201 Created`:
 | Mode | Behavior | Use Case |
 |------|----------|----------|
 | `full` | MERGE all records + DELETE records in scope not in batch | Scheduled full sync |
-| `delta` | MERGE only; no deletes | Real-time webhook, incremental changes |
+| `delta` | MERGE only; deletes only what the batch names (see below) | Real-time webhook, incremental changes |
+
+A `delta` batch removes rows only when you name them explicitly:
+
+- **`deletedIds`** is an array of UUIDs for rows that have their own `id` (principals, resources, identities, contexts). This is how a Graph `@removed` user or group is passed on.
+- **`deletedKeys`** is an array of key objects for rows that have no `id`. Today only `resource-assignments` accepts it. Each entry is `{ resourceId, principalId, assignmentType, governed }`, where `governed` defaults to `false`. This is how a removed group membership is passed on, for example from Graph `members@delta`.
+
+```json
+{
+  "systemId": 1,
+  "syncMode": "delta",
+  "records": [],
+  "deletedKeys": [
+    { "resourceId": "…group id…", "principalId": "…user id…", "assignmentType": "Direct" }
+  ]
+}
+```
+
+Both kinds only remove rows of the batch's own `systemId`. A malformed entry rejects the whole batch with `400`. On soft-delete tables (`Principals`, `Resources`, `ResourceAssignments`) the row is stamped `deletedAt`; ingesting it again clears the stamp.
 
 `POST /api/ingest/systems` is never reconciled: systems are registered, not synced, so a `full` batch there is run as a `delta`. A reconcile delete that would have no system, scope or ownership bound at all is refused and reports `deleted: 0`.
 
@@ -418,7 +436,7 @@ A crawler key with `systemIds` set can only read and write data of those systems
 - the batch would update an existing row owned by another system — ownership is the row's `systemId`; for tables without one it is derived: a synced context's `scopeSystemId`, a context member's context, an identity member's or activity row's principal, and an identity's linked principals;
 - it is a `full` sync of `identities`, `identity-members`, `contexts`, `context-members` or `principal-activity` without a `scope`.
 
-`deletedIds` and the full-sync reconcile only reach rows the key's systems own. Unrestricted keys (`systemIds` null, such as the built-in worker) are not subject to these checks. Columns the server or analysts own (`deletedAt`, `riskScore`, `riskTier`, `linkConfidence`, `analystOverride`, `createdAt`, `updatedAt` and similar) are never written from a crawler record; a field with such a name is kept in `extendedAttributes` like any other attribute.
+`deletedIds`, `deletedKeys` and the full-sync reconcile only reach rows the key's systems own. Unrestricted keys (`systemIds` null, such as the built-in worker) are not subject to these checks. Columns the server or analysts own (`deletedAt`, `riskScore`, `riskTier`, `linkConfidence`, `analystOverride`, `createdAt`, `updatedAt` and similar) are never written from a crawler record; a field with such a name is kept in `extendedAttributes` like any other attribute.
 
 A key can hold at most 3 multi-batch sessions open at once, and the API at most 7 in total (`INGEST_MAX_SESSIONS_PER_CRAWLER`, `INGEST_MAX_SESSIONS_GLOBAL`); a `start` beyond that returns `429`. The built-in worker is only subject to the global limit. A record's `extendedAttributes` may hold at most 500 keys and 512 KB.
 

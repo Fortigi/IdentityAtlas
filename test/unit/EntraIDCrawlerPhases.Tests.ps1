@@ -56,6 +56,8 @@ BeforeAll {
     . (Join-Path $script:entraDir 'EntraIDCrawler.PrincipalRelationships.ps1')
     # Invoke-EntraApplicationPhases — dispatch for the application + principal-relationship phases.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Orchestration.ps1')
+    # Get-EntraGroupSelect — the group $select the Resources phase fetches with.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.GroupDelta.ps1')
 
     # Script-scope state the phases + shared helpers read at call time.
     $script:ApiKey     = 'fgc_testkey'

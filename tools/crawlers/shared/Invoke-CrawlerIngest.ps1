@@ -330,4 +330,31 @@ function Invoke-CrawlerIngestBatch {
     return $result
 }
 
+# Delta tombstones for rows without an id of their own (a removed group
+# membership is a resourceId + principalId + assignmentType key). Sent as
+# record-less delta batches carrying `deletedKeys`, in chunks — see
+# app/api/src/ingest/deleteByKeys.js. Returns the total number of rows deleted.
+function Send-CrawlerIngestDeletedKeys {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$Endpoint,
+        [Parameter(Mandatory)] [int]$SystemId,
+        [array]$Keys = @(),
+        [int]$BatchSize = 5000
+    )
+    if (-not $Keys -or $Keys.Count -eq 0) { return 0 }
+
+    Write-Host "  Sending $($Keys.Count) key deletes to $Endpoint..." -ForegroundColor Cyan
+    $deleted = 0
+    for ($i = 0; $i -lt $Keys.Count; $i += $BatchSize) {
+        $chunk = $Keys[$i..([Math]::Min($i + $BatchSize - 1, $Keys.Count - 1))]
+        $body = Get-FGIngestBodyBase -SystemId $SystemId -SyncMode 'delta' -Scope @{} -Records @()
+        $body['deletedKeys'] = ConvertTo-JsonArray $chunk
+        $deleted += ((Invoke-IngestAPI -Endpoint $Endpoint -Body $body).deleted ?? 0)
+    }
+
+    Write-Host "  Result: $deleted deleted" -ForegroundColor Green
+    return $deleted
+}
+
 #endregion Functions

@@ -11,6 +11,7 @@ import { SOFT_DELETE_TABLES, ingest } from '../../ingest/engine.js';
 import { startSession, continueSession, endSession, hasSession, SessionLimitError } from '../../ingest/sessions.js';
 import { ownedRowPredicate, linkDirectorySystems } from '../../ingest/systemBoundary.js';
 import { managerLinkWarning } from '../../ingest/managerLinks.js';
+import { applyDeleteByKeys } from '../../ingest/deleteByKeys.js';
 
 export function applyIngestDefaults(entityType, body) {
   if (!Array.isArray(body.records)) body.records = [];
@@ -147,6 +148,14 @@ export async function applyDeleteByIds(body, tableName, result, restrictSystemId
     console.error(`Delete-by-id failed on ${tableName}:`, delErr.message);
     return { status: 500, body: { error: 'Delete-by-id failed', message: delErr.message } };
   }
+}
+
+// Both delta tombstone kinds a batch can carry: deletedIds (rows with an id) and
+// deletedKeys (rows named by their composite key, see ingest/deleteByKeys.js).
+// Returns the first error response, or null. Exported for unit tests.
+export async function applyDeletes(body, entityType, tableName, result, restrictSystemIds = null) {
+  return (await applyDeleteByIds(body, tableName, result, restrictSystemIds))
+    ?? applyDeleteByKeys(body, entityType, result, restrictSystemIds);
 }
 
 // The ownership filter applyDeleteByIds appends for a restricted key. Pure.

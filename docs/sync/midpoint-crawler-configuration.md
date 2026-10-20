@@ -193,7 +193,8 @@ schedules to run it automatically.
 | Field | Default | Description |
 |---|---|---|
 | `syncMode` | `full` | `full` re-fetches everything and removes data this crawler owns that no longer exists in midPoint (reconcile). `delta` only adds/updates (upsert-only, no deletions) — faster, but stale rows are not cleaned up. |
-| `frequency` | `daily` | `hourly`, `daily`, or `weekly`. |
+| `frequency` | `daily` | `interval` (every few minutes), `hourly`, `daily`, or `weekly`. |
+| `intervalMinutes` | — | For `interval`: run every 5, 10, 15, 20 or 30 minutes. |
 | `hour` / `minute` | `2` / `0` | Time of day (UTC) for daily/weekly runs. |
 | `day` | — | Day of week for `weekly` (0 = Sunday … 6 = Saturday). |
 

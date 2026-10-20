@@ -68,6 +68,27 @@ Navigate to **Admin → Crawlers** and configure an Entra ID crawler. The wizard
 | `-AINamePatterns` | Empty | Extra display-name regex patterns that classify a service principal as an AI agent |
 | `-IdentityFilter` | None | Filter which users are treated as identities |
 
+### Delta and full runs
+
+Each scheduled run is either a **delta** or a **full** run.
+
+- A **delta run** reads only what changed since the previous run, for the data Microsoft Graph can report that way:
+  - **users** and **service principals**: new, changed and deleted accounts;
+  - **groups**: new, changed and deleted groups;
+  - **direct group memberships and group owners**: members and owners added or removed.
+
+  A delta takes minutes, even on a large tenant, so you can run it every 5 to 30 minutes.
+- A **full run** reads everything you enabled. That includes what a delta leaves out: nested (indirect) group memberships, PIM eligibility, governance, app roles, OAuth2 grants, app permissions, directory roles, sign-in activity and profile photos. On a large tenant this takes hours.
+
+The data only a full run reads is as fresh as your last full run. A new crawler proposes one full run a day plus a delta every 15 minutes. To schedule a delta every few minutes, pick **Every few minutes** as the frequency.
+
+Two cases where a delta does less:
+
+- **No baseline yet.** If a delta run hits a crawler that has never completed a sync, or whose delta state was cleared, it runs as a full sync instead. That way a new crawler never shows users without their groups.
+- **Group changes for the first time.** The first delta after upgrading to this version starts tracking group changes from that moment. Group changes made between your last full run and that delta arrive with the next full run.
+
+If a full run is due while a delta is still running, it waits and starts as soon as the delta finishes, for up to an hour.
+
 ### Which toggles to enable
 
 The defaults (users, groups, memberships, governance, contexts) cover core role-mining. The service-principal and application toggles are **off by default** — they add Graph calls, and several fetch per-object so they get slower as the tenant grows. Enable them by what you want to see:
