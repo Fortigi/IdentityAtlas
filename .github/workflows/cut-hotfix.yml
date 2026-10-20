@@ -4,16 +4,16 @@
 # both portable Windows ZIPs (IdentityAtlas-portable.zip and
 # IdentityAtlas-portable-postgres.zip).
 #
-# Usage:
-#   1. git checkout -b bugfixes/fix-foo v5.2.0   ← branch from the release tag
-#   2. Fix the bug, push the branch
-#   3. Go to Actions → Cut Hotfix → Run workflow
-#   4. Enter the branch name and new version (e.g. "5.2.1")
-#   5. After the hotfix ships, open a PR to cherry-pick the fix into main
+# Main first: a hotfix may only contain commits already merged to main through
+# an approved PR. tools/release/Assert-ReleaseFromMain.ps1 refuses anything else
+# before the tag is created (v6.0.1 was cut before its PR was approved).
 #
-# For a long-lived release branch (release/5.9) that predates the scripts
-# this file calls, dispatch it from that branch so its own copy runs:
-#   gh workflow run cut-hotfix.yml --ref release/5.9 -f branch=release/5.9 -f version=5.9.3
+# Usage:
+#   1. Fix the bug on a bugfixes/ branch from main; PR, approval, merge
+#   2. git checkout -b bugfixes/fix-foo v5.2.0   ← branch from the release tag
+#   3. git cherry-pick -x <the merged commit on main>   ← -x is required
+#   4. Push the branch, then Actions → Cut Hotfix → Run workflow (from main)
+#   5. Enter the branch name and new version (e.g. "5.2.1")
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Cut Hotfix
@@ -67,11 +67,21 @@ jobs:
           missing=0
           for f in .github/scripts/build_portable_zips.sh                    .github/scripts/release_prev_tag.sh                    tools/release-notes/dependency-delta.py                    tools/release-notes/portable-downloads.md; do
             if [ ! -f "$f" ]; then
-              echo "::error::$f is missing on $BRANCH. Run this workflow from that branch instead: gh workflow run cut-hotfix.yml --ref $BRANCH -f branch=$BRANCH -f version=<x.y.z>"
+              echo "::error::$f is missing on $BRANCH: that release predates the hotfix tooling and cannot be hotfixed by this workflow."
               missing=1
             fi
           done
           exit $missing
+
+      # Loaded from this workflow's own commit, not from the hotfix branch, so
+      # the branch cannot ship an edited checker that lets itself through.
+      - name: Refuse commits that are not on main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Run Cut Hotfix from main (it ran from $GITHUB_REF)."; exit 1
+          fi
+          git show "$GITHUB_WORKFLOW_SHA:tools/release/Assert-ReleaseFromMain.ps1" > "$RUNNER_TEMP/assert.ps1"
+          pwsh -NoProfile -File "$RUNNER_TEMP/assert.ps1" -Mode Hotfix -Ref HEAD
 
       - name: Create and push hotfix tag
         run: |

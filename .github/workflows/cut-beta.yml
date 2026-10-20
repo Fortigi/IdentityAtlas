@@ -8,7 +8,8 @@
 # Usage:
 #   1. Go to Actions → Cut Beta → Run workflow
 #   2. Enter the version (e.g. "5.3.0-beta.1") and optionally a ref (default: main)
-#   3. The workflow creates tag v5.3.0-beta.1 on that ref
+#   3. The workflow creates tag v5.3.0-beta.1 on that ref — which must be a
+#      commit on main (tools/release/Assert-ReleaseFromMain.ps1)
 #   4. docker-publish builds and pushes :beta + :5.3.0-beta.1
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,16 @@ jobs:
           ref: ${{ github.event.inputs.ref }}
           token: ${{ steps.bot-token.outputs.token }}
           fetch-depth: 0
+
+      # Only code already merged to main (approved PR) may be released. Loaded
+      # from this workflow's own commit, never from the ref being released.
+      - name: Refuse a ref that is not on main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Run Cut Beta from main (it ran from $GITHUB_REF)."; exit 1
+          fi
+          git show "$GITHUB_WORKFLOW_SHA:tools/release/Assert-ReleaseFromMain.ps1" > "$RUNNER_TEMP/assert.ps1"
+          pwsh -NoProfile -File "$RUNNER_TEMP/assert.ps1" -Mode Release -Ref HEAD
 
       - name: Create and push pre-release tag
         run: |

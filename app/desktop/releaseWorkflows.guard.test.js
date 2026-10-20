@@ -5,6 +5,10 @@
 // - The docs are deployed by docs.yml when a release is published. A cut-*
 //   workflow that also runs mike pushes gh-pages at the same moment, and one of
 //   the two pushes is rejected (seen cutting v5.9.2).
+// - Nothing is released that is not on main (v6.0.1 was cut before its PR was
+//   approved). Every cut-* workflow must run tools/release/Assert-ReleaseFromMain.ps1
+//   before the tag is pushed — loaded from the workflow's own commit, so the ref
+//   being released cannot swap in an edited copy — and only when run from main.
 // - cut-hotfix runs main's copy of the workflow against an older branch, which
 //   may lack the scripts it calls. It must find that out before pushing the tag,
 //   or the run leaves a tag and Docker images behind with no GitHub release.
@@ -35,11 +39,33 @@ describe('docs are deployed by docs.yml alone', () => {
   });
 });
 
+describe('every cut-* workflow refuses code that is not on main', () => {
+  it.each([
+    ['cut-release.yml', 'Release'],
+    ['cut-beta.yml', 'Release'],
+    ['cut-hotfix.yml', 'Hotfix'],
+  ])('%s runs the checker in %s mode before pushing the tag', (file, mode) => {
+    const all = steps(read(`.github/workflows/${file}`));
+    const gate = all.findIndex((s) => /Assert-ReleaseFromMain\.ps1/.test(s));
+    const tag = all.findIndex((s) => /git push origin "\$TAG"/.test(s));
+    expect(gate).toBeGreaterThanOrEqual(0);
+    expect(tag).toBeGreaterThan(gate);
+    const step = all[gate];
+    expect(step).toMatch(/git show "\$GITHUB_WORKFLOW_SHA:tools\/release\/Assert-ReleaseFromMain\.ps1" > "\$RUNNER_TEMP\/assert\.ps1"/);
+    expect(step).toMatch(new RegExp(`pwsh -NoProfile -File "\\$RUNNER_TEMP/assert\\.ps1" -Mode ${mode} -Ref HEAD\\n`));
+    expect(step).toMatch(/if \[ "\$GITHUB_REF" != "refs\/heads\/main" \]; then\n.*exit 1/);
+    // Not softened into a warning that lets the run carry on.
+    expect(step).not.toMatch(/continue-on-error|\|\| true/);
+  });
+});
+
 describe('cut-hotfix checks the branch before tagging it', () => {
   const all = steps(read('.github/workflows/cut-hotfix.yml'));
   const check = all.findIndex((s) => s.startsWith('      - name: Check the branch has the files this workflow calls'));
   const tag = all.findIndex((s) => /git push origin "\$TAG"/.test(s));
-  const repoFiles = (text) => new Set(text.match(/(?:\.github\/scripts|tools)\/[\w./-]+\.\w+/g) ?? []);
+  // Files read with `git show "$GITHUB_WORKFLOW_SHA:<path>"` come from main's
+  // commit, not from the branch, so the branch need not have them.
+  const repoFiles = (text) => new Set(text.match(/(?<!_SHA:)(?:\.github\/scripts|tools)\/[\w./-]+\.\w+/g) ?? []);
 
   it('runs the check before the tag is pushed', () => {
     expect(check).toBeGreaterThanOrEqual(0);
@@ -51,6 +77,10 @@ describe('cut-hotfix checks the branch before tagging it', () => {
     const called = new Set(all.slice(check + 1).flatMap((s) => [...repoFiles(s)]));
     expect(called.size).toBeGreaterThan(0);
     expect([...called].filter((f) => !checked.has(f))).toEqual([]);
+  });
+
+  it('does not count main-loaded files as branch files', () => {
+    expect([...repoFiles('git show "$GITHUB_WORKFLOW_SHA:tools/release/x.ps1" && bash tools/y.sh')]).toEqual(['tools/y.sh']);
   });
 
   it('fails the run when a file is missing', () => {

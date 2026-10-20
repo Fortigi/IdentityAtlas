@@ -1,0 +1,2 @@
+- Releases can no longer contain code that has not been merged to `main` through an approved pull request. Cut Release and Cut Beta refuse a ref that is not on `main`. Cut Hotfix refuses any commit that is not a clean `git cherry-pick -x` of a commit on `main`. All three must be started from `main`.
+- Changed the hotfix procedure: fix on `main` first (PR, approval, merge), then cherry-pick the merged commit with `-x` onto a branch from the release tag.

@@ -16,7 +16,7 @@ This document covers branch naming, PR rules, version format, and the release wo
 
 - `feature/` branches must be branched off `main`.
 - `bugfixes/` branches branch from `main` for pre-release fixes. For hotfixes to an already-released version, branch from the release tag: `git checkout -b bugfixes/fix-foo v5.2.0`.
-- Hotfix commits must be cherry-picked back to `main` via a separate PR so the fix is included in future releases.
+- **Main first — nothing is released that is not on `main`.** A hotfix is fixed on `main` (PR, approval, merge) before it is released; the hotfix branch holds only `git cherry-pick -x` copies of merged commits. The cut workflows enforce this.
 - All merges to `main` go through a Pull Request — no direct pushes.
 - Branch names: lowercase, hyphens. Examples: `feature/risk-score-export`, `bugfixes/fix-login-redirect`.
 - **One issue per branch.** Each branch fixes exactly one issue or implements exactly one feature. Never combine unrelated fixes into a single branch or PR.
@@ -115,34 +115,25 @@ Customers who track `:latest` will receive the new version on their next `docker
 
 ## Hotfix Releases
 
-To ship a bugfix without including features already on `main`:
+To ship a bugfix without including features already on `main`, fix it on `main` **first**, then copy the merged commit onto the release:
 
 ```bash
-# 1. Branch from the release tag — NOT from main
-git checkout -b bugfixes/fix-login-crash v5.2.0
+# 1. Fix on main: bugfixes/fix-login-crash from main → PR → approval → merge
 
-# 2. Fix the bug, commit, push
-git push origin bugfixes/fix-login-crash
+# 2. Branch from the release tag — NOT from main — and cherry-pick the merged commit WITH -x
+git checkout -b bugfixes/fix-login-crash-hotfix v5.2.0
+git cherry-pick -x <merged commit on main>
+git push origin bugfixes/fix-login-crash-hotfix
 ```
 
-3. Go to **Actions → Cut Hotfix → Run workflow**
-4. Enter the branch name (`bugfixes/fix-login-crash`) and new version (`5.2.1`)
-5. The workflow creates tag `v5.2.1` on the HEAD of your branch
-6. `docker-publish.yml` builds `:latest` + `:5.2.1.0`
+3. Go to **Actions → Cut Hotfix → Run workflow** (from `main`)
+4. Enter the branch name (`bugfixes/fix-login-crash-hotfix`) and new version (`5.2.1`)
+5. The workflow checks every commit after `v5.2.0` with `tools/release/Assert-ReleaseFromMain.ps1`: each must be on `main`, or a `-x` cherry-pick of a commit on `main` that changes exactly the same lines. Anything else — a fix written on the hotfix branch, a pick without `-x`, a conflict resolved by hand — stops the run before a tag exists.
+6. The workflow creates tag `v5.2.1` on the HEAD of your branch; `docker-publish.yml` builds `:latest` + `:5.2.1.0`
 
-To cut a patch from a long-lived release branch such as `release/5.9`, dispatch the workflow **from that branch** so the branch's own copy runs. `main`'s copy calls scripts an older branch does not have, and stops before tagging when it finds them missing:
+If the cherry-pick conflicts, the resolution is code nobody reviewed: land a backport-specific fix on `main` that applies cleanly instead.
 
-```bash
-gh workflow run cut-hotfix.yml --ref release/5.9 -f branch=release/5.9 -f version=5.9.3
-```
-
-After the hotfix ships, open a PR to cherry-pick the fix into `main`:
-
-```bash
-git checkout main && git pull
-git cherry-pick <fix-commit-sha>
-gh pr create --base main --title "fix: cherry-pick hotfix from v5.2.1"
-```
+Cut Release and Cut Beta likewise only tag a commit that is on `main`, and all three must be dispatched from `main` (they load the checker from their own commit, so a branch cannot ship an edited copy).
 
 ---
 
