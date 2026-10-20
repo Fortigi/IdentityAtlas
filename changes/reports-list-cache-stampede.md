@@ -1,0 +1,1 @@
+- Fixed the Reports page intermittently failing with "Error loading reports (HTTP 500)" on deployments with several custom reports and a large dataset. The page no longer looks up the deployment's attributes and value lists once per custom report, and requests that arrive together now share one lookup instead of each starting their own.
