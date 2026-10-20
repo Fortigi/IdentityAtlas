@@ -1,5 +1,6 @@
 // App Service for Linux Containers — runs the Identity Atlas web image
-// pulled directly from ghcr.io. Public HTTPS endpoint with Microsoft-
+// pulled from ghcr.io, or from the customer's own Azure Container Registry when
+// one is configured. Public HTTPS endpoint with Microsoft-
 // managed TLS cert. Always On so users never hit a cold start.
 //
 // Two storage mounts: the persistent Azure Files share for /data/uploads,
@@ -23,6 +24,15 @@ param sku string
 
 @description('Web App image reference, e.g. ghcr.io/fortigi/identity-atlas:latest')
 param image string
+
+@description('Registry host the image is pulled from, e.g. ghcr.io or contoso.azurecr.io.')
+param registryServer string = 'ghcr.io'
+
+@description('Image-pull identity (resource ID) for a private Azure Container Registry. Empty = anonymous pull from a public registry.')
+param pullIdentityId string = ''
+
+@description('Client ID of the image-pull identity. Empty = anonymous pull.')
+param pullIdentityClientId string = ''
 
 @description('Managed identity resource ID for KV references + future Azure RBAC')
 param identityId string
@@ -54,9 +64,8 @@ param allowedIpCidrs array = []
 @description('URL of the report generator (experimental). Empty = the feature is not deployed.')
 param reportGeneratorUrl string = ''
 
-@description('API key the web app sends to the report generator.')
-@secure()
-param reportGeneratorApiKey string = ''
+@description('Versioned Key Vault secret URI of the API key the web app sends to the report generator. Empty = the feature is not deployed.')
+param reportGeneratorKeySecretUri string = ''
 
 // SEC-2026-09 L-19. 'Allow' stays the default so an upgrade cannot lock an
 // operator (or the worker, which calls this app's public URL) out. With 'Deny'
@@ -86,6 +95,10 @@ param pgPasswordSecretUri string
 var linuxFxVersion = 'DOCKER|${image}'
 
 var privateNetworking = !empty(vnetIntegrationSubnetId)
+var privateRegistry = !empty(pullIdentityId)
+// The web identity reads Key Vault; the pull identity, when there is one, pulls
+// the image. Kept apart so neither carries the other's permission.
+var siteIdentities = union({ '${identityId}': {} }, privateRegistry ? { '${pullIdentityId}': {} } : {})
 var ipRules = [for (cidr, i) in allowedIpCidrs: {
   name: 'allow-${i}'
   action: 'Allow'
@@ -123,9 +136,7 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
   kind: 'app,linux,container'
   identity: {
     type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${identityId}': {}
-    }
+    userAssignedIdentities: siteIdentities
   }
   properties: {
     serverFarmId: plan.id
@@ -143,12 +154,15 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
       http20Enabled: true
       minTlsVersion: '1.2'
       healthCheckPath: '/api/health'
-      acrUseManagedIdentityCreds: false  // we pull from public ghcr.io, no creds
+      // Public ghcr.io: anonymous pull. The customer's own ACR (a pull-through
+      // cache of ghcr.io): pulled with the image-pull identity, which holds AcrPull.
+      acrUseManagedIdentityCreds: privateRegistry
+      acrUserManagedIdentityID: privateRegistry ? pullIdentityClientId : null
       ipSecurityRestrictionsDefaultAction: restrictionsDefaultAction
       ipSecurityRestrictions: concat(workerRule, ipRules)
       appSettings: concat([
         // Container source
-        { name: 'DOCKER_REGISTRY_SERVER_URL', value: 'https://ghcr.io' }
+        { name: 'DOCKER_REGISTRY_SERVER_URL', value: 'https://${registryServer}' }
         { name: 'WEBSITES_PORT', value: '3001' }
         { name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', value: 'false' }
         // Cold-start probe ceiling. The web container binds its port BEFORE
@@ -206,7 +220,10 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
         // that paid for the container gets the feature it asked for.
         { name: 'FEATURE_CUSTOM_REPORTS', value: 'true' }
         { name: 'NL_REPORTS_LLM_URL', value: reportGeneratorUrl }
-        { name: 'NL_REPORTS_LLM_API_KEY', value: reportGeneratorApiKey }
+        // A Key Vault reference, like the Postgres password: the key is generated
+        // once by the bootstrap script and kept, so a redeploy does not rotate it.
+        // Versioned, so a deliberate change of the key restarts the app onto it.
+        { name: 'NL_REPORTS_LLM_API_KEY', value: '@Microsoft.KeyVault(SecretUri=${reportGeneratorKeySecretUri})' }
       ])
       azureStorageAccounts: {
         uploads: {
