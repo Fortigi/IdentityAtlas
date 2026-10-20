@@ -195,6 +195,8 @@ During a private-mode redeploy, Key Vault and Storage are opened (default action
 
 The admin password is random, generated once by the bootstrap script and stored in Key Vault as `postgres-admin-password`; the template passes it to the server with `getSecret()` and the web app references the exact secret version. Nothing about it is derived from resource names.
 
+The `getSecret()` call sits in a wrapper module (`postgres-kv-password.bicep`) that gets the vault name from the key-vault module's output. Do not move it back to a vault named statically in `main.bicep`: ARM then resolves the reference during preflight validation, before the vault exists, and every fresh install fails with `KeyVaultParameterReferenceNotFound` (this happened in v6.0.0). `test/unit/AzureKeyVaultReferences.Tests.ps1` guards it.
+
 **Deployments created before this change** used a password derived from the subscription ID and resource group name, which anyone who learns both can compute. Redeploying keeps that password (nothing rotates silently). Rotate it once, deliberately:
 
 ```powershell
@@ -263,6 +265,7 @@ Key Vault has soft delete + purge protection (7-day retention). To redeploy with
 | `azure/modules/postgres-firewall.bicep` | Public mode: Postgres firewall rules for the web app's outbound IPs |
 | `azure/modules/bootstrap.bicep` | One-shot deployment script for secrets |
 | `azure/modules/postgres.bicep` | Postgres Flex |
+| `azure/modules/postgres-kv-password.bicep` | Wrapper that reads the Postgres password from Key Vault (`getSecret()`) at deploy time, not at preflight |
 | `azure/modules/app-service.bicep` | App Service Plan + App Service for Containers |
 | `azure/modules/aca-env.bicep` | Container Apps Environment (Consumption) |
 | `azure/modules/aca-app-worker.bicep` | Worker Container App (always-on) |

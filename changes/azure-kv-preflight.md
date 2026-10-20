@@ -1,0 +1,1 @@
+- Fixed the **Deploy to Azure** button failing on every fresh install with "The specified KeyVault … could not be found" (`KeyVaultParameterReferenceNotFound`). The template now reads the Postgres password from Key Vault only after the vault has been created. Existing deployments are not affected and keep their password.

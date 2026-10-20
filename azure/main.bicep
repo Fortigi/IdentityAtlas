@@ -196,9 +196,8 @@ module identities 'modules/identities.bicep' = {
   }
 }
 
-// Compute the KV name HERE (not inside the module) so the `existing`
-// reference below can use the same static value. Bicep can't take
-// dependencies on names produced by `module.outputs.*` (BCP433).
+// Compute the KV name HERE (not inside the module) so the private-network
+// lockdown pass below re-applies the same vault.
 var kvName = take('${namePrefix}-kv-${uniqueString(resourceGroup().id)}', 24)
 
 module kv 'modules/key-vault.bicep' = {
@@ -209,13 +208,6 @@ module kv 'modules/key-vault.bicep' = {
     webIdentityPrincipalId: identities.outputs.webIdentityPrincipalId
     deployScriptPrincipalId: identities.outputs.deployScriptIdentityPrincipalId
   }
-}
-
-// Same vault, referenced by its static name so the Postgres password can be
-// passed with getSecret(): ARM resolves it at deployment time and the value
-// never appears in the template, the parameters or the deployment history.
-resource kvRef 'Microsoft.KeyVault/vaults@2024-11-01' existing = {
-  name: kvName
 }
 
 // ─── Bootstrap: generate master key + DB password into KV ───────────────
@@ -234,12 +226,17 @@ module bootstrap 'modules/bootstrap.bicep' = {
 
 // ─── Postgres ───────────────────────────────────────────────────────────
 
-module postgres 'modules/postgres.bicep' = {
+// The password is read with getSecret() INSIDE the wrapper, which gets the vault
+// name from the key-vault module's output. Never pass getSecret() on a vault
+// named statically here: ARM then resolves it at preflight, before the vault
+// exists, and every fresh install fails with KeyVaultParameterReferenceNotFound.
+// The value never appears in the template, the parameters or the history.
+module postgres 'modules/postgres-kv-password.bicep' = {
   name: 'postgres'
   params: {
+    keyVaultName: kv.outputs.kvName
     namePrefix: namePrefix
     location: location
-    adminPassword: kvRef.getSecret('postgres-admin-password')
     skuName: profile.postgresSku
     skuTier: profile.postgresTier
     storageGb: profile.postgresStorageGb

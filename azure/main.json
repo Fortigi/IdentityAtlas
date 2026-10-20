@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "4666055610691824487"
+      "templateHash": "14268072313592080936"
     }
   },
   "parameters": {
@@ -935,19 +935,14 @@
         },
         "mode": "Incremental",
         "parameters": {
+          "keyVaultName": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'key-vault'), '2025-04-01').outputs.kvName.value]"
+          },
           "namePrefix": {
             "value": "[variables('namePrefix')]"
           },
           "location": {
             "value": "[variables('location')]"
-          },
-          "adminPassword": {
-            "reference": {
-              "keyVault": {
-                "id": "[resourceId('Microsoft.KeyVault/vaults', variables('kvName'))]"
-              },
-              "secretName": "postgres-admin-password"
-            }
           },
           "skuName": {
             "value": "[variables('profile').postgresSku]"
@@ -967,14 +962,18 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "10552132338734878009"
+              "templateHash": "15499714568708164063"
             }
           },
           "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Key Vault holding the postgres-admin-password secret. Pass a module output, never a static name (see above)."
+              }
+            },
             "namePrefix": {
               "type": "string",
-              "minLength": 3,
-              "maxLength": 15,
               "metadata": {
                 "description": "Resource name prefix"
               }
@@ -985,171 +984,286 @@
                 "description": "Azure region"
               }
             },
-            "adminUsername": {
-              "type": "string",
-              "defaultValue": "identityatlas",
-              "metadata": {
-                "description": "Postgres admin username"
-              }
-            },
-            "adminPassword": {
-              "type": "securestring",
-              "metadata": {
-                "description": "Postgres admin password (passed in from Key Vault)."
-              }
-            },
-            "databaseName": {
-              "type": "string",
-              "defaultValue": "identity_atlas",
-              "metadata": {
-                "description": "Database name to create"
-              }
-            },
             "skuName": {
               "type": "string",
               "metadata": {
-                "description": "SKU name (Standard_B1ms, Standard_B2s, Standard_D2ds_v5, Standard_D4ds_v5)."
+                "description": "SKU name"
               }
             },
             "skuTier": {
               "type": "string",
-              "allowedValues": [
-                "Burstable",
-                "GeneralPurpose",
-                "MemoryOptimized"
-              ],
               "metadata": {
                 "description": "SKU tier"
               }
             },
             "storageGb": {
               "type": "int",
-              "defaultValue": 32,
-              "allowedValues": [
-                32,
-                64,
-                128,
-                256,
-                512,
-                1024
-              ],
               "metadata": {
                 "description": "Storage size in GB"
               }
             },
             "publicNetworkAccess": {
               "type": "string",
-              "defaultValue": "Enabled",
-              "allowedValues": [
-                "Enabled",
-                "Disabled"
-              ],
               "metadata": {
                 "description": "Public network access. Disabled in the private network mode."
               }
-            },
-            "postgresVersion": {
-              "type": "string",
-              "defaultValue": "16",
-              "allowedValues": [
-                "14",
-                "15",
-                "16",
-                "17"
-              ],
-              "metadata": {
-                "description": "Postgres version"
-              }
             }
-          },
-          "variables": {
-            "pgName": "[take(format('{0}-pg-{1}', parameters('namePrefix'), uniqueString(resourceGroup().id)), 63)]"
           },
           "resources": [
             {
-              "type": "Microsoft.DBforPostgreSQL/flexibleServers",
-              "apiVersion": "2024-11-01-preview",
-              "name": "[variables('pgName')]",
-              "location": "[parameters('location')]",
-              "sku": {
-                "name": "[parameters('skuName')]",
-                "tier": "[parameters('skuTier')]"
-              },
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "postgres-server",
               "properties": {
-                "version": "[parameters('postgresVersion')]",
-                "administratorLogin": "[parameters('adminUsername')]",
-                "administratorLoginPassword": "[parameters('adminPassword')]",
-                "storage": {
-                  "storageSizeGB": "[parameters('storageGb')]",
-                  "autoGrow": "Enabled"
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
                 },
-                "backup": {
-                  "backupRetentionDays": 7,
-                  "geoRedundantBackup": "Disabled"
+                "mode": "Incremental",
+                "parameters": {
+                  "namePrefix": {
+                    "value": "[parameters('namePrefix')]"
+                  },
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "adminPassword": {
+                    "reference": {
+                      "keyVault": {
+                        "id": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+                      },
+                      "secretName": "postgres-admin-password"
+                    }
+                  },
+                  "skuName": {
+                    "value": "[parameters('skuName')]"
+                  },
+                  "skuTier": {
+                    "value": "[parameters('skuTier')]"
+                  },
+                  "storageGb": {
+                    "value": "[parameters('storageGb')]"
+                  },
+                  "publicNetworkAccess": {
+                    "value": "[parameters('publicNetworkAccess')]"
+                  }
                 },
-                "highAvailability": {
-                  "mode": "Disabled"
-                },
-                "network": {
-                  "publicNetworkAccess": "[parameters('publicNetworkAccess')]"
-                },
-                "authConfig": {
-                  "activeDirectoryAuth": "Disabled",
-                  "passwordAuth": "Enabled"
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.43.8.12551",
+                      "templateHash": "10552132338734878009"
+                    }
+                  },
+                  "parameters": {
+                    "namePrefix": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 15,
+                      "metadata": {
+                        "description": "Resource name prefix"
+                      }
+                    },
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region"
+                      }
+                    },
+                    "adminUsername": {
+                      "type": "string",
+                      "defaultValue": "identityatlas",
+                      "metadata": {
+                        "description": "Postgres admin username"
+                      }
+                    },
+                    "adminPassword": {
+                      "type": "securestring",
+                      "metadata": {
+                        "description": "Postgres admin password (passed in from Key Vault)."
+                      }
+                    },
+                    "databaseName": {
+                      "type": "string",
+                      "defaultValue": "identity_atlas",
+                      "metadata": {
+                        "description": "Database name to create"
+                      }
+                    },
+                    "skuName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "SKU name (Standard_B1ms, Standard_B2s, Standard_D2ds_v5, Standard_D4ds_v5)."
+                      }
+                    },
+                    "skuTier": {
+                      "type": "string",
+                      "allowedValues": [
+                        "Burstable",
+                        "GeneralPurpose",
+                        "MemoryOptimized"
+                      ],
+                      "metadata": {
+                        "description": "SKU tier"
+                      }
+                    },
+                    "storageGb": {
+                      "type": "int",
+                      "defaultValue": 32,
+                      "allowedValues": [
+                        32,
+                        64,
+                        128,
+                        256,
+                        512,
+                        1024
+                      ],
+                      "metadata": {
+                        "description": "Storage size in GB"
+                      }
+                    },
+                    "publicNetworkAccess": {
+                      "type": "string",
+                      "defaultValue": "Enabled",
+                      "allowedValues": [
+                        "Enabled",
+                        "Disabled"
+                      ],
+                      "metadata": {
+                        "description": "Public network access. Disabled in the private network mode."
+                      }
+                    },
+                    "postgresVersion": {
+                      "type": "string",
+                      "defaultValue": "16",
+                      "allowedValues": [
+                        "14",
+                        "15",
+                        "16",
+                        "17"
+                      ],
+                      "metadata": {
+                        "description": "Postgres version"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "pgName": "[take(format('{0}-pg-{1}', parameters('namePrefix'), uniqueString(resourceGroup().id)), 63)]"
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+                      "apiVersion": "2024-11-01-preview",
+                      "name": "[variables('pgName')]",
+                      "location": "[parameters('location')]",
+                      "sku": {
+                        "name": "[parameters('skuName')]",
+                        "tier": "[parameters('skuTier')]"
+                      },
+                      "properties": {
+                        "version": "[parameters('postgresVersion')]",
+                        "administratorLogin": "[parameters('adminUsername')]",
+                        "administratorLoginPassword": "[parameters('adminPassword')]",
+                        "storage": {
+                          "storageSizeGB": "[parameters('storageGb')]",
+                          "autoGrow": "Enabled"
+                        },
+                        "backup": {
+                          "backupRetentionDays": 7,
+                          "geoRedundantBackup": "Disabled"
+                        },
+                        "highAvailability": {
+                          "mode": "Disabled"
+                        },
+                        "network": {
+                          "publicNetworkAccess": "[parameters('publicNetworkAccess')]"
+                        },
+                        "authConfig": {
+                          "activeDirectoryAuth": "Disabled",
+                          "passwordAuth": "Enabled"
+                        }
+                      }
+                    },
+                    {
+                      "type": "Microsoft.DBforPostgreSQL/flexibleServers/databases",
+                      "apiVersion": "2024-11-01-preview",
+                      "name": "[format('{0}/{1}', variables('pgName'), parameters('databaseName'))]",
+                      "properties": {
+                        "charset": "UTF8",
+                        "collation": "en_US.utf8"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.DBforPostgreSQL/flexibleServers/configurations",
+                      "apiVersion": "2024-11-01-preview",
+                      "name": "[format('{0}/{1}', variables('pgName'), 'azure.extensions')]",
+                      "properties": {
+                        "value": "PG_TRGM",
+                        "source": "user-override"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName'))]"
+                      ]
+                    }
+                  ],
+                  "outputs": {
+                    "pgId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName'))]"
+                    },
+                    "pgFqdn": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName')), '2024-11-01-preview').fullyQualifiedDomainName]"
+                    },
+                    "pgName": {
+                      "type": "string",
+                      "value": "[variables('pgName')]"
+                    },
+                    "databaseName": {
+                      "type": "string",
+                      "value": "[parameters('databaseName')]"
+                    },
+                    "adminUsername": {
+                      "type": "string",
+                      "value": "[parameters('adminUsername')]"
+                    }
+                  }
                 }
               }
-            },
-            {
-              "type": "Microsoft.DBforPostgreSQL/flexibleServers/databases",
-              "apiVersion": "2024-11-01-preview",
-              "name": "[format('{0}/{1}', variables('pgName'), parameters('databaseName'))]",
-              "properties": {
-                "charset": "UTF8",
-                "collation": "en_US.utf8"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName'))]"
-              ]
-            },
-            {
-              "type": "Microsoft.DBforPostgreSQL/flexibleServers/configurations",
-              "apiVersion": "2024-11-01-preview",
-              "name": "[format('{0}/{1}', variables('pgName'), 'azure.extensions')]",
-              "properties": {
-                "value": "PG_TRGM",
-                "source": "user-override"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName'))]"
-              ]
             }
           ],
           "outputs": {
             "pgId": {
               "type": "string",
-              "value": "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName'))]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'postgres-server'), '2025-04-01').outputs.pgId.value]"
             },
             "pgFqdn": {
               "type": "string",
-              "value": "[reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName')), '2024-11-01-preview').fullyQualifiedDomainName]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'postgres-server'), '2025-04-01').outputs.pgFqdn.value]"
             },
             "pgName": {
               "type": "string",
-              "value": "[variables('pgName')]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'postgres-server'), '2025-04-01').outputs.pgName.value]"
             },
             "databaseName": {
               "type": "string",
-              "value": "[parameters('databaseName')]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'postgres-server'), '2025-04-01').outputs.databaseName.value]"
             },
             "adminUsername": {
               "type": "string",
-              "value": "[parameters('adminUsername')]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'postgres-server'), '2025-04-01').outputs.adminUsername.value]"
             }
           }
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'bootstrap')]"
+        "[resourceId('Microsoft.Resources/deployments', 'bootstrap')]",
+        "[resourceId('Microsoft.Resources/deployments', 'key-vault')]"
       ]
     },
     {
