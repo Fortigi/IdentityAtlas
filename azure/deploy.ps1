@@ -93,15 +93,19 @@ if (-not $ParametersFile) {
     $ParametersFile = Join-Path $here 'main.parameters.example.json'
 }
 
-Write-Host "=== Identity Atlas Azure deploy (Simple shape) ===" -ForegroundColor Cyan
-Write-Host "  ResourceGroup : $ResourceGroup"
-Write-Host "  Location      : $Location"
-Write-Host "  SizeProfile   : $SizeProfile"
-Write-Host "  ImageChannel  : $ImageChannel"
-Write-Host "  ImageTag      : $(if ($ImageTag) { $ImageTag } else { "(none - follows $ImageChannel)" })"
-Write-Host "  Registry      : $(if ($ContainerRegistryResourceId) { $ContainerRegistryResourceId } else { 'ghcr.io' })"
-Write-Host "  ReportGen     : $(if ($DeployReportGenerator) { 'deployed (scales to zero)' } else { 'not deployed' })"
-Write-Host "  Bicep         : $bicepFile"
+# What is about to be deployed, before anything is touched.
+function Write-DeployPlan {
+    Write-Host "=== Identity Atlas Azure deploy (Simple shape) ===" -ForegroundColor Cyan
+    Write-Host "  ResourceGroup : $ResourceGroup"
+    Write-Host "  Location      : $Location"
+    Write-Host "  SizeProfile   : $SizeProfile"
+    Write-Host "  ImageChannel  : $ImageChannel"
+    Write-Host "  ImageTag      : $(if ($ImageTag) { $ImageTag } else { "(none - follows $ImageChannel)" })"
+    Write-Host "  Registry      : $(if ($ContainerRegistryResourceId) { $ContainerRegistryResourceId } else { 'ghcr.io' })"
+    Write-Host "  ReportGen     : $(if ($DeployReportGenerator) { 'deployed (scales to zero)' } else { 'not deployed' })"
+    Write-Host "  Bicep         : $bicepFile"
+}
+Write-DeployPlan
 
 # ── az login ────────────────────────────────────────────────────────────
 $account = az account show 2>$null | ConvertFrom-Json
@@ -168,15 +172,15 @@ if ($DeployReportGenerator) {
         Write-Host "  ReportGen ingress    : API key only on this deployment; re-run once the web app exists to add the IP allow-list" -ForegroundColor DarkGray
     }
 }
-if ($ExistingLogAnalyticsWorkspaceId) {
-    $deployArgs += @('--parameters', "existingLogAnalyticsWorkspaceId=$ExistingLogAnalyticsWorkspaceId")
-}
-if ($ImageTag) {
-    $deployArgs += @('--parameters', "imageTag=$ImageTag")
-}
-if ($ContainerRegistryResourceId) {
-    $deployArgs += @('--parameters', "containerRegistryResourceId=$ContainerRegistryResourceId")
-}
+# Optional parameters are passed only when given, so an omitted one leaves the
+# template's own default in place — for imageTag that default may be the release
+# the template was shipped with.
+$optionalParameters = @(
+    @{ Given = $ExistingLogAnalyticsWorkspaceId; Arg = "existingLogAnalyticsWorkspaceId=$ExistingLogAnalyticsWorkspaceId" }
+    @{ Given = $ImageTag;                        Arg = "imageTag=$ImageTag" }
+    @{ Given = $ContainerRegistryResourceId;     Arg = "containerRegistryResourceId=$ContainerRegistryResourceId" }
+)
+$deployArgs += @($optionalParameters | Where-Object { $_.Given } | ForEach-Object { '--parameters'; $_.Arg })
 
 $result = az @deployArgs | ConvertFrom-Json
 
