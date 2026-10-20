@@ -152,6 +152,7 @@ jobs:
       code:    ${{ steps.f.outputs.code }}
       migrations:   ${{ steps.f.outputs.migrations }}
       node_version: ${{ steps.f.outputs.node_version }}
+      azure:        ${{ steps.f.outputs.azure }}
       outcome: ${{ steps.f.outcome }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -235,6 +236,11 @@ jobs:
               - 'app/api/src/db/migrations/**'
               - '.ci/migration-hashes.json'
               - 'tools/migrations/**'
+            # The Azure templates: the Bicep sources and the compiled ARM the
+            # Deploy to Azure button and the release package deploy.
+            azure:
+              - 'azure/**'
+              - '.github/workflows/pr.yml'
             # Only the files that can carry a Node version affect that gate.
             node_version:
               - '.nvmrc'
@@ -1077,6 +1083,42 @@ jobs:
       - name: Run node-version gate
         run: python3 tools/node-version/ratchet.py
 
+  # ── Stage 19: Compiled Azure templates match their Bicep source ──────────
+  # The Deploy to Azure button and every release package deploy the COMPILED
+  # azure/main.json and main-auth.json, not the .bicep files — so a .bicep change
+  # without a rebuild ships nothing, and a hand edit to the .json ships something
+  # no source describes. Rebuilt here with the Bicep version that produced the
+  # committed file (its metadata names it), so a newer compiler cannot turn this
+  # red on its own. No Azure sign-in: building needs none.
+  azure-templates:
+    name: 'Azure: compiled templates match Bicep'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.azure == 'true' ||
+      needs.filter.result == 'failure'
+    runs-on: ubuntu-latest   # az CLI and jq are preinstalled on the GitHub runner
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Rebuild and compare
+        run: |
+          set -euo pipefail
+          stale=0
+          for tpl in main main-auth; do
+            json="azure/$tpl.json"
+            version=$(jq -r '.metadata._generator.version' "$json" | cut -d. -f1-3)
+            az bicep install --version "v$version" >/dev/null 2>&1
+            az bicep build --file "azure/$tpl.bicep" --outfile "$RUNNER_TEMP/$tpl.json"
+            if ! diff -q "$json" "$RUNNER_TEMP/$tpl.json" >/dev/null; then
+              echo "::error file=$json::$json is not the build of azure/$tpl.bicep (Bicep $version). Run: az bicep build --file azure/$tpl.bicep --outfile $json"
+              diff -u "$json" "$RUNNER_TEMP/$tpl.json" | head -n 40 || true
+              stale=1
+            else
+              echo "$json matches azure/$tpl.bicep (Bicep $version)"
+            fi
+          done
+          exit $stale
+
   # ── Gate: single required check for branch protection ───────────────────
   # Replaces the individual job requirements in branch protection. Update branch
   # protection to require only "ci-passed" — not each individual job name.
@@ -1110,6 +1152,7 @@ jobs:
       - docs-build
       - migration-immutability
       - node-version
+      - azure-templates
     if: always()
     runs-on: ubuntu-latest
     steps:
