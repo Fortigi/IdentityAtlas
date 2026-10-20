@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "9408654697184156921"
+      "templateHash": "14765428134518033351"
     }
   },
   "parameters": {
@@ -117,6 +117,20 @@
       "defaultValue": false,
       "metadata": {
         "description": "Restore the legacy Postgres firewall rule that admits all Azure services (any tenant). Not recommended; public network mode only."
+      }
+    },
+    "entraTenantId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: Entra ID tenant (directory) GUID for sign-in. Set it together with entraClientId to keep sign-in configured across redeploys — needed when this template is redeployed for upgrades. Empty = configure sign-in with Step 2 (main-auth), which a redeploy of this template clears again."
+      }
+    },
+    "entraClientId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: Entra ID App Registration (client) GUID for sign-in. See entraTenantId."
       }
     }
   },
@@ -1490,6 +1504,12 @@
           "pgPasswordSecretUri": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'bootstrap'), '2025-04-01').outputs.pgPasswordSecretUri.value]"
           },
+          "entraTenantId": {
+            "value": "[parameters('entraTenantId')]"
+          },
+          "entraClientId": {
+            "value": "[parameters('entraClientId')]"
+          },
           "ipSecurityRestrictionsDefaultAction": {
             "value": "[parameters('webAccessDefaultAction')]"
           },
@@ -1506,7 +1526,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "4330435179319553834"
+              "templateHash": "7964829706269690446"
             }
           },
           "parameters": {
@@ -1657,6 +1677,20 @@
               "metadata": {
                 "description": "Versioned Key Vault secret URI of the Postgres admin password (from the bootstrap script)."
               }
+            },
+            "entraTenantId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Entra ID tenant GUID for sign-in. Empty = left for Step 2 (main-auth.bicep) to patch in."
+              }
+            },
+            "entraClientId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Entra ID App Registration (client) GUID for sign-in. Empty = left for Step 2."
+              }
             }
           },
           "variables": {
@@ -1720,7 +1754,7 @@
                   "acrUserManagedIdentityID": "[if(variables('privateRegistry'), parameters('pullIdentityClientId'), null())]",
                   "ipSecurityRestrictionsDefaultAction": "[variables('restrictionsDefaultAction')]",
                   "ipSecurityRestrictions": "[concat(variables('workerRule'), variables('ipRules'))]",
-                  "appSettings": "[concat(createArray(createObject('name', 'DOCKER_REGISTRY_SERVER_URL', 'value', format('https://{0}', parameters('registryServer'))), createObject('name', 'WEBSITES_PORT', 'value', '3001'), createObject('name', 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', 'value', 'false'), createObject('name', 'WEBSITES_CONTAINER_START_TIME_LIMIT', 'value', '1800'), createObject('name', 'NODE_ENV', 'value', 'production'), createObject('name', 'USE_SQL', 'value', 'true'), createObject('name', 'PORT', 'value', '3001'), createObject('name', 'BEHIND_TLS', 'value', 'true'), createObject('name', 'AUTH_ENABLED', 'value', 'true'), createObject('name', 'AUTH_TENANT_ID', 'value', ''), createObject('name', 'AUTH_CLIENT_ID', 'value', ''), createObject('name', 'IDENTITY_ATLAS_MASTER_KEY', 'value', format('@Microsoft.KeyVault(SecretUri={0}secrets/identityatlas-master-key/)', parameters('keyVaultUri'))), createObject('name', 'POSTGRES_PASSWORD', 'value', format('@Microsoft.KeyVault(SecretUri={0})', parameters('pgPasswordSecretUri'))), createObject('name', 'POSTGRES_HOST', 'value', parameters('pgFqdn')), createObject('name', 'POSTGRES_PORT', 'value', '5432'), createObject('name', 'POSTGRES_DB', 'value', parameters('pgDatabaseName')), createObject('name', 'POSTGRES_USER', 'value', parameters('pgUsername')), createObject('name', 'PGSSLMODE', 'value', 'require'), createObject('name', 'AZURE_KEY_VAULT_URI', 'value', parameters('keyVaultUri'))), if(empty(parameters('reportGeneratorUrl')), createArray(), createArray(createObject('name', 'FEATURE_CUSTOM_REPORTS', 'value', 'true'), createObject('name', 'NL_REPORTS_LLM_URL', 'value', parameters('reportGeneratorUrl')), createObject('name', 'NL_REPORTS_LLM_API_KEY', 'value', format('@Microsoft.KeyVault(SecretUri={0})', parameters('reportGeneratorKeySecretUri'))))))]",
+                  "appSettings": "[concat(createArray(createObject('name', 'DOCKER_REGISTRY_SERVER_URL', 'value', format('https://{0}', parameters('registryServer'))), createObject('name', 'WEBSITES_PORT', 'value', '3001'), createObject('name', 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', 'value', 'false'), createObject('name', 'WEBSITES_CONTAINER_START_TIME_LIMIT', 'value', '1800'), createObject('name', 'NODE_ENV', 'value', 'production'), createObject('name', 'USE_SQL', 'value', 'true'), createObject('name', 'PORT', 'value', '3001'), createObject('name', 'BEHIND_TLS', 'value', 'true'), createObject('name', 'AUTH_ENABLED', 'value', 'true'), createObject('name', 'AUTH_TENANT_ID', 'value', parameters('entraTenantId')), createObject('name', 'AUTH_CLIENT_ID', 'value', parameters('entraClientId')), createObject('name', 'IDENTITY_ATLAS_MASTER_KEY', 'value', format('@Microsoft.KeyVault(SecretUri={0}secrets/identityatlas-master-key/)', parameters('keyVaultUri'))), createObject('name', 'POSTGRES_PASSWORD', 'value', format('@Microsoft.KeyVault(SecretUri={0})', parameters('pgPasswordSecretUri'))), createObject('name', 'POSTGRES_HOST', 'value', parameters('pgFqdn')), createObject('name', 'POSTGRES_PORT', 'value', '5432'), createObject('name', 'POSTGRES_DB', 'value', parameters('pgDatabaseName')), createObject('name', 'POSTGRES_USER', 'value', parameters('pgUsername')), createObject('name', 'PGSSLMODE', 'value', 'require'), createObject('name', 'AZURE_KEY_VAULT_URI', 'value', parameters('keyVaultUri'))), if(empty(parameters('reportGeneratorUrl')), createArray(), createArray(createObject('name', 'FEATURE_CUSTOM_REPORTS', 'value', 'true'), createObject('name', 'NL_REPORTS_LLM_URL', 'value', parameters('reportGeneratorUrl')), createObject('name', 'NL_REPORTS_LLM_API_KEY', 'value', format('@Microsoft.KeyVault(SecretUri={0})', parameters('reportGeneratorKeySecretUri'))))))]",
                   "azureStorageAccounts": {
                     "uploads": {
                       "type": "AzureFiles",

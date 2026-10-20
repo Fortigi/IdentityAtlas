@@ -1,10 +1,9 @@
 // Identity Atlas — Azure deployment, STEP 1 of 2.
 //
-// This template deploys the application in OPEN mode (no Entra ID auth).
-// The output URL is the hostname you'll register in the Entra App Reg.
-//
-// To turn auth ON, run STEP 2 (`main-auth.bicep`) against the SAME RG
-// after registering an Entra App with this hostname as the SPA redirect URI.
+// On a first deployment, sign-in is not configured yet: the output URL is the
+// hostname you'll register in the Entra App Reg. Then either run STEP 2
+// (`main-auth.bicep`) against the SAME RG, or — for a deployment you redeploy
+// to upgrade — pass entraTenantId / entraClientId to this template (see below).
 //
 // What this deploys:
 //   - App Service Plan (Linux) + App Service for Containers (web)
@@ -82,10 +81,20 @@ param rotatePostgresPassword bool = false
 @description('Restore the legacy Postgres firewall rule that admits all Azure services (any tenant). Not recommended; public network mode only.')
 param postgresAllowAllAzureServices bool = false
 
-// Entra ID auth is NOT configured by this template. It deploys the app in
-// OPEN mode (anyone with the URL can reach it). To turn auth on, run
-// `main-auth.bicep` (Step 2) against the resulting RG once you've registered
-// an App Reg in Entra with the deployed hostname as a SPA redirect URI.
+// Entra ID sign-in: two ways to configure it.
+//   - Step 2 (`main-auth.bicep`) after this one — the Deploy to Azure path,
+//     because the redirect URI needs this deployment's hostname first. But this
+//     template REPLACES the app settings, so every redeploy of it clears what
+//     Step 2 set and users land on "Entra ID setup required" until Step 2 runs
+//     again.
+//   - The two parameters below, for a deployment managed as code: put them in
+//     the parameters file once (after registering the app against the hostname
+//     of the first deployment) and every redeploy keeps sign-in configured.
+@description('Optional: Entra ID tenant (directory) GUID for sign-in. Set it together with entraClientId to keep sign-in configured across redeploys — needed when this template is redeployed for upgrades. Empty = configure sign-in with Step 2 (main-auth), which a redeploy of this template clears again.')
+param entraTenantId string = ''
+
+@description('Optional: Entra ID App Registration (client) GUID for sign-in. See entraTenantId.')
+param entraClientId string = ''
 
 // ─── Size profile → SKUs ─────────────────────────────────────────────────
 
@@ -315,6 +324,8 @@ module web 'modules/app-service.bicep' = {
     uploadsShareName: storage.outputs.uploadsShareName
     logAnalyticsWorkspaceId: logs.outputs.workspaceId
     pgPasswordSecretUri: bootstrap.outputs.pgPasswordSecretUri
+    entraTenantId: entraTenantId
+    entraClientId: entraClientId
     ipSecurityRestrictionsDefaultAction: webAccessDefaultAction
     allowedIpCidrs: webAllowedIpCidrs
     vnetIntegrationSubnetId: privateNetworking ? network!.outputs.webSubnetId : ''

@@ -169,7 +169,9 @@ with, without anyone filling in a version, so template and images cannot drift
 apart. It is the copy to keep in your own repository when you manage the
 deployment as code: an upgrade then brings the template changes and the new
 images in together. (The Deploy to Azure button keeps reading `main`'s
-template, which is not pinned and follows `imageChannel`.)
+template, which is not pinned and follows `imageChannel`.) For the full setup,
+an update workflow that proposes each new release as a pull request plus a
+deploy pipeline, see [Managing the Azure deployment as code](azure-gitops.md).
 
 With the version pinned:
 

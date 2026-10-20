@@ -1,0 +1,111 @@
+# Identity Atlas — show what a change does, then deploy it.
+#
+# Copy to .github/workflows/ in the repository that holds your Identity Atlas
+# deployment (see docs: "Managing the Azure deployment as code").
+#
+#   pull request  → `az deployment group what-if`, written to the run summary:
+#                   what the merge would change in Azure (template changes
+#                   included), before anyone approves it.
+#   merge to main → the deployment, in the `production` environment. Add
+#                   required reviewers to that environment for a final gate.
+#
+# Deploys identity-atlas/main.json — the compiled template exactly as the
+# release shipped it — with your parameters file. Nothing here builds Bicep.
+#
+# Sign-in to Azure is OpenID Connect (no stored secret): create an app
+# registration or user-assigned identity with a federated credential for this
+# repository, give it Contributor on the resource group (and the right to
+# create role assignments on your registry, if you use containerRegistryResourceId),
+# and set these repository variables:
+#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
+#   IDENTITY_ATLAS_RESOURCE_GROUP
+
+name: Identity Atlas deploy
+
+on:
+  pull_request:
+    paths: ['identity-atlas/**', 'parameters/**']
+  push:
+    branches: [main]
+    paths: ['identity-atlas/**', 'parameters/**']
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TEMPLATE_DIR: identity-atlas
+  PARAMETERS: parameters/production.json
+  RESOURCE_GROUP: ${{ vars.IDENTITY_ATLAS_RESOURCE_GROUP }}
+
+jobs:
+  what-if:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Sign in to Azure (OIDC)
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          set -euo pipefail
+          TOKEN=$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://AzureADTokenExchange" | jq -r .value)
+          az login --service-principal -u "$AZURE_CLIENT_ID" -t "$AZURE_TENANT_ID" \
+            --federated-token "$TOKEN" --output none
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+
+      - name: What would this change?
+        run: |
+          set -euo pipefail
+          echo "## Identity Atlas $(cat "$TEMPLATE_DIR/RELEASE") — what-if" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          # The readable report, with its colour codes stripped for the summary.
+          az deployment group what-if \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file "$TEMPLATE_DIR/main.json" \
+            --parameters "@$PARAMETERS" \
+            --result-format FullResourcePayloads \
+            | sed 's/\x1b\[[0-9;]*m//g' | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency: identity-atlas-production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Sign in to Azure (OIDC)
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          set -euo pipefail
+          TOKEN=$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://AzureADTokenExchange" | jq -r .value)
+          az login --service-principal -u "$AZURE_CLIENT_ID" -t "$AZURE_TENANT_ID" \
+            --federated-token "$TOKEN" --output none
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+
+      - name: Deploy
+        run: |
+          set -euo pipefail
+          RELEASE=$(cat "$TEMPLATE_DIR/RELEASE")
+          # Postgres Flexible Server backs up continuously: this is the moment to
+          # restore to (point-in-time restore) if this release has to be undone
+          # after it migrated the database.
+          echo "Restore point before Identity Atlas $RELEASE: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_STEP_SUMMARY"
+          az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "identity-atlas-${RELEASE}-${GITHUB_RUN_ID}" \
+            --template-file "$TEMPLATE_DIR/main.json" \
+            --parameters "@$PARAMETERS" \
+            --output none
+          echo "Deployed Identity Atlas $RELEASE." >> "$GITHUB_STEP_SUMMARY"

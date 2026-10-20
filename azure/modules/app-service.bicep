@@ -84,10 +84,16 @@ param workerSubnetId string = ''
 @description('Versioned Key Vault secret URI of the Postgres admin password (from the bootstrap script).')
 param pgPasswordSecretUri string
 
-// Entra ID auth is intentionally NOT a parameter of this module. Step 1
-// (main.bicep) always deploys in OPEN mode with AUTH_ENABLED=false. To turn
-// auth on, run Step 2 (main-auth.bicep) — it patches the AUTH_* appsettings
-// on this App Service without touching anything else.
+@description('Entra ID tenant GUID for sign-in. Empty = left for Step 2 (main-auth.bicep) to patch in.')
+param entraTenantId string = ''
+
+@description('Entra ID App Registration (client) GUID for sign-in. Empty = left for Step 2.')
+param entraClientId string = ''
+
+// Sign-in is either passed in here (a deployment managed as code, so a redeploy
+// keeps it) or patched in afterwards by Step 2 (main-auth.bicep), which merges
+// the AUTH_* settings into these. A redeploy of THIS module replaces the whole
+// settings list, so whatever Step 2 patched in is cleared again.
 
 // Strip the digest/tag part because the DOCKER_CUSTOM_IMAGE_NAME app setting
 // expects the full image path. We pass the full image including tag, so no
@@ -185,8 +191,8 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
         // unauthenticated instance. Step 2 in the walkthrough = filling in
         // these two env vars after registering the Entra app.
         { name: 'AUTH_ENABLED', value: 'true' }
-        { name: 'AUTH_TENANT_ID', value: '' }
-        { name: 'AUTH_CLIENT_ID', value: '' }
+        { name: 'AUTH_TENANT_ID', value: entraTenantId }
+        { name: 'AUTH_CLIENT_ID', value: entraClientId }
         // KV references — resolved at startup via the managed identity.
         // App Service reads the literal secret value from KV and exposes
         // it to the app as the named env var.

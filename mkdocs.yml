@@ -128,6 +128,7 @@ nav:
           - Docker Setup: architecture/docker-setup.md
           - Azure Deployment Walkthrough: architecture/azure-deployment-walkthrough.md
           - Azure Deployment Reference: architecture/azure-deployment.md
+          - Azure as Code (GitOps): architecture/azure-gitops.md
           - Portable Windows Launcher: architecture/desktop-portable.md
           - Scaling & Load Testing: architecture/scaling.md
           - "Scale Rehearsal: 41 M Assignments": architecture/scale-rehearsal.md

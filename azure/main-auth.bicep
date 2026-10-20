@@ -21,9 +21,10 @@
 //      hostname, with an `access` scope exposed at Application ID URI
 //      `api://<client-id>`.
 //
-// To turn auth OFF: re-run Step 1 against the same RG. Step 1 declares
-// AUTH_ENABLED=false in its appsettings (a full replace), which wipes
-// AUTH_TENANT_ID and AUTH_CLIENT_ID too.
+// Step 1 replaces the whole app settings list, so re-running it clears what
+// this step set — then run this step again. A deployment that is redeployed
+// routinely (managed as code, upgraded by pipeline) should instead pass
+// entraTenantId / entraClientId to Step 1 itself, which keeps them.
 
 targetScope = 'resourceGroup'
 

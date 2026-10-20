@@ -190,6 +190,18 @@ Describe 'A redeploy that changes nothing rotates nothing' {
         $rotating | Should -BeNullOrEmpty -Because 'a fresh default per deployment restarts the containers that receive it on every run'
     }
 
+    # The app settings are replaced as a whole on every deployment, so sign-in
+    # survives a redeploy only when it is one of the template's own inputs.
+    It 'keeps Entra sign-in configured when it is passed to the template' {
+        $web = & $script:Module 'app-service'
+        $web.properties.parameters.entraTenantId.value | Should -BeExactly "[parameters('entraTenantId')]"
+        $web.properties.parameters.entraClientId.value | Should -BeExactly "[parameters('entraClientId')]"
+        $settings = ($web.properties.template.resources | Where-Object type -eq 'Microsoft.Web/sites').properties.siteConfig.appSettings
+        $settings | Should -Match ([regex]::Escape("createObject('name', 'AUTH_TENANT_ID', 'value', parameters('entraTenantId'))"))
+        $settings | Should -Match ([regex]::Escape("createObject('name', 'AUTH_CLIENT_ID', 'value', parameters('entraClientId'))"))
+        $script:Template.parameters.entraTenantId.defaultValue | Should -BeExactly '' -Because 'empty keeps the Step 2 path working as before'
+    }
+
     It 'reads the report generator key from Key Vault, where the bootstrap script keeps it' {
         $rg = & $script:Module 'aca-app-report-generator'
         $ref = $rg.properties.template.resources |
