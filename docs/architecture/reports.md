@@ -98,6 +98,7 @@ reviewer named "… Access Reviews"). This is stricter than the compliance view'
 done.
 
 | `high-risk-application-permissions` | `list` | One row per application (app-only) permission a service principal actually holds — an `ApplicationPermission` resource with a live `Direct` assignment — that is on the shortlist in `reports/appPermissionRisk.js`, with a fixed category and severity. See [below](#high-risk-application-permissions). |
+| `risky-applications` | `list` | One row per service principal with a 0–100 risk score and the findings behind it: reputation, permissions, consent, set-up, credentials, ownership and activity. See [below](#risky-applications). |
 
 ### High-risk application permissions
 
@@ -125,6 +126,50 @@ shortlist assigns one. A choice can be kept as a [saved view](#saved-views). The
 `targetApiAppId` on each permission. For data crawled before that, the report falls back to the API's
 own service-principal record, and it states how many grants it could not identify. An empty result
 says that nothing was collected, because the phase is off by default.
+
+### Risky applications
+
+`risky-applications` judges each enterprise application, managed identity and AI agent as a whole.
+High-risk application permissions lists grants; this report scores the app. Each row is one service
+principal with a 0–100 score, a level, its three main reasons, and in the *Findings* column every
+finding with its points.
+
+The score is a **sum of named findings**, not a model. Every point traces to one sentence a reviewer
+can check in Entra. The rules and their weights live in one table (`POINTS` in
+`reports/appRiskRules.js`):
+
+| Category | Findings |
+|---|---|
+| Reputation | appId on the OAuthSentry malicious-app list (overrides everything: Critical, 100); Microsoft-looking name registered in another organisation's tenant; third-party app without a verified publisher |
+| Permissions | highest app-only permission tier; several high-risk app-only permissions |
+| Consent | scopes an administrator consented to for every user; scopes users consented to themselves (more when ten or more did) |
+| Configuration | public-client flows allowed (ROPC, device code); implicit grant issuing access tokens; wildcard or off-machine `http` redirect URIs; one of this tenant's apps open to any organisation |
+| Credentials | a secret valid for more than two, or more than ten, years; secrets on the enterprise application itself; expired credentials left behind; three or more valid secrets; federated credentials that match a pattern |
+| Ownership | disabled or deleted owners; guest owners; user owners of an app with critical app-only permissions (they can add a secret and act as it); no owner on this tenant's high-reach app |
+| Activity | high-reach app unused for `inactiveDays`; app created in the last 30 days that already holds critical permissions |
+
+Levels: Critical from 60, High from 35, Medium from 15, Low above 0. A disabled app keeps its
+findings but counts half.
+
+**One permission tier.** `reports/appRiskPermissions.js` combines the two lists that already existed.
+The appId-keyed shortlist above (`appPermissionRisk.js`) decides app-only permissions it names. The
+name tiering of the risky-consent plugin (`riskyConsentRiskMap.js`) covers delegated scopes and the
+rest. That name tiering is applied only to Microsoft's own APIs, matched by appId. Anything else is
+*Unknown* and adds nothing.
+
+**Coverage.** The report reads what the crawler's toggles collected. *Service Principals* defines the
+apps. *Application Permissions*, *OAuth2 Delegated Grants*, *App Owners* and *App Registrations &
+Credentials* each feed their rules. A rule whose data was not collected stays silent: "no owners"
+is only said when owners were crawled. A notice names every missing source, and also says when the
+malicious-app list could not be read. Microsoft's first-party apps (registered in Microsoft's own
+tenants) are left out unless `includeMicrosoft` is on.
+
+| Parameter | Default | What it does |
+|---|---|---|
+| `minimumLevel` | Medium | Leave out apps below this level |
+| `includeMicrosoft` | off | Include Microsoft's first-party apps |
+| `useThreatFeed` | on | Look up each appId in the OAuthSentry list (needs internet access; a failure becomes a notice, not an error) |
+| `inactiveDays` | 90 | When a high-reach app counts as unused |
 
 Orphaned Accounts shares its definition with the `orphaned-accounts` **context plugin** via
 `app/api/src/accountlinking/orphanQuery.js`. That is deliberate: the report and the context answer
