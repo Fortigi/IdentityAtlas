@@ -107,12 +107,20 @@ describe('ContextOwnerPage — one context', () => {
     expect(screen.queryByRole('button', { name: /Payroll team/ })).not.toBeInTheDocument();
   });
 
-  it('shows no Actions on an org unit: no matrix (out of reach) and no report (applications only)', async () => {
+  it('offers the unit report on a unit of people, without the matrix or the coming-soon surveys', async () => {
     mount([ctx(UNIT, 'Finance', 'Responsible')]);
-    await screen.findByText('Alice Member');
-    expect(screen.queryByRole('region', { name: 'Actions' })).not.toBeInTheDocument();
+    const card = await screen.findByTestId('action-download-unit-report');
+    expect(within(card).getByRole('button', { name: 'Download (Excel)' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /View in matrix/ })).not.toBeInTheDocument();
     expect(screen.queryByTestId('action-download-report')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('action-manager-survey')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('action-review-members')).not.toBeInTheDocument();
+  });
+
+  it('shows no Actions on a unit of resources: no matrix (out of reach) and no report for it', async () => {
+    mount([ctx(UNIT, 'Finance', 'Responsible')], undefined, { targetType: 'Resource' });
+    await screen.findByText('Alice Member');
+    expect(screen.queryByRole('region', { name: 'Actions' })).not.toBeInTheDocument();
   });
 
   it('offers the report on an application they own, still without the matrix', async () => {

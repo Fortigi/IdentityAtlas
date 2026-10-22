@@ -169,18 +169,6 @@ export function contextSubtitle(attrs) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-// The note above the members table in edit mode: which members stay and
-// which refresh. null where every member is kept as left (created here).
-export function memberEditNote(attrs) {
-  if (attrs?.variant === 'generated') {
-    return `Members you add here are kept. The rest is refreshed automatically from ${ruleSourcePhrase(attrs)}.`;
-  }
-  if (attrs?.variant === 'synced') {
-    return `Members are refreshed automatically from ${attrs.scopeSystemName || 'the import'}.`;
-  }
-  return null;
-}
-
 const OTHER_CATEGORY_META = {
   label: 'Other', groupLabel: 'Other',
   description: 'No template: the context type is not one of the four templates.',

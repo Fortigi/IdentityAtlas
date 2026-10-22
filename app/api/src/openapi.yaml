@@ -862,6 +862,25 @@ paths:
                         description: >
                           True when the report stopped at its row cap, so `rows` holds only the first
                           `total` rows. Custom reports cap at their definition's limit (1,000 by default).
+                      details:
+                        type: array
+                        description: >
+                          Facts about what the run covers, as titled blocks of label/value pairs. The
+                          Entitlement Pivot returns one block per context: every attribute, the
+                          Accountable and Responsibles, or the suggested Accountable and why. Empty for
+                          a report that has none. The xlsx download writes them on its Summary tab;
+                          csv and json downloads leave them out.
+                        items:
+                          type: object
+                          properties:
+                            title: { type: string }
+                            entries:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  label: { type: string }
+                                  value: {}
                       generatedAt:
                         type: string
                         format: date-time
@@ -2999,6 +3018,18 @@ components:
         displayName: { type: string, nullable: true }
         addedBy: { type: string, enum: [sync, algorithm, analyst] }
         addedAt: { type: string, format: date-time }
+        holderCount:
+          type: integer
+          description: Resource members only — distinct holders of the resource (live assignments).
+        ownerDisplayName:
+          type: string
+          nullable: true
+          description: >
+            Resource members only — the owner: through the ownership link, else the source's ownerId
+            resolved to an account, else the source's ownerName as-is.
+        ownerEmployeeId: { type: string, nullable: true, description: Resource members only. }
+        ownerEmail: { type: string, nullable: true, description: Resource members only. }
+      additionalProperties: true
     ContextRole:
       type: object
       description: Who answers for a context; the holder is an account or a person, exactly one.

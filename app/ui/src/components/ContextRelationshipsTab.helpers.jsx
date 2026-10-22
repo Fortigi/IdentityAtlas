@@ -30,8 +30,9 @@ export function accountTypeWord(principalType) {
 }
 
 // The columns after Name, per kind of member — what the API returns for it
-// (MEMBER_COLUMNS in routes/contexts/read.js). `value` decides whether a row
-// has something to show; `render` draws it.
+// (MEMBER_COLUMNS in routes/contexts/read.js; a resource also gets holderCount
+// and its owner from contexts/resourceMemberFacts.js). `value` decides whether a
+// row has something to show; `render` draws it; `align: 'right'` for numbers.
 export const MEMBER_TABLE_COLUMNS = {
   Principal: [
     { label: 'Email', value: m => m.email, render: m => muted(m.email) },
@@ -48,6 +49,14 @@ export const MEMBER_TABLE_COLUMNS = {
     { label: 'Type', value: m => m.resourceType, render: m => pill(m.resourceType) },
     { label: 'Description', value: m => m.description, render: m => muted(m.description) },
     { label: 'Status', value: m => m.enabled, render: m => status(m.enabled) },
+    {
+      label: 'Users', align: 'right', value: m => m.holderCount,
+      render: m => <span className="tabular-nums text-gray-700 dark:text-gray-300">{Number(m.holderCount).toLocaleString('en-US')}</span>,
+    },
+    {
+      label: 'Owner', value: m => m.ownerDisplayName,
+      render: m => <span className="text-gray-700 dark:text-gray-300" title={m.ownerEmail || undefined}>{m.ownerDisplayName}</span>,
+    },
   ],
   System: [
     { label: 'Description', value: m => m.description, render: m => muted(m.description) },
@@ -62,20 +71,17 @@ const hasValue = (v) => v !== null && v !== undefined && v !== '';
 export function visibleMemberColumns(targetType, members) {
   return (MEMBER_TABLE_COLUMNS[targetType] || [])
     .filter(c => members.some(m => hasValue(c.value(m))))
-    .map(c => ({ label: c.label, render: m => (hasValue(c.value(m)) ? c.render(m) : null) }));
+    .map(c => ({ label: c.label, align: c.align, render: m => (hasValue(c.value(m)) ? c.render(m) : null) }));
 }
 
-// The action cell of a member row in edit mode:
-//   remove   the member can be taken out and stays out
-//   note     it cannot — shown with sub-units included (the row may belong to
-//            a sub-unit), or because the rule that derived the unit puts it
-//            back on its next refresh ("from the rule")
-export function memberRowAction(member, attrs, includeDescendants) {
+// The action cell of a member row in edit mode (which only a context created
+// here has, so every removal lasts):
+//   remove   the member can be taken out
+//   note     not from this list — shown with sub-units included, where the row
+//            may belong to a sub-unit
+export function memberRowAction(includeDescendants) {
   if (includeDescendants) {
     return { kind: 'note', text: '—', title: 'Turn off "Include sub-units" to remove members' };
-  }
-  if (attrs.variant === 'generated' && member.addedBy === 'algorithm') {
-    return { kind: 'note', text: 'from the rule', title: 'Refreshed automatically; removing it here would not last' };
   }
   return { kind: 'remove' };
 }
