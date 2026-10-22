@@ -88,6 +88,24 @@ know renders an explanatory panel rather than breaking the page.
 | `orphaned-accounts` | `list` | Accounts with no `IdentityMembers` row — i.e. belonging to no identity — excluding service principals, managed identities and AI agents, with the detected account type for each. |
 | `application-access-review` | `list` | *Entitlement Pivot* (slug kept from its first name, Application Access Review, so links and saved views keep working) — one row per resource of one or more contexts of resources (a logical application, a department, a tag; any resource type), with the business roles that grant it and its holders split Direct vs via a role. The other columns, and the rows and filters of its two pivots, are **fields the reader picks** — see [Columns the reader picks](#columns-the-reader-picks). |
 
+| `high-risk-application-permissions` | `list` | One row per application (app-only) permission a service principal actually holds — an `ApplicationPermission` resource with a live `Direct` assignment — that is on the shortlist in `reports/appPermissionRisk.js`, with a fixed category and severity. See [below](#high-risk-application-permissions). |
+
+### High-risk application permissions
+
+Reads what the Entra ID crawler's `SyncAppPermissions` phase stores from
+`/servicePrincipals/{id}/appRoleAssignments`: the app roles an SP was **granted** on another API. It
+can never show a permission that was only requested, because the crawler does not store
+`requiredResourceAccess`. Delegated consent (`DelegatedPermission`) and users' assignments to an app's
+own roles (`AppRole`) are other resource types and are not read. Revoked grants drop out because the
+phase full-syncs its scope, which soft-deletes what Graph no longer returns.
+
+The shortlist is keyed by the target API's **appId** (the same in every tenant), then by the exact
+permission value. A role called `Mail.Read` on any API that is not listed is never classified. Extend
+the list by adding a permission to an API's map, or an API with its appId. The crawler stamps
+`targetApiAppId` on each permission. For data crawled before that, the report falls back to the API's
+own service-principal record, and it states how many grants it could not identify. An empty result
+says that nothing was collected, because the phase is off by default.
+
 Orphaned Accounts shares its definition with the `orphaned-accounts` **context plugin** via
 `app/api/src/accountlinking/orphanQuery.js`. That is deliberate: the report and the context answer
 the same question, so they must not be able to drift apart. Note that before account linking has run

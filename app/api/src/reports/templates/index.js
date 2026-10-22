@@ -8,6 +8,7 @@ import accessOutsideRoles from './access-outside-roles.js';
 import applicationAccessReview from './application-access-review.js';
 import disabledAccountsWithAccess from './disabled-accounts-with-access.js';
 import emptyGroups from './empty-groups.js';
+import highRiskApplicationPermissions from './high-risk-application-permissions.js';
 import missingManagers from './missing-managers.js';
 import neverSignedIn from './never-signed-in.js';
 import orphanedAccounts from './orphaned-accounts.js';
@@ -21,6 +22,7 @@ export const BUILT_IN_REPORTS = [
   applicationAccessReview,
   disabledAccountsWithAccess,
   emptyGroups,
+  highRiskApplicationPermissions,
   missingManagers,
   neverSignedIn,
   orphanedAccounts,
