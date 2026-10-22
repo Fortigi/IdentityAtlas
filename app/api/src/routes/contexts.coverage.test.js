@@ -349,6 +349,7 @@ describe('GET /contexts/:id/members', () => {
     expect(res.body.data).toEqual([{
       id: ID2, displayName: 'ENT_A', resourceType: 'Entitlement',
       holderCount: 7, ownerDisplayName: 'Gone Person', ownerEmployeeId: null, ownerEmail: null,
+      ownerPrincipalId: null,
     }]);
     // Page, holders, owner links — no read per row, and no reference read without an ownerId.
     expect(query).toHaveBeenCalledTimes(3);

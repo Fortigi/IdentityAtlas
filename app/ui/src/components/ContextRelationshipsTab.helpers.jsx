@@ -49,19 +49,34 @@ export const MEMBER_TABLE_COLUMNS = {
     { label: 'Type', value: m => m.resourceType, render: m => pill(m.resourceType) },
     { label: 'Description', value: m => m.description, render: m => muted(m.description) },
     { label: 'Status', value: m => m.enabled, render: m => status(m.enabled) },
+    // Owner before Users: a left-aligned name next to the right-aligned count
+    // ran the two together. A resolved owner links to the account.
+    { label: 'Owner', value: m => m.ownerDisplayName, render: (m, ctx) => ownerCell(m, ctx) },
     {
       label: 'Users', align: 'right', value: m => m.holderCount,
       render: m => <span className="tabular-nums text-gray-700 dark:text-gray-300">{Number(m.holderCount).toLocaleString('en-US')}</span>,
-    },
-    {
-      label: 'Owner', value: m => m.ownerDisplayName,
-      render: m => <span className="text-gray-700 dark:text-gray-300" title={m.ownerEmail || undefined}>{m.ownerDisplayName}</span>,
     },
   ],
   System: [
     { label: 'Description', value: m => m.description, render: m => muted(m.description) },
   ],
 };
+
+// The owner's name; a link to the account when it resolved to one and the page
+// can open it (not in a read-only view). The row itself opens the resource, so
+// the click stops here.
+function ownerCell(m, { onOpenDetail } = {}) {
+  if (!m.ownerPrincipalId || !onOpenDetail) {
+    return <span className="text-gray-700 dark:text-gray-300" title={m.ownerEmail || undefined}>{m.ownerDisplayName}</span>;
+  }
+  return (
+    <button type="button" title={m.ownerEmail || undefined}
+      className="text-left text-blue-700 dark:text-blue-300 hover:underline"
+      onClick={(e) => { e.stopPropagation(); onOpenDetail('user', m.ownerPrincipalId, m.ownerDisplayName); }}>
+      {m.ownerDisplayName}
+    </button>
+  );
+}
 
 const hasValue = (v) => v !== null && v !== undefined && v !== '';
 
@@ -71,7 +86,7 @@ const hasValue = (v) => v !== null && v !== undefined && v !== '';
 export function visibleMemberColumns(targetType, members) {
   return (MEMBER_TABLE_COLUMNS[targetType] || [])
     .filter(c => members.some(m => hasValue(c.value(m))))
-    .map(c => ({ label: c.label, align: c.align, render: m => (hasValue(c.value(m)) ? c.render(m) : null) }));
+    .map(c => ({ label: c.label, align: c.align, render: (m, ctx) => (hasValue(c.value(m)) ? c.render(m, ctx) : null) }));
 }
 
 // The action cell of a member row in edit mode (which only a context created
