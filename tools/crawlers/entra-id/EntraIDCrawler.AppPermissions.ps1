@@ -46,7 +46,7 @@ function Format-FGApplicationPermissionName {
 # stays under the cognitive-complexity ratchet — the value-coalescing (which is what
 # drives the count up) lives here at nesting 0 instead of inside the foreach.
 #   $AppRoleNameById maps "targetApiSpId|appRoleId" -> the permission name (e.g. "Mail.Read").
-#   $SpInfo maps an SP id -> @{ displayName; principalType } (the crawler's classified type).
+#   $SpInfo maps an SP id -> @{ displayName; principalType; appId } (the crawler's classified type).
 function Resolve-EntraAppPermissionFields {
     [CmdletBinding()]
     param(
@@ -64,7 +64,24 @@ function Resolve-EntraAppPermissionFields {
     $targetName = if ($Assignment.resourceDisplayName) { $Assignment.resourceDisplayName }
                   elseif ($SpInfo[$targetId]) { $SpInfo[$targetId].displayName }
                   else { $targetId }
-    return @{ permName = $permName; clientName = $clientName; clientType = $clientType; targetName = $targetName }
+    return @{
+        permName = $permName; clientName = $clientName; clientType = $clientType; targetName = $targetName
+        clientAppId = (Get-EntraSpAppId -SpInfo $SpInfo -SpId $clientId)
+        targetAppId = (Get-EntraSpAppId -SpInfo $SpInfo -SpId $targetId)
+    }
+}
+
+# The application (client) id of an SP from the index, or $null when the SP is not
+# in it. The SP object id is tenant-specific; the appId is the same in every tenant,
+# so it is what identifies "Microsoft Graph" (00000003-0000-0000-c000-000000000000)
+# stably — a permission value alone does not, because any API may issue one with
+# the same name.
+function Get-EntraSpAppId {
+    [CmdletBinding()]
+    param([hashtable]$SpInfo = @{}, [string]$SpId)
+    $info = $SpInfo[$SpId]
+    if ($info -and $info.appId) { return [string]$info.appId }
+    return $null
 }
 
 # Builds the application-permission graph from a service principal's appRoleAssignments
@@ -96,7 +113,7 @@ function ConvertTo-EntraAppPermissionGraph {
                 displayName  = (Format-FGApplicationPermissionName -Permission $f.permName -TargetName $f.targetName -ClientName $f.clientName)
                 resourceType = 'ApplicationPermission'
                 enabled      = $true
-                extendedAttributes = @{ clientSpId = $clientId; clientDisplayName = $f.clientName; targetApiSpId = $targetId; targetApiDisplayName = $f.targetName; appRoleId = $appRoleId; permission = $f.permName }
+                extendedAttributes = @{ clientSpId = $clientId; clientDisplayName = $f.clientName; clientAppId = $f.clientAppId; targetApiSpId = $targetId; targetApiDisplayName = $f.targetName; targetApiAppId = $f.targetAppId; appRoleId = $appRoleId; permission = $f.permName }
             }
         }
         $relKey = "$clientId|$permResId"
@@ -109,7 +126,7 @@ function ConvertTo-EntraAppPermissionGraph {
             principalType  = $f.clientType
             assignmentType = 'Direct'
             resourceType   = 'ApplicationPermission'
-            extendedAttributes = @{ assignmentId = $a.id; targetApiSpId = $targetId; targetApiDisplayName = $f.targetName; appRoleId = $appRoleId; permission = $f.permName }
+            extendedAttributes = @{ assignmentId = $a.id; targetApiSpId = $targetId; targetApiDisplayName = $f.targetName; targetApiAppId = $f.targetAppId; appRoleId = $appRoleId; permission = $f.permName }
         })
     }
     return @{
@@ -131,7 +148,7 @@ function Get-EntraAppRoleName {
 }
 
 # Build the lookup index from the service-principal list: spInfo (id -> @{ displayName;
-# principalType }) via the classifier, appRoleNameById ("targetApiSpId|appRoleId" ->
+# principalType; appId }) via the classifier, appRoleNameById ("targetApiSpId|appRoleId" ->
 # permission name, from every SP's own appRoles catalog — target APIs like Microsoft
 # Graph are just SPs), and spById (id -> SP object, for ensure-exists). Pure.
 function Get-EntraAppPermissionIndex {
@@ -142,7 +159,7 @@ function Get-EntraAppPermissionIndex {
         $pt = if (Get-Command Get-FGServicePrincipalType -ErrorAction SilentlyContinue) {
             Get-FGServicePrincipalType -ServicePrincipal $sp -AINamePatterns $AINamePatterns
         } else { 'ServicePrincipal' }
-        $spInfo[$sp.id] = @{ displayName = $sp.displayName; principalType = $pt }
+        $spInfo[$sp.id] = @{ displayName = $sp.displayName; principalType = $pt; appId = $sp.appId }
         $spById[$sp.id] = $sp
         foreach ($ar in @($sp.appRoles)) {
             if ($ar.id) {

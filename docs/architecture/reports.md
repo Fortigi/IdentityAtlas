@@ -97,6 +97,35 @@ reviewer named "… Access Reviews"). This is stricter than the compliance view'
 `decision <> 'NotReviewed'`, which counts a review Entra ID closed by applying its default decision as
 done.
 
+| `high-risk-application-permissions` | `list` | One row per application (app-only) permission a service principal actually holds — an `ApplicationPermission` resource with a live `Direct` assignment — that is on the shortlist in `reports/appPermissionRisk.js`, with a fixed category and severity. See [below](#high-risk-application-permissions). |
+
+### High-risk application permissions
+
+Reads what the Entra ID crawler's `SyncAppPermissions` phase stores from
+`/servicePrincipals/{id}/appRoleAssignments`: the app roles an SP was **granted** on another API. It
+can never show a permission that was only requested, because the crawler does not store
+`requiredResourceAccess`. Delegated consent (`DelegatedPermission`) and users' assignments to an app's
+own roles (`AppRole`) are other resource types and are not read. Revoked grants drop out because the
+phase full-syncs its scope, which soft-deletes what Graph no longer returns.
+
+The shortlist is keyed by the target API's **appId** (the same in every tenant), then by the exact
+permission value. A role called `Mail.Read` on any API that is not listed is never classified. Extend
+the list by adding a permission to an API's map, or an API with its appId.
+
+A reader can change the selection per run, without a code change. There are two parameters:
+
+| Parameter | What it does |
+|---|---|
+| `includeStandard` | On by default. Off lists only the additions. |
+| `extraPermissions` | Further permissions to list, picked through the `application-permissions` lookup. That lookup offers the permissions actually granted in this deployment, with the API and the number of holding apps. |
+
+A pick is stored as `<apiAppId>|<permission>`, so it selects that permission on that API only. An
+added permission carries the category *Added to this report* and no severity, because only the
+shortlist assigns one. A choice can be kept as a [saved view](#saved-views). The crawler stamps
+`targetApiAppId` on each permission. For data crawled before that, the report falls back to the API's
+own service-principal record, and it states how many grants it could not identify. An empty result
+says that nothing was collected, because the phase is off by default.
+
 Orphaned Accounts shares its definition with the `orphaned-accounts` **context plugin** via
 `app/api/src/accountlinking/orphanQuery.js`. That is deliberate: the report and the context answer
 the same question, so they must not be able to drift apart. Note that before account linking has run

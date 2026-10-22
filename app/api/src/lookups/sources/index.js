@@ -5,10 +5,12 @@
 // the parameter form — knows a source by name.
 
 import accessReviewFields from './access-review-fields.js';
+import applicationPermissions from './application-permissions.js';
 import resourceContexts from './resource-contexts.js';
 
 /** @type {import('../types.js').LookupSource[]} */
 export const BUILT_IN_LOOKUPS = [
   accessReviewFields,
+  applicationPermissions,
   resourceContexts,
 ];
