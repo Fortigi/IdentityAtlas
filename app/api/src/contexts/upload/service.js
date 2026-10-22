@@ -89,6 +89,8 @@ async function prepare({ uploadDraftId, mapping: input, listId }, db) {
   if (errors.length) throw new UploadError(400, 'The mapping is not complete.', errors);
   const list = listId ? await findList(db, listId) : null;
   if (listId && !list) throw new UploadError(404, 'That uploaded list does not exist any more.');
+  // A list keeps its name: its system is named after it.
+  if (list) mapping.listName = listNameOf(list);
   const plan = planUnits(rows, mapping);
   const matches = await matchAll(db, memberValues(plan.units));
   const responsibleValues = [...new Set(plan.units.flatMap(u => u.responsibles))];

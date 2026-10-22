@@ -103,13 +103,21 @@ row inserters of `routes/ingest/contextLinks.js`). There is no parallel writer.
   scoped to the system, so a batch per tree would delete the other tree).
   Ids are computed with the ingest's own `deterministicGuid`, namespaced per
   tree, and sent with `parentContextId` already resolved.
-  `removeMissing = false` (default) runs the batch as a delta — contexts not in
-  the file are kept and reported as *not in this file*; `true` runs it as a full
-  sync scoped to `{ variant: 'synced', scopeSystemId }`.
+  The batch is always a full sync scoped to `{ variant: 'synced', scopeSystemId }`
+  — a delta would keep a stored value for a cell the file has emptied
+  (`COALESCE`). With `removeMissing = false` (default) the contexts not in the
+  file are kept by sending them back unchanged, and reported as *not in this
+  file*; with `true` they are left out, so the full sync removes them.
 - **Members.** One full-sync batch for the list. The ingest bounds that delete
   to memberships of contexts the system owns and never touches an analyst's
   own memberships. A kept context's existing memberships are sent along, so
-  keeping a context also keeps its members.
+  keeping a context also keeps its members. (An upload whose member columns
+  match nobody at all sends an empty batch, which the ingest treats as "nothing
+  to say": the previous memberships then stay.)
+- **Batch size.** The ingest takes 50,000 records per batch; two trees of a
+  large list, or its memberships, can be more, and then go as one ingest
+  session (start / continue / end), which reconciles at its end exactly as one
+  batch would.
 - **Root.** `externalId = '__root__'`, `displayName` = the list name. Rows go
   under it, or under their parent row when a parent column is mapped.
 

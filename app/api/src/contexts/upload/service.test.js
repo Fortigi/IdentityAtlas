@@ -213,6 +213,15 @@ describe('applyUpload — re-import of the same list', () => {
     expect(s.members.filter(m => m.contextId === k1).map(m => m.memberId)).toEqual(['P-bob']);
   });
 
+  it('an existing list keeps its name, whatever name the mapping sends', async () => {
+    const s = fakeStore();
+    const a = await analyzed(s);
+    await applyUpload({ uploadDraftId: a.uploadDraftId, mapping: a.guess }, 'a', s);
+    const b = await analyzed(s, V2, 'klanten-v2.csv', 11);
+    const p = await previewUpload({ uploadDraftId: b.uploadDraftId, mapping: { ...b.guess, listName: 'Renamed' }, listId: 11 }, { db: s.db });
+    expect(p.trees[0].name).toBe('Klanten');
+  });
+
   it('with removeMissing the contexts not in the file are removed', async () => {
     const { s, r } = await twice(true);
     expect(s.contexts.some(c => c.externalId === 'K2')).toBe(false);
