@@ -1,4 +1,0 @@
-- Added an "App Registrations & Credentials" option to the Entra ID crawler. It reads every app registration with its secret and certificate dates (never the values), whether public-client flows such as ROPC and device-code sign-in are allowed, redirect URIs, implicit grant settings, requested permissions and federated credentials.
-- Service principals now carry their own credentials (a secret on the service principal is hidden from the portal's App registrations page), verified publisher, sign-in audience, reply URLs and whether users need an assignment to sign in.
-- OAuth2 consent grants now include tenant-wide admin consents. They mark the consented scope as admin-consented instead of being skipped, and per-user consents are labelled as such.
-- Application (app-only) permissions now record when each permission was granted.

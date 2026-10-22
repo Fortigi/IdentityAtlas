@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Added an "App Registrations & Credentials" option to the Entra ID crawler. It reads every app registration with its secret and certificate dates (never the values), whether public-client flows such as ROPC and device-code sign-in are allowed, redirect URIs, implicit grant settings, requested permissions and federated credentials.
+- Service principals now carry their own credentials (a secret on the service principal is hidden from the portal's App registrations page), verified publisher, sign-in audience, reply URLs and whether users need an assignment to sign in.
+- OAuth2 consent grants now include tenant-wide admin consents. They mark the consented scope as admin-consented instead of being skipped, and per-user consents are labelled as such.
+- Application (app-only) permissions now record when each permission was granted.
+
+## Changes in this PR
+
 - Added the **Access Review Adoption** report. It lists each business role with when a person last really reviewed it, longest ago first. Reviews that Entra ID completed by applying the default decision because nobody responded do not count as reviewed. Roles never reviewed and roles too new for a review are listed as their own categories. Roles whose policies do not require an access review are left out, unless you choose to include them.
 - Added the **Access Reviewer Response** report. It lists each reviewer with how many reviews they were asked to do, how many they answered themselves and how they decided, so you can see whom to follow up with and whom to thank.
 - Report Excel downloads can now open with pie charts. Both new reports have two, plus ready-made pivot tables.
