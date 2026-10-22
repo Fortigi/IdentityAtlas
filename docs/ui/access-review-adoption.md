@@ -53,6 +53,12 @@ Besides the status, each row shows:
 
 Both thresholds are settings of the report. You can store your own as a saved view.
 
+**Roles that do not require a review are left out.** A role is left out when it has assignment policies,
+none of them has *Require access reviews* switched on, and it has never been reviewed. A notice above
+the table says how many roles were left out. Switch on **Include roles that do not require a review** to
+show them; the *Review required* column then says *No* for them. A role is never left out when there is
+no policy information for it, or when it was reviewed anyway.
+
 ## Access Reviewer Response: per reviewer
 
 This report shows who was asked to review and whether they did it themselves.

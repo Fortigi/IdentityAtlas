@@ -24,7 +24,7 @@ let pool;
 let systemId;
 
 const people = { ann: randomUUID(), bob: randomUUID(), member: randomUUID() };
-const roles = { reviewed: randomUUID(), auto: randomUUID(), none: randomUUID(), fresh: randomUUID() };
+const roles = { reviewed: randomUUID(), auto: randomUUID(), none: randomUUID(), fresh: randomUUID(), notRequired: randomUUID() };
 const DAY = 86400000;
 const ago = days => new Date(Date.now() - days * DAY).toISOString();
 
@@ -58,6 +58,17 @@ beforeAll(async () => {
   await role(roles.auto, 'CT auto-applied', 700);
   await role(roles.none, 'CT never reviewed', 700);
   await role(roles.fresh, 'CT brand new', 5);
+  await role(roles.notRequired, 'CT review not required', 700);
+
+  // Policies: "CT never reviewed" requires a review (so it stays, red); "CT
+  // review not required" has two policies and neither requires one (left out).
+  const policy = (resourceId, hasAccessReview) => pool.query(
+    `INSERT INTO "AssignmentPolicies" ("systemId", "resourceId", "displayName", "hasAccessReview")
+     VALUES ($1, $2, 'CT policy', $3)`, [systemId, resourceId, hasAccessReview]);
+  await policy(roles.none, true);
+  await policy(roles.none, false);
+  await policy(roles.notRequired, false);
+  await policy(roles.notRequired, false);
 
   // The same member held twice — governed intent and actual — is one member.
   for (const governed of [false, true]) {
@@ -78,6 +89,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await pool.query(`DELETE FROM "CertificationDecisions" WHERE "systemId" = $1`, [systemId]);
+  await pool.query(`DELETE FROM "AssignmentPolicies" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "Resources" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "Principals" WHERE "systemId" = $1`, [systemId]);
@@ -103,8 +115,16 @@ describe('GET /reports/access-review-adoption/rows', () => {
       status: 'Never reviewed by a person', reviews: 2, humanReviews: 0, lastHumanReview: null,
       latestReviewDecisions: 1, latestReviewByPerson: 0, latestReviewNotByPerson: 1,
     });
-    expect(by['CT never reviewed']).toMatchObject({ status: 'No review yet', reviews: 0 });
-    expect(by['CT brand new']).toMatchObject({ status: 'New, no review yet' });
+    expect(by['CT never reviewed']).toMatchObject({ status: 'No review yet', reviews: 0, reviewRequired: 'Yes' });
+    expect(by['CT brand new']).toMatchObject({ status: 'New, no review yet', reviewRequired: null });
+    expect(res.body.notices.some(n => /left out because none of their policies requires/.test(n.text))).toBe(true);
+  });
+
+  it('shows a role that does not require a review when asked to', async () => {
+    const res = await agent.get('/api/reports/access-review-adoption/rows?includeNotRequired=true');
+    expect(res.status).toBe(200);
+    const row = res.body.rows.find(r => r.businessRole === 'CT review not required');
+    expect(row).toMatchObject({ status: 'No review yet', reviewRequired: 'No' });
   });
 
   it('downloads a workbook with the charts tab', async () => {

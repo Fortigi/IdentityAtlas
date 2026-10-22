@@ -11,7 +11,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../db/connection.js');
 import { query } from '../../db/connection.js';
 import report, {
-  ROLE_REVIEW_SQL, STATUS, STATUS_COLORS, STATUS_ORDER, buildRow, classify, compareRows, isNewRole, share, summaries,
+  ROLE_REVIEW_SQL, STATUS, STATUS_COLORS, STATUS_ORDER, buildRow, classify, compareRows, isNewRole, isTrue,
+  reviewNotRequired, reviewRequiredLabel, share, splitNotRequired, summaries,
 } from './access-review-adoption.js';
 
 const NOW = new Date('2026-10-22T12:00:00Z');
@@ -23,7 +24,7 @@ const role = (over = {}) => ({
   id: 'br-1', displayName: 'Finance clerk', systemName: 'Entra ID', createdDateTime: daysAgo(800),
   reviews: 3, humanReviews: 2, lastHumanAt: daysAgo(30),
   latestEndsAt: daysAgo(20), latestStatus: 'Completed', latestDecisions: 4, latestByPerson: 4,
-  defaultDecision: 'Approve', lastHumanReviewer: 'Ann Manager', members: 12,
+  defaultDecision: 'Approve', lastHumanReviewer: 'Ann Manager', members: 12, policies: 1, reviewRequired: true,
   ...over,
 });
 
@@ -72,6 +73,59 @@ describe('classify', () => {
   });
 });
 
+describe('roles that do not require a review', () => {
+  // Never reviewed, has policies, and every policy says "no review".
+  const notRequired = role({ reviews: 0, policies: 2, reviewRequired: false });
+
+  it('is only a role with policies, none requiring review, and no review ever held', () => {
+    expect(reviewNotRequired(notRequired)).toBe(true);
+    // One policy requiring review is enough to keep it.
+    expect(reviewNotRequired({ ...notRequired, reviewRequired: true })).toBe(false);
+    // No policy data: the source may simply not say — keep it.
+    expect(reviewNotRequired({ ...notRequired, policies: 0, reviewRequired: null })).toBe(false);
+    // Policies that do not state it (null) are not a "no".
+    expect(reviewNotRequired({ ...notRequired, reviewRequired: null })).toBe(false);
+    // Reviewed anyway: the review is a fact, keep it.
+    expect(reviewNotRequired({ ...notRequired, reviews: 1 })).toBe(false);
+  });
+
+  it('are left out by default and counted, and kept when asked', () => {
+    const roles = [notRequired, role(), role({ reviews: 0, policies: 0, reviewRequired: null })];
+    const out = splitNotRequired(roles, false);
+    expect(out.kept).toEqual([roles[1], roles[2]]);
+    expect(out.left).toBe(1);
+    expect(splitNotRequired(roles, true)).toEqual({ kept: roles, left: 0 });
+  });
+
+  it('labels what the policies say, and stays empty when they say nothing', () => {
+    expect(reviewRequiredLabel(role())).toBe('Yes');
+    expect(reviewRequiredLabel(notRequired)).toBe('No');
+    expect(reviewRequiredLabel(role({ policies: 0, reviewRequired: null }))).toBeNull();
+    expect(reviewRequiredLabel(role({ policies: 1, reviewRequired: null }))).toBeNull();
+  });
+
+  it('reads the toggle from a query string', () => {
+    expect([true, 'true', 'TRUE'].map(isTrue)).toEqual([true, true, true]);
+    expect([false, 'false', '', undefined, null, '1', 1].map(isTrue)).toEqual([false, false, false, false, false, false, false]);
+  });
+
+  it('reads per role whether any policy requires a review', () => {
+    expect(ROLE_REVIEW_SQL).toContain('bool_or(p."hasAccessReview") AS "reviewRequired"');
+    expect(ROLE_REVIEW_SQL).toContain('LEFT JOIN policies pol ON pol."resourceId" = roles.id');
+  });
+
+  it('runs: leaves the not-required role out with a notice, and shows it when switched on', async () => {
+    query.mockResolvedValue({ rows: [role({ displayName: 'Board', reviews: 0, policies: 1, reviewRequired: false }), role()] });
+    const off = await report.run({}, {});
+    expect(off.rows.map(r => r.businessRole)).toEqual(['Finance clerk']);
+    expect(off.notices.at(-1).text).toMatch(/^1 business role\(s\) left out because none of their policies requires/);
+
+    const on = await report.run({ includeNotRequired: 'true' }, {});
+    expect(on.rows.map(r => [r.businessRole, r.reviewRequired])).toEqual([['Board', 'No'], ['Finance clerk', 'Yes']]);
+    expect(on.notices.some(n => /left out/.test(n.text))).toBe(false);
+  });
+});
+
 describe('isNewRole', () => {
   it('rejects an unparseable date rather than calling it new', () => {
     expect(isNewRole('not a date', 90, NOW)).toBe(false);
@@ -94,6 +148,7 @@ describe('buildRow', () => {
       businessRole: 'Finance clerk',
       systemName: 'Entra ID',
       status: STATUS.LATEST_PARTLY,
+      reviewRequired: 'Yes',
       lastHumanReview: daysAgo(30).slice(0, 10),
       daysSinceHumanReview: 30,
       lastHumanReviewer: 'Ann Manager',
@@ -185,7 +240,7 @@ describe('the template', () => {
   it('declares a list with two optional day thresholds, pivots and pies over its own columns', () => {
     expect(report).toMatchObject({ name: 'access-review-adoption', form: 'list' });
     expect(report.parametersSchema.required).toEqual([]);
-    expect(Object.keys(report.parametersSchema.properties)).toEqual(['newRoleDays', 'staleAfterDays']);
+    expect(Object.keys(report.parametersSchema.properties)).toEqual(['newRoleDays', 'staleAfterDays', 'includeNotRequired']);
     const keys = new Set(report.columns.map(c => c.key));
     for (const p of report.pivots) for (const k of [...p.rows, ...p.values]) expect(keys.has(k), k).toBe(true);
     for (const c of report.charts) {
@@ -219,7 +274,7 @@ describe('the template', () => {
       ['Ok role', STATUS.REVIEWED],
     ]);
     expect(notices[1].text).toContain('more than 365 days');
-    expect(log).toHaveBeenCalledWith('access-review-adoption report: 3 business role(s)');
+    expect(log).toHaveBeenCalledWith('access-review-adoption report: 3 business role(s), 0 left out');
   });
 
   it('honours the thresholds it is given', async () => {

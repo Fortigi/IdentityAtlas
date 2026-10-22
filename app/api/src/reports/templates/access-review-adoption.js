@@ -94,12 +94,20 @@ export default {
           + 'that review was done properly.',
         default: DEFAULT_STALE_AFTER_DAYS,
       },
+      includeNotRequired: {
+        type: 'boolean',
+        title: 'Include roles that do not require a review',
+        description: 'A role none of whose assignment policies requires an access review, and that has '
+          + 'never had one, is left out by default: it is not missing anything.',
+        default: false,
+      },
     },
   },
   columns: [
     { key: 'businessRole', label: 'Business role' },
     { key: 'systemName', label: 'System' },
     { key: 'status', label: 'Status' },
+    { key: 'reviewRequired', label: 'Review required' },
     { key: 'lastHumanReview', label: 'Last review by a person' },
     { key: 'daysSinceHumanReview', label: 'Days ago' },
     { key: 'lastHumanReviewer', label: 'Last reviewer' },
@@ -133,12 +141,52 @@ export default {
       staleAfterDays: parseDays(params?.staleAfterDays, DEFAULT_STALE_AFTER_DAYS),
       now: new Date(),
     };
-    const { rows: roles } = await db.query(ROLE_REVIEW_SQL);
+    const { rows: all } = await db.query(ROLE_REVIEW_SQL);
+    const { kept: roles, left } = splitNotRequired(all, isTrue(params?.includeNotRequired));
     const rows = roles.map(role => buildRow(role, options)).sort(compareRows);
-    ctx?.log?.(`access-review-adoption report: ${rows.length} business role(s)`);
-    return { rows, notices: summaries(rows, roles, options) };
+    ctx?.log?.(`access-review-adoption report: ${rows.length} business role(s), ${left} left out`);
+    return { rows, notices: [...summaries(rows, roles, options), ...leftOutNotice(left)] };
   },
 };
+
+/** A query-string boolean: only an actual true, or the text "true", turns it on. */
+export function isTrue(value) {
+  return value === true || String(value).toLowerCase() === 'true';
+}
+
+/**
+ * Whether a role is known not to need a review: it has assignment policies,
+ * none of them requires an access review, and it has never had one. A role
+ * with no policy data at all is NOT this — its source may simply not say — and
+ * a role that was reviewed anyway stays, because that review is a fact.
+ */
+export function reviewNotRequired(role) {
+  return role.policies > 0 && role.reviewRequired === false && !role.reviews;
+}
+
+/** The roles to report on, and how many were left out as not requiring a review. */
+export function splitNotRequired(roles, include) {
+  if (include) return { kept: roles, left: 0 };
+  const kept = roles.filter(r => !reviewNotRequired(r));
+  return { kept, left: roles.length - kept.length };
+}
+
+function leftOutNotice(left) {
+  if (!left) return [];
+  return [{
+    severity: 'info',
+    text: `${left} business role(s) left out because none of their policies requires an access review `
+      + 'and they have never had one. Turn on "Include roles that do not require a review" to show them.',
+  }];
+}
+
+/** What a role's policies say about reviews, as the reader sees it. */
+export function reviewRequiredLabel(role) {
+  if (!role.policies) return null;
+  if (role.reviewRequired === true) return 'Yes';
+  if (role.reviewRequired === false) return 'No';
+  return null;
+}
 
 // ─── The one read ─────────────────────────────────────────────────────────
 
@@ -203,6 +251,12 @@ export const ROLE_REVIEW_SQL = `
       JOIN roles ON roles.id = ra."resourceId"
      WHERE ra."deletedAt" IS NULL
      GROUP BY ra."resourceId"
+  ),
+  policies AS (
+    SELECT p."resourceId", COUNT(*)::int AS policies, bool_or(p."hasAccessReview") AS "reviewRequired"
+      FROM "AssignmentPolicies" p
+      JOIN roles ON roles.id = p."resourceId"
+     GROUP BY p."resourceId"
   )
   SELECT roles.id, roles."displayName", roles."systemName", roles."createdDateTime",
          COALESCE(h.reviews, 0) AS reviews,
@@ -214,12 +268,15 @@ export const ROLE_REVIEW_SQL = `
          l."byPerson" AS "latestByPerson",
          l."defaultDecision",
          rv."reviewedByDisplayName" AS "lastHumanReviewer",
-         COALESCE(m.members, 0) AS members
+         COALESCE(m.members, 0) AS members,
+         COALESCE(pol.policies, 0) AS policies,
+         pol."reviewRequired"
     FROM roles
     LEFT JOIN history h ON h."resourceId" = roles.id
     LEFT JOIN latest l ON l."resourceId" = roles.id
     LEFT JOIN reviewer rv ON rv."resourceId" = roles.id
     LEFT JOIN members m ON m."resourceId" = roles.id
+    LEFT JOIN policies pol ON pol."resourceId" = roles.id
    ORDER BY roles."displayName", roles.id`;
 
 // ─── Classification ───────────────────────────────────────────────────────
@@ -259,6 +316,7 @@ export function buildRow(role, options) {
     businessRole: role.displayName,
     systemName: role.systemName ?? null,
     status: classify(role, options),
+    reviewRequired: reviewRequiredLabel(role),
     lastHumanReview: role.lastHumanAt ? toDateOnly(role.lastHumanAt) : null,
     daysSinceHumanReview: role.lastHumanAt ? daysBetween(new Date(role.lastHumanAt), options.now) : null,
     lastHumanReviewer: role.lastHumanReviewer ?? null,
