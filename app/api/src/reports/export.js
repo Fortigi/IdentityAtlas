@@ -144,7 +144,7 @@ export function splitConstantColumns(columns, rows, constantColumns, keep = []) 
  * blocks. Its own tab, so the Data tab is nothing but the table: row 1 is the header, and a pivot or filter built on
  * it by hand needs no range picking.
  */
-function writeSummary(sheet, { displayName, generatedAt, total, notices = [], truncated, header = [], details = [] }) {
+function writeSummary(sheet, { displayName, generatedAt, total, notices = [], truncated, header = [], details }) {
   sheet.getColumn(1).width = SUMMARY_LABEL_WIDTH;
   sheet.getColumn(2).width = MAX_WIDTH;
   sheet.getCell('A1').value = String(displayName ?? 'Report');

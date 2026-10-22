@@ -54,7 +54,7 @@ describe('/api/report-views', () => {
     const run = await agent.get(`/api/reports/${view.report}/rows`);
     expect(run.status).toBe(200);
     // The saved context name reached the report: it says it found nothing by that name.
-    expect(run.body.notices.map(n => n.text).join('\n')).toMatch(/No context of resources matches "No Such Context"/);
+    expect(run.body.notices.map(n => n.text).join('\n')).toMatch(/No context of resources or accounts matches "No Such Context"/);
     expect(run.body.columns.map(c => c.key)).toContain('entitlement.type');
   });
 
