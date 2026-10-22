@@ -12,6 +12,8 @@ import { withResourceMemberFacts } from './resourceMemberFacts.js';
 const HOLDERS_SQL = 'AS "holderCount"';
 const LINKED_SQL = '"parentResourceId" = ANY';
 const REFERENCE_SQL = 'unnest($1::text[])';
+const P1 = '11111111-1111-4111-8111-111111111111';
+const P9 = '99999999-9999-4999-8999-999999999999';
 
 function stage({ holders = [], linked = [], references = [] } = {}) {
   query.mockImplementation(async (sql) => {
@@ -32,20 +34,24 @@ describe('withResourceMemberFacts', () => {
   it('adds the holder count and the owner, and drops the attributes it read the owner from', async () => {
     stage({
       holders: [{ id: 'a', holderCount: 45000 }, { id: 'b', holderCount: 3 }],
-      linked: [{ id: 'a', ownerId: 'p1', ownerName: 'Link Owner', ownerEmail: 'l@x', ownerEmployeeId: 'E-1' }],
-      references: [{ ref: 'spt-17', id: 'p9', displayName: 'Grace Hopper', email: 'g@x', employeeId: 'E-9' }],
+      linked: [{ id: 'a', ownerId: P1, ownerName: 'Link Owner', ownerEmail: 'l@x', ownerEmployeeId: 'E-1' }],
+      references: [{ ref: 'spt-17', id: P9, displayName: 'Grace Hopper', email: 'g@x', employeeId: 'E-9' }],
     });
     const rows = await withResourceMemberFacts([
       member('a'), member('b', { ownerId: 'spt-17' }), member('c', { requestable: true }),
+      member('d', { ownerId: 'nobody-we-hold', ownerName: 'Source Name' }),
     ]);
     expect(rows).toEqual([
       { id: 'a', displayName: 'ENT_a', resourceType: 'Entitlement', description: null, enabled: true,
-        holderCount: 45000, ownerDisplayName: 'Link Owner', ownerEmployeeId: 'E-1', ownerEmail: 'l@x' },
+        holderCount: 45000, ownerDisplayName: 'Link Owner', ownerEmployeeId: 'E-1', ownerEmail: 'l@x', ownerPrincipalId: P1 },
       { id: 'b', displayName: 'ENT_b', resourceType: 'Entitlement', description: null, enabled: true,
-        holderCount: 3, ownerDisplayName: 'Grace Hopper', ownerEmployeeId: 'E-9', ownerEmail: 'g@x' },
+        holderCount: 3, ownerDisplayName: 'Grace Hopper', ownerEmployeeId: 'E-9', ownerEmail: 'g@x', ownerPrincipalId: P9 },
       // Nobody holds it: 0, not blank — and nobody owns it.
       { id: 'c', displayName: 'ENT_c', resourceType: 'Entitlement', description: null, enabled: true,
-        holderCount: 0, ownerDisplayName: null, ownerEmployeeId: null, ownerEmail: null },
+        holderCount: 0, ownerDisplayName: null, ownerEmployeeId: null, ownerEmail: null, ownerPrincipalId: null },
+      // Only the source names the owner: a name to show, no account to link to.
+      { id: 'd', displayName: 'ENT_d', resourceType: 'Entitlement', description: null, enabled: true,
+        holderCount: 0, ownerDisplayName: 'Source Name', ownerEmployeeId: null, ownerEmail: null, ownerPrincipalId: null },
     ]);
   });
 

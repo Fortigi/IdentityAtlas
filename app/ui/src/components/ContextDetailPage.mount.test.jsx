@@ -432,21 +432,32 @@ describe('ContextDetailPage (mounted)', () => {
     const authFetch = routes({
       '/api/contexts/ctx-1': { ...generatedDetail, attributes: { ...generatedDetail.attributes, targetType: 'Resource' } },
       '/api/contexts/ctx-1/members': { total: 2, data: [
-        { id: 'r-1', displayName: 'ENT_LEDGER', resourceType: 'Entitlement', holderCount: 45210, ownerDisplayName: 'Grace Hopper', ownerEmail: 'grace@example.com' },
+        { id: 'r-1', displayName: 'ENT_LEDGER', resourceType: 'Entitlement', holderCount: 45210, ownerDisplayName: 'Grace Hopper', ownerEmail: 'grace@example.com', ownerPrincipalId: 'p-grace' },
         { id: 'r-2', displayName: 'ENT_QUIET', resourceType: 'Entitlement', holderCount: 0, ownerDisplayName: null, ownerEmail: null },
+        { id: 'r-3', displayName: 'ENT_NAMED', resourceType: 'Entitlement', holderCount: 2, ownerDisplayName: 'Only In Source', ownerEmail: null, ownerPrincipalId: null },
       ] },
     });
-    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
+    const onOpenDetail = vi.fn();
+    renderWithProviders(h(ContextDetailPage, { ...baseProps, onOpenDetail }), { auth: { authFetch } });
     const row = (await screen.findByText('ENT_LEDGER')).closest('tr');
     const headers = [...row.closest('table').querySelectorAll('th')];
-    expect(headers.map(t => t.textContent).slice(0, 4)).toEqual(['Name', 'Type', 'Users', 'Owner']);
-    expect(headers[2].className).toContain('text-right');
-    expect([...row.cells].map(c => c.textContent).slice(0, 4)).toEqual(['ENT_LEDGER', 'Entitlement', '45,210', 'Grace Hopper']);
-    expect(row.cells[2].className).toContain('sm:text-right');
-    expect(screen.getByText('Grace Hopper')).toHaveAttribute('title', 'grace@example.com');
+    // Owner before Users, so the left-aligned name and the right-aligned count don't touch.
+    expect(headers.map(t => t.textContent).slice(0, 4)).toEqual(['Name', 'Type', 'Owner', 'Users']);
+    expect(headers[3].className).toContain('text-right');
+    expect([...row.cells].map(c => c.textContent).slice(0, 4)).toEqual(['ENT_LEDGER', 'Entitlement', 'Grace Hopper', '45,210']);
+    expect(row.cells[3].className).toContain('sm:text-right');
+    // A resolved owner is a link to the account, without also opening the resource.
+    const owner = screen.getByRole('button', { name: 'Grace Hopper' });
+    expect(owner).toHaveAttribute('title', 'grace@example.com');
+    await userEvent.setup().click(owner);
+    expect(onOpenDetail).toHaveBeenCalledTimes(1);
+    expect(onOpenDetail).toHaveBeenCalledWith('user', 'p-grace', 'Grace Hopper');
+    // An owner only the source named has no account: plain text.
+    expect(screen.queryByRole('button', { name: 'Only In Source' })).toBeNull();
+    expect(screen.getByText('Only In Source')).toBeInTheDocument();
     // Nobody holds it: a 0, not a blank; nobody owns it: an empty cell.
     const quiet = screen.getByText('ENT_QUIET').closest('tr');
-    expect([...quiet.cells].map(c => c.textContent).slice(2, 4)).toEqual(['0', '']);
+    expect([...quiet.cells].map(c => c.textContent).slice(2, 4)).toEqual(['', '0']);
   });
 
   it('renders the empty members state', async () => {
