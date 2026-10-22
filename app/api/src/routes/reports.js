@@ -12,7 +12,8 @@
 import { Router } from 'express';
 import { listAllReports, reportMetadata, resolveReport } from '../reports/registry.js';
 import {
-  DEFAULT_EXPORT_FORMAT, EXPORT_FORMAT_NAMES, exportFilename, resolveExportFormat,
+  DEFAULT_EXPORT_FORMAT, EXPORT_FORMAT_NAMES, contentDisposition, exportFilename, resolveExportFormat,
+  singleSubject,
 } from '../reports/export.js';
 
 const router = Router();
@@ -108,9 +109,9 @@ router.get('/reports/:name/export', async (req, res) => {
     const { notices: _screenOnly, constantColumns: _headerOnly, details: _aboutOnly, ...rowsOnly } = full;
     const payload = exportFormat.carriesContext ? full : rowsOnly;
 
-    const filename = exportFilename(report.name, exportFormat.extension, payload.generatedAt);
+    const filename = exportFilename(report.name, exportFormat.extension, payload.generatedAt, singleSubject(full));
     res.setHeader('Content-Type', exportFormat.contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Disposition', contentDisposition(filename));
     // A serializer may be async — a workbook is assembled and zipped, not
     // concatenated — so every format is awaited, including the synchronous ones.
     res.send(await exportFormat.serialize(payload));

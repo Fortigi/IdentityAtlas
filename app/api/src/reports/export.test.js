@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
 import {
   DEFAULT_EXPORT_FORMAT, EXPORT_FORMATS, EXPORT_FORMAT_NAMES, exportFilename, resolveExportFormat,
+  contentDisposition, singleSubject, subjectFileName,
   splitConstantColumns,
 } from './export.js';
 
@@ -446,6 +447,34 @@ describe('resolveExportFormat', () => {
     // The format comes straight off the query string.
     expect(resolveExportFormat('constructor')).toBeNull();
     expect(resolveExportFormat('toString')).toBeNull();
+  });
+});
+
+describe('exportFilename — a run on one context', () => {
+  it('is named after the context and the day, not the product and report', () => {
+    expect(exportFilename('Entitlement Pivot', 'xlsx', '2026-10-22T08:30:00.000Z', 'SAP ERP'))
+      .toBe('SAP ERP 2026-10-22.xlsx');
+  });
+
+  it('drops characters a Windows filename refuses and trailing dots, keeps accents', () => {
+    expect(subjectFileName(' Finance: "AP/AR" <prod>?.. ')).toBe('Finance AP AR prod');
+    expect(exportFilename('x', 'xlsx', '2026-10-22', 'Crème*Brûlée')).toBe('Crème Brûlée 2026-10-22.xlsx');
+  });
+
+  it('falls back to the product-and-report name when the subject is empty after cleaning', () => {
+    expect(exportFilename('seam-sample', 'csv', '2026-09-12', '???')).toBe('identity-atlas-seam-sample-2026-09-12.csv');
+  });
+
+  it('takes the subject only when the run covers exactly one context', () => {
+    expect(singleSubject({ details: [{ contextName: 'SAP ERP' }] })).toBe('SAP ERP');
+    expect(singleSubject({ details: [{ contextName: 'A' }, { contextName: 'B' }] })).toBeNull();
+    expect(singleSubject({ details: [] })).toBeNull();
+    expect(singleSubject({})).toBeNull();
+  });
+
+  it('sends an ASCII filename plus the UTF-8 one in filename*', () => {
+    expect(contentDisposition('Crème "X" 2026-10-22.xlsx'))
+      .toBe(`attachment; filename="Creme X 2026-10-22.xlsx"; filename*=UTF-8''Cr%C3%A8me%20%22X%22%202026-10-22.xlsx`);
   });
 });
 
