@@ -18,7 +18,7 @@ answer for them. It is one pull request, with no behaviour change to `assignment
 | Roles on a context | Two kinds: **Accountable** (at most one) and **Responsible** (many). Optional, never required: "don't restrict what we can read" |
 | Who a role points at | An account (`principalId`) **or** a person (`identityId`), exactly one, as `ResourceAssignments` does |
 | Which templates carry roles | OrganizationalUnit and LogicalApplication. Segment and Tag carry none |
-| `Contexts.ownerUserId` | Stays what it is: the app user who created a manual context. **Not** a role; a creator is not a responsible |
+| `Contexts.ownerUserId` | On a **manual** context: the app user who created it. **Not** a role; a creator is not a responsible. On a **synced** context: the owner the source names, which becomes the context's Accountable (`addedBy = 'sync'`) — see [Roles from a source](#roles-from-a-source) (decided 2026-10-22) |
 | Root context types | Removed: a root is a context without a parent. The tag root is `Tag` with `extendedAttributes.tagRoot = true` |
 | Scope hierarchy nodes | `Scope`, with the resource's own type in `extendedAttributes.resourceType`; no more borrowed resource types |
 | `ContextRecipe` | Not a kind of thing but a provenance. The recipe stores a template chosen at save time (default LogicalApplication); auto-detection and confirmation in the assistant is a follow-on |
@@ -39,6 +39,35 @@ Migration `092_context_templates.sql`:
 
 Ingest (`validation.js`): `CONTEXT_CATEGORIES`, `CONTEXT_ROLE_TYPES`, `CONTEXT_RELATIONSHIP_TYPES`; `contexts.contextCategory` optional enum field.
 `managerExternalId` on a synced context still lands in `extendedAttributes` (known gap 2 of the ontology); resolving it to an `Accountable` role at ingest is the follow-on, so Omada and midPoint managers arrive the same way the manager plugin's do.
+
+### Roles from a source
+
+A synced context's `ownerUserId` is the owner its source names — a logical application's
+owner in the SQL crawler's IdentityIQ catalogue, an org unit's owner in a CSV. The contexts
+ingest states it as the context's **Accountable** (`app/api/src/ingest/contextOwners.js`),
+after every single-batch load and at the end of every contexts sync session, for the
+contexts of that load:
+
+- **Resolution**, one set-based statement per load: the principal whose `externalId` is the
+  owner — a live row over a soft-deleted one, the context's `scopeSystemId` over any other
+  system, then the id (the same tie-break as the read endpoints' owner join,
+  `OWNER_PRINCIPAL_ORDER`) — else the one **live** principal whose `employeeId` is the
+  owner. Two or more by employee number is ambiguous and resolves to nobody. Both are index
+  joins (`ix_Principals_externalId`, migration 076; `ix_Principals_employeeId`, migration
+  001), so no index was added.
+- **Which contexts**: `variant = 'synced'` on a role-bearing template (OrganizationalUnit,
+  LogicalApplication). A manual context never gets a role from `ownerUserId`; a generated
+  one gets its roles from its plugin.
+- **What it writes**: no Accountable yet → add one (`addedBy = 'sync'`); a `sync`
+  Accountable for someone else → point it at the resolved principal; no owner, or one that
+  resolves to nobody → remove the `sync` Accountable (the source no longer names one).
+  An `analyst` or `algorithm` Accountable is never touched — it wins over the source until
+  someone removes it. Responsibles are never touched.
+- **Response**: `accountable: { set, replaced, removed, unresolved }` on the ingest result.
+- **Existing databases**: migration `094_synced_context_accountables.sql` ran the
+  insert-only half once (contexts with an owner and no Accountable yet).
+- **Order**: an owner whose account arrives later than the context resolves on the next
+  contexts load, not when the account lands.
 
 ## 3. Plugins and runner
 
