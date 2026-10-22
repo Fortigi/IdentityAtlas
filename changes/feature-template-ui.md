@@ -41,3 +41,5 @@
 - The Entitlement Pivot adds a column for every attribute the entitlements in the report carry (such as certification frequency or requestable), up to 60, without having to pick them; any beyond that are named on the Summary tab.
 - A logical application's (or any resource context's) member list now shows how many users hold each resource and who owns it (the owner's e-mail on hover), using the same owner lookup as the Entitlement Pivot.
 - The Actions area of logical applications and organisational units shows a "Start ownership survey" card marked "Coming soon"; it is not shown on a context owner's read-only page.
+- New **Unit report** for organisational units of accounts or people: one row per member with their details, how many entitlements each holds (for a person, across their linked accounts) and every attribute their source stored; its Excel download opens with everything known about the unit, including who is accountable for it. Optionally includes the members of sub-units.
+- Units of accounts or people have a "Download unit report" action, also on the unit owner's read-only page.

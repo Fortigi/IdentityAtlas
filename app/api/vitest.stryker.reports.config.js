@@ -25,6 +25,8 @@ export default defineConfig({
       'src/lookups/registry.test.js',
       'src/lookups/sources/accessReviewFields.test.js',
       'src/lookups/sources/resourceContexts.test.js',
+      'src/lookups/sources/unitContexts.test.js',
+      'src/reports/templates/unit-members.test.js',
       'src/reports/accessReviewFields.test.js',
       'src/reports/attributeColumns.test.js',
       'src/reports/contextDetails.test.js',

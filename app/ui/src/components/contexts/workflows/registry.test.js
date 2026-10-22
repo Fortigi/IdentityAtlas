@@ -16,8 +16,19 @@ describe('action registry', () => {
     expect(cardsOf({ ...APP, targetType: undefined })).toEqual([MatrixCard, DownloadReportCard, ComingSoonCard]);
   });
 
-  it('gives every organisational unit — of people, accounts or resources — the matrix and the survey', () => {
-    for (const t of ['Identity', 'Principal', 'Resource', 'System']) expect(cardsOf(unit(t)), t).toEqual([MatrixCard, ComingSoonCard]);
+  const keysOf = (attrs, opts) => actionCardsFor(attrs, opts).map(c => c.key);
+
+  it('gives a unit of accounts or people the matrix, the unit report and the survey', () => {
+    for (const t of ['Identity', 'Principal']) {
+      expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'download-unit-report', 'ownership-survey']);
+    }
+    const card = actionCardsFor(unit('Principal')).find(c => c.key === 'download-unit-report');
+    expect(card.Card).toBe(DownloadReportCard);
+    expect(card.props).toMatchObject({ report: 'unit-members', title: 'Download unit report', testId: 'action-download-unit-report' });
+  });
+
+  it('gives a unit of resources (or systems) no report card', () => {
+    for (const t of ['Resource', 'System']) expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'ownership-survey']);
   });
 
   it('labels the survey card as the ownership survey', () => {
@@ -29,7 +40,8 @@ describe('action registry', () => {
   it('leaves the survey out of a read-only shared view, and only the survey', () => {
     const shared = attrs => actionCardsFor(attrs, { sharedView: true }).map(c => c.Card);
     expect(shared(APP)).toEqual([MatrixCard, DownloadReportCard]);
-    expect(shared(unit('Identity'))).toEqual([MatrixCard]);
+    // A context owner's own unit keeps its report.
+    expect(keysOf(unit('Identity'), { sharedView: true })).toEqual(['view-in-matrix', 'download-unit-report']);
   });
 
   it('gives other templates no actions', () => {

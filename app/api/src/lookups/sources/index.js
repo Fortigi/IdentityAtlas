@@ -6,9 +6,11 @@
 
 import accessReviewFields from './access-review-fields.js';
 import resourceContexts from './resource-contexts.js';
+import unitContexts from './unit-contexts.js';
 
 /** @type {import('../types.js').LookupSource[]} */
 export const BUILT_IN_LOOKUPS = [
   accessReviewFields,
   resourceContexts,
+  unitContexts,
 ];

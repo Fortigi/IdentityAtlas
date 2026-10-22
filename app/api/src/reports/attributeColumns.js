@@ -13,15 +13,35 @@
 // picked as columns instead. A key that cannot be a field key (a comma, a
 // control character — see accessReviewFields.js) is counted with the rest.
 
-import { isOfferableAttributeKey, resolveField } from './accessReviewFields.js';
+import { attributeValue, isOfferableAttributeKey, resolveField } from './accessReviewFields.js';
+import { stripExtensionPrefix } from '../lib/attributeLabels.js';
 
 export const MAX_ATTRIBUTE_COLUMNS = 60;
+
+// What the rows are, for the two reports that use this: the field a key becomes,
+// and the words the notice uses. `ENTITLEMENT_ATTRIBUTES` builds the same field a
+// picked `entitlement.ext.<key>` is, so the two cannot drift; `MEMBER_ATTRIBUTES`
+// reads the member of a unit report's row.
+export const ENTITLEMENT_ATTRIBUTES = {
+  fieldFor: key => resolveField(`entitlement.ext.${key}`),
+  noun: 'entitlement',
+  pickHint: ' Pick any of them under Columns to include it.',
+};
+export const MEMBER_ATTRIBUTES = {
+  fieldFor: key => ({
+    key: `member.ext.${key}`,
+    label: stripExtensionPrefix(key),
+    read: ({ member }) => attributeValue(member?.extendedAttributes, key),
+  }),
+  noun: 'member',
+  pickHint: '',
+};
 // How many left-out keys the notice names before it says "and N more".
 const NAMED_IN_NOTICE = 20;
 
 const hasValue = v => v !== null && v !== undefined && !(typeof v === 'string' && v.trim() === '');
 
-/** Key → number of entitlements that carry a value for it. */
+/** Key → number of rows that carry a value for it. */
 export function attributeKeyCounts(entitlements) {
   const counts = new Map();
   for (const e of entitlements) {
@@ -41,10 +61,10 @@ export function attributeKeyCounts(entitlements) {
  * existing column's is headed "Attribute · <key>" instead, so no two columns —
  * and no two pivot fields — share a name.
  */
-export function attributeColumns(entitlements, picked, existingLabels = [], max = MAX_ATTRIBUTE_COLUMNS) {
+export function attributeColumns(rows, picked, existingLabels = [], { max = MAX_ATTRIBUTE_COLUMNS, kind = ENTITLEMENT_ATTRIBUTES } = {}) {
   const pickedKeys = new Set(picked.map(f => f.key));
-  const counts = [...attributeKeyCounts(entitlements)]
-    .filter(([key]) => !pickedKeys.has(`entitlement.ext.${key}`));
+  const counts = [...attributeKeyCounts(rows)]
+    .filter(([key]) => !isOfferableAttributeKey(key) || !pickedKeys.has(kind.fieldFor(key).key));
   const offerable = counts.filter(([key]) => isOfferableAttributeKey(key));
   const kept = [...offerable]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -56,7 +76,7 @@ export function attributeColumns(entitlements, picked, existingLabels = [], max 
 
   const labels = new Set(existingLabels.map(l => String(l).toLowerCase()));
   const fields = kept.map((key) => {
-    const field = resolveField(`entitlement.ext.${key}`);
+    const field = kind.fieldFor(key);
     const label = labels.has(field.label.toLowerCase()) ? `Attribute · ${key}` : field.label;
     labels.add(label.toLowerCase());
     return { ...field, label };
@@ -65,13 +85,13 @@ export function attributeColumns(entitlements, picked, existingLabels = [], max 
 }
 
 /** What the run says about the keys it did not make columns, or nothing. */
-export function omittedAttributeNotices(omitted, max = MAX_ATTRIBUTE_COLUMNS) {
+export function omittedAttributeNotices(omitted, { max = MAX_ATTRIBUTE_COLUMNS, kind = ENTITLEMENT_ATTRIBUTES } = {}) {
   if (!omitted.length) return [];
   const named = omitted.slice(0, NAMED_IN_NOTICE).map(k => `"${k}"`).join(', ');
   const more = omitted.length > NAMED_IN_NOTICE ? ` and ${omitted.length - NAMED_IN_NOTICE} more` : '';
   return [{
     severity: 'info',
-    text: `${omitted.length} entitlement attribute(s) are not shown as columns (a run shows at most ${max}, `
-      + `the ones most entitlements carry): ${named}${more}. Pick any of them under Columns to include it.`,
+    text: `${omitted.length} ${kind.noun} attribute(s) are not shown as columns (a run shows at most ${max}, `
+      + `the ones most ${kind.noun}s carry): ${named}${more}.${kind.pickHint}`,
   }];
 }

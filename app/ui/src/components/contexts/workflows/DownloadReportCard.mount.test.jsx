@@ -42,6 +42,18 @@ describe('DownloadReportCard', () => {
     await waitFor(() => expect(globalThis.URL.createObjectURL).toHaveBeenCalled());
   });
 
+  it('runs the report the registry names, under its own title, on the unit itself', async () => {
+    const authFetch = makeAuthFetch(() => blobResponse('xlsx-bytes', { type: 'application/octet-stream', filename: 'unit.xlsx' }));
+    renderWithProviders(h(DownloadReportCard, {
+      attrs: { id: 'c-acc', contextCategory: 'OrganizationalUnit', targetType: 'Principal' },
+      report: 'unit-members', title: 'Download unit report', text: 'Everyone in this unit.', testId: 'action-download-unit-report',
+    }), { auth: { authFetch } });
+    expect(screen.getByTestId('action-download-unit-report')).toHaveTextContent('Everyone in this unit.');
+    expect(screen.getByRole('heading', { name: 'Download unit report' })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Download (Excel)' }));
+    expect(authFetch).toHaveBeenCalledWith('/api/reports/unit-members/export?format=xlsx&contexts=c-acc');
+  });
+
   it('shows "Preparing…" while the file is produced, and the failure when it cannot be', async () => {
     let fail;
     const { user } = mount({ attrs: APP, download: () => new Promise(res => { fail = () => res(blobResponse('{}', { ok: false, status: 500 })); }) });

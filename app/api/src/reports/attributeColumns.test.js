@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  MAX_ATTRIBUTE_COLUMNS, attributeColumns, attributeKeyCounts, omittedAttributeNotices,
+  MAX_ATTRIBUTE_COLUMNS, MEMBER_ATTRIBUTES, attributeColumns, attributeKeyCounts, omittedAttributeNotices,
 } from './attributeColumns.js';
 import { resolveFields } from './accessReviewFields.js';
 
@@ -48,7 +48,7 @@ describe('attributeColumns', () => {
     ];
     // Cap 2: common (3) and mid (2) win; aaa and rare (1 each) are left out —
     // alphabetical order alone would have kept aaa.
-    const { fields, omitted } = attributeColumns(rows, [], [], 2);
+    const { fields, omitted } = attributeColumns(rows, [], [], { max: 2 });
     expect(keysOf(fields)).toEqual(['entitlement.ext.common', 'entitlement.ext.mid']);
     expect(omitted).toEqual(['aaa', 'rare']);
   });
@@ -73,17 +73,33 @@ describe('attributeColumns', () => {
   });
 });
 
+describe('member attributes', () => {
+  it('reads a unit member\'s attributes under member keys, and says "member" in the notice', () => {
+    const { fields, omitted } = attributeColumns(
+      [{ extendedAttributes: { costCenter: 'FIN-01', extension_0123456789abcdef0123456789abcdef_badge: 7, z: 1 } }],
+      [], [], { max: 2, kind: MEMBER_ATTRIBUTES });
+    expect(fields.map(f => [f.key, f.label])).toEqual([
+      ['member.ext.costCenter', 'costCenter'],
+      ['member.ext.extension_0123456789abcdef0123456789abcdef_badge', 'badge'],
+    ]);
+    expect(fields[0].read({ member: { extendedAttributes: { costCenter: 'FIN-01' } } })).toBe('FIN-01');
+    expect(fields[0].read({})).toBeNull();
+    const [notice] = omittedAttributeNotices(omitted, { max: 2, kind: MEMBER_ATTRIBUTES });
+    expect(notice.text).toBe('1 member attribute(s) are not shown as columns (a run shows at most 2, the ones most members carry): "z".');
+  });
+});
+
 describe('omittedAttributeNotices', () => {
   it('says nothing when every attribute is a column', () => {
     expect(omittedAttributeNotices([])).toEqual([]);
   });
 
   it('names the left-out keys, and counts the rest past twenty', () => {
-    const [few] = omittedAttributeNotices(['b', 'a'], 60);
+    const [few] = omittedAttributeNotices(['b', 'a'], { max: 60 });
     expect(few.text).toBe('2 entitlement attribute(s) are not shown as columns (a run shows at most 60, '
       + 'the ones most entitlements carry): "b", "a". Pick any of them under Columns to include it.');
     const many = Array.from({ length: 23 }, (_, i) => `k${i}`);
-    const [notice] = omittedAttributeNotices(many, 60);
+    const [notice] = omittedAttributeNotices(many, { max: 60 });
     expect(notice.text).toContain('"k19" and 3 more.');
     expect(notice.text).not.toContain('"k20"');
   });

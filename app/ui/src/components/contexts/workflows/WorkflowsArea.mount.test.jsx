@@ -28,6 +28,7 @@ function matrixFilterOf(link) {
 
 const cond = id => ({ kind: 'context', contextId: id, includeChildren: true });
 const reportCard = () => screen.queryByTestId('action-download-report');
+const unitReportCard = () => screen.queryByTestId('action-download-unit-report');
 const matrixLink = () => screen.getByRole('link', { name: 'View in matrix ↗' });
 
 describe('WorkflowsArea (Actions)', () => {
@@ -51,14 +52,15 @@ describe('WorkflowsArea (Actions)', () => {
     expect(reportCard()).toBeInTheDocument();
   });
 
-  it('a resource unit opens the matrix on its resources, with no report', () => {
+  it('a resource unit opens the matrix on its resources, with no report of either kind', () => {
     mount(RES_UNIT);
     const filter = matrixFilterOf(matrixLink());
     expect(filter.resource.include).toEqual([cond('c-res')]);
     expect(reportCard()).toBeNull();
+    expect(unitReportCard()).toBeNull();
   });
 
-  it('a unit of accounts opens the matrix on its members, with no report', () => {
+  it('a unit of accounts opens the matrix on its members and offers the unit report, not the entitlement report', () => {
     mount(ACC_UNIT);
     const filter = matrixFilterOf(matrixLink());
     expect(filter.subject.include).toEqual([cond('c-acc')]);
@@ -66,14 +68,16 @@ describe('WorkflowsArea (Actions)', () => {
     expect(filter.rowType).toBe('principal');
     expect(screen.getByText(/The members of this unit as rows/)).toBeInTheDocument();
     expect(reportCard()).toBeNull();
+    expect(unitReportCard()).toHaveTextContent('Download unit report');
   });
 
-  it('a unit of people opens the matrix on its people, with no report and no pointer to one', () => {
+  it('a unit of people opens the matrix on its people and offers the unit report', () => {
     mount(PPL_UNIT, { variants: [PPL_SELF, ACC_VARIANT] });
     const filter = matrixFilterOf(matrixLink());
     expect(filter.rowType).toBe('identity');
     expect(filter.subject.include).toEqual([cond('c-ppl')]);
     expect(reportCard()).toBeNull();
+    expect(unitReportCard()).toBeInTheDocument();
     expect(screen.queryByText(/Reports are available/)).toBeNull();
   });
 
@@ -89,6 +93,12 @@ describe('WorkflowsArea (Actions)', () => {
     expect(card).toHaveTextContent('Coming soon');
     expect(card).toHaveTextContent('Ask the accountable owner to confirm they own this — or tell us who does — and check that the right responsible people and delegates are set.');
     expect(screen.getByRole('button', { name: 'Start survey' })).toBeDisabled();
+  });
+
+  it('keeps the unit report on the read-only page of the unit owner', () => {
+    mount(ACC_UNIT, { sharedView: true });
+    expect(unitReportCard()).toBeInTheDocument();
+    expect(screen.queryByTestId('action-ownership-survey')).toBeNull();
   });
 
   it('leaves the survey out of a read-only shared view, keeping the rest', () => {
