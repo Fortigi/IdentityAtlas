@@ -109,6 +109,26 @@ describe('ContextPeople (mounted)', () => {
     expect(await screen.findByTitle('mara@contoso.com')).toHaveTextContent('Mara Lindqvist');
   });
 
+  // A synced context's owner is stated by the ingest (addedBy 'sync'); the chip
+  // names the system it came from, and only for that provenance.
+  it('names the source system on a role the sync added, and on no other', async () => {
+    const roles = [
+      { id: 'r-sync', role: 'Accountable', principalId: 'p-9', identityId: null, displayName: 'Ivo Brandt', addedBy: 'sync' },
+      { id: 'r-res', role: 'Responsible', principalId: 'p-2', identityId: null, displayName: 'Tom Okafor', addedBy: 'analyst' },
+    ];
+    mount({ id: 'ctx-1', contextCategory: 'LogicalApplication', scopeSystemName: 'IdentityIQ' }, { auth: { api: api({ roles }) } });
+    expect((await screen.findByText('Ivo Brandt')).parentElement).toHaveTextContent(/Ivo Brandt\s*from IdentityIQ$/);
+    expect(screen.getByText('Tom Okafor').parentElement).not.toHaveTextContent('from');
+    expect(screen.getAllByText(/^from /)).toHaveLength(1);
+  });
+
+  it('shows no source hint when the context names no source system', async () => {
+    const roles = [{ id: 'r-sync', role: 'Accountable', principalId: 'p-9', identityId: null, displayName: 'Ivo Brandt', addedBy: 'sync' }];
+    mount({ id: 'ctx-1', contextCategory: 'LogicalApplication' }, { auth: { api: api({ roles }) } });
+    expect((await screen.findByText('Ivo Brandt')).parentElement).not.toHaveTextContent('from');
+    expect(screen.queryByText(/^from /)).toBeNull();
+  });
+
   it('opens the account behind a name', async () => {
     const onOpenDetail = vi.fn();
     mount(ORG, { onOpenDetail });

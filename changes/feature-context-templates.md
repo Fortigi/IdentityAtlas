@@ -9,3 +9,6 @@
 - Moving a person between teams by drag and drop, and the matrix "By Manager Hierarchy" sort, now follow the manager-hierarchy plugin's trees rather than a type name
 - The context list can be filtered by template and by the plugin that built a tree; creating or editing a context lets you choose its template
 - The "Tags" root no longer appears as a tag of its own and cannot be renamed or deleted through the tag endpoints
+- The owner a source names for a synced grouping (for example a logical application's owner from IdentityIQ) now shows as its accountable person, matched to an account by its key or, failing that, by an employee number only one active account carries; a choice an analyst made is never overwritten by the next sync, and the context page says which system an accountable person came from
+- Existing databases get the accountable person filled in for synced groupings that name an owner and have none yet, once, on upgrade
+- The IdentityIQ preset with organisation extensions takes a logical application's owner from the application owner key when the catalogue's owner key is empty

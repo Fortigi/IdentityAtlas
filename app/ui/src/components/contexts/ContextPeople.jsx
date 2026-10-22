@@ -23,6 +23,10 @@ import ContextRoleModal from './ContextRoleModal';
 // the heading when they draw their own, and turn on `suggest`: with no
 // Accountable set, the API's suggestion shows under it with Confirm / Not
 // this person / Choose someone else — the last opens the same modal.
+//
+// A role the source sync stated (a synced context's owner, addedBy 'sync')
+// says which system it came from; an analyst's choice replaces it and then
+// survives the next sync.
 
 const ROLED_CATEGORIES = new Set(['OrganizationalUnit', 'LogicalApplication']);
 
@@ -87,14 +91,14 @@ export default function ContextPeople({ attrs, onOpenDetail, heading = 'People',
     <div className="mt-3 space-y-3" data-testid="context-people">
       {heading && <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">{heading}</div>}
       <RoleBlock label={accountableLabel} helper={ROLE_HELPERS.Accountable(noun)} holders={accountable} loading={loading}
-        canWrite={canWrite} onSet={() => open('Accountable')} onOpenDetail={onOpenDetail}>
+        sourceName={attrs.scopeSystemName} canWrite={canWrite} onSet={() => open('Accountable')} onOpenDetail={onOpenDetail}>
         {showGuess && (
           <ContextBestGuess contextId={attrs.id} canWrite={canWrite}
             onConfirm={holder => add('Accountable', holder)} onChooseOther={() => open('Accountable')} />
         )}
       </RoleBlock>
       <RoleBlock label="Responsible" helper={ROLE_HELPERS.Responsible(noun)} holders={responsible} loading={loading}
-        canWrite={canWrite} onSet={() => open('Responsible')} onOpenDetail={onOpenDetail} />
+        sourceName={attrs.scopeSystemName} canWrite={canWrite} onSet={() => open('Responsible')} onOpenDetail={onOpenDetail} />
       {message && !editing && (
         <div role="alert" className="text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded px-2 py-1">{message}</div>
       )}
@@ -120,7 +124,7 @@ function emptyRoleText(label) {
 }
 
 // One role: its name and meaning on the left, who holds it on the right.
-function RoleBlock({ label, helper, holders, loading, canWrite, onSet, onOpenDetail, children }) {
+function RoleBlock({ label, helper, holders, loading, sourceName, canWrite, onSet, onOpenDetail, children }) {
   const empty = holders.length === 0;
   return (
     <div role="group" aria-label={label} className="flex flex-wrap items-start gap-x-4 gap-y-1">
@@ -131,7 +135,7 @@ function RoleBlock({ label, helper, holders, loading, canWrite, onSet, onOpenDet
       <div className="min-w-0 flex-1 space-y-1.5">
         {!empty && (
           <div className="flex flex-wrap items-center gap-3">
-            {holders.map(role => <Holder key={role.id} role={role} onOpenDetail={onOpenDetail} />)}
+            {holders.map(role => <Holder key={role.id} role={role} sourceName={sourceName} onOpenDetail={onOpenDetail} />)}
             {canWrite && <EditButton label={label} onClick={onSet} />}
           </div>
         )}
@@ -158,8 +162,9 @@ function initials(name) {
   return letters.toUpperCase();
 }
 
-// One holder: initials, and the name opening the account (or the person).
-function Holder({ role, onOpenDetail }) {
+// One holder: initials, the name opening the account (or the person), and
+// the source system when a sync stated the role.
+function Holder({ role, sourceName, onOpenDetail }) {
   const name = role.displayName || role.principalId || role.identityId;
   const kind = role.principalId ? 'user' : 'identity';
   const linkable = !!onOpenDetail && !!(role.principalId || role.identityId);
@@ -171,6 +176,7 @@ function Holder({ role, onOpenDetail }) {
       {linkable
         ? <button type="button" onClick={() => onOpenDetail(kind, role.principalId || role.identityId, name)} className="font-medium hover:underline hover:text-blue-700 dark:hover:text-blue-300">{name}</button>
         : <span className="font-medium">{name}</span>}
+      {role.addedBy === 'sync' && sourceName && <span className="text-xs text-gray-600 dark:text-gray-400">from {sourceName}</span>}
     </span>
   );
 }
