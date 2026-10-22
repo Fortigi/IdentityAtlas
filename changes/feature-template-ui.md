@@ -40,3 +40,4 @@
 - The Entitlement Pivot shows the entitlement owner in three columns (name, employee ID, e-mail); when an entitlement has no owner link but its source named one (as the IdentityIQ preset stores in ownerId/ownerName), the owner is looked up from that, or shown as the source named them.
 - The Entitlement Pivot adds a column for every attribute the entitlements in the report carry (such as certification frequency or requestable), up to 60, without having to pick them; any beyond that are named on the Summary tab.
 - A logical application's (or any resource context's) member list now shows how many users hold each resource and who owns it (the owner's e-mail on hover), using the same owner lookup as the Entitlement Pivot.
+- The Actions area of logical applications and organisational units shows a "Start ownership survey" card marked "Coming soon"; it is not shown on a context owner's read-only page.

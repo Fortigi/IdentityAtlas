@@ -5,6 +5,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { createElement as h } from 'react';
 import WorkflowsArea from './WorkflowsArea';
 import { renderWithProviders, makeAuthFetch, screen } from '@ui/test-utils/renderWithProviders';
+import { SharedViewContext } from '@ui/contexts/SharedViewContext';
 
 const APP = { id: 'c-app', displayName: 'SAP', contextCategory: 'LogicalApplication', targetType: 'Resource' };
 const RES_UNIT = { id: 'c-res', displayName: 'Finance shares', contextCategory: 'OrganizationalUnit', targetType: 'Resource' };
@@ -13,8 +14,9 @@ const PPL_UNIT = { id: 'c-ppl', displayName: 'Finance', contextCategory: 'Organi
 const PPL_SELF = { id: 'c-ppl', displayName: 'Finance', targetType: 'Identity', self: true };
 const ACC_VARIANT = { id: 'c-acc', displayName: 'Finance accounts', targetType: 'Principal', self: false };
 
-function mount(attrs, { variants = [] } = {}) {
-  renderWithProviders(h(WorkflowsArea, { attrs, variants, variantsLoading: false, onOpenDetail: vi.fn() }), { auth: { authFetch: makeAuthFetch() } });
+function mount(attrs, { variants = [], sharedView = false } = {}) {
+  const area = h(WorkflowsArea, { attrs, variants, variantsLoading: false, onOpenDetail: vi.fn() });
+  renderWithProviders(h(SharedViewContext.Provider, { value: sharedView }, area), { auth: { authFetch: makeAuthFetch() } });
 }
 
 // The filter a matrix link carries, read back the way App.jsx reads it.
@@ -78,5 +80,20 @@ describe('WorkflowsArea (Actions)', () => {
   it('renders nothing for a template without actions', () => {
     mount({ ...ACC_UNIT, contextCategory: 'Tag' });
     expect(screen.queryByRole('region', { name: 'Actions' })).toBeNull();
+  });
+
+  it.each([['an application', APP], ['an organisational unit', PPL_UNIT]])('%s announces the ownership survey as coming soon, with a button that does nothing', (_, attrs) => {
+    mount(attrs);
+    const card = screen.getByTestId('action-ownership-survey');
+    expect(card).toHaveTextContent('Start ownership survey');
+    expect(card).toHaveTextContent('Coming soon');
+    expect(card).toHaveTextContent('Ask the accountable owner to confirm they own this — or tell us who does — and check that the right responsible people and delegates are set.');
+    expect(screen.getByRole('button', { name: 'Start survey' })).toBeDisabled();
+  });
+
+  it('leaves the survey out of a read-only shared view, keeping the rest', () => {
+    mount(APP, { sharedView: true });
+    expect(screen.queryByTestId('action-ownership-survey')).toBeNull();
+    expect(reportCard()).toBeInTheDocument();
   });
 });
