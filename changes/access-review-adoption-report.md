@@ -1,0 +1,4 @@
+- Added the **Access Review Adoption** report. It lists each business role with when a person last really reviewed it, longest ago first. Reviews that Entra ID completed by applying the default decision because nobody responded do not count as reviewed. Roles never reviewed and roles too new for a review are listed as their own categories. Roles whose policies do not require an access review are left out, unless you choose to include them.
+- Added the **Access Reviewer Response** report. It lists each reviewer with how many reviews they were asked to do, how many they answered themselves and how they decided, so you can see whom to follow up with and whom to thank.
+- Report Excel downloads can now open with pie charts. Both new reports have two, plus ready-made pivot tables.
+- The Entra ID crawler now records the reviewers each access review contacted, the review's "if reviewers don't respond" setting, and who applied each decision. Run a full sync to fill them in.

@@ -5,6 +5,8 @@
 // registry, not the routes, not the UI — knows a template by name.
 
 import accessOutsideRoles from './access-outside-roles.js';
+import accessReviewAdoption from './access-review-adoption.js';
+import accessReviewerResponse from './access-reviewer-response.js';
 import applicationAccessReview from './application-access-review.js';
 import disabledAccountsWithAccess from './disabled-accounts-with-access.js';
 import emptyGroups from './empty-groups.js';
@@ -18,6 +20,8 @@ import staleGuestAccounts from './stale-guest-accounts.js';
 /** @type {import('../types.js').ReportTemplate[]} */
 export const BUILT_IN_REPORTS = [
   accessOutsideRoles,
+  accessReviewAdoption,
+  accessReviewerResponse,
   applicationAccessReview,
   disabledAccountsWithAccess,
   emptyGroups,

@@ -203,12 +203,13 @@ export function pivotTableXml(fields, pivot) {
     + '</pivotTableDefinition>';
 }
 
-const relationship = (id, type, target) => `<Relationship Id="${id}" Type="${NS_REL}/${type}" Target="${target}"/>`;
-const relationships = body => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${NS_PKG_REL}">${body}</Relationships>`;
+// Shared with xlsxCharts.js, which patches the same zip the same way.
+export const relationship = (id, type, target) => `<Relationship Id="${id}" Type="${NS_REL}/${type}" Target="${target}"/>`;
+export const relationships = body => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${NS_PKG_REL}">${body}</Relationships>`;
 const override = (part, type) => `<Override PartName="${part}" ContentType="${CONTENT_TYPE}.${type}+xml"/>`;
 
 /** Insert `xml` before the closing tag of a part, failing if the part is not what ExcelJS writes. */
-async function insertBefore(zip, path, closingTag, xml) {
+export async function insertBefore(zip, path, closingTag, xml) {
   const text = await zip.file(path)?.async('string');
   if (!text?.includes(closingTag)) throw new Error(`Unexpected workbook part: ${path}`);
   zip.file(path, text.replace(closingTag, `${xml}${closingTag}`));
