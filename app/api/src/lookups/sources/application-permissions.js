@@ -11,15 +11,11 @@
 // matched afterwards either.
 
 import * as db from '../../db/connection.js';
+import { escapeLike } from '../../db/sqlParams.js';
 import {
   API_APP_ID_SQL, GRANTS_FROM, GRANTS_WHERE,
   isStandardPermission, knownApiName, parsePermissionKey, permissionKey,
 } from '../../reports/appPermissionRisk.js';
-
-// `%` and `_` are ILIKE wildcards; a search for "Mail_" means "Mail_".
-function escapeLike(text) {
-  return text.replace(/[\\%_]/g, ch => `\\${ch}`);
-}
 
 // One (API, permission) group -> one option. The hint says which API, how many
 // apps hold it, and whether the standard list already covers it — picking one
