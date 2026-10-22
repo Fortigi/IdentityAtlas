@@ -120,13 +120,16 @@ function ConvertTo-EntraAppPermissionGraph {
         if (-not $relMap.ContainsKey($relKey)) {
             $relMap[$relKey] = @{ parentResourceId = $clientId; childResourceId = $permResId; relationshipType = 'HasApplicationPermission'; roleName = $f.permName; roleOriginSystem = 'AppRole' }
         }
+        $ext = @{ assignmentId = $a.id; targetApiSpId = $targetId; targetApiDisplayName = $f.targetName; targetApiAppId = $f.targetAppId; appRoleId = $appRoleId; permission = $f.permName }
+        # When the permission was granted (beta names it creationTimestamp).
+        if ($a.creationTimestamp) { $ext['grantedDateTime'] = Format-EntraUtcTime -Value $a.creationTimestamp }
         $assns.Add(@{
             resourceId     = $permResId
             principalId    = $clientId
             principalType  = $f.clientType
             assignmentType = 'Direct'
             resourceType   = 'ApplicationPermission'
-            extendedAttributes = @{ assignmentId = $a.id; targetApiSpId = $targetId; targetApiDisplayName = $f.targetName; targetApiAppId = $f.targetAppId; appRoleId = $appRoleId; permission = $f.permName }
+            extendedAttributes = $ext
         })
     }
     return @{
@@ -196,7 +199,7 @@ function Sync-EntraAppPermissions {
         $records = @()
         if ($sps.Count -gt 0) {
             $result = Get-FGGroupChildrenParallel -Groups $sps -EntityType 'servicePrincipals' -ChildPath 'appRoleAssignments' `
-                -Select 'id,principalId,resourceId,resourceDisplayName,appRoleId' -ThrottleLimit 16 `
+                -Select 'id,principalId,resourceId,resourceDisplayName,appRoleId,creationTimestamp' -ThrottleLimit 16 `
                 -ProgressStep 'Syncing application permissions' -ProgressStartPct 84 -ProgressEndPct 90 `
                 -RecordBuilder { param($o) $o.raw }
             $records = @($result.records)
