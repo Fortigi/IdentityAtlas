@@ -18,6 +18,8 @@
 import * as db from '../db/connection.js';
 import { fetchOwners } from '../lib/resourceOwners.js';
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function fetchHolderCounts(ids) {
   const { rows } = await db.query(
     `SELECT d.id, count(*)::int AS "holderCount"
@@ -42,6 +44,9 @@ export async function withResourceMemberFacts(rows) {
       ownerDisplayName: owner?.ownerName ?? null,
       ownerEmployeeId: owner?.ownerEmployeeId ?? null,
       ownerEmail: owner?.ownerEmail ?? null,
+      // The account to link to: the first owner that resolved to one (an owner
+      // only the source named has a 'source:' id and no account).
+      ownerPrincipalId: owner?.ownerIds?.find(id => UUID.test(String(id))) ?? null,
     };
   });
 }

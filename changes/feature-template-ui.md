@@ -46,3 +46,4 @@
 - "Edit members" is now offered only on contexts created in Identity Atlas, where both adding and removing members last; imported and rule-derived contexts no longer offer it, since their members would come back on the next refresh.
 - Organisational units show "Start manager survey" (ask the manager to confirm they lead the team and name delegates) and "Review team members" (ask the accountable or responsible person to confirm the members) as "Coming soon" actions; logical applications keep "Start ownership survey".
 - A report downloaded for one context is named after it and the day, e.g. "SAP ERP 2026-10-22.xlsx".
+- In an application's member list the Owner column comes before Users, and a resolved owner links to their account.
