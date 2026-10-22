@@ -35,6 +35,28 @@ describe('isExtKey', () => {
     for (const v of [undefined, null, 42, {}, ['a']]) expect(isExtKey(v)).toBe(false);
   });
 
+  // The allow-list ranges must mean exactly "no quote, no backslash, no control
+  // character". Walk every BMP code point plus astral samples against that rule.
+  it('accepts exactly the characters that are not a quote, backslash or control', () => {
+    const refused = (ch) => ch === "'" || ch === '"' || ch === '\\' || /\p{Cc}/u.test(ch);
+    const points = [];
+    for (let cp = 0; cp <= 0xFFFF; cp++) points.push(cp);
+    points.push(0x10000, 0x1F600, 0x10FFFF);
+    const mismatches = points.filter((cp) => {
+      const ch = String.fromCodePoint(cp);
+      return EXT_KEY_RE.test(`a${ch}b`) === refused(ch);
+    });
+    expect(mismatches).toEqual([]);
+  });
+
+  it.each([
+    ['\u0080', false], ['\u009f', false], ['\u0085', false], // C1 controls
+    [' ', true], ['~', true], [' ', true], ['!', true], ['#', true],
+    ['&', true], ['(', true], ['[', true], [']', true], ['😀', true],
+  ])('range edge %j → %s', (ch, ok) => {
+    expect(isExtKey(`k${ch}`)).toBe(ok);
+  });
+
   it('is anchored: a refused character anywhere refuses the key', () => {
     expect(EXT_KEY_RE.test("ok' or 1=1")).toBe(false);
     expect(EXT_KEY_RE.test("'ok")).toBe(false);
