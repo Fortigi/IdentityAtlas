@@ -40,20 +40,20 @@ const ROLE_HELPERS = {
 };
 
 export default function ContextPeople({ attrs, onOpenDetail, heading = 'People', accountableLabel = 'Accountable', noun = 'this unit', suggest = false }) {
+  if (!ROLED_CATEGORIES.has(attrs?.contextCategory)) return null;
+  return (
+    <PeopleBlocks contextId={attrs.id} sourceName={attrs.scopeSystemName} onOpenDetail={onOpenDetail} heading={heading}
+      accountableLabel={accountableLabel} noun={noun} suggest={suggest} />
+  );
+}
+
+// Loads the roles of one context and holds the writes on them. Each write
+// resolves to true when it went through, so the modal knows whether to close.
+function useContextRoles(contextId) {
   const { authFetch } = useAuth();
-  const readOnly = useIsSharedView();
-  const canWrite = useHasPermission('data.write.contexts') && !readOnly;
-  const openPerson = readOnly ? undefined : onOpenDetail;
-  const enabled = ROLED_CATEGORIES.has(attrs?.contextCategory);
-  const { data: roles, loading, error, reload } = useFetch(`/api/contexts/${attrs?.id}/roles`, { authFetch, enabled, initialData: [] });
+  const { data: roles, loading, error, reload } = useFetch(`/api/contexts/${contextId}/roles`, { authFetch, initialData: [] });
   const [actionError, setActionError] = useState(null);
-  // Which role's modal is open: 'Accountable', 'Responsible' or null.
-  const [editing, setEditing] = useState(null);
 
-  if (!enabled) return null;
-
-  // Each write resolves to true when it went through, so the modal knows
-  // whether to close.
   async function write(url, init, fallback) {
     setActionError(null);
     try {
@@ -70,57 +70,76 @@ export default function ContextPeople({ attrs, onOpenDetail, heading = 'People',
     }
   }
 
-  const remove = (roleId) => write(`/api/contexts/${attrs.id}/roles/${roleId}`, { method: 'DELETE' }, 'Remove failed');
+  const remove = (roleId) => write(`/api/contexts/${contextId}/roles/${roleId}`, { method: 'DELETE' }, 'Remove failed');
 
   // holder = { principalId } or { identityId }: the lookup adds accounts, a
   // suggestion may name either.
-  const add = (role, holder) => write(`/api/contexts/${attrs.id}/roles`, {
+  const add = (role, holder) => write(`/api/contexts/${contextId}/roles`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ role, ...holder }),
   }, 'Add failed');
 
+  const list = Array.isArray(roles) ? roles : [];
+  return {
+    accountable: list.filter(r => r.role === 'Accountable'),
+    responsible: list.filter(r => r.role === 'Responsible'),
+    loading,
+    error,
+    actionError,
+    clearActionError: () => setActionError(null),
+    add,
+    remove,
+  };
+}
+
+function PeopleBlocks({ contextId, sourceName, onOpenDetail, heading, accountableLabel, noun, suggest }) {
+  const readOnly = useIsSharedView();
+  const canWrite = useHasPermission('data.write.contexts') && !readOnly;
+  const openPerson = readOnly ? undefined : onOpenDetail;
+  const { accountable, responsible, loading, error, actionError, clearActionError, add, remove } = useContextRoles(contextId);
+  // Which role's modal is open: 'Accountable', 'Responsible' or null.
+  const [editing, setEditing] = useState(null);
+
   function open(role) {
-    setActionError(null);
+    clearActionError();
     setEditing(role);
   }
 
-  const list = Array.isArray(roles) ? roles : [];
-  const accountable = list.filter(r => r.role === 'Accountable');
-  const responsible = list.filter(r => r.role === 'Responsible');
-  const message = actionError || (error ? error.message : null);
+  const message = actionError || error?.message;
   // Only once the roles have loaded: before that "no Accountable" is not known.
   const showGuess = accountable.length === 0 && suggest && !readOnly && !loading && !error;
-  const labelOf = (role) => (role === 'Accountable' ? accountableLabel : 'Responsible');
 
   return (
     <div className="mt-3 space-y-3" data-testid="context-people">
       {heading && <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">{heading}</div>}
       <RoleBlock label={accountableLabel} helper={ROLE_HELPERS.Accountable(noun)} holders={accountable} loading={loading}
-        sourceName={attrs.scopeSystemName} canWrite={canWrite} onSet={() => open('Accountable')} onOpenDetail={openPerson}>
+        sourceName={sourceName} canWrite={canWrite} onSet={() => open('Accountable')} onOpenDetail={openPerson}>
         {showGuess && (
-          <ContextBestGuess contextId={attrs.id} canWrite={canWrite}
+          <ContextBestGuess contextId={contextId} canWrite={canWrite}
             onConfirm={holder => add('Accountable', holder)} onChooseOther={() => open('Accountable')} />
         )}
       </RoleBlock>
       <RoleBlock label="Responsible" helper={ROLE_HELPERS.Responsible(noun)} holders={responsible} loading={loading}
-        sourceName={attrs.scopeSystemName} canWrite={canWrite} onSet={() => open('Responsible')} onOpenDetail={openPerson} />
+        sourceName={sourceName} canWrite={canWrite} onSet={() => open('Responsible')} onOpenDetail={openPerson} />
       {message && !editing && (
         <div role="alert" className="text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded px-2 py-1">{message}</div>
       )}
       {editing && (
-        <ContextRoleModal
-          role={editing}
-          label={labelOf(editing)}
-          helper={ROLE_HELPERS[editing](noun)}
+        <RoleEditor role={editing} accountableLabel={accountableLabel} noun={noun}
           holders={editing === 'Accountable' ? accountable : responsible}
-          onAdd={holder => add(editing, holder)}
-          onRemove={remove}
-          onClose={() => setEditing(null)}
-          error={actionError}
-        />
+          onAdd={holder => add(editing, holder)} onRemove={remove}
+          onClose={() => setEditing(null)} error={actionError} />
       )}
     </div>
+  );
+}
+
+// The pop-up for one role, in the profile's vocabulary.
+function RoleEditor({ role, accountableLabel, noun, ...rest }) {
+  return (
+    <ContextRoleModal role={role} label={role === 'Accountable' ? accountableLabel : 'Responsible'}
+      helper={ROLE_HELPERS[role](noun)} {...rest} />
   );
 }
 
