@@ -38,10 +38,26 @@ export const CONTEXT_PATHS = [
   new RegExp(`^/api/risk-scores/contexts/${UUID}$`),
 ];
 
-// The workflow card's download. Allowed only when every context it names is in
-// scope; the caller then checks what those values RESOLVE to (a value is matched
-// as an id or as a name by the report) — see middleware/contextOwnerMode.js.
+// The Actions cards' downloads: the Entitlement Pivot (an application) and the
+// unit report (a unit of accounts or people). Allowed only when every context
+// they name is in scope; the caller then checks what those values RESOLVE to (a
+// value is matched as an id or as a name by the report) — see
+// middleware/contextOwnerMode.js.
+//
+// Per path, the parameters refused outright, whatever their value, because they
+// would widen what the report reads beyond the contexts named:
+//   - the Entitlement Pivot's older `applications` alias is read instead of
+//     `contexts` when present;
+//   - the unit report's `includeSubUnits` adds every unit BELOW the named ones,
+//     which need not be the owner's. Refused rather than checked against the
+//     subtree: the card never sends it, and the owner of a sub-unit downloads
+//     from that sub-unit's own page.
 export const REPORT_EXPORT_PATH = '/api/reports/application-access-review/export';
+export const UNIT_REPORT_EXPORT_PATH = '/api/reports/unit-members/export';
+export const REPORT_EXPORTS = new Map([
+  [REPORT_EXPORT_PATH, ['applications']],
+  [UNIT_REPORT_EXPORT_PATH, ['includeSubUnits']],
+]);
 
 export const ALLOW = Object.freeze({ allow: true });
 export const DENY = Object.freeze({ allow: false });
@@ -57,11 +73,11 @@ export function requestedContexts(value) {
   return parts.map(p => p.trim().toLowerCase()).filter(Boolean);
 }
 
-// The download: `contexts` only (the report's older `applications` alias would
-// be read instead of nothing, so it is refused outright), at least one value,
-// and every value one of the owner's context ids — a name never passes here.
-export function reportExportVerdict(query, contextIds) {
-  if (query?.applications !== undefined) return DENY;
+// A download: `contexts` only (any of the path's `refused` parameters present
+// denies outright), at least one value, and every value one of the owner's
+// context ids — a name never passes here.
+export function reportExportVerdict(query, contextIds, refused = REPORT_EXPORTS.get(REPORT_EXPORT_PATH)) {
+  if (refused.some(param => query?.[param] !== undefined)) return DENY;
   const wanted = requestedContexts(query?.contexts);
   if (!wanted || wanted.length === 0) return DENY;
   if (!wanted.every(id => contextIds.has(id))) return DENY;
@@ -78,6 +94,7 @@ export function contextOwnerVerdict({ method, path, query }, contextIds) {
     const m = shape.exec(path);
     if (m) return contextIds.has(m[1]) ? ALLOW : DENY;
   }
-  if (path === REPORT_EXPORT_PATH) return reportExportVerdict(query, contextIds);
+  const refused = REPORT_EXPORTS.get(path);
+  if (refused) return reportExportVerdict(query, contextIds, refused);
   return DENY;
 }

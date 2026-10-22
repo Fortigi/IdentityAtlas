@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  ALLOW, DENY, CONTEXT_OWNER_DENIED, REPORT_EXPORT_PATH, SHELL_PATHS,
+  ALLOW, DENY, CONTEXT_OWNER_DENIED, REPORT_EXPORT_PATH, UNIT_REPORT_EXPORT_PATH, SHELL_PATHS,
   contextOwnerVerdict, reportExportVerdict, requestedContexts,
 } from './contextOwnerScope.js';
 
@@ -86,6 +86,7 @@ describe('contextOwnerVerdict — everything else', () => {
   it.each([
     '/api/matrix', '/api/users', '/api/resources', '/api/identities', '/api/reports',
     '/api/reports/application-access-review/rows', '/api/reports/stale-accounts/export',
+    '/api/reports/unit-members/rows', '/api/reports/unit-members/export/', '/api/reports/unit-members',
     '/api/admin/roles', '/api/admin/context-owner-access', '/api/matrix/shares/resolve', '/api/permissions',
   ])('refuses GET %s', (path) => {
     expect(get(path, { contexts: MINE })).toBe(DENY);
@@ -127,6 +128,41 @@ describe('reportExportVerdict', () => {
   it('is what contextOwnerVerdict answers on the export path', () => {
     expect(get(REPORT_EXPORT_PATH, { contexts: VARIANT, format: 'xlsx' })).toEqual({ allow: false, resolve: [VARIANT] });
     expect(get(REPORT_EXPORT_PATH, { contexts: OTHER, format: 'xlsx' })).toBe(DENY);
+  });
+});
+
+describe('the unit report download', () => {
+  it('is on the list as /api/reports/unit-members/export', () => {
+    expect(UNIT_REPORT_EXPORT_PATH).toBe('/api/reports/unit-members/export');
+  });
+
+  it('asks for a resolve check when every unit named is in scope', () => {
+    expect(get(UNIT_REPORT_EXPORT_PATH, { contexts: `${MINE},${VARIANT}`, format: 'xlsx' })).toEqual({ allow: false, resolve: [MINE, VARIANT] });
+  });
+
+  it('refuses a unit out of scope, even the last of several', () => {
+    expect(get(UNIT_REPORT_EXPORT_PATH, { contexts: OTHER, format: 'xlsx' })).toBe(DENY);
+    expect(get(UNIT_REPORT_EXPORT_PATH, { contexts: [MINE, OTHER] })).toBe(DENY);
+  });
+
+  it('refuses a unit name, even one that might resolve to a held unit', () => {
+    expect(get(UNIT_REPORT_EXPORT_PATH, { contexts: 'Finance' })).toBe(DENY);
+  });
+
+  // The sub-units below an owner's unit need not be theirs: refused in any form,
+  // even false, so no value reading of the flag can widen the report.
+  it.each([['true'], ['1'], ['false'], [''], [['true']]])('refuses includeSubUnits=%j beside an in-scope unit', (value) => {
+    expect(get(UNIT_REPORT_EXPORT_PATH, { contexts: MINE, includeSubUnits: value })).toBe(DENY);
+  });
+
+  it('keeps each report to its own refused parameters', () => {
+    // includeSubUnits means nothing to the Entitlement Pivot; applications nothing to the unit report.
+    expect(get(REPORT_EXPORT_PATH, { contexts: MINE, includeSubUnits: 'true' })).toEqual({ allow: false, resolve: [MINE] });
+    expect(get(UNIT_REPORT_EXPORT_PATH, { contexts: MINE, applications: OTHER })).toEqual({ allow: false, resolve: [MINE] });
+  });
+
+  it('refuses anything but GET', () => {
+    expect(contextOwnerVerdict({ method: 'POST', path: UNIT_REPORT_EXPORT_PATH, query: { contexts: MINE } }, scope)).toBe(DENY);
   });
 });
 
