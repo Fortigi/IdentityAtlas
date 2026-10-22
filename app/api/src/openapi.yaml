@@ -2482,6 +2482,23 @@ components:
               rows: { type: array, items: { type: string }, description: "Row fields, outermost first." }
               filters: { type: array, items: { type: string }, description: "Filter fields." }
               values: { type: array, items: { type: string }, description: "Summed fields." }
+        charts:
+          type: array
+          description: >
+            Pie charts the `xlsx` download opens with, on a Charts tab after the summary. Each
+            splits the rows over one column key, counting rows or summing `value`. Empty for most
+            reports.
+          items:
+            type: object
+            required: [name, type, category]
+            properties:
+              name: { type: string }
+              type: { type: string, enum: [pie] }
+              category: { type: string, description: "Column key whose values are the slices." }
+              value: { type: string, description: "Column key summed per slice; omitted, rows are counted." }
+              title: { type: string }
+              valueLabel: { type: string }
+              colors: { type: object, additionalProperties: { type: string }, description: "Slice colour per category, RRGGBB." }
         source:
           type: string
           enum: [builtin, custom, view]

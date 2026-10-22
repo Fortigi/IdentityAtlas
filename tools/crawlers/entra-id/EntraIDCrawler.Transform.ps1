@@ -784,15 +784,69 @@ function ConvertTo-EntraIdentityRecord {
 }
 
 # Shape one access-review decision into a CertificationDecisions ingest record.
-# Verbatim from the inline `$certRecords += @{ ... }` block.
+#
+# extendedAttributes carries what tells a PERSON's decision from the platform's
+# (the Access Review Adoption reports read it): the definition's
+# "if reviewers don't respond" setting, who applied the decision and when, and
+# the reviewers this round contacted — the only record of who SHOULD have
+# decided when nobody did.
 function ConvertTo-EntraCertificationDecisionRecord {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] $Decision,
         [Parameter(Mandatory)] $Definition,
         [Parameter(Mandatory)] $Instance,
-        [string]$ApId
+        [string]$ApId,
+        [object[]]$ContactedReviewers = @()
     )
+    $d = $Decision
+    $rec = New-EntraCertificationDecisionCore -Decision $d -Definition $Definition -Instance $Instance -ApId $ApId
+    $rec['extendedAttributes'] = ConvertTo-EntraReviewDecisionExtras -Decision $d -Definition $Definition -ContactedReviewers $ContactedReviewers
+    return $rec
+}
+
+# The definition's "if reviewers don't respond" action, or 'None' when it is off.
+function Get-EntraReviewDefaultDecision {
+    [CmdletBinding()]
+    param($Settings)
+    if (-not $Settings) { return $null }
+    if ($Settings.defaultDecisionEnabled -eq $true -and $Settings.defaultDecision) { return [string]$Settings.defaultDecision }
+    return 'None'
+}
+
+# The reviewers a round contacted, reduced to who they are (no timestamps, no Graph noise).
+function ConvertTo-EntraContactedReviewerList {
+    [CmdletBinding()]
+    param([object[]]$Reviewers = @())
+    return @(@($Reviewers) | Where-Object { $_ -and $_.id } | ForEach-Object {
+        [ordered]@{ id = [string]$_.id; displayName = $_.displayName; userPrincipalName = $_.userPrincipalName }
+    })
+}
+
+# The extendedAttributes of one decision record. Pure.
+function ConvertTo-EntraReviewDecisionExtras {
+    [CmdletBinding()]
+    param($Decision, $Definition, [object[]]$ContactedReviewers = @())
+    $ext = [ordered]@{ reviewName = $Definition.displayName }
+    $default = Get-EntraReviewDefaultDecision -Settings $Definition.settings
+    if ($default) { $ext['defaultDecision'] = $default }
+    if ($null -ne $Definition.settings.autoApplyDecisionsEnabled) { $ext['autoApplyDecisions'] = [bool]$Definition.settings.autoApplyDecisionsEnabled }
+    if ($Decision.appliedBy) {
+        $ext['appliedBy'] = $Decision.appliedBy.id
+        $ext['appliedByDisplayName'] = $Decision.appliedBy.displayName
+    }
+    if ($Decision.appliedDateTime) { $ext['appliedDateTime'] = $Decision.appliedDateTime }
+    if ($Decision.applyResult) { $ext['applyResult'] = $Decision.applyResult }
+    $contacted = ConvertTo-EntraContactedReviewerList -Reviewers $ContactedReviewers
+    if ($contacted.Count -gt 0) { $ext['contactedReviewers'] = $contacted }
+    return $ext
+}
+
+# The core columns of one decision record. Verbatim from the inline
+# `$certRecords += @{ ... }` block.
+function New-EntraCertificationDecisionCore {
+    [CmdletBinding()]
+    param($Decision, $Definition, $Instance, [string]$ApId)
     $d = $Decision
     return @{
         id                          = $d.id

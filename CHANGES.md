@@ -1,5 +1,15 @@
 ## Changes in this PR
 
+- Added the **Access Review Adoption** report. It lists each business role with when a person last really reviewed it, longest ago first. Reviews that Entra ID completed by applying the default decision because nobody responded do not count as reviewed. Roles never reviewed and roles too new for a review are listed as their own categories. Roles whose policies do not require an access review are left out, unless you choose to include them.
+- Added the **Access Reviewer Response** report. It lists each reviewer with how many reviews they were asked to do, how many they answered themselves and how they decided, so you can see whom to follow up with and whom to thank.
+- Report Excel downloads can now open with pie charts. Both new reports have two, plus ready-made pivot tables.
+- The Entra ID crawler now records the reviewers each access review contacted, the review's "if reviewers don't respond" setting, and who applied each decision. Run a full sync to fill them in.
+- Added the **High-risk Application Permissions (Entra ID)** report to the Reports list: one row per application (app-only) permission a service principal actually holds that reaches SharePoint/OneDrive content, mailboxes, or directory control tenant-wide, with the API, a category and a severity from an explicit shortlist. Requested-but-unconsented permissions and delegated (user) consent are never listed; the report says when nothing was collected or when a grant's API could not be identified.
+- The report can be widened per run: pick further permissions from the ones granted in your tenant (each picked on its own API), or switch the standard list off to list only your picks. Save the choice as a view to keep it.
+- The Entra ID crawler's application-permission sync now records the tenant-independent application ID of the holding app and of the target API next to the permission, so a permission on Microsoft Graph is told apart from a same-named one on another API.
+
+## Changes in this PR
+
 - Entra ID delta runs now take minutes instead of hours. A delta reads only what changed: new, changed and deleted users, service principals and groups, plus members and owners added to or removed from groups. Delta runs used to re-read every group's members and took as long as a full sync.
 - PIM eligibility, governance, app roles, OAuth2 grants, app permissions, directory roles, nested (indirect) group memberships and sign-in activity are refreshed by full runs only. Keep at least one full run a day.
 - A delta run on an Entra ID crawler that has never completed a sync now runs as a full sync, so a new crawler never shows users without their groups.

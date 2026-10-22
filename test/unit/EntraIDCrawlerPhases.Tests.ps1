@@ -48,6 +48,8 @@ BeforeAll {
     . (Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'helpers' 'Get-FGServicePrincipalType.ps1')
     # The unit under test.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Phases.ps1')
+    # Get-EntraAccessReviewCertRecords + the per-instance fetches (own file, file-length ratchet).
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AccessReviews.ps1')
     # Sync-EntraAppOwners + its helpers live in their own file (extracted for the ratchets).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppOwners.ps1')
     # Sync-EntraAppPermissions + its helpers live in their own file too.
@@ -1649,6 +1651,45 @@ Describe 'Sync-EntraGovernanceReviews' {
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/instances\?' } -MockWith { @([pscustomobject]@{ id = 'inst1' }) }
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/decisions' } -MockWith { throw 'HTTP 400 bad decisions' }
         @(Get-EntraAccessReviewCertRecords -Definition ([pscustomobject]@{ id = 'rd1' }) -ApId 'ap-1').Count | Should -Be 0
+    }
+
+    It 'stamps the reviewers the instance contacted on every decision of that instance' {
+        # Two instances with DIFFERENT reviewer lists: a fetch that ignored the
+        # instance id, or reused the first list, puts the wrong person on inst2.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/instances\?' } -MockWith {
+            @([pscustomobject]@{ id = 'inst1' }, [pscustomobject]@{ id = 'inst2' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'instances/inst1/decisions' } -MockWith {
+            @([pscustomobject]@{ id = 'd1' }, [pscustomobject]@{ id = 'd2' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'instances/inst2/decisions' } -MockWith {
+            @([pscustomobject]@{ id = 'd3' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'instances/inst1/contactedReviewers' } -MockWith {
+            @([pscustomobject]@{ id = 'r-ann'; displayName = 'Ann'; userPrincipalName = 'ann@x' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'instances/inst2/contactedReviewers' } -MockWith {
+            @([pscustomobject]@{ id = 'r-bob'; displayName = 'Bob' }, [pscustomobject]@{ id = 'r-cy'; displayName = 'Cy' })
+        }
+
+        $recs = @(Get-EntraAccessReviewCertRecords -Definition ([pscustomobject]@{ id = 'rd1' }) -ApId 'ap-1')
+
+        $recs.Count | Should -Be 3
+        foreach ($r in $recs[0..1]) { @($r.extendedAttributes.contactedReviewers.id) | Should -Be @('r-ann') }
+        @($recs[2].extendedAttributes.contactedReviewers.id) | Should -Be @('r-bob', 'r-cy')
+        Should -Invoke Invoke-FGGetRequest -ParameterFilter { $URI -match 'contactedReviewers' } -Exactly -Times 2
+    }
+
+    It 'keeps the decisions when the contacted-reviewers call fails' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/instances\?' } -MockWith { @([pscustomobject]@{ id = 'inst1' }) }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/decisions' } -MockWith { @([pscustomobject]@{ id = 'd1'; decision = 'Deny' }) }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'contactedReviewers' } -MockWith { throw 'HTTP 403' }
+
+        $recs = @(Get-EntraAccessReviewCertRecords -Definition ([pscustomobject]@{ id = 'rd1' }) -ApId 'ap-1')
+
+        $recs.Count | Should -Be 1
+        $recs[0].decision | Should -Be 'Deny'
+        $recs[0].extendedAttributes.Contains('contactedReviewers') | Should -BeFalse
     }
 }
 

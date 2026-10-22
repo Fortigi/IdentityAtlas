@@ -1235,45 +1235,8 @@ function Sync-EntraGovernancePolicies {
     Write-Phase -Name 'Governance/AssignmentPolicies' -Duration $__polSW.Elapsed -ErrorMsg $__polErrMsg
 }
 
-# Fetch every decision under an access-review definition's instances and shape
-# them into CertificationDecisions records. All Graph I/O for one definition;
-# per-instance failures are logged and skipped. Pulled out of the review loop so
-# Sync-EntraGovernanceReviews stays under the complexity threshold.
-function Get-EntraAccessReviewCertRecords {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)] $Definition,
-        [string]$ApId
-    )
-    $out = [System.Collections.Generic.List[object]]::new()
-    try {
-        $instances = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions/$($Definition.id)/instances?`$top=100")
-        foreach ($inst in $instances) {
-            $out.AddRange([object[]]@(Get-EntraReviewInstanceDecisions -Definition $Definition -Instance $inst -ApId $ApId))
-        }
-    } catch {
-        Write-Host "  Skipping review definition $($Definition.id): $($_.Exception.Message)" -ForegroundColor Yellow
-    }
-    return $out
-}
-
-# All CertificationDecisions records for one access-review instance. Graph caps the
-# decisions collection at 100/page (larger $top 400s — rely on @odata.nextLink). A
-# per-instance failure is logged (with the real Graph error body) and skipped.
-function Get-EntraReviewInstanceDecisions {
-    [CmdletBinding()]
-    param($Definition, $Instance, [string]$ApId)
-    $out = [System.Collections.Generic.List[object]]::new()
-    try {
-        $decisions = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions/$($Definition.id)/instances/$($Instance.id)/decisions")
-        foreach ($d in $decisions) {
-            $out.Add((ConvertTo-EntraCertificationDecisionRecord -Decision $d -Definition $Definition -Instance $Instance -ApId $ApId))
-        }
-    } catch {
-        Write-Host "    Skipping instance $($Instance.id): $(Get-FGGraphErrorDetail $_)" -ForegroundColor Yellow
-    }
-    return $out
-}
+# Get-EntraAccessReviewCertRecords / Get-EntraReviewInstanceDecisions live in
+# EntraIDCrawler.AccessReviews.ps1 (moved out for the file-length ratchet).
 
 # ─── Governance sub-phase: access reviews -> certifications ───────
 # Walk access-review definitions scoped to an access package, pull their
