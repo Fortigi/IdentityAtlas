@@ -431,3 +431,20 @@ describe('GET /reports/application-access-review — owners by reference, every 
     ]));
   });
 });
+
+describe('GET /contexts/:id/members on a context of resources', () => {
+  it('gives each resource its holder count and its owner, resolved as the report resolves it', async () => {
+    await assignment(id.byExternal, id.holderA, 'Direct');
+    await assignment(id.byExternal, id.holderA, 'Indirect'); // one person, counted once
+    await assignment(id.byExternal, id.holderB, 'Direct', { deleted: true });
+    const res = await agent.get(`/api/contexts/${id.refs}/members`);
+    expect(res.status).toBe(200);
+    const byName = Object.fromEntries(res.body.data.map(m => [m.displayName, m]));
+    expect(byName.REF_EXTERNAL).toMatchObject({
+      holderCount: 1, ownerDisplayName: 'Ref Owner', ownerEmployeeId: 'EMP-5', ownerEmail: 'ref@example.com',
+    });
+    expect(byName.REF_LINKED_A).toMatchObject({ holderCount: 0, ownerDisplayName: 'Holder B' });
+    expect(byName.REF_AS_IS).toMatchObject({ ownerDisplayName: 'Gone Person', ownerEmail: null });
+    expect(byName.REF_EXTERNAL.extendedAttributes).toBeUndefined();
+  });
+});

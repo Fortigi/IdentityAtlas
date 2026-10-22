@@ -151,7 +151,7 @@ function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDeta
         <thead className="hidden sm:table-header-group">
           <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
             <th className="pb-2 font-medium">Name</th>
-            {columns.map(c => <th key={c.label} className="pb-2 font-medium">{c.label}</th>)}
+            {columns.map(c => <th key={c.label} className={`pb-2 font-medium${c.align === 'right' ? ' text-right' : ''}`}>{c.label}</th>)}
             {editMode && <th className="pb-2 font-medium"><span className="sr-only">Actions</span></th>}
           </tr>
         </thead>
@@ -163,7 +163,7 @@ function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDeta
               onClick={() => onOpenDetail(memberDetailKind(attrs.targetType), m.id, m.displayName)}
             >
               <td className="w-full sm:w-auto sm:py-1.5 text-blue-700 dark:text-blue-300 hover:underline">{m.displayName}</td>
-              {columns.map(c => <td key={c.label} className="sm:py-1.5">{c.render(m)}</td>)}
+              {columns.map(c => <td key={c.label} className={`sm:py-1.5${c.align === 'right' ? ' sm:text-right' : ''}`}>{c.render(m)}</td>)}
               {editMode && (
                 <td className="sm:py-1.5 sm:text-right">
                   <RowAction action={memberRowAction(m, attrs, includeDescendants)} onRemove={() => onRemove(m.id)} />

@@ -38,7 +38,7 @@ import { MAX_LIST, parseList, resolveFields } from '../accessReviewFields.js';
 import {
   fetchHeldEntitlements, fetchMemberAssignmentCounts, fetchMemberUserTotal, memberCountKey,
 } from '../heldEntitlements.js';
-import { fetchOwners } from '../entitlementOwners.js';
+import { fetchOwners } from '../../lib/resourceOwners.js';
 import { attributeColumns, omittedAttributeNotices } from '../attributeColumns.js';
 import { fetchContextDetails } from '../contextDetails.js';
 
@@ -401,7 +401,7 @@ function noContextsNamed() {
 
 const describe = contexts => (contexts.length === 1 ? `"${contexts[0].displayName}"` : `${contexts.length} contexts`);
 
-// ─── The data reads (the owners are read by ../entitlementOwners.js) ─────
+// ─── The data reads (owners: ../../lib/resourceOwners.js) ────────────────
 
 // Every read after this one takes the entitlement ids as an explicit uuid[].
 // That is not cosmetic: fed the same set as a CTE sub-select, the planner has no

@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../db/connection.js');
 import { query } from '../db/connection.js';
-import { fetchOwners, groupOwners, ownerReference, referencedOwner } from './entitlementOwners.js';
+import { fetchOwners, groupOwners, ownerReference, referencedOwner } from './resourceOwners.js';
 
 const LINKED_SQL = '"parentResourceId" = ANY';
 const REFERENCE_SQL = 'unnest($1::text[])';

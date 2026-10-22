@@ -2955,6 +2955,18 @@ components:
         displayName: { type: string, nullable: true }
         addedBy: { type: string, enum: [sync, algorithm, analyst] }
         addedAt: { type: string, format: date-time }
+        holderCount:
+          type: integer
+          description: Resource members only — distinct holders of the resource (live assignments).
+        ownerDisplayName:
+          type: string
+          nullable: true
+          description: >
+            Resource members only — the owner: through the ownership link, else the source's ownerId
+            resolved to an account, else the source's ownerName as-is.
+        ownerEmployeeId: { type: string, nullable: true, description: Resource members only. }
+        ownerEmail: { type: string, nullable: true, description: Resource members only. }
+      additionalProperties: true
     ContextRole:
       type: object
       description: Who answers for a context; the holder is an account or a person, exactly one.

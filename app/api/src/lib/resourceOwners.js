@@ -1,4 +1,5 @@
-// Who owns each entitlement of an Entitlement Pivot run.
+// Who owns a resource — shared by the Entitlement Pivot report (one row per
+// entitlement) and the context page's list of resource members.
 //
 // Two places an owner can come from, tried in this order per entitlement:
 //
@@ -16,11 +17,11 @@
 //      carries it. Failing both, the source's name for the owner (or its id) is
 //      shown as-is, so a reviewer still sees who the source says it is.
 //
-// Both reads are set-based — one statement each, run once per report, never once
-// per entitlement: a logical application can hold tens of thousands of them.
+// Both reads are set-based — one statement each, run once per call, never once
+// per resource: a logical application can hold tens of thousands of them.
 
 import * as db from '../db/connection.js';
-import { OWNERSHIP_RELATIONSHIP_TYPES_SQL, OWNERSHIP_TYPES_SQL } from '../lib/ownershipTypes.js';
+import { OWNERSHIP_RELATIONSHIP_TYPES_SQL, OWNERSHIP_TYPES_SQL } from './ownershipTypes.js';
 
 // One row per (entitlement, owner) rather than a pre-aggregated string, because
 // "how many distinct people own anything here" cannot be recovered from an

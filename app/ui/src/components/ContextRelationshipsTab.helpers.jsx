@@ -30,8 +30,9 @@ export function accountTypeWord(principalType) {
 }
 
 // The columns after Name, per kind of member — what the API returns for it
-// (MEMBER_COLUMNS in routes/contexts/read.js). `value` decides whether a row
-// has something to show; `render` draws it.
+// (MEMBER_COLUMNS in routes/contexts/read.js; a resource also gets holderCount
+// and its owner from contexts/resourceMemberFacts.js). `value` decides whether a
+// row has something to show; `render` draws it; `align: 'right'` for numbers.
 export const MEMBER_TABLE_COLUMNS = {
   Principal: [
     { label: 'Email', value: m => m.email, render: m => muted(m.email) },
@@ -48,6 +49,14 @@ export const MEMBER_TABLE_COLUMNS = {
     { label: 'Type', value: m => m.resourceType, render: m => pill(m.resourceType) },
     { label: 'Description', value: m => m.description, render: m => muted(m.description) },
     { label: 'Status', value: m => m.enabled, render: m => status(m.enabled) },
+    {
+      label: 'Users', align: 'right', value: m => m.holderCount,
+      render: m => <span className="tabular-nums text-gray-700 dark:text-gray-300">{Number(m.holderCount).toLocaleString('en-US')}</span>,
+    },
+    {
+      label: 'Owner', value: m => m.ownerDisplayName,
+      render: m => <span className="text-gray-700 dark:text-gray-300" title={m.ownerEmail || undefined}>{m.ownerDisplayName}</span>,
+    },
   ],
   System: [
     { label: 'Description', value: m => m.description, render: m => muted(m.description) },
@@ -62,7 +71,7 @@ const hasValue = (v) => v !== null && v !== undefined && v !== '';
 export function visibleMemberColumns(targetType, members) {
   return (MEMBER_TABLE_COLUMNS[targetType] || [])
     .filter(c => members.some(m => hasValue(c.value(m))))
-    .map(c => ({ label: c.label, render: m => (hasValue(c.value(m)) ? c.render(m) : null) }));
+    .map(c => ({ label: c.label, align: c.align, render: m => (hasValue(c.value(m)) ? c.render(m) : null) }));
 }
 
 // The action cell of a member row in edit mode:

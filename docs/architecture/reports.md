@@ -288,7 +288,8 @@ comma, a control character) is counted with the rest.
 
 ### Entitlement owners
 
-`reports/entitlementOwners.js` gives each row an owner — name, employee ID, e-mail — in this order:
+`lib/resourceOwners.js` gives each row an owner — name, employee ID, e-mail — in this order (the
+context page's member list of resources uses the same module):
 
 1. **The ownership link**: entitlement → `HasOwnership` / `HasAppOwnership` → ownership resource → its
    `Direct` holders → the Principal. Several owners are comma-joined.
