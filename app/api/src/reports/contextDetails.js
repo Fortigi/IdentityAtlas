@@ -105,6 +105,8 @@ export function peopleEntries(roles, suggestion) {
 export function detailBlock(row, roles = [], suggestion = null) {
   return {
     title: `Context: ${row.displayName}`,
+    // The file is named after it when a run covers this one context (export.js).
+    contextName: row.displayName,
     entries: [...peopleEntries(roles, suggestion), ...attributeEntries(row)],
   };
 }
