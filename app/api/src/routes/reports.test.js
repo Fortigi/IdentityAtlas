@@ -119,7 +119,7 @@ describe('GET /api/reports/:name/export', () => {
 
     expect(res.headers['content-type']).toMatch(/^text\/csv/);
     expect(res.headers['content-disposition']).toMatch(
-      /^attachment; filename="identity-atlas-downloadable-report-\d{4}-\d{2}-\d{2}\.csv"$/);
+      /^attachment; filename="identity-atlas-downloadable-report-\d{4}-\d{2}-\d{2}\.csv"; filename\*=UTF-8''identity-atlas-downloadable-report-\d{4}-\d{2}-\d{2}\.csv$/);
     expect(res.text).toBe('"Thing","Count"\r\n"widget","3"');
   });
 
@@ -127,7 +127,7 @@ describe('GET /api/reports/:name/export', () => {
     const res = await request(app).get('/api/reports/downloadable-report/export?format=json').expect(200);
 
     expect(res.headers['content-type']).toMatch(/^application\/json/);
-    expect(res.headers['content-disposition']).toMatch(/filename=".*\.json"$/);
+    expect(res.headers['content-disposition']).toMatch(/filename=".*\.json";/);
     expect(JSON.parse(res.text)).toMatchObject({
       name: 'downloadable-report', total: 1, rows: [{ thing: 'widget', count: 3 }],
     });
