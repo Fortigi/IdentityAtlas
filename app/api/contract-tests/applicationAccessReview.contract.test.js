@@ -24,6 +24,9 @@ const SECOND_NAME = 'Contract Archive Tag';
 // A unit of ACCOUNTS: the report reviews what its members hold, counted among them.
 const UNIT_NAME = 'Contract Ledger Team';
 const EMPTY_UNIT_NAME = 'Contract Empty Team';
+// A logical application whose entitlements name their owner only by the source's
+// reference (the IdentityIQ preset with ownership links off), plus two linked ones.
+const REFS_NAME = 'Contract Owner References';
 
 // What the customer's catalogue looks like: the fields are picked, not built in.
 const FIELDS = [
@@ -50,6 +53,16 @@ const id = {
   holderB: randomUUID(),
   unit: randomUUID(),
   emptyUnit: randomUUID(),
+  refs: randomUUID(),
+  byExternal: randomUUID(),   // ownerId = a principal's externalId
+  byEmployee: randomUUID(),   // ownerId = the one live principal's employeeId
+  asIs: randomUUID(),         // ownerId resolves to nobody; ownerName shown as-is
+  linkedA: randomUUID(),      // owned by Holder B through the ownership link
+  linkedB: randomUUID(),
+  ownershipA: randomUUID(),
+  ownershipB: randomUUID(),
+  refOwner: randomUUID(),
+  empOwner: randomUUID(),
 };
 
 async function context(contextId, contextType, displayName, attrs, targetType = 'Resource') {
@@ -117,11 +130,36 @@ async function seed() {
   await member(id.unit, id.holderA, 'Principal');
   await assignment(id.role1, id.holderA, 'Direct');
   await context(id.emptyUnit, 'Department', EMPTY_UNIT_NAME, {}, 'Principal');
+  await seedOwnerReferences();
 }
 
-const principal = (pid, displayName, email, employeeId = null) => pool.query(
-  `INSERT INTO "Principals" ("id","systemId","displayName","email","principalType","employeeId","extendedAttributes")
-   VALUES ($1,$2,$3,$4,'User',$5,'{}'::jsonb)`, [pid, systemId, displayName, email, employeeId]);
+async function seedOwnerReferences() {
+  await context(id.refs, 'LogicalApplication', REFS_NAME, { cmdbReference: 'CI-9', zoning: { tier: 2 } });
+  await pool.query(`UPDATE "Contexts" SET "contextCategory" = 'LogicalApplication' WHERE id = $1`, [id.refs]);
+  await principal(id.refOwner, 'Ref Owner', 'ref@example.com', 'EMP-5', 'spt-ref-owner');
+  await principal(id.empOwner, 'Emp Owner', 'emp@example.com', 'EMP-77');
+  await resource(id.byExternal, 'REF_EXTERNAL', 'Entitlement',
+    { ownerId: 'spt-ref-owner', ownerName: 'Stale Name', requestable: true, certfrequency: 'Annually' });
+  await resource(id.byEmployee, 'REF_EMPLOYEE', 'Entitlement', { ownerId: 'EMP-77' });
+  await resource(id.asIs, 'REF_AS_IS', 'Entitlement', { ownerId: 'spt-gone', ownerName: 'Gone Person' });
+  // Linked AND carrying a reference to someone else: the link wins.
+  await resource(id.linkedA, 'REF_LINKED_A', 'Entitlement', { ownerId: 'spt-ref-owner' });
+  await resource(id.linkedB, 'REF_LINKED_B', 'Entitlement', {});
+  for (const [owned, ownership] of [[id.linkedA, id.ownershipA], [id.linkedB, id.ownershipB]]) {
+    await resource(ownership, 'owned', 'ResourceOwnership', {});
+    await relationship(owned, ownership, 'HasOwnership');
+    await assignment(ownership, id.holderB, 'Direct');
+  }
+  for (const m of [id.byExternal, id.byEmployee, id.asIs, id.linkedA, id.linkedB]) await member(id.refs, m);
+  // A Responsible, and no Accountable: Holder B owns 2 of the 5 (40%), so is suggested.
+  await pool.query(
+    `INSERT INTO "ContextRoles" ("contextId","principalId",role,"addedBy") VALUES ($1,$2,'Responsible','analyst')`,
+    [id.refs, id.empOwner]);
+}
+
+const principal = (pid, displayName, email, employeeId = null, externalId = null) => pool.query(
+  `INSERT INTO "Principals" ("id","systemId","displayName","email","principalType","employeeId","externalId","extendedAttributes")
+   VALUES ($1,$2,$3,$4,'User',$5,$6,'{}'::jsonb)`, [pid, systemId, displayName, email, employeeId, externalId]);
 
 const resource = (rid, displayName, resourceType, attrs) => pool.query(
   `INSERT INTO "Resources" ("id","systemId","displayName","resourceType","extendedAttributes")
@@ -153,8 +191,10 @@ beforeAll(async () => {
 afterAll(async () => {
   await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "ResourceRelationships" WHERE "systemId" = $1`, [systemId]);
-  await pool.query(`DELETE FROM "ContextMembers" WHERE "contextId" = ANY($1::uuid[])`, [[id.app, id.app2, id.unit, id.emptyUnit]]);
-  await pool.query(`DELETE FROM "Contexts" WHERE "id" = ANY($1::uuid[])`, [[id.app, id.app2, id.unit, id.emptyUnit]]);
+  const contexts = [id.app, id.app2, id.unit, id.emptyUnit, id.refs];
+  await pool.query(`DELETE FROM "ContextRoles" WHERE "contextId" = ANY($1::uuid[])`, [contexts]);
+  await pool.query(`DELETE FROM "ContextMembers" WHERE "contextId" = ANY($1::uuid[])`, [contexts]);
+  await pool.query(`DELETE FROM "Contexts" WHERE "id" = ANY($1::uuid[])`, [contexts]);
   await pool.query(`DELETE FROM "Resources" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "Principals" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "Systems" WHERE "id" = $1`, [systemId]);
@@ -175,6 +215,8 @@ describe('GET /reports/application-access-review/rows', () => {
     const body = await rows();
     expect(body.columns.map(c => c.key)).toEqual([
       'entitlement', ...FIELDS.split(','), 'businessRoles', 'directAssignments', 'viaRoleAssignments',
+      // Then every attribute the entitlements carry that was not picked.
+      'entitlement.ext.costcentercode',
     ]);
   });
 
@@ -274,7 +316,7 @@ describe('GET /reports/application-access-review/export', () => {
     const [header, ...lines] = res.text.split('\r\n');
     expect(header).toBe(
       '"Entitlement","costcentercode","Context","Entitlement owner",'
-      + '"Granted by role(s)","Users assigned directly","Users assigned via a role"');
+      + '"Granted by role(s)","Users assigned directly","Users assigned via a role","certfrequency"');
     expect(lines).toHaveLength(3);
     expect(res.text).toContain('"Ledger Clerk, Ledger Supervisor"');
     expect(res.text).toContain('"4410"');
@@ -303,6 +345,7 @@ describe('GET /reports/application-access-review/export', () => {
     expect(headerLabels(await workbookFor(APP_NAME), 'Entitlement')).toEqual([
       'Entitlement', 'Context', 'Resource type', 'certfrequency', 'Entitlement owner',
       'Entitlement owner email', 'Granted by role(s)', 'Users assigned directly', 'Users assigned via a role',
+      'costcentercode',
     ]);
   });
 
@@ -329,5 +372,62 @@ describe('GET /reports/application-access-review/export', () => {
     const labels = headerLabels(await workbookFor(`${APP_NAME},${SECOND_NAME}`), 'Entitlement');
     expect(labels).toContain('Context');
     expect(labels).toContain('Context · cmdbReference');
+  });
+});
+
+describe('GET /reports/application-access-review — owners by reference, every attribute, the context', () => {
+  const OWNER_FIELDS = 'entitlement.owner,entitlement.ownerEmployeeId,entitlement.ownerEmail';
+  const ownerOf = (body, name) => {
+    const row = rowFor(body, name);
+    return [row['entitlement.owner'], row['entitlement.ownerEmployeeId'], row['entitlement.ownerEmail']];
+  };
+
+  it('resolves an owner the source named by reference: by externalId, then by a unique employeeId, else as-is', async () => {
+    const body = await rows(REFS_NAME, { fields: OWNER_FIELDS });
+    expect(ownerOf(body, 'REF_EXTERNAL')).toEqual(['Ref Owner', 'EMP-5', 'ref@example.com']);
+    expect(ownerOf(body, 'REF_EMPLOYEE')).toEqual(['Emp Owner', 'EMP-77', 'emp@example.com']);
+    expect(ownerOf(body, 'REF_AS_IS')).toEqual(['Gone Person', null, null]);
+    // The ownership link wins over a reference to someone else.
+    expect(ownerOf(body, 'REF_LINKED_A')).toEqual(['Holder B', null, 'b@example.com']);
+    expect(ownerOf(body, 'REF_LINKED_B')).toEqual(['Holder B', null, 'b@example.com']);
+  });
+
+  it('adds every attribute the entitlements carry as a column, the raw owner reference included', async () => {
+    const body = await rows(REFS_NAME, { fields: OWNER_FIELDS });
+    const attributeKeys = body.columns.map(c => c.key).filter(k => k.startsWith('entitlement.ext.'));
+    expect(attributeKeys).toEqual([
+      'entitlement.ext.certfrequency', 'entitlement.ext.ownerId', 'entitlement.ext.ownerName', 'entitlement.ext.requestable',
+    ]);
+    expect(rowFor(body, 'REF_EXTERNAL')).toMatchObject({
+      'entitlement.ext.requestable': true, 'entitlement.ext.certfrequency': 'Annually', 'entitlement.ext.ownerId': 'spt-ref-owner',
+    });
+  });
+
+  it('describes the context: its attributes, its Responsible, and the suggested Accountable with the reason', async () => {
+    const body = await rows(REFS_NAME, { fields: OWNER_FIELDS });
+    expect(body.details).toHaveLength(1);
+    const { title, entries } = body.details[0];
+    const value = label => entries.find(e => e.label === label)?.value;
+    expect(title).toBe(`Context: ${REFS_NAME}`);
+    expect(value('Accountable')).toBeNull();
+    expect(value('Suggested Accountable')).toBe('Holder B · owns 2 of the 5 resources');
+    expect(value('Responsible')).toBe('Emp Owner · EMP-77 · emp@example.com');
+    expect(value('cmdbReference')).toBe('CI-9');
+    expect(value('zoning')).toBe('{"tier":2}');
+    expect(value('Source system')).toBe(SYSTEM_NAME);
+  });
+
+  it('writes the context block on the workbook\'s first tab', async () => {
+    const res = await asBinary(agent.get('/api/reports/application-access-review/export')
+      .query({ contexts: REFS_NAME, format: 'xlsx' }));
+    expect(res.status).toBe(200);
+    const summary = await sheetNamed(res.body, 'Summary');
+    const pairs = {};
+    summary.eachRow(row => { pairs[row.getCell(1).value] = row.getCell(2).value; });
+    expect(pairs).toMatchObject({ 'Suggested Accountable': 'Holder B · owns 2 of the 5 resources', cmdbReference: 'CI-9' });
+    expect(Object.keys(pairs)).toContain(`Context: ${REFS_NAME}`);
+    expect(headerLabels(await sheetNamed(res.body, 'Data'), 'Entitlement')).toEqual(expect.arrayContaining([
+      'Entitlement owner', 'Entitlement owner employee ID', 'Entitlement owner email', 'requestable', 'certfrequency',
+    ]));
   });
 });

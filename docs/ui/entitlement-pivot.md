@@ -40,7 +40,8 @@ entitlement report** card is on application pages only; a unit's page offers **V
 Under **Columns**, pick what to show between the entitlement and its counts. The list offers:
 
 - **Built-in fields** every deployment has: the context's name, type, description and owner; the
-  resource's type, system, description, owner and owner email; the number of *eligible* holders.
+  resource's type, system, description, owner, owner employee ID and owner email; the number of
+  *eligible* holders.
 - **Attributes** the source systems stored on the contexts you picked, or on their resources. Examples
   are a CMDB reference from an application catalogue, or a certification frequency or cost centre from
   IdentityIQ. Only attributes the picked contexts actually carry are offered, and each says how many
@@ -48,6 +49,17 @@ Under **Columns**, pick what to show between the entitlement and its counts. The
 
 Pick the contexts first: the attribute list follows them. If none of the rows has a value for an
 attribute you picked, the report says so above the table.
+
+You do not have to pick the entitlements' own attributes to see them: after the counts, the report adds
+a column for **every attribute the entitlements in the report carry** (for example *certfrequency* or
+*requestable* from IdentityIQ), sorted by name and headed by the attribute's name. At most 60 are
+added; if there are more, the ones most entitlements carry are kept and the rest are named on the
+Summary tab, so you can pick them.
+
+**The owner** comes in three columns: name, employee ID and e-mail — the default columns include all
+three. It is the owner linked to the entitlement; when there is none but the source named an owner
+(`ownerId` / `ownerName`, which the IdentityIQ preset stores), the report looks that person up by
+account key, then by employee ID, and otherwise shows the name the source gave.
 
 ## The Excel pivots
 
@@ -63,6 +75,10 @@ table if you did not pick it as a column, because a pivot can only read what the
 
 When the report covers **one** context, the context fields you picked are stated once on the Summary
 tab instead of being repeated on every row.
+
+The Summary tab also describes **each context in full**: who is Accountable and Responsible (name,
+employee ID, e-mail) — or, when nobody is Accountable yet, the suggested person and why, as on the
+context page — and every attribute the context page lists under *More details*.
 
 ## Saving your setup as a view
 

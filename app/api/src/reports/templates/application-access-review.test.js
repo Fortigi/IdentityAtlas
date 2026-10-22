@@ -16,7 +16,7 @@ vi.mock('../../db/connection.js');
 import { query, queryOne } from '../../db/connection.js';
 import report, {
   DEFAULT_FIELDS, DEFAULT_PIVOT_ROWS, MAX_CONTEXTS, MAX_ROWS,
-  buildLayout, emptyFieldNotices, fieldParameters, groupOwners, parseList, percentage,
+  buildLayout, emptyFieldNotices, fieldParameters, parseList, percentage,
 } from './application-access-review.js';
 import { resolveFields } from '../accessReviewFields.js';
 
@@ -44,8 +44,14 @@ const ent = (id, over = {}) => ({
 });
 
 // Each read is recognised by a fragment only that statement contains.
-function stage({ contexts = [context()], entitlements = [], counts = [], roles = [], owners = [], users = 0 }) {
+function stage({
+  contexts = [context()], entitlements = [], counts = [], roles = [], owners = [], users = 0,
+  details = contexts, contextRoles = [], references = [],
+}) {
   query.mockImplementation(async (sql) => {
+    if (sql.includes('SELECT c.*')) return { rows: details };
+    if (sql.includes('FROM "ContextRoles"')) return { rows: contextRoles };
+    if (sql.includes('unnest($1::text[])')) return { rows: references };
     if (sql.includes('FROM "Contexts" c')) return { rows: contexts };
     if (sql.includes('"memberType" = \'Resource\'')) return { rows: entitlements };
     if (sql.includes('FILTER (WHERE d.t = \'Direct\')')) return { rows: counts };
@@ -447,14 +453,92 @@ describe('access review — rules', () => {
     expect(emptyFieldNotices(rows, fields)).toEqual([{ severity: 'info', text: 'No row in scope has a value for "x".' }]);
     expect(emptyFieldNotices(rows, fields.slice(1))).toEqual([]);
   });
+});
 
-  it('folds owner links into one entry per entitlement while keeping the people apart', () => {
-    const grouped = groupOwners([
-      { id: 'e1', ownerId: 'p1', ownerName: 'A', ownerEmail: 'a@x' },
-      { id: 'e1', ownerId: 'p2', ownerName: 'B', ownerEmail: null },
-      { id: 'e2', ownerId: 'p1', ownerName: 'A', ownerEmail: 'a@x' },
+// ─── what the IdentityIQ catalogue needs without configuration ─────────────
+
+describe('access review — every attribute, the owner, the context', () => {
+  it('adds every attribute the entitlements carry as a column after the counts, sorted, not repeating a picked one', async () => {
+    stage({
+      entitlements: [
+        ent('a', { extendedAttributes: { requestable: true, certfrequency: 'Quarterly', ownerId: 'spt-1' } }),
+        ent('b', { extendedAttributes: { Classification: 'High', blank: ' ' } }),
+      ],
+    });
+    const result = await run({ fields: 'entitlement.ext.certfrequency' });
+    expect(keys(result.columns)).toEqual([
+      // (the two default pivot rows are columns too)
+      'entitlement', 'entitlement.ext.certfrequency', 'context.name', 'entitlement.owner',
+      'businessRoles', 'directAssignments', 'viaRoleAssignments',
+      'entitlement.ext.Classification', 'entitlement.ext.ownerId', 'entitlement.ext.requestable',
     ]);
-    expect(grouped.get('e1')).toEqual({ ownerName: 'A, B', ownerEmail: 'a@x', ownerIds: ['p1', 'p2'] });
-    expect(grouped.get('e2').ownerIds).toEqual(['p1']);
+    expect(rowFor(result, 'a')).toMatchObject({ 'entitlement.ext.requestable': true, 'entitlement.ext.Classification': null });
+    expect(rowFor(result, 'b')['entitlement.ext.Classification']).toBe('High');
+    // The pivots are the picked ones; an automatic column does not join them.
+    expect(result.pivots[0].rows).toEqual(['context.name', 'entitlement.owner', 'entitlement']);
+  });
+
+  it('names the attributes past the column cap in a notice', async () => {
+    const attrs = Object.fromEntries(Array.from({ length: 62 }, (_, i) => [`k${String(i).padStart(2, '0')}`, 'v']));
+    stage({ entitlements: [ent('a', { extendedAttributes: attrs })] });
+    const result = await run({ fields: 'entitlement.type' });
+    expect(result.columns.filter(c => c.key.startsWith('entitlement.ext.'))).toHaveLength(60);
+    expect(noticeText(result)).toMatch(/2 entitlement attribute\(s\) are not shown as columns .*"k60", "k61"/);
+  });
+
+  it('fills the three owner columns from the link, from the source\'s reference, or from its words', async () => {
+    stage({
+      entitlements: [
+        ent('linked'),
+        ent('byRef', { extendedAttributes: { ownerId: 'spt-17', ownerName: 'Stale' } }),
+        ent('asIs', { extendedAttributes: { ownerId: 'spt-404', ownerName: 'Gone Person' } }),
+      ],
+      owners: [{ id: 'linked', ownerId: 'p1', ownerName: 'Link Owner', ownerEmail: 'l@x', ownerEmployeeId: 'E-1' }],
+      references: [{ ref: 'spt-17', id: 'p9', displayName: 'Grace Hopper', email: 'g@x', employeeId: 'E-9' }],
+    });
+    const result = await run();
+    const owner = id => [rowFor(result, id)['entitlement.owner'], rowFor(result, id)['entitlement.ownerEmployeeId'], rowFor(result, id)['entitlement.ownerEmail']];
+    expect(owner('linked')).toEqual(['Link Owner', 'E-1', 'l@x']);
+    expect(owner('byRef')).toEqual(['Grace Hopper', 'E-9', 'g@x']);
+    expect(owner('asIs')).toEqual(['Gone Person', null, null]);
+    // The raw reference stays visible as the source stored it.
+    expect(rowFor(result, 'asIs')['entitlement.ext.ownerId']).toBe('spt-404');
+    expect(noticeText(result)).toMatch(/3 distinct entitlement owner\(s\); 0 entitlement\(s\) have no owner/);
+  });
+
+  it('returns a details block per context for the workbook\'s first tab', async () => {
+    stage({
+      entitlements: [ent('a')],
+      contextRoles: [{ contextId: CTX_ID, role: 'Accountable', displayName: 'Ada Lovelace', employeeId: '10007339', email: null }],
+    });
+    const { details } = await run();
+    expect(details).toHaveLength(1);
+    expect(details[0].title).toBe('Context: Ledger Engineering 0006');
+    expect(details[0].entries).toEqual(expect.arrayContaining([
+      { label: 'Accountable', value: 'Ada Lovelace · 10007339' },
+      { label: 'cmdbReference', value: 'CI5505557' },
+    ]));
+  });
+
+  it('returns the details even when the context holds nothing', async () => {
+    stage({ entitlements: [] });
+    expect((await run()).details.map(d => d.title)).toEqual(['Context: Ledger Engineering 0006']);
+  });
+
+  it('reads the same number of times for 3 entitlements as for 300 — no read per row', async () => {
+    const callsFor = async (n) => {
+      query.mockReset();
+      queryOne.mockReset();
+      stage({
+        entitlements: Array.from({ length: n }, (_, i) => ent(String(i), { extendedAttributes: { ownerId: `o${i}` } })),
+      });
+      await run();
+      return query.mock.calls.length + queryOne.mock.calls.length;
+    };
+    const few = await callsFor(3);
+    expect(await callsFor(300)).toBe(few);
+    // contexts, context rows, roles, entitlements, counts, roles-of-entitlements,
+    // owner links, owner references, user total.
+    expect(few).toBe(9);
   });
 });

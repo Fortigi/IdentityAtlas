@@ -167,6 +167,31 @@ describe('XLSX serialization', () => {
     expect(firstColumn(await sheetOf(NOTICED))).toEqual(['Account', 'Ada Lovelace', 'Grace Hopper']);
   });
 
+  it('writes each detail block below the notices: its title, then typed label/value pairs', async () => {
+    const summary = await summaryOf({
+      ...NOTICED,
+      details: [
+        { title: 'Context: Ledger', entries: [{ label: 'certfrequency', value: 'Annually' }, { label: 'Total Member Count', value: 42 }] },
+        { title: 'Context: Archive', entries: [{ label: 'Accountable', value: null }] },
+      ],
+    });
+    // The sheet row a label sits on (eachRow skips blank rows, so count them by number).
+    const at = (label) => {
+      let found = -1;
+      summary.eachRow((row, n) => { if (found < 0 && row.getCell(1).value === label) found = n; });
+      return found;
+    };
+    expect(at('Context: Ledger')).toBeGreaterThan(at('Two systems reported no activity.'));
+    expect(at('certfrequency')).toBe(at('Context: Ledger') + 1);
+    expect(summary.getCell(`B${at('certfrequency')}`).value).toBe('Annually');
+    // A count stays a number, so it can be summed.
+    expect(summary.getCell(`B${at('Total Member Count')}`).value).toBe(42);
+    // One blank row between blocks; a role nobody holds keeps its label, empty.
+    expect(at('Context: Archive')).toBe(at('Total Member Count') + 2);
+    expect(summary.getCell(`B${at('Accountable')}`).value).toBeNull();
+    expect(summary.getCell(`A${at('Context: Ledger')}`).font.bold).toBe(true);
+  });
+
   it('starts the table on row 1 however long the summary is', async () => {
     // The discriminating case: a serializer that still wrote the summary above
     // the table would put the header lower as the notices grow.
