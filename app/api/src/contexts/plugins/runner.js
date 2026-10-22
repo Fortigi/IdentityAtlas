@@ -30,6 +30,7 @@ import * as db from '../../db/connection.js';
 import { randomUUID } from 'crypto';
 import { getPlugin } from './registry.js';
 import { wouldCreateCycle } from '../cycleGuard.js';
+import { refreshMemberCounts } from '../memberCounts.js';
 import { buildNewIdMap, buildMemberInsertBatch, buildRoleInsertBatch, roleKeys, withPluginRoot, PLUGIN_ROOT_EXTERNAL_ID } from './runner.helpers.js';
 
 // Second pass of reconcile: set parent pointers now that every target row exists.
@@ -415,50 +416,4 @@ async function replaceOwnedRoles(client, roles, { newByExternalId, producedConte
       ON CONFLICT DO NOTHING
     `, params);
   }
-}
-
-// 6) Refresh directMemberCount on every touched context, then roll up
-// totalMemberCount over each context's subtree (distinct members, so a person who
-// is a direct member of two sibling leaves in the same tree isn't double-counted).
-async function refreshMemberCounts(client, producedContextIds) {
-  if (producedContextIds.length === 0) return;
-
-  // 6a) directMemberCount.
-  await client.query(`
-    UPDATE "Contexts" c
-       SET "directMemberCount" = COALESCE(m.cnt, 0),
-           "lastCalculatedAt"  = now() AT TIME ZONE 'utc'
-      FROM (
-        SELECT "contextId", COUNT(*)::int AS cnt
-          FROM "ContextMembers"
-         WHERE "contextId" = ANY($1::uuid[])
-         GROUP BY "contextId"
-      ) m
-     WHERE c.id = m."contextId"
-  `, [producedContextIds]);
-
-  // 6b) totalMemberCount over the subtree rooted at each context.
-  await client.query(`
-    WITH RECURSIVE subtree AS (
-      -- Seed: the context itself.
-      SELECT id AS root_id, id AS node_id
-        FROM "Contexts"
-       WHERE id = ANY($1::uuid[])
-      UNION
-      -- Walk down.
-      SELECT s.root_id, c.id
-        FROM "Contexts" c
-        JOIN subtree s ON c."parentContextId" = s.node_id
-    ),
-    totals AS (
-      SELECT s.root_id, COUNT(DISTINCT cm."memberId")::int AS cnt
-        FROM subtree s
-        LEFT JOIN "ContextMembers" cm ON cm."contextId" = s.node_id
-       GROUP BY s.root_id
-    )
-    UPDATE "Contexts" c
-       SET "totalMemberCount" = t.cnt
-      FROM totals t
-     WHERE c.id = t.root_id
-  `, [producedContextIds]);
 }

@@ -113,3 +113,28 @@ describe('recalcMemberCountsForChain', () => {
     expect(total.params[0]).toEqual([ROOT]);
   });
 });
+
+describe('refreshMemberCounts (batch writers)', () => {
+  it('sets every listed context\'s direct count — 0 for one without members — then the subtree totals', async () => {
+    vi.resetModules();
+    vi.doUnmock('../db/connection.js');
+    const { refreshMemberCounts } = await import('./memberCounts.js');
+    const runner = { query: vi.fn().mockResolvedValue({ rows: [] }) };
+    await refreshMemberCounts(runner, [ROOT, CHILD]);
+    expect(runner.query).toHaveBeenCalledTimes(2);
+    const [direct, total] = runner.query.mock.calls;
+    expect(direct[1]).toEqual([[ROOT, CHILD]]);
+    // A correlated COALESCE over every listed id, not a join that skips the empty ones.
+    expect(direct[0]).toMatch(/SET "directMemberCount" = COALESCE\(\(\s*SELECT COUNT\(\*\)::int FROM "ContextMembers" cm WHERE cm\."contextId" = c\.id\s*\), 0\)/);
+    expect(direct[0]).toMatch(/WHERE c\.id = ANY\(\$1::uuid\[\]\)/);
+    expect(total[0]).toMatch(/COUNT\(DISTINCT cm\."memberId"\)/);
+    expect(total[1]).toEqual([[ROOT, CHILD]]);
+  });
+
+  it('does nothing for no contexts', async () => {
+    const { refreshMemberCounts } = await import('./memberCounts.js');
+    const runner = { query: vi.fn() };
+    await refreshMemberCounts(runner, []);
+    expect(runner.query).not.toHaveBeenCalled();
+  });
+});

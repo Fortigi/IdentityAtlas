@@ -209,3 +209,21 @@ describe('POST /ingest/context-relationships', () => {
     expect(query).not.toHaveBeenCalled();
   });
 });
+
+describe('insertRoleRows / insertRelationshipRows (in-process writers)', () => {
+  it('add the rows for the given system under the endpoints\' SQL and count what landed', async () => {
+    const { insertRoleRows, insertRelationshipRows } = await import('./contextLinks.js');
+    query.mockResolvedValueOnce({ rowCount: 1 }).mockResolvedValueOnce({ rowCount: 0 });
+    const roles = await insertRoleRows([
+      { contextId: CTX, role: 'Responsible', holderCol: 'principalId', holderId: P1 },
+      { contextId: CTX2, role: 'Responsible', holderCol: 'principalId', holderId: P1 },
+    ], 9);
+    expect(roles).toEqual({ inserted: 1, skipped: 1 });
+    expect(query.mock.calls[0]).toEqual([roleInsertSql('principalId'), [CTX, P1, 'Responsible', 9, ['OrganizationalUnit', 'LogicalApplication']]]);
+
+    query.mockResolvedValueOnce({ rowCount: 1 });
+    expect(await insertRelationshipRows([{ contextId: CTX, relatedContextId: CTX2, relationshipType: 'SameUnitAs' }], 9))
+      .toEqual({ inserted: 1, skipped: 0 });
+    expect(query.mock.calls[2]).toEqual([RELATIONSHIP_INSERT_SQL, [CTX, CTX2, 'SameUnitAs', 9]]);
+  });
+});
