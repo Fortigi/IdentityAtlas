@@ -436,6 +436,33 @@ describe('POST /ingest/contexts — DB-enforced acyclicity', () => {
     expect(owned.status).toBe(201);
     expect(owned.body.warnings).toBeUndefined();
   });
+
+  // The owner a source names becomes the context's Accountable after the upsert
+  // (ingest/contextOwners.js); the response carries what that did.
+  it('states the batch\'s owners as Accountables and reports the counts', async () => {
+    mockIngest.mockResolvedValueOnce({ inserted: 1, updated: 0, deleted: 0 });
+    mockQuery.mockImplementation(async (sql) => {
+      const s = String(sql);
+      if (/information_schema\.columns/.test(s)) return { rows: [{ column_name: 'id' }, { column_name: 'display_name' }], rowCount: 0 };
+      if (s.includes('INSERT INTO "ContextRoles"')) return { rows: [{ set: 4, replaced: 1, removed: 2, unresolved: 3 }], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    });
+    const res = await request(app).post('/ingest/contexts').send({
+      ...goodContext, records: [{ ...goodContext.records[0], id: UUID, scopeSystemId: 1, ownerUserId: '1001' }],
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.accountable).toEqual({ set: 4, replaced: 1, removed: 2, unresolved: 3 });
+    const call = mockQuery.mock.calls.find(([s]) => String(s).includes('INSERT INTO "ContextRoles"'));
+    expect(call[1]).toEqual([[UUID]]);
+  });
+
+  it('never touches context roles for a non-contexts batch', async () => {
+    mockIngest.mockResolvedValueOnce({ inserted: 1, updated: 0, deleted: 0 });
+    const res = await request(app).post('/ingest/principals').send(goodPrincipal);
+    expect(res.status).toBe(201);
+    expect(res.body).not.toHaveProperty('accountable');
+    expect(mockQuery.mock.calls.some(([s]) => String(s).includes('"ContextRoles"'))).toBe(false);
+  });
 });
 
 // ── POST /ingest/principals-presence ─────────────────────────────────────────

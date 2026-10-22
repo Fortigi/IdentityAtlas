@@ -41,3 +41,9 @@ export function categoryForContextType(contextType) {
   const category = Object.hasOwn(CONTEXT_TYPE_CATEGORY, contextType) ? CONTEXT_TYPE_CATEGORY[contextType] : null;
   return CONTEXT_CATEGORIES.includes(category) ? category : null;
 }
+
+// The templates whose contexts have people who answer for them (ContextRoles,
+// migration 092): an organizational unit and a logical application. A Segment
+// or a Tag carries no roles. Shared by the roles API and the ingest, which
+// states a synced owner as the Accountable (ingest/contextOwners.js).
+export const ROLE_BEARING_CATEGORIES = new Set(['OrganizationalUnit', 'LogicalApplication']);

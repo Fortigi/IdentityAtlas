@@ -118,6 +118,7 @@ export async function handleSessionPath(body, ctx) {
       inserted: result.inserted, updated: result.updated, deleted: result.deleted,
       totalRecords: result.totalRecords, session: 'completed',
       ...(result.managerLinks ? { managerLinks: result.managerLinks, warnings: [managerLinkWarning(result.managerLinks)] } : {}),
+      ...(result.accountable ? { accountable: result.accountable } : {}),
     } };
   }
   return null;

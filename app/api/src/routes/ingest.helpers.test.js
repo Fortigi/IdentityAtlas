@@ -110,12 +110,20 @@ describe('handleSessionPath', () => {
     expect(r.body.managerLinks).toEqual({ unresolved: 7, selfReferences: 1 });
     expect(r.body.warnings).toEqual(['Manager links cleared: 7 named a manager that was not loaded; 1 named themselves as manager.']);
   });
+  it('end → passes the Accountable counts of a contexts session through', async () => {
+    hasSession.mockReturnValue(true);
+    endSession.mockResolvedValue({ syncId: 's1', inserted: 0, updated: 0, deleted: 0, totalRecords: 10,
+      accountable: { set: 2, replaced: 0, removed: 1, unresolved: 4 } });
+    const r = await handleSessionPath({ syncSession: 'end', syncId: 's1' }, ctx);
+    expect(r.body.accountable).toEqual({ set: 2, replaced: 0, removed: 1, unresolved: 4 });
+  });
   it('end → says nothing about manager links when nothing was repaired', async () => {
     hasSession.mockReturnValue(true);
     endSession.mockResolvedValue({ syncId: 's1', inserted: 0, updated: 0, deleted: 0, totalRecords: 10 });
     const r = await handleSessionPath({ syncSession: 'end', syncId: 's1' }, ctx);
     expect(r.body).not.toHaveProperty('managerLinks');
     expect(r.body).not.toHaveProperty('warnings');
+    expect(r.body).not.toHaveProperty('accountable');
   });
 });
 
