@@ -87,6 +87,15 @@ know renders an explanatory panel rather than breaking the page.
 |------|------|---------------|
 | `orphaned-accounts` | `list` | Accounts with no `IdentityMembers` row — i.e. belonging to no identity — excluding service principals, managed identities and AI agents, with the detected account type for each. |
 | `application-access-review` | `list` | *Entitlement Pivot* (slug kept from its first name, Application Access Review, so links and saved views keep working) — one row per resource of one or more contexts of resources (a logical application, a department, a tag; any resource type), with the business roles that grant it and its holders split Direct vs via a role. The other columns, and the rows and filters of its two pivots, are **fields the reader picks** — see [Columns the reader picks](#columns-the-reader-picks). |
+| `access-review-adoption` | `list` | *Access Review Adoption* — one row per business role with when a **person** last reviewed it and a status (never reviewed, never by a person, latest not by a person, partly, too long ago, reviewed, in progress, new), worst first. Two pies and two pivots in the workbook. See [Access review adoption](../ui/access-review-adoption.md). |
+| `access-reviewer-response` | `list` | *Access Reviewer Response* — one row per reviewer: review rounds asked, answered by themselves, missed, and how they decided. Worst first. |
+
+Both access-review reports share one definition of "a decision a person made",
+`app/api/src/reports/humanReview.js`: a decision value that is not a "nobody answered" value of any
+source, with a reviewer recorded, who is not the platform (Entra ID's all-zero reviewer id, or a
+reviewer named "… Access Reviews"). This is stricter than the compliance view's
+`decision <> 'NotReviewed'`, which counts a review Entra ID closed by applying its default decision as
+done.
 
 Orphaned Accounts shares its definition with the `orphaned-accounts` **context plugin** via
 `app/api/src/accountlinking/orphanQuery.js`. That is deliberate: the report and the context answer
@@ -234,6 +243,20 @@ zip ExcelJS produced: one pivot cache over the Data table, shared by every pivot
 part per tab. The declaration is metadata (`reportMetadata` carries `pivots`), so the serializer still
 never asks which report it is writing. Measured in Excel: a 50,000-row workbook has both pivots ready
 about 4 s after opening, and the pivots add ~0.5 s and ~1 MB to the export.
+
+### Pie charts in the workbook
+
+A template may declare `charts` — each `{ name, type: 'pie', category, value?, title?, valueLabel?,
+colors? }` — and the xlsx download then opens with a **Charts** tab right after the Summary. Each chart
+splits the rows over the `category` key, counting rows, or summing the `value` key when one is named.
+The small table each pie reads is written beside it on the same tab, in the order categories first
+appear in the rows, so a report that sorts worst-first gets a legend that reads worst-first. `colors`
+maps a category to an `RRGGBB` slice colour; anything else keeps Excel's theme colour.
+
+ExcelJS writes no charts either, so `reports/xlsxCharts.js` adds them the same way as the pivots: one
+drawing on the Charts tab, one chart part per declaration, wired in after ExcelJS has written the zip.
+Like `pivots`, `charts` is metadata that `reportMetadata` carries, and a saved view inherits its
+report's. A report with no rows, or with no charts declared, gets no Charts tab.
 
 ## Columns the reader picks
 

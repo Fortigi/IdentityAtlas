@@ -630,6 +630,65 @@ Describe 'ConvertTo-EntraAccessPackageRecord' {
     }
 }
 
+Describe 'ConvertTo-EntraCertificationDecisionRecord' {
+    BeforeAll {
+        $script:inst = [pscustomobject]@{ id = 'i1'; status = 'Completed'; startDateTime = '2026-01-01'; endDateTime = '2026-01-15' }
+    }
+
+    It 'keeps the core columns and adds the review name, default decision and who applied it' {
+        $def = [pscustomobject]@{ id = 'def1'; displayName = 'Quarterly AP review'
+            settings = [pscustomobject]@{ defaultDecisionEnabled = $true; defaultDecision = 'Deny'; autoApplyDecisionsEnabled = $false } }
+        $dec = [pscustomobject]@{
+            id = 'd1'; decision = 'Deny'
+            principal = [pscustomobject]@{ id = 'u1'; displayName = 'Uma' }
+            reviewedBy = [pscustomobject]@{ id = '00000000-0000-0000-0000-000000000000'; displayName = 'AAD Access Reviews' }
+            appliedBy = [pscustomobject]@{ id = 'sys'; displayName = 'Access Reviews' }
+            appliedDateTime = '2026-01-16T00:00:00Z'; applyResult = 'AppliedSuccessfully'
+        }
+        $rec = ConvertTo-EntraCertificationDecisionRecord -Decision $dec -Definition $def -Instance $script:inst -ApId 'ap1'
+
+        $rec.resourceId | Should -Be 'ap1'
+        $rec.reviewedBy | Should -Be '00000000-0000-0000-0000-000000000000'
+        $rec.reviewInstanceId | Should -Be 'i1'
+        $ext = $rec.extendedAttributes
+        $ext.reviewName | Should -Be 'Quarterly AP review'
+        $ext.defaultDecision | Should -Be 'Deny'
+        $ext.autoApplyDecisions | Should -BeFalse
+        $ext.Contains('autoApplyDecisions') | Should -BeTrue
+        $ext.appliedBy | Should -Be 'sys'
+        $ext.appliedByDisplayName | Should -Be 'Access Reviews'
+        $ext.appliedDateTime | Should -Be '2026-01-16T00:00:00Z'
+        $ext.applyResult | Should -Be 'AppliedSuccessfully'
+        $ext.Contains('contactedReviewers') | Should -BeFalse
+    }
+
+    It "records 'None' when the definition applies no default, and nothing when it has no settings" {
+        $off = [pscustomobject]@{ id = 'def1'; settings = [pscustomobject]@{ defaultDecisionEnabled = $false; defaultDecision = 'Approve' } }
+        (ConvertTo-EntraCertificationDecisionRecord -Decision ([pscustomobject]@{ id = 'd' }) -Definition $off -Instance $script:inst).extendedAttributes.defaultDecision | Should -Be 'None'
+
+        $none = ConvertTo-EntraCertificationDecisionRecord -Decision ([pscustomobject]@{ id = 'd' }) -Definition ([pscustomobject]@{ id = 'def1' }) -Instance $script:inst
+        $none.extendedAttributes.Contains('defaultDecision') | Should -BeFalse
+        $none.extendedAttributes.Contains('autoApplyDecisions') | Should -BeFalse
+        $none.extendedAttributes.Contains('appliedBy') | Should -BeFalse
+    }
+
+    It 'keeps who each contacted reviewer is, and drops entries without an id' {
+        $reviewers = @(
+            [pscustomobject]@{ id = 'r1'; displayName = 'Ann'; userPrincipalName = 'ann@x'; createdDateTime = '2026-01-01' }
+            [pscustomobject]@{ displayName = 'No id' }
+            $null
+            [pscustomobject]@{ id = 'r2'; displayName = 'Bob' }
+        )
+        $rec = ConvertTo-EntraCertificationDecisionRecord -Decision ([pscustomobject]@{ id = 'd' }) -Definition ([pscustomobject]@{ id = 'def1' }) -Instance $script:inst -ContactedReviewers $reviewers
+        $list = @($rec.extendedAttributes.contactedReviewers)
+        $list.Count | Should -Be 2
+        $list[0].id | Should -Be 'r1'
+        $list[0].userPrincipalName | Should -Be 'ann@x'
+        $list[0].Contains('createdDateTime') | Should -BeFalse
+        $list[1].displayName | Should -Be 'Bob'
+    }
+}
+
 Describe 'ConvertTo-EntraAssignmentPolicyRecord' {
 
     It 'resolves apId from the expanded accessPackage and reads auto/review flags' {

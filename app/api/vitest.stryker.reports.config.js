@@ -21,6 +21,10 @@ export default defineConfig({
     include: [
       'src/reports/export.test.js',
       'src/reports/xlsxPivots.test.js',
+      'src/reports/xlsxCharts.test.js',
+      'src/reports/humanReview.test.js',
+      'src/reports/templates/access-review-adoption.test.js',
+      'src/reports/templates/access-reviewer-response.test.js',
       'src/reports/registry.test.js',
       'src/lookups/registry.test.js',
       'src/lookups/sources/accessReviewFields.test.js',
