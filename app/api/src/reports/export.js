@@ -328,11 +328,43 @@ export function resolveExportFormat(format) {
  * is slugged rather than trusted verbatim — it ends up inside a quoted
  * Content-Disposition header.
  */
-export function exportFilename(reportName, extension, generatedAt) {
+export function exportFilename(reportName, extension, generatedAt, subject = null) {
+  const day = /^\d{4}-\d{2}-\d{2}/.exec(String(generatedAt ?? ''))?.[0];
+  const name = subjectFileName(subject);
+  if (name) return `${name}${day ? ` ${day}` : ''}.${extension}`;
   const slug = String(reportName ?? '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '') || 'report';
-  const day = /^\d{4}-\d{2}-\d{2}/.exec(String(generatedAt ?? ''))?.[0];
   return `${FILENAME_PREFIX}-${slug}${day ? `-${day}` : ''}.${extension}`;
+}
+
+/**
+ * A run on ONE context is named after it — "SAP ERP 2026-10-22.xlsx" — because
+ * that is how the person who downloaded it will look for it. Characters Windows
+ * refuses in a filename, control characters and quotes go; the rest (spaces,
+ * accents) stays, and the header carries it RFC 5987-encoded (contentDisposition).
+ */
+export function subjectFileName(subject) {
+  return String(subject ?? '')
+    .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[. ]+$/, '')
+    .slice(0, 120);
+}
+
+/** The context a run is about when it covers exactly one, else null. */
+export function singleSubject(payload) {
+  const details = Array.isArray(payload?.details) ? payload.details : [];
+  return details.length === 1 ? details[0].contextName ?? null : null;
+}
+
+/**
+ * The Content-Disposition value: an ASCII `filename` every client reads, plus
+ * `filename*` with the real UTF-8 name for the ones that read it (browsers do).
+ */
+export function contentDisposition(filename) {
+  const ascii = filename.normalize('NFKD').replace(/[^\x20-\x7e]/g, '').replace(/["\\]/g, '') || 'report';
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
