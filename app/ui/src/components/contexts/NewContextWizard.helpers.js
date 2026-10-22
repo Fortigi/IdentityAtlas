@@ -11,6 +11,10 @@ export function stepsFor(source) {
   if (source === 'manual') return [
     { n: 1, label: 'Source' }, { n: 2, label: 'Details' },
   ];
+  if (source === 'upload') return [
+    { n: 1, label: 'Source' }, { n: 2, label: 'File' },
+    { n: 3, label: 'Mapping' }, { n: 4, label: 'Preview & import' },
+  ];
   return [{ n: 1, label: 'Source' }];
 }
 
@@ -35,6 +39,7 @@ export function wizardSubtitle(source, selected) {
   if (source === 'plugin') return selected ? selected.displayName : 'Build a tree from existing data';
   if (source === 'manual') return 'Start an empty tree you’ll curate yourself';
   if (source === 'describe') return 'Build a tree from search terms, in its own tab';
+  if (source === 'upload') return 'Your own list of organisation units or applications';
   return 'Import from a system';
 }
 

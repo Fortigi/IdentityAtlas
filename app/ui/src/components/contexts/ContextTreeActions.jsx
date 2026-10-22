@@ -3,18 +3,27 @@ import { useDialog } from '@ui/components/dialogContext';
 
 // The actions on one whole tree, in a ⋯ menu on its root row: Refresh (derived
 // trees only — it re-runs the rule; renames, moves and members added by hand
-// are kept) and "Delete this tree…". The page renders the menu only on trees
-// the user may change, so an imported tree (the next import would bring it
-// back; the API refuses) never shows it.
+// are kept), Re-import… (a list uploaded here: the file is its source, so it
+// changes by uploading it again) and "Delete this tree…" (when `onDelete` is
+// given). The page renders the menu on trees the user may change, and on an
+// uploaded list with Re-import alone: an imported tree (the next import would
+// bring it back; the API refuses) is never deleted from here.
+
+function firstItem(canRefresh, onReimport) {
+  if (canRefresh) return 'refresh';
+  return onReimport ? 'reimport' : 'delete';
+}
 
 const ITEM_CLASS = 'block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 focus:bg-gray-100 focus:outline-none dark:hover:bg-gray-700 dark:focus:bg-gray-700 disabled:opacity-50';
 
 // `label` names the tree in the menu's accessible name when its display name
 // alone is ambiguous ("Tags · People" beside "Tags · Accounts").
-export default function TreeRootMenu({ root, label, onRefresh, refreshing, onDelete }) {
+export default function TreeRootMenu({ root, label, onRefresh, refreshing, onDelete, onReimport }) {
   const { open, toggle, close, triggerRef, panelRef } = usePopover();
   const dialog = useDialog();
   const canRefresh = root.variant === 'generated';
+  // The first item takes the focus when the menu opens.
+  const first = firstItem(canRefresh, onReimport);
   const name = label || root.displayName;
 
   async function confirmDelete() {
@@ -47,17 +56,27 @@ export default function TreeRootMenu({ root, label, onRefresh, refreshing, onDel
           className="absolute right-0 top-full z-50 mt-1 min-w-[11rem] rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800">
           {canRefresh && (
             <button
-              type="button" role="menuitem" data-autofocus disabled={refreshing}
+              type="button" role="menuitem" data-autofocus={first === 'refresh' || undefined} disabled={refreshing}
               onClick={() => { close(); onRefresh(root.id); }}
               title="Run the rule again to update the tree — renames, moves and members added by hand are kept"
               className={`${ITEM_CLASS} text-gray-800 dark:text-gray-200`}
             >{refreshing ? 'Refreshing…' : 'Refresh'}</button>
           )}
-          <button
-            type="button" role="menuitem" data-autofocus={canRefresh ? undefined : true}
-            onClick={confirmDelete}
-            className={`${ITEM_CLASS} text-red-700 dark:text-red-400`}
-          >Delete this tree…</button>
+          {onReimport && (
+            <button
+              type="button" role="menuitem" data-autofocus={first === 'reimport' || undefined}
+              onClick={() => { close(); onReimport(root); }}
+              title="Upload a new version of this list: its units are updated in place"
+              className={`${ITEM_CLASS} text-gray-800 dark:text-gray-200`}
+            >Re-import…</button>
+          )}
+          {onDelete && (
+            <button
+              type="button" role="menuitem" data-autofocus={first === 'delete' || undefined}
+              onClick={confirmDelete}
+              className={`${ITEM_CLASS} text-red-700 dark:text-red-400`}
+            >Delete this tree…</button>
+          )}
         </div>
       )}
     </div>
