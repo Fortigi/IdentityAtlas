@@ -74,6 +74,14 @@ UPDATE "Contexts"
    END
  WHERE "contextCategory" IS NULL;
 
+-- The UPDATEs above queue the deferred cycle check on Contexts (migration 059,
+-- DEFERRABLE INITIALLY DEFERRED, so it would run at COMMIT). PostgreSQL refuses
+-- DDL on a table with pending trigger events ("cannot CREATE INDEX ... because
+-- it has pending trigger events") — the index below and the foreign keys to
+-- Contexts further down. Run the queued checks now. An empty Contexts table
+-- (a fresh install, CI) queues nothing, which is why only upgrades hit this.
+SET CONSTRAINTS ALL IMMEDIATE;
+
 CREATE INDEX "ix_Contexts_contextCategory" ON "Contexts" ("contextCategory");
 
 -- ─── 4. Who answers for a context ────────────────────────────────────────────
