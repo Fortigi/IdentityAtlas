@@ -160,7 +160,7 @@ function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDeta
               onClick={() => onOpenDetail(memberDetailKind(attrs.targetType), m.id, m.displayName)}
             >
               <td className="w-full sm:w-auto sm:py-1.5 text-blue-700 dark:text-blue-300 hover:underline">{m.displayName}</td>
-              {columns.map(c => <td key={c.label} className={`sm:py-1.5${c.align === 'right' ? ' sm:text-right' : ''}`}>{c.render(m)}</td>)}
+              {columns.map(c => <td key={c.label} className={`sm:py-1.5${c.align === 'right' ? ' sm:text-right' : ''}`}>{c.render(m, { onOpenDetail })}</td>)}
               {editMode && (
                 <td className="sm:py-1.5 sm:text-right">
                   <RowAction action={memberRowAction(includeDescendants)} onRemove={() => onRemove(m.id)} />
