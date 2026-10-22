@@ -1,8 +1,9 @@
 # Ownership survey (spec, not built)
 
-**Status:** specification only. The context page's Actions area shows a disabled *Start ownership
-survey* card marked *Coming soon* on logical applications and organisational units; nothing behind it
-exists yet.
+**Status:** specification only. The context page's Actions area shows disabled cards marked *Coming
+soon*: *Start ownership survey* on logical applications, *Start manager survey* and *Review team
+members* on organisational units. Nothing behind them exists yet. All three are analyst actions and are
+left out of a context owner's read-only page.
 
 ## Why
 
@@ -32,6 +33,26 @@ goes to should have confirmed they are the right ones.
    or suggested one rather than being overwritten by the next sync.
 
 The analyst sees per context: not started, waiting on whom since when, confirmed, redirected, stuck.
+
+## On an organisational unit: the manager survey
+
+The same flow, in a team's words. The Accountable of a unit is its manager, so the e-mail asks *Do you
+lead this team?*; *No* names who does. Once the manager is right, they name **delegates** who may
+manage the team with them (a deputy, a team lead) — the unit's Responsibles. Answers are recorded the
+same way, with the same provenance.
+
+## Reviewing a team's members
+
+*Review team members* asks the unit's Accountable or a Responsible whether its members are right:
+
+1. The e-mail links to the unit's reading view, listing its members.
+2. The person marks members who should not be there, and names people who are missing.
+3. The answers are **proposals**, recorded with who made them and when — not member changes. Most units
+   are imported or derived, so removing a member there would not last (the reason *Edit members* is only
+   offered on units created in Identity Atlas). An analyst sees the proposals and takes them to the
+   source: the HR system, the rule, or — for a unit created here — the member list itself.
+
+Best run after the manager survey, so the review goes to the right person.
 
 ## Open questions
 

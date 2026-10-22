@@ -20,7 +20,7 @@ describe('action registry', () => {
 
   it('gives a unit of accounts or people the matrix, the unit report and the survey', () => {
     for (const t of ['Identity', 'Principal']) {
-      expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'download-unit-report', 'ownership-survey']);
+      expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'download-unit-report', 'manager-survey', 'review-members']);
     }
     const card = actionCardsFor(unit('Principal')).find(c => c.key === 'download-unit-report');
     expect(card.Card).toBe(DownloadReportCard);
@@ -28,19 +28,26 @@ describe('action registry', () => {
   });
 
   it('gives a unit of resources (or systems) no report card', () => {
-    for (const t of ['Resource', 'System']) expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'ownership-survey']);
+    for (const t of ['Resource', 'System']) expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'manager-survey', 'review-members']);
   });
 
-  it('labels the survey card as the ownership survey', () => {
-    const survey = actionCardsFor(APP).find(c => c.Card === ComingSoonCard);
-    expect(survey.props).toMatchObject({ title: 'Start ownership survey', testId: 'action-ownership-survey' });
-    expect(survey.props.text).toMatch(/^Ask the accountable owner to confirm they own this/);
+  it('words the survey per template: an owner for an application, a manager for a unit', () => {
+    const props = (attrs, key) => actionCardsFor(attrs).find(c => c.key === key).props;
+    expect(props(APP, 'ownership-survey')).toMatchObject({ title: 'Start ownership survey', testId: 'action-ownership-survey' });
+    expect(props(APP, 'ownership-survey').text).toMatch(/^Ask the accountable owner to confirm they own this/);
+    expect(props(unit('Identity'), 'manager-survey')).toMatchObject({ title: 'Start manager survey', testId: 'action-manager-survey' });
+    expect(props(unit('Identity'), 'manager-survey').text).toMatch(/^Ask the manager to confirm they lead this team/);
+    expect(props(unit('Principal'), 'review-members')).toMatchObject({ title: 'Review team members', button: 'Start review' });
+    // Every coming-soon card is a ComingSoonCard.
+    for (const key of ['manager-survey', 'review-members']) {
+      expect(actionCardsFor(unit('Identity')).find(c => c.key === key).Card).toBe(ComingSoonCard);
+    }
   });
 
   it('leaves the survey out of a read-only shared view, and only the survey', () => {
     const shared = attrs => actionCardsFor(attrs, { sharedView: true }).map(c => c.Card);
     expect(shared(APP)).toEqual([MatrixCard, DownloadReportCard]);
-    // A context owner's own unit keeps its report.
+    // A context owner's own unit keeps its report; the surveys and the review are the analyst's.
     expect(keysOf(unit('Identity'), { sharedView: true })).toEqual(['view-in-matrix', 'download-unit-report']);
   });
 

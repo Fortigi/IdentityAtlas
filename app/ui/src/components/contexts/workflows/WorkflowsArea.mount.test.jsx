@@ -86,8 +86,8 @@ describe('WorkflowsArea (Actions)', () => {
     expect(screen.queryByRole('region', { name: 'Actions' })).toBeNull();
   });
 
-  it.each([['an application', APP], ['an organisational unit', PPL_UNIT]])('%s announces the ownership survey as coming soon, with a button that does nothing', (_, attrs) => {
-    mount(attrs);
+  it('an application announces the ownership survey as coming soon, with a button that does nothing', () => {
+    mount(APP);
     const card = screen.getByTestId('action-ownership-survey');
     expect(card).toHaveTextContent('Start ownership survey');
     expect(card).toHaveTextContent('Coming soon');
@@ -95,10 +95,22 @@ describe('WorkflowsArea (Actions)', () => {
     expect(screen.getByRole('button', { name: 'Start survey' })).toBeDisabled();
   });
 
+  it('a unit announces the manager survey and the member review as coming soon', () => {
+    mount(PPL_UNIT);
+    expect(screen.queryByTestId('action-ownership-survey')).toBeNull();
+    expect(screen.getByTestId('action-manager-survey')).toHaveTextContent(
+      'Start manager surveyComing soonAsk the manager to confirm they lead this team — or tell us who does — and name any delegates who may manage it with them.');
+    expect(screen.getByTestId('action-review-members')).toHaveTextContent(
+      'Review team membersComing soonAsk the accountable or responsible person to confirm the members of this team are right, and say who should be added or removed.');
+    expect(screen.getByRole('button', { name: 'Start survey' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Start review' })).toBeDisabled();
+  });
+
   it('keeps the unit report on the read-only page of the unit owner', () => {
     mount(ACC_UNIT, { sharedView: true });
     expect(unitReportCard()).toBeInTheDocument();
-    expect(screen.queryByTestId('action-ownership-survey')).toBeNull();
+    expect(screen.queryByTestId('action-manager-survey')).toBeNull();
+    expect(screen.queryByTestId('action-review-members')).toBeNull();
   });
 
   it('leaves the survey out of a read-only shared view, keeping the rest', () => {
