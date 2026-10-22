@@ -7,7 +7,7 @@ Test quality across the project's automated suites — line/branch/method covera
 | Suite | Line | Branch | Method | Cyclomatic | Cognitive | Mutation | Lines covered |
 |-------|------|--------|--------|------------|-----------|----------|---------------|
 | [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 93.5% | 85.9% | 90.0% | 3.4 / 20 | 1.9 / 15 | 86.0% | 13,683 / 14,630 |
-| [UI (React / Vitest)](../coverage/ui/index.html) | 86.8% | 77.4% | 77.1% | 2.8 / 28 | 1.1 / 15 | 69.5% | 8,351 / 9,612 |
+| [UI (React / Vitest)](../coverage/ui/index.html) | 86.8% | 77.4% | 77.1% | 2.8 / 28 | 1.1 / 15 | 69.5% | 8,350 / 9,612 |
 | [PowerShell (Pester)](../coverage/powershell/index.html) | 92.2% | — | 97.3% | 3.8 / 15 | 3.9 / 15 | 100.0% | 8,099 / 8,782 |
 
 **Cyclomatic** / **Cognitive** are _average / max_ per unit (each function, and for PowerShell each script/module body too): PowerShell via [PSComplexity](https://github.com/Fortigi/PSComplexity), JS/TS via ESLint's `complexity` rule + [eslint-plugin-sonarjs](https://github.com/SonarSource/eslint-plugin-sonarjs). **Mutation** is the share of injected faults the tests catch via [PSMutant](https://github.com/Fortigi/PSMutant), PowerShell-only today. A suite without a given signal shows —.
@@ -29,7 +29,7 @@ Every figure above is scoped to what its tool actually measured. The notes below
 
 ### PowerShell (Pester)
 
-- **Mutation is scoped.** Mutation testing covers 141 file(s) of 169 — 94% of the suite's coverable lines, using 4 mutation operators. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 90 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
+- **Mutation is scoped.** Mutation testing covers 142 file(s) of 169 — 94% of the suite's coverable lines, using 4 mutation operators. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 90 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
 - **No branch coverage is measured.** The line figure is not comparable with the suites that report both — and for Pester it is command-based rather than true line coverage, so it is not directly comparable with the Vitest suites either.
 
 ## Browsable reports
@@ -40,4 +40,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-10-22 13:20 UTC from commit `0002f62b`._
+_Generated 2026-10-22 13:41 UTC from commit `ec3b3c92`._
