@@ -20,8 +20,13 @@
  *   2. Else "Principals"."employeeId" = ownerUserId, but only when exactly ONE
  *      live principal carries it. Two accounts of one person in two systems
  *      share an employee number, and picking one of them would be a guess.
- * Both joins are index lookups: ix_Principals_externalId (migration 076) and
- * ix_Principals_employeeId (migration 001), so no index is added for this.
+ *   3. Else, for an owner that is an e-mail address, "Principals"."email"
+ *      compared case-insensitively — again only when exactly ONE live principal
+ *      has it. A list kept by hand (a context upload) names its owners by
+ *      address, not by a directory key.
+ * All three joins are index lookups: ix_Principals_externalId (migration 076),
+ * ix_Principals_employeeId (migration 001) and ix_Principals_email_lower
+ * (migration 095).
  *
  * What it writes, per context in the batch:
  *   - owner resolves to P, no Accountable yet      → add P, addedBy 'sync'   (set)
@@ -73,10 +78,22 @@ by_employee_id AS (
    GROUP BY c.id
   HAVING count(*) = 1
 ),
+by_email AS (
+  SELECT c.id AS "contextId", (array_agg(p.id))[1] AS "principalId"
+    FROM scoped c
+    JOIN "Principals" p ON lower(p.email) = lower(c.owner) AND p."deletedAt" IS NULL
+   WHERE position('@' in c.owner) > 0
+     AND NOT EXISTS (SELECT 1 FROM by_external_id x WHERE x."contextId" = c.id)
+     AND NOT EXISTS (SELECT 1 FROM by_employee_id x WHERE x."contextId" = c.id)
+   GROUP BY c.id
+  HAVING count(*) = 1
+),
 resolved AS (
   SELECT "contextId", "principalId" FROM by_external_id
   UNION ALL
   SELECT "contextId", "principalId" FROM by_employee_id
+  UNION ALL
+  SELECT "contextId", "principalId" FROM by_email
 )`;
 }
 

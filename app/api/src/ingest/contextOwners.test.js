@@ -103,3 +103,21 @@ describe('the statement', () => {
     expect(added).toContain('ON CONFLICT DO NOTHING');
   });
 });
+
+describe('the statement — e-mail owners', () => {
+  const ctes = ownerResolutionCtes('TRUE');
+  const byEmail = ctes.slice(ctes.indexOf('by_email AS'), ctes.indexOf('resolved AS'));
+
+  it('resolves an owner that is an address to the ONE live account with that address, any case', () => {
+    expect(byEmail).toMatch(/JOIN "Principals" p ON lower\(p\.email\) = lower\(c\.owner\) AND p\."deletedAt" IS NULL/);
+    expect(byEmail).toMatch(/WHERE position\('@' in c\.owner\) > 0/);
+    expect(byEmail).toMatch(/HAVING count\(\*\) = 1/);
+  });
+
+  it('is the last resort: only where neither the externalId nor the employeeId resolved', () => {
+    expect(byEmail).toContain('NOT EXISTS (SELECT 1 FROM by_external_id x WHERE x."contextId" = c.id)');
+    expect(byEmail).toContain('NOT EXISTS (SELECT 1 FROM by_employee_id x WHERE x."contextId" = c.id)');
+    expect(ctes.indexOf('by_email AS')).toBeGreaterThan(ctes.indexOf('by_employee_id AS'));
+    expect(ctes).toMatch(/UNION ALL\s+SELECT "contextId", "principalId" FROM by_email\s+\)$/);
+  });
+});
