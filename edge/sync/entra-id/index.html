@@ -2210,6 +2210,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What Gets Synced">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#application-security-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Application security data
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -5465,6 +5482,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What Gets Synced">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#application-security-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Application security data
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -5675,12 +5709,17 @@
 <tr>
 <td><code>-SyncOAuth2Grants</code></td>
 <td>Off</td>
-<td>Sync per-user OAuth2 delegated-permission (consent) grants</td>
+<td>Sync OAuth2 delegated-permission (consent) grants — per user, and tenant-wide admin consents</td>
 </tr>
 <tr>
 <td><code>-SyncAppPermissions</code></td>
 <td>Off</td>
 <td>Sync app-only (admin-consented) API permissions held by service principals, managed identities, and AI agents</td>
+</tr>
+<tr>
+<td><code>-SyncAppRegistrations</code></td>
+<td>Off</td>
+<td>Sync app registrations with their credentials (dates only), public-client flows, redirect URIs, requested permissions and federated credentials</td>
 </tr>
 <tr>
 <td><code>-SyncAppOwners</code></td>
@@ -5778,7 +5817,7 @@
 <td>Moderate</td>
 </tr>
 <tr>
-<td>Per-user consent grants to apps</td>
+<td>Consent grants to apps (per user and tenant-wide)</td>
 <td><code>-SyncOAuth2Grants</code></td>
 <td>Moderate</td>
 </tr>
@@ -5786,6 +5825,11 @@
 <td>App-only API permissions held by SPs / managed identities / agents</td>
 <td><code>-SyncAppPermissions</code></td>
 <td>High — fetched per service principal</td>
+</tr>
+<tr>
+<td>How each app registration is set up: secrets and certificates, public-client flows (ROPC / device code), redirect URIs, federated credentials</td>
+<td><code>-SyncAppRegistrations</code></td>
+<td>Low — one paged read</td>
 </tr>
 <tr>
 <td>Who owns apps / SPs (can add a credential and impersonate the app)</td>
@@ -5823,7 +5867,18 @@
     EntraID --&gt; APR[AP Resource Scopes → ResourceRelationships\nrelationshipType=Contains]
     EntraID --&gt; APP[AP Policies → AssignmentPolicies]
     EntraID --&gt; APQ[AP Requests → AssignmentRequests]
-    EntraID --&gt; APV[AP Reviews → CertificationDecisions]</code></pre>
+    EntraID --&gt; APV[AP Reviews → CertificationDecisions]
+    EntraID --&gt; REG[App Registrations → Resources\nresourceType=AppRegistration]</code></pre>
+<h3 id="application-security-data">Application security data<a class="headerlink" href="#application-security-data" title="Permanent link">&para;</a></h3>
+<p>Three toggles together describe how risky an application is set up. None of them stores a secret: only key ids, names, types and validity dates.</p>
+<ul>
+<li><strong>Service principals</strong> (<code>-SyncServicePrincipals</code>) carry, in <code>extendedAttributes</code>: <code>signInAudience</code>, <code>verifiedPublisherName</code> / <code>verifiedPublisherId</code>, <code>appRoleAssignmentRequired</code> (<code>false</code> means anyone in the tenant can sign in), <code>replyUrls</code>, and the credentials added to the service principal itself. A secret on the service principal is not shown under <strong>App registrations</strong> in the portal, which makes it a known way to keep access hidden.</li>
+<li><strong>App registrations</strong> (<code>-SyncAppRegistrations</code>) become <code>AppRegistration</code> resources (id = the application object id, <code>appId</code> in <code>extendedAttributes</code> links them to their service principal). Each one holds <code>isFallbackPublicClient</code> (public-client flows allowed, which permits ROPC and device-code sign-in), <code>publicClientRedirectUris</code> / <code>webRedirectUris</code> / <code>spaRedirectUris</code>, <code>implicitGrantAccessTokens</code> / <code>implicitGrantIdTokens</code>, <code>requiredResourceAccess</code> with <code>requestedDelegatedPermissionCount</code> / <code>requestedApplicationPermissionCount</code>, and <code>federatedCredentials</code> (issuer, subject, audiences, flexible expression).</li>
+<li><strong>Credentials</strong> on either one are summarised as <code>secretCount</code>, <code>secretLatestEndDateTime</code>, <code>secretMaxValidityDays</code> and the same three for <code>certificate…</code>, with the full list in <code>credentials</code>. A secret that ends in 2299 shows up as a <code>secretMaxValidityDays</code> of about 100,000.</li>
+<li><strong>Consent grants</strong> (<code>-SyncOAuth2Grants</code>): a tenant-wide admin consent marks its <code>DelegatedPermission</code> resource <code>adminConsented: true</code> (with <code>adminConsentGrantId</code>) and adds no assignment, because no single user holds it. A per-user consent stays a <code>Direct</code> assignment to that user, now with <code>consentType: Principal</code>.</li>
+<li><strong>App-only permissions</strong> (<code>-SyncAppPermissions</code>) record when each was granted, as <code>grantedDateTime</code> on the assignment.</li>
+</ul>
+<p>A delta run refreshes a service principal's credentials, but Graph's delta feed omits <code>verifiedPublisher</code>, <code>signInAudience</code> and <code>appRoleAssignmentRequired</code>. A service principal that changes between full runs loses those three until the next full run.</p>
 <hr />
 <h2 id="required-graph-api-permissions">Required Graph API Permissions<a class="headerlink" href="#required-graph-api-permissions" title="Permanent link">&para;</a></h2>
 <p>Grant these as <strong>Application</strong> permissions (not Delegated) on the App Registration the crawler authenticates as, then grant tenant-wide admin consent in the Azure Portal under <strong>App Registrations → API Permissions</strong>. Creating the App Registration itself is standard Entra administration and is not covered here.</p>
@@ -5861,7 +5916,11 @@
 </tr>
 <tr>
 <td><code>Application.Read.All</code></td>
-<td>Read service principals and app role assignments</td>
+<td>Read service principals, app registrations (including credential metadata) and app role assignments</td>
+</tr>
+<tr>
+<td><code>DelegatedPermissionGrant.Read.All</code></td>
+<td>Read OAuth2 consent grants (<code>-SyncOAuth2Grants</code>)</td>
 </tr>
 <tr>
 <td><code>AuditLog.Read.All</code></td>
