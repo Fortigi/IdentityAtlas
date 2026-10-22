@@ -61,7 +61,8 @@
     "src/components/contexts/useContextAncestors.js": "Hook reading the parent chain for the breadcrumb. Not yet measured: Stryker gives no usable score on the Windows box this was written on; covered by its unit/mount tests, to move into a mutate list once measured in CI.",
     "src/components/contexts/useContextDetail.js": "Hook loading a context detail (moved out of ContextDetailPage for complexity). Not yet measured: Stryker gives no usable score on the Windows box this was written on; covered by its unit/mount tests, to move into a mutate list once measured in CI.",
     "src/components/contexts/useContextMembers.js": "Hook paging/searching a context's members (moved out of ContextDetailPage). Not yet measured: Stryker gives no usable score on the Windows box this was written on; covered by its unit/mount tests, to move into a mutate list once measured in CI.",
-    "src/components/contexts/workflows/MatrixCard.jsx": "Presentational: the \"View in matrix\" card; the href comes from matrixFilter.js, which is mutated. Covered by WorkflowsArea.mount.test.jsx."
+    "src/components/contexts/workflows/MatrixCard.jsx": "Presentational: the \"View in matrix\" card; the href comes from matrixFilter.js, which is mutated. Covered by WorkflowsArea.mount.test.jsx.",
+    "src/components/contexts/workflows/ComingSoonCard.jsx": "Presentational, no logic: a title, a Coming soon tag, a text and a disabled button, all from props. Its wording and the disabled button are pinned by WorkflowsArea.mount.test.jsx and registry.test.js; there is no branch for a mutant to flip."
   },
   "thresholds": {
     "high": 90,

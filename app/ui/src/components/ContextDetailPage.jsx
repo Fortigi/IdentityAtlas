@@ -28,7 +28,8 @@ import { useContextDetail, contextPageView } from './contexts/useContextDetail';
 //                  (AppHeader) — the breadcrumb is the way around.
 //   analyst view   with it (auth off counts): the same page plus Edit, Add
 //                  sub-unit, the raw values under More details, the Timeline
-//                  and Risk tabs and an "Edit members" mode.
+//                  and Risk tabs, and an "Edit members" mode on a context
+//                  created here (the only kind whose member edits last).
 // Loaded via /api/contexts/:id. Standalone, document.title is the unit name.
 //
 // `embedded`: rendered inside the Contexts page's right pane — no close
@@ -40,7 +41,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   const { authFetch } = useAuth();
   const features = useFeatures();
   const dialog = useDialog();
-  const { sharedView, analyst, openEntity } = useReader(onOpenDetail);
+  const analyst = useIsAnalyst();
   const [editing, setEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('members');
   const [timelineDays, setTimelineDays] = useState(90);
@@ -65,7 +66,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
 
   const attrs = detail.attributes;
   const subContexts = detail.subContexts || [];
-  const { editable, tabs, shownTab } = contextPageView({
+  const { editable, membersEditable, tabs, shownTab } = contextPageView({
     analyst, attrs, activeTab, memberTotal: m.memberTotal, hasRisk: riskShown(features, riskData),
   });
   const sectionIds = { members: `context-members-${contextId}`, subUnits: `context-sub-units-${contextId}` };
@@ -89,7 +90,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
         sectionIds={sectionIds}
         contextId={contextId}
         attrs={attrs}
-        canEditMembers={editable}
+        canEditMembers={membersEditable}
         includeDescendants={m.includeDescendants}
         onIncludeDescendantsChange={m.setIncludeDescendants}
         memberSearch={m.memberSearch}
@@ -103,7 +104,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
         pageSize={MEMBER_PAGE_SIZE}
         authFetch={authFetch}
         onMembersChanged={refreshAll}
-        onOpenDetail={openEntity}
+        onOpenDetail={onOpenDetail}
       />
     ),
 
@@ -113,7 +114,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
         loading={timeline.loading}
         sinceDays={timelineDays}
         onSinceDaysChange={setTimelineDays}
-        onOpenDetail={openEntity}
+        onOpenDetail={onOpenDetail}
         hideFields={TIMELINE_HIDDEN_FIELDS}
       />
     ),
@@ -128,9 +129,8 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
         attrs={attrs}
         subContexts={subContexts}
         analyst={analyst}
-        {...headerActions({ analyst, editable, embedded: embedded && !sharedView, attrs, onClose: close, onOpenAsPage, onEdit: () => setEditing(true), onAddSubUnit })}
+        {...headerActions({ analyst, editable, embedded, attrs, onClose: close, onOpenAsPage, onEdit: () => setEditing(true), onAddSubUnit })}
         onOpenDetail={onOpenDetail}
-        openEntity={openEntity}
         onShowMembers={() => showSection(sectionIds.members)}
         onShowSubUnits={() => showSection(sectionIds.subUnits)}
       />
@@ -154,14 +154,12 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   );
 }
 
-// Who reads the page: an analyst holds data.write.contexts outside a shared
-// read-only view. What the page may link to: nothing but the shell's own
-// handler when read-only (a context owner may open no member, person or
-// sub-unit page).
-function useReader(onOpenDetail) {
+// An analyst holds data.write.contexts outside a shared read-only view; every
+// other reader gets the business view.
+function useIsAnalyst() {
   const canWrite = useHasPermission('data.write.contexts');
   const sharedView = useIsSharedView();
-  return { sharedView, analyst: canWrite && !sharedView, openEntity: sharedView ? undefined : onOpenDetail };
+  return canWrite && !sharedView;
 }
 
 // The standalone page carries the unit's name in the browser tab; embedded, none.
@@ -234,18 +232,16 @@ function DetailStatus({ loading, error, onRetry, onClose }) {
 // template's profile (facts, variants, workflows), with the remaining
 // attributes (More details) at the foot of its facts. Tags, segments and the
 // rest keep the generic page, with More details as a card of its own.
-// The header links only through `openEntity` (none when read-only); the profile
-// keeps the shell's handler, which a context owner's page limits to its scope.
-function DetailTop({ contextId, attrs, subContexts, analyst, onShowMembers, onShowSubUnits, onOpenDetail, openEntity, ...headerProps }) {
+function DetailTop({ contextId, attrs, subContexts, analyst, onShowMembers, onShowSubUnits, ...headerProps }) {
   const profile = profileFor(attrs.contextCategory);
   return (
     <>
-      <ContextDetailHeader attrs={attrs} onOpenDetail={openEntity} {...headerProps} />
+      <ContextDetailHeader attrs={attrs} {...headerProps} />
       {attrs.description && (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{attrs.description}</div>
       )}
       {profile
-        ? <ContextProfile key={contextId} profile={profile} attrs={attrs} subContexts={subContexts} onOpenDetail={onOpenDetail}
+        ? <ContextProfile key={contextId} profile={profile} attrs={attrs} subContexts={subContexts} onOpenDetail={headerProps.onOpenDetail}
             analyst={analyst} onShowMembers={onShowMembers} onShowSubUnits={onShowSubUnits} />
         : <ContextDetails key={contextId} attrs={attrs} framed analyst={analyst} />}
     </>

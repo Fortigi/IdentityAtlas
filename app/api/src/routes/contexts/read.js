@@ -13,6 +13,7 @@ import { CONTEXT_CATEGORIES } from '../../ingest/validation.js';
 import { useSql, UUID_RE, TARGET_TYPES } from './shared.js';
 import { loadContextRoles } from './roles.js';
 import { OWNER_PRINCIPAL_ORDER } from '../../ingest/contextOwners.js';
+import { withResourceMemberFacts } from '../../contexts/resourceMemberFacts.js';
 
 const router = Router();
 
@@ -30,10 +31,12 @@ const MEMBER_TABLE = {
 
 // What a member row carries besides its name, per kind of member — the columns
 // the context's members table shows (email and job title for people and
-// accounts, type and description for resources).
+// accounts, type and description for resources). A resource's extendedAttributes
+// are read only for its owner reference and are not returned: a resource member
+// also gets holderCount and its owner, from contexts/resourceMemberFacts.js.
 export const MEMBER_COLUMNS = {
   Identity:  'm.email, m."jobTitle", m.department',
-  Resource:  'm."resourceType", m.description, m.enabled',
+  Resource:  'm."resourceType", m.description, m.enabled, m."extendedAttributes"',
   Principal: 'm.email, m."jobTitle", m."principalType", m."accountEnabled"',
   System:    'm.description',
 };
@@ -339,7 +342,8 @@ async function loadMembers(contextId, targetType, { limit = 100, offset = 0, sea
      ORDER BY ${orderPrefix}m."displayName"
      LIMIT ${parseInt(limit, 10)} OFFSET ${parseInt(offset, 10)}
   `;
-  const rows = (await db.query(dataSql, params)).rows;
+  const page = (await db.query(dataSql, params)).rows;
+  const rows = targetType === 'Resource' ? await withResourceMemberFacts(page) : page;
   if (!withTotal) return rows;
 
   const countSql = `

@@ -1,16 +1,15 @@
 import { useState } from 'react';
 import ContextMemberPicker from './contexts/ContextMemberPicker';
 import ContextTemplateIcon from './contexts/ContextTemplateIcon';
-import { memberKindNoun, memberEditNote } from '@ui/utils/contextStyles';
+import { memberKindNoun } from '@ui/utils/contextStyles';
 import { visibleMemberColumns, memberRowAction } from './ContextRelationshipsTab.helpers';
 
 // ─── Sub-units and members ─────────────────────────────────────────────────
 // Two plain sections: the sub-units (each opening its own page) and the
 // paginated, searchable members. Reading by default; `canEditMembers` (the
-// reader can edit contexts, and the context is not imported) adds an "Edit
-// members" button, and only in that mode the add box, the note on what stays
-// and the per-row Remove appear. A row the rule would put back is never
-// offered Remove — it says where it comes from instead.
+// reader can edit contexts, and the context was created here — the only kind
+// whose member edits last) adds an "Edit members" button, and only in that mode
+// the add box and the per-row Remove appear.
 
 export default function ContextRelationshipsTab({ subContexts, sectionIds = {}, ...panelProps }) {
   return (
@@ -31,33 +30,22 @@ function SubUnitsList({ id, subContexts, attrs, onOpenDetail }) {
     <section id={id} aria-label="Sub-units" className={CARD}>
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Sub-units ({subContexts.length})</h3>
       <div className="space-y-1">
-        {subContexts.map(sc => {
-          const body = (
-            <>
-              <span className="flex items-center gap-2 min-w-0">
-                <span className="text-gray-500 dark:text-gray-400"><ContextTemplateIcon category={sc.contextCategory || attrs.contextCategory} /></span>
-                <span className="text-sm text-gray-900 dark:text-white group-hover:text-blue-700 dark:group-hover:text-blue-300 truncate">{sc.displayName}</span>
-              </span>
-              {sc.memberCount != null && (
-                <span className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">{sc.memberCount} {memberKindNoun(attrs.targetType, sc.memberCount)}</span>
-              )}
-            </>
-          );
-          // Without a detail handler (a read-only shell) a sub-unit is a fact, not a link.
-          if (!onOpenDetail) {
-            return <div key={sc.id} className="flex items-center justify-between gap-3 px-3 py-2">{body}</div>;
-          }
-          return (
-            <button
-              key={sc.id}
-              type="button"
-              onClick={() => onOpenDetail('context', sc.id, sc.displayName)}
-              className="w-full text-left flex items-center justify-between gap-3 px-3 py-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group"
-            >
-              {body}
-            </button>
-          );
-        })}
+        {subContexts.map(sc => (
+          <button
+            key={sc.id}
+            type="button"
+            onClick={() => onOpenDetail('context', sc.id, sc.displayName)}
+            className="w-full text-left flex items-center justify-between gap-3 px-3 py-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group"
+          >
+            <span className="flex items-center gap-2 min-w-0">
+              <span className="text-gray-500 dark:text-gray-400"><ContextTemplateIcon category={sc.contextCategory || attrs.contextCategory} /></span>
+              <span className="text-sm text-gray-900 dark:text-white group-hover:text-blue-700 dark:group-hover:text-blue-300 truncate">{sc.displayName}</span>
+            </span>
+            {sc.memberCount != null && (
+              <span className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">{sc.memberCount} {memberKindNoun(attrs.targetType, sc.memberCount)}</span>
+            )}
+          </button>
+        ))}
       </div>
     </section>
   );
@@ -134,12 +122,10 @@ function MembersPanel({
   );
 }
 
-// Edit mode: what stays and what refreshes, then the box to add one.
+// Edit mode: the box to add a member.
 function MemberEditBox({ contextId, attrs, members, onAdded }) {
-  const note = memberEditNote(attrs);
   return (
     <div className="mb-4">
-      {note && <p data-testid="member-edit-note" className="text-xs text-gray-600 dark:text-gray-400 mb-1">{note}</p>}
       <ContextMemberPicker contextId={contextId} targetType={attrs.targetType} existingMemberIds={members.map(m => m.id)} onAdded={onAdded} />
     </div>
   );
@@ -162,7 +148,7 @@ function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDeta
         <thead className="hidden sm:table-header-group">
           <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
             <th className="pb-2 font-medium">Name</th>
-            {columns.map(c => <th key={c.label} className="pb-2 font-medium">{c.label}</th>)}
+            {columns.map(c => <th key={c.label} className={`pb-2 font-medium${c.align === 'right' ? ' text-right' : ''}`}>{c.label}</th>)}
             {editMode && <th className="pb-2 font-medium"><span className="sr-only">Actions</span></th>}
           </tr>
         </thead>
@@ -170,14 +156,14 @@ function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDeta
           {members.map(m => (
             <tr
               key={m.id}
-              className={`flex flex-wrap items-baseline gap-x-3 py-1.5 sm:table-row sm:py-0 border-b border-gray-100 dark:border-gray-700${onOpenDetail ? ' hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer' : ''}`}
-              onClick={onOpenDetail ? () => onOpenDetail(memberDetailKind(attrs.targetType), m.id, m.displayName) : undefined}
+              className="flex flex-wrap items-baseline gap-x-3 py-1.5 sm:table-row sm:py-0 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+              onClick={() => onOpenDetail(memberDetailKind(attrs.targetType), m.id, m.displayName)}
             >
-              <td className={`w-full sm:w-auto sm:py-1.5 ${onOpenDetail ? 'text-blue-700 dark:text-blue-300 hover:underline' : 'text-gray-900 dark:text-gray-100'}`}>{m.displayName}</td>
-              {columns.map(c => <td key={c.label} className="sm:py-1.5">{c.render(m)}</td>)}
+              <td className="w-full sm:w-auto sm:py-1.5 text-blue-700 dark:text-blue-300 hover:underline">{m.displayName}</td>
+              {columns.map(c => <td key={c.label} className={`sm:py-1.5${c.align === 'right' ? ' sm:text-right' : ''}`}>{c.render(m)}</td>)}
               {editMode && (
                 <td className="sm:py-1.5 sm:text-right">
-                  <RowAction action={memberRowAction(m, attrs, includeDescendants)} onRemove={() => onRemove(m.id)} />
+                  <RowAction action={memberRowAction(includeDescendants)} onRemove={() => onRemove(m.id)} />
                 </td>
               )}
             </tr>

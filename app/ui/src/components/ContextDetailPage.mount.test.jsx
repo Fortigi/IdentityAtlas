@@ -423,6 +423,30 @@ describe('ContextDetailPage (mounted)', () => {
     expect([...row.cells].map(c => c.textContent).slice(0, 4)).toEqual(['SG-Finance', 'Group', 'Finance team', 'Disabled']);
     const headers = [...row.closest('table').querySelectorAll('th')].map(t => t.textContent);
     expect(headers).not.toContain('Email');
+    // A page whose rows carry no holder count or owner shows neither column.
+    expect(headers).not.toContain('Users');
+    expect(headers).not.toContain('Owner');
+  });
+
+  it('shows how many users hold a resource member and who owns it, the owner\'s e-mail as its tooltip', async () => {
+    const authFetch = routes({
+      '/api/contexts/ctx-1': { ...generatedDetail, attributes: { ...generatedDetail.attributes, targetType: 'Resource' } },
+      '/api/contexts/ctx-1/members': { total: 2, data: [
+        { id: 'r-1', displayName: 'ENT_LEDGER', resourceType: 'Entitlement', holderCount: 45210, ownerDisplayName: 'Grace Hopper', ownerEmail: 'grace@example.com' },
+        { id: 'r-2', displayName: 'ENT_QUIET', resourceType: 'Entitlement', holderCount: 0, ownerDisplayName: null, ownerEmail: null },
+      ] },
+    });
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
+    const row = (await screen.findByText('ENT_LEDGER')).closest('tr');
+    const headers = [...row.closest('table').querySelectorAll('th')];
+    expect(headers.map(t => t.textContent).slice(0, 4)).toEqual(['Name', 'Type', 'Users', 'Owner']);
+    expect(headers[2].className).toContain('text-right');
+    expect([...row.cells].map(c => c.textContent).slice(0, 4)).toEqual(['ENT_LEDGER', 'Entitlement', '45,210', 'Grace Hopper']);
+    expect(row.cells[2].className).toContain('sm:text-right');
+    expect(screen.getByText('Grace Hopper')).toHaveAttribute('title', 'grace@example.com');
+    // Nobody holds it: a 0, not a blank; nobody owns it: an empty cell.
+    const quiet = screen.getByText('ENT_QUIET').closest('tr');
+    expect([...quiet.cells].map(c => c.textContent).slice(2, 4)).toEqual(['0', '']);
   });
 
   it('renders the empty members state', async () => {

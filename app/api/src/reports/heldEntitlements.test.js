@@ -36,6 +36,7 @@ const COUNTS_SQL = 'GROUP BY d."contextId", d.id';
 
 function stage({ contexts = [unit()], entitlements = [], counts = [], owners = [], users = 0 }) {
   query.mockImplementation(async (sql) => {
+    if (sql.includes('FROM "ContextRoles"')) return { rows: [] };
     if (sql.includes('FROM "Contexts" c')) return { rows: contexts };
     // Counts first: its inner select starts the way the entitlement read does.
     if (sql.includes(COUNTS_SQL)) return { rows: counts };

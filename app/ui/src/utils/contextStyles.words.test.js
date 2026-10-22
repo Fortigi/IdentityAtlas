@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   memberKindLabel, memberKindNoun, contextTypeLabel, ruleSourcePhrase,
-  sourceDescription, contextSubtitle, memberEditNote,
+  sourceDescription, contextSubtitle,
 } from './contextStyles';
 
 describe('memberKindNoun — the kind of member in running text', () => {
@@ -87,12 +87,5 @@ describe('the source of a context in words', () => {
     // A rule with a display name is named by it, in rule wording, never "plugin".
     expect(contextSubtitle(km)).toBe('Derived by the K-Means Clustering rule');
     expect(contextSubtitle(DEPT_NAMED)).not.toMatch(/plugin/i);
-  });
-
-  it('writes the edit-mode members note per source', () => {
-    expect(memberEditNote(DEPT)).toBe('Members you add here are kept. The rest is refreshed automatically from the department field on each account.');
-    expect(memberEditNote(HR)).toBe('Members are refreshed automatically from Fortigi Demo HR.');
-    expect(memberEditNote({ variant: 'synced' })).toBe('Members are refreshed automatically from the import.');
-    expect(memberEditNote({ variant: 'manual' })).toBeNull();
   });
 });

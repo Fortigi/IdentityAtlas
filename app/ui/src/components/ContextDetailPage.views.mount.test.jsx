@@ -44,6 +44,9 @@ function routes(overrides = {}) {
   });
 }
 
+// The same unit, created here: the only kind whose member edits last.
+const manualUnit = () => routes({ '/api/contexts/ctx-1': { attributes: { ...UNIT, variant: 'manual' }, subContexts: [] } });
+
 function mount(props = {}, auth = {}, wrap = (x) => x) {
   const onOpenDetail = vi.fn();
   const onClose = vi.fn();
@@ -134,27 +137,33 @@ describe('the analyst view', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('reads members by default; "Edit members" adds the note, the add box and Remove only where it lasts', async () => {
-    const { user } = mount();
+  it('reads members by default; on a unit created here "Edit members" adds the add box and Remove on every row', async () => {
+    const { user } = mount({}, { authFetch: manualUnit() });
     const alice = (await screen.findByText('Alice Engineer')).closest('tr');
     expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull();
     expect(screen.queryByRole('textbox', { name: /to add/ })).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'Edit members' }));
-    expect(screen.getByTestId('member-edit-note')).toHaveTextContent(
-      'Members you add here are kept. The rest is refreshed automatically from the department field on each account.');
     expect(screen.getByRole('textbox', { name: 'Search accounts to add' })).toBeInTheDocument();
-    // The rule puts Alice back, so she is not offered Remove; Bob was added here.
-    expect(within(alice).queryByRole('button', { name: 'Remove' })).toBeNull();
-    expect(alice).toHaveTextContent('from the rule');
+    expect(screen.queryByTestId('member-edit-note')).toBeNull();
+    // Whoever added them, a removal from a unit created here lasts.
+    expect(within(alice).getByRole('button', { name: 'Remove' })).toBeInTheDocument();
     expect(within(screen.getByText('Bob Builder').closest('tr')).getByRole('button', { name: 'Remove' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull();
   });
 
+  it('offers no member edit on a derived unit, where removed members would come back', async () => {
+    mount();
+    await screen.findByText('Alice Engineer');
+    expect(screen.queryByRole('button', { name: 'Edit members' })).toBeNull();
+    // The unit itself still takes a new name or a sub-unit.
+    expect(screen.getByRole('button', { name: 'Add sub-unit' })).toBeInTheDocument();
+  });
+
   it('Remove deletes the member and re-reads the list', async () => {
-    const { authFetch, user } = mount();
+    const { authFetch, user } = mount({}, { authFetch: manualUnit() });
     await screen.findByText('Bob Builder');
     await user.click(screen.getByRole('button', { name: 'Edit members' }));
     const reads = () => authFetch.mock.calls.filter(([u]) => String(u).startsWith('/api/contexts/ctx-1/members?')).length;
@@ -165,7 +174,7 @@ describe('the analyst view', () => {
   });
 
   it('offers no Remove with sub-units included', async () => {
-    const { user } = mount();
+    const { user } = mount({}, { authFetch: manualUnit() });
     await screen.findByText('Bob Builder');
     await user.click(screen.getByLabelText('Include sub-units'));
     await user.click(screen.getByRole('button', { name: 'Edit members' }));
