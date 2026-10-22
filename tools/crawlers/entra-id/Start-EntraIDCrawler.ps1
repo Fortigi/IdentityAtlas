@@ -71,6 +71,12 @@
     assignment whose principal is the holding SP. Fetched per-SP (no bulk endpoint),
     so slow on large tenants. Default: false.
 
+.PARAMETER SyncAppRegistrations
+    Sync app registrations — one AppRegistration resource per application object,
+    carrying credential metadata (secret/certificate dates, never the values),
+    public-client flows, redirect URIs, implicit grant, requested permissions and
+    federated credentials. One paged read. Full runs only. Default: false.
+
 .PARAMETER SyncPrincipalRelationships
     Sync principal→principal relationships — the owners of AI agents and the
     sponsors of guest accounts, stored in PrincipalRelationships. Owners are read
@@ -121,6 +127,7 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Phases.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AppOwners.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AppPermissions.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.AppSecurity.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.PrincipalRelationships.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Photos.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Orchestration.ps1')
@@ -167,6 +174,7 @@ $SyncOAuth2Grants      = $cfg.SyncOAuth2Grants
 $SyncAppRoles          = $cfg.SyncAppRoles
 $SyncAppOwners         = $cfg.SyncAppOwners
 $SyncAppPermissions    = $cfg.SyncAppPermissions
+$SyncAppRegistrations  = $cfg.SyncAppRegistrations
 $SyncPrincipalRelationships = $cfg.SyncPrincipalRelationships
 $SyncDirectoryRoles    = $cfg.SyncDirectoryRoles
 $RefreshViews          = $cfg.RefreshViews
@@ -324,7 +332,7 @@ if ($SyncGovernance) {
 # per-unit complexity ratchet (every inline `if ($SyncX)` guard is a decision point).
 Invoke-EntraApplicationPhases -SystemId $systemId -AINamePatterns $AINamePatterns -Timings $phaseTimings `
     -SyncOAuth2Grants $SyncOAuth2Grants -SyncAppRoles $SyncAppRoles `
-    -SyncAppOwners $SyncAppOwners -SyncAppPermissions $SyncAppPermissions `
+    -SyncAppOwners $SyncAppOwners -SyncAppPermissions $SyncAppPermissions -SyncAppRegistrations $SyncAppRegistrations `
     -SyncPrincipalRelationships $SyncPrincipalRelationships
 
 # ─── Sync Directory Roles ────────────────────────────────────────

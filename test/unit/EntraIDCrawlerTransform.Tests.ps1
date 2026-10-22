@@ -33,6 +33,8 @@ BeforeAll {
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppRoles.ps1')
     # ConvertTo-EntraAppOwnershipGraph lives here now (extracted for the file-length ratchet).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppOwners.ps1')
+    # Add-EntraAppSecurityAttributes — called by ConvertTo-EntraServicePrincipalRecord.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AppSecurity.ps1')
 
     # Get-FGServicePrincipalType (pure SDK classifier) — used by
     # ConvertTo-EntraServicePrincipalRecord.
@@ -203,6 +205,32 @@ Describe 'ConvertTo-EntraServicePrincipalRecord' {
         $rec['extendedAttributes']['publisherName']         | Should -Be 'Contoso'
         $rec['extendedAttributes']['tags']                  | Should -Be 'foo,bar'
         $rec['extendedAttributes']['servicePrincipalNames'] | Should -Be 'https://a,https://b'
+    }
+
+    It 'carries the SP''s own credentials, verified publisher, audience and assignment requirement' {
+        # A secret added to the SP object itself (not its app registration) is the
+        # persistence trick the risk view must see; appRoleAssignmentRequired=$false is a
+        # fact (anyone may sign in), distinct from "not read".
+        $sp = [pscustomobject]@{
+            id = 'sp6'; displayName = 'Third Party'; servicePrincipalType = 'Application'
+            signInAudience = 'AzureADMultipleOrgs'; appRoleAssignmentRequired = $false
+            verifiedPublisher = [pscustomobject]@{ displayName = 'Contoso Ltd'; verifiedPublisherId = '123' }
+            replyUrls = @('https://a.example/cb', 'http://localhost:8080')
+            passwordCredentials = @([pscustomobject]@{ keyId = 'k1'; displayName = 'backdoor'; hint = 'abc'
+                startDateTime = '2026-01-01T00:00:00Z'; endDateTime = '2299-12-31T00:00:00Z' })
+            keyCredentials = @()
+        }
+        $ext = (ConvertTo-EntraServicePrincipalRecord -ServicePrincipal $sp)['extendedAttributes']
+        $ext['signInAudience']            | Should -Be 'AzureADMultipleOrgs'
+        $ext['appRoleAssignmentRequired'] | Should -BeFalse
+        $ext.ContainsKey('appRoleAssignmentRequired') | Should -BeTrue
+        $ext['verifiedPublisherName']     | Should -Be 'Contoso Ltd'
+        $ext['replyUrls']                 | Should -Be 'https://a.example/cb,http://localhost:8080'
+        $ext['secretCount']               | Should -Be 1
+        $ext['certificateCount']          | Should -Be 0
+        $ext['secretLatestEndDateTime']   | Should -Be '2299-12-31T00:00:00Z'
+        $ext['credentials'][0].displayName | Should -Be 'backdoor'
+        $ext['credentials'][0].Contains('hint') | Should -BeFalse
     }
 
     It 'omits extendedAttributes when there is nothing to add' {
@@ -778,6 +806,40 @@ Describe 'ConvertTo-EntraOAuth2ScopeGraph' {
         $out = ConvertTo-EntraOAuth2ScopeGraph -UserGrants $grants -SpInfo @{}
         $out.resources.Count   | Should -Be 0
         $out.assignments.Count | Should -Be 0
+    }
+
+    It 'marks an admin-consented scope on the resource and adds no assignment for it' {
+        $admin = [pscustomobject]@{ id = 'adm1'; consentType = 'AllPrincipals'; clientId = 'c1'; resourceId = 'api1'; principalId = $null; scope = 'Mail.Read Files.Read.All' }
+        $out = ConvertTo-EntraOAuth2ScopeGraph -UserGrants @() -AdminGrants @($admin) -SpInfo @{ c1 = @{ displayName = 'Client' }; api1 = @{ displayName = 'Graph' } }
+        $out.resources.Count     | Should -Be 2
+        $out.relationships.Count | Should -Be 2
+        $out.assignments.Count   | Should -Be 0
+        $out.resources | ForEach-Object {
+            $_.extendedAttributes.adminConsented      | Should -BeTrue
+            $_.extendedAttributes.adminConsentGrantId | Should -Be 'adm1'
+            $_.extendedAttributes.clientDisplayName   | Should -Be 'Client'
+        }
+    }
+
+    It 'shares one scope resource between an admin consent and a user consent for the same scope' {
+        $admin = [pscustomobject]@{ id = 'adm1'; clientId = 'c1'; resourceId = 'api1'; scope = 'Mail.Read' }
+        $user  = [pscustomobject]@{ id = 'u-g'; clientId = 'c1'; resourceId = 'api1'; principalId = 'u1'; scope = 'Mail.Read User.Read' }
+        $out = ConvertTo-EntraOAuth2ScopeGraph -UserGrants @($user) -AdminGrants @($admin) -SpInfo @{}
+        $out.resources.Count   | Should -Be 2
+        $out.assignments.Count | Should -Be 2
+        $mail = $out.resources | Where-Object { $_.extendedAttributes.scope -eq 'Mail.Read' }
+        $mail.extendedAttributes.adminConsented | Should -BeTrue
+        ($out.resources | Where-Object { $_.extendedAttributes.scope -eq 'User.Read' }).extendedAttributes.ContainsKey('adminConsented') | Should -BeFalse
+        # The user's assignment points at the same (shared) resource and keeps the names.
+        ($out.assignments | Where-Object { $_.extendedAttributes.scope -eq 'Mail.Read' }).resourceId | Should -Be $mail.id
+        $out.assignments | ForEach-Object { $_.extendedAttributes.targetApiDisplayName | Should -Be 'api1' }
+    }
+
+    It 'skips an admin consent missing its client or target' {
+        $out = ConvertTo-EntraOAuth2ScopeGraph -UserGrants @() -SpInfo @{} -AdminGrants @(
+            [pscustomobject]@{ id = 'a'; clientId = $null; resourceId = 'api1'; scope = 'Mail.Read' }
+            [pscustomobject]@{ id = 'b'; clientId = 'c1'; resourceId = $null; scope = 'Mail.Read' })
+        $out.resources.Count | Should -Be 0
     }
 }
 

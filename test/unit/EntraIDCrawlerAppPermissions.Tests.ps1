@@ -19,6 +19,8 @@ BeforeAll {
     # Shared ConvertTo-EntraAppRoleApplicationResource helper lives here (extracted for the ratchets).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppRoles.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppPermissions.ps1')
+    # Format-EntraUtcTime (grant timestamps).
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AppSecurity.ps1')
 }
 
 Describe 'ConvertTo-EntraAppPermissionGraph' {
@@ -66,6 +68,14 @@ Describe 'ConvertTo-EntraAppPermissionGraph' {
         $mi = ConvertTo-EntraAppPermissionGraph -Assignments @([pscustomobject]@{ id = '2'; principalId = 'mi1'; resourceId = 'graphSp'; appRoleId = 'role-mailread' }) `
             -SpInfo @{ mi1 = @{ displayName = 'kv-reader-mi'; principalType = 'ManagedIdentity' } }
         $mi.assignments[0].principalType | Should -Be 'ManagedIdentity'
+    }
+
+    It 'stamps when the permission was granted, normalised to UTC, and leaves it out when Graph does not say' {
+        $out = ConvertTo-EntraAppPermissionGraph -Assignments @(
+            [pscustomobject]@{ id = 'a'; principalId = 'sp1'; resourceId = 'graphSp'; appRoleId = 'r1'; creationTimestamp = '2019-12-05T10:27:48.9374944+01:00' }
+            [pscustomobject]@{ id = 'b'; principalId = 'sp2'; resourceId = 'graphSp'; appRoleId = 'r1' })
+        ($out.assignments | Where-Object { $_.principalId -eq 'sp1' }).extendedAttributes.grantedDateTime | Should -Be '2019-12-05T09:27:48Z'
+        ($out.assignments | Where-Object { $_.principalId -eq 'sp2' }).extendedAttributes.ContainsKey('grantedDateTime') | Should -BeFalse
     }
 
     It 'falls back to the appRole guid + SP ids when names are unknown' {
