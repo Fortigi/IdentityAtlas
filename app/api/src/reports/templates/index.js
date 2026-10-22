@@ -14,6 +14,7 @@ import orphanedAccounts from './orphaned-accounts.js';
 import privilegedAccounts from './privileged-accounts.js';
 import staleAccounts from './stale-accounts.js';
 import staleGuestAccounts from './stale-guest-accounts.js';
+import unitMembers from './unit-members.js';
 
 /** @type {import('../types.js').ReportTemplate[]} */
 export const BUILT_IN_REPORTS = [
@@ -27,4 +28,5 @@ export const BUILT_IN_REPORTS = [
   privilegedAccounts,
   staleAccounts,
   staleGuestAccounts,
+  unitMembers,
 ];

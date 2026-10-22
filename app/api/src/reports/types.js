@@ -65,6 +65,12 @@
  *                            response; omitted, the declaration stands.
  * @property {ReportPivot[]} [pivots]  Likewise for the pivots — each must name
  *                            only keys in the run's columns.
+ * @property {{title: string, entries: {label: string, value: *}[]}[]} [details]
+ *                            Facts ABOUT what the run covers — the Entitlement
+ *                            Pivot gives one block per context: every attribute
+ *                            and the people who answer for it. Context, like
+ *                            the notices: only a format that `carriesContext`
+ *                            gets them (the workbook's Summary tab).
  */
 
 /**

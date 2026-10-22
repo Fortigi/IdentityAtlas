@@ -45,16 +45,21 @@ export function useContextDetail(authFetch, contextId, refreshKey, onCacheData) 
 }
 
 // What the page offers this reader for this context:
-//   editable  Edit, Add sub-unit and member edits — the analyst, on a context
-//             created here or derived (an imported one is refreshed by its
-//             source, so edits would not last)
+//   editable  Edit and Add sub-unit — the analyst, on a context created here
+//             or derived (an imported one is refreshed by its source, so
+//             edits would not last)
+//   membersEditable  "Edit members" — the analyst, on a context created here
+//             only: there adding AND removing both last. A derived or imported
+//             context's members come back on its next refresh, so editing
+//             them would only ever half work.
 //   tabs      the analyst's tabs (Members, Timeline, Risk when scored);
 //             null for a business reader, who gets the members only
 //   shownTab  the tab whose panel renders
 export function contextPageView({ analyst, attrs, hasRisk, memberTotal, activeTab }) {
-  if (!analyst) return { editable: false, tabs: null, shownTab: 'members' };
+  if (!analyst) return { editable: false, membersEditable: false, tabs: null, shownTab: 'members' };
   return {
     editable: attrs.variant === 'manual' || attrs.variant === 'generated',
+    membersEditable: attrs.variant === 'manual',
     tabs: [
       { key: 'members', label: 'Members', count: memberTotal },
       { key: 'timeline', label: 'Timeline' },
