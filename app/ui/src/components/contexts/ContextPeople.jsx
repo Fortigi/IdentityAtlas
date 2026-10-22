@@ -13,6 +13,9 @@ import { useHasPermission } from '@ui/auth/usePermissions';
 // add one (search /api/users, PUT the chosen account with the chosen role)
 // or remove one (DELETE). Roles a plugin or a sync wrote are shown the same
 // way — removing one is the analyst's call, the API keeps the provenance.
+// A role the source sync stated (a synced context's owner, addedBy 'sync')
+// says which system it came from; an analyst's choice replaces it and then
+// survives the next sync.
 
 const ROLED_CATEGORIES = new Set(['OrganizationalUnit', 'LogicalApplication']);
 
@@ -65,12 +68,12 @@ export default function ContextPeople({ attrs, onOpenDetail }) {
         <dt className="text-gray-500 dark:text-gray-400">Accountable</dt>
         <dd className="flex flex-wrap items-center gap-1">
           {accountable.length === 0 && <span className="text-gray-600 dark:text-gray-500">not set</span>}
-          {accountable.map(r => <RoleChip key={r.id} role={r} canWrite={canWrite} onRemove={remove} onOpenDetail={onOpenDetail} />)}
+          {accountable.map(r => <RoleChip key={r.id} role={r} sourceName={attrs.scopeSystemName} canWrite={canWrite} onRemove={remove} onOpenDetail={onOpenDetail} />)}
         </dd>
         <dt className="text-gray-500 dark:text-gray-400">Responsible</dt>
         <dd className="flex flex-wrap items-center gap-1">
           {responsible.length === 0 && <span className="text-gray-600 dark:text-gray-500">none</span>}
-          {responsible.map(r => <RoleChip key={r.id} role={r} canWrite={canWrite} onRemove={remove} onOpenDetail={onOpenDetail} />)}
+          {responsible.map(r => <RoleChip key={r.id} role={r} sourceName={attrs.scopeSystemName} canWrite={canWrite} onRemove={remove} onOpenDetail={onOpenDetail} />)}
         </dd>
       </dl>
       {canWrite && <AddRole onAdd={add} />}
@@ -82,8 +85,9 @@ export default function ContextPeople({ attrs, onOpenDetail }) {
 }
 
 // One person holding a role: their name (a link to the account when we can
-// open one), who added the role, and a remove cross for a writer.
-function RoleChip({ role, canWrite, onRemove, onOpenDetail }) {
+// open one), who added the role, the source system when a sync added it,
+// and a remove cross for a writer.
+function RoleChip({ role, sourceName, canWrite, onRemove, onOpenDetail }) {
   const name = role.displayName || role.principalId || role.identityId;
   const kind = role.principalId ? 'user' : 'identity';
   const linkable = !!onOpenDetail && !!(role.principalId || role.identityId);
@@ -92,6 +96,7 @@ function RoleChip({ role, canWrite, onRemove, onOpenDetail }) {
       {linkable
         ? <button type="button" onClick={() => onOpenDetail(kind, role.principalId || role.identityId, name)} className="underline decoration-dotted underline-offset-2 hover:text-blue-700 dark:hover:text-blue-300">{name}</button>
         : <span>{name}</span>}
+      {role.addedBy === 'sync' && sourceName && <span className="text-gray-500 dark:text-gray-400">from {sourceName}</span>}
       {canWrite && (
         <button type="button" onClick={() => onRemove(role.id)} aria-label={`Remove ${name} as ${role.role}`} className="text-gray-500 hover:text-red-600 dark:hover:text-red-400 leading-none">✕</button>
       )}
