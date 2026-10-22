@@ -18,11 +18,12 @@ import { CONTEXT_ROLE_TYPES } from '../../ingest/validation.js';
 import { useSql, UUID_RE, writeContexts } from './shared.js';
 import { suggestAccountable } from '../../contexts/roleSuggestion.js';
 import { userOf } from '../../lib/userOf.js';
+import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
 
 const router = Router();
 
-// The templates that carry roles.
-export const ROLE_BEARING_CATEGORIES = new Set(['OrganizationalUnit', 'LogicalApplication']);
+// The templates that carry roles (lib/contextCategories.js).
+export { ROLE_BEARING_CATEGORIES };
 
 // Holder column → the table its display name comes from.
 const HOLDER_TABLE = { principalId: 'Principals', identityId: 'Identities' };
