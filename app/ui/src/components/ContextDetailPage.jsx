@@ -41,9 +41,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   const { authFetch } = useAuth();
   const features = useFeatures();
   const dialog = useDialog();
-  const canWrite = useHasPermission('data.write.contexts');
-  const sharedView = useIsSharedView();
-  const analyst = canWrite && !sharedView;
+  const analyst = useIsAnalyst();
   const [editing, setEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('members');
   const [timelineDays, setTimelineDays] = useState(90);
@@ -56,7 +54,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   });
 
   // The standalone page carries the unit's name in the browser tab.
-  usePageTitle(embedded ? null : detail?.attributes?.displayName);
+  usePageTitle(pageTitleOf(embedded, detail));
 
   // ─── Render ────────────────────────────────────────────────────────
 
@@ -69,7 +67,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   const attrs = detail.attributes;
   const subContexts = detail.subContexts || [];
   const { editable, membersEditable, tabs, shownTab } = contextPageView({
-    analyst, attrs, activeTab, memberTotal: m.memberTotal, hasRisk: !!features.riskScoring && riskData?.riskScore != null,
+    analyst, attrs, activeTab, memberTotal: m.memberTotal, hasRisk: riskShown(features, riskData),
   });
   const sectionIds = { members: `context-members-${contextId}`, subUnits: `context-sub-units-${contextId}` };
   const refreshAll = () => { m.fetchMembers(); fetchDetail(); onEdited?.(); };
@@ -154,6 +152,24 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
       </div>
     </div>
   );
+}
+
+// An analyst holds data.write.contexts outside a shared read-only view; every
+// other reader gets the business view.
+function useIsAnalyst() {
+  const canWrite = useHasPermission('data.write.contexts');
+  const sharedView = useIsSharedView();
+  return canWrite && !sharedView;
+}
+
+// The standalone page carries the unit's name in the browser tab; embedded, none.
+function pageTitleOf(embedded, detail) {
+  return embedded ? null : detail?.attributes?.displayName;
+}
+
+// The Risk tab shows when the feature is on and the context has a score.
+function riskShown(features, riskData) {
+  return !!features.riskScoring && riskData?.riskScore != null;
 }
 
 // The header's actions for this reader: Back to Contexts for the analyst on
