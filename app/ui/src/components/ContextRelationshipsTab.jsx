@@ -1,16 +1,15 @@
 import { useState } from 'react';
 import ContextMemberPicker from './contexts/ContextMemberPicker';
 import ContextTemplateIcon from './contexts/ContextTemplateIcon';
-import { memberKindNoun, memberEditNote } from '@ui/utils/contextStyles';
+import { memberKindNoun } from '@ui/utils/contextStyles';
 import { visibleMemberColumns, memberRowAction } from './ContextRelationshipsTab.helpers';
 
 // ─── Sub-units and members ─────────────────────────────────────────────────
 // Two plain sections: the sub-units (each opening its own page) and the
 // paginated, searchable members. Reading by default; `canEditMembers` (the
-// reader can edit contexts, and the context is not imported) adds an "Edit
-// members" button, and only in that mode the add box, the note on what stays
-// and the per-row Remove appear. A row the rule would put back is never
-// offered Remove — it says where it comes from instead.
+// reader can edit contexts, and the context was created here — the only kind
+// whose member edits last) adds an "Edit members" button, and only in that mode
+// the add box and the per-row Remove appear.
 
 export default function ContextRelationshipsTab({ subContexts, sectionIds = {}, ...panelProps }) {
   return (
@@ -123,12 +122,10 @@ function MembersPanel({
   );
 }
 
-// Edit mode: what stays and what refreshes, then the box to add one.
+// Edit mode: the box to add a member.
 function MemberEditBox({ contextId, attrs, members, onAdded }) {
-  const note = memberEditNote(attrs);
   return (
     <div className="mb-4">
-      {note && <p data-testid="member-edit-note" className="text-xs text-gray-600 dark:text-gray-400 mb-1">{note}</p>}
       <ContextMemberPicker contextId={contextId} targetType={attrs.targetType} existingMemberIds={members.map(m => m.id)} onAdded={onAdded} />
     </div>
   );
@@ -166,7 +163,7 @@ function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDeta
               {columns.map(c => <td key={c.label} className={`sm:py-1.5${c.align === 'right' ? ' sm:text-right' : ''}`}>{c.render(m)}</td>)}
               {editMode && (
                 <td className="sm:py-1.5 sm:text-right">
-                  <RowAction action={memberRowAction(m, attrs, includeDescendants)} onRemove={() => onRemove(m.id)} />
+                  <RowAction action={memberRowAction(includeDescendants)} onRemove={() => onRemove(m.id)} />
                 </td>
               )}
             </tr>

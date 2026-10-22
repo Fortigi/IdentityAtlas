@@ -74,17 +74,14 @@ export function visibleMemberColumns(targetType, members) {
     .map(c => ({ label: c.label, align: c.align, render: m => (hasValue(c.value(m)) ? c.render(m) : null) }));
 }
 
-// The action cell of a member row in edit mode:
-//   remove   the member can be taken out and stays out
-//   note     it cannot — shown with sub-units included (the row may belong to
-//            a sub-unit), or because the rule that derived the unit puts it
-//            back on its next refresh ("from the rule")
-export function memberRowAction(member, attrs, includeDescendants) {
+// The action cell of a member row in edit mode (which only a context created
+// here has, so every removal lasts):
+//   remove   the member can be taken out
+//   note     not from this list — shown with sub-units included, where the row
+//            may belong to a sub-unit
+export function memberRowAction(includeDescendants) {
   if (includeDescendants) {
     return { kind: 'note', text: '—', title: 'Turn off "Include sub-units" to remove members' };
-  }
-  if (attrs.variant === 'generated' && member.addedBy === 'algorithm') {
-    return { kind: 'note', text: 'from the rule', title: 'Refreshed automatically; removing it here would not last' };
   }
   return { kind: 'remove' };
 }

@@ -28,7 +28,8 @@ import { useContextDetail, contextPageView } from './contexts/useContextDetail';
 //                  (AppHeader) — the breadcrumb is the way around.
 //   analyst view   with it (auth off counts): the same page plus Edit, Add
 //                  sub-unit, the raw values under More details, the Timeline
-//                  and Risk tabs and an "Edit members" mode.
+//                  and Risk tabs, and an "Edit members" mode on a context
+//                  created here (the only kind whose member edits last).
 // Loaded via /api/contexts/:id. Standalone, document.title is the unit name.
 //
 // `embedded`: rendered inside the Contexts page's right pane — no close
@@ -67,7 +68,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
 
   const attrs = detail.attributes;
   const subContexts = detail.subContexts || [];
-  const { editable, tabs, shownTab } = contextPageView({
+  const { editable, membersEditable, tabs, shownTab } = contextPageView({
     analyst, attrs, activeTab, memberTotal: m.memberTotal, hasRisk: !!features.riskScoring && riskData?.riskScore != null,
   });
   const sectionIds = { members: `context-members-${contextId}`, subUnits: `context-sub-units-${contextId}` };
@@ -91,7 +92,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
         sectionIds={sectionIds}
         contextId={contextId}
         attrs={attrs}
-        canEditMembers={editable}
+        canEditMembers={membersEditable}
         includeDescendants={m.includeDescendants}
         onIncludeDescendantsChange={m.setIncludeDescendants}
         memberSearch={m.memberSearch}

@@ -43,3 +43,4 @@
 - The Actions area of logical applications and organisational units shows a "Start ownership survey" card marked "Coming soon"; it is not shown on a context owner's read-only page.
 - New **Unit report** for organisational units of accounts or people: one row per member with their details, how many entitlements each holds (for a person, across their linked accounts) and every attribute their source stored; its Excel download opens with everything known about the unit, including who is accountable for it. Optionally includes the members of sub-units.
 - Units of accounts or people have a "Download unit report" action, also on the unit owner's read-only page.
+- "Edit members" is now offered only on contexts created in Identity Atlas, where both adding and removing members last; imported and rule-derived contexts no longer offer it, since their members would come back on the next refresh.
