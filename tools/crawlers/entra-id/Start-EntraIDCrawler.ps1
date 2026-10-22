@@ -125,9 +125,34 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Photos.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Orchestration.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AttributeLabels.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.GroupDelta.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.DeltaScope.ps1')
 
-# Resolve all sync toggles + attribute lists from the job config.
+# ─── Main ─────────────────────────────────────────────────────────
+
+# Collected phase failures. Each main sync phase catches its own exceptions and
+# appends a short summary here so the crawl can continue. At end-of-run, if the
+# list is non-empty, we throw — the worker scheduler then marks the job
+# `failed` with a message listing all phase failures. This prevents the
+# April 2026 class of bug where silent phase 400s left the job marked
+# "completed successfully" even though users/reviews/policies were missing.
+$script:phaseErrors = [System.Collections.Generic.List[string]]::new()
+
+# Structured per-phase outcomes: one entry per phase (and per sub-phase in
+# governance). Posted as `phases` on the final sync-log write so the UI can
+# render a proper per-phase breakdown instead of parsing the single-line
+# errorMessage text. Shape is one hashtable per phase with:
+#   name, status ('ok' | 'failed'), durationMs, error?, records?
+$script:phases = [System.Collections.Generic.List[object]]::new()
+
+$systemId = Initialize-EntraCrawlerRun -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -TenantId ([string]$RawConfig['tenantId']) `
+    -ClientId ([string]$RawConfig['clientId']) -ClientSecret ([string]$RawConfig['clientSecret']) `
+    -ConfigName ([string]$RawConfig['_configName'])
+
+# Resolve all sync toggles + attribute lists from the job config, then narrow a
+# delta run to the phases that read a Graph delta feed (see EntraIDCrawler.DeltaScope.ps1).
 $cfg = Resolve-EntraSyncConfig -RawConfig $RawConfig
+Limit-EntraSyncToDeltaPhases -Cfg $cfg -HasBaseline (Test-EntraDeltaBaseline -Cfg $cfg -SystemId $systemId) | Out-Null
 $SyncMode              = $cfg.SyncMode
 $SyncProfilePhotos     = $cfg.SyncProfilePhotos
 $PhotoMaxAgeDays       = $cfg.PhotoMaxAgeDays
@@ -150,27 +175,6 @@ $CustomUserAttributes  = $cfg.CustomUserAttributes
 $CustomGroupAttributes = $cfg.CustomGroupAttributes
 $AINamePatterns        = $cfg.AINamePatterns
 $IdentityFilter        = $cfg.IdentityFilter
-
-# ─── Main ─────────────────────────────────────────────────────────
-
-# Collected phase failures. Each main sync phase catches its own exceptions and
-# appends a short summary here so the crawl can continue. At end-of-run, if the
-# list is non-empty, we throw — the worker scheduler then marks the job
-# `failed` with a message listing all phase failures. This prevents the
-# April 2026 class of bug where silent phase 400s left the job marked
-# "completed successfully" even though users/reviews/policies were missing.
-$script:phaseErrors = [System.Collections.Generic.List[string]]::new()
-
-# Structured per-phase outcomes: one entry per phase (and per sub-phase in
-# governance). Posted as `phases` on the final sync-log write so the UI can
-# render a proper per-phase breakdown instead of parsing the single-line
-# errorMessage text. Shape is one hashtable per phase with:
-#   name, status ('ok' | 'failed'), durationMs, error?, records?
-$script:phases = [System.Collections.Generic.List[object]]::new()
-
-$systemId = Initialize-EntraCrawlerRun -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -TenantId ([string]$RawConfig['tenantId']) `
-    -ClientId ([string]$RawConfig['clientId']) -ClientSecret ([string]$RawConfig['clientSecret']) `
-    -ConfigName ([string]$RawConfig['_configName'])
 
 $syncStart = Get-Date
 
@@ -235,18 +239,12 @@ if ($SyncSignInLogs) {
     Sync-EntraSignInLogs -SystemId $systemId -Sps $sps -SignInLogsDays $SignInLogsDays -Timings $phaseTimings
 }
 
-# ─── Sync Resources (Groups) ─────────────────────────────────────
-# $groups is fetched here and reused by the Assignments and PIM phases below, so
-# it's initialized up front and only (re)assigned when the Resources phase runs.
-$groups = @()
-if ($SyncResources) {
-    $groups = Sync-EntraResources -SystemId $systemId -CustomGroupAttributes $CustomGroupAttributes -Timings $phaseTimings
-}
-
-# ─── Sync Assignments (Group Members + Owners) ───────────────────
-if ($SyncAssignments) {
-    Sync-EntraAssignments -SystemId $systemId -Groups $groups -Timings $phaseTimings
-}
+# ─── Sync Resources (Groups) + Assignments (Members + Owners) ────
+# A full run reads every group and then each group's members and owners; a delta
+# run reads only what changed via /groups/delta (EntraIDCrawler.GroupDelta.ps1).
+# $groups (full runs only) is reused by the PIM phase below.
+$groups = @(Invoke-EntraGroupPhases -SystemId $systemId -SyncMode $SyncMode -SyncResources $SyncResources `
+    -SyncAssignments $SyncAssignments -CustomGroupAttributes $CustomGroupAttributes -Timings $phaseTimings)
 
 # ─── Sync PIM (Eligible group memberships) ───────────────────────
 # Privileged Identity Management gives users "Eligible" (not active) membership

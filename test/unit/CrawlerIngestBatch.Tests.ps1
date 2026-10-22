@@ -226,3 +226,39 @@ Describe 'Invoke-CrawlerIngestBatch' {
         }
     }
 }
+
+Describe 'Send-CrawlerIngestDeletedKeys' {
+    BeforeEach {
+        $script:sent = [System.Collections.Generic.List[object]]::new()
+        Mock Invoke-IngestAPI {
+            $script:sent.Add(@{ Endpoint = $Endpoint; Body = $Body })
+            return @{ inserted = 0; updated = 0; deleted = $Body.deletedKeys.Count - 1 }
+        } -ModuleName $null
+        Mock Write-Host { } -ModuleName $null
+    }
+
+    It 'sends nothing for no keys' {
+        Send-CrawlerIngestDeletedKeys -Endpoint 'ingest/resource-assignments' -SystemId 4 -Keys @() | Should -Be 0
+        $script:sent.Count | Should -Be 0
+    }
+
+    It 'sends record-less delta batches in chunks and sums what the server deleted' {
+        $keys = 1..5 | ForEach-Object { @{ resourceId = "r$_"; principalId = "p$_"; assignmentType = 'Direct' } }
+        $deleted = Send-CrawlerIngestDeletedKeys -Endpoint 'ingest/resource-assignments' -SystemId 4 -Keys $keys -BatchSize 2
+
+        $script:sent.Count | Should -Be 3
+        @($script:sent | ForEach-Object { $_.Body.deletedKeys.Count }) | Should -Be @(2, 2, 1)
+        $script:sent[2].Body.deletedKeys[0].principalId | Should -Be 'p5'
+        $script:sent[0].Body.syncMode | Should -Be 'delta'
+        $script:sent[0].Body.systemId | Should -Be 4
+        $script:sent[0].Body.records.Count | Should -Be 0
+        $script:sent[0].Endpoint | Should -Be 'ingest/resource-assignments'
+        # The server reported one fewer than it was sent per chunk: 1 + 1 + 0.
+        $deleted | Should -Be 2
+    }
+
+    It 'sends a single key as a one-element array' {
+        Send-CrawlerIngestDeletedKeys -Endpoint 'ingest/resource-assignments' -SystemId 4 -Keys @(@{ resourceId = 'r'; principalId = 'p'; assignmentType = 'Direct' }) | Out-Null
+        ($script:sent[0].Body | ConvertTo-Json -Depth 5 -Compress) | Should -BeLike '*"deletedKeys":`[{*'
+    }
+}

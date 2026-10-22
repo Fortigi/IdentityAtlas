@@ -5,20 +5,28 @@
 // (hour, minute) that hasn't already fired in this minute.
 //
 // Schedule shape (from the UI):
-//   { enabled: true, frequency: 'daily'|'hourly'|'weekly',
-//     hour: 0-23, minute: 0-59, day?: 0-6 }
+//   { enabled: true, frequency: 'interval'|'hourly'|'daily'|'weekly',
+//     intervalMinutes?: 5|10|15|20|30, hour: 0-23, minute: 0-59, day?: 0-6 }
 //
 // Matching rules:
-//   - hourly: fires when `now.minute === schedule.minute` (ignores hour)
-//   - daily:  fires when minute + hour match
-//   - weekly: fires when minute + hour + day-of-week match
+//   - interval: fires every `intervalMinutes`, on the clock (:00, :15, :30, …)
+//   - hourly:   fires when `now.minute === schedule.minute` (ignores hour)
+//   - daily:    fires when minute + hour match
+//   - weekly:   fires when minute + hour + day-of-week match
 //
 // Double-fire protection: the runner tracks the last fired (configId, scheduleIndex,
 // matched minute) in memory. On container restart the in-memory cache resets, but
-// a second safety net checks CrawlerJobs for any job from the same config in the
-// last 55 minutes — if one exists, the scheduler skips to prevent duplicates.
-// Separately, a schedule never queues beside a job of the same config that is
-// still queued or running, however old (lib/crawlerJobQueue.js).
+// a second safety net checks CrawlerJobs for a job queued by the SAME schedule
+// entry within its period (55 minutes, or the interval minus one) — if one exists,
+// the scheduler skips to prevent duplicates. Per entry, not per config: with a
+// delta every 10 minutes, a per-config look-back would always find a delta and
+// the daily full would never run.
+//
+// One job per config: a schedule never queues beside a job of the same config
+// that is still queued or running, however old (lib/crawlerJobQueue.js). An
+// occurrence that hits a busy config is skipped — except one that is not an
+// interval: a daily full that lands while a five-minute delta is running would
+// otherwise be lost for the day, so it is retried every tick for up to an hour.
 //
 // Why server-side and not in the worker:
 //   - The web container already runs setInterval loops (history prune). Same
@@ -42,50 +50,62 @@ const FIRST_RUN_DELAY_MS = 45_000;
 // value = ISO string of the minute. Prevents double-firing within the same minute.
 const lastFired = new Map();
 
+// Occurrences that came due while their config was busy, retried every tick until
+// they queue or their deadline passes. Same key as lastFired; value = deadline (ms).
+const pendingRetry = new Map();
+const PENDING_RETRY_MS = 60 * 60_000;
+
+// The intervals an 'interval' schedule may use: divisors of 60, so every
+// occurrence lands on the same minutes each hour.
+export const INTERVAL_MINUTES = [5, 10, 15, 20, 30];
+
 // Resolve a config's schedule list, supporting both the new `schedules` array
 // and the legacy single `schedule` object.
 export function extractSchedules(cfg) {
   return cfg.schedules?.length ? cfg.schedules : (cfg.schedule ? [cfg.schedule] : []);
 }
 
+const validMinute = (s) => typeof s.minute === 'number' && s.minute >= 0 && s.minute <= 59;
+
+// One matcher per frequency. Each answers "is this schedule due at `now`?".
+const MATCHERS = {
+  // Every intervalMinutes, counted from midnight UTC.
+  interval: (s, now) => INTERVAL_MINUTES.includes(s.intervalMinutes)
+    && (now.getUTCHours() * 60 + now.getUTCMinutes()) % s.intervalMinutes === 0,
+  // Every hour at the configured minute.
+  hourly: (s, now) => validMinute(s) && now.getUTCMinutes() === s.minute,
+  // Once per day at hour:minute.
+  daily: (s, now) => validMinute(s) && typeof s.hour === 'number'
+    && now.getUTCHours() === s.hour && now.getUTCMinutes() === s.minute,
+  // Once per week on `day` at hour:minute.
+  weekly: (s, now) => typeof s.day === 'number' && now.getUTCDay() === s.day && MATCHERS.daily(s, now),
+};
+
 export function scheduleMatches(schedule, now) {
   if (!schedule || schedule.enabled === false) return false;
-  if (typeof schedule.minute !== 'number' || schedule.minute < 0 || schedule.minute > 59) return false;
-
-  const freq = schedule.frequency || 'daily';
-  // Hourly fires every hour at the configured minute
-  if (freq === 'hourly') {
-    return now.getUTCMinutes() === schedule.minute;
-  }
-  // Daily fires once per day at hour:minute
-  if (freq === 'daily') {
-    if (typeof schedule.hour !== 'number') return false;
-    return now.getUTCHours() === schedule.hour && now.getUTCMinutes() === schedule.minute;
-  }
-  // Weekly fires once per week on `day` at hour:minute
-  if (freq === 'weekly') {
-    if (typeof schedule.hour !== 'number' || typeof schedule.day !== 'number') return false;
-    return (
-      now.getUTCDay() === schedule.day &&
-      now.getUTCHours() === schedule.hour &&
-      now.getUTCMinutes() === schedule.minute
-    );
-  }
-  return false;
+  const match = MATCHERS[schedule.frequency || 'daily'];
+  return match ? match(schedule, now) : false;
 }
 
-export async function recentlyQueuedJobExists(configId, jobType) {
-  // Second safety net against double-firing (survives container restart).
-  // If any job from this config was queued/running/completed in the last 55 min,
-  // we skip. 55 < 60 so the next minute's tick can still fire if the schedule
-  // is hourly, but we won't duplicate within a minute boundary after restart.
+// How far back the cross-restart guard looks for a job of the same schedule
+// entry: just under its period, so the next occurrence can still fire.
+export function guardWindowMinutes(schedule) {
+  return schedule?.frequency === 'interval' ? Math.max(1, schedule.intervalMinutes - 1) : 55;
+}
+
+export async function recentlyQueuedJobExists(configId, jobType, scheduleIndex, windowMinutes = 55) {
+  // Second safety net against double-firing (survives container restart): a job
+  // this schedule entry queued within its window means this occurrence already
+  // fired before the restart. Jobs queued by the config's other entries, or by
+  // hand, do not count — the busy check below keeps them from overlapping.
   const r = await db.queryOne(
     `SELECT 1 FROM "CrawlerJobs"
       WHERE "jobType" = $1
         AND "configId" = $2
-        AND "createdAt" > now() - interval '55 minutes'
+        AND config->>'_scheduleIndex' = $3
+        AND "createdAt" > now() - $4::int * interval '1 minute'
       LIMIT 1`,
-    [jobType, configId]
+    [jobType, configId, String(scheduleIndex), windowMinutes]
   );
   return !!r;
 }
@@ -234,49 +254,78 @@ async function captureDashboardSnapshotIfMissing() {
 // the in-memory and cross-restart double-fire guards and swallows queue errors
 // so one bad config can't abort the whole tick. Exported for unit tests.
 export async function fireScheduleIfDue(configRow, scheduleIndex, schedule, now, minuteKey) {
-  if (!scheduleMatches(schedule, now)) return;
-
   const key = `crawler:${configRow.id}:${scheduleIndex}`;
+  const retrying = pendingRetry.has(key);
+  if (!retrying && !scheduleMatches(schedule, now)) return;
   if (lastFired.get(key) === minuteKey) return; // already fired this minute
 
-  // Cross-restart safety: check DB for recent job from this config
-  if (await recentlyQueuedJobExists(configRow.id, configRow.crawlerType)) {
+  // Cross-restart safety: check DB for a recent job from this schedule entry.
+  // A retry is past its own occurrence, so the look-back would only find itself.
+  if (!retrying && await recentlyQueuedJobExists(configRow.id, configRow.crawlerType, scheduleIndex, guardWindowMinutes(schedule))) {
     lastFired.set(key, minuteKey);
     return;
   }
 
   // One job per configuration: a run that is still going (a full load can take
-  // most of a day) makes this occurrence a skip, not a second run beside it.
-  // The next occurrence of the schedule tries again.
+  // most of a day) makes this occurrence wait, not a second run beside it.
   const busy = await findActiveConfigJob(db.query, configRow.id);
   if (busy) {
-    console.log(`Scheduler: skipped config ${configRow.id} (${configRow.displayName}) — job ${busy.id} is still ${busy.status}`);
+    holdForRetry(key, schedule, now, `config ${configRow.id} (${configRow.displayName}) — job ${busy.id} is still ${busy.status}`);
     lastFired.set(key, minuteKey);
     return;
   }
 
   try {
     await queueScheduledJob(configRow, scheduleIndex);
+    pendingRetry.delete(key);
     lastFired.set(key, minuteKey);
   } catch (err) {
     console.error(`Scheduler: failed to queue job for config ${configRow.id}: ${err.message}`);
   }
 }
 
+// A busy config makes an interval occurrence a skip (the next one is minutes
+// away) and any other occurrence a retry, until its deadline. Exported for tests.
+export function holdForRetry(key, schedule, now, reason) {
+  if (schedule?.frequency === 'interval') {
+    console.log(`Scheduler: skipped ${reason}`);
+    return;
+  }
+  if (!pendingRetry.has(key)) {
+    pendingRetry.set(key, now.getTime() + PENDING_RETRY_MS);
+    console.log(`Scheduler: postponed ${reason}; retrying every minute for up to an hour`);
+  }
+}
+
+// Run a config's full-sync entries before its deltas, so a full and a delta due
+// in the same minute do not leave the full waiting behind the delta. Pure.
+export function scheduleFiringOrder(schedules) {
+  return schedules.map((_, i) => i)
+    .sort((a, b) => (schedules[a]?.syncMode === 'full' ? 0 : 1) - (schedules[b]?.syncMode === 'full' ? 0 : 1));
+}
+
 // Walk every schedule on a single crawler config and fire the due ones.
 async function processConfigSchedules(configRow, now, minuteKey) {
   const cfg = parseJsonbColumn(configRow.config);
   const schedules = extractSchedules(cfg);
-  for (let i = 0; i < schedules.length; i++) {
+  for (const i of scheduleFiringOrder(schedules)) {
     await fireScheduleIfDue(configRow, i, schedules[i], now, minuteKey);
   }
 }
 
 // Drop entries from previous minutes — they've served their double-fire
-// protection purpose and would otherwise grow unbounded.
-function pruneLastFired(minuteKey) {
+// protection purpose and would otherwise grow unbounded — and retries whose
+// deadline has passed (also those of a schedule that has since been removed).
+// Exported for unit tests.
+export function pruneSchedulerState(minuteKey, now) {
   for (const [k, v] of lastFired) {
     if (v !== minuteKey) lastFired.delete(k);
+  }
+  for (const [k, deadline] of pendingRetry) {
+    if (now.getTime() > deadline) {
+      console.log(`Scheduler: gave up on ${k} — its config stayed busy for an hour`);
+      pendingRetry.delete(k);
+    }
   }
 }
 
@@ -310,7 +359,7 @@ async function tick() {
     // Account linking + risk scoring are no longer cron-scheduled — they run after
     // every crawl (see postCrawlJobs.js) or on demand. Only crawlers are scheduled here.
 
-    pruneLastFired(minuteKey);
+    pruneSchedulerState(minuteKey, now);
   } catch (err) {
     console.error(`Scheduler tick failed: ${err.message}`);
   }

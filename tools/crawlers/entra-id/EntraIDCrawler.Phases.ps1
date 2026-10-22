@@ -545,9 +545,7 @@ function Sync-EntraResources {
     Update-CrawlerProgress -Step 'Syncing groups' -Pct 20 -Detail 'Fetching groups from Microsoft Graph...'
     $groups = @()
     try {
-        $coreGroupAttrs = @('id','displayName','description','mail','visibility','createdDateTime','groupTypes','securityEnabled','mailEnabled','membershipRule','membershipRuleProcessingState','onPremisesSyncEnabled','resourceProvisioningOptions')
-        $allGroupAttrs = $coreGroupAttrs + $CustomGroupAttributes | Select-Object -Unique
-        $groupSelect = $allGroupAttrs -join ','
+        $groupSelect = Get-EntraGroupSelect -CustomGroupAttributes $CustomGroupAttributes   # EntraIDCrawler.GroupDelta.ps1
         $groups = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/groups?`$select=$groupSelect&`$top=999"
 
         $records = @($groups | ForEach-Object {

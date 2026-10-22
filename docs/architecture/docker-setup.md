@@ -337,7 +337,7 @@ Crawler configs are stored persistently in the `CrawlerConfigs` table and manage
 - **Object types** to sync (Identity, Context, Users & Groups, Governance, Apps, Directory Roles, PIM)
 - **Custom attributes** — additional user/group attributes to fetch from Graph (e.g., `employeeHireDate`, `extension_*`)
 - **Identity filter** — selects which users are treated as identities (e.g., `employeeId` is not null)
-- **Schedule** — hourly/daily/weekly with configurable time
+- **Schedule** — every few minutes, hourly, daily or weekly, each as a delta or full run
 
 ### Custom Attributes
 
@@ -365,11 +365,21 @@ Crawlers can be scheduled directly from the UI. The worker checks `CrawlerConfig
 
 | Frequency | Description |
 |---|---|
+| `interval` | Runs every `intervalMinutes` (5, 10, 15, 20 or 30) on the clock, e.g. `:00`, `:15`, `:30`, `:45` for 15. Shown in the UI as **Every few minutes** |
 | `hourly` | Runs at `:MM` every hour |
 | `daily` | Runs at `HH:MM UTC` every day |
 | `weekly` | Runs at `HH:MM UTC` on a specific day |
 
-Scheduled jobs appear in the "Recent Jobs" table like any other job.
+Each schedule entry also has a `syncMode` (`delta` or `full`).
+
+A crawler configuration only runs one job at a time. If a schedule comes due while a job of the same crawler is still queued or running:
+
+- an **Every few minutes** schedule skips that run and waits for its next one;
+- any other schedule waits and starts as soon as the running job finishes, for up to an hour. So a daily full run is not lost because a five-minute delta happened to be running.
+
+When a full and a delta come due in the same minute, the full goes first.
+
+Scheduled jobs appear in the "Recent Jobs" table like any other job. That table shows the ten newest jobs plus each crawler's last full run and last delta run, so frequent deltas do not push the last full run out of view. It reads `GET /api/admin/crawler-jobs?limit=10&latestPerMode=true`.
 
 ---
 

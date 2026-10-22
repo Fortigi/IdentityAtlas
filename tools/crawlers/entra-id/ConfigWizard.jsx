@@ -126,16 +126,19 @@ const DEFAULT_GROUP_ATTRS = [
 // Sign-in activity (`signInActivity`) is only returned by the full `/users`
 // fetch — `/users/delta` does not carry it — so a delta-only crawler never
 // refreshes it and every activity-based report ages out of usefulness within
-// days. One full sync a day keeps it current; hourly deltas keep everything
-// else fresh cheaply. This is the combination the step's own help text
-// recommends, so the wizard now proposes it instead of describing it.
+// days. A delta run refreshes only users, service principals, groups and their
+// direct memberships and owners — PIM, governance, app permissions and nested
+// (indirect) memberships are read by full runs only (EntraIDCrawler.DeltaScope.ps1).
+// One full sync a day keeps those current; a delta every 15 minutes keeps the
+// rest close to live, cheaply. This is the combination the step's own help text
+// recommends, so the wizard proposes it instead of describing it.
 //
 // Proposed, not imposed: the entries render in the normal editor and can be
 // changed or removed before saving, and an existing crawler's schedules are
 // never touched.
 export const DEFAULT_SCHEDULES = [
   { enabled: true, frequency: 'daily', hour: 2, minute: 0, syncMode: 'full' },
-  { enabled: true, frequency: 'hourly', minute: 0, syncMode: 'delta' },
+  { enabled: true, frequency: 'interval', intervalMinutes: 15, syncMode: 'delta' },
 ];
 
 // Builds the { displayName, configPayload } pair sent to POST/PATCH
@@ -742,7 +745,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
       {step === 5 && (
         <div>
           <h4 className="text-sm font-semibold mb-3 dark:text-gray-200">Schedule</h4>
-          <p className="text-xs text-gray-500 mb-3 dark:text-gray-400">Configure when this crawler runs automatically. You can add multiple schedules (e.g., a hourly delta + a daily full sync). Sign-in activity is only returned by a full sync, so keep at least one daily full run if you rely on the activity reports.</p>
+          <p className="text-xs text-gray-500 mb-3 dark:text-gray-400">Configure when this crawler runs automatically. You can add multiple schedules (e.g., a delta every 15 minutes + a daily full sync). A delta run takes minutes because it only reads what changed in users, service principals, groups and their direct members and owners. PIM, governance, app roles and permissions, directory roles, nested group memberships and sign-in activity are refreshed by full runs, so keep at least one full run a day.</p>
 
           {schedules.length === 0 && (
             <div className="mb-3 p-4 bg-gray-50 border border-gray-200 rounded text-center text-sm text-gray-500 dark:bg-gray-700/50 dark:border-gray-600 dark:text-gray-400">

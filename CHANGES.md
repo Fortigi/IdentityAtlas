@@ -1,5 +1,15 @@
 ## Changes in this PR
 
+- Entra ID delta runs now take minutes instead of hours. A delta reads only what changed: new, changed and deleted users, service principals and groups, plus members and owners added to or removed from groups. Delta runs used to re-read every group's members and took as long as a full sync.
+- PIM eligibility, governance, app roles, OAuth2 grants, app permissions, directory roles, nested (indirect) group memberships and sign-in activity are refreshed by full runs only. Keep at least one full run a day.
+- A delta run on an Entra ID crawler that has never completed a sync now runs as a full sync, so a new crawler never shows users without their groups.
+- Crawler schedules can now run every 5, 10, 15, 20 or 30 minutes: pick "Every few minutes" as the frequency. A new Entra ID crawler proposes a delta every 15 minutes plus a daily full sync.
+- A scheduled full run that comes due while another run of the same crawler is still going now waits and starts as soon as that run finishes, for up to an hour, instead of being skipped until the next day. When a full and a delta are due in the same minute, the full goes first.
+- The Recent Jobs list on the Crawlers page now always includes each crawler's last full run and last delta run, so a crawler with frequent deltas still shows when its last full sync ran and how it went.
+- Connectors can now remove individual assignments in a delta sync by naming them (`deletedKeys` on the ingest API), for example a group member that was removed.
+
+## Changes in this PR
+
 - Azure: new guide "Managing the Azure deployment as code", with ready-to-copy workflows. One proposes each new stable release as a pull request with the release notes; the other shows a what-if on that pull request and deploys after the merge. Template changes arrive in the same reviewable pull request as the new images.
 - Azure: sign-in can now be configured in the deployment template itself (`entraTenantId` / `entraClientId`), so redeploying to upgrade no longer clears it. Configuring it afterwards with Step 2 keeps working as before.
 
