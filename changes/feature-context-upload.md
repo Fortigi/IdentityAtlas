@@ -1,0 +1,7 @@
+- Added "Upload a list" to New context tree: upload your own list of organisation units or applications (.csv or .xlsx) with owners, responsibles, members and extra attributes, and it becomes a context tree.
+- The upload makes a best guess of what each column means (name, key, owner, responsible, parent, members, attributes — Dutch and English headers); when the local AI model is configured it refines that guess, and every part of it can be changed before importing.
+- A preview shows what the import will do: new, changed and unchanged units, units no longer in the file, how many members matched, the first values that matched nothing, and rows that stop the import.
+- Members can be people, accounts or resources, several per cell or one per row; a list with two kinds of member (for example users and applications per customer) becomes two linked trees.
+- The owner column becomes the unit's Accountable (by e-mail address, employee number or account id); imported owners named by e-mail address are now resolved for every imported context.
+- Uploading the same list again updates the existing units instead of creating a new tree; units no longer in the file are kept unless you choose to remove them. An uploaded tree has a "Re-import…" action in its ⋯ menu.
+- A unit created from an upload shows on its page which file it came from, when and by whom it was uploaded, and when the list was last updated.
