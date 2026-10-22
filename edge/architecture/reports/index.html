@@ -3317,6 +3317,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="The reports">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#high-risk-application-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High-risk application permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -5511,6 +5528,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="The reports">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#high-risk-application-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High-risk application permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -5853,6 +5887,42 @@ source, with a reviewer recorded, who is not the platform (Entra ID's all-zero r
 reviewer named "… Access Reviews"). This is stricter than the compliance view's
 <code>decision &lt;&gt; 'NotReviewed'</code>, which counts a review Entra ID closed by applying its default decision as
 done.</p>
+<p>| <code>high-risk-application-permissions</code> | <code>list</code> | One row per application (app-only) permission a service principal actually holds — an <code>ApplicationPermission</code> resource with a live <code>Direct</code> assignment — that is on the shortlist in <code>reports/appPermissionRisk.js</code>, with a fixed category and severity. See <a href="#high-risk-application-permissions">below</a>. |</p>
+<h3 id="high-risk-application-permissions">High-risk application permissions<a class="headerlink" href="#high-risk-application-permissions" title="Permanent link">&para;</a></h3>
+<p>Reads what the Entra ID crawler's <code>SyncAppPermissions</code> phase stores from
+<code>/servicePrincipals/{id}/appRoleAssignments</code>: the app roles an SP was <strong>granted</strong> on another API. It
+can never show a permission that was only requested, because the crawler does not store
+<code>requiredResourceAccess</code>. Delegated consent (<code>DelegatedPermission</code>) and users' assignments to an app's
+own roles (<code>AppRole</code>) are other resource types and are not read. Revoked grants drop out because the
+phase full-syncs its scope, which soft-deletes what Graph no longer returns.</p>
+<p>The shortlist is keyed by the target API's <strong>appId</strong> (the same in every tenant), then by the exact
+permission value. A role called <code>Mail.Read</code> on any API that is not listed is never classified. Extend
+the list by adding a permission to an API's map, or an API with its appId.</p>
+<p>A reader can change the selection per run, without a code change. There are two parameters:</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>includeStandard</code></td>
+<td>On by default. Off lists only the additions.</td>
+</tr>
+<tr>
+<td><code>extraPermissions</code></td>
+<td>Further permissions to list, picked through the <code>application-permissions</code> lookup. That lookup offers the permissions actually granted in this deployment, with the API and the number of holding apps.</td>
+</tr>
+</tbody>
+</table>
+<p>A pick is stored as <code>&lt;apiAppId&gt;|&lt;permission&gt;</code>, so it selects that permission on that API only. An
+added permission carries the category <em>Added to this report</em> and no severity, because only the
+shortlist assigns one. A choice can be kept as a <a href="#saved-views">saved view</a>. The crawler stamps
+<code>targetApiAppId</code> on each permission. For data crawled before that, the report falls back to the API's
+own service-principal record, and it states how many grants it could not identify. An empty result
+says that nothing was collected, because the phase is off by default.</p>
 <p>Orphaned Accounts shares its definition with the <code>orphaned-accounts</code> <strong>context plugin</strong> via
 <code>app/api/src/accountlinking/orphanQuery.js</code>. That is deliberate: the report and the context answer
 the same question, so they must not be able to drift apart. Note that before account linking has run
