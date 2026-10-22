@@ -101,7 +101,18 @@ phase full-syncs its scope, which soft-deletes what Graph no longer returns.
 
 The shortlist is keyed by the target API's **appId** (the same in every tenant), then by the exact
 permission value. A role called `Mail.Read` on any API that is not listed is never classified. Extend
-the list by adding a permission to an API's map, or an API with its appId. The crawler stamps
+the list by adding a permission to an API's map, or an API with its appId.
+
+A reader can change the selection per run, without a code change. There are two parameters:
+
+| Parameter | What it does |
+|---|---|
+| `includeStandard` | On by default. Off lists only the additions. |
+| `extraPermissions` | Further permissions to list, picked through the `application-permissions` lookup. That lookup offers the permissions actually granted in this deployment, with the API and the number of holding apps. |
+
+A pick is stored as `<apiAppId>|<permission>`, so it selects that permission on that API only. An
+added permission carries the category *Added to this report* and no severity, because only the
+shortlist assigns one. A choice can be kept as a [saved view](#saved-views). The crawler stamps
 `targetApiAppId` on each permission. For data crawled before that, the report falls back to the API's
 own service-principal record, and it states how many grants it could not identify. An empty result
 says that nothing was collected, because the phase is off by default.

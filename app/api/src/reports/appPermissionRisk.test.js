@@ -4,11 +4,45 @@
 // API's name, or on a prefix — gives a different answer.
 
 import { describe, it, expect } from 'vitest';
-import { classifyAppPermission, HIGH_RISK_APIS, SEVERITY } from './appPermissionRisk.js';
+import {
+  classifyAppPermission, HIGH_RISK_APIS, SEVERITY,
+  isStandardPermission, knownApiName, parsePermissionKey, permissionKey,
+} from './appPermissionRisk.js';
 
 const GRAPH = '00000003-0000-0000-c000-000000000000';
 const SPO = '00000003-0000-0ff1-ce00-000000000000';
 const EXO = '00000002-0000-0ff1-ce00-000000000000';
+
+describe('permission keys', () => {
+  it('round-trips an (API, permission) pair, with the appId lower-cased', () => {
+    const key = permissionKey(GRAPH.toUpperCase(), 'User.Read.All');
+    expect(key).toBe(`${GRAPH}|User.Read.All`);
+    expect(parsePermissionKey(key)).toEqual({ apiAppId: GRAPH, permission: 'User.Read.All' });
+  });
+
+  it('keeps everything after the first separator as the permission', () => {
+    expect(parsePermissionKey(`${GRAPH}|a|b`)).toEqual({ apiAppId: GRAPH, permission: 'a|b' });
+  });
+
+  it('trims stray whitespace around either part', () => {
+    expect(parsePermissionKey(` ${GRAPH} | Mail.Read `)).toEqual({ apiAppId: GRAPH, permission: 'Mail.Read' });
+  });
+
+  it('rejects anything that does not name an API by appId and a permission', () => {
+    for (const bad of ['Mail.Read', 'graph|Mail.Read', `${GRAPH}|`, `${GRAPH}|   `, '|Mail.Read', '', null, undefined]) {
+      expect(parsePermissionKey(bad), String(bad)).toBeNull();
+    }
+  });
+});
+
+describe('knownApiName', () => {
+  it('names a listed API whatever the appId\'s case, and nothing else', () => {
+    expect(knownApiName(GRAPH.toUpperCase())).toBe('Microsoft Graph');
+    expect(knownApiName(SPO)).toBe('Office 365 SharePoint Online');
+    expect(knownApiName('11111111-2222-3333-4444-555555555555')).toBeNull();
+    expect(knownApiName(null)).toBeNull();
+  });
+});
 
 describe('classifyAppPermission', () => {
   it('classifies a shortlisted Microsoft Graph permission with its category and severity', () => {
@@ -80,6 +114,11 @@ describe('classifyAppPermission', () => {
         expect(severities.has(entry.severity), `${api.name} ${value}`).toBe(true);
       }
     }
+  });
+
+  it('is what isStandardPermission answers', () => {
+    expect(isStandardPermission(GRAPH, 'Mail.Read')).toBe(true);
+    expect(isStandardPermission(GRAPH, 'User.Read.All')).toBe(false);
   });
 
   it('covers the agreed first shortlist on Microsoft Graph', () => {

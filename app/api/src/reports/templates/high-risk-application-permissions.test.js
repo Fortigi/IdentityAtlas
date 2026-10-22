@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../db/connection.js');
 import { query } from '../../db/connection.js';
-import report from './high-risk-application-permissions.js';
+import report, { parseOptions } from './high-risk-application-permissions.js';
 
 const GRAPH = '00000003-0000-0000-c000-000000000000';
 const sqlOf = () => String(query.mock.calls[0][0]);
@@ -30,11 +30,18 @@ beforeEach(() => {
 });
 
 describe('high-risk-application-permissions — template contract', () => {
-  it('is a list report with no parameters, registered under its slug', () => {
+  it('is a list report registered under its slug, with no required parameters', () => {
     expect(report).toMatchObject({ name: 'high-risk-application-permissions', form: 'list' });
     expect(report.displayName).toBe('High-risk Application Permissions (Entra ID)');
-    expect(report.parametersSchema).toEqual({ type: 'object', required: [], properties: {} });
+    expect(report.parametersSchema.required).toEqual([]);
     expect(report.description).toMatch(/never listed/);
+  });
+
+  it('declares the standard list as on by default and the additions as a picker over granted permissions', () => {
+    const { includeStandard, extraPermissions } = report.parametersSchema.properties;
+    expect(includeStandard).toMatchObject({ type: 'boolean', default: true });
+    expect(extraPermissions).toMatchObject({ type: 'array', 'x-lookup': 'application-permissions' });
+    expect(extraPermissions.default).toBeUndefined();
   });
 
   it('runs without a logger', async () => {
@@ -167,10 +174,93 @@ describe('high-risk-application-permissions — filter', () => {
     expect(rows[0].publisher).toBeNull();
   });
 
-  it('logs the high-risk count against the collected count', async () => {
+  it('logs the listed count against the collected count', async () => {
     const log = vi.fn();
     query.mockResolvedValue({ rows: [grant(), grant({ permissionId: 'p2', permission: 'User.Read' })] });
     await report.run({}, { log });
-    expect(log).toHaveBeenCalledWith(expect.stringMatching(/1 high-risk grant\(s\) of 2 granted/));
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/1 listed grant\(s\) of 2 granted/));
+  });
+});
+
+describe('high-risk-application-permissions — the reader\'s choices', () => {
+  const OTHER_API = '99999999-9999-9999-9999-999999999999';
+  const tenantRows = () => [
+    grant({ permissionId: 'p1', permission: 'Mail.Read' }),                       // standard
+    grant({ permissionId: 'p2', clientName: 'Directory Sync', permission: 'User.Read.All' }),   // not standard
+    grant({ permissionId: 'p3', clientName: 'Gateway', permission: 'User.Read.All', apiAppId: OTHER_API, apiName: 'Contoso API' }),
+  ];
+
+  it('adds a picked permission to the standard list, with its own category and no severity', async () => {
+    query.mockResolvedValue({ rows: tenantRows() });
+    const { rows, notices } = await report.run({ extraPermissions: `${GRAPH}|User.Read.All` }, {});
+    expect(rows.map(r => `${r.clientName}:${r.permission}`)).toEqual([
+      'Scan-to-Mail:Mail.Read', 'Directory Sync:User.Read.All',   // High first, the addition after it
+    ]);
+    expect(rows[1]).toMatchObject({ apiName: 'Microsoft Graph', category: 'Added to this report', severity: null, status: 'Granted' });
+    expect(notices).toEqual([]);
+  });
+
+  it('adds a permission on the API it was picked for only, not a same-named one elsewhere', async () => {
+    query.mockResolvedValue({ rows: tenantRows() });
+    const { rows } = await report.run({ extraPermissions: [`${OTHER_API}|User.Read.All`] }, {});
+    expect(rows.map(r => r.clientName)).toEqual(['Scan-to-Mail', 'Gateway']);
+    // An API the shortlist does not know is named as the crawler named it.
+    expect(rows[1].apiName).toBe('Contoso API');
+  });
+
+  it('lists only the additions when the standard list is switched off', async () => {
+    query.mockResolvedValue({ rows: tenantRows() });
+    const { rows, notices } = await report.run({ includeStandard: 'false', extraPermissions: `${GRAPH}|User.Read.All` }, {});
+    expect(rows.map(r => r.clientName)).toEqual(['Directory Sync']);
+    expect(notices).toEqual([{ severity: 'info', text: expect.stringMatching(/only the permissions added/) }]);
+  });
+
+  it('keeps the standard verdict for a picked permission that is on the standard list anyway', async () => {
+    query.mockResolvedValue({ rows: tenantRows() });
+    const { rows } = await report.run({ extraPermissions: `${GRAPH}|Mail.Read` }, {});
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ category: 'Mailboxes', severity: 'High' });
+  });
+
+  it('still lists a standard permission the reader also picked when the standard list is off — as an addition', async () => {
+    query.mockResolvedValue({ rows: tenantRows() });
+    const { rows } = await report.run({ includeStandard: false, extraPermissions: `${GRAPH}|Mail.Read` }, {});
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ permission: 'Mail.Read', category: 'Added to this report', severity: null });
+  });
+
+  it('says so when the standard list is off and nothing was added', async () => {
+    query.mockResolvedValue({ rows: tenantRows() });
+    const { rows, notices } = await report.run({ includeStandard: false }, {});
+    expect(rows).toEqual([]);
+    expect(notices[0].text).toMatch(/no permissions were added, so nothing is listed/);
+  });
+});
+
+describe('parseOptions', () => {
+  it('has the standard list on unless it is explicitly false, in either form a query string or a form sends', () => {
+    expect(parseOptions({}).includeStandard).toBe(true);
+    expect(parseOptions(undefined).includeStandard).toBe(true);
+    expect(parseOptions({ includeStandard: 'true' }).includeStandard).toBe(true);
+    expect(parseOptions({ includeStandard: true }).includeStandard).toBe(true);
+    expect(parseOptions({ includeStandard: '' }).includeStandard).toBe(true);
+    expect(parseOptions({ includeStandard: false }).includeStandard).toBe(false);
+    expect(parseOptions({ includeStandard: 'false' }).includeStandard).toBe(false);
+    expect(parseOptions({ includeStandard: 'FALSE' }).includeStandard).toBe(false);
+  });
+
+  it('keeps well-formed (API, permission) keys, normalised, and drops the rest', () => {
+    const { extras } = parseOptions({ extraPermissions: [
+      `${GRAPH.toUpperCase()}|User.Read.All`,   // upper-case appId -> normalised
+      'User.Read.All',                           // no API: not a key
+      'not-a-guid|User.Read.All',                // API is not an appId
+      `${GRAPH}|`,                               // no permission
+    ] });
+    expect([...extras]).toEqual([`${GRAPH}|User.Read.All`]);
+  });
+
+  it('accepts the comma-joined form a URL carries', () => {
+    const { extras } = parseOptions({ extraPermissions: `${GRAPH}|User.Read.All,${GRAPH}|Group.Read.All` });
+    expect(extras.size).toBe(2);
   });
 });

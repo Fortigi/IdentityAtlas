@@ -74,6 +74,54 @@ export const HIGH_RISK_APIS = Object.freeze({
   },
 });
 
+// ─── Granted application permissions, shared by the report and its picker ───
+
+// Every live app-only grant: an ApplicationPermission resource with a Direct
+// assignment whose principal is the holding SP. The target API is identified
+// by appId — stamped on the resource by the crawler, or, for data crawled
+// before it was, read from the API's own service-principal record.
+export const GRANTS_FROM = `
+        FROM "ResourceAssignments" ra
+        JOIN "Resources" ap ON ap.id = ra."resourceId"
+                           AND ap."resourceType" = 'ApplicationPermission'
+                           AND ap."deletedAt" IS NULL
+        LEFT JOIN "Principals" tsp ON tsp.id::text = ap."extendedAttributes"->>'targetApiSpId'
+                                  AND tsp."principalType" IN ('ServicePrincipal', 'ManagedIdentity', 'AIAgent')
+                                  AND tsp."deletedAt" IS NULL`;
+export const GRANTS_WHERE = `ra."deletedAt" IS NULL AND ra."assignmentType" = 'Direct'`;
+export const API_APP_ID_SQL = `COALESCE(ap."extendedAttributes"->>'targetApiAppId', tsp."extendedAttributes"->>'appId')`;
+
+// A picked permission is stored as "<apiAppId>|<permission>". The API is part
+// of the key for the same reason the shortlist is keyed by it: the value alone
+// does not say which API issued it. A pipe, because report parameters travel
+// comma-joined; neither an appId nor a permission value contains one.
+const KEY_SEPARATOR = '|';
+const APP_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export function permissionKey(apiAppId, permission) {
+  return `${String(apiAppId).toLowerCase()}${KEY_SEPARATOR}${permission}`;
+}
+
+/** The parts of a stored key, or null when it is not one (typed by hand, say). */
+export function parsePermissionKey(key) {
+  const text = String(key ?? '');
+  const at = text.indexOf(KEY_SEPARATOR);
+  if (at < 0) return null;
+  const apiAppId = text.slice(0, at).trim().toLowerCase();
+  const permission = text.slice(at + 1).trim();
+  return APP_ID.test(apiAppId) && permission ? { apiAppId, permission } : null;
+}
+
+/** True when the grant is on the shortlist — what the picker marks as standard. */
+export function isStandardPermission(apiAppId, permission) {
+  return classifyAppPermission({ targetApiAppId: apiAppId, permission }) !== null;
+}
+
+/** The shortlist's name for an API, when it has one. */
+export function knownApiName(apiAppId) {
+  return HIGH_RISK_APIS[String(apiAppId ?? '').toLowerCase()]?.name ?? null;
+}
+
 /**
  * Classify one granted application permission.
  * @param {{ targetApiAppId?: string|null, permission?: string|null }} grant
