@@ -3376,6 +3376,26 @@ components:
           type: integer
         durationMs:
           type: integer
+        accountable:
+          type: object
+          description: >-
+            Contexts only. The owner a source names on a synced context
+            (ownerUserId) is stated as that context's Accountable: matched to an
+            account by externalId, else by an employeeId exactly one live account
+            carries. An Accountable an analyst or a plugin set is never changed.
+          properties:
+            set:
+              type: integer
+              description: Accountables added where the context had none
+            replaced:
+              type: integer
+              description: Source-set Accountables pointed at a different account
+            removed:
+              type: integer
+              description: Source-set Accountables removed because the source no longer names a resolvable owner
+            unresolved:
+              type: integer
+              description: Contexts whose named owner matched no account (or more than one by employeeId)
 
     ReconcileRequest:
       type: object

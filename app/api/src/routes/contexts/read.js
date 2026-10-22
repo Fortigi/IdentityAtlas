@@ -12,6 +12,7 @@ import { buildSearchWhere, parseExtendedSearch, withMatchedOn } from '../../lib/
 import { CONTEXT_CATEGORIES } from '../../ingest/validation.js';
 import { useSql, UUID_RE, TARGET_TYPES } from './shared.js';
 import { loadContextRoles } from './roles.js';
+import { OWNER_PRINCIPAL_ORDER } from '../../ingest/contextOwners.js';
 
 const router = Router();
 
@@ -55,6 +56,11 @@ export function memberJoinOn(targetType) {
 // Needs ix_Principals_externalId (migration 076); without it this is a
 // sequential scan of the whole Principals table per context row.
 //
+// The tie-break is OWNER_PRINCIPAL_ORDER, shared with the ingest that states a
+// synced owner as the context's Accountable (ingest/contextOwners.js), so the
+// owner shown here and the Accountable are the same account. (The ingest also
+// falls back to a unique employeeId, which this per-row join does not.)
+//
 // Exported so the tests can pin the shape rather than matching a substring.
 export const OWNER_COLUMNS = 'own.id AS "ownerPrincipalId", own."displayName" AS "ownerDisplayName"';
 
@@ -63,9 +69,7 @@ export const OWNER_JOIN = `
           SELECT p.id, p."displayName"
             FROM "Principals" p
            WHERE p."externalId" = c."ownerUserId"
-           ORDER BY (p."deletedAt" IS NULL) DESC,
-                    (p."systemId" IS NOT DISTINCT FROM c."scopeSystemId") DESC,
-                    p.id
+           ORDER BY ${OWNER_PRINCIPAL_ORDER}
            LIMIT 1
         ) own ON TRUE`;
 
