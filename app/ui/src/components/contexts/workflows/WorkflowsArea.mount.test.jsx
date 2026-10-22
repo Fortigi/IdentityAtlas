@@ -4,8 +4,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createElement as h } from 'react';
 import WorkflowsArea from './WorkflowsArea';
-import { renderWithProviders, makeAuthFetch, screen } from '@ui/test-utils/renderWithProviders';
 import { SharedViewContext } from '@ui/contexts/SharedViewContext';
+import { renderWithProviders, makeAuthFetch, screen } from '@ui/test-utils/renderWithProviders';
 
 const APP = { id: 'c-app', displayName: 'SAP', contextCategory: 'LogicalApplication', targetType: 'Resource' };
 const RES_UNIT = { id: 'c-res', displayName: 'Finance shares', contextCategory: 'OrganizationalUnit', targetType: 'Resource' };
@@ -106,16 +106,25 @@ describe('WorkflowsArea (Actions)', () => {
     expect(screen.getByRole('button', { name: 'Start review' })).toBeDisabled();
   });
 
-  it('keeps the unit report on the read-only page of the unit owner', () => {
+  // A context owner's read-only page cannot open the matrix (its routes are 403
+  // for them) nor start a survey: it keeps only the report cards.
+  it('keeps the unit report on the read-only page of the unit owner, and only that', () => {
     mount(ACC_UNIT, { sharedView: true });
     expect(unitReportCard()).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'View in matrix ↗' })).toBeNull();
     expect(screen.queryByTestId('action-manager-survey')).toBeNull();
     expect(screen.queryByTestId('action-review-members')).toBeNull();
   });
 
-  it('leaves the survey out of a read-only shared view, keeping the rest', () => {
+  it('leaves the survey and the matrix out of a read-only application page, keeping the report', () => {
     mount(APP, { sharedView: true });
     expect(screen.queryByTestId('action-ownership-survey')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'View in matrix ↗' })).toBeNull();
     expect(reportCard()).toBeInTheDocument();
+  });
+
+  it('a read-only unit of resources shows no Actions area at all', () => {
+    mount(RES_UNIT, { sharedView: true });
+    expect(screen.queryByRole('region', { name: 'Actions' })).toBeNull();
   });
 });

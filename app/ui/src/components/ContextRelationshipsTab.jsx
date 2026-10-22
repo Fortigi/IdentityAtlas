@@ -30,22 +30,33 @@ function SubUnitsList({ id, subContexts, attrs, onOpenDetail }) {
     <section id={id} aria-label="Sub-units" className={CARD}>
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Sub-units ({subContexts.length})</h3>
       <div className="space-y-1">
-        {subContexts.map(sc => (
-          <button
-            key={sc.id}
-            type="button"
-            onClick={() => onOpenDetail('context', sc.id, sc.displayName)}
-            className="w-full text-left flex items-center justify-between gap-3 px-3 py-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group"
-          >
-            <span className="flex items-center gap-2 min-w-0">
-              <span className="text-gray-500 dark:text-gray-400"><ContextTemplateIcon category={sc.contextCategory || attrs.contextCategory} /></span>
-              <span className="text-sm text-gray-900 dark:text-white group-hover:text-blue-700 dark:group-hover:text-blue-300 truncate">{sc.displayName}</span>
-            </span>
-            {sc.memberCount != null && (
-              <span className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">{sc.memberCount} {memberKindNoun(attrs.targetType, sc.memberCount)}</span>
-            )}
-          </button>
-        ))}
+        {subContexts.map(sc => {
+          const body = (
+            <>
+              <span className="flex items-center gap-2 min-w-0">
+                <span className="text-gray-500 dark:text-gray-400"><ContextTemplateIcon category={sc.contextCategory || attrs.contextCategory} /></span>
+                <span className="text-sm text-gray-900 dark:text-white group-hover:text-blue-700 dark:group-hover:text-blue-300 truncate">{sc.displayName}</span>
+              </span>
+              {sc.memberCount != null && (
+                <span className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">{sc.memberCount} {memberKindNoun(attrs.targetType, sc.memberCount)}</span>
+              )}
+            </>
+          );
+          // Without a detail handler (a read-only shell) a sub-unit is a fact, not a link.
+          if (!onOpenDetail) {
+            return <div key={sc.id} className="flex items-center justify-between gap-3 px-3 py-2">{body}</div>;
+          }
+          return (
+            <button
+              key={sc.id}
+              type="button"
+              onClick={() => onOpenDetail('context', sc.id, sc.displayName)}
+              className="w-full text-left flex items-center justify-between gap-3 px-3 py-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group"
+            >
+              {body}
+            </button>
+          );
+        })}
       </div>
     </section>
   );
@@ -156,10 +167,10 @@ function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDeta
           {members.map(m => (
             <tr
               key={m.id}
-              className="flex flex-wrap items-baseline gap-x-3 py-1.5 sm:table-row sm:py-0 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
-              onClick={() => onOpenDetail(memberDetailKind(attrs.targetType), m.id, m.displayName)}
+              className={`flex flex-wrap items-baseline gap-x-3 py-1.5 sm:table-row sm:py-0 border-b border-gray-100 dark:border-gray-700${onOpenDetail ? ' hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer' : ''}`}
+              onClick={onOpenDetail ? () => onOpenDetail(memberDetailKind(attrs.targetType), m.id, m.displayName) : undefined}
             >
-              <td className="w-full sm:w-auto sm:py-1.5 text-blue-700 dark:text-blue-300 hover:underline">{m.displayName}</td>
+              <td className={`w-full sm:w-auto sm:py-1.5 ${onOpenDetail ? 'text-blue-700 dark:text-blue-300 hover:underline' : 'text-gray-900 dark:text-gray-100'}`}>{m.displayName}</td>
               {columns.map(c => <td key={c.label} className={`sm:py-1.5${c.align === 'right' ? ' sm:text-right' : ''}`}>{c.render(m)}</td>)}
               {editMode && (
                 <td className="sm:py-1.5 sm:text-right">

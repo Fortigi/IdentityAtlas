@@ -277,6 +277,15 @@ describe('switch on — the report download', () => {
     expect(owners.resolveReportContexts).not.toHaveBeenCalled();
   });
 
+  it('runs the unit report for their own unit, and refuses it with sub-units or for another unit', async () => {
+    const unitPath = (qs) => `/api/reports/unit-members/export?format=xlsx&${qs}`;
+    expect(denied(await ownerGet(unitPath(`contexts=${MINE}`)))).toBe(false);
+    expect(owners.resolveReportContexts.mock.calls[0][1]).toEqual([MINE]);
+    expect(denied(await ownerGet(unitPath(`contexts=${MINE}&includeSubUnits=true`)))).toBe(true);
+    expect(denied(await ownerGet(unitPath(`contexts=${OTHER}`)))).toBe(true);
+    expect(owners.resolveReportContexts).toHaveBeenCalledTimes(1);
+  });
+
   it('is refused for any other report, even with their own context', async () => {
     expect(denied(await ownerGet(`/api/reports/stale-accounts/export?format=csv&contexts=${MINE}`))).toBe(true);
     expect(denied(await ownerGet(`/api/reports/application-access-review/rows?contexts=${MINE}`))).toBe(true);

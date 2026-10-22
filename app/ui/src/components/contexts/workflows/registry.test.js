@@ -44,11 +44,15 @@ describe('action registry', () => {
     }
   });
 
-  it('leaves the survey out of a read-only shared view, and only the survey', () => {
+  it('leaves the surveys and the matrix out of a read-only shared view, keeping the reports', () => {
     const shared = attrs => actionCardsFor(attrs, { sharedView: true }).map(c => c.Card);
-    expect(shared(APP)).toEqual([MatrixCard, DownloadReportCard]);
-    // A context owner's own unit keeps its report; the surveys and the review are the analyst's.
-    expect(keysOf(unit('Identity'), { sharedView: true })).toEqual(['view-in-matrix', 'download-unit-report']);
+    expect(shared(APP)).toEqual([DownloadReportCard]);
+    // A context owner's own unit keeps its report; the surveys and the review are the analyst's,
+    // and the matrix is a page of the app the owner cannot open.
+    expect(keysOf(unit('Identity'), { sharedView: true })).toEqual(['download-unit-report']);
+    expect(keysOf(unit('Principal'), { sharedView: true })).toEqual(['download-unit-report']);
+    // A unit of resources has no report, so nothing is left for its owner.
+    expect(keysOf(unit('Resource'), { sharedView: true })).toEqual([]);
   });
 
   it('gives other templates no actions', () => {

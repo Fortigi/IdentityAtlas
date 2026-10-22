@@ -44,6 +44,7 @@ resources). Sub-contexts are not included.
 | `/api/contexts/:id`, `…/members`, `…/roles`, `…/relationships`, `…/timeline` | `:id` is in scope |
 | `/api/risk-scores/contexts/:id` | `:id` is in scope |
 | `/api/reports/application-access-review/export` | `contexts` lists only in-scope ids, and every context those values resolve to is in scope; the `applications` alias and names are refused |
+| `/api/reports/unit-members/export` | the same `contexts` check; `includeSubUnits` is refused in any form (even `false`), because the units below an owner's unit need not be theirs — the owner of a sub-unit downloads from that sub-unit's own page |
 
 Everything else — any other path, and every non-GET — answers
 `403 { "error": "Context owners can only open their own context" }`.
@@ -54,9 +55,12 @@ ordinary context page in its business (reading) view, read-only: no Edit, no
 role pencils, no suggestion, no member editing, members, sub-units and people
 as plain text, no Copy link or Open as page, a breadcrumb that names the direct
 parent without reading it, and a variant opening in place only when it is in
-scope. The Actions area drops **View in matrix**, which the owner cannot open;
-an application keeps **Download entitlement report** (it runs on the application
-itself), so an org unit shows no Actions to its owner.
+scope. The Actions area drops **View in matrix**, which the owner cannot open, and the
+"Coming soon" survey and review cards, which are the analyst's to start; it
+keeps the report downloads, which run on the context itself: **Download
+entitlement report** on an application and **Download unit report** on a unit
+of accounts or people. A unit of resources therefore shows no Actions to its
+owner.
 
 ## Enforcement
 
