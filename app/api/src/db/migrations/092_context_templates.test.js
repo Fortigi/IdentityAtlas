@@ -94,4 +94,18 @@ describe('migration 092 — SameUnitAs is symmetric', () => {
     // The ordered-triple constraint is gone: (a,b) and (b,a) must collide.
     expect(statements).not.toMatch(/ux_ContextRelationships_triple/);
   });
+
+  // An upgrade has rows in Contexts: the UPDATEs queue the deferred cycle check
+  // (migration 059), and DDL on Contexts with pending trigger events fails.
+  // The flush must sit after the last UPDATE of Contexts and before the first
+  // DDL that touches it (the index, then the tables that reference it).
+  it('runs the queued deferred checks before any DDL on Contexts that follows its UPDATEs', () => {
+    const flush = statements.indexOf('SET CONSTRAINTS ALL IMMEDIATE;');
+    const lastUpdate = statements.lastIndexOf('UPDATE "Contexts"');
+    const index = statements.indexOf('CREATE INDEX "ix_Contexts_contextCategory"');
+    const firstReference = statements.indexOf('REFERENCES "Contexts"');
+    expect(flush).toBeGreaterThan(lastUpdate);
+    expect(flush).toBeLessThan(index);
+    expect(flush).toBeLessThan(firstReference);
+  });
 });
