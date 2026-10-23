@@ -3,16 +3,18 @@
 //
 //   POST   /api/contexts/:id/interviews                         multipart transcript + interviewee + date
 //   GET    /api/contexts/:id/interviews                         the context's interviews (no transcript)
-//   GET    /api/contexts/:id/interviews/:interviewId            one, with its transcript
+//   GET    /api/contexts/:id/interviews/:interviewId            one, with its transcript and its quotes' offsets
 //   POST   /api/contexts/:id/interviews/:interviewId/extract    read it again with the model
 //   POST   /api/contexts/:id/interviews/:interviewId/claims     an analyst's own claim
 //   DELETE /api/contexts/:id/interviews/:interviewId            the interview and its claims
 //   GET    /api/contexts/:id/claims?status=…                    the claims (a reader: confirmed only)
+//   POST   /api/contexts/:id/claims/reject                      reject the proposed claims of a kind / relevance tier
+//   GET    /api/contexts/:id/previous-members                   who the interviews say left (a reader: confirmed only)
 //   PATCH  /api/contexts/claims/:claimId                        confirm / edit / reject
 //   GET    /api/contexts/claims/mentions?principalId=|identityId=  where a person is mentioned
 //
 // Writes, and everything that shows a transcript or an undecided claim, need
-// data.write.contexts. The two GETs of claims serve every reader, answering one
+// data.write.contexts. The GETs of claims and of previous members serve every reader, answering one
 // without that permission with decided-and-confirmed claims only.
 // Mounted BEFORE the read and crud routers: "/contexts/claims" would otherwise
 // be taken for "/contexts/:id".
@@ -25,7 +27,9 @@ import { isAuthEnabled } from '../../config/authConfig.js';
 import { userOf } from '../../lib/userOf.js';
 import { TranscriptError } from '../../contexts/interviews/transcript.js';
 import { CLAIM_STATUSES } from '../../contexts/interviews/claims.js';
-import { createInterview, retryExtraction, addManualClaim, claimsOf, InterviewError } from '../../contexts/interviews/service.js';
+import {
+  createInterview, retryExtraction, addManualClaim, claimsOf, rejectMany, interviewWithTranscript, previousMembers, InterviewError,
+} from '../../contexts/interviews/service.js';
 import { decideClaim, ClaimError } from '../../contexts/interviews/decide.js';
 import * as store from '../../contexts/interviews/store.js';
 
@@ -126,9 +130,7 @@ router.get('/contexts/:id/interviews', writeContexts, requireSql, validIds('id')
 
 router.get('/contexts/:id/interviews/:interviewId', writeContexts, requireSql, validIds('id', 'interviewId'), async (req, res) => {
   try {
-    const row = await store.getInterview(db, req.params.id, req.params.interviewId, { withTranscript: true });
-    if (!row) return res.status(404).json({ error: 'Interview not found' });
-    res.json(row);
+    res.json(await interviewWithTranscript(req.params.id, req.params.interviewId, { db }));
   } catch (err) {
     sendFailure(res, err, 'Reading the interview');
   }
@@ -168,6 +170,23 @@ router.get('/contexts/:id/claims', requireSql, validIds('id'), async (req, res) 
     res.json(await claimsOf(req.params.id, { statuses: statusesFor(req.query.status, canWriteContexts(req)) }, { db }));
   } catch (err) {
     sendFailure(res, err, 'Listing claims');
+  }
+});
+
+router.post('/contexts/:id/claims/reject', writeContexts, requireSql, validIds('id'), async (req, res) => {
+  try {
+    res.json(await rejectMany(req.params.id, req.body || {}, userOf(req), { db }));
+  } catch (err) {
+    sendFailure(res, err, 'Rejecting the claims');
+  }
+});
+
+router.get('/contexts/:id/previous-members', requireSql, validIds('id'), async (req, res) => {
+  try {
+    const statuses = canWriteContexts(req) ? ['proposed', ...READER_STATUSES] : [...READER_STATUSES];
+    res.json(await previousMembers(req.params.id, { statuses }, { db }));
+  } catch (err) {
+    sendFailure(res, err, 'Listing previous members');
   }
 });
 

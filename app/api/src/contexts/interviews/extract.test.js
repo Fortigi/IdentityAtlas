@@ -8,7 +8,7 @@ vi.mock('./store.js', () => ({
 }));
 const store = await import('./store.js');
 const {
-  splitTranscript, checkReply, askPart, dedupeClaims, runMessage, extractInterview, startExtraction, chatTimeoutMs, MAX_PARTS, PART_CHARS, DEFAULT_TIMEOUT_MS,
+  splitTranscript, checkReply, askPart, dedupeClaims, dropOwnNameAliases, runMessage, extractInterview, startExtraction, chatTimeoutMs, MAX_PARTS, PART_CHARS, DEFAULT_TIMEOUT_MS,
 } = await import('./extract.js');
 const { foldForQuote } = await import('./claims.js');
 const { LOCAL_SQL, SURNAME_SQL } = await import('./subjects.js');
@@ -242,5 +242,59 @@ describe('startExtraction', () => {
   it('never throws, even when storing the failure fails', async () => {
     store.loadForExtraction.mockRejectedValue(new Error('db down'));
     await expect(startExtraction('iv-1', { db: fakeDb(), enabled: () => true })).resolves.toEqual({ status: 'failed', claims: 0, message: null });
+  });
+});
+
+describe('extractInterview — what matters for access, membership and aliases', () => {
+  const SAID = [
+    'Interviewer: Tell me about the planner.',
+    'Anna Voorbeeld: The canteen downstairs is great, by the way.',
+    'Anna Voorbeeld: Bram Test just left the team. Everyone calls the planner Rooster, or just RS.',
+    'Anna Voorbeeld: It is regulated under the healthcare rules.',
+  ].join('\n');
+  const noMatches = { query: async () => ({ rows: [] }), tx: async (fn) => fn({ query: async () => ({ rows: [] }) }) };
+
+  it('tiers every claim, stores where each quote stands, keeps membership and alias, and drops an alias that is the own name', async () => {
+    store.loadForExtraction.mockResolvedValue({ ...INTERVIEW, transcript: SAID });
+    const reply = { claims: [
+      { kind: 'description', value: 'Has a great canteen', quote: 'The canteen downstairs is great', relevance: 'low' },
+      { kind: 'membership', subject: 'Bram Test', membership: 'left', value: 'left the team', quote: 'Bram Test just left the team', relevance: 'low' },
+      { kind: 'alias', value: 'RS', quote: 'or just RS' },
+      { kind: 'alias', value: 'planner', quote: 'Everyone calls the planner Rooster' },
+      { kind: 'property', attribute: 'regulation', value: 'healthcare rules', quote: 'regulated under the healthcare rules', relevance: 'low' },
+    ] };
+    const r = await extractInterview('iv-1', { db: noMatches, ask: answer(reply), enabled: () => true });
+    expect(r.status).toBe('done');
+    const claims = store.insertClaims.mock.calls[0][2];
+    expect(claims.map(c => [c.claimKind, c.attribute, c.value, c.relevance])).toEqual([
+      ['description', null, 'Has a great canteen', 'low'],
+      ['membership', 'left', 'left the team', 'high'],
+      ['alias', null, 'RS', 'high'],
+      ['property', 'regulation', 'healthcare rules', 'high'],
+    ]);
+    for (const c of claims) expect(SAID.slice(c.quoteStart, c.quoteEnd)).toBe(c.quote);
+    expect(claims[1].quoteStart).toBe(SAID.indexOf('Bram Test just left'));
+    // The membership's person goes through the same matching as a role's (here: nobody known).
+    expect(claims[1]).toMatchObject({ subjectName: 'Bram Test', principalId: null, subjectMatch: null, roleSuggestion: null });
+  });
+
+  it('asks the model for the governance focus, to skip small talk, and for the new fields', async () => {
+    store.loadForExtraction.mockResolvedValue({ ...INTERVIEW, transcript: SAID });
+    const ask = vi.fn(answer({ claims: [] }));
+    await extractInterview('iv-1', { db: noMatches, ask, enabled: () => true });
+    const system = ask.mock.calls[0][0][0].content;
+    expect(system).toMatch(/identity and access governance/);
+    expect(system).toMatch(/SKIP small talk/);
+    expect(system).toMatch(/- membership \(membership only\): "current".*"former".*"joined".*"left"/);
+    expect(system).toMatch(/- relevance: "high" when/);
+  });
+});
+
+describe('dropOwnNameAliases', () => {
+  it('drops only an alias whose normalised name is the context\'s own', () => {
+    const out = dropOwnNameAliases([
+      { claimKind: 'alias', value: 'harbour  AUTHORITY' }, { claimKind: 'alias', value: 'HA' }, { claimKind: 'description', value: 'Harbour Authority' },
+    ], 'Harbour Authority');
+    expect(out.map(c => c.value)).toEqual(['HA', 'Harbour Authority']);
   });
 });

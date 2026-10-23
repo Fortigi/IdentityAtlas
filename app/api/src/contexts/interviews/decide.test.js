@@ -166,3 +166,29 @@ describe('decideClaim', () => {
     await expect(decide(fakeDb(base), { status: 'maybe' })).rejects.toMatchObject({ status: 400 });
   });
 });
+
+describe('decideClaim — alias and membership', () => {
+  it('a confirmed alias is added to the aliases once; a spelling already there is not added again', async () => {
+    const db = fakeDb({ ...base, claimKind: 'alias', value: 'PC', currentAliases: ['Port Co'] });
+    const out = await decide(db, { status: 'confirmed' });
+    expect(out.effect).toEqual({ kind: 'alias', aliases: ['Port Co', 'PC'] });
+    const write = db.writes.find(w => w.sql.startsWith('UPDATE "Contexts"'));
+    expect(write.sql).toContain(`jsonb_build_object('aliases', $2::jsonb)`);
+    expect(write.params).toEqual([CTX, JSON.stringify(['Port Co', 'PC'])]);
+
+    const again = fakeDb({ ...base, claimKind: 'alias', value: 'port  co', currentAliases: ['Port Co'] });
+    expect((await decide(again, { status: 'confirmed' })).effect).toEqual({ kind: 'alias', aliases: ['Port Co'] });
+  });
+
+  it('an edited alias writes the edited name; no aliases yet starts the list', async () => {
+    const db = fakeDb({ ...base, claimKind: 'alias', value: 'P.C.', currentAliases: null });
+    expect((await decide(db, { status: 'edited', value: 'PC' })).effect).toEqual({ kind: 'alias', aliases: ['PC'] });
+  });
+
+  it('a confirmed membership changes nothing but the claim — never the members', async () => {
+    const db = fakeDb({ ...base, claimKind: 'membership', attribute: 'left', principalId: PIET, value: 'left the account' });
+    const out = await decide(db, { status: 'confirmed' });
+    expect(out.effect).toEqual({ kind: 'none' });
+    expect(db.writes.map(w => w.sql.split(' ').slice(0, 2).join(' '))).toEqual(['UPDATE "ContextClaims"']);
+  });
+});

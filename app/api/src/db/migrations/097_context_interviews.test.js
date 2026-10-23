@@ -28,7 +28,9 @@ describe('migration 097 — context interviews', () => {
   });
 
   it('admits exactly the claim kinds, statuses and suggestions the code uses', () => {
-    expect(inList('claimKind')).toEqual(CLAIM_KINDS);
+    // 098 widens the kinds (membership, alias); 097 shipped the first four.
+    expect(inList('claimKind')).toEqual(CLAIM_KINDS.slice(0, 4));
+    expect(CLAIM_KINDS.slice(0, 4)).toEqual(['description', 'property', 'role', 'roleHistory']);
     expect(inList('claimStatus')).toEqual(CLAIM_STATUSES);
     expect(inList('roleSuggestion')).toEqual(ROLE_SUGGESTIONS);
     expect(ROLE_SUGGESTIONS).toEqual(CONTEXT_ROLE_TYPES);

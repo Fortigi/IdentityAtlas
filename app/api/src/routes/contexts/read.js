@@ -15,6 +15,9 @@ import { loadContextRoles } from './roles.js';
 import { OWNER_PRINCIPAL_ORDER } from '../../ingest/contextOwners.js';
 import { withResourceMemberFacts } from '../../contexts/resourceMemberFacts.js';
 import { UPLOAD_SYSTEM_TYPE, uploadProvenance } from '../../contexts/upload/lists.js';
+import { withInterviewMemberFacts } from '../../contexts/interviews/memberFacts.js';
+import { canWriteContexts, READER_STATUSES } from './interviews.js';
+import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
 
 const router = Router();
 
@@ -269,12 +272,16 @@ router.get('/contexts/:id', async (req, res) => {
 
 // ─── GET /api/contexts/:id/members ───────────────────────────────────
 // Paginated members. Optional ?search filters on the member's display name.
+// On an organisational unit or a logical application each account or person
+// also carries what its interviews say about them (`interview: { role, left }`,
+// contexts/interviews/memberFacts.js) — one more statement for the whole page;
+// a reader without data.write.contexts gets it from confirmed claims only.
 router.get('/contexts/:id/members', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.json({ data: [], total: 0 });
 
   try {
-    const ctx = await db.queryOne(`SELECT "targetType" FROM "Contexts" WHERE id = $1`, [req.params.id]);
+    const ctx = await db.queryOne(`SELECT "targetType", "contextCategory" FROM "Contexts" WHERE id = $1`, [req.params.id]);
     if (!ctx) return res.status(404).json({ error: 'Context not found' });
 
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
@@ -285,7 +292,11 @@ router.get('/contexts/:id/members', async (req, res) => {
     const { rows, total } = await loadMembers(req.params.id, ctx.targetType, {
       limit, offset, search, withTotal: true, includeDescendants,
     });
-    res.json({ data: rows, total });
+    const statuses = canWriteContexts(req) ? ['proposed', ...READER_STATUSES] : [...READER_STATUSES];
+    const data = ROLE_BEARING_CATEGORIES.has(ctx.contextCategory)
+      ? await withInterviewMemberFacts(db, req.params.id, ctx.targetType, rows, statuses)
+      : rows;
+    res.json({ data, total });
   } catch (err) {
     console.error('GET /contexts/:id/members failed:', err.message);
     res.status(500).json({ error: 'Failed to load context members' });

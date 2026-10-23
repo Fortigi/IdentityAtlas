@@ -1,4 +1,4 @@
-// Contract test — context interviews against real PostgreSQL (migration 097).
+// Contract test — context interviews against real PostgreSQL (migrations 097, 098).
 // The unit tests are SQL-blind; this file runs every statement of
 // contexts/interviews/store.js, the first-name lookup of subjects.js and the
 // confirm flow of decide.js on a migrated schema, and asserts what landed:
@@ -139,6 +139,51 @@ describe('context interviews against PostgreSQL', () => {
   it('counts mentions per person over the statuses asked', async () => {
     expect((await store.mentionsOf(db, 'principalId', P.piet, ['proposed', 'confirmed', 'edited']))[0]).toMatchObject({ contextId: ctxId, claims: 2, lastInterviewedAt: '2026-10-01' });
     expect(await store.mentionsOf(db, 'principalId', P.piet, ['rejected'])).toEqual([]);
+  });
+
+  // Migration 098: membership and alias claims, the relevance tier, quote offsets.
+  it('stores membership and alias claims with their tier and offsets; rejects the low tier in one statement', async () => {
+    const [left, alias, low] = await store.insertClaims(db, { interviewId: interview.id, contextId: ctxId, proposedBy: 'model' }, [
+      { claimKind: 'membership', subjectKind: 'Person', principalId: P.yara, subjectName: 'Yara', attribute: 'left', value: 'left the team', periodText: 'last month', relevance: 'high', quote: 'I am the owner', quoteStart: 18, quoteEnd: 32 },
+      { claimKind: 'alias', subjectKind: 'Context', value: 'Rooster', relevance: 'high' },
+      { claimKind: 'description', subjectKind: 'Context', value: 'A nice canteen', relevance: 'low' },
+    ]);
+    expect(await store.getClaimRow(db, left)).toMatchObject({ claimKind: 'membership', attribute: 'left', relevance: 'high', quoteStart: 18, quoteEnd: 32 });
+    expect(await store.rejectProposed(db, ctxId, { relevance: 'low' }, 'u')).toEqual([low]);
+    expect((await store.getClaimRow(db, low)).status).toBe('rejected');
+    expect((await store.interviewQuotes(db, interview.id)).find(q => q.id === left)).toMatchObject({ quoteStart: 18, quoteEnd: 32 });
+    const r = await decideClaim(db, alias, { status: 'confirmed' }, 'u');
+    expect(r.effect).toEqual({ kind: 'alias', aliases: ['Rooster'] });
+    expect((await pool.query(`SELECT "extendedAttributes"->'aliases' AS a FROM "Contexts" WHERE id = $1`, [ctxId])).rows[0].a).toEqual(['Rooster']);
+  });
+
+  it('reads the person claims set-based for a page of members, and the previous members with their live entitlements', async () => {
+    const page = await store.memberClaims(db, ctxId, 'Principal', [P.piet, P.yara], ['proposed', 'confirmed', 'edited']);
+    expect(page.map(c => `${c.memberId === P.piet ? 'piet' : 'yara'}:${c.claimKind}`).sort()).toEqual(['piet:role', 'piet:roleHistory', 'yara:membership', 'yara:role']);
+    const people = await store.peopleClaims(db, ctxId, ['proposed']);
+    expect(people.find(c => c.claimKind === 'membership')).toMatchObject({ principalId: P.yara, isMember: false, accountDeleted: false, subjectDisplayName: 'Yara Testpersoon' });
+    expect(people.filter(c => c.principalId === P.piet).every(c => c.isMember)).toBe(true);
+
+    const resource = async (name) => (await pool.query(
+      `INSERT INTO "Resources" (id, "systemId", "displayName", "resourceType") VALUES (gen_random_uuid(), $1, $2, 'Group') RETURNING id`, [sysId, name])).rows[0].id;
+    const linked = await resource('ivw-group');
+    const other = await resource('ivw-other');
+    const gone = await resource('ivw-gone');
+    for (const [r, deletedAt] of [[linked, null], [other, null], [gone, '2026-01-01']]) {
+      await pool.query(`INSERT INTO "ResourceAssignments" ("resourceId", "principalId", "assignmentType", "systemId", "deletedAt") VALUES ($1, $2, 'Direct', $3, $4)`,
+        [r, P.yara, sysId, deletedAt]);
+    }
+    const variant = (await pool.query(
+      `INSERT INTO "Contexts" (id, variant, "targetType", "contextType", "displayName", "contextCategory", "scopeSystemId")
+       VALUES (gen_random_uuid(), 'manual', 'Resource', 'LogicalApplication', 'ivw-Planner groups', 'LogicalApplication', $1) RETURNING id`, [sysId])).rows[0].id;
+    await pool.query(`INSERT INTO "ContextMembers" ("contextId", "memberId", "memberType", "addedBy") VALUES ($1, $2, 'Resource', 'analyst')`, [variant, linked]);
+    await pool.query(`INSERT INTO "ContextRelationships" ("contextId", "relatedContextId", "relationshipType", "addedBy") VALUES ($1, $2, 'SameUnitAs', 'analyst')`, [variant, ctxId]);
+
+    const { counts, linkedResources } = await store.entitlementCounts(db, ctxId, [P.yara], []);
+    expect(linkedResources).toBe(1);
+    expect(counts.get(`principalId:${P.yara}`)).toEqual({ liveEntitlements: 2, linkedEntitlements: 1 });
+    await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [sysId]);
+    await pool.query(`DELETE FROM "Resources" WHERE "systemId" = $1`, [sysId]);
   });
 
   it('deleting the interview removes its claims and keeps what they changed, the role losing only its link', async () => {

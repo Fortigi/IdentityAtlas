@@ -14,6 +14,7 @@ export default defineConfig({
     include: [
       'src/contexts/interviews/*.test.js',
       'src/routes/contexts/interviews.test.js',
+      'src/lib/contextNameMatch.test.js',
     ],
     exclude: ['**/node_modules/**'],
     coverage: { ...base.test.coverage, thresholds: undefined },

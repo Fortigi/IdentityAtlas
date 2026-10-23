@@ -70,13 +70,14 @@ The diagram below is **generated from the [core ontology](../reference/core-mode
 erDiagram
     ContextClaims {
         uuid id PK
-        string claimKind "description, property, role, roleHistory"
+        string claimKind "description, property, role, roleHistory, membership, alias"
         string claimStatus "proposed, confirmed, edited, rejected"
         uuid contextId FK
         uuid identityId FK
         uuid interviewId FK
         uuid principalId FK
         string proposedBy "model, analyst"
+        string relevance "high, low"
         string roleSuggestion "Accountable, Responsible"
         string subjectKind "Context, Person"
         string subjectMatch "interviewee, key, name, fuzzy, firstName"

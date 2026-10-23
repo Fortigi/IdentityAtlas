@@ -111,7 +111,7 @@ describe('checkClaim', () => {
     expect(checkClaim(role({ periodFrom: '2021', periodText: ' now ', confidence: 0.83 }), folded)).toEqual({
       claim: {
         claimKind: 'role', subjectKind: 'Person', subjectName: 'Piet', attribute: 'dayToDay', value: 'does the day-to-day',
-        periodFrom: '2021-01-01', periodTo: null, periodText: 'now', quote: "it's mostly Piet who does the day-to-day", confidence: 0.83,
+        periodFrom: '2021-01-01', periodTo: null, periodText: 'now', quote: "it's mostly Piet who does the day-to-day", confidence: 0.83, relevance: null,
       },
     });
   });
@@ -157,5 +157,49 @@ describe('checkClaim', () => {
     expect(checkClaim(role({ confidence: -0.2 }), folded).claim.confidence).toBe(0);
     expect(checkClaim(role({ confidence: '0.9' }), folded).claim.confidence).toBe(0.5);
     expect(checkClaim(role({ confidence: 0.456 }), folded).claim.confidence).toBe(0.46);
+  });
+});
+
+describe('checkClaim — membership and alias', () => {
+  const SAID = `Interviewer: Who is on the Harbour Authority account?
+Piet de Vries: Jan Smit just left the account. The client calls it the Port Co, or just PC.`;
+  const f = foldForQuote(SAID);
+  const left = (over = {}) => ({ kind: 'membership', subject: 'Jan Smit', membership: 'left', value: 'left the account', quote: 'Jan Smit just left the account', ...over });
+
+  it('a membership names its person and keeps its status where a role keeps its relation', () => {
+    expect(checkClaim(left(), f).claim).toMatchObject({
+      claimKind: 'membership', subjectKind: 'Person', subjectName: 'Jan Smit', attribute: 'left', value: 'left the account',
+    });
+    expect(checkClaim(left({ membership: 'former' }), f).claim.attribute).toBe('former');
+  });
+
+  it('a membership without a known status is dropped on that field, without its person on the subject', () => {
+    expect(checkClaim(left({ membership: undefined }), f)).toEqual({
+      error: 'a membership claim needs its status: current, former, joined, left', reason: 'invalid', field: 'membership',
+    });
+    expect(checkClaim(left({ membership: 'gone' }), f).field).toBe('membership');
+    expect(checkClaim(left({ subject: null }), f).field).toBe('subject');
+  });
+
+  it('with repair, a membership whose value is only its status takes that status — any other value does not', () => {
+    const r = checkClaim(left({ membership: null, value: 'Left' }), f, { repair: true });
+    expect(r.claim.attribute).toBe('left');
+    expect(r.repaired).toEqual(['membership']);
+    expect(checkClaim(left({ membership: null, value: 'went away' }), f, { repair: true }).field).toBe('membership');
+    // A status already given is not overwritten by the value.
+    expect(checkClaim(left({ membership: 'former', value: 'left' }), f, { repair: true }).claim.attribute).toBe('former');
+  });
+
+  it('an alias is about the context: no person, the name as value, at most 200 characters', () => {
+    const alias = { kind: 'alias', subject: 'Piet', value: 'PC', quote: 'or just PC' };
+    expect(checkClaim(alias, f).claim).toMatchObject({ claimKind: 'alias', subjectKind: 'Context', subjectName: null, attribute: null, value: 'PC' });
+    expect(checkClaim({ ...alias, value: 'P'.repeat(200) }, f).claim.value).toHaveLength(200);
+    expect(checkClaim({ ...alias, value: 'P'.repeat(201) }, f)).toMatchObject({ field: 'value', reason: 'invalid' });
+  });
+
+  it("keeps the model's relevance tier only when it is high or low", () => {
+    expect(checkClaim(left({ relevance: 'low' }), f).claim.relevance).toBe('low');
+    expect(checkClaim(left({ relevance: 'high' }), f).claim.relevance).toBe('high');
+    expect(checkClaim(left({ relevance: 'urgent' }), f).claim.relevance).toBeNull();
   });
 });

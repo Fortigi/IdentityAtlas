@@ -3129,6 +3129,17 @@ paths:
                   - type: object
                     properties:
                       transcript: { type: string }
+                      highlights:
+                        type: array
+                        description: >
+                          Where each claim's quote stands in the transcript, sorted by start — string offsets,
+                          start inclusive, end exclusive. A claim whose quote is not found has none.
+                        items:
+                          type: object
+                          properties:
+                            claimId: { type: string, format: uuid }
+                            start: { type: integer, minimum: 0 }
+                            end: { type: integer, minimum: 0 }
         '403':
           description: The caller may not write contexts
         '404':
@@ -3212,9 +3223,10 @@ paths:
               properties:
                 kind: { $ref: '#/components/schemas/ContextClaimKind' }
                 value: { type: string, maxLength: 2000 }
-                subject: { type: string, description: The person a role or roleHistory claim is about, as named }
+                subject: { type: string, description: The person a role, roleHistory or membership claim is about, as named }
                 attribute: { type: string, maxLength: 80, description: The attribute of a property claim }
                 relation: { $ref: '#/components/schemas/ContextClaimRelation' }
+                membership: { type: string, enum: [current, former, joined, left], description: The status of a membership claim }
                 periodFrom: { type: string, description: 'YYYY, YYYY-MM or YYYY-MM-DD' }
                 periodTo: { type: string, description: 'YYYY, YYYY-MM or YYYY-MM-DD' }
                 periodText: { type: string }
@@ -3274,6 +3286,92 @@ paths:
                       interviewedAt: { type: string, format: date }
         '404':
           description: No such context
+  /contexts/{id}/claims/reject:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Contexts]
+      summary: Reject several proposed claims at once
+      operationId: rejectContextClaims
+      description: >
+        Rejects every proposed claim of the context of one kind and/or one relevance tier, in one
+        statement ("Reject all less relevant", "Reject all descriptions"). A claim from before
+        relevance tiers counts as high. Decided claims are not touched.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                kind: { $ref: '#/components/schemas/ContextClaimKind' }
+                relevance: { type: string, enum: [high, low] }
+      responses:
+        '200':
+          description: What was rejected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rejected: { type: integer }
+                  ids: { type: array, items: { type: string, format: uuid } }
+        '400':
+          description: Neither a kind nor a relevance, or an unknown one
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: No such context
+  /contexts/{id}/previous-members:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Contexts]
+      summary: The people the interviews say left the context
+      operationId: listContextPreviousMembers
+      description: >
+        People whose latest membership claim says they are not in the context any more (former,
+        left) and who are not a direct member now, with their latest role there. A matched account
+        or person comes with the live entitlements it still holds, and how many of those are on the
+        resources the context is linked to (its own resource members, or a resources variant's) —
+        null when it has none. Knowledge only: members come from their source. A reader without
+        `data.write.contexts` gets confirmed claims only.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The previous members, by name
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  linkedResources: { type: integer }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key: { type: string }
+                        principalId: { type: string, format: uuid, nullable: true }
+                        identityId: { type: string, format: uuid, nullable: true }
+                        displayName: { type: string }
+                        subjectName: { type: string, nullable: true }
+                        accountDeleted: { type: boolean }
+                        left: { $ref: '#/components/schemas/ContextMemberClaimFact' }
+                        role: { $ref: '#/components/schemas/ContextMemberRoleFact' }
+                        liveEntitlements: { type: integer, nullable: true }
+                        linkedEntitlements: { type: integer, nullable: true }
+        '404':
+          description: No such context
   /contexts/claims/{claimId}:
     parameters:
       - name: claimId
@@ -3287,7 +3385,9 @@ paths:
       description: >
         Only a proposed claim can be decided. Confirming (or editing: confirming with a changed value
         or period) a description appends it to the context's description under "From interview
-        with NAME, DATE:"; a property sets `extendedAttributes[attribute]`; a role claim with a
+        with NAME, DATE:"; a property sets `extendedAttributes[attribute]`; an alias is added to
+        `extendedAttributes.aliases` (once per spelling); a membership changes nothing but the claim
+        (members come from their source); a role claim with a
         suggestion becomes the ContextRole (addedBy analyst, with the claim as `sourceClaimId`). An
         Accountable is set only when the context has none; otherwise 409 with the current holder, and
         `replace: true` replaces them. Give `principalId` or `identityId` when the claim's person was
@@ -3322,8 +3422,9 @@ paths:
                   effect:
                     type: object
                     properties:
-                      kind: { type: string, enum: [none, description, property, role] }
+                      kind: { type: string, enum: [none, description, property, alias, role] }
                       attribute: { type: string }
+                      aliases: { type: array, items: { type: string }, description: The context's aliases after an alias claim }
                       role: { $ref: '#/components/schemas/ContextRoleType' }
                       roleId: { type: string, format: uuid }
                       displayName: { type: string }
@@ -3591,7 +3692,48 @@ components:
             resolved to an account, else the source's ownerName as-is.
         ownerEmployeeId: { type: string, nullable: true, description: Resource members only. }
         ownerEmail: { type: string, nullable: true, description: Resource members only. }
+        interview:
+          type: object
+          description: >
+            Accounts and persons of an organisational unit or a logical application only — what its
+            interviews say about the member: the latest role there, and the latest membership claim
+            when it says they left. A reader without `data.write.contexts` gets confirmed claims only.
+          properties:
+            role: { $ref: '#/components/schemas/ContextMemberRoleFact' }
+            left: { $ref: '#/components/schemas/ContextMemberClaimFact' }
       additionalProperties: true
+    ContextMemberClaimFact:
+      type: object
+      nullable: true
+      description: One claim about a member, with its source.
+      properties:
+        claimId: { type: string, format: uuid }
+        interviewId: { type: string, format: uuid }
+        value: { type: string }
+        status: { type: string, enum: [proposed, confirmed, edited] }
+        membershipStatus: { type: string, enum: [current, former, joined, left] }
+        periodFrom: { type: string, format: date, nullable: true }
+        periodTo: { type: string, format: date, nullable: true }
+        periodText: { type: string, nullable: true }
+        quote: { type: string, nullable: true }
+        intervieweeName: { type: string }
+        interviewedAt: { type: string, format: date }
+    ContextMemberRoleFact:
+      type: object
+      nullable: true
+      description: A member's latest role at the context from the interviews, with every role claim about them, oldest first.
+      properties:
+        claimId: { type: string, format: uuid }
+        interviewId: { type: string, format: uuid }
+        value: { type: string }
+        status: { type: string, enum: [proposed, confirmed, edited] }
+        periodFrom: { type: string, format: date, nullable: true }
+        periodTo: { type: string, format: date, nullable: true }
+        periodText: { type: string, nullable: true }
+        quote: { type: string, nullable: true }
+        intervieweeName: { type: string }
+        interviewedAt: { type: string, format: date }
+        history: { type: array, items: { $ref: '#/components/schemas/ContextMemberClaimFact' } }
     ContextRole:
       type: object
       description: Who answers for a context; the holder is an account or a person, exactly one.
@@ -3608,7 +3750,7 @@ components:
         sourceQuote: { type: string, nullable: true }
     ContextClaimKind:
       type: string
-      enum: [description, property, role, roleHistory]
+      enum: [description, property, role, roleHistory, membership, alias]
     ContextClaimRelation:
       type: string
       description: What a role claim's person is to the context, as the speaker said it.
@@ -3635,7 +3777,8 @@ components:
       type: object
       description: >
         A statement an interview makes about a context or a person, with the verbatim quote it rests
-        on. Proposed until someone decides it. `attribute` is a property's key, or a role claim's relation.
+        on. Proposed until someone decides it. `attribute` is a property's key, a role claim's relation, or
+        a membership claim's status (current, former, joined, left).
       properties:
         id: { type: string, format: uuid }
         interviewId: { type: string, format: uuid }
@@ -3653,7 +3796,10 @@ components:
         periodTo: { type: string, format: date, nullable: true }
         periodText: { type: string, nullable: true }
         quote: { type: string, nullable: true }
+        quoteStart: { type: integer, nullable: true, description: Where the quote starts in the transcript (string offset) }
+        quoteEnd: { type: integer, nullable: true, description: Where it ends (exclusive) }
         confidence: { type: number, nullable: true }
+        relevance: { type: string, nullable: true, enum: [high, low], description: 'How much it matters for access governance; null (older claims) reads as high' }
         roleSuggestion: { type: string, nullable: true, enum: [Accountable, Responsible] }
         status: { type: string, enum: [proposed, confirmed, rejected, edited] }
         proposedBy: { type: string, enum: [model, analyst], description: Who proposed the claim }

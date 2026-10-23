@@ -18,7 +18,9 @@
 //      asks for the missing fields: one costs as much as the part itself;
 //   3. across parts: drop repeats, and anything already decided in an earlier run;
 //   4. match the people named (subjects.js — with the quote's full name and a unique
-//      surname as fallbacks) and set role suggestions (roles.js);
+//      surname as fallbacks), set role suggestions (roles.js), the relevance tier
+//      (relevance.js) and where each quote stands in the transcript (quoteOffsets.js);
+//      an alias that is the context's own name is no alias and is dropped;
 //   5. replace the interview's undecided model claims with these, in one transaction.
 // Status: running → done (with a note on what was dropped) or failed (with why).
 // Nothing is written to the context: every claim waits for review.
@@ -31,6 +33,9 @@ import { checkClaim, foldForQuote } from './claims.js';
 import { buildSystemPrompt, buildUserMessage, RESPONSE_SCHEMA, MAX_CLAIMS_PER_PART } from './prompt.js';
 import { resolveClaimSubjects } from './subjects.js';
 import { deduceRoles } from './roles.js';
+import { withRelevance } from './relevance.js';
+import { withQuoteOffsets } from './quoteOffsets.js';
+import { normalizeName } from '../../lib/nameMatch.js';
 import * as store from './store.js';
 
 export const PART_CHARS = 10_000;
@@ -131,6 +136,12 @@ export function dedupeClaims(claims, kept = []) {
   });
 }
 
+/** Drop an "alias" that is only the context's own name. Pure. */
+export function dropOwnNameAliases(claims, contextName) {
+  const own = normalizeName(contextName);
+  return claims.filter(c => c.claimKind !== 'alias' || normalizeName(c.value) !== own);
+}
+
 /** Holder + match for every claim about a person (and the full name, when the quote gave it). */
 async function withSubjects(db, claims, interview) {
   const resolved = await resolveClaimSubjects(db, claims, {
@@ -143,7 +154,7 @@ async function withSubjects(db, claims, interview) {
   });
 }
 
-const FIELD_WORDS = { subject: 'without the person', value: 'without a value', kind: 'of an unknown kind', claim: 'that were not a claim', attribute: 'without an attribute name' };
+const FIELD_WORDS = { membership: 'without a membership status', subject: 'without the person', value: 'without a value', kind: 'of an unknown kind', claim: 'that were not a claim', attribute: 'without an attribute name' };
 
 /** The sentence stored with a finished run: what was read and what was left out. Pure. */
 export function runMessage({ partsRead, partsTotal, dropped, repaired = 0 }) {
@@ -195,7 +206,8 @@ export async function extractInterview(interviewId, { db = defaultDb, ask = defa
   try {
     const run = await runParts(interview, { ask, timeoutMs });
     const kept = await store.keptClaims(db, interviewId);
-    const claims = deduceRoles(await withSubjects(db, dedupeClaims(run.claims, kept), interview));
+    const fresh = dropOwnNameAliases(dedupeClaims(run.claims, kept), interview.contextName);
+    const claims = withQuoteOffsets(withRelevance(deduceRoles(await withSubjects(db, fresh, interview))), interview.transcript);
     await db.tx(async (client) => {
       await store.deleteProposedModelClaims(client, interviewId);
       await store.insertClaims(client, { interviewId, contextId: interview.contextId, proposedBy: 'model' }, claims);

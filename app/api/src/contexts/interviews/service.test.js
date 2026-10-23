@@ -6,9 +6,13 @@ vi.mock('./store.js', async (orig) => ({
   ...(await orig()),
   insertInterview: vi.fn(), getInterview: vi.fn(), setExtraction: vi.fn(), insertClaims: vi.fn(),
   getClaimRow: vi.fn(), listClaims: vi.fn(), currentAccountable: vi.fn(),
+  rejectProposed: vi.fn(), interviewQuotes: vi.fn(),
 }));
 const store = await import('./store.js');
-const { createInterview, retryExtraction, addManualClaim, claimsOf, validDate, parseInterviewee, InterviewError, STALE_RUN_MS } = await import('./service.js');
+const {
+  createInterview, retryExtraction, addManualClaim, claimsOf, validDate, parseInterviewee, InterviewError, STALE_RUN_MS,
+  parseRejectMany, rejectMany, interviewWithTranscript, previousMembers,
+} = await import('./service.js');
 
 const CTX = 'dddddddd-0000-4000-8000-000000000001';
 const IV = 'ffffffff-0000-4000-8000-000000000001';
@@ -28,7 +32,7 @@ function fakeDb({ context = { id: CTX, contextCategory: 'LogicalApplication' }, 
 const file = (text = TRANSCRIPT, name = 'gesprek.txt') => ({ buffer: Buffer.from(text), originalname: name });
 
 beforeEach(() => {
-  for (const k of ['insertInterview', 'getInterview', 'setExtraction', 'insertClaims', 'getClaimRow', 'listClaims', 'currentAccountable']) store[k].mockReset();
+  for (const k of ['insertInterview', 'getInterview', 'setExtraction', 'insertClaims', 'getClaimRow', 'listClaims', 'currentAccountable', 'rejectProposed', 'interviewQuotes']) store[k].mockReset();
   store.insertInterview.mockImplementation(async (_db, row) => ({ id: IV, ...row }));
 });
 
@@ -130,6 +134,15 @@ describe('addManualClaim', () => {
     expect(claim).toMatchObject({ principalId: ANNA, subjectMatch: 'interviewee', roleSuggestion: 'Accountable', quote: 'Ik ben de eigenaar van deze applicatie' });
   });
 
+  it('an analyst\'s claim is high relevance, with the span of its quote in the transcript', async () => {
+    await addManualClaim(CTX, IV, { kind: 'membership', subject: 'Piet', membership: 'left', value: 'weg', quote: 'maar Piet doet' }, { db: fakeDb() });
+    const claim = store.insertClaims.mock.calls[0][2][0];
+    expect(claim).toMatchObject({ claimKind: 'membership', attribute: 'left', relevance: 'high' });
+    expect(TRANSCRIPT.slice(claim.quoteStart, claim.quoteEnd)).toBe('maar Piet doet');
+    await addManualClaim(CTX, IV, { kind: 'description', value: 'zonder citaat' }, { db: fakeDb() });
+    expect(store.insertClaims.mock.calls[1][2][0]).toMatchObject({ relevance: 'high', quoteStart: null, quoteEnd: null });
+  });
+
   it('takes an analyst\'s own suggestion over the deduced one, and needs no quote', async () => {
     await addManualClaim(CTX, IV, { kind: 'role', subject: 'ik', relation: 'member', value: 'beheer', roleSuggestion: 'Responsible' }, { db: fakeDb() });
     expect(store.insertClaims.mock.calls[0][2][0]).toMatchObject({ roleSuggestion: 'Responsible', quote: null });
@@ -160,5 +173,65 @@ describe('claimsOf', () => {
     store.currentAccountable.mockResolvedValue(null);
     expect((await claimsOf(CTX, { statuses: ['confirmed'] }, { db: fakeDb() })).accountableDoubt).toBeNull();
     await expect(claimsOf(CTX, { statuses: [] }, { db: fakeDb({ context: null }) })).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe('rejectMany', () => {
+  it('takes a kind, a relevance or both, and nothing else', () => {
+    expect(parseRejectMany({ relevance: 'low' })).toEqual({ kind: null, relevance: 'low' });
+    expect(parseRejectMany({ kind: 'description', relevance: 'high' })).toEqual({ kind: 'description', relevance: 'high' });
+    expect(() => parseRejectMany({})).toThrow(/a kind, a relevance, or both/);
+    expect(() => parseRejectMany({ kind: 'gossip' })).toThrow(/kind must be one of/);
+    expect(() => parseRejectMany({ relevance: 'medium' })).toThrow('relevance must be one of high, low');
+  });
+
+  it('rejects in one statement for the context, as the user, and says how many', async () => {
+    store.rejectProposed.mockResolvedValue(['c1', 'c2']);
+    const r = await rejectMany(CTX, { relevance: 'low' }, 'analyst@example.test', { db: fakeDb() });
+    expect(r).toEqual({ rejected: 2, ids: ['c1', 'c2'] });
+    expect(store.rejectProposed.mock.calls[0].slice(1)).toEqual([CTX, { kind: null, relevance: 'low' }, 'analyst@example.test']);
+  });
+
+  it('refuses an unknown context before writing', async () => {
+    await expect(rejectMany(CTX, { kind: 'description' }, 'u', { db: fakeDb({ context: null }) })).rejects.toMatchObject({ status: 404 });
+    await expect(rejectMany('x', { kind: 'description' }, 'u', { db: fakeDb() })).rejects.toMatchObject({ status: 400 });
+    expect(store.rejectProposed).not.toHaveBeenCalled();
+  });
+});
+
+describe('interviewWithTranscript', () => {
+  it('uses the stored offsets, finds the missing ones, leaves out what is not there, sorted by start', async () => {
+    store.getInterview.mockResolvedValue({ id: IV, transcript: TRANSCRIPT });
+    const at = TRANSCRIPT.indexOf('Piet doet');
+    store.interviewQuotes.mockResolvedValue([
+      { id: 'late', quote: 'Piet doet het dagelijkse werk', quoteStart: at, quoteEnd: at + 29 },
+      { id: 'found', quote: 'Ik ben de eigenaar', quoteStart: null, quoteEnd: null },
+      { id: 'bad-span', quote: 'Ik ben', quoteStart: 5, quoteEnd: 5 },
+      { id: 'gone', quote: 'nooit gezegd', quoteStart: null, quoteEnd: null },
+    ]);
+    const r = await interviewWithTranscript(CTX, IV, { db: fakeDb() });
+    expect(store.getInterview.mock.calls[0].slice(1)).toEqual([CTX, IV, { withTranscript: true }]);
+    const start = TRANSCRIPT.indexOf('Ik ben');
+    expect(r.highlights).toEqual([
+      { claimId: 'found', start, end: start + 'Ik ben de eigenaar'.length },
+      { claimId: 'bad-span', start, end: start + 'Ik ben'.length },
+      { claimId: 'late', start: at, end: at + 29 },
+    ]);
+    expect(r.transcript).toBe(TRANSCRIPT);
+  });
+
+  it('is 404 for an interview of another context', async () => {
+    store.getInterview.mockResolvedValue(null);
+    await expect(interviewWithTranscript(CTX, IV, { db: fakeDb() })).rejects.toMatchObject({ status: 404, message: 'Interview not found' });
+  });
+});
+
+describe('previousMembers', () => {
+  it('checks the context, then reads with the statuses it is given', async () => {
+    const db = fakeDb();
+    const r = await previousMembers(CTX, { statuses: ['confirmed'] }, { db });
+    expect(r).toEqual({ data: [], linkedResources: 0 });
+    expect(db.query.mock.calls[0][1]).toEqual([CTX, ['role', 'roleHistory', 'membership'], ['confirmed']]);
+    await expect(previousMembers(CTX, { statuses: ['confirmed'] }, { db: fakeDb({ context: null }) })).rejects.toMatchObject({ status: 404 });
   });
 });

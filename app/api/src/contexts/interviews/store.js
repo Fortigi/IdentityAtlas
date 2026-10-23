@@ -1,7 +1,7 @@
 // Context interviews — the SQL. Every statement the feature runs is here, so the
 // contract test (contract-tests/contextInterviews.contract.test.js) can hold
 // them all against a migrated PostgreSQL; the rest of the feature is pure or
-// calls these. Tables: migration 097.
+// calls these. Tables: migration 097 (and 098: relevance, quote offsets, two more kinds).
 //
 // Dates leave PostgreSQL as text ('YYYY-MM-DD'): node-postgres turns a DATE into
 // a local-midnight Date, which shifts a day in any timezone west of UTC.
@@ -73,7 +73,8 @@ const CLAIM_SELECT = `
     SELECT c.id, c."interviewId", c."contextId", c."claimKind", c."subjectKind", c."principalId", c."identityId",
            c."subjectName", COALESCE(p."displayName", i."displayName") AS "subjectDisplayName", c."subjectMatch",
            c.attribute, c.value, c."periodFrom"::text AS "periodFrom", c."periodTo"::text AS "periodTo", c."periodText",
-           c.quote, c.confidence::float8 AS confidence, c."roleSuggestion", c."claimStatus" AS status, c."proposedBy",
+           c.quote, c."quoteStart", c."quoteEnd", c.confidence::float8 AS confidence, c.relevance,
+           c."roleSuggestion", c."claimStatus" AS status, c."proposedBy",
            c."decidedBy", c."decidedAt", c."createdAt",
            (SELECT r.id FROM "ContextRoles" r WHERE r."sourceClaimId" = c.id LIMIT 1) AS "appliedRoleId",
            iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt", iv."fileName"
@@ -95,7 +96,7 @@ export async function getClaimRow(db, claimId) {
 }
 
 const CLAIM_INSERT_COLUMNS = ['claimKind', 'subjectKind', 'principalId', 'identityId', 'subjectName', 'subjectMatch', 'attribute',
-  'value', 'periodFrom', 'periodTo', 'periodText', 'quote', 'confidence', 'roleSuggestion'];
+  'value', 'periodFrom', 'periodTo', 'periodText', 'quote', 'confidence', 'roleSuggestion', 'relevance', 'quoteStart', 'quoteEnd'];
 
 /** Insert claims of one interview in one statement (jsonb_to_recordset). Returns their ids. */
 export async function insertClaims(db, { interviewId, contextId, proposedBy }, claims) {
@@ -105,11 +106,12 @@ export async function insertClaims(db, { interviewId, contextId, proposedBy }, c
     INSERT INTO "ContextClaims"
       ("interviewId", "contextId", "proposedBy", ${CLAIM_INSERT_COLUMNS.map(k => `"${k}"`).join(', ')})
     SELECT $1, $2, $3, x."claimKind", x."subjectKind", x."principalId", x."identityId", x."subjectName", x."subjectMatch",
-           x.attribute, x.value, x."periodFrom", x."periodTo", x."periodText", x.quote, x.confidence, x."roleSuggestion"
+           x.attribute, x.value, x."periodFrom", x."periodTo", x."periodText", x.quote, x.confidence, x."roleSuggestion",
+           x.relevance, x."quoteStart", x."quoteEnd"
       FROM jsonb_to_recordset($4::jsonb) AS x(
            "claimKind" text, "subjectKind" text, "principalId" uuid, "identityId" uuid, "subjectName" text, "subjectMatch" text,
            attribute text, value text, "periodFrom" date, "periodTo" date, "periodText" text, quote text,
-           confidence numeric, "roleSuggestion" text)
+           confidence numeric, "roleSuggestion" text, relevance text, "quoteStart" integer, "quoteEnd" integer)
     RETURNING id`, [interviewId, contextId, proposedBy, JSON.stringify(records)]);
   return r.rows.map(x => x.id);
 }
@@ -153,4 +155,136 @@ export async function mentionsOf(db, holderCol, holderId, statuses) {
      GROUP BY ctx.id, ctx."displayName", ctx."contextCategory"
      ORDER BY MAX(iv."interviewedAt") DESC, ctx."displayName"`, [holderId, statuses]);
   return r.rows;
+}
+
+// ─── Several claims at once ──────────────────────────────────────────────
+// Rejects the context's proposed claims of one kind and/or one relevance tier
+// in one statement ("Reject all less relevant", "Reject all descriptions"). A
+// claim without a tier (from before tiers existed) counts as high.
+export async function rejectProposed(db, contextId, { kind = null, relevance = null }, user) {
+  const r = await db.query(`
+    UPDATE "ContextClaims"
+       SET "claimStatus" = 'rejected', "decidedBy" = $4, "decidedAt" = now()
+     WHERE "contextId" = $1 AND "claimStatus" = 'proposed'
+       AND ($2::text IS NULL OR "claimKind" = $2)
+       AND ($3::text IS NULL OR COALESCE(relevance, 'high') = $3)
+    RETURNING id`, [contextId, kind, relevance, user]);
+  return r.rows.map(x => x.id);
+}
+
+/** Every claim of an interview that has a quote, with the offsets stored for it (the transcript view). */
+export async function interviewQuotes(db, interviewId) {
+  const r = await db.query(`
+    SELECT id, quote, "quoteStart", "quoteEnd" FROM "ContextClaims" WHERE "interviewId" = $1 AND quote IS NOT NULL`, [interviewId]);
+  return r.rows;
+}
+
+// ─── What the interviews say about people, for the members lists ─────────
+// The person claims (role, roleHistory, membership) of a context, set-based:
+// one statement for a whole page of members, one for the previous members.
+const PERSON_CLAIM_COLUMNS = `c.id, c."interviewId", c."claimKind", c.attribute, c.value,
+           c."periodFrom"::text AS "periodFrom", c."periodTo"::text AS "periodTo", c."periodText", c.quote,
+           c."claimStatus" AS status, c."createdAt", iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt"`;
+export const PERSON_CLAIM_KINDS = Object.freeze(['role', 'roleHistory', 'membership']);
+
+// memberId: the member the claim is about. A context of accounts reads the
+// claims about those accounts; a context of persons the claims about the
+// person or about one of their accounts (IdentityMembers).
+export const MEMBER_CLAIMS_SQL = Object.freeze({
+  Principal: `
+    SELECT ${PERSON_CLAIM_COLUMNS}, c."principalId" AS "memberId"
+      FROM "ContextClaims" c
+      JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
+     WHERE c."contextId" = $1 AND c."principalId" = ANY($2::uuid[])
+       AND c."claimKind" = ANY($3::text[]) AND c."claimStatus" = ANY($4::text[])`,
+  Identity: `
+    SELECT ${PERSON_CLAIM_COLUMNS}, COALESCE(c."identityId", im."identityId") AS "memberId"
+      FROM "ContextClaims" c
+      JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
+      LEFT JOIN "IdentityMembers" im ON im."principalId" = c."principalId" AND im."identityId" = ANY($2::uuid[])
+     WHERE c."contextId" = $1 AND (c."identityId" = ANY($2::uuid[]) OR im."identityId" IS NOT NULL)
+       AND c."claimKind" = ANY($3::text[]) AND c."claimStatus" = ANY($4::text[])`,
+});
+
+/** The person claims about a page of members (ids of the context's targetType); [] for other kinds. */
+export async function memberClaims(db, contextId, targetType, ids, statuses) {
+  const sql = MEMBER_CLAIMS_SQL[targetType];
+  if (!sql || ids.length === 0) return [];
+  return (await db.query(sql, [contextId, ids, PERSON_CLAIM_KINDS, statuses])).rows;
+}
+
+// Every person claim of the context, with the person matched (if any), whether
+// that account or person is a direct member now, and whether the account is gone.
+export const PEOPLE_CLAIMS_SQL = `
+    SELECT ${PERSON_CLAIM_COLUMNS}, c."principalId", c."identityId", c."subjectName",
+           COALESCE(p."displayName", i."displayName") AS "subjectDisplayName",
+           (p."deletedAt" IS NOT NULL) AS "accountDeleted",
+           EXISTS (SELECT 1 FROM "ContextMembers" cm
+                    WHERE cm."contextId" = c."contextId" AND cm."memberId" = COALESCE(c."principalId", c."identityId")) AS "isMember"
+      FROM "ContextClaims" c
+      JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
+      LEFT JOIN "Principals" p ON p.id = c."principalId"
+      LEFT JOIN "Identities" i ON i.id = c."identityId"
+     WHERE c."contextId" = $1 AND c."claimKind" = ANY($2::text[]) AND c."claimStatus" = ANY($3::text[])`;
+
+export async function peopleClaims(db, contextId, statuses) {
+  return (await db.query(PEOPLE_CLAIMS_SQL, [contextId, PERSON_CLAIM_KINDS, statuses])).rows;
+}
+
+// The resources "this application" means: the members of this context when it
+// holds resources, and of every SameUnitAs variant that holds resources.
+const LINKED_RESOURCES = `
+    SELECT cm."memberId" AS "resourceId"
+      FROM "ContextMembers" cm
+      JOIN "Contexts" x ON x.id = cm."contextId" AND x."targetType" = 'Resource'
+     WHERE cm."memberType" = 'Resource'
+       AND cm."contextId" IN (
+             SELECT $1::uuid
+             UNION
+             SELECT CASE WHEN r."contextId" = $1 THEN r."relatedContextId" ELSE r."contextId" END
+               FROM "ContextRelationships" r
+              WHERE r."relationshipType" = 'SameUnitAs' AND $1 IN (r."contextId", r."relatedContextId"))`;
+
+// Live entitlements (ResourceAssignments not deleted) per account and per person
+// — a person's own and those of their accounts — and how many of them are on
+// the linked resources. One statement for every previous member at once.
+export const ENTITLEMENT_COUNTS_SQL = `
+    WITH linked AS (${LINKED_RESOURCES}),
+    held AS (
+      SELECT 'principalId' AS col, ra."principalId" AS id, ra."resourceId"
+        FROM "ResourceAssignments" ra
+       WHERE ra."principalId" = ANY($2::uuid[]) AND ra."deletedAt" IS NULL
+      UNION ALL
+      SELECT 'identityId', ra."identityId", ra."resourceId"
+        FROM "ResourceAssignments" ra
+       WHERE ra."identityId" = ANY($3::uuid[]) AND ra."deletedAt" IS NULL
+      UNION ALL
+      SELECT 'identityId', im."identityId", ra."resourceId"
+        FROM "IdentityMembers" im
+        JOIN "ResourceAssignments" ra ON ra."principalId" = im."principalId" AND ra."deletedAt" IS NULL
+       WHERE im."identityId" = ANY($3::uuid[])
+    )
+    SELECT h.col, h.id, count(*)::int AS "liveEntitlements",
+           count(*) FILTER (WHERE h."resourceId" IN (SELECT "resourceId" FROM linked))::int AS "linkedEntitlements"
+      FROM held h
+     GROUP BY h.col, h.id`;
+
+export const LINKED_RESOURCE_COUNT_SQL = `SELECT count(*)::int AS n FROM (${LINKED_RESOURCES}) l`;
+
+/**
+ * Live entitlements of the given accounts and persons, and how many resources
+ * "this application" has: { counts: Map('principalId:<id>' | 'identityId:<id>'
+ * → { liveEntitlements, linkedEntitlements }), linkedResources }. Two statements.
+ */
+export async function entitlementCounts(db, contextId, principalIds, identityIds) {
+  const [counts, linked] = await Promise.all([
+    principalIds.length + identityIds.length > 0
+      ? db.query(ENTITLEMENT_COUNTS_SQL, [contextId, principalIds, identityIds])
+      : { rows: [] },
+    db.query(LINKED_RESOURCE_COUNT_SQL, [contextId]),
+  ]);
+  return {
+    counts: new Map(counts.rows.map(r => [`${r.col}:${r.id}`, { liveEntitlements: r.liveEntitlements, linkedEntitlements: r.linkedEntitlements }])),
+    linkedResources: linked.rows[0]?.n ?? 0,
+  };
 }

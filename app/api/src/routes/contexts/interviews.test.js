@@ -14,6 +14,7 @@ vi.mock('../../db/connection.js');
 vi.mock('../../contexts/interviews/service.js', async (orig) => ({
   ...(await orig()),
   createInterview: vi.fn(), retryExtraction: vi.fn(), addManualClaim: vi.fn(), claimsOf: vi.fn(),
+  interviewWithTranscript: vi.fn(), rejectMany: vi.fn(), previousMembers: vi.fn(),
 }));
 vi.mock('../../contexts/interviews/decide.js', async (orig) => ({ ...(await orig()), decideClaim: vi.fn() }));
 vi.mock('../../contexts/interviews/store.js', async (orig) => ({
@@ -40,7 +41,8 @@ beforeEach(() => {
   caller = analyst;
   authOn = true;
   for (const f of [service.createInterview, service.retryExtraction, service.addManualClaim, service.claimsOf, decideClaim,
-    store.listInterviews, store.getInterview, store.deleteInterview, store.mentionsOf]) vi.mocked(f).mockReset();
+    store.listInterviews, store.getInterview, store.deleteInterview, store.mentionsOf,
+    service.interviewWithTranscript, service.rejectMany, service.previousMembers]) vi.mocked(f).mockReset();
 });
 
 describe('canWriteContexts', () => {
@@ -76,12 +78,14 @@ describe('the gate', () => {
     ['post', `/api/contexts/${CTX}/interviews/${IV}/claims`],
     ['delete', `/api/contexts/${CTX}/interviews/${IV}`],
     ['patch', `/api/contexts/claims/${CLAIM}`],
+    ['post', `/api/contexts/${CTX}/claims/reject`],
   ])('%s %s is 403 for a reader and reaches nothing', async (method, path) => {
     caller = reader;
     expect((await request(app)[method](path).send({})).status).toBe(403);
     expect(service.createInterview).not.toHaveBeenCalled();
     expect(decideClaim).not.toHaveBeenCalled();
     expect(store.listInterviews).not.toHaveBeenCalled();
+    expect(service.rejectMany).not.toHaveBeenCalled();
   });
 });
 
@@ -127,10 +131,13 @@ describe('interview reads and deletes', () => {
   it('lists, reads one (404 when not this context\'s), and deletes (204 / 404)', async () => {
     vi.mocked(store.listInterviews).mockResolvedValue([{ id: IV }]);
     expect((await request(app).get(`/api/contexts/${CTX}/interviews`)).body).toEqual({ data: [{ id: IV }] });
-    vi.mocked(store.getInterview).mockResolvedValueOnce({ id: IV, transcript: 't' }).mockResolvedValueOnce(null);
-    expect((await request(app).get(`/api/contexts/${CTX}/interviews/${IV}`)).body).toEqual({ id: IV, transcript: 't' });
-    expect(vi.mocked(store.getInterview).mock.calls[0].slice(1)).toEqual([CTX, IV, { withTranscript: true }]);
-    expect((await request(app).get(`/api/contexts/${CTX}/interviews/${IV}`)).status).toBe(404);
+    const { InterviewError } = await import('../../contexts/interviews/service.js');
+    vi.mocked(service.interviewWithTranscript).mockResolvedValueOnce({ id: IV, transcript: 't', highlights: [] })
+      .mockRejectedValueOnce(new InterviewError(404, 'Interview not found'));
+    expect((await request(app).get(`/api/contexts/${CTX}/interviews/${IV}`)).body).toEqual({ id: IV, transcript: 't', highlights: [] });
+    expect(vi.mocked(service.interviewWithTranscript).mock.calls[0].slice(0, 2)).toEqual([CTX, IV]);
+    const missing = await request(app).get(`/api/contexts/${CTX}/interviews/${IV}`);
+    expect([missing.status, missing.body]).toEqual([404, { error: 'Interview not found' }]);
     vi.mocked(store.deleteInterview).mockResolvedValueOnce(1).mockResolvedValueOnce(0);
     expect((await request(app).delete(`/api/contexts/${CTX}/interviews/${IV}`)).status).toBe(204);
     expect((await request(app).delete(`/api/contexts/${CTX}/interviews/${IV}`)).status).toBe(404);
@@ -188,5 +195,32 @@ describe('GET /contexts/claims/mentions', () => {
     caller = reader;
     await request(app).get(`/api/contexts/claims/mentions?principalId=${ANNA}`);
     expect(vi.mocked(store.mentionsOf).mock.calls[1].slice(1)).toEqual(['principalId', ANNA, ['confirmed', 'edited']]);
+  });
+});
+
+describe('POST /contexts/:id/claims/reject', () => {
+  it('hands the body and the caller to the service; its refusal keeps its status', async () => {
+    vi.mocked(service.rejectMany).mockResolvedValueOnce({ rejected: 3, ids: ['a', 'b', 'c'] });
+    const res = await request(app).post(`/api/contexts/${CTX}/claims/reject`).send({ relevance: 'low' });
+    expect([res.status, res.body]).toEqual([200, { rejected: 3, ids: ['a', 'b', 'c'] }]);
+    expect(vi.mocked(service.rejectMany).mock.calls[0].slice(0, 3)).toEqual([CTX, { relevance: 'low' }, 'analyst@example.test']);
+    const { InterviewError } = await import('../../contexts/interviews/service.js');
+    vi.mocked(service.rejectMany).mockRejectedValueOnce(new InterviewError(400, 'Say which claims to reject: a kind, a relevance, or both.'));
+    const bad = await request(app).post(`/api/contexts/${CTX}/claims/reject`).send({});
+    expect([bad.status, bad.body.error]).toEqual([400, 'Say which claims to reject: a kind, a relevance, or both.']);
+  });
+});
+
+describe('GET /contexts/:id/previous-members', () => {
+  it('a writer reads proposed claims too; a reader confirmed ones only', async () => {
+    vi.mocked(service.previousMembers).mockResolvedValue({ data: [], linkedResources: 0 });
+    expect((await request(app).get(`/api/contexts/${CTX}/previous-members`)).body).toEqual({ data: [], linkedResources: 0 });
+    caller = reader;
+    expect((await request(app).get(`/api/contexts/${CTX}/previous-members`)).status).toBe(200);
+    expect(vi.mocked(service.previousMembers).mock.calls.map(c => c.slice(0, 2))).toEqual([
+      [CTX, { statuses: ['proposed', 'confirmed', 'edited'] }],
+      [CTX, { statuses: ['confirmed', 'edited'] }],
+    ]);
+    expect((await request(app).get('/api/contexts/nope/previous-members')).status).toBe(400);
   });
 });

@@ -249,7 +249,7 @@ ia:Interview a owl:Class ; rdfs:subClassOf ia:Source ;
     ia:table "ContextInterviews" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
 ia:Claim a owl:Class ; rdfs:subClassOf ia:Knowledge ;
     rdfs:label "Claim" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "A statement an interview makes about a subject — the context itself (subjectKind Context) or a person (Person: the account or person it was matched to, and always the name as spoken) — of one claimKind (description, property, role, roleHistory), with its value, the period it is about (from / to, or vague text), the verbatim quote it rests on and a confidence. Proposed until someone decides it (claimStatus confirmed, edited or rejected). A confirmed role claim with a roleSuggestion becomes an ia:ContextRole whose sourceClaimId is the claim; a confirmed description or property claim is written to the context. A claim never creates access." ;
+    rdfs:comment "A statement an interview makes about a subject — the context itself (subjectKind Context) or a person (Person: the account or person it was matched to, and always the name as spoken) — of one claimKind (description, property, role, roleHistory, membership, alias), with its value, the period it is about (from / to, or vague text), the verbatim quote it rests on and a confidence. Proposed until someone decides it (claimStatus confirmed, edited or rejected). A confirmed role claim with a roleSuggestion becomes an ia:ContextRole whose sourceClaimId is the claim; a confirmed description or property claim is written to the context. A claim never creates access." ;
     ia:table "ContextClaims" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
 
 # ─── Principal types (closed: ingest enum on principalType) ──────────────────
@@ -574,6 +574,12 @@ ia:ClaimKind_role a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "role" ;
 ia:ClaimKind_roleHistory a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "roleHistory" ;
     rdfs:label "roleHistory" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "A role a person held at the context over a period. Knowledge only." .
+ia:ClaimKind_membership a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "membership" ;
+    rdfs:label "membership" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Whether a person is in the context: the status (current, former, joined, left) in attribute, with the period. Knowledge only: confirming it never changes the context's members, which come from their source." .
+ia:ClaimKind_alias a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "alias" ;
+    rdfs:label "alias" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Another name the context goes by. Confirmed, it is added to the context's extendedAttributes.aliases." .
 
 ia:ClaimSubjectKind a owl:Class ;
     rdfs:label "Claim subject" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -619,6 +625,16 @@ ia:ClaimStatus_edited a owl:NamedIndividual, ia:ClaimStatus ; ia:typeValue "edit
 ia:ClaimStatus_rejected a owl:NamedIndividual, ia:ClaimStatus ; ia:typeValue "rejected" ;
     rdfs:label "rejected" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Rejected." .
+
+ia:ClaimRelevance a owl:Class ;
+    rdfs:label "Claim relevance" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How much a claim matters for identity and access governance." .
+ia:ClaimRelevance_high a owl:NamedIndividual, ia:ClaimRelevance ; ia:typeValue "high" ;
+    rdfs:label "high" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Matters for who should have access to what: people, roles, membership, aliases, facts that affect access." .
+ia:ClaimRelevance_low a owl:NamedIndividual, ia:ClaimRelevance ; ia:typeValue "low" ;
+    rdfs:label "low" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "True, but changes nothing about access. Folded away in review." .
 
 ia:ClaimProposer a owl:Class ;
     rdfs:label "Claim proposer" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -1418,7 +1434,7 @@ ia:visibility a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:comment "Visibility as the source reports it (Public / Private for groups)." .
 
 # Columns of the knowledge tables (ContextInterviews, ContextClaims) and the
-# provenance column they add to ContextRoles (migration 097).
+# provenance column they add to ContextRoles (migrations 097, 098).
 ia:sourceClaimId a owl:ObjectProperty ; ia:sqlType "uuid" ;
     rdfs:domain ia:ContextRole ;
     rdfs:range ia:Claim ;
@@ -1507,7 +1523,7 @@ ia:attribute a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain ia:Claim ;
     rdfs:range xsd:string ;
     rdfs:label "attribute" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other)." .
+    rdfs:comment "A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left)." .
 ia:value a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain ia:Claim ;
     rdfs:range xsd:string ;
@@ -1550,6 +1566,22 @@ ia:claimStatus a owl:DatatypeProperty ; ia:sqlType "text" ;
     ia:valueScheme ia:ClaimStatus ;
     rdfs:label "claimStatus" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Where the claim stands in review." .
+ia:relevance a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:ClaimRelevance ;
+    rdfs:label "relevance" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How much the claim matters for identity and access governance, by fixed rules and the model's own tier. NULL (before tiers) reads as high." .
+ia:quoteStart a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:integer ;
+    rdfs:label "quoteStart" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Where the quote starts in the stored transcript (a string offset), for the transcript view. NULL when not found." .
+ia:quoteEnd a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:integer ;
+    rdfs:label "quoteEnd" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Where the quote ends in the stored transcript (exclusive)." .
 ia:proposedBy a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain ia:Claim ;
     rdfs:range xsd:string ;

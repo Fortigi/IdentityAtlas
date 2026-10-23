@@ -4,6 +4,9 @@
 //   retryExtraction(contextId, interviewId, deps)           run extraction again
 //   addManualClaim(contextId, interviewId, body, deps)      an analyst's own claim (no model needed)
 //   claimsOf(contextId, { statuses }, deps)                 the claims + whether the Accountable is in doubt
+//   rejectMany(contextId, body, user, deps)                 reject the proposed claims of a kind / a relevance tier
+//   interviewWithTranscript(contextId, interviewId, deps)   one interview, its transcript and where each quote stands
+//   previousMembers(contextId, { statuses }, deps)          who the interviews say left, and what they still hold
 //
 // Every refusal is an InterviewError with the status the route answers and a
 // sentence for the analyst. Design: docs/architecture/context-interviews.md.
@@ -12,10 +15,12 @@ import * as defaultDb from '../../db/connection.js';
 import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
 import { detectLanguage } from '../../nlreports/language.js';
 import { parseTranscript } from './transcript.js';
-import { checkClaim, foldForQuote, ROLE_SUGGESTIONS } from './claims.js';
+import { checkClaim, foldForQuote, ROLE_SUGGESTIONS, CLAIM_KINDS, RELEVANCE } from './claims.js';
 import { llmConfigured, startExtraction } from './extract.js';
 import { resolveSubjects } from './subjects.js';
 import { deduceRoles, accountableDoubt } from './roles.js';
+import { locateQuote } from './quoteOffsets.js';
+import { loadPreviousMembers } from './memberFacts.js';
 import * as store from './store.js';
 
 export class InterviewError extends Error {
@@ -127,6 +132,9 @@ export async function addManualClaim(contextId, interviewId, body = {}, deps) {
     claim = { ...claim, principalId: r.principalId ?? null, identityId: r.identityId ?? null, subjectMatch: r.match ?? null };
   }
   claim = deduceRoles([claim])[0];
+  // An analyst chose to add it: it matters.
+  const span = claim.quote ? locateQuote(interview.transcript, claim.quote) : null;
+  claim = { ...claim, relevance: 'high', quoteStart: span?.start ?? null, quoteEnd: span?.end ?? null };
   if (claim.claimKind === 'role' && body.roleSuggestion !== undefined) claim.roleSuggestion = body.roleSuggestion;
   const [id] = await store.insertClaims(db, { interviewId, contextId, proposedBy: 'analyst' }, [claim]);
   return store.getClaimRow(db, id);
@@ -135,9 +143,7 @@ export async function addManualClaim(contextId, interviewId, body = {}, deps) {
 /** The claims of a context in `statuses`, and the claim that doubts its current Accountable (or null). */
 export async function claimsOf(contextId, { statuses }, deps) {
   const { db } = defaults(deps);
-  if (!UUID_RE.test(String(contextId))) throw new InterviewError(400, 'Invalid ID format');
-  const ctx = await db.queryOne(`SELECT id FROM "Contexts" WHERE id = $1`, [contextId]);
-  if (!ctx) throw new InterviewError(404, 'Context not found');
+  await existingContext(db, contextId);
   const [claims, accountable] = await Promise.all([store.listClaims(db, contextId, statuses), store.currentAccountable(db, contextId)]);
   const doubt = accountableDoubt(claims, accountable);
   return {
@@ -146,3 +152,56 @@ export async function claimsOf(contextId, { statuses }, deps) {
   };
 }
 
+
+async function existingContext(db, contextId) {
+  if (!UUID_RE.test(String(contextId))) throw new InterviewError(400, 'Invalid ID format');
+  const ctx = await db.queryOne(`SELECT id FROM "Contexts" WHERE id = $1`, [contextId]);
+  if (!ctx) throw new InterviewError(404, 'Context not found');
+  return ctx;
+}
+
+/** The body of POST /contexts/:id/claims/reject → { kind, relevance }, at least one of them. Pure. */
+export function parseRejectMany(body = {}) {
+  const kind = body.kind ?? null;
+  const relevance = body.relevance ?? null;
+  if (kind !== null && !CLAIM_KINDS.includes(kind)) throw new InterviewError(400, `kind must be one of ${CLAIM_KINDS.join(', ')}`);
+  if (relevance !== null && !RELEVANCE.includes(relevance)) throw new InterviewError(400, `relevance must be one of ${RELEVANCE.join(', ')}`);
+  if (kind === null && relevance === null) throw new InterviewError(400, 'Say which claims to reject: a kind, a relevance, or both.');
+  return { kind, relevance };
+}
+
+/** Reject the context's proposed claims of a kind and/or a relevance tier. { rejected: n, ids }. */
+export async function rejectMany(contextId, body, user, deps) {
+  const { db } = defaults(deps);
+  const filter = parseRejectMany(body);
+  await existingContext(db, contextId);
+  const ids = await store.rejectProposed(db, contextId, filter, user);
+  return { rejected: ids.length, ids };
+}
+
+/**
+ * One interview with its transcript and `highlights`: [{ claimId, start, end }]
+ * for every claim whose quote stands in it — the offsets stored at extraction,
+ * else found now (a claim from before offsets were stored). Sorted by start.
+ */
+export async function interviewWithTranscript(contextId, interviewId, deps) {
+  const { db } = defaults(deps);
+  const interview = await store.getInterview(db, contextId, interviewId, { withTranscript: true });
+  if (!interview) throw new InterviewError(404, 'Interview not found');
+  const highlights = [];
+  for (const c of await store.interviewQuotes(db, interviewId)) {
+    const span = Number.isInteger(c.quoteStart) && Number.isInteger(c.quoteEnd) && c.quoteEnd > c.quoteStart
+      ? { start: c.quoteStart, end: c.quoteEnd }
+      : locateQuote(interview.transcript, c.quote);
+    if (span) highlights.push({ claimId: c.id, start: span.start, end: span.end });
+  }
+  highlights.sort((a, b) => a.start - b.start || b.end - a.end);
+  return { ...interview, highlights };
+}
+
+/** The people the interviews say left the context, with what they still hold. */
+export async function previousMembers(contextId, { statuses }, deps) {
+  const { db } = defaults(deps);
+  await existingContext(db, contextId);
+  return loadPreviousMembers(db, contextId, statuses);
+}

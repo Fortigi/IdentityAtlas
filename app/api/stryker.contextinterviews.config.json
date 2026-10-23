@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Mutation testing for the context interviews (docs/architecture/context-interviews.md): reading a transcript (txt/docx/vtt/srt), the one check every claim passes (verbatim quote, period dates, attribute keys, confidence), the prompt and reply schema, the reply check and repair round, splitting and de-duplicating, matching a spoken name to the interviewee / an account / a first name the context knows, the fixed role-deduction rules, deciding a claim (description append, attribute write, Accountable conflict, Responsible add) and the routes with their reader narrowing. WHY THESE FILES: every failure here is silent -- a quote check one step too loose lets a claim rest on words nobody said, a deduction rule inverted makes the backup the owner, a first-name match too eager points a role at the wrong colleague, a reader narrowing dropped shows unreviewed claims to a business reader. Scoped like the sibling API configs: these files plus their own unit tests, which are self-contained (no repository paths outside the sandbox, no PostgreSQL). MUTATOR SET: StringLiteral and ObjectLiteral disabled, matching the sibling configs -- so the SQL in store.js / subjects.js / decide.js is not mutated and stays the contract test's job (contract-tests/contextInterviews.contract.test.js). Run: cd app/api && npm run test:mutation:contextinterviews NOT YET MEASURED: this config ships with the feature; break is deliberately absent until a first run measures a score.",
+  "_comment": "Mutation testing for the context interviews (docs/architecture/context-interviews.md): reading a transcript (txt/docx/vtt/srt), the one check every claim passes (verbatim quote, period dates, attribute keys, confidence), the prompt and reply schema, the reply check and repair round, splitting and de-duplicating, matching a spoken name to the interviewee / an account / a first name the context knows, the fixed role-deduction rules, the relevance tier (which claims are folded away as less relevant), where a quote stands in the transcript (the highlight offsets), what the members lists show from the interviews (latest role, left, previous members and their live entitlements), the alias-aware context-name matcher, deciding a claim (description append, attribute write, Accountable conflict, Responsible add) and the routes with their reader narrowing. WHY THESE FILES: every failure here is silent -- a quote check one step too loose lets a claim rest on words nobody said, a deduction rule inverted makes the backup the owner, a first-name match too eager points a role at the wrong colleague, a reader narrowing dropped shows unreviewed claims to a business reader. Scoped like the sibling API configs: these files plus their own unit tests, which are self-contained (no repository paths outside the sandbox, no PostgreSQL). MUTATOR SET: StringLiteral and ObjectLiteral disabled, matching the sibling configs -- so the SQL in store.js / subjects.js / decide.js is not mutated and stays the contract test's job (contract-tests/contextInterviews.contract.test.js). Run: cd app/api && npm run test:mutation:contextinterviews NOT YET MEASURED: this config ships with the feature; break is deliberately absent until a first run measures a score.",
   "packageManager": "npm",
   "testRunner": "vitest",
   "vitest": {
@@ -17,13 +17,17 @@
     "src/contexts/interviews/claims.js",
     "src/contexts/interviews/decide.js",
     "src/contexts/interviews/extract.js",
+    "src/contexts/interviews/memberFacts.js",
     "src/contexts/interviews/nameSpan.js",
     "src/contexts/interviews/prompt.js",
+    "src/contexts/interviews/quoteOffsets.js",
+    "src/contexts/interviews/relevance.js",
     "src/contexts/interviews/roles.js",
     "src/contexts/interviews/service.js",
     "src/contexts/interviews/store.js",
     "src/contexts/interviews/subjects.js",
     "src/contexts/interviews/transcript.js",
+    "src/lib/contextNameMatch.js",
     "src/routes/contexts/interviews.js"
   ],
   "thresholds": {

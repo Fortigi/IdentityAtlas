@@ -17,14 +17,20 @@
 //                again with replace: true. Responsible: added next to the others.
 //                The claim must name its person first (principalId | identityId in
 //                the body when the match was missing or wrong).
-//   role without a suggestion, roleHistory
+//   alias        added to extendedAttributes.aliases (an array; a spelling already
+//                there is not added twice — lib/contextNameMatch.js), shown as
+//                "Also known as" and tried when a name is matched to a context
+//   role without a suggestion, roleHistory, membership
 //                nothing beyond the claim: it is confirmed knowledge (What we know,
-//                the role timeline). A claim never creates access.
+//                the role timeline, the members lists). A membership claim never
+//                changes ContextMembers: members come from their source. A
+//                claim never creates access.
 // All in one transaction. Decisions are recorded in _history (migration 097).
 
 import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
 import { periodDate, MAX_VALUE, MAX_PERIOD_TEXT } from './claims.js';
 import * as store from './store.js';
+import { mergeAliases } from '../../lib/contextNameMatch.js';
 
 export class ClaimError extends Error {
   constructor(status, message, details) {
@@ -91,7 +97,7 @@ const LOCK_SQL = `
   SELECT c.id, c."contextId", c."claimKind", c."principalId", c."identityId", c.attribute, c.value,
          c."periodFrom"::text AS "periodFrom", c."periodTo"::text AS "periodTo", c."periodText", c."roleSuggestion", c."claimStatus" AS status,
          iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt",
-         ctx."contextCategory", ctx.description
+         ctx."contextCategory", ctx.description, ctx."extendedAttributes"->'aliases' AS "currentAliases"
     FROM "ContextClaims" c
     JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
     JOIN "Contexts" ctx ON ctx.id = c."contextId"
@@ -139,6 +145,13 @@ async function applyEffect(client, claim, merged, holder, replace) {
       UPDATE "Contexts" SET "extendedAttributes" = COALESCE("extendedAttributes", '{}'::jsonb) || jsonb_build_object($2::text, $3::text)
        WHERE id = $1`, [claim.contextId, claim.attribute, merged.value]);
     return { kind: 'property', attribute: claim.attribute };
+  }
+  if (claim.claimKind === 'alias') {
+    const aliases = mergeAliases(claim.currentAliases, merged.value);
+    await client.query(`
+      UPDATE "Contexts" SET "extendedAttributes" = COALESCE("extendedAttributes", '{}'::jsonb) || jsonb_build_object('aliases', $2::jsonb)
+       WHERE id = $1`, [claim.contextId, JSON.stringify(aliases)]);
+    return { kind: 'alias', aliases };
   }
   if (claim.claimKind === 'role' && claim.roleSuggestion) return applyRole(client, claim, holder, replace);
   return { kind: 'none' };

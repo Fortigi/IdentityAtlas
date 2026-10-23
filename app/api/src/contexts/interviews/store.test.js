@@ -18,7 +18,7 @@ describe('insertClaims', () => {
     expect(params.slice(0, 3)).toEqual(['iv', 'ctx', 'model']);
     const records = JSON.parse(params[3]);
     expect(Object.keys(records[0])).toEqual(['claimKind', 'subjectKind', 'principalId', 'identityId', 'subjectName', 'subjectMatch', 'attribute',
-      'value', 'periodFrom', 'periodTo', 'periodText', 'quote', 'confidence', 'roleSuggestion']);
+      'value', 'periodFrom', 'periodTo', 'periodText', 'quote', 'confidence', 'roleSuggestion', 'relevance', 'quoteStart', 'quoteEnd']);
     expect(records[0].principalId).toBeNull();
     expect(records[1]).toMatchObject({ subjectName: 'Piet', principalId: 'p', roleSuggestion: 'Responsible' });
     expect(records[1].extra).toBeUndefined();

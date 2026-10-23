@@ -9,6 +9,10 @@
 //   - a description or a property is about the context itself: it has no subject;
 //   - a property names its attribute (a short key, ≤ MAX_ATTRIBUTE, no control characters);
 //   - a role / roleHistory names its relation (RELATIONS; anything else reads 'other');
+//   - a membership names the person and its status (MEMBERSHIP_STATUSES: current,
+//     former, joined, left), kept in `attribute` as a role's relation is;
+//   - an alias is another name of the context ("also known as X"): no subject, the
+//     name as value (≤ MAX_ALIAS);
 //   - the quote, when there is one, is VERBATIM in the transcript — compared after
 //     folding whitespace and typographic quotes — or the claim is dropped (reason
 //     'quote'): a claim must rest on words that were said. A NEAR-verbatim quote
@@ -16,25 +20,33 @@
 //     different words are never a match;
 //   - a period is from / to (a year, a year-month or a date; anything else is
 //     kept only as text) and the text as spoken ("early years").
-// Confidence is clamped to 0..1 (default 0.5).
+// Confidence is clamped to 0..1 (default 0.5). relevance is the model's 'high' |
+// 'low' when it gave one (relevance.js decides the final tier).
 //
 // With { repair: true } (a model's reply — a small model leaves fields out) what
 // can be recovered without guessing is: a property without a usable attribute
 // name becomes a description claim; a claim without a value takes its quote as
-// the value. A role without its person, an unknown kind or a missing quote is
+// the value; a membership whose value is its status alone ("left") takes that
+// status. A role without its person, an unknown kind or a missing quote is
 // still dropped. Every drop names the field it failed on (`field`). Pure.
 
-export const CLAIM_KINDS = Object.freeze(['description', 'property', 'role', 'roleHistory']);
+export const CLAIM_KINDS = Object.freeze(['description', 'property', 'role', 'roleHistory', 'membership', 'alias']);
+// A membership claim's status, in `attribute`: is the person in it now, did they leave?
+export const MEMBERSHIP_STATUSES = Object.freeze(['current', 'former', 'joined', 'left']);
+// How much a claim matters for identity and access governance (relevance.js).
+export const RELEVANCE = Object.freeze(['high', 'low']);
 export const RELATIONS = Object.freeze(['owner', 'notOwner', 'dayToDay', 'delegate', 'member', 'other']);
 export const CLAIM_STATUSES = Object.freeze(['proposed', 'confirmed', 'rejected', 'edited']);
 export const ROLE_SUGGESTIONS = Object.freeze(['Accountable', 'Responsible']);
 
 // The kinds whose subject is the context itself.
-const CONTEXT_KINDS = new Set(['description', 'property']);
+const CONTEXT_KINDS = new Set(['description', 'property', 'alias']);
 
 export const MAX_VALUE = 2000;
 export const MAX_ATTRIBUTE = 80;
 export const MAX_SUBJECT = 200;
+// An alias is a name, not a sentence.
+export const MAX_ALIAS = 200;
 export const MAX_PERIOD_TEXT = 120;
 // Shorter than this a "quote" ("yes", "ok") proves nothing.
 export const MIN_QUOTE = 8;
@@ -125,7 +137,7 @@ const text = (v, max) => {
 };
 
 const CONTROL = /[\u0000-\u001f\u007f]/;
-const PERSON_KINDS = new Set(['role', 'roleHistory']);
+const PERSON_KINDS = new Set(['role', 'roleHistory', 'membership']);
 
 const attributeName = (v) => {
   const key = text(v, MAX_ATTRIBUTE + 1);
@@ -136,6 +148,11 @@ function checkAttribute(kind, raw) {
   if (kind === 'property') {
     const key = attributeName(raw.attribute);
     return key ? { attribute: key } : { error: 'a property claim needs an attribute name (at most 80 characters)' };
+  }
+  if (kind === 'membership') {
+    return MEMBERSHIP_STATUSES.includes(raw.membership)
+      ? { attribute: raw.membership }
+      : { error: `a membership claim needs its status: ${MEMBERSHIP_STATUSES.join(', ')}`, field: 'membership' };
   }
   if (PERSON_KINDS.has(kind)) return { attribute: RELATIONS.includes(raw.relation) ? raw.relation : 'other' };
   return { attribute: null };
@@ -164,6 +181,12 @@ export function repairClaim(raw, repaired = []) {
     out = { ...out, kind: 'description' };
     repaired.push('attribute');
   }
+  // A membership whose value is its status alone ("left") says the status.
+  const said = typeof raw.value === 'string' ? raw.value.trim().toLowerCase() : '';
+  if (raw.kind === 'membership' && !MEMBERSHIP_STATUSES.includes(raw.membership) && MEMBERSHIP_STATUSES.includes(said)) {
+    out = { ...out, membership: said };
+    repaired.push('membership');
+  }
   const quote = typeof raw.quote === 'string' ? raw.quote.replace(/^\s*["'“”‘’]+|["'“”‘’]+\s*$/g, '') : '';
   if (!text(raw.value, MAX_VALUE) && text(quote, MAX_VALUE)) {
     out = { ...out, value: quote };
@@ -188,7 +211,8 @@ function checkFields(raw) {
   const subject = CONTEXT_KINDS.has(kind) ? null : text(raw.subject, MAX_SUBJECT);
   if (PERSON_KINDS.has(kind) && !subject) return drop('subject', 'a role claim needs the person it is about');
   const attr = checkAttribute(kind, raw);
-  if (attr.error) return drop('attribute', attr.error);
+  if (attr.error) return drop(attr.field ?? 'attribute', attr.error);
+  if (kind === 'alias' && value.length > MAX_ALIAS) return drop('value', `an alias is a name of at most ${MAX_ALIAS} characters`);
   return { value, subject, attribute: attr.attribute };
 }
 
@@ -215,6 +239,7 @@ export function checkClaim(input, folded, { quoteRequired = true, repair = false
     periodText: text(raw.periodText, MAX_PERIOD_TEXT),
     quote,
     confidence: confidenceOf(raw.confidence),
+    relevance: RELEVANCE.includes(raw.relevance) ? raw.relevance : null,
   };
   return repaired.length ? { claim, repaired } : { claim };
 }

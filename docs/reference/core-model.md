@@ -577,14 +577,14 @@ What a source said about the graph, with provenance — not part of the graph, a
 
 ### ContextClaims
 
-`ia:Claim` · Knowledge table · A statement an interview makes about a subject — the context itself (subjectKind Context) or a person (Person: the account or person it was matched to, and always the name as spoken) — of one claimKind (description, property, role, roleHistory), with its value, the period it is about (from / to, or vague text), the verbatim quote it rests on and a confidence. Proposed until someone decides it (claimStatus confirmed, edited or rejected). A confirmed role claim with a roleSuggestion becomes an ia:ContextRole whose sourceClaimId is the claim; a confirmed description or property claim is written to the context. A claim never creates access.
+`ia:Claim` · Knowledge table · A statement an interview makes about a subject — the context itself (subjectKind Context) or a person (Person: the account or person it was matched to, and always the name as spoken) — of one claimKind (description, property, role, roleHistory, membership, alias), with its value, the period it is about (from / to, or vague text), the verbatim quote it rests on and a confidence. Proposed until someone decides it (claimStatus confirmed, edited or rejected). A confirmed role claim with a roleSuggestion becomes an ia:ContextRole whose sourceClaimId is the claim; a confirmed description or property claim is written to the context. A claim never creates access.
 
 Identifier: `id` (uuid) — the instance IRI, not a property.
 
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
-| `attribute` | `ia:attribute` | text |  | A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other). |
-| `claimKind` | `ia:claimKind` | text | `description`, `property`, `role`, `roleHistory` | What the claim states. |
+| `attribute` | `ia:attribute` | text |  | A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left). |
+| `claimKind` | `ia:claimKind` | text | `description`, `property`, `role`, `roleHistory`, `membership`, `alias` | What the claim states. |
 | `claimStatus` | `ia:claimStatus` | text | `proposed`, `confirmed`, `edited`, `rejected` | Where the claim stands in review. |
 | `confidence` | `ia:confidence` | numeric |  | How clearly the transcript states it, 0 to 1. Not a decision. |
 | `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
@@ -599,6 +599,9 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor; on ContextInterviews the interviewee, on ContextClaims the account the claim is about. Ingest alias: `principalExternalId`, `userExternalId`. |
 | `proposedBy` | `ia:proposedBy` | text | `model`, `analyst` | Who proposed the claim. |
 | `quote` | `ia:quote` | text |  | The words of the transcript the claim rests on, verbatim. |
+| `quoteEnd` | `ia:quoteEnd` | integer |  | Where the quote ends in the stored transcript (exclusive). |
+| `quoteStart` | `ia:quoteStart` | integer |  | Where the quote starts in the stored transcript (a string offset), for the transcript view. NULL when not found. |
+| `relevance` | `ia:relevance` | text | `high`, `low` | How much the claim matters for identity and access governance, by fixed rules and the model's own tier. NULL (before tiers) reads as high. |
 | `roleSuggestion` | `ia:roleSuggestion` | text | `Accountable`, `Responsible` | The ContextRole a confirmed role claim becomes, by fixed rules on its relation. |
 | `subjectKind` | `ia:subjectKind` | text | `Context`, `Person` | Whether the claim is about the context or a person. |
 | `subjectMatch` | `ia:subjectMatch` | text | `interviewee`, `key`, `name`, `fuzzy`, `firstName` | How the person was matched; NULL when they were not. |
@@ -671,6 +674,8 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `property` | `ia:ClaimKind_property` | One fact about the context, under an attribute name. Confirmed, it sets that extended attribute. |
 | `role` | `ia:ClaimKind_role` | What a person is to the context (the relation as said: owner, notOwner, dayToDay, delegate, member, other). With a roleSuggestion, confirmed, it becomes a ContextRole. |
 | `roleHistory` | `ia:ClaimKind_roleHistory` | A role a person held at the context over a period. Knowledge only. |
+| `membership` | `ia:ClaimKind_membership` | Whether a person is in the context: the status (current, former, joined, left) in attribute, with the period. Knowledge only: confirming it never changes the context's members, which come from their source. |
+| `alias` | `ia:ClaimKind_alias` | Another name the context goes by. Confirmed, it is added to the context's extendedAttributes.aliases. |
 
 ### Claim proposer
 
@@ -680,6 +685,15 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 |---|---|---|
 | `model` | `ia:ClaimProposer_model` | The local model, reading the transcript. |
 | `analyst` | `ia:ClaimProposer_analyst` | An analyst, by hand. |
+
+### Claim relevance
+
+`ia:ClaimRelevance` — How much a claim matters for identity and access governance. Used by `ContextClaims.relevance`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `high` | `ia:ClaimRelevance_high` | Matters for who should have access to what: people, roles, membership, aliases, facts that affect access. |
+| `low` | `ia:ClaimRelevance_low` | True, but changes nothing about access. Folded away in review. |
 
 ### Claim status
 
