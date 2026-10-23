@@ -2637,7 +2637,7 @@ paths:
                   aiUsed: { type: boolean }
                   aiFields: { type: array, items: { type: string } }
                   hasChildren: { type: boolean }
-                  subUnitCount: { type: integer, description: Units below the context, every level }
+                  subUnitCount: { type: integer, description: 'Units below the context, at every level' }
                   levels: { type: integer, description: How many levels deep the tree below the context goes }
                   contextColumnMatches:
                     type: object
