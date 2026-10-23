@@ -2,3 +2,6 @@
 - With the local model configured, claims are extracted automatically (in the background, with a status and a retry); without it the transcript is still stored and claims can be added by hand.
 - Confirming a claim adds it to the unit's description, sets one of its attributes, or makes the person its Accountable or Responsible — with the interview recorded as the source. An Accountable that is already set is never replaced without asking.
 - Interviews suggest roles: "I'm the owner, but Piet does the day-to-day" suggests the interviewee as Accountable and Piet as Responsible, in the People block next to the existing suggestion.
+- Added "What we know" to the page of a unit or application: what interviews established — description, properties and people with a timeline of their roles over the years — each with its source and quote, plus the claims still to review and the interviews themselves.
+- Account and person pages now list the units and applications whose interviews mention them.
+- Business readers and context owners see only confirmed claims; transcripts and review stay with the analyst.

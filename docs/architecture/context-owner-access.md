@@ -41,7 +41,7 @@ resources). Sub-contexts are not included.
 | Request (GET only) | Allowed when |
 |---|---|
 | `/api/auth-me`, `/api/features`, `/api/version`, `/api/preferences`, `/api/attribute-labels` | always (the app shell) |
-| `/api/contexts/:id`, `…/members`, `…/roles`, `…/relationships`, `…/timeline` | `:id` is in scope |
+| `/api/contexts/:id`, `…/members`, `…/roles`, `…/relationships`, `…/claims` (confirmed claims only), `…/timeline` | `:id` is in scope |
 | `/api/risk-scores/contexts/:id` | `:id` is in scope |
 | `/api/reports/application-access-review/export` | `contexts` lists only in-scope ids, and every context those values resolve to is in scope; the `applications` alias and names are refused |
 | `/api/reports/unit-members/export` | the same `contexts` check; `includeSubUnits` is refused in any form (even `false`), because the units below an owner's unit need not be theirs — the owner of a sub-unit downloads from that sub-unit's own page |
