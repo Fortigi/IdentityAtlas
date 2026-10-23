@@ -5,3 +5,7 @@
 - On a tree root or parent, an activity table shows each sub-unit by month with its totals and the two member-review suggestion counts.
 - Activity never changes membership or access; readers without edit rights see the Activity section read-only.
 - The core ontology (2.2.0) describes activity as evidence beside the graph, explicitly not a way of holding access.
+- Uploading activity on a root or any unit with units below it now places each row on the unit itself or on any unit below it, at any depth — matched by key, then by name (near misses flagged); a name shared by two units of the tree is reported as ambiguous instead of guessed, and the unit's own name lands on the unit itself.
+- The upload wizard picks the unit column by how many of its values name a unit of the tree (for example Client over Project in a Clockify export) and shows the match rate ("Client: 52 of 58 values match a unit"); rows with an empty unit cell go to the unit itself or can be left out.
+- The preview and the import result show how the rows spread: on the unit itself, on units below it (how many, how deep), unmatched and ambiguous, with samples.
+- On a parent, the Activity section has an "Include sub-units" switch (on by default) for the people groups, and its table adds a line for the unit itself when activity landed on it.
