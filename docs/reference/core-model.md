@@ -575,6 +575,33 @@ Edge: `parentResourceId` → `childResourceId`.
 
 What a source said about the graph, with provenance — not part of the graph, and never a way of holding access.
 
+### ChangeRequests
+
+`ia:ChangeRequest` · Knowledge table · What should change in a source that an analyst's decision overrides: which source (targetSystemId, its name when raised), which kind of change (changeKind), about what (a context, a member, an attribute, with their names when raised), resting on which claim and override. The override acts in Identity Atlas at once; the request records the correction still owed to the source, because the source's next sync or re-import would bring the old fact back. Raised only where a source can be corrected (a context synced from a system or an uploaded list), never for a context Identity Atlas owns. Nobody closes it by hand: it is resolved when the data shows the change, and withdrawn when the decision is undone. At most one open request per change.
+
+Identifier: `id` (uuid) — the instance IRI, not a property.
+
+| Column | Property | SQL type | Values / references | Description |
+|---|---|---|---|---|
+| `attribute` | `ia:attribute` | text |  | A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined). On a change request (AttributeUpdate): the attribute to change in the source. |
+| `basisClaimId` | `ia:basisClaimId` | uuid | → ContextClaims | The claim whose decision raised it. Cleared when its interview is deleted; the request stays. |
+| `changeKind` | `ia:changeKind` | text | `EntityCreate`, `EntityDelete`, `RelationshipAdd`, `RelationshipRemove`, `AttributeUpdate` | What kind of change the source should make. |
+| `closedAt` | `ia:closedAt` | timestamp with time zone |  | When it was resolved or withdrawn; empty exactly while it is open. |
+| `closedReason` | `ia:closedReason` | text |  | Why it was closed, in one sentence. |
+| `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
+| `contextName` | `ia:contextName` | text |  | The context's name when the request was raised. |
+| `currentValue` | `ia:currentValue` | text |  | For an AttributeUpdate: what the source says now. |
+| `expectedValue` | `ia:expectedValue` | text |  | For an AttributeUpdate: what the source should say. |
+| `memberId` | `ia:memberId` | uuid | → Identities / Resources / Principals / Systems | The member; memberType names its table. Ingest alias: `memberExternalId`. |
+| `memberName` | `ia:memberName` | text |  | The member's name when the request was raised. |
+| `overrideId` | `ia:overrideId` | uuid | → ContextMemberOverrides | The override that acts in Identity Atlas until the source is corrected. |
+| `raisedAt` | `ia:raisedAt` | timestamp with time zone |  | When it was raised, or last raised again. |
+| `raisedBy` | `ia:raisedBy` | text |  | Who made the decision that raised it. |
+| `requestStatus` | `ia:requestStatus` | text | `open`, `resolved`, `withdrawn` | Where the request stands. |
+| `summary` | `ia:summary` | text |  | One line a person can act on, such as: Remove Led from Klanten. |
+| `targetName` | `ia:targetName` | text |  | The source's name when the request was raised. |
+| `targetSystemId` | `ia:targetSystemId` | integer | → Systems | The source to correct: the system or uploaded list the context is synced from. Cleared when the system is removed. |
+
 ### ContextClaims
 
 `ia:Claim` · Knowledge table · A statement an interview makes about a subject — the context itself (subjectKind Context) or a person (Person: the account or person it was matched to, and always the name as spoken) — of one claimKind (description, property, role, roleHistory, membership, alias), with its value, the period it is about (from / to, or vague text), the verbatim quote it rests on and a confidence. Proposed until someone decides it (claimStatus confirmed, edited or rejected). A confirmed role claim with a roleSuggestion becomes an ia:ContextRole whose sourceClaimId is the claim; a confirmed description or property claim is written to the context. A claim never creates access.
@@ -583,7 +610,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
-| `attribute` | `ia:attribute` | text |  | A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined). |
+| `attribute` | `ia:attribute` | text |  | A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined). On a change request (AttributeUpdate): the attribute to change in the source. |
 | `claimKind` | `ia:claimKind` | text | `description`, `property`, `role`, `roleHistory`, `membership`, `alias` | What the claim states. |
 | `claimStatus` | `ia:claimStatus` | text | `proposed`, `confirmed`, `edited`, `rejected` | Where the claim stands in review. |
 | `confidence` | `ia:confidence` | numeric |  | How clearly the transcript states it, 0 to 1. Not a decision. |
@@ -678,6 +705,28 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `Direct` | `ia:AssignmentType_Direct` | Held directly: a membership, a directly assigned app role, an OAuth2 grant, an ownership. |
 | `Indirect` | `ia:AssignmentType_Indirect` | Inherited through another resource (an app role held via a group, a nested group). Stored, not inferred. |
 | `Eligible` | `ia:AssignmentType_Eligible` | Granted but not active (PIM-eligible): can be activated. |
+
+### Change kind
+
+`ia:ChangeKind` — The kind of change a change request asks of its source: an entity, a relationship or an attribute. Used by `ChangeRequests.changeKind`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `EntityCreate` | `ia:ChangeKind_EntityCreate` | The source misses something that exists. |
+| `EntityDelete` | `ia:ChangeKind_EntityDelete` | The source lists something that no longer exists. |
+| `RelationshipAdd` | `ia:ChangeKind_RelationshipAdd` | The source should link the member to the context. |
+| `RelationshipRemove` | `ia:ChangeKind_RelationshipRemove` | The source should no longer link the member to the context: a person marked former by a decision. |
+| `AttributeUpdate` | `ia:ChangeKind_AttributeUpdate` | An attribute in the source should read expectedValue instead of currentValue. |
+
+### Change request status
+
+`ia:ChangeRequestStatus` — Where a change request stands. Set by the data and the decisions, not by hand. Used by `ChangeRequests.requestStatus`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `open` | `ia:ChangeRequestStatus_open` | The source does not show the change yet. |
+| `resolved` | `ia:ChangeRequestStatus_resolved` | The source shows the change: the member is no longer listed, or the context is gone. |
+| `withdrawn` | `ia:ChangeRequestStatus_withdrawn` | The decision it rested on was undone, or a later decision contradicts it. |
 
 ### Claim kind
 
