@@ -15,6 +15,7 @@ import missingManagers from './missing-managers.js';
 import neverSignedIn from './never-signed-in.js';
 import orphanedAccounts from './orphaned-accounts.js';
 import privilegedAccounts from './privileged-accounts.js';
+import riskyApplications from './risky-applications.js';
 import staleAccounts from './stale-accounts.js';
 import staleGuestAccounts from './stale-guest-accounts.js';
 
@@ -31,6 +32,7 @@ export const BUILT_IN_REPORTS = [
   neverSignedIn,
   orphanedAccounts,
   privilegedAccounts,
+  riskyApplications,
   staleAccounts,
   staleGuestAccounts,
 ];
