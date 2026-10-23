@@ -20,4 +20,5 @@ export const MANAGER_HIERARCHY_ALGORITHM = 'manager-hierarchy';
 // contexts (and manual contexts edited here through the UI).
 // Building contexts was split out of that admin permission as `data.write.contexts`;
 // either one grants it, so no existing role mapping loses access.
-export const writeContexts = requirePermission('data.write.contexts', 'admin.context-plugins');
+export const WRITE_CONTEXT_PERMISSIONS = Object.freeze(['data.write.contexts', 'admin.context-plugins']);
+export const writeContexts = requirePermission(...WRITE_CONTEXT_PERMISSIONS);

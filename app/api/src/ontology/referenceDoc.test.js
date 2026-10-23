@@ -30,6 +30,15 @@ describe('renderReference', () => {
     ]);
   });
 
+  it('gives the knowledge tables their own section after the edge tables, and none when there are none', () => {
+    const out = renderReference(modelOf(`${MINI_TTL}\nia:Knowledge a owl:Class ; rdfs:label "Knowledge" ; rdfs:comment "Statements." .
+ia:Claim a owl:Class ; rdfs:subClassOf ia:Knowledge ; rdfs:label "Claim" ; rdfs:comment "A statement." ; ia:table "Claims" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .`)).split('\n');
+    const heads = out.filter(l => /^##+ /.test(l));
+    expect(heads.slice(heads.indexOf('## Edge tables'))).toEqual(['## Edge tables', '### ResourceAssignments', '### ResourceRelationships', '## Knowledge tables', '### Claims', '## Value lists', '### Assignment type']);
+    expect(out).toContain('`ia:Claim` · Knowledge table · A statement.');
+    expect(lines).not.toContain('## Knowledge tables');
+  });
+
   it('lists a closed discriminator as exact values and an open one as an open vocabulary', () => {
     expect(md).toContain('`principalType` accepts exactly these values:');
     expect(md).toContain('`resourceType` is an open vocabulary — any value is accepted.');

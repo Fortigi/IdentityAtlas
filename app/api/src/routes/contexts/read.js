@@ -15,6 +15,11 @@ import { loadContextRoles } from './roles.js';
 import { OWNER_PRINCIPAL_ORDER } from '../../ingest/contextOwners.js';
 import { withResourceMemberFacts } from '../../contexts/resourceMemberFacts.js';
 import { UPLOAD_SYSTEM_TYPE, uploadProvenance } from '../../contexts/upload/lists.js';
+import { withInterviewMemberFacts } from '../../contexts/interviews/memberFacts.js';
+import { canWriteContexts, READER_STATUSES } from './interviews.js';
+import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
+import { overriddenMemberCount } from '../../contexts/interviews/memberOverrides.js';
+import { OVERRIDE_COLUMNS, OVERRIDE_JOIN, withOverride } from '../../contexts/interviews/overrideRows.js';
 
 const router = Router();
 
@@ -247,6 +252,8 @@ router.get('/contexts/:id', async (req, res) => {
 
     // A context of an uploaded list says where it came from: its first and latest upload.
     if (attr.scopeSystemType === UPLOAD_SYSTEM_TYPE) Object.assign(attr, await uploadProvenance(db, attr.scopeSystemId));
+    // Members a decision marked former (still counted in directMemberCount: their source lists them).
+    attr.overriddenMemberCount = await overriddenMemberCount(db, req.params.id);
 
     const members = await loadMembers(req.params.id, attr.targetType, { limit: 50 });
 
@@ -269,23 +276,35 @@ router.get('/contexts/:id', async (req, res) => {
 
 // ─── GET /api/contexts/:id/members ───────────────────────────────────
 // Paginated members. Optional ?search filters on the member's display name.
+// A member a decision marked former (contexts/interviews/memberOverrides.js) is
+// left out of the current members — `overriddenCount` says how many — unless
+// ?includeOverridden=true, which lists them too, each with `overridden`.
+// On an organisational unit or a logical application each account or person
+// also carries what its interviews say about them (`interview: { role, left }`,
+// contexts/interviews/memberFacts.js) — one more statement for the whole page;
+// a reader without data.write.contexts gets it from confirmed claims only.
 router.get('/contexts/:id/members', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.json({ data: [], total: 0 });
 
   try {
-    const ctx = await db.queryOne(`SELECT "targetType" FROM "Contexts" WHERE id = $1`, [req.params.id]);
+    const ctx = await db.queryOne(`SELECT "targetType", "contextCategory" FROM "Contexts" WHERE id = $1`, [req.params.id]);
     if (!ctx) return res.status(404).json({ error: 'Context not found' });
 
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const search = (req.query.search || '').toString().trim().slice(0, 200);
     const includeDescendants = req.query.include === 'descendants';
+    const includeOverridden = req.query.includeOverridden === 'true';
 
-    const { rows, total } = await loadMembers(req.params.id, ctx.targetType, {
-      limit, offset, search, withTotal: true, includeDescendants,
+    const { rows, total, overriddenCount } = await loadMembers(req.params.id, ctx.targetType, {
+      limit, offset, search, withTotal: true, includeDescendants, includeOverridden,
     });
-    res.json({ data: rows, total });
+    const statuses = canWriteContexts(req) ? ['proposed', ...READER_STATUSES] : [...READER_STATUSES];
+    const data = ROLE_BEARING_CATEGORIES.has(ctx.contextCategory)
+      ? await withInterviewMemberFacts(db, req.params.id, ctx.targetType, rows, statuses)
+      : rows;
+    res.json({ data, total, overriddenCount });
   } catch (err) {
     console.error('GET /contexts/:id/members failed:', err.message);
     res.status(500).json({ error: 'Failed to load context members' });
@@ -320,46 +339,53 @@ function memberScopeSql(includeDescendants) {
   };
 }
 
-async function loadMembers(contextId, targetType, { limit = 100, offset = 0, search = '', withTotal = false, includeDescendants = false } = {}) {
+// The search on the member's name, as a clause and its bind (appended to params).
+function searchFilter(search, params) {
+  if (!search) return '';
+  params.push(likeContains(search));
+  return ` AND m."displayName" ILIKE $${params.length} ESCAPE '\\'`;
+}
+
+// The current members and those a decision marked former, among the matching
+// rows (`from`: the FROM … WHERE of the page read, without the override filter).
+async function countMembers(from, countExpr, params, includeOverridden) {
+  const counts = await db.queryOne(`
+    SELECT COUNT(${countExpr}) FILTER (WHERE o.id IS NULL)::int AS current,
+           COUNT(${countExpr}) FILTER (WHERE o.id IS NOT NULL)::int AS overridden
+      ${from}
+  `, params);
+  const overriddenCount = counts?.overridden || 0;
+  return { total: (counts?.current || 0) + (includeOverridden ? overriddenCount : 0), overriddenCount };
+}
+
+export async function loadMembers(contextId, targetType, { limit = 100, offset = 0, search = '', withTotal = false, includeDescendants = false, includeOverridden = false } = {}) {
   const table = MEMBER_TABLE[targetType];
-  if (!table) return withTotal ? { rows: [], total: 0 } : [];
+  if (!table) return withTotal ? { rows: [], total: 0, overriddenCount: 0 } : [];
 
   // Every member table has displayName; the rest of the row is what the members
   // table shows for that kind of member (MEMBER_COLUMNS).
   const params = [contextId];
-  let searchClause = '';
-  if (search) {
-    params.push(likeContains(search));
-    searchClause = ` AND m."displayName" ILIKE $${params.length} ESCAPE '\\'`;
-  }
-
+  const searchClause = searchFilter(search, params);
   const { contextFilter, distinct, orderPrefix, countExpr } = memberScopeSql(includeDescendants);
+  const from = `
+      FROM "ContextMembers" cm
+      JOIN "${table}" m ON ${memberJoinOn(targetType)}
+      ${OVERRIDE_JOIN}
+     WHERE ${contextFilter}
+       AND cm."memberType" = '${targetType}'
+       ${searchClause}`;
 
   const dataSql = `
     SELECT ${distinct} m.id, m."displayName", ${MEMBER_COLUMNS[targetType]},
-           cm."addedBy", cm."addedAt"
-      FROM "ContextMembers" cm
-      JOIN "${table}" m ON ${memberJoinOn(targetType)}
-     WHERE ${contextFilter}
-       AND cm."memberType" = '${targetType}'
-       ${searchClause}
+           cm."addedBy", cm."addedAt", ${OVERRIDE_COLUMNS}
+      ${from} ${includeOverridden ? '' : 'AND o.id IS NULL'}
      ORDER BY ${orderPrefix}m."displayName"
      LIMIT ${parseInt(limit, 10)} OFFSET ${parseInt(offset, 10)}
   `;
-  const page = (await db.query(dataSql, params)).rows;
+  const page = (await db.query(dataSql, params)).rows.map(withOverride);
   const rows = targetType === 'Resource' ? await withResourceMemberFacts(page) : page;
   if (!withTotal) return rows;
-
-  const countSql = `
-    SELECT COUNT(${countExpr})::int AS total
-      FROM "ContextMembers" cm
-      JOIN "${table}" m ON ${memberJoinOn(targetType)}
-     WHERE ${contextFilter}
-       AND cm."memberType" = '${targetType}'
-       ${searchClause}
-  `;
-  const total = (await db.queryOne(countSql, params))?.total || 0;
-  return { rows, total };
+  return { rows, ...(await countMembers(from, countExpr, params, includeOverridden)) };
 }
 
 export default router;

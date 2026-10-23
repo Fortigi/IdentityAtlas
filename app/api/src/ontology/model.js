@@ -202,7 +202,18 @@ export function isSubClassOf(model, a, b, seen = new Set()) {
   return !!cls && cls.superClasses.some(s => isSubClassOf(model, s, b, seen));
 }
 
-/** Classes that map to a table (the node and edge tables). */
+/**
+ * Which part of the model a table class belongs to: 'Edge' (a subclass of
+ * ia:Edge), 'Knowledge' (of ia:Knowledge — sources and their claims, kept apart
+ * from the graph) or 'Node' (everything else: the node tables).
+ */
+export function layerOf(model, local) {
+  if (isSubClassOf(model, local, 'Edge')) return 'Edge';
+  if (isSubClassOf(model, local, 'Knowledge')) return 'Knowledge';
+  return 'Node';
+}
+
+/** Classes that map to a table (the node, edge and knowledge tables). */
 export function tableClasses(model) {
   return [...model.classes.values()].filter(c => c.table);
 }

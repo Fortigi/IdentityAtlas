@@ -219,7 +219,8 @@ describe('GET /contexts/:id', () => {
     const res = await request(app).get(`/api/contexts/${ID}`);
     expect(res.status).toBe(200);
     expect(res.body.attributes).toMatchObject({ id: ID, contextCategory: 'OrganizationalUnit' });
-    expect(res.body.members).toEqual([{ id: 'm1', displayName: 'Member' }]);
+    expect(res.body.members).toEqual([{ id: 'm1', displayName: 'Member', overridden: null }]);
+    expect(res.body.attributes.overriddenMemberCount).toBe(0);
     expect(res.body.subContexts).toEqual([{ id: ID2, displayName: 'Sub' }]);
     expect(res.body.roles).toEqual([{ id: ID3, role: 'Accountable', principalId: 'p1', identityId: null, displayName: 'Boss', addedBy: 'algorithm' }]);
     expect(query.mock.calls[2][0]).toContain('FROM "ContextRoles" r');
@@ -291,16 +292,16 @@ describe('GET /contexts/:id/members', () => {
   it('returns paginated members with total', async () => {
     queryOne.mockResolvedValueOnce({ targetType: 'Principal' }); // targetType lookup
     query.mockResolvedValueOnce({ rows: [{ id: 'm1', displayName: 'P' }] }); // data rows
-    queryOne.mockResolvedValueOnce({ total: 1 }); // count
+    queryOne.mockResolvedValueOnce({ current: 1, overridden: 0 }); // count
     const res = await request(app).get(`/api/contexts/${ID}/members?limit=10&offset=0`);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ data: [{ id: 'm1', displayName: 'P' }], total: 1 });
+    expect(res.body).toEqual({ data: [{ id: 'm1', displayName: 'P', overridden: null }], total: 1, overriddenCount: 0 });
   });
 
   it('honours search + include=descendants', async () => {
     queryOne.mockResolvedValueOnce({ targetType: 'Identity' });
     query.mockResolvedValueOnce({ rows: [] });
-    queryOne.mockResolvedValueOnce({ total: 0 });
+    queryOne.mockResolvedValueOnce({ current: 0, overridden: 0 });
     const res = await request(app).get(`/api/contexts/${ID}/members?search=foo&include=descendants`);
     expect(res.status).toBe(200);
     // search param is appended → data query carries the %foo% bind.
@@ -310,7 +311,7 @@ describe('GET /contexts/:id/members', () => {
   it('treats LIKE wildcards in search as literal characters (SEC-2026-09 L-14)', async () => {
     queryOne.mockResolvedValueOnce({ targetType: 'Identity' });
     query.mockResolvedValueOnce({ rows: [] });
-    queryOne.mockResolvedValueOnce({ total: 0 });
+    queryOne.mockResolvedValueOnce({ current: 0, overridden: 0 });
     const res = await request(app).get(`/api/contexts/${ID}/members?search=${encodeURIComponent('j_doe%')}`);
     expect(res.status).toBe(200);
     const [sql, params] = query.mock.calls[0];
@@ -335,7 +336,7 @@ describe('GET /contexts/:id/members', () => {
   ])('joins %s members on the typed id in both the page and the count query', async (targetType, table) => {
     queryOne.mockResolvedValueOnce({ targetType });
     query.mockResolvedValueOnce({ rows: [] });
-    queryOne.mockResolvedValueOnce({ total: 0 });
+    queryOne.mockResolvedValueOnce({ current: 0, overridden: 0 });
     const res = await request(app).get(`/api/contexts/${ID}/members?limit=50&offset=50000`);
     expect(res.status).toBe(200);
     const dataSql = query.mock.calls[0][0];
@@ -357,7 +358,7 @@ describe('GET /contexts/:id/members', () => {
   ])('selects the shown columns for %s members', async (targetType, columns) => {
     queryOne.mockResolvedValueOnce({ targetType });
     query.mockResolvedValueOnce({ rows: [] });
-    queryOne.mockResolvedValueOnce({ total: 0 });
+    queryOne.mockResolvedValueOnce({ current: 0, overridden: 0 });
     await request(app).get(`/api/contexts/${ID}/members?include=descendants`);
     expect(query.mock.calls[0][0]).toContain(`m.id, m."displayName", ${columns},`);
   });
@@ -371,13 +372,13 @@ describe('GET /contexts/:id/members', () => {
       if (sql.includes('AS "holderCount"')) return { rows: [{ id: ID2, holderCount: 7 }] };
       return { rows: [] }; // owner links
     });
-    queryOne.mockResolvedValueOnce({ total: 1 });
+    queryOne.mockResolvedValueOnce({ current: 1, overridden: 0 });
     const res = await request(app).get(`/api/contexts/${ID}/members`);
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual([{
       id: ID2, displayName: 'ENT_A', resourceType: 'Entitlement',
       holderCount: 7, ownerDisplayName: 'Gone Person', ownerEmployeeId: null, ownerEmail: null,
-      ownerPrincipalId: null,
+      ownerPrincipalId: null, overridden: null,
     }]);
     // Page, holders, owner links — no read per row, and no reference read without an ownerId.
     expect(query).toHaveBeenCalledTimes(3);
@@ -386,16 +387,61 @@ describe('GET /contexts/:id/members', () => {
   it('adds nothing to members that are not resources', async () => {
     queryOne.mockResolvedValueOnce({ targetType: 'Principal' });
     query.mockResolvedValueOnce({ rows: [{ id: 'm1', displayName: 'P' }] });
-    queryOne.mockResolvedValueOnce({ total: 1 });
+    queryOne.mockResolvedValueOnce({ current: 1, overridden: 0 });
     const res = await request(app).get(`/api/contexts/${ID}/members`);
-    expect(res.body.data).toEqual([{ id: 'm1', displayName: 'P' }]);
+    expect(res.body.data).toEqual([{ id: 'm1', displayName: 'P', overridden: null }]);
     expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves a member a decision marked former out of the current members, and says how many', async () => {
+    queryOne.mockResolvedValueOnce({ targetType: 'Principal' });
+    query.mockResolvedValueOnce({ rows: [{ id: 'm1', displayName: 'Bea Bakker', overrideClaimId: null }] });
+    queryOne.mockResolvedValueOnce({ current: 11, overridden: 1 });
+    const res = await request(app).get(`/api/contexts/${ID}/members`);
+    expect(res.body).toEqual({ data: [{ id: 'm1', displayName: 'Bea Bakker', overridden: null }], total: 11, overriddenCount: 1 });
+    const [sql] = query.mock.calls[0];
+    expect(sql).toContain('LEFT JOIN "ContextMemberOverrides" o ON o."contextId" = cm."contextId" AND o."memberId" = cm."memberId"');
+    expect(sql).toMatch(/AND o\.id IS NULL\s+ORDER BY/);
+    expect(queryOne.mock.calls[1][0]).toContain('COUNT(*) FILTER (WHERE o.id IS NOT NULL)::int AS overridden');
+  });
+
+  it('?includeOverridden=true lists them too, each with the decision, and counts them in the total', async () => {
+    queryOne.mockResolvedValueOnce({ targetType: 'Principal' });
+    query.mockResolvedValueOnce({ rows: [
+      { id: 'm1', displayName: 'Bea Bakker', overrideClaimId: null },
+      { id: 'm2', displayName: 'Led Ledeboer', overrideClaimId: 'cl-1', overrideSource: 'Klanten (upload)', overrideBy: 'analyst@example.test', overrideAt: '2026-10-23T10:00:00.000Z' },
+    ] });
+    queryOne.mockResolvedValueOnce({ current: 11, overridden: 1 });
+    const res = await request(app).get(`/api/contexts/${ID}/members?includeOverridden=true`);
+    expect(res.body.total).toBe(12);
+    expect(res.body.overriddenCount).toBe(1);
+    expect(res.body.data[1]).toEqual({ id: 'm2', displayName: 'Led Ledeboer',
+      overridden: { by: 'analyst@example.test', at: '2026-10-23T10:00:00.000Z', overrides: 'Klanten (upload)', claimId: 'cl-1' } });
+    expect(query.mock.calls[0][0]).not.toContain('o.id IS NULL');
+  });
+
+  it('on a unit of accounts: what the interviews say about the page, in ONE more statement', async () => {
+    const { MEMBER_CLAIMS_SQL } = await import('../contexts/interviews/store.js');
+    queryOne.mockResolvedValueOnce({ targetType: 'Principal', contextCategory: 'OrganizationalUnit' });
+    query.mockResolvedValueOnce({ rows: [{ id: ID2, displayName: 'Jan Smit' }, { id: ID3, displayName: 'Piet de Vries' }] });
+    queryOne.mockResolvedValueOnce({ current: 2, overridden: 0 });
+    query.mockResolvedValueOnce({ rows: [
+      { id: 'c-1', memberId: ID2, claimKind: 'membership', attribute: 'left', value: 'left the account', status: 'proposed', periodText: 'last month', interviewedAt: '2026-10-01', intervieweeName: 'Piet de Vries', interviewId: 'iv-1' },
+      { id: 'c-2', memberId: ID3, claimKind: 'role', attribute: 'member', value: 'Lead architect', status: 'confirmed', interviewedAt: '2026-10-01', intervieweeName: 'Piet de Vries', interviewId: 'iv-1' },
+    ] });
+    const res = await request(app).get(`/api/contexts/${ID}/members`);
+    expect(query).toHaveBeenCalledTimes(2);
+    // Auth is off in this suite, which counts as a writer: proposed claims too.
+    expect(query.mock.calls[1]).toEqual([MEMBER_CLAIMS_SQL.Principal, [ID, [ID2, ID3], ['role', 'roleHistory', 'membership'], ['proposed', 'confirmed', 'edited']]]);
+    expect(res.body.data.map(m => [m.displayName, m.interview.left?.periodText ?? null, m.interview.role?.value ?? null])).toEqual([
+      ['Jan Smit', 'last month', null], ['Piet de Vries', null, 'Lead architect'],
+    ]);
   });
 
   it('keeps the text comparison for System members (integer ids)', async () => {
     queryOne.mockResolvedValueOnce({ targetType: 'System' });
     query.mockResolvedValueOnce({ rows: [] });
-    queryOne.mockResolvedValueOnce({ total: 0 });
+    queryOne.mockResolvedValueOnce({ current: 0, overridden: 0 });
     await request(app).get(`/api/contexts/${ID}/members`);
     expect(query.mock.calls[0][0]).toContain('JOIN "Systems" m ON m.id::text = cm."memberId"::text');
   });

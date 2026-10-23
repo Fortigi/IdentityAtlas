@@ -3,13 +3,21 @@ import ContextMemberPicker from './contexts/ContextMemberPicker';
 import ContextTemplateIcon from './contexts/ContextTemplateIcon';
 import { memberKindNoun } from '@ui/utils/contextStyles';
 import { visibleMemberColumns, memberRowAction } from './ContextRelationshipsTab.helpers';
+import { InterviewLeftFlag } from './contexts/interviews/MemberInterviewFacts';
+import PreviousMembers from './contexts/interviews/PreviousMembers';
+import { memberRowId, overriddenNameClass } from './contexts/interviews/memberInterview.helpers';
+import { OverriddenFlag, OverriddenNote } from './contexts/interviews/OverriddenMembers';
 
 // ─── Sub-units and members ─────────────────────────────────────────────────
 // Two plain sections: the sub-units (each opening its own page) and the
 // paginated, searchable members. Reading by default; `canEditMembers` (the
 // reader can edit contexts, and the context was created here — the only kind
 // whose member edits last) adds an "Edit members" button, and only in that mode
-// the add box and the per-row Remove appear.
+// the add box and the per-row Remove appear. On a unit or an application (inside
+// a ClaimsProvider) a member an interview says left is flagged on its row, and
+// the people the interviews say left come below, under Previous members. A
+// member a decision marked former is left out of the members (a note says how
+// many, and shows them struck through on request).
 
 export default function ContextRelationshipsTab({ subContexts, sectionIds = {}, ...panelProps }) {
   return (
@@ -18,6 +26,7 @@ export default function ContextRelationshipsTab({ subContexts, sectionIds = {}, 
         <SubUnitsList id={sectionIds.subUnits} subContexts={subContexts} attrs={panelProps.attrs} onOpenDetail={panelProps.onOpenDetail} />
       )}
       <MembersPanel id={sectionIds.members} {...panelProps} />
+      <PreviousMembers contextId={panelProps.contextId} onOpenDetail={panelProps.onOpenDetail} />
     </>
   );
 }
@@ -68,6 +77,7 @@ function MembersPanel({
   includeDescendants, onIncludeDescendantsChange,
   memberSearch, onMemberSearchChange,
   members, memberTotal, membersLoading, membersError,
+  overriddenCount = 0, includeOverridden = false, onIncludeOverriddenChange,
   memberPage, onMemberPageChange, pageSize,
   authFetch, onMembersChanged, onOpenDetail,
 }) {
@@ -120,6 +130,8 @@ function MembersPanel({
         </div>
       </div>
 
+      <OverriddenNote count={overriddenCount} shown={includeOverridden} onToggle={onIncludeOverriddenChange} />
+
       {editMode && <MemberEditBox contextId={contextId} attrs={attrs} members={members} onAdded={onMembersChanged} />}
 
       <MembersBody
@@ -167,10 +179,14 @@ function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDeta
           {members.map(m => (
             <tr
               key={m.id}
+              id={memberRowId(m.id)}
               className={`flex flex-wrap items-baseline gap-x-3 py-1.5 sm:table-row sm:py-0 border-b border-gray-100 dark:border-gray-700${onOpenDetail ? ' hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer' : ''}`}
               onClick={onOpenDetail ? () => onOpenDetail(memberDetailKind(attrs.targetType), m.id, m.displayName) : undefined}
             >
-              <td className={`w-full sm:w-auto sm:py-1.5 ${onOpenDetail ? 'text-blue-700 dark:text-blue-300 hover:underline' : 'text-gray-900 dark:text-gray-100'}`}>{m.displayName}</td>
+              <td className={`w-full sm:w-auto sm:py-1.5 ${onOpenDetail ? 'text-blue-700 dark:text-blue-300 hover:underline' : 'text-gray-900 dark:text-gray-100'}`}>
+                <span className={overriddenNameClass(m.overridden)}>{m.displayName}</span>
+                {m.overridden ? <OverriddenFlag decision={m.overridden} /> : <InterviewLeftFlag left={m.interview?.left} />}
+              </td>
               {columns.map(c => <td key={c.label} className={`sm:py-1.5${c.align === 'right' ? ' sm:text-right' : ''}`}>{c.render(m, { onOpenDetail })}</td>)}
               {editMode && (
                 <td className="sm:py-1.5 sm:text-right">

@@ -5,7 +5,7 @@
     Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
     [Maintaining the Core Ontology](../contributing/maintaining-the-ontology.md).
 
-Ontology `https://identityatlas.io/ontology`, version `2.1.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
+Ontology `https://identityatlas.io/ontology`, version `2.2.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: [core.ttl](https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl).
 
 A column is identified by the property of the same name: `Principals.accountEnabled` is
@@ -452,9 +452,10 @@ Edge: `contextId` → `principalId` or `identityId`.
 | `addedBy` | `ia:addedBy` | text | `sync`, `algorithm`, `analyst` | Who added the member. |
 | `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
 | `createdAt` | `ia:createdAt` | timestamp with time zone |  | When the context row was created. |
-| `identityId` | `ia:identityId` | uuid | → Identities | The person. On ResourceAssignments set instead of principalId for person-level assignments. Ingest alias: `identityExternalId`. |
-| `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor. Ingest alias: `principalExternalId`, `userExternalId`. |
+| `identityId` | `ia:identityId` | uuid | → Identities | The person. On ResourceAssignments set instead of principalId for person-level assignments; on ContextInterviews the interviewee, on ContextClaims the person the claim is about, when that is a person. Ingest alias: `identityExternalId`. |
+| `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor; on ContextInterviews the interviewee, on ContextClaims the account the claim is about. Ingest alias: `principalExternalId`, `userExternalId`. |
 | `role` | `ia:role` | text | `Accountable`, `Responsible` | Accountable or Responsible. |
+| `sourceClaimId` | `ia:sourceClaimId` | uuid | → ContextClaims | The interview claim this role was confirmed from. NULL for every other role, and once the interview is deleted. |
 | `updatedAt` | `ia:updatedAt` | timestamp with time zone |  | When the row was last written by the ingest (full-sync reconcile cutoff). |
 
 ### IdentityMembers
@@ -474,12 +475,12 @@ Edge: `identityId` → `principalId`.
 | `displayName` | `ia:displayName` | text |  | Human-readable name. On IdentityMembers a copy of the account name. |
 | `hrIndicators` | `ia:hrIndicators` | jsonb |  | Signals that made this account look HR-authoritative. |
 | `hrScore` | `ia:hrScore` | integer |  | How strongly this account looks like the HR record. |
-| `identityId` | `ia:identityId` | uuid | → Identities | The person. On ResourceAssignments set instead of principalId for person-level assignments. Ingest alias: `identityExternalId`. |
+| `identityId` | `ia:identityId` | uuid | → Identities | The person. On ResourceAssignments set instead of principalId for person-level assignments; on ContextInterviews the interviewee, on ContextClaims the person the claim is about, when that is a person. Ingest alias: `identityExternalId`. |
 | `isHrAuthoritative` | `ia:isHrAuthoritative` | boolean |  | This account is the HR-authoritative one. |
 | `isPrimary` | `ia:isPrimary` | boolean |  | This is the person's primary account. |
 | `linkConfidence` | `ia:linkConfidence` | integer |  | Account Linking confidence score; NULL for crawler-sourced links. |
 | `linkSignals` | `ia:linkSignals` | jsonb |  | The signals Account Linking matched on. |
-| `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor. Ingest alias: `principalExternalId`, `userExternalId`. |
+| `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor; on ContextInterviews the interviewee, on ContextClaims the account the claim is about. Ingest alias: `principalExternalId`, `userExternalId`. |
 
 ### PrincipalRelationships
 
@@ -502,7 +503,7 @@ Edge: `principalId` → `relatedPrincipalId`.
 | `extendedAttributes` | `ia:extendedAttributes` | jsonb |  | Source-specific attributes that have no column of their own. |
 | `externalId` | `ia:externalId` | text |  | The object's id in its source system. |
 | `modifiedDateTime` | `ia:modifiedDateTime` | timestamp with time zone |  | When the object was last modified in the source (PrincipalRelationships: when the row was last modified). |
-| `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor. Ingest alias: `principalExternalId`, `userExternalId`. |
+| `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor; on ContextInterviews the interviewee, on ContextClaims the account the claim is about. Ingest alias: `principalExternalId`, `userExternalId`. |
 | `relatedPrincipalId` | `ia:relatedPrincipalId` | uuid | → Principals | The owner / sponsor. Ingest alias: `relatedPrincipalExternalId`. |
 | `relationshipType` | `ia:relationshipType` | text | `Owner`, `Sponsor` | The relationship type: one of the ia:typeValue of the properties stored in this edge table. |
 | `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. |
@@ -526,11 +527,11 @@ Edge: `principalId` or `identityId` → `resourceId`.
 | `expirationDateTime` | `ia:expirationDateTime` | timestamp with time zone |  | When the assignment expires. |
 | `extendedAttributes` | `ia:extendedAttributes` | jsonb |  | Source-specific attributes that have no column of their own. |
 | `governed` | `ia:governed` | boolean |  | The row is governance intent (a business-role / access-package assignment) rather than observed access. Part of the key. |
-| `identityId` | `ia:identityId` | uuid | → Identities | The person. On ResourceAssignments set instead of principalId for person-level assignments. Ingest alias: `identityExternalId`. |
+| `identityId` | `ia:identityId` | uuid | → Identities | The person. On ResourceAssignments set instead of principalId for person-level assignments; on ContextInterviews the interviewee, on ContextClaims the person the claim is about, when that is a person. Ingest alias: `identityExternalId`. |
 | `origin` | `ia:origin` | text | `Automatic`, `Requested`, `Discovered` | Where the assignment came from, as the source records it. Optional. |
 | `originDetail` | `ia:originDetail` | text |  | The source's own word for the origin. |
 | `policyId` | `ia:policyId` | uuid |  | The assignment policy (AssignmentPolicies.id) behind a governed assignment. AssignmentPolicies is outside the core model. |
-| `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor. Ingest alias: `principalExternalId`, `userExternalId`. |
+| `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor; on ContextInterviews the interviewee, on ContextClaims the account the claim is about. Ingest alias: `principalExternalId`, `userExternalId`. |
 | `principalType` | `ia:principalType` | text |  | The kind of account. On Principals it selects the subclass; on ResourceAssignments it is a denormalised copy of the holder's type. |
 | `propagationScope` | `ia:propagationScope` | text | `self`, `descendants`, `selfAndDescendants` | Where along a containment hierarchy the assignment applies. |
 | `resourceId` | `ia:resourceId` | uuid | → Resources | The resource that is held. Ingest alias: `resourceExternalId`. |
@@ -570,6 +571,81 @@ Edge: `parentResourceId` → `childResourceId`.
 | `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. |
 | `updatedAt` | `ia:updatedAt` | timestamp with time zone |  | When the row was last written by the ingest (full-sync reconcile cutoff). |
 
+## Knowledge tables
+
+What a source said about the graph, with provenance — not part of the graph, and never a way of holding access.
+
+### ContextClaims
+
+`ia:Claim` · Knowledge table · A statement an interview makes about a subject — the context itself (subjectKind Context) or a person (Person: the account or person it was matched to, and always the name as spoken) — of one claimKind (description, property, role, roleHistory, membership, alias), with its value, the period it is about (from / to, or vague text), the verbatim quote it rests on and a confidence. Proposed until someone decides it (claimStatus confirmed, edited or rejected). A confirmed role claim with a roleSuggestion becomes an ia:ContextRole whose sourceClaimId is the claim; a confirmed description or property claim is written to the context. A claim never creates access.
+
+Identifier: `id` (uuid) — the instance IRI, not a property.
+
+| Column | Property | SQL type | Values / references | Description |
+|---|---|---|---|---|
+| `attribute` | `ia:attribute` | text |  | A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined). |
+| `claimKind` | `ia:claimKind` | text | `description`, `property`, `role`, `roleHistory`, `membership`, `alias` | What the claim states. |
+| `claimStatus` | `ia:claimStatus` | text | `proposed`, `confirmed`, `edited`, `rejected` | Where the claim stands in review. |
+| `confidence` | `ia:confidence` | numeric |  | How clearly the transcript states it, 0 to 1. Not a decision. |
+| `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
+| `createdAt` | `ia:createdAt` | timestamp with time zone |  | When the context row was created. |
+| `decidedAt` | `ia:decidedAt` | timestamp with time zone |  | When it was decided. |
+| `decidedBy` | `ia:decidedBy` | text |  | Who decided it. |
+| `identityId` | `ia:identityId` | uuid | → Identities | The person. On ResourceAssignments set instead of principalId for person-level assignments; on ContextInterviews the interviewee, on ContextClaims the person the claim is about, when that is a person. Ingest alias: `identityExternalId`. |
+| `interviewId` | `ia:interviewId` | uuid | → ContextInterviews | The interview that makes the claim. |
+| `periodFrom` | `ia:periodFrom` | date |  | The start of the period the claim is about, when the interview gives one. |
+| `periodText` | `ia:periodText` | text |  | The period as said (early years, now). |
+| `periodTo` | `ia:periodTo` | date |  | The end of the period the claim is about, when the interview gives one. |
+| `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor; on ContextInterviews the interviewee, on ContextClaims the account the claim is about. Ingest alias: `principalExternalId`, `userExternalId`. |
+| `proposedBy` | `ia:proposedBy` | text | `model`, `analyst` | Who proposed the claim. |
+| `quote` | `ia:quote` | text |  | The words of the transcript the claim rests on, verbatim. |
+| `quoteEnd` | `ia:quoteEnd` | integer |  | Where the quote ends in the stored transcript (exclusive). |
+| `quoteStart` | `ia:quoteStart` | integer |  | Where the quote starts in the stored transcript (a string offset), for the transcript view. NULL when not found. |
+| `relevance` | `ia:relevance` | text | `high`, `low` | How much the claim matters for identity and access governance, by fixed rules and the model's own tier. NULL (before tiers) reads as high. |
+| `roleSuggestion` | `ia:roleSuggestion` | text | `Accountable`, `Responsible` | The ContextRole a confirmed role claim becomes, by fixed rules on its relation. |
+| `subjectKind` | `ia:subjectKind` | text | `Context`, `Person` | Whether the claim is about the context or a person. |
+| `subjectMatch` | `ia:subjectMatch` | text | `interviewee`, `key`, `name`, `fuzzy`, `firstName` | How the person was matched; NULL when they were not. |
+| `subjectName` | `ia:subjectName` | text |  | The person as named in the interview, matched or not. |
+| `value` | `ia:value` | text |  | What the claim says. |
+
+### ContextInterviews
+
+`ia:Interview` · Knowledge table · A conversation with one person (the interviewee: an account or a person) about one context — an organizational unit or a logical application — on one date, kept as its transcript. What it says becomes claims.
+
+Identifier: `id` (uuid) — the instance IRI, not a property.
+
+| Column | Property | SQL type | Values / references | Description |
+|---|---|---|---|---|
+| `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
+| `createdAt` | `ia:createdAt` | timestamp with time zone |  | When the context row was created. |
+| `createdBy` | `ia:createdBy` | text |  | Who uploaded it. |
+| `extractionMessage` | `ia:extractionMessage` | text |  | Why a run failed, or what a finished run left out. |
+| `extractionStartedAt` | `ia:extractionStartedAt` | timestamp with time zone |  | When the last run started. |
+| `extractionStatus` | `ia:extractionStatus` | text | `pending`, `running`, `done`, `failed`, `notConfigured` | How far reading it with the local model got. |
+| `fileName` | `ia:fileName` | text |  | The transcript file as uploaded. |
+| `identityId` | `ia:identityId` | uuid | → Identities | The person. On ResourceAssignments set instead of principalId for person-level assignments; on ContextInterviews the interviewee, on ContextClaims the person the claim is about, when that is a person. Ingest alias: `identityExternalId`. |
+| `interviewedAt` | `ia:interviewedAt` | date |  | When the interview took place. |
+| `intervieweeName` | `ia:intervieweeName` | text |  | The interviewee's name when the transcript was uploaded; the source keeps it after a crawl removes the account. |
+| `language` | `ia:language` | text |  | The language of the transcript (en, nl). |
+| `model` | `ia:model` | text |  | The model that read it. |
+| `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor; on ContextInterviews the interviewee, on ContextClaims the account the claim is about. Ingest alias: `principalExternalId`, `userExternalId`. |
+| `transcript` | `ia:transcript` | text |  | The transcript as plain text, one line per turn; every quote is a verbatim part of it. |
+
+### ContextMemberOverrides
+
+`ia:MemberOverride` · Knowledge table · An analyst's decision that a person the member list (its source) still lists is a former member of the context: a contradiction 'left, but still listed' decided 'the interview is right'. It sits on top of ia:ContextMember and never changes it (the source would add the row back): the members list leaves the person out of the current members, Previous members lists them with the decision. One per context and member, with the claim it rests on, the source it overrides, who and when. Undone, it is deleted. It never removes access.
+
+Identifier: `id` (uuid) — the instance IRI, not a property.
+
+| Column | Property | SQL type | Values / references | Description |
+|---|---|---|---|---|
+| `claimId` | `ia:claimId` | uuid | → ContextClaims | The claim the decision was made on; deleting its interview deletes the override with it. |
+| `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
+| `decidedAt` | `ia:decidedAt` | timestamp with time zone |  | When it was decided. |
+| `decidedBy` | `ia:decidedBy` | text |  | Who decided it. |
+| `memberId` | `ia:memberId` | uuid | → Identities / Resources / Principals / Systems | The member; memberType names its table. Ingest alias: `memberExternalId`. |
+| `overrides` | `ia:overrides` | text |  | The source whose member list the decision overrides, by its name when decided (an upload, a system, the rule that derives it, the member list kept by hand). |
+
 ## Value lists
 
 ### Assignment effect
@@ -603,6 +679,57 @@ Edge: `parentResourceId` → `childResourceId`.
 | `Indirect` | `ia:AssignmentType_Indirect` | Inherited through another resource (an app role held via a group, a nested group). Stored, not inferred. |
 | `Eligible` | `ia:AssignmentType_Eligible` | Granted but not active (PIM-eligible): can be activated. |
 
+### Claim kind
+
+`ia:ClaimKind` — What a claim states. Used by `ContextClaims.claimKind`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `description` | `ia:ClaimKind_description` | What the context is, in words. Confirmed, it is added to the description. |
+| `property` | `ia:ClaimKind_property` | One fact about the context, under an attribute name. Confirmed, it sets that extended attribute. |
+| `role` | `ia:ClaimKind_role` | What a person is to the context (the relation as said: owner, notOwner, dayToDay, delegate, member, other). With a roleSuggestion, confirmed, it becomes a ContextRole. |
+| `roleHistory` | `ia:ClaimKind_roleHistory` | A role a person held at the context over a period. Knowledge only. |
+| `membership` | `ia:ClaimKind_membership` | Whether a person is in the context: the status (current, former, joined, left, rejoined) in attribute, with the period. Knowledge only: confirming it never changes the context's members, which come from their source. |
+| `alias` | `ia:ClaimKind_alias` | Another name the context goes by. Confirmed, it is added to the context's extendedAttributes.aliases. |
+
+### Claim proposer
+
+`ia:ClaimProposer` — Who proposed a claim. Used by `ContextClaims.proposedBy`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `model` | `ia:ClaimProposer_model` | The local model, reading the transcript. |
+| `analyst` | `ia:ClaimProposer_analyst` | An analyst, by hand. |
+
+### Claim relevance
+
+`ia:ClaimRelevance` — How much a claim matters for identity and access governance. Used by `ContextClaims.relevance`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `high` | `ia:ClaimRelevance_high` | Matters for who should have access to what: people, roles, membership, aliases, facts that affect access. |
+| `low` | `ia:ClaimRelevance_low` | True, but changes nothing about access. Folded away in review. |
+
+### Claim status
+
+`ia:ClaimStatus` — Where a claim stands in review. Used by `ContextClaims.claimStatus`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `proposed` | `ia:ClaimStatus_proposed` | Not decided yet. |
+| `confirmed` | `ia:ClaimStatus_confirmed` | Confirmed as said. |
+| `edited` | `ia:ClaimStatus_edited` | Confirmed with a changed value or period. |
+| `rejected` | `ia:ClaimStatus_rejected` | Rejected. |
+
+### Claim subject
+
+`ia:ClaimSubjectKind` — What a claim is about. Used by `ContextClaims.subjectKind`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `Context` | `ia:ClaimSubjectKind_Context` | The context the interview is about. |
+| `Person` | `ia:ClaimSubjectKind_Person` | A person named in the interview. |
+
 ### Context category
 
 `ia:ContextCategory` — The template a context falls under, stored per row (Contexts.contextCategory). Each value denotes the ia:template class of that name. Used by `Contexts.contextCategory`.
@@ -616,7 +743,7 @@ Edge: `parentResourceId` → `childResourceId`.
 
 ### Context role
 
-`ia:ContextRoleType` — What a person is to a context. Only an OrganizationalUnit or a LogicalApplication carries roles. Used by `ContextRoles.role`.
+`ia:ContextRoleType` — What a person is to a context. Only an OrganizationalUnit or a LogicalApplication carries roles. Used by `ContextClaims.roleSuggestion`, `ContextRoles.role`.
 
 | Value | Individual | Meaning |
 |---|---|---|
@@ -644,6 +771,18 @@ Edge: `parentResourceId` → `childResourceId`.
 | `Principal` | `ia:EntityKind_Principal` | Members are principals. |
 | `System` | `ia:EntityKind_System` | Members are systems. Note: memberId is a uuid and Systems.id an integer, so a System member row cannot reference a system by id. |
 
+### Extraction status
+
+`ia:ExtractionStatus` — How far reading an interview with the local model got. Used by `ContextInterviews.extractionStatus`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `pending` | `ia:ExtractionStatus_pending` | Waiting to be read. |
+| `running` | `ia:ExtractionStatus_running` | Being read. |
+| `done` | `ia:ExtractionStatus_done` | Read; its claims wait for review. |
+| `failed` | `ia:ExtractionStatus_failed` | Reading failed; the message says why. It can be retried. |
+| `notConfigured` | `ia:ExtractionStatus_notConfigured` | No local model is configured; claims are added by hand. |
+
 ### Membership source
 
 `ia:MembershipSource` — Who put a member into a context. Used by `ContextMembers.addedBy`, `ContextRelationships.addedBy`, `ContextRoles.addedBy`.
@@ -663,3 +802,15 @@ Edge: `parentResourceId` → `childResourceId`.
 | `self` | `ia:PropagationScope_self` | Only at the assigned resource. |
 | `descendants` | `ia:PropagationScope_descendants` | Only below the assigned resource. |
 | `selfAndDescendants` | `ia:PropagationScope_selfAndDescendants` | At the assigned resource and everything below it (the default). |
+
+### Subject match
+
+`ia:SubjectMatch` — How the person a claim names was matched to an account or a person. Used by `ContextClaims.subjectMatch`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `interviewee` | `ia:SubjectMatch_interviewee` | The interviewee, speaking about themselves. |
+| `key` | `ia:SubjectMatch_key` | By an identifier (e-mail, employee id, external id), or chosen by an analyst. |
+| `name` | `ia:SubjectMatch_name` | By the normalised name, the one candidate with it. |
+| `fuzzy` | `ia:SubjectMatch_fuzzy` | By a near miss of the name. To be checked. |
+| `firstName` | `ia:SubjectMatch_firstName` | By a first name alone, the one person the context knows with it. To be checked. |
