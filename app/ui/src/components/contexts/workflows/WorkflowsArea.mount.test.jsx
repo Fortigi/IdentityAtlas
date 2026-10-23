@@ -86,36 +86,21 @@ describe('WorkflowsArea (Actions)', () => {
     expect(screen.queryByRole('region', { name: 'Actions' })).toBeNull();
   });
 
-  it('an application announces the ownership survey as coming soon, with a button that does nothing', () => {
+  it('offers no announced-but-unbuilt actions', () => {
     mount(APP);
-    const card = screen.getByTestId('action-ownership-survey');
-    expect(card).toHaveTextContent('Start ownership survey');
-    expect(card).toHaveTextContent('Coming soon');
-    expect(card).toHaveTextContent('Ask the accountable owner to confirm they own this — or tell us who does — and check that the right responsible people and delegates are set.');
-    expect(screen.getByRole('button', { name: 'Start survey' })).toBeDisabled();
-  });
-
-  it('a unit announces the manager survey and the member review as coming soon', () => {
+    expect(screen.queryByText('Coming soon')).toBeNull();
     mount(PPL_UNIT);
-    expect(screen.queryByTestId('action-ownership-survey')).toBeNull();
-    expect(screen.getByTestId('action-manager-survey')).toHaveTextContent(
-      'Start manager surveyComing soonAsk the manager to confirm they lead this team — or tell us who does — and name any delegates who may manage it with them.');
-    expect(screen.getByTestId('action-review-members')).toHaveTextContent(
-      'Review team membersComing soonAsk the accountable or responsible person to confirm the members of this team are right, and say who should be added or removed.');
-    expect(screen.getByRole('button', { name: 'Start survey' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Start review' })).toBeDisabled();
+    expect(screen.queryAllByText('Coming soon')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: /Start (survey|review)/ })).toBeNull();
   });
 
   it('keeps the unit report on the read-only page of the unit owner', () => {
     mount(ACC_UNIT, { sharedView: true });
     expect(unitReportCard()).toBeInTheDocument();
-    expect(screen.queryByTestId('action-manager-survey')).toBeNull();
-    expect(screen.queryByTestId('action-review-members')).toBeNull();
   });
 
-  it('leaves the survey out of a read-only shared view, keeping the rest', () => {
+  it('keeps the entitlement report on a read-only shared view of an application', () => {
     mount(APP, { sharedView: true });
-    expect(screen.queryByTestId('action-ownership-survey')).toBeNull();
     expect(reportCard()).toBeInTheDocument();
   });
 });
