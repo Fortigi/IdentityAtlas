@@ -290,10 +290,10 @@ var assemblies = [
   {
     "name": "Default",
     "classes": [
-      { "name": "src/accountlinking/classifier.js", "rp": "src_accountlinking_classifier.js.html", "cl": 58, "ucl": 0, "cal": 58, "tl": 130, "cb": 86, "tb": 90, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "src/accountlinking/classifier.js", "rp": "src_accountlinking_classifier.js.html", "cl": 91, "ucl": 0, "cal": 91, "tl": 263, "cb": 114, "tb": 115, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/accountlinking/defaultRules.js", "rp": "src_accountlinking_defaultRules.js.html", "cl": 1, "ucl": 0, "cal": 1, "tl": 22, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "src/accountlinking/engine.helpers.js", "rp": "src_accountlinking_engine.helpers.js.html", "cl": 34, "ucl": 0, "cal": 34, "tl": 82, "cb": 25, "tb": 25, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "src/accountlinking/engine.js", "rp": "src_accountlinking_engine.js.html", "cl": 96, "ucl": 8, "cal": 104, "tl": 319, "cb": 80, "tb": 89, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "src/accountlinking/engine.helpers.js", "rp": "src_accountlinking_engine.helpers.js.html", "cl": 50, "ucl": 0, "cal": 50, "tl": 157, "cb": 37, "tb": 37, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "src/accountlinking/engine.js", "rp": "src_accountlinking_engine.js.html", "cl": 98, "ucl": 8, "cal": 106, "tl": 325, "cb": 80, "tb": 89, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/accountlinking/orphanQuery.js", "rp": "src_accountlinking_orphanQuery.js.html", "cl": 7, "ucl": 0, "cal": 7, "tl": 54, "cb": 4, "tb": 4, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/app.js", "rp": "src_app.js.html", "cl": 97, "ucl": 7, "cal": 104, "tl": 474, "cb": 30, "tb": 52, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/auth/permissionManifest.js", "rp": "src_auth_permissionManifest.js.html", "cl": 3, "ucl": 0, "cal": 3, "tl": 69, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },

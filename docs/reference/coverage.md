@@ -6,7 +6,7 @@ Test quality across the project's automated suites — line/branch/method covera
 
 | Suite | Line | Branch | Method | Cyclomatic | Cognitive | Mutation | Lines covered |
 |-------|------|--------|--------|------------|-----------|----------|---------------|
-| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 93.6% | 86.1% | 89.7% | 3.4 / 20 | 1.9 / 15 | 86.0% | 13,903 / 14,840 |
+| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 93.7% | 86.2% | 89.7% | 3.4 / 20 | 1.9 / 15 | 86.0% | 13,954 / 14,891 |
 | [UI (React / Vitest)](../coverage/ui/index.html) | 86.8% | 77.4% | 77.1% | 2.8 / 28 | 1.1 / 15 | 69.5% | 8,352 / 9,613 |
 | [PowerShell (Pester)](../coverage/powershell/index.html) | 92.2% | — | 97.3% | 3.8 / 15 | 3.9 / 15 | 100.0% | 8,099 / 8,782 |
 
@@ -19,7 +19,7 @@ Every figure above is scoped to what its tool actually measured. The notes below
 ### API (Node / Vitest — unit + contract)
 
 - **Mutation is scoped.** Mutation testing covers 109 file(s) of 315 — 33% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 18 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
-- **method coverage (89.7%) sits below line coverage (93.6%)** — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.
+- **method coverage (89.7%) sits below line coverage (93.7%)** — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.
 
 ### UI (React / Vitest)
 
@@ -40,4 +40,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-10-23 20:24 UTC from commit `c62d8c22`._
+_Generated 2026-10-23 20:45 UTC from commit `fc085c73`._
