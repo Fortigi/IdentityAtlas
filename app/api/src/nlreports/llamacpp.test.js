@@ -190,4 +190,10 @@ describe('llama.cpp client — the reply cap', () => {
     expect(MAX_REPLY_TOKENS).toBe(450);
     expect(calls.find(c => c.url.endsWith('/v1/chat/completions')).body.max_tokens).toBe(450);
   });
+
+  it('takes the caller budget for a longer structured reply', async () => {
+    const { chat } = await client();
+    await chat({ messages: [{ role: 'user', content: 'q' }], maxTokens: 2000 });
+    expect(calls.find(c => c.url.endsWith('/v1/chat/completions')).body.max_tokens).toBe(2000);
+  });
 });

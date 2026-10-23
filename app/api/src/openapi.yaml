@@ -3025,6 +3025,355 @@ paths:
           description: The caller may not write contexts
         '404':
           description: No such role on this context
+  /contexts/{id}/interviews:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Contexts]
+      summary: Upload an interview transcript about a unit or an application
+      operationId: createContextInterview
+      description: >
+        Stores the transcript (.txt, .docx, .vtt or .srt, read to plain text; at most 5,000,000
+        characters) with who was interviewed (an account or a person, exactly one) and when. When the
+        report generator's model is configured (`NL_REPORTS_LLM_URL`) extraction starts in the
+        background (`extractionStatus` pending, running, then done or failed); without it the interview
+        is stored as `notConfigured` and claims are added by hand. Nothing is written to the context:
+        every claim waits for review. Organizational units and logical applications only.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, interviewedAt]
+              properties:
+                file: { type: string, format: binary }
+                principalId: { type: string, format: uuid, description: The interviewee as an account }
+                identityId: { type: string, format: uuid, description: The interviewee as a person }
+                interviewedAt: { type: string, format: date }
+      responses:
+        '201':
+          description: The stored interview
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ContextInterview'
+                  - type: object
+                    properties:
+                      llmConfigured: { type: boolean, description: Whether extraction was started }
+        '400':
+          description: The file cannot be read, a field is missing, or the context is not a unit or an application
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: No such context, principal or identity
+        '413':
+          description: The file is larger than 25 MB
+    get:
+      tags: [Contexts]
+      summary: The interviews of a context
+      operationId: listContextInterviews
+      description: Newest interview first, without the transcript, each with its claim counts. Needs `data.write.contexts`.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The interviews
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/ContextInterview'
+                        - type: object
+                          properties:
+                            proposed: { type: integer }
+                            confirmed: { type: integer }
+                            rejected: { type: integer }
+        '403':
+          description: The caller may not write contexts
+  /contexts/{id}/interviews/{interviewId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: interviewId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Contexts]
+      summary: One interview, with its transcript
+      operationId: getContextInterview
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The interview
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ContextInterview'
+                  - type: object
+                    properties:
+                      transcript: { type: string }
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: No such interview on this context
+    delete:
+      tags: [Contexts]
+      summary: Delete an interview and its claims
+      operationId: deleteContextInterview
+      description: >
+        Removes the interview and every claim it made. What its confirmed claims already changed (a
+        description, an attribute, a role) stays; a role only loses its link to the claim.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '204':
+          description: Deleted
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: No such interview on this context
+  /contexts/{id}/interviews/{interviewId}/extract:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: interviewId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Contexts]
+      summary: Read the transcript again with the model
+      operationId: extractContextInterview
+      description: >
+        Starts extraction again. The interview's undecided model claims are replaced; decided claims
+        and an analyst's own stay, and are not proposed again.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '202':
+          description: Started
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContextInterview' }
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: No such interview on this context
+        '409':
+          description: A run started less than 15 minutes ago is still going
+        '503':
+          description: No local model is configured
+  /contexts/{id}/interviews/{interviewId}/claims:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: interviewId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Contexts]
+      summary: Add a claim from an interview by hand
+      operationId: addContextClaim
+      description: >
+        The same check a model's claim passes, with the quote optional; when given it must be a
+        verbatim part of the transcript. The person is matched like a model's claim; a role claim's
+        suggestion is deduced from its relation unless `roleSuggestion` is given. The claim is proposed.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, value]
+              properties:
+                kind: { $ref: '#/components/schemas/ContextClaimKind' }
+                value: { type: string, maxLength: 2000 }
+                subject: { type: string, description: The person a role or roleHistory claim is about, as named }
+                attribute: { type: string, maxLength: 80, description: The attribute of a property claim }
+                relation: { $ref: '#/components/schemas/ContextClaimRelation' }
+                periodFrom: { type: string, description: 'YYYY, YYYY-MM or YYYY-MM-DD' }
+                periodTo: { type: string, description: 'YYYY, YYYY-MM or YYYY-MM-DD' }
+                periodText: { type: string }
+                quote: { type: string }
+                roleSuggestion: { $ref: '#/components/schemas/ContextRoleType' }
+      responses:
+        '201':
+          description: The claim
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContextClaim' }
+        '400':
+          description: The claim is incomplete or its quote is not in the transcript
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: No such interview on this context
+  /contexts/{id}/claims:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: status
+        in: query
+        required: false
+        description: Comma-separated statuses (default all). A reader without `data.write.contexts` gets confirmed and edited claims only, whatever is asked.
+        schema: { type: string, example: 'proposed,confirmed' }
+    get:
+      tags: [Contexts]
+      summary: What interviews say about a context
+      operationId: listContextClaims
+      description: >
+        The claims of the context's interviews, newest interview first, each with its source. A
+        business reader (and a context owner) sees decided, confirmed claims only.
+        `accountableDoubt` names the claim in which the current Accountable says they are not the owner.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The claims
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ContextClaim' }
+                  accountableDoubt:
+                    type: object
+                    nullable: true
+                    properties:
+                      claimId: { type: string, format: uuid }
+                      quote: { type: string, nullable: true }
+                      intervieweeName: { type: string }
+                      interviewedAt: { type: string, format: date }
+        '404':
+          description: No such context
+  /contexts/claims/{claimId}:
+    parameters:
+      - name: claimId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Contexts]
+      summary: Confirm, edit or reject a claim
+      operationId: decideContextClaim
+      description: >
+        Only a proposed claim can be decided. Confirming (or editing: confirming with a changed value
+        or period) a description appends it to the context's description under "From interview
+        with NAME, DATE:"; a property sets `extendedAttributes[attribute]`; a role claim with a
+        suggestion becomes the ContextRole (addedBy analyst, with the claim as `sourceClaimId`). An
+        Accountable is set only when the context has none; otherwise 409 with the current holder, and
+        `replace: true` replaces them. Give `principalId` or `identityId` when the claim's person was
+        not matched, or was matched wrongly. A claim never creates access.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [confirmed, edited, rejected] }
+                value: { type: string, maxLength: 2000 }
+                periodFrom: { type: string, nullable: true }
+                periodTo: { type: string, nullable: true }
+                periodText: { type: string, nullable: true }
+                principalId: { type: string, format: uuid }
+                identityId: { type: string, format: uuid }
+                replace: { type: boolean, description: Replace the current Accountable }
+      responses:
+        '200':
+          description: The decided claim and what it changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  claim: { $ref: '#/components/schemas/ContextClaim' }
+                  effect:
+                    type: object
+                    properties:
+                      kind: { type: string, enum: [none, description, property, role] }
+                      attribute: { type: string }
+                      role: { $ref: '#/components/schemas/ContextRoleType' }
+                      roleId: { type: string, format: uuid }
+                      displayName: { type: string }
+        '400':
+          description: Invalid body, no person chosen for a role, or a template without roles
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: No such claim, principal or identity
+        '409':
+          description: The claim was decided already, or another person is Accountable (details.current)
+  /contexts/claims/mentions:
+    get:
+      tags: [Contexts]
+      summary: The contexts whose interviews mention a person
+      operationId: listClaimMentions
+      description: >
+        For an account or a person page ("Mentioned in interviews"). Claims not rejected for a writer;
+        confirmed ones only for a reader without `data.write.contexts`.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: principalId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: identityId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The contexts, most recently interviewed first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        contextId: { type: string, format: uuid }
+                        contextName: { type: string }
+                        contextCategory: { type: string, nullable: true }
+                        claims: { type: integer }
+                        lastInterviewedAt: { type: string, format: date }
+        '400':
+          description: Neither principalId nor identityId (a uuid) was given
   /contexts/{id}/relationships:
     parameters:
       - name: id
@@ -3253,6 +3602,67 @@ components:
         identityId: { type: string, format: uuid, nullable: true }
         displayName: { type: string, nullable: true }
         addedBy: { type: string, enum: [sync, algorithm, analyst] }
+        sourceClaimId: { type: string, format: uuid, nullable: true, description: The interview claim this role was confirmed from }
+        sourceIntervieweeName: { type: string, nullable: true }
+        sourceInterviewedAt: { type: string, format: date, nullable: true }
+        sourceQuote: { type: string, nullable: true }
+    ContextClaimKind:
+      type: string
+      enum: [description, property, role, roleHistory]
+    ContextClaimRelation:
+      type: string
+      description: What a role claim's person is to the context, as the speaker said it.
+      enum: [owner, notOwner, dayToDay, delegate, member, other]
+    ContextInterview:
+      type: object
+      description: An interview about a context, which is a source. The interviewee is an account or a person.
+      properties:
+        id: { type: string, format: uuid }
+        contextId: { type: string, format: uuid }
+        principalId: { type: string, format: uuid, nullable: true }
+        identityId: { type: string, format: uuid, nullable: true }
+        intervieweeName: { type: string }
+        interviewedAt: { type: string, format: date }
+        fileName: { type: string }
+        language: { type: string, nullable: true }
+        extractionStatus: { type: string, enum: [pending, running, done, failed, notConfigured] }
+        extractionMessage: { type: string, nullable: true }
+        extractionStartedAt: { type: string, format: date-time, nullable: true }
+        model: { type: string, nullable: true }
+        createdBy: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    ContextClaim:
+      type: object
+      description: >
+        A statement an interview makes about a context or a person, with the verbatim quote it rests
+        on. Proposed until someone decides it. `attribute` is a property's key, or a role claim's relation.
+      properties:
+        id: { type: string, format: uuid }
+        interviewId: { type: string, format: uuid }
+        contextId: { type: string, format: uuid }
+        claimKind: { $ref: '#/components/schemas/ContextClaimKind' }
+        subjectKind: { type: string, enum: [Context, Person] }
+        principalId: { type: string, format: uuid, nullable: true }
+        identityId: { type: string, format: uuid, nullable: true }
+        subjectName: { type: string, nullable: true, description: The person as named in the interview }
+        subjectDisplayName: { type: string, nullable: true, description: The matched account's or person's name }
+        subjectMatch: { type: string, nullable: true, description: 'How the person was matched: interviewee, key, name, fuzzy or firstName' }
+        attribute: { type: string, nullable: true }
+        value: { type: string }
+        periodFrom: { type: string, format: date, nullable: true }
+        periodTo: { type: string, format: date, nullable: true }
+        periodText: { type: string, nullable: true }
+        quote: { type: string, nullable: true }
+        confidence: { type: number, nullable: true }
+        roleSuggestion: { type: string, nullable: true, enum: [Accountable, Responsible] }
+        status: { type: string, enum: [proposed, confirmed, rejected, edited] }
+        origin: { type: string, enum: [model, analyst] }
+        decidedBy: { type: string, nullable: true }
+        decidedAt: { type: string, format: date-time, nullable: true }
+        appliedRoleId: { type: string, format: uuid, nullable: true }
+        intervieweeName: { type: string }
+        interviewedAt: { type: string, format: date }
+        fileName: { type: string }
     ContextRoleSuggestion:
       type: object
       description: A suggested Accountable and why; the holder is an account or a person, exactly one.

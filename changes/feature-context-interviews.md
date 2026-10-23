@@ -1,0 +1,4 @@
+- Added interview uploads for organisational units and applications: upload a transcript (.txt, .docx, .vtt or .srt), say who was interviewed and when, and Identity Atlas lists what the interview says as claims — each with the verbatim quote it rests on — for review. Nothing is written until someone confirms it.
+- With the local model configured, claims are extracted automatically (in the background, with a status and a retry); without it the transcript is still stored and claims can be added by hand.
+- Confirming a claim adds it to the unit's description, sets one of its attributes, or makes the person its Accountable or Responsible — with the interview recorded as the source. An Accountable that is already set is never replaced without asking.
+- Interviews suggest roles: "I'm the owner, but Piet does the day-to-day" suggests the interviewee as Accountable and Piet as Responsible, in the People block next to the existing suggestion.
