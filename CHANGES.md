@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed development (`:edge`) builds still reporting a 5.x version after 6.0 was released. Dev builds now take their major version from the newest release, so they show 6.x now and will move to 7.x automatically once 7.0 is released.
+
+## Changes in this PR
+
 - Resolved a code-scanning alert on attribute-based matrix roll-ups. No change to which attribute names are accepted.
 
 ## Changes in this PR
