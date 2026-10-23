@@ -1755,6 +1755,36 @@ Describe 'ConvertTo-EntraIdentityRecord' {
         $rec.extendedAttributes['costCenter'] | Should -Be 'CC1'
         $rec.extendedAttributes.ContainsKey('empty') | Should -BeFalse
     }
+
+    It 'maps the manager relationship to managerIdentityId (issue #1216)' {
+        $u = [pscustomobject]@{
+            id          = 'aaaaaaaa-0000-0000-0000-000000000001'
+            displayName = 'Bob Chen'
+            mail        = 'bob@x'
+            manager     = [pscustomobject]@{ id = 'aaaaaaaa-0000-0000-0000-000000000099' }
+        }
+        $rec = ConvertTo-EntraIdentityRecord -User $u
+        $rec['managerIdentityId'] | Should -Be 'aaaaaaaa-0000-0000-0000-000000000099'
+    }
+
+    It 'omits managerIdentityId when the user has no manager' {
+        $u = [pscustomobject]@{
+            id          = 'aaaaaaaa-0000-0000-0000-000000000002'
+            displayName = 'Anna Bakker'
+            mail        = 'anna@x'
+        }
+        (ConvertTo-EntraIdentityRecord -User $u).ContainsKey('managerIdentityId') | Should -BeFalse
+    }
+
+    It 'omits managerIdentityId when the manager expand came back without an id' {
+        $u = [pscustomobject]@{
+            id          = 'aaaaaaaa-0000-0000-0000-000000000003'
+            displayName = 'Cara Diaz'
+            mail        = 'cara@x'
+            manager     = [pscustomobject]@{ displayName = 'Deleted Manager' }
+        }
+        (ConvertTo-EntraIdentityRecord -User $u).ContainsKey('managerIdentityId') | Should -BeFalse
+    }
 }
 
 # ─── Get-EntraUserData ──────────────────────────────────────────────────────────
