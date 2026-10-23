@@ -1,6 +1,6 @@
 // "They left" read against the whole sentence: corrected to current, kept, or flagged unsure.
 import { describe, it, expect } from 'vitest';
-import { sentenceAt, sentenceOf, checkLeftClaim, checkAgainstSentences, MAX_WIDE_QUOTE, UNSURE_CONFIDENCE } from './sentences.js';
+import { sentenceAt, sentenceOf, clauseFor, checkLeftClaim, checkAgainstSentences, MAX_WIDE_QUOTE, UNSURE_CONFIDENCE } from './sentences.js';
 import { leftSignal, CORRECTED_CURRENT } from './leftSignal.js';
 
 const NL = [
@@ -88,5 +88,31 @@ describe('checkLeftClaim', () => {
   it('checkAgainstSentences checks every claim', () => {
     const out = checkAgainstSentences([membership({ quote: 'Gerrit is sinds' }), { claimKind: 'description', value: 'x', quote: 'Wie werken er' }], NL);
     expect(out.map(c => c.attribute ?? null)).toEqual(['current', null]);
+  });
+});
+
+// Two people in one sentence, split by ";": the leaving belongs to the second.
+describe('clauseFor — one clause per person', () => {
+  const TWO = 'Interviewer: Wie werkt eraan?\nAnna Voorbeeld: Gerrit is sinds iets meer dan een jaar betrokken en doet data mining; Stijn deed dat ook, maar is recent uitgestroomd.\n';
+  const quote = 'Gerrit is sinds iets meer dan een jaar betrokken en doet data mining; Stijn deed dat ook, maar is recent uitgestroomd.';
+
+  it('reads only the clause naming the person', () => {
+    const s = 'Gerrit is sinds een jaar betrokken; Stijn deed dat ook, maar is uitgestroomd.';
+    expect(clauseFor(s, 'Gerrit')).toBe('Gerrit is sinds een jaar betrokken');
+    expect(clauseFor(s, 'Stijn de Boer')).toBe('Stijn deed dat ook, maar is uitgestroomd.');
+    // No clause names them, or no ";": the whole sentence.
+    expect(clauseFor(s, 'interviewee')).toBe(s);
+    expect(clauseFor('Stijn en Noor hebben meegewerkt, maar zijn uitgestroomd.', 'Noor')).toBe('Stijn en Noor hebben meegewerkt, maar zijn uitgestroomd.');
+    // Whole words: "Bas" is not in "Basten".
+    expect(clauseFor('Van Basten doet het; Kees is weg.', 'Bas')).toBe('Van Basten doet het; Kees is weg.');
+  });
+
+  it('corrects the person who stays and keeps the one who left', () => {
+    const gerrit = checkLeftClaim(membership({ subjectName: 'Gerrit', quote }), TWO);
+    expect(gerrit.attribute).toBe('current');
+    expect(gerrit.value).toContain(CORRECTED_CURRENT);
+    const stijn = checkLeftClaim(membership({ subjectName: 'Stijn', quote }), TWO);
+    expect(stijn.attribute).toBe('former');
+    expect(stijn.value).toBe('betrokken');
   });
 });

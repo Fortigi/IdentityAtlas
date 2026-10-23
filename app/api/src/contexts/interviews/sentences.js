@@ -66,6 +66,27 @@ export function sentenceOf(transcript, quote) {
   return span ? sentenceAt(transcript, span) : null;
 }
 
+/**
+ * The part of a sentence that is about `subjectName`. A sentence can carry two
+ * people in clauses split by ";": "Gerrit is sinds een jaar betrokken; Stijn deed
+ * dat ook, maar is uitgestroomd" — the "uitgestroomd" is Stijn's, not Gerrit's. So
+ * the check reads the clause(s) that name the person (by any word of their name),
+ * and the whole sentence when no clause does (the model may have used "I" or a
+ * nickname). Names joined by "en"/"and" in one clause share it. Pure.
+ */
+export function clauseFor(sentence, subjectName) {
+  const clauses = String(sentence).split(/\s*;\s*/);
+  if (clauses.length < 2) return sentence;
+  const words = String(subjectName ?? '').toLowerCase().split(/\s+/).filter(w => w.length > 1);
+  if (!words.length) return sentence;
+  const named = (clause) => {
+    const inClause = new Set(clause.toLowerCase().match(/[\p{L}\p{N}]+/gu) || []);
+    return words.some(w => inClause.has(w));
+  };
+  const about = clauses.filter(named);
+  return about.length ? about.join('; ') : sentence;
+}
+
 /** Does the claim say the person is gone (and so need the check)? */
 const saysGone = (c) => (c.claimKind === 'membership' ? GONE_STATUSES.includes(c.attribute) : leftSignal(c));
 
@@ -77,8 +98,9 @@ export function checkLeftClaim(claim, transcript) {
   if (!sentence) return claim;
   const wide = foldForQuote(sentence.text);
   const quote = wide.length <= MAX_WIDE_QUOTE && wide.length > claim.quote.length ? wide : claim.quote;
-  if (saysLeft(sentence.text) || PAST_RE.test(sentence.text)) return { ...claim, quote };
-  if (CURRENT_RE.test(sentence.text)) {
+  const about = clauseFor(sentence.text, claim.subjectName);
+  if (saysLeft(about) || PAST_RE.test(about)) return { ...claim, quote };
+  if (CURRENT_RE.test(about)) {
     if (claim.claimKind === 'membership') {
       return { ...claim, quote, attribute: 'current', value: noted(claim.value, `${CORRECTED_CURRENT}; the model said ${claim.attribute}`) };
     }
