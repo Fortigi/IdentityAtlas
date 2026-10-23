@@ -55,6 +55,11 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
+  # Quote repository files verbatim (docs/concepts/ontology.md shows ontology/*.ttl),
+  # so an excerpt cannot drift from its source. A missing file fails the build.
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.emoji:
@@ -96,6 +101,7 @@ nav:
   - Learn:
       - The model:
           - Data Model: concepts/data-model.md
+          - The Ontology, Visually: concepts/ontology.md
           - Governance & Business Roles: concepts/governance-model.md
           - One Person, Many Accounts: architecture/account-linking.md
       - Risk scoring:
@@ -113,6 +119,7 @@ nav:
           - Scope Statistics: architecture/matrix-scope-statistics.md
           - Sharing a Matrix: ui/sharing-a-matrix.md
       - Entitlement Pivot and Saved Views: ui/entitlement-pivot.md
+      - Unit Report: ui/unit-report.md
       - Access Review Adoption: ui/access-review-adoption.md
       - Custom Reports: ui/custom-reports.md
       - Contexts: ui/contexts.md
@@ -146,6 +153,7 @@ nav:
           - Custom Connector (Push API): sync/custom-connector.md
       - Administer:
           - Authentication & SSO: admin/authentication.md
+          - Context-Owner Access: architecture/context-owner-access.md
           - Data & Maintenance: admin/data-tab.md
           - Automatic Updates: admin/auto-updates.md
           - Nightly Review: operations/nightly-review.md
@@ -168,10 +176,15 @@ nav:
       - Ask Assistant — how it thinks and is tested: reference/ask-assistant.md
       - Permissions & Roles: reference/permissions.md
       - Database Views: reference/sql-views.md
+      - Core Model Reference: reference/core-model.md
       - CSV Schema Reference: architecture/csv-import-schema.md
       - Software Bill of Materials: reference/sbom.md
       - Test Coverage: reference/coverage.md
       - Under the hood:
+          - Core Ontology: architecture/core-ontology.md
+          - Context Templates (phase B): architecture/context-templates-phase-b.md
+          - Template UI: architecture/template-ui.md
+          - Ownership and Manager Surveys (spec): architecture/ownership-survey.md
           - Crawler Architecture: architecture/crawler-architecture.md
           - SQL Connector Delta Loading: architecture/sql-connector-delta.md
           - Reports: architecture/reports.md
@@ -196,6 +209,7 @@ nav:
           - Local Development: ui/local-dev.md
           - Building a Crawler: sync/building-a-crawler.md
           - Writing Tests That Assert: contributing/writing-tests-that-assert.md
+          - Maintaining the Core Ontology: contributing/maintaining-the-ontology.md
           - UI Style Guide: contributing/style-guide.md
           - CI Pipeline: contributing/ci-pipeline.md
           - CI Scope Testing: architecture/ci-scope-testing.md

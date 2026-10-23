@@ -51,7 +51,6 @@ const UNDOCUMENTED_FILES = new Set([
   'bulkLists.js',
   'categories.js',
   'contextPlugins.js',
-  'contexts.js',
   'crawlerFiles.js',
   'dataExport.js',
   'details.js',
@@ -108,6 +107,9 @@ const INTENTIONALLY_UNDOCUMENTED = {
   // internal ingest / seed helpers (ingest.js)
   'POST /ingest/classify-business-role-assignments': 'internal-ingest',
   'POST /ingest/context-members': 'internal-ingest',
+  // Context roles + SameUnitAs links from a crawler (ingest/contextLinks.js).
+  'POST /ingest/context-relationships': 'internal-ingest',
+  'POST /ingest/context-roles': 'internal-ingest',
   'POST /ingest/matrix-default-filter': 'internal-ingest',
   'POST /ingest/principal-activity': 'internal-ingest',
   'POST /ingest/principals-presence': 'internal-ingest',

@@ -325,11 +325,17 @@ SELECT
     -- number here while accounts are keyed on the identity id; the crawler
     -- translates one to the other against the accounts it has read, and leaves
     -- anything it cannot match exactly as it found it (and counts it).
-    e.k.value('(value/Map/entry[@key="owner"]/@value)[1]', 'nvarchar(255)') AS ownerUserId,
+    -- The "owner" key first; where it is missing or blank, the application
+    -- owner key, which some deployments fill instead. Identity Atlas states the
+    -- result as the application's Accountable.
+    COALESCE(
+        NULLIF(LTRIM(RTRIM(e.k.value('(value/Map/entry[@key="owner"]/@value)[1]', 'nvarchar(255)'))), ''),
+        NULLIF(LTRIM(RTRIM(e.k.value('(value/Map/entry[@key="applicationOwner" or @key="applicationowner"]/@value)[1]', 'nvarchar(255)'))), '')
+    ) AS ownerUserId,
     -- Both spellings, because XQuery is case-sensitive and deployments differ:
     -- matching only "applicationOwner" returns NULL, silently, wherever the key
-    -- is written "applicationowner". Kept as an extended attribute -- the
-    -- "owner" key above is the one that becomes the context's owner.
+    -- is written "applicationowner". Also kept as an extended attribute, as
+    -- the catalogue spells it.
     e.k.value('(value/Map/entry[@key="applicationOwner" or @key="applicationowner"]/@value)[1]', 'nvarchar(255)') AS applicationOwner,
     e.k.value('(value/Map/entry[@key="abbreviation"]/@value)[1]', 'nvarchar(255)') AS abbreviation,
     e.k.value('(value/Map/entry[@key="cmdbReference"]/@value)[1]', 'nvarchar(255)') AS cmdbReference,

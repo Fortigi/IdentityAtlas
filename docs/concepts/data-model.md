@@ -25,7 +25,7 @@ Any authorization source maps to the same tables. Entra ID groups, SAP roles, Om
 All core tables are tracked by a shared `_history` audit table populated by PostgreSQL triggers. Every insert, update, and delete is recorded as a JSONB snapshot, giving you a complete change history for any entity. The trigger skips unchanged rows during re-syncs to avoid bloating the audit log.
 
 **Core + JSON**
-Frequently queried attributes (`displayName`, `resourceType`, `department`) are real SQL columns with indexes. System-specific fields that vary by source live in an `extendedAttributes` TEXT (JSON) column. This gives you index performance on hot paths without a rigid, source-specific schema.
+Frequently queried attributes (`displayName`, `resourceType`, `department`) are real SQL columns with indexes. System-specific fields that vary by source live in an `extendedAttributes` JSONB column. This gives you index performance on hot paths without a rigid, source-specific schema.
 
 **Unified business roles**
 Business roles are not stored in a separate table. They are `Resources` with `resourceType = 'BusinessRole'`. Their assignments are `ResourceAssignments` flagged `governed = true` (with a `Direct` `assignmentType`). Their resource grants are `ResourceRelationships` with `relationshipType = 'Contains'`. The result is a single set of views, risk scores, and queries that apply to all resource types equally.
@@ -63,122 +63,150 @@ Systems (technical sync root — each Principal, Resource, and synced Context be
 
 ## Entity Relationship Diagram
 
+The diagram below is **generated from the [core ontology](../reference/core-model.md)** — the formal, version-controlled description of these tables. It shows each core table's identifier, foreign keys and type columns; every column is listed in the [Core Model Reference](../reference/core-model.md).
+
+<!-- BEGIN GENERATED: ontology core-erd -->
 ```mermaid
 erDiagram
-    Identities {
-        guid id PK
+    ContextMembers {
+        string addedBy "sync, algorithm, analyst"
+        uuid contextId FK
+        uuid memberId FK
+        string memberType "Identity, Resource, Principal, System"
+    }
+    ContextRelationships {
+        uuid id PK
+        string addedBy "sync, algorithm, analyst"
+        uuid contextId FK
+        uuid relatedContextId FK
+        string relationshipType "SameUnitAs"
+    }
+    ContextRoles {
+        uuid id PK
+        string addedBy "sync, algorithm, analyst"
+        uuid contextId FK
+        uuid identityId FK
+        uuid principalId FK
+        string role "Accountable, Responsible"
+    }
+    Contexts {
+        uuid id PK
+        string contextCategory "OrganizationalUnit, LogicalApplication, Tag, Segment"
+        string contextType "open vocabulary"
         string displayName
-        string email
-        string employeeId
-        string department
-        string jobTitle
-        guid primaryPrincipalId FK
-        guid managerIdentityId FK
-        bool isHrAnchored
-        int linkConfidence
-        json linkSignals
-        timestamp linkedAt
+        uuid parentContextId FK
+        int scopeSystemId FK
+        string targetType "Identity, Resource, Principal, System"
+        string variant "synced, generated, manual"
+    }
+    Identities {
+        uuid id PK
+        string displayName
+        uuid managerIdentityId FK
+        uuid primaryPrincipalId FK
     }
     IdentityMembers {
-        guid identityId FK
-        guid principalId FK
-        int linkConfidence
-        json linkSignals
-        timestamp linkedAt
-        string accountType
-        string analystOverride
+        string displayName
+        uuid identityId FK
+        uuid principalId FK
+    }
+    PrincipalRelationships {
+        uuid principalId FK
+        uuid relatedPrincipalId FK
+        string relationshipType "Owner, Sponsor"
+        int systemId FK
+    }
+    Principals {
+        uuid id PK
+        string displayName
+        uuid managerId FK
+        string principalType "User, ServicePrincipal, ManagedIdentity, WorkloadIdentity, AIAgent, ExternalUser, SharedMailbox"
+        int systemId FK
+    }
+    ResourceAssignments {
+        string assignmentType "Direct, Indirect, Eligible"
+        string effect "allow, deny, eligible, notset"
+        uuid identityId FK
+        string origin "Automatic, Requested, Discovered"
+        uuid principalId FK
+        string propagationScope "self, descendants, selfAndDescendants"
+        uuid resourceId FK
+        int systemId FK
+    }
+    ResourceRelationships {
+        uuid childResourceId FK
+        uuid parentResourceId FK
+        string relationshipType "Contains, GrantsAccessTo, HasAppRole, DelegatesScope, HasApplicationPermission, HasOwnership, HasAppOwnership"
+        int systemId FK
+    }
+    Resources {
+        uuid id PK
+        string displayName
+        string resourceType "open vocabulary"
+        int systemId FK
     }
     Systems {
         int id PK
+        int directorySystemId FK
         string displayName
-        string systemType
-        bool enabled
     }
-    Resources {
-        guid id PK
-        int systemId FK
-        string displayName
-        string resourceType
-        string extendedAttributes
-        guid catalogId
-        decimal riskScore
-    }
-    Principals {
-        guid id PK
-        int systemId FK
-        string displayName
-        string principalType
-        string extendedAttributes
-        decimal riskScore
-    }
-    Contexts {
-        guid id PK
-        string variant
-        string targetType
-        string contextType
-        string displayName
-        guid parentContextId FK
-        int scopeSystemId FK
-        guid sourceAlgorithmId FK
-    }
-    ContextMembers {
-        guid contextId FK
-        string memberType
-        guid memberId
-        string addedBy
-    }
-    ResourceAssignments {
-        guid resourceId FK
-        guid principalId "nullable FK — XOR with identityId"
-        guid identityId "nullable FK — XOR with principalId"
-        string assignmentType
-        int systemId FK
-        string principalType
-        string origin
-        string originDetail
-        string complianceState
-        string policyId
-        string state
-        string extendedAttributes
-    }
-    ResourceRelationships {
-        guid parentResourceId FK
-        guid childResourceId FK
-        string relationshipType
-        string roleName
-    }
+
+    Contexts |o--o{ ContextMembers : "contextId"
+    Identities |o--o{ ContextMembers : "memberId"
+    Resources |o--o{ ContextMembers : "memberId"
+    Principals |o--o{ ContextMembers : "memberId"
+    Systems |o--o{ ContextMembers : "memberId"
+    Contexts |o--o{ ContextRelationships : "contextId"
+    Contexts |o--o{ ContextRelationships : "relatedContextId"
+    Contexts |o--o{ ContextRoles : "contextId"
+    Identities |o--o{ ContextRoles : "identityId"
+    Principals |o--o{ ContextRoles : "principalId"
+    Contexts |o--o{ Contexts : "parentContextId"
+    Systems |o--o{ Contexts : "scopeSystemId"
+    Identities |o--o{ Identities : "managerIdentityId"
+    Principals |o--o{ Identities : "primaryPrincipalId"
+    Identities |o--o{ IdentityMembers : "identityId"
+    Principals |o--o{ IdentityMembers : "principalId"
+    Principals |o--o{ PrincipalRelationships : "principalId"
+    Principals |o--o{ PrincipalRelationships : "relatedPrincipalId"
+    Systems |o--o{ PrincipalRelationships : "systemId"
+    Principals |o--o{ Principals : "managerId"
+    Systems |o--o{ Principals : "systemId"
+    Identities |o--o{ ResourceAssignments : "identityId"
+    Principals |o--o{ ResourceAssignments : "principalId"
+    Resources |o--o{ ResourceAssignments : "resourceId"
+    Systems |o--o{ ResourceAssignments : "systemId"
+    Resources |o--o{ ResourceRelationships : "childResourceId"
+    Resources |o--o{ ResourceRelationships : "parentResourceId"
+    Systems |o--o{ ResourceRelationships : "systemId"
+    Systems |o--o{ Resources : "systemId"
+    Systems |o--o{ Systems : "directorySystemId"
+```
+<!-- END GENERATED: ontology core-erd -->
+
+Two satellite tables hang off the core model. They are not part of the ontology yet (see [Core Ontology](../architecture/core-ontology.md#scope)):
+
+<!-- ontology: validated -->
+```mermaid
+erDiagram
     PrincipalActivity {
         guid principalId FK
         guid resourceId FK
-        int systemId FK
         string activityType
-        datetime lastActivityDateTime
-        int activityCount
+        datetime lastSignInDateTime
+        int signInCount
     }
     RiskScores {
         guid entityId
         string entityType
-        decimal riskScore
+        int riskScore
         string riskTier
-        string classifierMatches
+        string riskClassifierMatches
     }
-
-    Identities ||--o{ IdentityMembers : "aggregates"
-    Principals ||--o{ IdentityMembers : "linked via"
-    Contexts ||--o{ ContextMembers : "has members"
-    ContextMembers }o--|| Identities : "memberType=Identity"
-    ContextMembers }o--|| Principals : "memberType=Principal"
-    ContextMembers }o--|| Resources : "memberType=Resource"
-    Systems ||--o{ Resources : "hosts"
-    Systems ||--o{ Principals : "hosts"
-    Systems ||--o{ Contexts : "scopes (synced)"
-    Resources ||--o{ ResourceAssignments : "granted via"
-    Principals |o--o{ ResourceAssignments : "receives (account-level)"
-    Identities |o--o{ ResourceAssignments : "receives (person-level)"
-    Resources ||--o{ ResourceRelationships : "parent in"
-    Resources ||--o{ ResourceRelationships : "child in"
     Principals ||--o{ PrincipalActivity : "has activity"
-    Resources ||--o{ PrincipalActivity : "accessed in"
+    Resources |o--o{ PrincipalActivity : "accessed in"
+    Principals ||--o| RiskScores : "entityType=Principal"
+    Resources ||--o| RiskScores : "entityType=Resource"
 ```
 
 ---
@@ -229,9 +257,9 @@ Organizational and structural groupings — synced from a source system, generat
 | Source System | contextType | Linked To | Example |
 |---|---|---|---|
 | HR system (CSV) | `OrgUnit` | Identities | Finance > Accounts Payable > Invoice Processing |
-| Active Directory | `OrgUnit` | Principals | corp.local > Users > Amsterdam > Admins |
+| Active Directory | `OrganisationalUnit` | Principals | corp.local > Users > Amsterdam > Admins (generated from the accounts' DNs by the `ad-ou-from-dn` plugin) |
 | Entra ID | `AdministrativeUnit` | Principals | AU-Netherlands, AU-Germany |
-| Entra ID | `Department` | Identities | Calculated from user.department field |
+| Entra ID | `Department` | Principals | Generated from `Principals.department` by the `department-from-principal` plugin |
 | Resource mgmt | `Classification` | Resources | Confidential > Finance Data > Payment Systems |
 | Custom | Any string | Any | Fully extensible |
 
@@ -292,24 +320,24 @@ Key columns: `displayName`, `resourceType`, `systemId`, `extendedAttributes` (JS
 
 ### ResourceAssignments
 
-Captures who has access to what, and how. The `assignmentType` column distinguishes direct membership from PIM-eligible access from governed (IGA-driven) access.
+Captures who has access to what, and how. The `assignmentType` column distinguishes direct, indirect and PIM-eligible access; the separate `governed` flag marks governance-driven (IGA) assignments.
 
 Every row targets either a specific account (`principalId`) or a person (`identityId`) — exactly one must be set (XOR CHECK constraint). Use the principal endpoint for account-level assignments (e.g. "this AD account is in this group") and the identity endpoint for person-level assignments (e.g. "this person has been given this access" from an IGA system).
 
 | Property | Value |
 |---|---|
-| Uniqueness | Two partial unique indexes: `(resourceId, principalId, assignmentType)` WHERE `principalId IS NOT NULL`; `(resourceId, identityId, assignmentType)` WHERE `identityId IS NOT NULL` |
+| Uniqueness | Two partial unique indexes: `(resourceId, principalId, assignmentType, governed)` WHERE `principalId IS NOT NULL`; `(resourceId, identityId, assignmentType, governed)` WHERE `identityId IS NOT NULL` |
 | Audit history | Yes (via `_history` trigger) |
 | Created by | Migration `001_core_schema.sql` |
-| Modified by | Migration `036_resource_assignments_identity_support.sql`, `082_assignment_origin.sql` |
+| Modified by | Migration `036_resource_assignments_identity_support.sql`, `047_governed_assignment_flag.sql`, `082_assignment_origin.sql` |
 
-Key columns: `assignmentType`, `principalId` (nullable), `identityId` (nullable), `systemId`, `principalType`, `origin`, `originDetail`, `complianceState`, `policyId`, `state`, `assignmentStatus`, `expirationDateTime`, `extendedAttributes` (JSONB).
+Key columns: `assignmentType`, `governed`, `principalId` (nullable), `identityId` (nullable), `systemId`, `principalType`, `origin`, `originDetail`, `complianceState`, `policyId`, `state`, `assignmentStatus`, `expirationDateTime`, `extendedAttributes` (JSONB).
 
 ---
 
 ### ResourceRelationships
 
-Resource-to-resource links. Used for two purposes: `Contains` links a business role to the resources it grants; `GrantsAccessTo` expresses that holding one resource implies access to another.
+Resource-to-resource links. `Contains` links a business role to the resources it grants (and a scope to the scopes inside it); `GrantsAccessTo` expresses that holding one resource implies access to another. The remaining types (`HasAppRole`, `DelegatesScope`, `HasApplicationPermission`, `HasOwnership`, `HasAppOwnership`) link an application or owned resource to its synthetic child resources.
 
 | Property | Value |
 |---|---|
@@ -334,7 +362,7 @@ All identity types from any system. The `principalType` column distinguishes hum
 Key columns: `displayName`, `principalType`, `systemId`, `managerId`, `extendedAttributes` (JSON), `riskScore`. Source-system org placement (e.g. AD OU) is via `ContextMembers` (`memberType='Principal'`), not a column.
 
 !!! warning "`managerId` and `managerIdentityId` point at different tables"
-    `managerId` always names a **Principal** — the manager's *account*. It is self-referential on `Principals`, and on `Contexts` it is the org unit's manager account. `managerIdentityId` always names an **Identity** — the manager as a *person* — and appears on `Identities` and `Contexts`. `Identities` has no `managerId` at all.
+    `managerId` always names a **Principal** — the manager's *account*; it is self-referential on `Principals`. `managerIdentityId` always names an **Identity** — the manager as a *person* — and appears on `Identities`. `Identities` has no `managerId` at all, and `Contexts` has neither column (the ingest still accepts manager fields on a context, but they never resolve — see [Core Ontology, finding 2](../architecture/core-ontology.md#inconsistencies-found)).
 
     Crawlers do not fill either directly: they cannot know an internal id. They send `managerExternalId` (resolved against the system's principals) or `managerIdentityExternalId` (resolved against its identities), and the ingest derives the id the manager's own row is keyed by — see `app/api/src/ingest/normalization.js`. A reference that resolves to nobody is cleared and counted at the end of the load (`app/api/src/ingest/managerLinks.js`) rather than stored, because `managerId IS NOT NULL` is what "has a manager" means everywhere else.
 
@@ -346,11 +374,11 @@ High-frequency activity signals: sign-ins, per-app usage, AI agent invocations. 
 
 | Property | Value |
 |---|---|
-| Primary Key | Composite: `principalId` + `resourceId` + `systemId` + `activityType` |
+| Primary Key | Composite: `principalId` + `resourceId` + `activityType` |
 | Audit history | No (upsert-based) |
-| Created by | Migration `001_core_schema.sql` |
+| Created by | Migration `017_principal_activity.sql` |
 
-Key columns: `activityType`, `lastActivityDateTime`, `activityCount`.
+Key columns: `activityType`, `lastSignInDateTime`, `lastNonInteractiveSignInDateTime`, `lastSuccessfulSignInDateTime`, `lastFailedSignInDateTime`, `signInCount`.
 
 ---
 
@@ -379,10 +407,10 @@ The `principalType` column on the Principals table uses these standard values ac
 | `User` | Interactive human user accounts | Entra ID crawler, CSV crawler |
 | `ServicePrincipal` | App registration service principals | Entra ID crawler |
 | `ManagedIdentity` | Azure resource-attached identities (system or user-assigned) | Entra ID crawler |
-| `WorkloadIdentity` | Federated credential identities (GitHub Actions, AKS workloads) | Entra ID crawler, CSV crawler |
+| `WorkloadIdentity` | Federated credential identities (GitHub Actions, AKS workloads) | CSV, SQL, SCIM and midPoint mappings only — the Entra ID crawler does not classify accounts this way |
 | `AIAgent` | AI agents: Copilot Studio, Azure OpenAI, custom bots | Entra ID crawler (tag/name auto-detection), CSV crawler |
-| `ExternalUser` | Guest / B2B accounts from another tenant | CSV crawler |
-| `SharedMailbox` | Shared mailboxes and room/equipment accounts | CSV crawler |
+| `ExternalUser` | Guest / B2B accounts from another tenant | Omada crawler, CSV crawler |
+| `SharedMailbox` | Shared mailboxes and room/equipment accounts | CSV, SQL, SCIM and midPoint mappings only — no built-in crawler classifies accounts this way |
 
 !!! note "Risk scoring behavior by principalType"
     `User` principals receive the full set of stale sign-in, never-signed-in, and guest-account checks. Non-human types (`ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`) receive structural signals only — no stale sign-in checks. All types participate in direct classifier matching, membership analysis, and risk propagation.
@@ -396,6 +424,9 @@ The `resourceType` column on the Resources table is a free-form string. The valu
 | Value | Crawler | What it represents |
 |---|---|---|
 | `Group` | Entra ID | Security group or Microsoft 365 group |
+| `EntraDirectoryRole` | Entra ID | One resource per Entra directory role (`id` = roleDefinitionId); held `Direct` (active) or `Eligible` (PIM). |
+| `GroupOwnership` | Entra ID | Owners of a group — one resource per owned group, linked to it via `relationshipType='HasOwnership'`; each owner is a `Direct` assignment. |
+| `ResourceOwnership` | SQL connector | Owners of a resource loaded by the SQL connector, linked via `HasOwnership`; the owned resource's type is in `extendedAttributes.ownedResourceType`. |
 | `Application` | Entra ID | Enterprise application / service principal. Parent of `AppRole` and `DelegatedPermission` — does not grant access on its own. |
 | `AppRole` | Entra ID | One synthetic resource per (Application, appRoleId). Linked to its parent via `relationshipType='HasAppRole'`. |
 | `DelegatedPermission` | Entra ID | One synthetic resource per (clientSP, targetAPI, OAuth2 scope). Linked to its parent via `relationshipType='DelegatesScope'`. |
@@ -465,7 +496,7 @@ Principals is tracked by the `_history` audit trigger, which records a JSONB sna
 
 **What PrincipalActivity does instead:**
 
-Each row stores the latest known activity per `(principalId, resourceId, systemId, activityType)` combination. Sync functions upsert into this table, overwriting the previous value in place. No history is retained — the table is always a current snapshot.
+Each row stores the latest known activity per `(principalId, resourceId, activityType)` combination. Sync functions upsert into this table, overwriting the previous value in place. No history is retained — the table is always a current snapshot.
 
 **Activity types:**
 

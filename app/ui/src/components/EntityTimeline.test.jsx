@@ -46,3 +46,23 @@ describe('EntityTimeline (horizontal)', () => {
     expect(html).toContain('aria-pressed="true"');
   });
 });
+
+describe('EntityTimeline — hidden fields and readable dates', () => {
+  const stamp = { at: '2026-10-20T12:06:02Z', operation: 'changed', eventKind: 'attribute', summary: 's', attribute: { field: 'lastCalculatedAt', from: '—', to: '2026-10-20T12:06:02.810942+00:00' } };
+  const rename = { at: '2026-10-19T09:00:00Z', operation: 'changed', eventKind: 'attribute', summary: 's', attribute: { field: 'displayName', from: 'Eng', to: 'Engineering' } };
+
+  it('skips the attribute events a page hides, keeping the rest', () => {
+    const html = renderToStaticMarkup(h(EntityTimeline, { events: [stamp, rename], loading: false, sinceDays: 90, hideFields: ['lastCalculatedAt'] }));
+    expect(html).not.toContain('Last Calculated At');
+    expect(html).toContain('Engineering');
+    // Only the rename's day is left on the line.
+    expect(html.match(/aria-pressed="(true|false)"/g).length).toBe(4 + 1);
+  });
+
+  it('shows everything when nothing is hidden, with an ISO value as a readable date', () => {
+    const html = renderToStaticMarkup(h(EntityTimeline, { events: [stamp], loading: false, sinceDays: 90 }));
+    expect(html).toContain('Last Calculated At');
+    expect(html).not.toContain('2026-10-20T12:06:02.810942');
+    expect(html).toContain('2026');
+  });
+});

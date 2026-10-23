@@ -1,5 +1,11 @@
 {
   "type": "azure-rm",
+  "emits": {
+    "principalTypes": ["User"],
+    "resourceTypes": ["AzureScope", "AzureManagementGroup", "AzureSubscription", "AzureResourceGroup", "AzureResource", "AzureRoleAssignment"],
+    "contextTypes": [],
+    "open": []
+  },
   "displayName": "Azure Resource Manager",
   "entryPoint": "Start-AzureRMCrawler.ps1",
   "dependsOn": [],

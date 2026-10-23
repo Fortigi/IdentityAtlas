@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import { TIER_STYLES } from '@ui/utils/tierStyles';
 import {
   parseJSON,
@@ -95,12 +96,12 @@ function RiskActionButtons({ detailsOpen, onToggleDetails, hasOverride, onToggle
       >
         {detailsOpen ? 'Hide Details' : 'Show Details'}
       </button>
-      <button
+      {onToggleOverride && <button
         onClick={onToggleOverride}
         className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-700"
       >
         {hasOverride ? 'Edit Override' : 'Adjust Score'}
-      </button>
+      </button>}
     </div>
   );
 }
@@ -261,6 +262,9 @@ function RiskOverrideForm({
  * Only renders if riskScore is present (not null/undefined).
  */
 export default function RiskScoreSection({ attributes, entityType, entityId, authFetch }) {
+  // A read-only shell (shared matrix, context owner) shows the score but never
+  // offers the analyst override: that write is not theirs to make.
+  const readOnly = useIsSharedView();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [adjustment, setAdjustment] = useState(attributes.riskOverride || 0);
@@ -341,7 +345,7 @@ export default function RiskScoreSection({ attributes, entityType, entityId, aut
         detailsOpen={detailsOpen}
         onToggleDetails={() => setDetailsOpen(v => !v)}
         hasOverride={localOverride != null}
-        onToggleOverride={() => setOverrideOpen(v => !v)}
+        onToggleOverride={readOnly ? undefined : () => setOverrideOpen(v => !v)}
       />
 
       {detailsOpen && (

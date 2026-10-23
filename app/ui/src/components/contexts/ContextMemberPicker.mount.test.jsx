@@ -10,7 +10,7 @@ describe('ContextMemberPicker (mounted)', () => {
       h(ContextMemberPicker, { contextId: 'c1', targetType: 'Nope', existingMemberIds: [] }),
       { auth: { authFetch: makeAuthFetch({}) } },
     );
-    expect(screen.getByText(/No search endpoint for target type/i)).toBeInTheDocument();
+    expect(screen.getByText(/Members of this kind cannot be added here/i)).toBeInTheDocument();
   });
 
   it('debounce-searches, lists results, and adds one', async () => {
@@ -30,7 +30,7 @@ describe('ContextMemberPicker (mounted)', () => {
     const user = userEvent.setup();
 
     // Query by accessible name (aria-label), not placeholder — guards #761.
-    await user.type(screen.getByRole('textbox', { name: /Search identitys to add/i }), 'Ali');
+    await user.type(screen.getByRole('textbox', { name: /^Search people to add$/ }), 'Ali');
     // After the 250ms debounce the result row renders.
     expect(await screen.findByText('Alice')).toBeInTheDocument();
 

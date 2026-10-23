@@ -22,6 +22,8 @@
       DemoSap.ps1            — the SAP ERP system (flag 8)
       DemoAzure.ps1          — the AzureRM system (flag 10)
       DemoActivity.ps1       — sign-in activity + the audit-report cast
+      DemoApplications.ps1   — logical applications (owners set, a best-guess
+                               owner, or neither) + one team as its resources
       DemoVolume.ps1         — opt-in high-cardinality slice (-IncludeVolume)
       DemoRealism*.ps1       — opt-in realism slice (-IncludeRealism): ~600 staff
                                in ten departments, careers, guests, leavers,
@@ -70,7 +72,7 @@ $partsDir = Join-Path $PSScriptRoot 'parts'
 foreach ($part in @(
     'DemoState.ps1', 'DemoOrg.ps1', 'DemoEntraBase.ps1', 'DemoGovernance.ps1',
     'DemoSalesScenario.ps1', 'DemoRoleDrift.ps1', 'DemoSharedGrants.ps1',
-    'DemoConsent.ps1', 'DemoSap.ps1', 'DemoAzure.ps1', 'DemoActivity.ps1',
+    'DemoConsent.ps1', 'DemoSap.ps1', 'DemoAzure.ps1', 'DemoActivity.ps1', 'DemoApplications.ps1',
     'DemoVolume.ps1',
     'DemoRealismPeople.ps1', 'DemoRealismPopulations.ps1', 'DemoRealismGroups.ps1', 'DemoRealismAccess.ps1',
     'DemoRealismSystems.ps1', 'DemoRealismGovernance.ps1'
@@ -97,6 +99,10 @@ Add-DemoAzure         $state
 # directory roles every earlier part created, and adds the few extra accounts
 # the standard audit reports need in order to be non-empty.
 Add-DemoActivity      $state
+# Applications group the resources every part above created, so they run after
+# all of them. Besides contexts, roles and one SameUnitAs link, they only add
+# owners to a few existing groups (the best-guess owner story).
+Add-DemoApplications  $state
 
 # Opt-in only: everything above is the fixed 46-resource company that the CTF
 # answers, Verify-DemoDataset.ps1's exact counts and the E2E suite pin. The
@@ -163,6 +169,8 @@ $dataset = [ordered]@{
             assignmentPolicies     = $state.Policies.Count
             certificationDecisions = $state.Certifications.Count
             principalActivity      = $state.PrincipalActivity.Count
+            contextRoles           = $state.ContextRoles.Count
+            contextRelationships   = $state.ContextRelationships.Count
         }
     }
     systems                = @($state.Systems)
@@ -178,6 +186,8 @@ $dataset = [ordered]@{
     assignmentPolicies     = @($state.Policies)
     certificationDecisions = @($state.Certifications)
     principalActivity      = @($state.PrincipalActivity)
+    contextRoles           = @($state.ContextRoles)
+    contextRelationships   = @($state.ContextRelationships)
 }
 
 $dataset | ConvertTo-Json -Depth 10 | Out-File -FilePath $OutputPath -Encoding UTF8

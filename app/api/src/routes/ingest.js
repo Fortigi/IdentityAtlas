@@ -8,6 +8,7 @@
 //   ingest/matrixViews.js — /ingest/refresh-views + /ingest/matrix-default-filter
 //                           + the refreshKeyword / refreshMatrixViews helpers
 //   ingest/helpers.js     — the ingest engine helpers createIngestHandler composes
+//   ingest/contextLinks.js — /ingest/context-roles + /ingest/context-relationships
 //
 // This file composes the two routers into the default export and re-exports it,
 // plus the helpers that ingest.*.test.js and bootstrap.js (refreshMatrixViews)
@@ -18,11 +19,13 @@ import { Router } from 'express';
 import handlersRouter from './ingest/handlers.js';
 import matrixViewsRouter from './ingest/matrixViews.js';
 import stagesRouter from './ingest/stages.js';
+import contextLinksRouter from './ingest/contextLinks.js';
 
 const router = Router();
 router.use(handlersRouter);
 router.use(matrixViewsRouter);
 router.use(stagesRouter);
+router.use(contextLinksRouter);
 
 export {
   applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,

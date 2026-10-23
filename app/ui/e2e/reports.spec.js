@@ -216,7 +216,10 @@ test.describe('Reports', () => {
 
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type']).toContain('text/csv');
-    expect(res.headers()['content-disposition']).toMatch(/^attachment; filename="identity-atlas-.*\.csv"$/);
+    // The plain filename for old clients, plus the RFC 5987 UTF-8 form that keeps
+    // a context's own name intact.
+    expect(res.headers()['content-disposition'])
+      .toMatch(/^attachment; filename="identity-atlas-[^"]*\.csv"(; filename\*=UTF-8''\S+)?$/);
 
     const lines = (await res.text()).split('\r\n');
     // A header row of column labels, then one line per row the report found.

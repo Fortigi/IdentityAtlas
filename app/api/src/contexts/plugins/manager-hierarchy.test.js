@@ -191,3 +191,15 @@ describe('manager-hierarchy plugin', () => {
     expect(memberOf(out, 'ic1-uuid')).toEqual(['root']);
   });
 });
+
+describe('manager-hierarchy — who answers for a team', () => {
+  it('states every manager as the Accountable of their own node, and nobody for the root', async () => {
+    const plugin = await loadPluginWithRows([
+      { id: 'mgr-uuid', displayName: 'Mia', managerId: null, department: 'Ops' },
+      { id: 'ic', displayName: 'Ian', managerId: 'mgr-uuid', department: 'Ops' },
+    ]);
+    const out = await plugin.run({ scopeSystemId: 1 }, {});
+    expect(out.roles).toEqual([{ contextExternalId: 'mgr-uuid', principalId: 'mgr-uuid', role: 'Accountable' }]);
+    expect(plugin.contextCategory).toBe('OrganizationalUnit');
+  });
+});

@@ -1,5 +1,11 @@
 {
   "type": "midpoint",
+  "emits": {
+    "principalTypes": ["User"],
+    "resourceTypes": ["Service", "Entitlement", "BusinessRole"],
+    "contextTypes": ["OrgUnit"],
+    "open": ["principalType", "resourceType", "contextType"]
+  },
   "displayName": "midPoint (Evolveum)",
   "entryPoint": "Start-MidpointCrawler.ps1",
   "dependsOn": [],

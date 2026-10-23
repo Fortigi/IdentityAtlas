@@ -1,5 +1,11 @@
 {
   "type": "odata",
+  "emits": {
+    "principalTypes": [],
+    "resourceTypes": [],
+    "contextTypes": [],
+    "open": []
+  },
   "displayName": "Generic OData",
   "entryPoint": "Start-ODataCrawler.ps1",
   "dependsOn": [],

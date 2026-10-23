@@ -93,6 +93,17 @@ permission, so you can't accidentally revoke your own ability to manage roles.
     can still read data — set `AUTH_REQUIRED_ROLES` if you need to stop roleless
     users from signing in at all.
 
+### Letting context owners in
+
+Under **Admin → Authentication → Authorization** one checkbox, *Context owners*,
+lets the people who are **Accountable** or **Responsible** for a context sign in
+without an Identity Atlas role. They land directly on their own context page —
+read-only, with its report download — and every other screen and endpoint stays
+closed to them, even if you have set `AUTH_REQUIRED_ROLES`. People who do hold a
+role are not affected. It is off by default and takes effect without a restart.
+See [Context-owner access](../architecture/context-owner-access.md) for exactly
+what they can see and how it is enforced.
+
 ---
 
 ## Recovering from a lockout

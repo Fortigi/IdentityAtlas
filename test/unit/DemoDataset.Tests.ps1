@@ -68,8 +68,19 @@ BeforeAll {
 
     # Pre-compute validation collections + department counts for the It blocks.
     $script:badCtxRefs   = @($script:data.contextMembers | Where-Object { -not $script:ctxById.ContainsKey($_.contextId) })
-    $script:badPrincRefs = @($script:data.contextMembers | Where-Object { -not $script:principalIds.ContainsKey($_.memberId) })
-    $script:badShape     = @($script:data.contextMembers | Where-Object { $_.memberType -ne 'Principal' -or $_.addedBy -ne 'sync' })
+    # People contexts hold principals; application and unit-variant contexts
+    # (DemoApplications.ps1) hold resources. Each member must exist as its kind,
+    # and each context holds only the kind its targetType names.
+    $script:resourceIds = @{}
+    foreach ($r in $script:data.resources) { $script:resourceIds[$r.id] = $true }
+    $script:badPrincRefs = @($script:data.contextMembers | Where-Object {
+        ($_.memberType -eq 'Principal' -and -not $script:principalIds.ContainsKey($_.memberId)) -or
+        ($_.memberType -eq 'Resource'  -and -not $script:resourceIds.ContainsKey($_.memberId))
+    })
+    $script:badShape     = @($script:data.contextMembers | Where-Object {
+        $_.memberType -notin @('Principal', 'Resource') -or $_.addedBy -ne 'sync' -or
+        $_.memberType -ne $script:ctxById[$_.contextId].targetType
+    })
     $script:pairs        = @($script:data.contextMembers | ForEach-Object { "$($_.contextId)|$($_.memberId)" })
     $script:deepCount    = @{}
     foreach ($name in @('Engineering', 'Finance', 'Sales', 'Operations', 'Marketing')) {
@@ -88,11 +99,11 @@ Describe 'Demo dataset — context membership' {
         $script:badCtxRefs.Count | Should -Be 0
     }
 
-    It 'every context member references an existing principal' {
+    It 'every context member references an existing principal or resource of its kind' {
         $script:badPrincRefs.Count | Should -Be 0
     }
 
-    It 'every context member is a sync-added Principal member' {
+    It 'every context member is sync-added and of the kind its context holds' {
         $script:badShape.Count | Should -Be 0
     }
 
@@ -197,7 +208,8 @@ Describe 'Demo dataset — Capture-the-Flag scenarios (#705)' {
 
     BeforeAll {
         $script:resByName = @{}
-        foreach ($r in $script:data.resources) { $script:resByName[$r.displayName] = $r }
+        # An ownership resource is named after the group it owns; the name maps the group.
+        foreach ($r in $script:data.resources) { if ($r.resourceType -ne 'GroupOwnership') { $script:resByName[$r.displayName] = $r } }
         $script:princByName = @{}
         foreach ($p in $script:data.principals) { $script:princByName[$p.displayName] = $p }
 
@@ -399,7 +411,7 @@ Describe 'Demo dataset — one resource, two business roles (#370)' {
     # parts/DemoSharedGrants.ps1 and docs/architecture/matrix.md.
     BeforeAll {
         $script:sharedResByName = @{}
-        foreach ($r in $script:data.resources) { $script:sharedResByName[$r.displayName] = $r }
+        foreach ($r in $script:data.resources) { if ($r.resourceType -ne 'GroupOwnership') { $script:sharedResByName[$r.displayName] = $r } }
         $script:sharedPrincByName = @{}
         foreach ($p in $script:data.principals) { $script:sharedPrincByName[$p.displayName] = $p }
 
@@ -617,9 +629,10 @@ Describe 'Demo dataset — opt-in high-cardinality volume slice (#928)' {
         # The opt-in is the whole point: Verify-DemoDataset.ps1's exact counts,
         # the Capture-the-Flag answers and the E2E suite all pin the standard
         # company's resource total (46 since #370 added the role-drift and
-        # shared-grant scenarios, 47 since #1222 added an empty group) — the
-        # volume slice must not shift it.
-        @($script:data.resources).Count | Should -Be 47
+        # shared-grant scenarios, 47 since #1222 added an empty group, 52 since
+        # the application story owned five more groups) — the volume slice must
+        # not shift it.
+        @($script:data.resources).Count | Should -Be 52
         @($script:data.resources | Where-Object { $_.displayName -like 'SG-Vol-*' }).Count | Should -Be 0
     }
 }
@@ -665,6 +678,8 @@ Describe 'Demo dataset — every ingest envelope carries a system (#1222)' {
             'ingest/contexts'
             'ingest/principals'
             'ingest/context-members'
+            'ingest/context-roles'
+            'ingest/context-relationships'
             'ingest/resources'
             'ingest/resource-assignments'
             'ingest/resource-relationships'
@@ -687,6 +702,33 @@ Describe 'Demo dataset — every ingest envelope carries a system (#1222)' {
             $Uri -like '*/ingest/*' -and $Uri -notlike '*/ingest/systems' -and
             $Body -is [string] -and $Body -like '*"records":*' -and
             -not ($Body | ConvertFrom-Json).systemId
+        }
+    }
+
+    It 'posts each context, membership, role and link under the system that owns the context' {
+        # Mock system ids: entra=501, hr=502, iga=503. The org tree is HR's, the
+        # application catalogue IGA's, the administrative unit Entra's.
+        $script:appCount = @($script:data.contexts | Where-Object { $_.contextType -eq 'LogicalApplication' }).Count
+        Should -Invoke Invoke-RestMethod -Scope Describe -Times 1 -Exactly -ParameterFilter {
+            $Uri -like '*/ingest/contexts' -and ($b = $Body | ConvertFrom-Json).systemId -eq 503 -and
+            @($b.records).Count -eq $script:appCount -and
+            @($b.records | Where-Object { $_.contextType -ne 'LogicalApplication' }).Count -eq 0
+        }
+        Should -Invoke Invoke-RestMethod -Scope Describe -Times 1 -Exactly -ParameterFilter {
+            $Uri -like '*/ingest/contexts' -and ($b = $Body | ConvertFrom-Json).systemId -eq 501 -and
+            @($b.records).Count -eq 1 -and $b.records[0].contextType -eq 'AdministrativeUnit'
+        }
+        Should -Invoke Invoke-RestMethod -Scope Describe -Times 1 -Exactly -ParameterFilter {
+            $Uri -like '*/ingest/context-members' -and ($b = $Body | ConvertFrom-Json).systemId -eq 503 -and
+            @($b.records | Where-Object { $_.memberType -ne 'Resource' }).Count -eq 0
+        }
+        Should -Invoke Invoke-RestMethod -Scope Describe -Times 1 -Exactly -ParameterFilter {
+            $Uri -like '*/ingest/context-roles' -and ($b = $Body | ConvertFrom-Json).systemId -eq 503 -and
+            $b.syncMode -eq 'delta' -and @($b.records).Count -eq @($script:data.contextRoles).Count
+        }
+        Should -Invoke Invoke-RestMethod -Scope Describe -Times 1 -Exactly -ParameterFilter {
+            $Uri -like '*/ingest/context-relationships' -and ($b = $Body | ConvertFrom-Json).systemId -eq 502 -and
+            @($b.records).Count -eq 1
         }
     }
 

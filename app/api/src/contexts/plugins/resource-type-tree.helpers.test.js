@@ -106,7 +106,7 @@ describe('resource-type-tree buildTree', () => {
   it('creates a root plus one child context per distinct value', () => {
     const { rootExt, contexts, members, seen } = buildTree(rows, 'Resource Types');
     expect(rootExt).toBe('type-root');
-    expect(contexts[0]).toMatchObject({ externalId: 'type-root', displayName: 'Resource Types', contextType: 'ResourceTypeRoot' });
+    expect(contexts[0]).toMatchObject({ externalId: 'type-root', displayName: 'Resource Types', contextType: 'ResourceType' });
     const exts = contexts.map((c) => c.externalId);
     expect(exts).toContain('type:Microsoft.Compute/virtualMachines');
     expect(exts).toContain('type:Microsoft.Storage/storageAccounts');

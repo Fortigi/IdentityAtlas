@@ -299,7 +299,7 @@ describe('MatrixFilterWizard (mounted)', () => {
 
     it('says when there is no Manager Hierarchy to sort by', async () => {
       const base = makeWizardFetch();
-      const authFetch = makeAuthFetch((url, opts) => (String(url).includes('contextType=ManagerHierarchy') ? { data: [] } : base(url, opts)));
+      const authFetch = makeAuthFetch((url, opts) => (String(url).includes('sourceAlgorithm=manager-hierarchy') ? { data: [] } : base(url, opts)));
       const { user } = renderWizard({}, authFetch);
       await gotoStep(user, 'Layout');
       await user.click(screen.getByText('By Manager Hierarchy'));

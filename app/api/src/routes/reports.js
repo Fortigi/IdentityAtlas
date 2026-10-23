@@ -12,7 +12,8 @@
 import { Router } from 'express';
 import { listAllReports, reportMetadata, resolveReport } from '../reports/registry.js';
 import {
-  DEFAULT_EXPORT_FORMAT, EXPORT_FORMAT_NAMES, exportFilename, resolveExportFormat,
+  DEFAULT_EXPORT_FORMAT, EXPORT_FORMAT_NAMES, contentDisposition, exportFilename, resolveExportFormat,
+  singleSubject,
 } from '../reports/export.js';
 
 const router = Router();
@@ -28,7 +29,7 @@ const router = Router();
 // knows them once it has run. The screen, the CSV and the workbook all read the
 // payload, so they follow the run either way.
 async function runReport(report, params) {
-  const { rows, notices, truncated, constantColumns, columns, pivots } = await report.run(params, {});
+  const { rows, notices, truncated, constantColumns, columns, pivots, details } = await report.run(params, {});
   const metadata = reportMetadata(report);
   return {
     ...metadata,
@@ -40,6 +41,9 @@ async function runReport(report, params) {
     // and does not change: the screen shows every column whatever the run said,
     // and only a format with room for a header acts on this.
     constantColumns: Array.isArray(constantColumns) ? constantColumns : [],
+    // Blocks of label/value facts about what the run covers (the contexts of an
+    // Entitlement Pivot): context, like the notices, for a format with room for it.
+    details: Array.isArray(details) ? details : [],
     total: rows.length,
     // A template that stops at a row cap says so; the screen and the download must
     // not present the first N rows as the whole answer.
@@ -93,8 +97,8 @@ router.get('/reports/:name/export', async (req, res) => {
   }
 
   try {
-    // Whether a run's context — its notices, and the columns it declared
-    // constant — travels with the rows is the FORMAT's call, not this route's. A
+    // Whether a run's context — its notices, its details, and the columns it
+    // declared constant — travels with the rows is the FORMAT's call, not this route's. A
     // CSV is a table and nothing else, so a preamble above the header would
     // break every parser that reads it; a workbook has room above the table and
     // a reader who expects to find context there. So a format declares
@@ -102,12 +106,12 @@ router.get('/reports/:name/export', async (req, res) => {
     // payload it was served before. The engine still never asks which report
     // this is — only what the chosen format can hold.
     const full = await runReport(report, params);
-    const { notices: _screenOnly, constantColumns: _headerOnly, ...rowsOnly } = full;
+    const { notices: _screenOnly, constantColumns: _headerOnly, details: _aboutOnly, ...rowsOnly } = full;
     const payload = exportFormat.carriesContext ? full : rowsOnly;
 
-    const filename = exportFilename(report.name, exportFormat.extension, payload.generatedAt);
+    const filename = exportFilename(report.name, exportFormat.extension, payload.generatedAt, singleSubject(full));
     res.setHeader('Content-Type', exportFormat.contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Disposition', contentDisposition(filename));
     // A serializer may be async — a workbook is assembled and zipped, not
     // concatenated — so every format is awaited, including the synchronous ones.
     res.send(await exportFormat.serialize(payload));
