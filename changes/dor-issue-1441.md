@@ -1,0 +1,4 @@
+- CSV import: `Users.csv` now has official `EmployeeId`, `GivenName` and `Surname` columns, matching `Identities.csv`. Previously an employee number supplied there was kept only as an extended attribute, so Account Linking — whose strongest signal is the employee number — could never use it and the accounts stayed unlinked.
+- An existing import that already carries those columns moves the values into the real fields on its next run: they show up as Employee ID / Given name / Surname on the account's detail page instead of under Extended Attributes, and the stale extended-attribute copies disappear.
+- The downloadable `Users.csv` template and the upload wizard's column hint list the three new columns.
+- Clarified in the CSV import schema documentation that case-insensitive column matching applies to a file's own schema columns; an extra column keeps the spelling your header gives it and is stored as an extended attribute.

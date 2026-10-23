@@ -209,6 +209,37 @@ Describe 'ConvertTo-CsvUserRecord' {
         $rec.accountEnabled | Should -BeTrue
         $rec.email          | Should -BeNullOrEmpty
         $rec.jobTitle       | Should -BeNullOrEmpty
+        $rec.employeeId     | Should -BeNullOrEmpty
+        $rec.givenName      | Should -BeNullOrEmpty
+        $rec.surname        | Should -BeNullOrEmpty
+    }
+
+    It 'does not read EmployeeId/GivenName/Surname from a row whose file does not declare them' {
+        # $Cols is the FILE's header. A property present on the row but not in
+        # the header is not part of the file — reading it would resurrect the
+        # column-guessing the CSV schema deliberately has none of.
+        $cols = New-ColSet @('ExternalId', 'DisplayName')
+        $row = [PSCustomObject]@{ ExternalId = 'u1'; DisplayName = 'A'; EmployeeId = 'E1'; GivenName = 'Ann'; Surname = 'Lee' }
+        $rec = ConvertTo-CsvUserRecord -Row $row -SystemId 2 -Cols $cols
+        $rec.employeeId | Should -BeNullOrEmpty
+        $rec.givenName  | Should -BeNullOrEmpty
+        $rec.surname    | Should -BeNullOrEmpty
+    }
+
+    It 'keeps EmployeeId/GivenName/Surname out of extendedAttributes even when the header is lower-cased' {
+        # The header's own spelling is what the extras pass-through would carry;
+        # the reserved-column match is case-insensitive, so neither casing of a
+        # schema column may be duplicated as an extra (#1441).
+        $header = @('ExternalId', 'DisplayName', 'employeeid', 'givenname', 'surname')
+        $cols = New-ColSet $header
+        $extra = Get-CsvExtraColumns -Columns $header -FileName 'Users.csv'
+        $extra | Should -BeNullOrEmpty
+        $row = [PSCustomObject]@{ ExternalId = 'u1'; DisplayName = 'A'; employeeid = 'E9'; givenname = 'Ann'; surname = 'Lee' }
+        $rec = ConvertTo-CsvUserRecord -Row $row -SystemId 2 -Cols $cols -Extra $extra
+        @($rec.Keys) -ccontains 'employeeId' | Should -BeTrue
+        $rec['employeeId'] | Should -Be 'E9'
+        $rec['givenName']  | Should -Be 'Ann'
+        $rec['surname']    | Should -Be 'Lee'
     }
 
     It 'accepts a valid principalType and reads email/jobTitle/department' {
@@ -275,6 +306,30 @@ Describe 'ConvertTo-CsvUserRecord' {
     It 'is part of the Users.csv schema, so it is not also copied to extendedAttributes' {
         $names = @('ExternalId', 'DisplayName', 'ManagerExternalId', 'CostCenter')
         Get-CsvExtraColumns -Columns $names -FileName 'Users.csv' | Should -Be @('CostCenter')
+    }
+}
+
+Describe 'Add-CsvMappedColumns' {
+    It 'writes each mapped column under the ingest field name, not the header spelling' {
+        # The key casing IS the wire contract — the ingest matches a record field
+        # to a real column case-sensitively, so a record keyed 'EmployeeId' would
+        # be filed into extendedAttributes instead of the column.
+        $map = [ordered]@{ employeeId = 'EmployeeId'; surname = 'Surname' }
+        $cols = New-ColSet @('EmployeeId', 'Surname')
+        $rec = @{}
+        Add-CsvMappedColumns -Row ([PSCustomObject]@{ EmployeeId = 'E1'; Surname = 'Lee' }) -Cols $cols -Map $map -Record $rec
+        @($rec.Keys) -ccontains 'employeeId' | Should -BeTrue
+        @($rec.Keys) -ccontains 'EmployeeId' | Should -BeFalse
+        $rec['employeeId'] | Should -Be 'E1'
+        $rec['surname']    | Should -Be 'Lee'
+    }
+
+    It 'sends $null for a column the file does not declare, so a dropped column clears the value' {
+        $map = [ordered]@{ employeeId = 'EmployeeId' }
+        $rec = @{}
+        Add-CsvMappedColumns -Row ([PSCustomObject]@{ EmployeeId = 'E1' }) -Cols (New-ColSet @('ExternalId')) -Map $map -Record $rec
+        $rec.ContainsKey('employeeId') | Should -BeTrue
+        $rec['employeeId'] | Should -BeNullOrEmpty
     }
 }
 
@@ -602,6 +657,6 @@ Describe 'Extra columns become extendedAttributes' {
         $row = [pscustomobject]@{ ExternalId = 'u1'; DisplayName = 'Ann' }
         $cols = [System.Collections.Generic.HashSet[string]]::new([string[]]$row.PSObject.Properties.Name)
         $with = ConvertTo-CsvUserRecord -Row $row -SystemId 2 -Cols $cols -Extra @()
-        @($with.Keys | Sort-Object) | Should -Be @('_systemId', 'accountEnabled', 'department', 'displayName', 'email', 'externalId', 'jobTitle', 'principalType')
+        @($with.Keys | Sort-Object) | Should -Be @('_systemId', 'accountEnabled', 'department', 'displayName', 'email', 'employeeId', 'externalId', 'givenName', 'jobTitle', 'principalType', 'surname')
     }
 }
