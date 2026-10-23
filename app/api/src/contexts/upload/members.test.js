@@ -102,6 +102,27 @@ describe('loadCandidates', () => {
     expect(db.query.mock.calls[1][0]).toMatch(/v\.name <% public\.ia_search_text\(ARRAY\[p\."id"::text, p\."displayName"/);
   });
 
+  it('resources are matched on the exact values only, sent as the one parameter the query uses', async () => {
+    const db = { query: vi.fn().mockResolvedValue({ rows: [] }) };
+    await loadCandidates(db, 'Resource', ['G@X.nl', 'Some Group']);
+    const [sql, params] = db.query.mock.calls[0];
+    expect(params).toEqual([['G@X.nl', 'Some Group']]);
+    expect(sql).toContain('"externalId" = ANY($1::text[]) OR "displayName" = ANY($1::text[])');
+    expect(sql).not.toContain('$2');
+  });
+
+  // PostgreSQL refuses a statement with a parameter it cannot type (42P18):
+  // every parameter sent must be used, and used with a type.
+  it.each(['Principal', 'Identity', 'Resource'])('%s: every parameter sent is used, and typed', async (kind) => {
+    const db = { query: vi.fn().mockResolvedValue({ rows: [] }) };
+    await loadCandidates(db, kind, ['a@x.nl', 'Jan Jansen']);
+    for (const [sql, params] of db.query.mock.calls) {
+      const used = new Set([...sql.matchAll(/\$(\d+)/g)].map(m => Number(m[1])));
+      expect([...used].sort()).toEqual(params.map((_, i) => i + 1));
+      for (const n of used) expect(sql).toMatch(new RegExp(`\\$${n}::text\\[\\]`));
+    }
+  });
+
   it('no trigram lookup for resources or for values that are all addresses', async () => {
     const db = { query: vi.fn().mockResolvedValue({ rows: [] }) };
     await loadCandidates(db, 'Resource', ['Some Group']);

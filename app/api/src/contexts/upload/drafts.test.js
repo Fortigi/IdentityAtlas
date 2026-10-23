@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm, readdir, utimes, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { join } from 'path';
-import { saveDraft, loadDraft, deleteDraft, sweepDrafts, draftDir, DRAFT_TTL_MS } from './drafts.js';
+import { join, resolve, sep, basename } from 'path';
+import { saveDraft, loadDraft, deleteDraft, sweepDrafts, draftDir, draftPaths, isInside, DRAFT_TTL_MS } from './drafts.js';
 
 let dir;
 beforeEach(async () => { dir = await mkdtemp(join(tmpdir(), 'ctx-upload-')); });
@@ -20,6 +20,43 @@ describe('drafts', () => {
   it('a malformed id never becomes a path; an unknown one is null', async () => {
     expect(await loadDraft('../../etc/passwd', dir)).toBeNull();
     expect(await loadDraft('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', dir)).toBeNull();
+  });
+
+  it('draftPaths builds both files from the checked id, lower-cased, inside the folder', () => {
+    const p = draftPaths('AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE', dir);
+    expect(p).toEqual({
+      data: resolve(dir, 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.data'),
+      meta: resolve(dir, 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json'),
+    });
+  });
+
+  it.each([
+    ['a traversal', '../../etc/passwd'],
+    ['a uuid with a path in front', '../aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'],
+    ['a uuid with a suffix', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/../x'],
+    ['a padded uuid', ' aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'],
+    ['nothing', undefined],
+    ['an array', ['aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', 'x']],
+  ])('draftPaths refuses %s', (_label, id) => {
+    expect(draftPaths(id, dir)).toBeNull();
+  });
+
+  it('isInside: a file in the folder is inside; the folder itself, a sibling and a parent are not', () => {
+    expect(isInside(dir, join(dir, 'a.data'))).toBe(true);
+    expect(isInside(dir, dir)).toBe(false);
+    expect(isInside(dir, `${dir}-other${sep}a.data`)).toBe(false);
+    expect(isInside(dir, join(dir, '..', 'a.data'))).toBe(false);
+  });
+
+  it('deleteDraft of a traversal id removes nothing outside the folder', async () => {
+    const outside = join(dir, '..', `${basename(dir)}-victim.json`);
+    await writeFile(outside, 'keep');
+    try {
+      await deleteDraft(`../${basename(dir)}-victim`, dir);
+      expect((await readdir(join(dir, '..'))).includes(basename(outside))).toBe(true);
+    } finally {
+      await rm(outside, { force: true });
+    }
   });
 
   it('is readable just inside its time-to-live and expired just past it', async () => {

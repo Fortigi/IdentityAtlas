@@ -39,6 +39,20 @@ describe('parseCsv', () => {
   it('refuses a file that ends inside quotes', () => {
     expect(() => parseCsv('a,"b', ',')).toThrow(/closing quote/);
   });
+
+  it.each([
+    ['an object with a made-up length', { length: 3 }],
+    ['an array of characters', ['a', ',', 'b']],
+    ['a buffer', Buffer.from('a,b')],
+    ['nothing', undefined],
+  ])('refuses %s before reading a character', (_label, input) => {
+    expect(() => parseCsv(input, ',')).toThrow(ListParseError);
+    expect(() => parseCsv(input, ',')).toThrow('The CSV file could not be read as text.');
+  });
+
+  it('an empty string is no rows, not a refusal', () => {
+    expect(parseCsv('', ',')).toEqual([]);
+  });
 });
 
 describe('parseList — csv', () => {

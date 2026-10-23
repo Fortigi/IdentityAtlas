@@ -123,7 +123,10 @@ function quotedChar(st, ch, next) {
 }
 
 export function parseCsv(text, delimiter) {
-  const st = { rows: [], row: [], field: '', inQuotes: false };
+  // Only ever a decoded string: the loop below walks its characters, so an
+  // array or an object with a made-up length must never reach it.
+  if (typeof text !== 'string') throw new ListParseError('The CSV file could not be read as text.');
+  const st ={ rows: [], row: [], field: '', inQuotes: false };
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     const next = text[i + 1];

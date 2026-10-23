@@ -46,8 +46,9 @@ function nameSql(table, columns, haystack, live) {
        LIMIT ${NAME_CANDIDATES_PER_VALUE}) x`;
 }
 
-// Per kind: the key query, the name query (null: no name step), and the ordered
-// key steps of [row fields, email]. An `email` step compares case-insensitively
+// Per kind: the key query, the parameters it takes (every one it is sent is
+// used and typed — PostgreSQL refuses a parameter it cannot type), the name
+// query (null: no name step), and the ordered key steps of [row fields, email]. An `email` step compares case-insensitively
 // and only for a value that is an e-mail address — "E1" is an employee number.
 const KINDS = {
   Principal: {
@@ -56,6 +57,7 @@ const KINDS = {
            WHERE p."deletedAt" IS NULL
              AND (lower(p.email) = ANY($1::text[]) OR lower(p."extendedAttributes"->>'userPrincipalName') = ANY($1::text[])
                   OR p."employeeId" = ANY($2::text[]) OR p."externalId" = ANY($2::text[]) OR p."displayName" = ANY($2::text[]))`,
+    params: (folded, exact) => [folded, exact],
     nameSql: nameSql('Principals', PRINCIPAL_COLUMNS, 'p."displayName"', 'p."deletedAt" IS NULL AND'),
     steps: [[['email', 'upn'], true], [['employeeId'], false], [['externalId'], false]],
     preferred: (row) => row.principalType === 'User',
@@ -64,6 +66,7 @@ const KINDS = {
     sql: `SELECT ${IDENTITY_COLUMNS}
             FROM "Identities" p
            WHERE lower(p.email) = ANY($1::text[]) OR p."employeeId" = ANY($2::text[]) OR p."displayName" = ANY($2::text[])`,
+    params: (folded, exact) => [folded, exact],
     nameSql: nameSql('Identities', IDENTITY_COLUMNS, searchExpression('identity', 'p'), ''),
     steps: [[['email'], true], [['employeeId'], false]],
     preferred: () => false,
@@ -71,7 +74,8 @@ const KINDS = {
   Resource: {
     sql: `SELECT id, "externalId", "displayName"
             FROM "Resources"
-           WHERE "deletedAt" IS NULL AND ("externalId" = ANY($2::text[]) OR "displayName" = ANY($2::text[]))`,
+           WHERE "deletedAt" IS NULL AND ("externalId" = ANY($1::text[]) OR "displayName" = ANY($1::text[]))`,
+    params: (_folded, exact) => [exact],
     nameSql: null,
     steps: [[['externalId'], false], [['displayName'], false]],
   },
@@ -86,7 +90,7 @@ export async function loadCandidates(db, kind, values) {
   if (!spec || values.length === 0) return [];
   const exact = [...new Set(values)];
   const folded = [...new Set(exact.filter(isEmailLike).map(lower))];
-  const rows = (await db.query(spec.sql, [folded, exact])).rows;
+  const rows = (await db.query(spec.sql, spec.params(folded, exact))).rows;
   const names = spec.nameSql ? nameValues(exact) : [];
   if (names.length === 0) return rows;
   const byId = new Map(rows.map(r => [r.id, r]));
