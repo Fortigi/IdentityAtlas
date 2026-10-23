@@ -85,6 +85,16 @@ describe('vttToText', () => {
   it('reads CRLF files and a cue without a voice tag', () => {
     expect(vttToText('WEBVTT\r\n\r\n00:01.000 --> 00:02.000\r\nPlain words\r\n')).toBe('Plain words');
   });
+
+  it('drops nested tags until none is left, and keeps a stray "<" that opens no tag', () => {
+    expect(vttToText('WEBVTT\n\n00:01.000 --> 00:02.000\n<<b>i>Hello</i> a < b\n')).toBe('Hello a < b');
+  });
+
+  it('reads a cue of 100 000 "<" or spaces in linear time', () => {
+    const cue = (words) => `WEBVTT\n\n00:01.000 --> 00:02.000\n${words}\n`;
+    expect(vttToText(cue(`${'<'.repeat(100000)}x`))).toBe(`${'<'.repeat(100000)}x`);
+    expect(vttToText(cue(`<v${' '.repeat(100000)}x`))).toBe('<v x');
+  });
 });
 
 describe('srtToText', () => {
@@ -110,6 +120,10 @@ describe('documentXmlToText', () => {
 describe('tidyText', () => {
   it('trims line ends and collapses runs of blank lines to one', () => {
     expect(tidyText('  a  \r\n\r\n\r\n\r\nb\t\n')).toBe('a\n\nb');
+  });
+
+  it('trims a line of 100 000 spaces before a word in linear time', () => {
+    expect(tidyText(`a${' '.repeat(100000)}x \n`)).toBe(`a${' '.repeat(100000)}x`);
   });
 });
 

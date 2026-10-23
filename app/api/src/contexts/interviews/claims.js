@@ -56,6 +56,17 @@ export const MAX_QUOTE = 1000;
 
 const QUOTES = /[‘’‚‛′]/g;
 const DOUBLE_QUOTES = /[“”„‟″]/g;
+const STRAIGHT_MARKS = "'\"";
+const QUOTE_MARKS = "'\"“”‘’";
+
+/** s without the quote marks (any of `marks`) it starts or ends with. Linear, by index — no regex backtracking on a long run of marks. */
+export function stripQuoteMarks(s, marks = QUOTE_MARKS) {
+  let a = 0;
+  let b = s.length;
+  while (a < b && marks.includes(s[a])) a++;
+  while (b > a && marks.includes(s[b - 1])) b--;
+  return s.slice(a, b);
+}
 
 /** The form two copies of one span share: NFC, straight quotes, whitespace folded. */
 export function foldForQuote(s) {
@@ -69,7 +80,7 @@ export function foldForQuote(s) {
  * the transcript once.
  */
 export function verbatimQuote(quote, folded) {
-  const q = foldForQuote(quote).replace(/^["']+|["']+$/g, '').trim();
+  const q = stripQuoteMarks(foldForQuote(quote), STRAIGHT_MARKS).trim();
   if (q.length < MIN_QUOTE || q.length > MAX_QUOTE) return null;
   return folded.includes(q) ? q : nearVerbatim(q, folded);
 }
@@ -189,7 +200,7 @@ export function repairClaim(raw, repaired = []) {
     out = { ...out, membership: said };
     repaired.push('membership');
   }
-  const quote = typeof raw.quote === 'string' ? raw.quote.replace(/^\s*["'“”‘’]+|["'“”‘’]+\s*$/g, '') : '';
+  const quote = typeof raw.quote === 'string' ? stripQuoteMarks(raw.quote.trim()) : '';
   if (!text(raw.value, MAX_VALUE) && text(quote, MAX_VALUE)) {
     out = { ...out, value: quote };
     repaired.push('value');

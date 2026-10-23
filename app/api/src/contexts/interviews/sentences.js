@@ -79,7 +79,7 @@ export function sentenceOf(transcript, quote) {
  * nickname). Names joined by "en"/"and" in one clause share it. Pure.
  */
 export function clauseFor(sentence, subjectName) {
-  const clauses = String(sentence).split(/\s*;\s*/);
+  const clauses = String(sentence).split(';').map(c => c.trim());
   if (clauses.length < 2) return sentence;
   const words = String(subjectName ?? '').toLowerCase().split(/\s+/).filter(w => w.length > 1);
   if (!words.length) return sentence;

@@ -79,9 +79,10 @@ const JOINER = /\s+(?:en|and)\s+|\s*&\s*/iu;
 
 /** The names in a joint subject ("A, B en C"), or null when it names one person. Pure. */
 export function jointNames(subject) {
-  const s = String(subject ?? '').trim();
+  // Whitespace folded first, so the joiner never scans a long run of spaces.
+  const s = String(subject ?? '').replace(/\s+/g, ' ').trim();
   if (!JOINER.test(s)) return null;
-  const names = s.split(JOINER).flatMap(part => part.split(/\s*,\s*/u)).map(n => n.trim()).filter(Boolean);
+  const names = s.split(JOINER).flatMap(part => part.split(',')).map(n => n.trim()).filter(Boolean);
   return names.length > 1 ? names : null;
 }
 

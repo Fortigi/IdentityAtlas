@@ -101,11 +101,22 @@ async function readDocx(buffer) {
 }
 
 // ─── vtt / srt ───────────────────────────────────────────────────────────
+// Cue markup removed until none is left: one pass over "<<b>i>" would leave "<i>".
+// A tag never spans a "<", so each pass is linear.
+function dropTags(s) {
+  let out = s;
+  for (let prev = null; prev !== out;) {
+    prev = out;
+    out = out.replace(/<[^<>]*>/g, '');
+  }
+  return out;
+}
+
 // One cue's text: a voice tag names its speaker; every other tag is dropped.
 function cueTurn(lines) {
   const joined = lines.join(' ').trim();
-  const voice = /^<v[^\s>]*\s+([^>]+)>/.exec(joined);
-  const words = joined.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  const voice = /^<v[^\s>]*\s+([^\s>][^>]*)>/.exec(joined);
+  const words = dropTags(joined).replace(/\s+/g, ' ').trim();
   if (voice) return { speaker: voice[1].trim(), words };
   const named = /^([^:]{1,60}):\s+(.*)$/.exec(words);
   return named ? { speaker: named[1].trim(), words: named[2] } : { speaker: null, words };
@@ -152,7 +163,7 @@ export function srtToText(text) {
 
 /** Plain text: line breaks normalised, trailing spaces and runs of blank lines dropped. */
 export function tidyText(text) {
-  return normaliseLines(text).split('\n').map(l => l.replace(/\s+$/, '')).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return normaliseLines(text).split('\n').map(l => l.trimEnd()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 export async function parseTranscript(buffer, { fileName = '' } = {}) {

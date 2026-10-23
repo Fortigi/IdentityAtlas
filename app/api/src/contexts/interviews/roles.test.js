@@ -82,6 +82,11 @@ describe('jointNames / splitJointSubjects', () => {
     expect(jointNames('Ruud, Kees en Bram')).toEqual(['Ruud', 'Kees', 'Bram']);
   });
 
+  it('folds whitespace before splitting, so a long run of spaces is read in linear time', () => {
+    expect(jointNames('Ruud   en\tKees ,  Bram')).toEqual(['Ruud', 'Kees', 'Bram']);
+    expect(jointNames(`Ruud${' '.repeat(100000)}x`)).toBeNull();
+  });
+
   it('one person stays one: "Last, First", a particle, a name with "en" inside a word', () => {
     for (const n of ['Jansen, Piet', 'Piet van den Berg', 'Ben Hendriks', 'Kees', '', null]) expect(jointNames(n), String(n)).toBeNull();
   });
