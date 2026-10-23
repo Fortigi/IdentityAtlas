@@ -278,6 +278,33 @@ Describe 'ConvertTo-CsvUserRecord' {
     }
 }
 
+Describe 'ConvertTo-CsvUserRecord — EmployeeId / GivenName / Surname are schema columns (#1441)' {
+    It 'maps EmployeeId/GivenName/Surname to exact-cased core fields, not extended attributes' {
+        $header = @('ExternalId', 'DisplayName', 'EmployeeId', 'GivenName', 'Surname')
+        $cols   = New-ColSet $header
+        $extra  = Get-CsvExtraColumns -Columns $header -FileName 'Users.csv'
+        $row    = [PSCustomObject]@{ ExternalId = 'u1'; DisplayName = 'Euson, Robin'; EmployeeId = 'E12345'; GivenName = 'Robin'; Surname = 'Euson' }
+        $rec    = ConvertTo-CsvUserRecord -Row $row -SystemId 7 -Cols $cols -Extra $extra
+
+        # The ingest matches field names to "Principals" columns case-SENSITIVELY
+        # (app/api/src/ingest/normalization.js pickCoreColumns), so the record's
+        # KEYS must be the exact camelCase column names. Asserting $rec.employeeId
+        # alone would pass on a record keyed 'EmployeeId' — the hashtable is
+        # case-insensitive, but the wire is not.
+        @($rec.Keys) -ccontains 'employeeId' | Should -BeTrue
+        $rec['employeeId'] | Should -Be 'E12345'
+        @($rec.Keys) -ccontains 'givenName'  | Should -BeTrue
+        $rec['givenName']  | Should -Be 'Robin'
+        @($rec.Keys) -ccontains 'surname'    | Should -BeTrue
+        $rec['surname']    | Should -Be 'Euson'
+    }
+
+    It 'no longer reports the three headers as extra columns' {
+        $header = @('ExternalId', 'DisplayName', 'EmployeeId', 'GivenName', 'Surname', 'CostCenter')
+        Get-CsvExtraColumns -Columns $header -FileName 'Users.csv' | Should -Be @('CostCenter')
+    }
+}
+
 Describe 'ConvertTo-CsvStreamBatch (assignments)' {
     # A whole batch per call: the per-row function it replaced cost more than the
     # shaping it did, at 40M rows. Each case below feeds rows that only the right
