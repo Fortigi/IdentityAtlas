@@ -69,14 +69,20 @@ export async function resolveSubjects(db, names, { contextId, interviewee }) {
     else leftover.push(name);
   }
 
+  await resolveSingleNames(db, contextId, leftover, out);
+  for (const name of leftover) if (!out.has(name)) out.set(name, { match: null });
+  return out;
+}
+
+// A one-word name nobody matched: the one person the context knows by that first name.
+async function resolveSingleNames(db, contextId, leftover, out) {
   const singles = leftover.map(n => [n, normalizeName(n)]).filter(([, norm]) => norm && !norm.includes(' '));
-  const found = singles.length ? await resolveFirstNames(db, contextId, [...new Set(singles.map(([, norm]) => norm))]) : new Map();
+  if (!singles.length) return;
+  const found = await resolveFirstNames(db, contextId, [...new Set(singles.map(([, norm]) => norm))]);
   for (const [name, norm] of singles) {
     const row = found.get(norm);
     if (row) out.set(name, { [row.holderCol]: row.id, match: 'firstName' });
   }
-  for (const name of leftover) if (!out.has(name)) out.set(name, { match: null });
-  return out;
 }
 
 // ─── Per claim: the two fallbacks for a name that resolved to nobody ─────
