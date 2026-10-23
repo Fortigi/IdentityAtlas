@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Resolved a code-scanning alert on attribute-based matrix roll-ups. No change to which attribute names are accepted.
+
+## Changes in this PR
+
 - Fixed the report builder failing with a permission error for users who may build custom reports but not ask questions in plain language. They now get the builder without the "Describe it" (local model) panel.
 
 ## Changes in this PR

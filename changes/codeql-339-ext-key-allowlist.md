@@ -1,1 +1,0 @@
-- Resolved a code-scanning alert on attribute-based matrix roll-ups. No change to which attribute names are accepted.
