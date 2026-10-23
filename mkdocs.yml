@@ -120,6 +120,7 @@ nav:
           - Sharing a Matrix: ui/sharing-a-matrix.md
       - Entitlement Pivot and Saved Views: ui/entitlement-pivot.md
       - Unit Report: ui/unit-report.md
+      - Access Review Adoption: ui/access-review-adoption.md
       - Custom Reports: ui/custom-reports.md
       - Contexts: ui/contexts.md
       - Building a Context by Describing It: ui/context-assistant.md

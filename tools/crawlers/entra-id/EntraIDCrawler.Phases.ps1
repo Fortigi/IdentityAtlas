@@ -42,9 +42,9 @@
 #                 └─ ResourceAssignments(OAuth2Grant)  <-- one row per consenting user
 #
 # The scope resource ID is deterministic over (clientSpId, targetApiSpId, scope)
-# so re-runs idempotently overwrite the same rows. Tenant-wide consents
-# (consentType='AllPrincipals', principalId=null) are skipped — they don't
-# represent a user-specific decision. A distinct relationshipType (
+# so re-runs idempotently overwrite the same rows. A tenant-wide consent
+# (consentType='AllPrincipals') has no user to hold it: it marks the scope
+# resource adminConsented instead. A distinct relationshipType (
 # 'DelegatesScope' not 'Contains') keeps the scoped full-sync delete from
 # wiping out the Access Package 'Contains' relationships produced by the
 # governance sync above.
@@ -66,18 +66,17 @@ function Sync-EntraOAuth2Grants {
         $total = @($grants).Count
         Write-Host "  Fetched $total OAuth2 permission grants" -ForegroundColor Gray
 
-        # Keep only per-user consents — AllPrincipals are tenant-wide admin
-        # consents that we explicitly skip (they don't reflect an individual
-        # user's authorization decision).
-        $userGrants = @($grants | Where-Object { $_.consentType -eq 'Principal' -and $_.principalId })
-        Write-Host "  $($userGrants.Count) per-user consents (skipping $($total - $userGrants.Count) tenant-wide)" -ForegroundColor Gray
+        # A per-user consent names its user; a tenant-wide (admin) one never stands for one user.
+        $userGrants  = @($grants | Where-Object { $_.consentType -eq 'Principal' -and $_.principalId })
+        $adminGrants = @($grants | Where-Object { $_.consentType -eq 'AllPrincipals' })
+        Write-Host "  $($userGrants.Count) per-user + $($adminGrants.Count) tenant-wide consents (of $total)" -ForegroundColor Gray
 
-        if ($userGrants.Count -eq 0) {
+        if ($userGrants.Count + $adminGrants.Count -eq 0) {
             Write-Host "  Nothing to ingest" -ForegroundColor Yellow
         }
         else {
-            $spInfo = Get-EntraOAuth2SpInfo -UserGrants $userGrants
-            Send-EntraOAuth2GrantRecords -UserGrants $userGrants -SpInfo $spInfo -SystemId $SystemId
+            $spInfo = Get-EntraOAuth2SpInfo -UserGrants @($userGrants + $adminGrants)
+            Send-EntraOAuth2GrantRecords -UserGrants $userGrants -AdminGrants $adminGrants -SpInfo $spInfo -SystemId $SystemId
         }
     }
     catch {
@@ -122,14 +121,14 @@ function Get-EntraOAuth2SpInfo {
 # ConvertTo-EntraOAuth2ScopeGraph.
 function Send-EntraOAuth2GrantRecords {
     [CmdletBinding()]
-    param($UserGrants, [hashtable]$SpInfo, [int]$SystemId)
+    param($UserGrants, [hashtable]$SpInfo, [int]$SystemId, $AdminGrants = @())
     $clientIds = [System.Collections.Generic.HashSet[string]]::new()
-    foreach ($g in $UserGrants) { [void]$clientIds.Add($g.clientId) }
+    foreach ($g in @($UserGrants) + @($AdminGrants)) { if ($g.clientId) { [void]$clientIds.Add($g.clientId) } }
     $clientRecords = @($clientIds | ForEach-Object { ConvertTo-EntraOAuth2ClientResource -ClientId $_ -SpInfo $SpInfo[$_] })
     Update-CrawlerProgress -Detail "Uploading $($clientRecords.Count) client apps..."
     Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'full' -Scope @{ resourceType = 'Application' } -Records $clientRecords
 
-    $scopeGraph = ConvertTo-EntraOAuth2ScopeGraph -UserGrants $UserGrants -SpInfo $SpInfo
+    $scopeGraph = ConvertTo-EntraOAuth2ScopeGraph -UserGrants $UserGrants -AdminGrants $AdminGrants -SpInfo $SpInfo
     $scopeRecords = @($scopeGraph.resources)
     Update-CrawlerProgress -Detail "Uploading $($scopeRecords.Count) scope resources..."
     Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'full' -Scope @{ resourceType = 'DelegatedPermission' } -Records $scopeRecords
@@ -758,13 +757,14 @@ function Get-EntraServicePrincipalData {
         [Parameter(Mandatory)] [int]$SystemId,
         [string]$SyncMode = 'delta'
     )
-    # `tags` and `servicePrincipalType` drive classification; `appId`,
-    # `appOwnerOrganizationId`, and `notes` go into extendedAttributes for
-    # downstream visibility. `accountEnabled` lives in its dedicated column.
+    # `tags` and `servicePrincipalType` drive classification; the rest goes into
+    # extendedAttributes (credentials = metadata only, see AppSecurity.ps1). The delta
+    # feed omits verifiedPublisher / signInAudience / appRoleAssignmentRequired: a
+    # changed SP loses them until the next full run, like `notes` already does.
     $spSelectAttrs = @(
-        'id','appId','displayName','servicePrincipalType','accountEnabled',
-        'tags','appOwnerOrganizationId','createdDateTime','notes',
-        'servicePrincipalNames','homepage','publisherName'
+        'id','appId','displayName','servicePrincipalType','accountEnabled','tags','appOwnerOrganizationId','createdDateTime','notes',
+        'servicePrincipalNames','homepage','publisherName','verifiedPublisher','signInAudience','appRoleAssignmentRequired','replyUrls',
+        'passwordCredentials','keyCredentials'
     )
     $spSelect = $spSelectAttrs -join ','
 
@@ -1235,45 +1235,8 @@ function Sync-EntraGovernancePolicies {
     Write-Phase -Name 'Governance/AssignmentPolicies' -Duration $__polSW.Elapsed -ErrorMsg $__polErrMsg
 }
 
-# Fetch every decision under an access-review definition's instances and shape
-# them into CertificationDecisions records. All Graph I/O for one definition;
-# per-instance failures are logged and skipped. Pulled out of the review loop so
-# Sync-EntraGovernanceReviews stays under the complexity threshold.
-function Get-EntraAccessReviewCertRecords {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)] $Definition,
-        [string]$ApId
-    )
-    $out = [System.Collections.Generic.List[object]]::new()
-    try {
-        $instances = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions/$($Definition.id)/instances?`$top=100")
-        foreach ($inst in $instances) {
-            $out.AddRange([object[]]@(Get-EntraReviewInstanceDecisions -Definition $Definition -Instance $inst -ApId $ApId))
-        }
-    } catch {
-        Write-Host "  Skipping review definition $($Definition.id): $($_.Exception.Message)" -ForegroundColor Yellow
-    }
-    return $out
-}
-
-# All CertificationDecisions records for one access-review instance. Graph caps the
-# decisions collection at 100/page (larger $top 400s — rely on @odata.nextLink). A
-# per-instance failure is logged (with the real Graph error body) and skipped.
-function Get-EntraReviewInstanceDecisions {
-    [CmdletBinding()]
-    param($Definition, $Instance, [string]$ApId)
-    $out = [System.Collections.Generic.List[object]]::new()
-    try {
-        $decisions = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions/$($Definition.id)/instances/$($Instance.id)/decisions")
-        foreach ($d in $decisions) {
-            $out.Add((ConvertTo-EntraCertificationDecisionRecord -Decision $d -Definition $Definition -Instance $Instance -ApId $ApId))
-        }
-    } catch {
-        Write-Host "    Skipping instance $($Instance.id): $(Get-FGGraphErrorDetail $_)" -ForegroundColor Yellow
-    }
-    return $out
-}
+# Get-EntraAccessReviewCertRecords / Get-EntraReviewInstanceDecisions live in
+# EntraIDCrawler.AccessReviews.ps1 (moved out for the file-length ratchet).
 
 # ─── Governance sub-phase: access reviews -> certifications ───────
 # Walk access-review definitions scoped to an access package, pull their
@@ -1654,7 +1617,7 @@ function Resolve-EntraSyncConfig {
         Set-EntraTogglesFrom -Cfg $cfg -Source $objects -Map ([ordered]@{
             identity = 'SyncPrincipals'; servicePrincipals = 'SyncServicePrincipals'
             identityGovernance = 'SyncGovernance'; pim = 'SyncPim'; signInLogs = 'SyncSignInLogs'
-            oauth2Grants = 'SyncOAuth2Grants'; appsAppRoles = 'SyncAppRoles'; appOwners = 'SyncAppOwners'; appPermissions = 'SyncAppPermissions'; principalRelationships = 'SyncPrincipalRelationships'; directoryRoles = 'SyncDirectoryRoles'
+            oauth2Grants = 'SyncOAuth2Grants'; appsAppRoles = 'SyncAppRoles'; appOwners = 'SyncAppOwners'; appPermissions = 'SyncAppPermissions'; appRegistrations = 'SyncAppRegistrations'; principalRelationships = 'SyncPrincipalRelationships'; directoryRoles = 'SyncDirectoryRoles'
             profilePhotos = 'SyncProfilePhotos'
         })
         # usersGroupsMembers drives three toggles at once (applied after `identity` so it wins on SyncPrincipals).
@@ -1669,7 +1632,7 @@ function Resolve-EntraSyncConfig {
         syncPrincipals = 'SyncPrincipals'; syncServicePrincipals = 'SyncServicePrincipals'
         syncResources = 'SyncResources'; syncAssignments = 'SyncAssignments'; syncGovernance = 'SyncGovernance'
         syncSignInLogs = 'SyncSignInLogs'; syncOAuth2Grants = 'SyncOAuth2Grants'
-        syncAppRoles = 'SyncAppRoles'; syncAppOwners = 'SyncAppOwners'; syncAppPermissions = 'SyncAppPermissions'; syncPrincipalRelationships = 'SyncPrincipalRelationships'; syncDirectoryRoles = 'SyncDirectoryRoles'
+        syncAppRoles = 'SyncAppRoles'; syncAppOwners = 'SyncAppOwners'; syncAppPermissions = 'SyncAppPermissions'; syncAppRegistrations = 'SyncAppRegistrations'; syncPrincipalRelationships = 'SyncPrincipalRelationships'; syncDirectoryRoles = 'SyncDirectoryRoles'
         syncProfilePhotos = 'SyncProfilePhotos'
     })
     Set-EntraConfigExtras -Cfg $cfg -RawConfig $RawConfig

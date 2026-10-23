@@ -11,6 +11,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useDialog } from '@ui/components/dialogContext';
 import { useCanBuildReports } from '@ui/hooks/useCanBuildReports';
+import { useHasPermission } from '@ui/auth/usePermissions';
 import ReportError from '@ui/components/reports/ReportError';
 import AskAssistant from './AskAssistant';
 import { useReportPreview } from './useReportPreview';
@@ -45,6 +46,9 @@ export default function ReportBuilderPage({ builderId, onClose, onOpenDetail, on
   const { authFetch } = useAuth();
   const dialog = useDialog();
   const enabled = useCanBuildReports();
+  // Describing a report to the model is asking (data.read.reports). Someone who
+  // may only build gets the builder without it.
+  const canAsk = useHasPermission('data.read.reports');
   const isNew = builderId.startsWith('new-');
 
   const { data: catalog, error: catalogError } = useFetch('/api/nl-reports/catalog', { authFetch });
@@ -108,10 +112,12 @@ export default function ReportBuilderPage({ builderId, onClose, onOpenDetail, on
       />
       <ReportDetailsForm name={name} description={description} onNameChange={setName} onDescriptionChange={setDescription} />
 
-      <div className={CARD}>
-        <h3 className={H3}>Describe it <span className="font-normal text-gray-600 dark:text-gray-400">— optional, uses the local model</span></h3>
-        <AskAssistant currentSpec={isNew && !result ? null : spec} onReport={onReport} />
-      </div>
+      {canAsk && (
+        <div className={CARD}>
+          <h3 className={H3}>Describe it <span className="font-normal text-gray-600 dark:text-gray-400">— optional, uses the local model</span></h3>
+          <AskAssistant currentSpec={isNew && !result ? null : spec} onReport={onReport} />
+        </div>
+      )}
 
       <DefinitionPanel
         spec={spec} catalog={catalog} dirty={preview.dirty} result={result} running={preview.running}

@@ -12,6 +12,7 @@
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AppOwners.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.AppSecurity.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
     "tools/crawlers/shared/Get-NestedGroupUserSet.ps1",
     "tools/crawlers/shared/Get-CapabilityId.ps1",
@@ -147,7 +148,8 @@
     "tools/crawlers/shared/Invoke-CrawlerDeltaToken.ps1",
     "tools/crawlers/mssql/SqlCrawler.Delta.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.DeltaScope.ps1",
-    "tools/crawlers/entra-id/EntraIDCrawler.GroupDelta.ps1"
+    "tools/crawlers/entra-id/EntraIDCrawler.GroupDelta.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.AccessReviews.ps1"
   ],
   "tests": {
     "tools/crawlers/shared/Invoke-CrawlerIngestStream.ps1": [
@@ -192,11 +194,19 @@
     "tools/crawlers/entra-id/EntraIDCrawler.Photos.ps1": [
       "test/unit/EntraIDCrawlerPhotos.Tests.ps1"
     ],
+    "tools/crawlers/entra-id/EntraIDCrawler.AccessReviews.ps1": [
+      "test/unit/EntraIDCrawlerPhases.Tests.ps1"
+    ],
     "tools/crawlers/entra-id/EntraIDCrawler.AppOwners.ps1": [
       "test/unit/EntraIDCrawlerAppOwners.Tests.ps1",
       "test/unit/EntraIDCrawlerTransform.Tests.ps1"
     ],
     "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1": [
+      "test/unit/EntraIDCrawlerAppPermissions.Tests.ps1"
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.AppSecurity.ps1": [
+      "test/unit/EntraIDCrawlerAppSecurity.Tests.ps1",
+      "test/unit/EntraIDCrawlerTransform.Tests.ps1",
       "test/unit/EntraIDCrawlerAppPermissions.Tests.ps1"
     ],
     "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1": [

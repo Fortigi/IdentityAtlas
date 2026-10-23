@@ -88,7 +88,21 @@
  * @property {Object} parametersSchema  JSON-Schema-ish (required + properties).
  * @property {ReportColumn[]} columns
  * @property {ReportPivot[]} [pivots]   Pivot tables the xlsx download opens with.
+ * @property {ReportChart[]} [charts]   Pie charts the xlsx download opens with.
  * @property {Function} run             (params, ctx) => Promise<ReportRunResult>
+ */
+
+/**
+ * @typedef {Object} ReportChart
+ *   One pie chart on the Charts tab of the xlsx download: how the rows split
+ *   over one column. See xlsxCharts.js.
+ * @property {string} name        Short name.
+ * @property {'pie'}  type
+ * @property {string} category    Row key whose values are the slices.
+ * @property {string} [value]     Row key summed per slice; omitted, rows are counted.
+ * @property {string} [title]     Chart title (defaults to the name).
+ * @property {string} [valueLabel] Heading of the number column beside it.
+ * @property {Object<string,string>} [colors] Slice colour per category, 'RRGGBB'.
  */
 
 /**

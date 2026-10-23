@@ -23,6 +23,7 @@ classDiagram
     class AccessPermission
     class AdministrativeUnitContext
     class Agent
+    class AppRegistration
     class AppRole
     class Application
     class ApplicationOwnership
@@ -90,6 +91,7 @@ classDiagram
     Permission <|-- AccessPermission
     OrganizationalUnit <|-- AdministrativeUnitContext
     Principal <|-- Agent
+    Application <|-- AppRegistration
     TechnicalRole <|-- AppRole
     Resource <|-- Application
     ControlPermission <|-- ApplicationOwnership
@@ -326,6 +328,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 
 | Value | Class | Template | Made by | Meaning |
 |---|---|---|---|---|
+| `AppRegistration` | `ia:AppRegistration` | Application | crawler `entra-id` | An app registration (id = application object id; appId joins it to its service principal). Grants nothing and has no assignments; carries the app's security set-up (credential metadata, redirect URIs, required resource access, federated credentials). |
 | `AppRole` | `ia:AppRole` | Technical role | crawlers `demo`, `entra-id` | One app role of an application (one resource per application + appRoleId). |
 | `Application` | `ia:Application` | Application | crawlers `demo`, `entra-id` | An enterprise application (service principal) as a resource. Grants nothing by itself; parent of its app roles and permissions. |
 | `ApplicationOwnership` | `ia:ApplicationOwnership` | Permission | crawlers `demo`, `entra-id` | The owners of an app registration — they can add a credential and act as the app. |

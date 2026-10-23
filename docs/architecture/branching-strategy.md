@@ -42,7 +42,7 @@ git checkout -b bugfixes/<name> v5.2.0
 
 | Context | Format | Example |
 |---------|--------|---------|
-| `main` dev builds (`:edge`) | `Major.Minor.yyyyMMdd.HHmm` | `5.3.20260419.1430` |
+| `main` dev builds (`:edge`) | `Major.Minor.yyyyMMdd.HHmm` | `6.3.20261023.1430` |
 | Pre-release tags (`:beta`) | `Major.Minor.Patch-beta.N` | `5.3.0-beta.1` |
 | Release tags (`:latest`) | `Major.Minor.Patch.0` | `5.2.1.0` |
 
@@ -54,7 +54,7 @@ git checkout -b bugfixes/<name> v5.2.0
 | Pre-release version | `cut-beta.yml` GitHub Action | When you run Actions → Cut Beta |
 | Release version | `cut-release.yml` GitHub Action | When you run Actions → Cut Release |
 | Hotfix version | `cut-hotfix.yml` GitHub Action | When you run Actions → Cut Hotfix |
-| `Major` bump | Developer, via PR to `main` | Only for breaking changes |
+| `Major` bump | `bump-version.yml` GitHub Action | On the first PR merge after a release (or beta) of a new major is tagged — `Major` follows the highest `vX.Y.Z` tag and `Minor` restarts at 1 |
 | Branch work | Nobody | Never touch `setup/IdentityAtlas.psd1` on a branch |
 
 ---
