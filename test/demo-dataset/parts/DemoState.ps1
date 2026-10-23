@@ -73,6 +73,8 @@ function New-DemoState {
         Policies               = [System.Collections.Generic.List[object]]::new()
         Certifications         = [System.Collections.Generic.List[object]]::new()
         PrincipalActivity      = [System.Collections.Generic.List[object]]::new()
+        ContextRoles           = [System.Collections.Generic.List[object]]::new()
+        ContextRelationships   = [System.Collections.Generic.List[object]]::new()
 
         # key -> placeholder systemId (1-based, insertion order)
         SystemIds              = @{}
@@ -114,7 +116,9 @@ function Add-DemoContext {
         [Parameter(Mandatory)][string]$ContextType,
         [Parameter(Mandatory)][int]$ScopeSystemId,
         [string]$ParentContextId,
-        [string]$TargetType = 'Principal'
+        [string]$TargetType = 'Principal',
+        [string]$ExternalId,
+        [string]$Description
     )
     $rec = @{
         id            = $Id
@@ -125,7 +129,43 @@ function Add-DemoContext {
         scopeSystemId = $ScopeSystemId
     }
     if ($ParentContextId) { $rec['parentContextId'] = $ParentContextId }
+    if ($ExternalId)      { $rec['externalId']      = $ExternalId }
+    if ($Description)     { $rec['description']     = $Description }
     $State.Contexts.Add($rec)
+}
+
+# Who answers for an organizational unit or a logical application (ContextRoles,
+# migration 092): one Accountable at most, any number of Responsible. The demo
+# names the holder by account (principalId); the ingest stores it as addedBy='sync'.
+function Add-DemoContextRole {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)][string]$ContextId,
+        [Parameter(Mandatory)][ValidateSet('Accountable', 'Responsible')][string]$Role,
+        [Parameter(Mandatory)][string]$PrincipalId
+    )
+    $State.ContextRoles.Add(@{
+        contextId   = $ContextId
+        role        = $Role
+        principalId = $PrincipalId
+    })
+}
+
+# Two contexts that are one unit seen through a different kind of member
+# (ContextRelationships, SameUnitAs): "Security Team" as its people and as its
+# resources.
+function Add-DemoContextRelationship {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)][string]$ContextId,
+        [Parameter(Mandatory)][string]$RelatedContextId,
+        [ValidateSet('SameUnitAs')][string]$RelationshipType = 'SameUnitAs'
+    )
+    $State.ContextRelationships.Add(@{
+        contextId        = $ContextId
+        relatedContextId = $RelatedContextId
+        relationshipType = $RelationshipType
+    })
 }
 
 # De-duplicating: a principal in both a department and a team context must not

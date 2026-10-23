@@ -651,15 +651,15 @@ ia:CostCenterContext a owl:Class ; rdfs:subClassOf ia:OrganizationalUnit ; ia:ty
     rdfs:comment "A cost center synced from Omada, grouping persons: an org dimension a manager recognises, so an organizational unit." .
 ia:LogicalApplicationContext a owl:Class ; rdfs:subClassOf ia:Context ; ia:typeValue "LogicalApplication" ;
     ia:template true ;
-    ia:emittedBy "mssql" ;
+    ia:emittedBy "demo", "mssql" ;
     ia:allowedTargetType ia:EntityKind_Resource ;
     rdfs:label "Logical application" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "An application as the business knows it, grouping the technical resources (entitlements, roles, groups) that belong to it. The SQL connector's IdentityIQ preset loads these from the application list." .
 ia:TeamContext a owl:Class ; rdfs:subClassOf ia:OrganizationalUnit ; ia:typeValue "Team" ;
     ia:emittedBy "demo" ;
-    ia:allowedTargetType ia:EntityKind_Principal ;
+    ia:allowedTargetType ia:EntityKind_Principal, ia:EntityKind_Resource ;
     rdfs:label "Team" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "A team below a department. Only the demo dataset emits it." .
+    rdfs:comment "A team below a department, as its people or as the resources it administers (the two linked by sameUnitAs). Only the demo dataset emits it." .
 ia:AdministrativeUnitContext a owl:Class ; rdfs:subClassOf ia:OrganizationalUnit ; ia:typeValue "AdministrativeUnit" ;
     ia:emittedBy "demo" ;
     ia:allowedTargetType ia:EntityKind_Principal ;

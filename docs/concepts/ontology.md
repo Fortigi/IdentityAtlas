@@ -227,7 +227,7 @@ flowchart LR
     subgraph g_LogicalApplicationContext["Logical application"]
       direction LR
       t_ContextRecipe["ContextRecipe<br/><small>context-recipe</small>"]:::Context
-      t_LogicalApplication["LogicalApplication<br/><small>mssql</small>"]:::Context
+      t_LogicalApplication["LogicalApplication<br/><small>demo, mssql</small>"]:::Context
       t_ContextRecipe ~~~ t_LogicalApplication
     end
     subgraph g_OrganizationalUnit["Organizational unit"]

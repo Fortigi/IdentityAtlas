@@ -65,8 +65,8 @@ Describe 'the realism slice is opt-in' {
         # The numbers the Capture-the-Flag answers and Verify-DemoDataset.ps1 pin.
         $script:base.systems.Count | Should -Be 5
         $script:base.principals.Count | Should -Be 49
-        $script:base.resources.Count | Should -Be 47
-        $script:base.resourceAssignments.Count | Should -Be 180
+        $script:base.resources.Count | Should -Be 52
+        $script:base.resourceAssignments.Count | Should -Be 185
         $script:base.identities.Count | Should -Be 27
         $script:base.certificationDecisions.Count | Should -Be 3
     }
