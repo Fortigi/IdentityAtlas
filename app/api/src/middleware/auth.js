@@ -15,6 +15,7 @@ import {
 } from '../config/authConfig.js';
 import { isReadTokenFormat, findActiveByPlaintext } from '../auth/readTokens.js';
 import { resolvePermissions } from '../auth/permissions.js';
+import { applyContextOwnerMode } from './contextOwnerMode.js';
 
 // The request path the prefix guards below compare against: originalUrl (not
 // req.path, which is mount-stripped under app.use('/api', ...)), without the
@@ -134,12 +135,8 @@ export function authMiddleware(req, res, next) {
     // configured via AUTH_REQUIRED_ROLES. Independent of the permission
     // model below; if both are set, both must pass.
     const requiredRoles = getRequiredRoles();
-    if (requiredRoles && requiredRoles.length > 0) {
-      if (!requiredRoles.some(r => tokenRoles.includes(r))) {
-        console.error(`Token missing required role. Has: [${tokenRoles.join(', ')}], needs one of: [${requiredRoles.join(', ')}]`);
-        return res.status(403).json({ error: 'Insufficient permissions' });
-      }
-    }
+    const missesRequiredRole = !!requiredRoles && requiredRoles.length > 0
+      && !requiredRoles.some(r => tokenRoles.includes(r));
 
     // Resolve roles -> permissions via the configured (or seed) mapping.
     //
@@ -160,8 +157,24 @@ export function authMiddleware(req, res, next) {
     req.user = decoded;
     req.user.roles = tokenRoles;
     req.user.permissions = permissions;
-    next();
+    if (!missesRequiredRole && permissions.size > 0) return next();
+
+    // A caller who would otherwise have no access — missing a required role, or
+    // holding roles that map to nothing — may still be a context owner
+    // (Accountable / Responsible for a context, with the Admin → Authentication
+    // switch on). contextOwnerMode.js decides; when they are not one, the
+    // `otherwise` path is exactly the behaviour without that feature: the 403
+    // for a missing required role, next() for a roleless caller.
+    const otherwise = missesRequiredRole ? refuseMissingRole(res, tokenRoles, requiredRoles) : next;
+    return applyContextOwnerMode(req, res, next, { path: guardPath(req), otherwise });
   });
+}
+
+function refuseMissingRole(res, tokenRoles, requiredRoles) {
+  return () => {
+    console.error(`Token missing required role. Has: [${tokenRoles.join(', ')}], needs one of: [${requiredRoles.join(', ')}]`);
+    res.status(403).json({ error: 'Insufficient permissions' });
+  };
 }
 
 // Per-route permission gate. Use at the mount line (most routers) or as a

@@ -12,13 +12,16 @@
 // gets the unit report (its members, their entitlement counts and attributes) —
 // a unit of resources has no report card.
 //
-// `analystOnly`: left out of a read-only shared view (a context owner's page) —
-// work only an analyst starts.
+// A read-only shared view (a context owner's page) leaves out two kinds of card:
+// `analystOnly` — work only an analyst starts — and
+// `inApp` — a card that opens a page of the app (the matrix), which that reader
+// cannot reach. The report cards stay: the owner may export their own context.
 
 import MatrixCard from './MatrixCard';
 import DownloadReportCard from './DownloadReportCard';
 
-const VIEW_IN_MATRIX = { key: 'view-in-matrix', Card: MatrixCard };
+// inApp: the card opens a page of the app, which a read-only shell cannot reach.
+const VIEW_IN_MATRIX = { key: 'view-in-matrix', Card: MatrixCard, inApp: true };
 const DOWNLOAD_REPORT = { key: 'download-report', Card: DownloadReportCard };
 const DOWNLOAD_UNIT_REPORT = {
   key: 'download-unit-report',
@@ -37,8 +40,8 @@ const ACTIONS = {
   LogicalApplication: [VIEW_IN_MATRIX, DOWNLOAD_REPORT],
 };
 
-/** The action cards this context shows, in order; `sharedView` drops the analyst-only ones. */
+/** The action cards this context shows, in order; `sharedView` drops the analyst-only and in-app ones. */
 export function actionCardsFor(attrs, { sharedView = false } = {}) {
   const cards = (ACTIONS[attrs.contextCategory] || []).filter(c => !c.when || c.when(attrs));
-  return sharedView ? cards.filter(c => !c.analystOnly) : cards;
+  return sharedView ? cards.filter(c => !c.analystOnly && !c.inApp) : cards;
 }

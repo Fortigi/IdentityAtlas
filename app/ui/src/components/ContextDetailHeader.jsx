@@ -5,6 +5,7 @@ import { isRecipeRoot } from './contexts/assistant/recipeDraft';
 import ContextOwner from './contexts/ContextOwner';
 import ContextAccessCounts from './contexts/ContextAccessCounts';
 import { useContextAncestors } from './contexts/useContextAncestors';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 
 // ─── Header: the name, one sentence on what it is, and the page actions ──
 // The sentence ("Department · imported from Fortigi Demo HR") replaces the
@@ -16,7 +17,9 @@ import { useContextAncestors } from './contexts/useContextAncestors';
 //   onAddSubUnit  Add sub-unit
 //   onOpenAsPage  Open as page (embedded in the Contexts page)
 //   onClose       Back to Contexts (the page opened from the tree)
-// Copy link is always offered: the page URL is the link to share.
+// Copy link is offered except in a read-only shell (a context owner's page),
+// where the page URL is not this unit's page; there the breadcrumb names the
+// direct parent only, without reading the parents the reader may not open.
 
 const SECONDARY_BTN = 'rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 whitespace-nowrap';
 const OUTLINE_BTN = 'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700/50 whitespace-nowrap';
@@ -27,6 +30,7 @@ function contextLink(id) {
 }
 
 export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, onOpenAsPage, onEdit, onAddSubUnit }) {
+  const readOnly = useIsSharedView();
   const canEditRecipe = useCanBuildContexts() && isRecipeRoot(attrs) && !!onOpenDetail;
   const subtitle = contextSubtitle(attrs);
 
@@ -34,7 +38,7 @@ export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, onOp
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <Breadcrumb attrs={attrs} onOpenDetail={onOpenDetail} />
+          <Breadcrumb attrs={attrs} onOpenDetail={onOpenDetail} walk={!readOnly} />
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white truncate">{attrs.displayName || attrs.id}</h2>
             <ContextOwner attrs={attrs} onOpenDetail={onOpenDetail} />
@@ -50,7 +54,7 @@ export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, onOp
           )}
           {onEdit && <button type="button" onClick={onEdit} className={SECONDARY_BTN}>Edit</button>}
           {onAddSubUnit && <button type="button" onClick={onAddSubUnit} className={SECONDARY_BTN}>Add sub-unit</button>}
-          <CopyLinkButton id={attrs.id} />
+          {!readOnly && <CopyLinkButton id={attrs.id} />}
           {onOpenAsPage && (
             <button type="button" onClick={onOpenAsPage} className={OUTLINE_BTN} title="Open this unit in its own tab">
               Open as page
@@ -64,8 +68,8 @@ export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, onOp
 }
 
 // The parents above this context, root first, each opening its own page.
-function Breadcrumb({ attrs, onOpenDetail }) {
-  const ancestors = useContextAncestors(attrs);
+function Breadcrumb({ attrs, onOpenDetail, walk }) {
+  const ancestors = useContextAncestors(attrs, { walk });
   if (ancestors.length === 0) return null;
   return (
     <nav aria-label="Breadcrumb" className="mb-1">

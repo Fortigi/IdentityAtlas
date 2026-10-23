@@ -58,6 +58,10 @@ tags:
       404 while the feature is off. The caller's permission is checked first, so a caller without
       it gets 403 whether or not the feature is on.
 
+  - name: Authentication
+    description: >
+      Sign-in settings managed from Admin → Authentication. Requires `admin.auth`.
+
 paths:
   # ─── Ingest Endpoints ──────────────────────────────────────────
   /ingest/systems:
@@ -486,6 +490,58 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RotateResult'
+
+  # ─── Admin Authentication ──────────────────────────────────────
+  /admin/context-owner-access:
+    get:
+      tags: [Authentication]
+      summary: Read the context-owner access switch
+      operationId: getContextOwnerAccess
+      description: >
+        Whether people who are Accountable or Responsible for a context may sign in without an
+        Identity Atlas role and see that context, its report and its workflows. Off by default.
+        Requires `admin.auth`.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The current setting
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextOwnerAccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    put:
+      tags: [Authentication]
+      summary: Turn context-owner access on or off
+      operationId: setContextOwnerAccess
+      description: >
+        Takes effect on the next request; no restart. A context owner can only read their own
+        contexts (and the contexts linked to them as variants of the same unit), each context's
+        timeline, risk score and Entitlement Pivot download. Every other endpoint answers 403
+        for them. Requires `admin.auth`.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContextOwnerAccess'
+      responses:
+        '200':
+          description: The saved setting
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextOwnerAccess'
+        '400':
+          description: "`enabled` is missing or not a boolean"
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          description: The setting could not be saved
 
   # ─── Admin Crawler Management ───────────────────────────────────
   /admin/crawlers:
@@ -2884,6 +2940,13 @@ components:
       description: Entra ID JWT token
 
   schemas:
+    ContextOwnerAccess:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+          description: True when context owners may sign in and see their own contexts
     ContextCategory:
       type: string
       description: The template a context follows. Null means "Other" (a type the templates do not cover).

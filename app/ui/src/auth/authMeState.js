@@ -13,7 +13,7 @@
  * what an empty-but-wildcard state would do.
  */
 export function degradedPermState() {
-  return { permissions: new Set(), roles: [], hasWildcard: false, loaded: true, me: null };
+  return { permissions: new Set(), roles: [], hasWildcard: false, loaded: true, me: null, contextOwner: null };
 }
 
 /**
@@ -23,6 +23,8 @@ export function degradedPermState() {
  * in open mode, and in both cases some keys are absent. `me` is the signed-in
  * user mapped onto crawled data (see api/auth/resolveMe.js) — null whenever
  * nothing matched, which consumers must treat as ordinary rather than an error.
+ * `contextOwner` is set only for a caller let in as a context owner (no
+ * Identity Atlas role, Accountable/Responsible for a context): { contexts }.
  */
 export function permStateFromAuthMe(body) {
   return {
@@ -31,5 +33,19 @@ export function permStateFromAuthMe(body) {
     hasWildcard: !!body?.hasWildcard,
     loaded: true,
     me: body?.me || null,
+    contextOwner: body?.contextOwner || null,
   };
+}
+
+/**
+ * True when the signed-in user is here only as a context owner: the API let
+ * them in for the contexts they answer for (`contextOwner`) and they hold no
+ * permission of their own. Such a user gets the bare owner page instead of the
+ * app — every other screen would answer 403. Somebody who is both an owner AND
+ * holds a real role gets the ordinary app (the API never scopes them).
+ */
+export function isContextOwnerSession({ permissionsLoaded, hasWildcard, permissions, contextOwner } = {}) {
+  if (!permissionsLoaded || hasWildcard) return false;
+  if (permissions && permissions.size > 0) return false;
+  return Array.isArray(contextOwner?.contexts) && contextOwner.contexts.length > 0;
 }

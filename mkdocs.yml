@@ -153,6 +153,7 @@ nav:
           - Custom Connector (Push API): sync/custom-connector.md
       - Administer:
           - Authentication & SSO: admin/authentication.md
+          - Context-Owner Access: architecture/context-owner-access.md
           - Data & Maintenance: admin/data-tab.md
           - Automatic Updates: admin/auto-updates.md
           - Nightly Review: operations/nightly-review.md
