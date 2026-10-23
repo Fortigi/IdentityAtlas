@@ -1,0 +1,42 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "The Upload a list path of the New context tree wizard (docs/architecture/context-upload.md): the pure mapping edits and the step gates (uploadMapping.helpers.js), the state and API calls of the three steps (useContextUpload.js) and the step flow that decides what Next and Back do (UploadListFlow.jsx). WHY: a mapping edit that silently keeps a column as an attribute after it became the owner, or a gate that lets a preview with row errors through to Import, writes a wrong tree that the next re-import repeats. Run: cd app/ui && npm run test:mutation:contextupload. TEST INCLUDE traces the importers: the helpers and the hook are exercised by their own unit test and by UploadListFlow.mount.test.jsx, which mounts the flow through the wizard. MUTATOR SET: StringLiteral and ObjectLiteral excluded, matching the sibling configs. NOT YET MEASURED: break is deliberately absent until a first run measures a score (and see stryker.roles.config.json on the vitest 5 coverage regression before trusting any UI number).",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.contextupload.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-ui-contextupload.json"
+  },
+  "mutate": [
+    "src/components/contexts/upload/uploadMapping.helpers.js",
+    "src/components/contexts/upload/useContextUpload.js",
+    "src/components/contexts/upload/UploadListFlow.jsx"
+  ],
+  "mutationExclusions": {
+    "src/components/contexts/upload/AiMark.jsx": "Presentational: renders a fixed badge when its one boolean prop is true. The decision of which fields carry it is aiSuggested() in uploadMapping.helpers.js, which IS mutated here; the badge itself is asserted by UploadListFlow.mount.test.jsx (exactly one mark for one AI field).",
+    "src/components/contexts/upload/UploadFileStep.jsx": "Presentational form: a file input and the list picker, forwarding both to useContextUpload (mutated here). It computes nothing; the picker options and its locked state on a re-import are asserted by UploadListFlow.mount.test.jsx and ContextsPage.mount.test.jsx.",
+    "src/components/contexts/upload/UploadMappingStep.jsx": "Presentational form over the mapping: every change it makes is a call into uploadMapping.helpers.js (withRole, toggleAttribute, usedColumns, treesOf), which is mutated here. What is left is markup and class strings, which the excluded StringLiteral/ObjectLiteral mutators skip anyway.",
+    "src/components/contexts/upload/UploadMemberColumns.jsx": "Presentational table of member columns: its add / change / remove buttons call addMemberColumn / updateMember / removeMember in uploadMapping.helpers.js, which is mutated here and tested with discriminating inputs in uploadMapping.helpers.test.js.",
+    "src/components/contexts/upload/UploadPreviewStep.jsx": "Presentational: prints the preview the API computed. The two lines it builds come from countsLine / membersLine (mutated here); the remove-missing checkbox is only shown for an existing list, asserted both ways by UploadListFlow.mount.test.jsx.",
+    "src/components/contexts/UploadProvenance.jsx": "Presentational: one line from provenanceText() in ContextDetails.helpers.js, whose wording and branches are asserted directly in ContextDetails.helpers.test.js; the line itself is asserted by ContextDetailPage.mount.test.jsx."
+  },
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70
+  },
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false
+}

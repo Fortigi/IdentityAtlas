@@ -8,6 +8,7 @@
 //   contexts/members.js — POST/DELETE/PATCH-move /contexts/:id/members[...]
 //   contexts/roles.js   — GET/PUT /contexts/:id/roles + DELETE /contexts/:id/roles/:roleId
 //   contexts/relationships.js — GET/POST /contexts/:id/relationships + DELETE .../:relId
+//   contexts/uploads.js — /contexts/uploads (+ /analyze, /preview, /apply): a list uploaded as a tree
 //   contexts/shared.js  — useSql / UUID_RE / TARGET_TYPES + the writeContexts gate
 //
 // This file composes them onto one router and re-exports it, so the mount in
@@ -16,6 +17,7 @@
 // See docs/architecture/context-redesign.md for the design.
 
 import { Router } from 'express';
+import uploadsRouter from './contexts/uploads.js';
 import readRouter from './contexts/read.js';
 import crudRouter from './contexts/crud.js';
 import membersRouter from './contexts/members.js';
@@ -23,6 +25,8 @@ import rolesRouter from './contexts/roles.js';
 import relationshipsRouter from './contexts/relationships.js';
 
 const router = Router();
+// Before the read router: /contexts/uploads must not be taken for /contexts/:id.
+router.use(uploadsRouter);
 router.use(readRouter);
 router.use(crudRouter);
 router.use(membersRouter);

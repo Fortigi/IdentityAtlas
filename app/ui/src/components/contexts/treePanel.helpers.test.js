@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   sourceGroupOf, groupBySource, orderBySource, isEditableTree, rootKindSuffix, hasKindFilter,
-  countWords, rowCount, emptyTreesCopy, editedTitle, SOURCE_OPTIONS, KIND_FILTER_OPTIONS,
+  countWords, rowCount, emptyTreesCopy, editedTitle, SOURCE_OPTIONS, KIND_FILTER_OPTIONS, isUploadedList,
 } from './treePanel.helpers';
 
 const HR = { id: 'hr', variant: 'synced', scopeSystemId: 3, scopeSystemName: 'Fortigi Demo HR' };
@@ -127,5 +127,14 @@ describe('filter options and the edited title', () => {
     expect(editedTitle({ variant: 'generated' })).toBeNull();
     expect(editedTitle({ variant: 'manual', userRenamed: true })).toBeNull();
     expect(editedTitle(null)).toBeNull();
+  });
+});
+
+describe('isUploadedList', () => {
+  it('is an imported tree whose source is an upload list — not any other imported or derived tree', () => {
+    expect(isUploadedList({ variant: 'synced', scopeSystemType: 'Upload' })).toBe(true);
+    expect(isUploadedList({ variant: 'synced', scopeSystemType: 'EntraID' })).toBe(false);
+    expect(isUploadedList({ variant: 'generated', scopeSystemType: 'Upload' })).toBe(false);
+    expect(isUploadedList(null)).toBe(false);
   });
 });

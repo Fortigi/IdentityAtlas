@@ -125,17 +125,20 @@ function linkEndpoint(label, parseRows, sqlFor, paramsFor) {
 }
 
 const ROLE_CATEGORIES = [...ROLE_BEARING_CATEGORIES];
+const roleSql = (row) => roleInsertSql(row.holderCol);
+const roleParams = (row, systemId) => [row.contextId, row.holderId, row.role, systemId, ROLE_CATEGORIES];
+const relationshipSql = () => RELATIONSHIP_INSERT_SQL;
+const relationshipParams = (row, systemId) => [row.contextId, row.relatedContextId, row.relationshipType, systemId];
 
-router.post('/ingest/context-roles', linkEndpoint(
-  'context-roles', parseRoleRecords,
-  (row) => roleInsertSql(row.holderCol),
-  (row, systemId) => [row.contextId, row.holderId, row.role, systemId, ROLE_CATEGORIES],
-));
+// The two writers, for in-process sources that hold their own permission (the
+// context upload): already-parsed rows — { contextId, role, holderCol, holderId }
+// and { contextId, relatedContextId, relationshipType } — added for `systemId`
+// under exactly the rules the endpoints apply. Returns { inserted, skipped }.
+export const insertRoleRows = (rows, systemId) => insertEach(rows, roleSql, (row) => roleParams(row, systemId));
+export const insertRelationshipRows = (rows, systemId) => insertEach(rows, relationshipSql, (row) => relationshipParams(row, systemId));
 
-router.post('/ingest/context-relationships', linkEndpoint(
-  'context-relationships', parseRelationshipRecords,
-  () => RELATIONSHIP_INSERT_SQL,
-  (row, systemId) => [row.contextId, row.relatedContextId, row.relationshipType, systemId],
-));
+router.post('/ingest/context-roles', linkEndpoint('context-roles', parseRoleRecords, roleSql, roleParams));
+
+router.post('/ingest/context-relationships', linkEndpoint('context-relationships', parseRelationshipRecords, relationshipSql, relationshipParams));
 
 export default router;

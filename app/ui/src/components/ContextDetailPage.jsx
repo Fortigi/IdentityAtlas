@@ -5,6 +5,7 @@ import ContextDetailHeader from './ContextDetailHeader';
 import ContextProfile from './contexts/profiles/ContextProfile';
 import { profileFor } from './contexts/profiles/profiles';
 import ContextDetails from './contexts/ContextDetails';
+import UploadProvenance from './contexts/UploadProvenance';
 import ContextEditModal from './contexts/ContextEditModal';
 import ContextRelationshipsTab from './ContextRelationshipsTab';
 import TabBar from './TabBar';
@@ -249,6 +250,7 @@ function DetailTop({ contextId, attrs, subContexts, analyst, onShowMembers, onSh
   return (
     <>
       <ContextDetailHeader attrs={attrs} onOpenDetail={openEntity} {...headerProps} />
+      <UploadProvenance attrs={attrs} />
       {attrs.description && (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{attrs.description}</div>
       )}
