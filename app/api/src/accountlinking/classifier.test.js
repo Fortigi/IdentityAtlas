@@ -210,13 +210,18 @@ describe('parseName - forms and fallbacks', () => {
     expect(parseName('  John   Michael   Doe  ')).toMatchObject({ given: 'john', surname: 'doe' });
   });
 
-  it('falls back to the explicit fields ONLY when the display name yields nothing', () => {
-    // `!sur && surname`. As OR, the explicit field overrides what the display name
-    // already gave -- so "Doe, John" plus a stale surname column parses as the stale one.
-    expect(parseName('Doe, John', 'IGNORED', 'IGNORED')).toMatchObject({ given: 'john', surname: 'doe' });
+  it('prefers the explicit given/surname fields over re-parsing the display name', () => {
+    // The structured HR/directory columns are already clean; the display name is the
+    // free-text field that carries titles and qualifiers. So the columns are the primary
+    // source and the display name only fills whichever half they leave empty -- the other
+    // way round, a clean surname column is discarded in favour of a parsed title (#1439).
+    expect(parseName('Doe, John', 'Jane', 'Smith')).toMatchObject({ given: 'jane', surname: 'smith' });
     expect(parseName('', 'John', 'Doe')).toMatchObject({ given: 'john', surname: 'doe' });
-    // A lone token fills surname, so only the GIVEN falls back.
-    expect(parseName('Doe', 'John', 'IGNORED')).toMatchObject({ given: 'john', surname: 'doe' });
+    // Each half falls back independently: supply one column, parse the other.
+    expect(parseName('Doe, John', '', 'Smith')).toMatchObject({ given: 'john', surname: 'smith' });
+    expect(parseName('Doe, John', 'Jane', '')).toMatchObject({ given: 'jane', surname: 'doe' });
+    // A lone display-name token fills surname, so only the GIVEN comes from the column.
+    expect(parseName('Doe', 'John', '')).toMatchObject({ given: 'john', surname: 'doe' });
   });
 
   it('strips bracketed qualifiers before parsing', () => {
@@ -278,5 +283,72 @@ describe('nameMatchLevel - levels', () => {
 
   it('does not treat different initials as a match', () => {
     expect(nameMatchLevel(n('Alice Doe'), n('John Doe'))).toBe('none');
+  });
+});
+
+// ── Titles and multi-word surnames (#1439) ───────────────────────────────────
+//
+// HR display names in Dutch, Belgian and German sources routinely carry academic
+// titles ("Jan de Vries MSc", "drs. Anna Bakker") and particle surnames ("van den
+// Berg"). Parsing the first token as the given name and the LAST as the surname
+// turns a title into a name, so the real owner stops matching and the account is
+// linked to a namesake instead -- access rolls up to the wrong person.
+
+describe('parseName - titles and multi-word surnames (#1439)', () => {
+  it('uses the clean given/surname columns rather than the title-bearing display name', () => {
+    // The reported case: surname parses as 'msc', so the owner is indexed under
+    // {jan, msc} and is never even a candidate for her own account.
+    expect(parseName('Jan de Vries MSc', 'Jan', 'de Vries'))
+      .toMatchObject({ given: 'jan', surname: 'devries' });
+  });
+
+  it('strips post-nominal titles when only a display name is available', () => {
+    expect(parseName('Jan de Vries MSc')).toMatchObject({ given: 'jan', surname: 'devries' });
+    expect(parseName('Anna Bakker PhD')).toMatchObject({ given: 'anna', surname: 'bakker' });
+  });
+
+  it('strips pre-nominal titles when only a display name is available', () => {
+    expect(parseName('drs. Anna Bakker')).toMatchObject({ given: 'anna', surname: 'bakker' });
+    expect(parseName('ir. Jeroen Visser')).toMatchObject({ given: 'jeroen', surname: 'visser' });
+  });
+
+  it('strips a stack of titles on both sides of the name', () => {
+    // Several titles at once, which a single-shot strip would only half remove.
+    expect(parseName('Prof. dr. ir. Willem van der Laan MSc'))
+      .toMatchObject({ given: 'willem', surname: 'vanderlaan' });
+  });
+
+  it('keeps the particles as part of the surname', () => {
+    // 'berg' is not this person's surname: every other "van den Berg" in the tenant
+    // reduces to the same token, so a name match stops meaning anything.
+    expect(parseName('Jeroen van den Berg').surname).toBe('vandenberg');
+    expect(parseName('Mark ter Horst').surname).toBe('terhorst');
+  });
+
+  it('does not conflate a particle surname with its hyphenated compound', () => {
+    // Two different people and two different families -- the last-word rule scores
+    // them as the same surname, which is the one non-title wrong link in the report.
+    expect(parseName('Mark van der Steen').surname)
+      .not.toBe(parseName('Lisa Schilder-van der Steen').surname);
+    expect(parseName('Lisa Schilder-van der Steen')).toMatchObject({ given: 'lisa', surname: 'schildervandersteen' });
+  });
+
+  it('still collapses a middle name into the given+last pair', () => {
+    // The paired negative: the surname grows only from a known particle onwards, not
+    // from "everything after the given name" -- otherwise the middle names that appear
+    // inconsistently across systems would split one person into two.
+    expect(parseName('Anna Maria Bakker')).toMatchObject({ given: 'anna', surname: 'bakker' });
+    expect(parseName('John Michael Doe')).toMatchObject({ given: 'john', surname: 'doe' });
+  });
+
+  it('matches the same person across a titled and an untitled display name', () => {
+    // What the linking engine actually asks: the HR record and the account are one person.
+    expect(nameMatchLevel(parseName('Jan de Vries MSc', 'Jan', 'de Vries'), parseName('Jan de Vries')))
+      .toBe('full');
+    expect(parseName('Jan de Vries MSc', 'Jan', 'de Vries').key).toBe(parseName('Jan de Vries').key);
+  });
+
+  it('still separates two people whose surnames differ only by a particle', () => {
+    expect(nameMatchLevel(parseName('Mark van der Steen'), parseName('Mark Steen'))).toBe('none');
   });
 });

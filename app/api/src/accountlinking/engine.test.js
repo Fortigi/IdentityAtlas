@@ -347,3 +347,67 @@ describe('buildLinks - the ambiguity guard', () => {
     )).toHaveLength(0);
   });
 });
+
+// ── Titled HR display names (#1439) ──────────────────────────────────────────
+//
+// The reporter-visible symptom of the name-parsing defect, through the default
+// rules: an account belonging to someone whose HR display name carries a title
+// is attached to an untitled namesake, while its real owner shows no accounts.
+
+describe('buildLinks - owners with a titled display name (#1439)', () => {
+  const titledOwner = {
+    id: 'owner', displayName: 'Jan de Vries MSc', givenName: 'Jan', surname: 'de Vries',
+    email: 'jan.devries@corp.example', employeeId: 'E100',
+  };
+  // An account from a system that carries neither address nor employee id, so the
+  // name signals are the only evidence there is.
+  const orphan = { id: 'p1', displayName: 'Jan de Vries', email: null, employeeId: null };
+
+  it('links the orphan account to its titled owner', () => {
+    const links = buildLinks([orphan], [titledOwner], DEFAULT_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ identityId: 'owner', signals: ['fullName'] });
+    expect(links[0].confidence).toBe(60); // name-only evidence, reported honestly
+  });
+
+  it('leaves a genuine namesake tie for review instead of picking the untitled one', () => {
+    // Both people really are called Jan de Vries. Today only the untitled one is even
+    // found, so the account is confidently attached to the wrong person; once both are
+    // candidates the existing ambiguity guard correctly declines to guess.
+    const identities = [
+      titledOwner,
+      {
+        id: 'namesake', displayName: 'Jan de Vries', givenName: 'Jan', surname: 'de Vries',
+        email: 'j.devries@corp.example', employeeId: 'E200',
+      },
+    ];
+    expect(buildLinks([orphan], identities, DEFAULT_RULES)).toHaveLength(0);
+  });
+
+  it('still links the namesake when a strong signal breaks the tie', () => {
+    // The paired case: the guard must only fire on name-only evidence.
+    const identities = [
+      titledOwner,
+      {
+        id: 'namesake', displayName: 'Jan de Vries', givenName: 'Jan', surname: 'de Vries',
+        email: 'j.devries@corp.example', employeeId: 'E200',
+      },
+    ];
+    const withId = { ...orphan, employeeId: 'E200' };
+    const links = buildLinks([withId], identities, DEFAULT_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('namesake');
+  });
+
+  it('does not link an account whose surname only shares the particle tail', () => {
+    // 'van der Steen' and 'Schilder-van der Steen' are two families.
+    const identities = [{
+      id: 'schilder', displayName: 'Lisa Schilder-van der Steen',
+      givenName: 'Lisa', surname: 'Schilder-van der Steen', email: 'l.schilder@corp.example',
+    }];
+    expect(buildLinks(
+      [{ id: 'p2', displayName: 'Lisa van der Steen', email: null, employeeId: null }],
+      identities, DEFAULT_RULES,
+    )).toHaveLength(0);
+  });
+});

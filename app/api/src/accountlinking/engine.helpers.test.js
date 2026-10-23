@@ -192,6 +192,34 @@ describe('collectCandidates - every index is actually consulted', () => {
   });
 });
 
+describe('candidate gathering for titled and particle names (#1439)', () => {
+  const opts = { prefixes: prefixesFrom(DEFAULT_RULES), suffixes: suffixesFrom(DEFAULT_RULES) };
+
+  it('indexes a titled identity so her own untitled account still finds her', () => {
+    // Indexing and scoring both go through personName, so a scoring-only fix would leave
+    // the owner out of the candidate set entirely and she would stay accountless.
+    const owner = { id: 'owner', displayName: 'Jan de Vries MSc', givenName: 'Jan', surname: 'de Vries' };
+    const indexes = indexIdentities([owner]);
+    const orphan = { id: 'o', displayName: 'Jan de Vries' };
+    expect([...collectCandidates(orphan, indexes, opts).keys()]).toEqual(['owner']);
+  });
+
+  it('gathers every namesake, titled or not, as a candidate', () => {
+    const titled = { id: 'titled', displayName: 'Jan de Vries MSc', givenName: 'Jan', surname: 'de Vries' };
+    const plain = { id: 'plain', displayName: 'Jan de Vries', givenName: 'Jan', surname: 'de Vries' };
+    const indexes = indexIdentities([titled, plain]);
+    const got = collectCandidates({ id: 'o', displayName: 'Jan de Vries' }, indexes, opts);
+    expect([...got.keys()].sort()).toEqual(['plain', 'titled']);
+  });
+
+  it('does not gather a different family that shares the particle tail', () => {
+    const indexes = indexIdentities([
+      { id: 'schilder', displayName: 'Lisa Schilder-van der Steen', givenName: 'Lisa', surname: 'Schilder-van der Steen' },
+    ]);
+    expect(collectCandidates({ id: 'o', displayName: 'Lisa van der Steen' }, indexes, opts).size).toBe(0);
+  });
+});
+
 describe('signal lookup by type', () => {
   const rules = {
     signals: [
