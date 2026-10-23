@@ -43,7 +43,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 - **Languages:** PowerShell (crawlers), JavaScript (Node API + React UI), SQL (postgres migrations)
 - **Stack:** PostgreSQL 16 + Node.js API (port 3001) + PowerShell worker — all in Docker
 - **Author:** Wim van den Heijkant / Fortigi — https://github.com/Fortigi/IdentityAtlas
-- **Current Version:** 5.x.yyyyMMdd.HHmm (auto-bumped by `bump-version.yml` on every PR merge to `main`)
+- **Current Version:** 6.x.yyyyMMdd.HHmm (auto-bumped by `bump-version.yml` on every PR merge to `main`; `Major` follows the newest release tag)
 
 **Subdirectory coding guides (loaded contextually):**
 - `Functions/CLAUDE.md` — PowerShell SDK conventions (style, naming, Graph API patterns) — note: folder paths inside are v4-era; conventions still apply
@@ -89,7 +89,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 
 | Context | Who updates it | When |
 |---------|---------------|------|
-| `main` dev builds | `bump-version.yml` (automated) | Every PR merge — increments `Minor`, updates timestamp |
+| `main` dev builds | `bump-version.yml` (automated) | Every PR merge — increments `Minor`, updates timestamp. `Major` follows the highest `vX.Y.Z` tag (Minor restarts when it moves), so cutting `v7.0.0` puts `main` on `7.x` |
 | Pre-release tags | `cut-beta.yml` (automated) | When you run Actions → Cut Beta |
 | Release tags | `cut-release.yml` / `cut-hotfix.yml` (automated) | When you run Actions → Cut Release or Cut Hotfix |
 | `feature/*` / `bugfixes/*` | **Nobody** | Never touch `setup/IdentityAtlas.psd1` on a branch |
