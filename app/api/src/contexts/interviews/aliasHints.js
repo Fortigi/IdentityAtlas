@@ -136,17 +136,27 @@ export function aliasCandidates(claims, { transcript, contextName, aliases = [],
   const seen = new Set();
   for (const name of named) {
     const norm = normalizeName(name);
-    const words = norm.split(' ');
     if (!norm || seen.has(norm)) continue;
     seen.add(norm);
-    if (PRONOUNS.has(words[0]) || known.has(compact(name)) || words.some(w => people.has(w))) continue;
-    if (properties.includes(norm)) continue;
-    const times = count(text, name);
-    if (times === 0 || (times < 2 && count(firstText, name) === 0)) continue;
+    if (!isNewName(name, norm, { known, people, properties })) continue;
+    if (!saidEnough(text, firstText, name)) continue;
     const quote = quoteFor(text, name);
     if (quote) out.push({ name, norm, quote });
   }
   return out;
+}
+
+// Not a pronoun, a name the context already has, a person or a property value.
+function isNewName(name, norm, { known, people, properties }) {
+  const words = norm.split(' ');
+  if (PRONOUNS.has(words[0]) || known.has(compact(name))) return false;
+  return !words.some(w => people.has(w)) && !properties.includes(norm);
+}
+
+// Said twice, or once in the first description of the context.
+function saidEnough(text, firstText, name) {
+  const times = count(text, name);
+  return times >= 2 || (times === 1 && count(firstText, name) > 0);
 }
 
 export function aliasHintClaims(candidates, otherContextNames = []) {

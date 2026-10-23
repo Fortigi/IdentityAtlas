@@ -25,33 +25,45 @@ const CONFIRMED = [
 ];
 const INTERVIEW = { id: 'iv-1', ...SRC, extractionStatus: 'done', extractionMessage: '1 claim was left out because the quote is not in the transcript.', proposed: 4, confirmed: 4 };
 
+// A PATCH of one claim: record it, answer the first Accountable confirmation with
+// a 409 when asked to, otherwise decide the claim and add the role it becomes.
+function patchClaim(state, conflictOnce, id, opts) {
+  const body = JSON.parse(opts.body);
+  state.patches.push({ id, body });
+  if (conflictOnce && !state.conflicted && body.status === 'confirmed' && id === 'cl-own') {
+    state.conflicted = true;
+    return jsonResponse({ error: 'This context already has an Accountable', details: { current: { id: 'r-0', displayName: 'Old Owner', principalId: 'p-old' } } }, { ok: false, status: 409 });
+  }
+  const c = state.claims.find(x => x.id === id);
+  c.status = body.status === 'rejected' ? 'rejected' : 'confirmed';
+  if (body.value) { c.value = body.value; c.status = 'edited'; }
+  if (c.status !== 'rejected' && c.roleSuggestion) state.roles.push({ id: `r-${c.id}`, role: c.roleSuggestion, principalId: body.principalId || c.principalId, displayName: body.principalId ? 'Karel Kiezer' : c.subjectDisplayName, addedBy: 'analyst', sourceClaimId: c.id, sourceIntervieweeName: 'Anna Voorbeeld', sourceInterviewedAt: '2026-10-01' });
+  return { claim: c, effect: { kind: 'none' } };
+}
+
+// The GET answers, by exact URL.
+function getRoutes(state, doubt) {
+  return new Map(Object.entries({
+    '/api/contexts/c-app/claims': () => ({ data: state.claims, accountableDoubt: doubt }),
+    '/api/contexts/c-app/interviews': () => ({ data: state.interviews }),
+    '/api/contexts/c-app/interviews/iv-1/extract': () => jsonResponse({ id: 'iv-1', extractionStatus: 'pending' }, { status: 202 }),
+    '/api/contexts/c-app/roles/suggestion': () => jsonResponse(undefined, { status: 204 }),
+    '/api/contexts/c-app/roles': () => state.roles,
+    '/api/contexts/c-app/relationships': () => [],
+  }));
+}
+
 // A stateful API: the claims and roles change as the page decides them; every
 // call is recorded. `conflictOnce` answers the first Accountable confirmation
 // with the 409 the API gives when someone else is Accountable.
 function api({ claims = [ACCOUNTABLE, RESPONSIBLE, UNMATCHED, PROPERTY, ...CONFIRMED], roles = [], interviews = [INTERVIEW], conflictOnce = false, doubt = null } = {}) {
   const state = { claims: claims.map(c => ({ ...c })), roles: [...roles], patches: [], conflicted: false, interviews };
+  const routes = getRoutes(state, doubt);
   const authFetch = makeAuthFetch((url, opts = {}) => {
     const u = String(url);
     const patch = /^\/api\/contexts\/claims\/([^/]+)$/.exec(u);
-    if (patch && opts.method === 'PATCH') {
-      const body = JSON.parse(opts.body);
-      state.patches.push({ id: patch[1], body });
-      if (conflictOnce && !state.conflicted && body.status === 'confirmed' && patch[1] === 'cl-own') {
-        state.conflicted = true;
-        return jsonResponse({ error: 'This context already has an Accountable', details: { current: { id: 'r-0', displayName: 'Old Owner', principalId: 'p-old' } } }, { ok: false, status: 409 });
-      }
-      const c = state.claims.find(x => x.id === patch[1]);
-      c.status = body.status === 'rejected' ? 'rejected' : 'confirmed';
-      if (body.value) { c.value = body.value; c.status = 'edited'; }
-      if (c.status !== 'rejected' && c.roleSuggestion) state.roles.push({ id: `r-${c.id}`, role: c.roleSuggestion, principalId: body.principalId || c.principalId, displayName: body.principalId ? 'Karel Kiezer' : c.subjectDisplayName, addedBy: 'analyst', sourceClaimId: c.id, sourceIntervieweeName: 'Anna Voorbeeld', sourceInterviewedAt: '2026-10-01' });
-      return { claim: c, effect: { kind: 'none' } };
-    }
-    if (u === '/api/contexts/c-app/claims') return { data: state.claims, accountableDoubt: doubt };
-    if (u === '/api/contexts/c-app/interviews') return { data: state.interviews };
-    if (u === '/api/contexts/c-app/interviews/iv-1/extract') return jsonResponse({ id: 'iv-1', extractionStatus: 'pending' }, { status: 202 });
-    if (u === '/api/contexts/c-app/roles/suggestion') return jsonResponse(undefined, { status: 204 });
-    if (u === '/api/contexts/c-app/roles') return state.roles;
-    if (u === '/api/contexts/c-app/relationships') return [];
+    if (patch && opts.method === 'PATCH') return patchClaim(state, conflictOnce, patch[1], opts);
+    if (routes.has(u)) return routes.get(u)();
     if (u.startsWith('/api/users?search=kar')) return { data: [{ id: 'p-karel', displayName: 'Karel Kiezer' }] };
     if (u.startsWith('/api/users?')) return { data: [] };
     return undefined;
