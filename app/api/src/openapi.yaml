@@ -3722,18 +3722,11 @@ components:
       type: object
       nullable: true
       description: A member's latest role at the context from the interviews, with every role claim about them, oldest first.
-      properties:
-        claimId: { type: string, format: uuid }
-        interviewId: { type: string, format: uuid }
-        value: { type: string }
-        status: { type: string, enum: [proposed, confirmed, edited] }
-        periodFrom: { type: string, format: date, nullable: true }
-        periodTo: { type: string, format: date, nullable: true }
-        periodText: { type: string, nullable: true }
-        quote: { type: string, nullable: true }
-        intervieweeName: { type: string }
-        interviewedAt: { type: string, format: date }
-        history: { type: array, items: { $ref: '#/components/schemas/ContextMemberClaimFact' } }
+      allOf:
+        - $ref: '#/components/schemas/ContextMemberClaimFact'
+        - type: object
+          properties:
+            history: { type: array, items: { $ref: '#/components/schemas/ContextMemberClaimFact' } }
     ContextRole:
       type: object
       description: Who answers for a context; the holder is an account or a person, exactly one.
