@@ -163,7 +163,7 @@ export async function extractInterview(interviewId, { db = defaultDb, ask = defa
     const claims = deduceRoles(await withSubjects(db, dedupeClaims(run.claims, kept), interview));
     await db.tx(async (client) => {
       await store.deleteProposedModelClaims(client, interviewId);
-      await store.insertClaims(client, { interviewId, contextId: interview.contextId, origin: 'model' }, claims);
+      await store.insertClaims(client, { interviewId, contextId: interview.contextId, proposedBy: 'model' }, claims);
     });
     const message = runMessage(run);
     await store.setExtraction(db, interviewId, { status: 'done', message, model: run.model });

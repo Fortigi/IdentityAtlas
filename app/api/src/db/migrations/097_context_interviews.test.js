@@ -29,10 +29,10 @@ describe('migration 097 — context interviews', () => {
 
   it('admits exactly the claim kinds, statuses and suggestions the code uses', () => {
     expect(inList('claimKind')).toEqual(CLAIM_KINDS);
-    expect(inList('status')).toEqual(CLAIM_STATUSES);
+    expect(inList('claimStatus')).toEqual(CLAIM_STATUSES);
     expect(inList('roleSuggestion')).toEqual(ROLE_SUGGESTIONS);
     expect(ROLE_SUGGESTIONS).toEqual(CONTEXT_ROLE_TYPES);
-    expect(inList('origin')).toEqual(['model', 'analyst']);
+    expect(inList('proposedBy')).toEqual(['model', 'analyst']);
     expect(inList('extractionStatus')).toEqual(['pending', 'running', 'done', 'failed', 'notConfigured']);
   });
 

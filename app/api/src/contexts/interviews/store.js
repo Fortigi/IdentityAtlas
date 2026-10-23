@@ -26,9 +26,9 @@ export async function insertInterview(db, row) {
 export async function listInterviews(db, contextId) {
   const r = await db.query(`
     SELECT ${INTERVIEW_COLUMNS},
-           COUNT(c.id) FILTER (WHERE c.status = 'proposed')::int                 AS proposed,
-           COUNT(c.id) FILTER (WHERE c.status IN ('confirmed', 'edited'))::int    AS confirmed,
-           COUNT(c.id) FILTER (WHERE c.status = 'rejected')::int                 AS rejected
+           COUNT(c.id) FILTER (WHERE c."claimStatus" = 'proposed')::int              AS proposed,
+           COUNT(c.id) FILTER (WHERE c."claimStatus" IN ('confirmed', 'edited'))::int AS confirmed,
+           COUNT(c.id) FILTER (WHERE c."claimStatus" = 'rejected')::int              AS rejected
       FROM "ContextInterviews" iv
       LEFT JOIN "ContextClaims" c ON c."interviewId" = iv.id
      WHERE iv."contextId" = $1
@@ -73,7 +73,7 @@ const CLAIM_SELECT = `
     SELECT c.id, c."interviewId", c."contextId", c."claimKind", c."subjectKind", c."principalId", c."identityId",
            c."subjectName", COALESCE(p."displayName", i."displayName") AS "subjectDisplayName", c."subjectMatch",
            c.attribute, c.value, c."periodFrom"::text AS "periodFrom", c."periodTo"::text AS "periodTo", c."periodText",
-           c.quote, c.confidence::float8 AS confidence, c."roleSuggestion", c.status, c.origin,
+           c.quote, c.confidence::float8 AS confidence, c."roleSuggestion", c."claimStatus" AS status, c."proposedBy",
            c."decidedBy", c."decidedAt", c."createdAt",
            (SELECT r.id FROM "ContextRoles" r WHERE r."sourceClaimId" = c.id LIMIT 1) AS "appliedRoleId",
            iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt", iv."fileName"
@@ -85,7 +85,7 @@ const CLAIM_SELECT = `
 /** The claims of a context in the given statuses, newest interview first. */
 export async function listClaims(db, contextId, statuses) {
   const r = await db.query(`${CLAIM_SELECT}
-     WHERE c."contextId" = $1 AND c.status = ANY($2::text[])
+     WHERE c."contextId" = $1 AND c."claimStatus" = ANY($2::text[])
      ORDER BY iv."interviewedAt" DESC, c."createdAt", c.id`, [contextId, statuses]);
   return r.rows;
 }
@@ -98,32 +98,32 @@ const CLAIM_INSERT_COLUMNS = ['claimKind', 'subjectKind', 'principalId', 'identi
   'value', 'periodFrom', 'periodTo', 'periodText', 'quote', 'confidence', 'roleSuggestion'];
 
 /** Insert claims of one interview in one statement (jsonb_to_recordset). Returns their ids. */
-export async function insertClaims(db, { interviewId, contextId, origin }, claims) {
+export async function insertClaims(db, { interviewId, contextId, proposedBy }, claims) {
   if (claims.length === 0) return [];
   const records = claims.map(c => Object.fromEntries(CLAIM_INSERT_COLUMNS.map(k => [k, c[k] ?? null])));
   const r = await db.query(`
     INSERT INTO "ContextClaims"
-      ("interviewId", "contextId", origin, ${CLAIM_INSERT_COLUMNS.map(k => `"${k}"`).join(', ')})
+      ("interviewId", "contextId", "proposedBy", ${CLAIM_INSERT_COLUMNS.map(k => `"${k}"`).join(', ')})
     SELECT $1, $2, $3, x."claimKind", x."subjectKind", x."principalId", x."identityId", x."subjectName", x."subjectMatch",
            x.attribute, x.value, x."periodFrom", x."periodTo", x."periodText", x.quote, x.confidence, x."roleSuggestion"
       FROM jsonb_to_recordset($4::jsonb) AS x(
            "claimKind" text, "subjectKind" text, "principalId" uuid, "identityId" uuid, "subjectName" text, "subjectMatch" text,
            attribute text, value text, "periodFrom" date, "periodTo" date, "periodText" text, quote text,
            confidence numeric, "roleSuggestion" text)
-    RETURNING id`, [interviewId, contextId, origin, JSON.stringify(records)]);
+    RETURNING id`, [interviewId, contextId, proposedBy, JSON.stringify(records)]);
   return r.rows.map(x => x.id);
 }
 
 /** A re-run replaces the model's undecided claims; decided ones and an analyst's stay. */
 export async function deleteProposedModelClaims(db, interviewId) {
-  await db.query(`DELETE FROM "ContextClaims" WHERE "interviewId" = $1 AND status = 'proposed' AND origin = 'model'`, [interviewId]);
+  await db.query(`DELETE FROM "ContextClaims" WHERE "interviewId" = $1 AND "claimStatus" = 'proposed' AND "proposedBy" = 'model'`, [interviewId]);
 }
 
 /** Every claim of an interview that a re-run must not propose again. */
 export async function keptClaims(db, interviewId) {
   const r = await db.query(`
     SELECT "claimKind", "subjectName", attribute, value FROM "ContextClaims"
-     WHERE "interviewId" = $1 AND (status <> 'proposed' OR origin = 'analyst')`, [interviewId]);
+     WHERE "interviewId" = $1 AND ("claimStatus" <> 'proposed' OR "proposedBy" = 'analyst')`, [interviewId]);
   return r.rows;
 }
 
@@ -149,7 +149,7 @@ export async function mentionsOf(db, holderCol, holderId, statuses) {
       FROM "ContextClaims" c
       JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
       JOIN "Contexts" ctx ON ctx.id = c."contextId"
-     WHERE c."${holderCol}" = $1 AND c.status = ANY($2::text[])
+     WHERE c."${holderCol}" = $1 AND c."claimStatus" = ANY($2::text[])
      GROUP BY ctx.id, ctx."displayName", ctx."contextCategory"
      ORDER BY MAX(iv."interviewedAt") DESC, ctx."displayName"`, [holderId, statuses]);
   return r.rows;

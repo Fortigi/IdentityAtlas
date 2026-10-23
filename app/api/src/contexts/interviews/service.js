@@ -126,7 +126,7 @@ export async function addManualClaim(contextId, interviewId, body = {}, deps) {
   }
   claim = deduceRoles([claim])[0];
   if (claim.claimKind === 'role' && body.roleSuggestion !== undefined) claim.roleSuggestion = body.roleSuggestion;
-  const [id] = await store.insertClaims(db, { interviewId, contextId, origin: 'analyst' }, [claim]);
+  const [id] = await store.insertClaims(db, { interviewId, contextId, proposedBy: 'analyst' }, [claim]);
   return store.getClaimRow(db, id);
 }
 

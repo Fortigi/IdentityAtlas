@@ -89,7 +89,7 @@ export function appendDescription(current, heading, value) {
 
 const LOCK_SQL = `
   SELECT c.id, c."contextId", c."claimKind", c."principalId", c."identityId", c.attribute, c.value,
-         c."periodFrom"::text AS "periodFrom", c."periodTo"::text AS "periodTo", c."periodText", c."roleSuggestion", c.status,
+         c."periodFrom"::text AS "periodFrom", c."periodTo"::text AS "periodTo", c."periodText", c."roleSuggestion", c."claimStatus" AS status,
          iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt",
          ctx."contextCategory", ctx.description
     FROM "ContextClaims" c
@@ -180,7 +180,7 @@ export async function decideClaim(db, claimId, body, user) {
     }
     await client.query(`
       UPDATE "ContextClaims"
-         SET status = $2, value = $3, "periodFrom" = $4::date, "periodTo" = $5::date, "periodText" = $6,
+         SET "claimStatus" = $2, value = $3, "periodFrom" = $4::date, "periodTo" = $5::date, "periodText" = $6,
              "principalId" = $7, "identityId" = $8,
              "subjectMatch" = CASE WHEN $9 THEN 'key' ELSE "subjectMatch" END,
              "decidedBy" = $10, "decidedAt" = now()

@@ -8,7 +8,7 @@ const db = (rows = []) => ({ query: vi.fn(async () => ({ rows, rowCount: rows.le
 describe('insertClaims', () => {
   it('sends one statement with every column of every claim, nulls filled in, and returns the ids', async () => {
     const d = db([{ id: 'c1' }, { id: 'c2' }]);
-    const ids = await store.insertClaims(d, { interviewId: 'iv', contextId: 'ctx', origin: 'model' }, [
+    const ids = await store.insertClaims(d, { interviewId: 'iv', contextId: 'ctx', proposedBy: 'model' }, [
       { claimKind: 'description', subjectKind: 'Context', value: 'A tool', quote: 'a tool', confidence: 0.7 },
       { claimKind: 'role', subjectKind: 'Person', subjectName: 'Piet', principalId: 'p', attribute: 'dayToDay', value: 'v', roleSuggestion: 'Responsible', extra: 'ignored' },
     ]);
@@ -26,7 +26,7 @@ describe('insertClaims', () => {
 
   it('sends nothing for no claims', async () => {
     const d = db();
-    expect(await store.insertClaims(d, { interviewId: 'iv', contextId: 'ctx', origin: 'model' }, [])).toEqual([]);
+    expect(await store.insertClaims(d, { interviewId: 'iv', contextId: 'ctx', proposedBy: 'model' }, [])).toEqual([]);
     expect(d.query).not.toHaveBeenCalled();
   });
 });
@@ -50,7 +50,7 @@ describe('mentionsOf', () => {
   it('filters on the holder and the statuses given', async () => {
     const d = db([{ contextId: 'ctx' }]);
     expect(await store.mentionsOf(d, 'identityId', 'i-1', ['confirmed', 'edited'])).toEqual([{ contextId: 'ctx' }]);
-    expect(d.query.mock.calls[0][0]).toMatch(/c\."identityId" = \$1 AND c\.status = ANY\(\$2::text\[\]\)/);
+    expect(d.query.mock.calls[0][0]).toMatch(/c\."identityId" = \$1 AND c\."claimStatus" = ANY\(\$2::text\[\]\)/);
     expect(d.query.mock.calls[0][1]).toEqual(['i-1', ['confirmed', 'edited']]);
   });
 });

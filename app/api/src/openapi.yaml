@@ -3656,7 +3656,7 @@ components:
         confidence: { type: number, nullable: true }
         roleSuggestion: { type: string, nullable: true, enum: [Accountable, Responsible] }
         status: { type: string, enum: [proposed, confirmed, rejected, edited] }
-        origin: { type: string, enum: [model, analyst] }
+        proposedBy: { type: string, enum: [model, analyst], description: Who proposed the claim }
         decidedBy: { type: string, nullable: true }
         decidedAt: { type: string, format: date-time, nullable: true }
         appliedRoleId: { type: string, format: uuid, nullable: true }

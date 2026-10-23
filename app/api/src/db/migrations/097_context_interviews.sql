@@ -43,8 +43,9 @@ CREATE INDEX "ix_ContextInterviews_context" ON "ContextInterviews" ("contextId",
 -- The subject is the context itself (subjectKind 'Context') or a person
 -- (subjectKind 'Person'): the account or person it was matched to, if any,
 -- and always the name as spoken. roleSuggestion is what a confirmed role claim
--- becomes. A claim is proposed until someone decides it: confirmed, edited
--- (confirmed with a changed value or period) or rejected.
+-- becomes. A claim is proposed (by the model or an analyst: proposedBy) until
+-- someone decides it — claimStatus confirmed, edited (confirmed with a changed
+-- value or period) or rejected.
 CREATE TABLE "ContextClaims" (
     "id"             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "interviewId"    UUID NOT NULL REFERENCES "ContextInterviews"("id") ON DELETE CASCADE,
@@ -63,14 +64,14 @@ CREATE TABLE "ContextClaims" (
     "quote"          TEXT,
     "confidence"     NUMERIC(3, 2) CHECK ("confidence" >= 0 AND "confidence" <= 1),
     "roleSuggestion" TEXT CHECK ("roleSuggestion" IN ('Accountable', 'Responsible')),
-    "status"         TEXT NOT NULL DEFAULT 'proposed' CHECK ("status" IN ('proposed', 'confirmed', 'rejected', 'edited')),
-    "origin"         TEXT NOT NULL CHECK ("origin" IN ('model', 'analyst')),
+    "claimStatus"    TEXT NOT NULL DEFAULT 'proposed' CHECK ("claimStatus" IN ('proposed', 'confirmed', 'rejected', 'edited')),
+    "proposedBy"     TEXT NOT NULL CHECK ("proposedBy" IN ('model', 'analyst')),
     "decidedBy"      TEXT,
     "decidedAt"      TIMESTAMPTZ,
     "createdAt"      TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT "ck_ContextClaims_one_subject" CHECK ("principalId" IS NULL OR "identityId" IS NULL)
 );
-CREATE INDEX "ix_ContextClaims_context"   ON "ContextClaims" ("contextId", "status");
+CREATE INDEX "ix_ContextClaims_context"   ON "ContextClaims" ("contextId", "claimStatus");
 CREATE INDEX "ix_ContextClaims_interview" ON "ContextClaims" ("interviewId");
 CREATE INDEX "ix_ContextClaims_principal" ON "ContextClaims" ("principalId") WHERE "principalId" IS NOT NULL;
 CREATE INDEX "ix_ContextClaims_identity"  ON "ContextClaims" ("identityId")  WHERE "identityId"  IS NOT NULL;

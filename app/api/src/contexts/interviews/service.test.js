@@ -126,7 +126,7 @@ describe('addManualClaim', () => {
     const r = await addManualClaim(CTX, IV, { kind: 'role', subject: 'ik', relation: 'owner', value: 'eigenaar', quote: 'Ik ben de eigenaar van deze applicatie' }, { db: fakeDb() });
     expect(r).toEqual({ id: 'new-claim' });
     const [, scope, [claim]] = store.insertClaims.mock.calls[0];
-    expect(scope).toEqual({ interviewId: IV, contextId: CTX, origin: 'analyst' });
+    expect(scope).toEqual({ interviewId: IV, contextId: CTX, proposedBy: 'analyst' });
     expect(claim).toMatchObject({ principalId: ANNA, subjectMatch: 'interviewee', roleSuggestion: 'Accountable', quote: 'Ik ben de eigenaar van deze applicatie' });
   });
 

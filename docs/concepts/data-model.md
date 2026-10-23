@@ -68,6 +68,26 @@ The diagram below is **generated from the [core ontology](../reference/core-mode
 <!-- BEGIN GENERATED: ontology core-erd -->
 ```mermaid
 erDiagram
+    ContextClaims {
+        uuid id PK
+        string claimKind "description, property, role, roleHistory"
+        string claimStatus "proposed, confirmed, edited, rejected"
+        uuid contextId FK
+        uuid identityId FK
+        uuid interviewId FK
+        uuid principalId FK
+        string proposedBy "model, analyst"
+        string roleSuggestion "Accountable, Responsible"
+        string subjectKind "Context, Person"
+        string subjectMatch "interviewee, key, name, fuzzy, firstName"
+    }
+    ContextInterviews {
+        uuid id PK
+        uuid contextId FK
+        string extractionStatus "pending, running, done, failed, notConfigured"
+        uuid identityId FK
+        uuid principalId FK
+    }
     ContextMembers {
         string addedBy "sync, algorithm, analyst"
         uuid contextId FK
@@ -88,6 +108,7 @@ erDiagram
         uuid identityId FK
         uuid principalId FK
         string role "Accountable, Responsible"
+        uuid sourceClaimId FK
     }
     Contexts {
         uuid id PK
@@ -151,6 +172,13 @@ erDiagram
         string displayName
     }
 
+    Contexts |o--o{ ContextClaims : "contextId"
+    Identities |o--o{ ContextClaims : "identityId"
+    ContextInterviews |o--o{ ContextClaims : "interviewId"
+    Principals |o--o{ ContextClaims : "principalId"
+    Contexts |o--o{ ContextInterviews : "contextId"
+    Identities |o--o{ ContextInterviews : "identityId"
+    Principals |o--o{ ContextInterviews : "principalId"
     Contexts |o--o{ ContextMembers : "contextId"
     Identities |o--o{ ContextMembers : "memberId"
     Resources |o--o{ ContextMembers : "memberId"
@@ -161,6 +189,7 @@ erDiagram
     Contexts |o--o{ ContextRoles : "contextId"
     Identities |o--o{ ContextRoles : "identityId"
     Principals |o--o{ ContextRoles : "principalId"
+    ContextClaims |o--o{ ContextRoles : "sourceClaimId"
     Contexts |o--o{ Contexts : "parentContextId"
     Systems |o--o{ Contexts : "scopeSystemId"
     Identities |o--o{ Identities : "managerIdentityId"

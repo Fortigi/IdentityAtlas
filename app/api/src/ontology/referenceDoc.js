@@ -4,7 +4,7 @@
 
 import { coreClassDiagram } from './mermaid.js';
 import {
-  columnsOf, isSubClassOf, relationshipTypesOf, schemeMembers, tableClasses, typedSubclasses, valueSetFor,
+  columnsOf, layerOf, relationshipTypesOf, schemeMembers, tableClasses, typedSubclasses, valueSetFor,
 } from './model.js';
 import { originText } from './typeOrigins.js';
 import { templateOf } from './typeOrigins.js';
@@ -79,7 +79,7 @@ function relationshipSection(model, cls) {
 }
 
 function classSection(model, cls) {
-  const kind = isSubClassOf(model, cls.local, 'Edge') ? 'Edge' : 'Node';
+  const kind = layerOf(model, cls.local);
   const lines = [`### ${cls.table}`, '', `${code(`ia:${cls.local}`)} · ${kind} table · ${cls.comment}`, ''];
   if (cls.ingestEntities.length) lines.push(`Written by the ingest API as ${cls.ingestEntities.map(code).join(', ')}.`, '');
   if (cls.identifierColumn) lines.push(`Identifier: ${code(cls.identifierColumn)} (${cls.identifierSqlType}) — the instance IRI, not a property.`, '');
@@ -105,8 +105,8 @@ function schemeSection(model) {
 
 /** The full reference page as markdown. */
 export function renderReference(model) {
-  const nodes = tableClasses(model).filter(c => !isSubClassOf(model, c.local, 'Edge')).sort((a, b) => byName(a.table, b.table));
-  const edges = tableClasses(model).filter(c => isSubClassOf(model, c.local, 'Edge')).sort((a, b) => byName(a.table, b.table));
+  const inLayer = (layer) => tableClasses(model).filter(c => layerOf(model, c.local) === layer).sort((a, b) => byName(a.table, b.table));
+  const knowledge = inLayer('Knowledge');
   return [
     '# Core Model Reference',
     '',
@@ -133,10 +133,11 @@ export function renderReference(model) {
     '',
     '## Node tables',
     '',
-    ...nodes.flatMap(c => classSection(model, c)),
+    ...inLayer('Node').flatMap(c => classSection(model, c)),
     '## Edge tables',
     '',
-    ...edges.flatMap(c => classSection(model, c)),
+    ...inLayer('Edge').flatMap(c => classSection(model, c)),
+    ...(knowledge.length ? ['## Knowledge tables', '', 'What a source said about the graph, with provenance — not part of the graph, and never a way of holding access.', '', ...knowledge.flatMap(c => classSection(model, c))] : []),
     '## Value lists',
     '',
     ...schemeSection(model),

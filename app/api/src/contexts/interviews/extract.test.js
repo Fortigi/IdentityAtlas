@@ -143,7 +143,7 @@ describe('extractInterview', () => {
     const r = await extractInterview('iv-1', { db, ask: answer(REPLY), enabled: () => true });
     expect(r).toEqual({ status: 'done', claims: 4, message: '1 claim was left out because the quote is not in the transcript. 1 incomplete claim was left out.' });
     const [client, scope, claims] = store.insertClaims.mock.calls[0];
-    expect(scope).toEqual({ interviewId: 'iv-1', contextId: 'ctx-1', origin: 'model' });
+    expect(scope).toEqual({ interviewId: 'iv-1', contextId: 'ctx-1', proposedBy: 'model' });
     expect(claims.map(c => [c.claimKind, c.principalId, c.subjectMatch, c.roleSuggestion])).toEqual([
       ['role', ANNA, 'interviewee', 'Accountable'],
       ['role', PIET, 'firstName', 'Responsible'],
