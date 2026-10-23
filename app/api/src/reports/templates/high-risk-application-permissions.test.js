@@ -95,7 +95,7 @@ describe('high-risk-application-permissions — filter', () => {
       category: 'SharePoint and OneDrive content', severity: 'Critical',
       publisher: 'Contoso Devices', systemName: 'Entra ID', lastSync: '2026-10-21T02:00:00.000Z',
     });
-    expect(rows[0]._entity).toEqual({ kind: 'resource', id: 'sp-a' });
+    expect(rows[0]._entity).toEqual({ kind: 'user', id: 'sp-a' });
     for (const col of report.columns) expect(rows[0]).toHaveProperty(col.key);
     expect(notices).toEqual([]);
   });

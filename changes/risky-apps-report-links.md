@@ -1,0 +1,1 @@
+- Fixed clicking an app in the Risky Applications and High-risk Application Permissions reports showing "HTTP 404": the row now opens the app's service-principal detail page
