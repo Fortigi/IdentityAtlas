@@ -19,6 +19,7 @@ import { checkClaim, foldForQuote, ROLE_SUGGESTIONS, CLAIM_KINDS, RELEVANCE } fr
 import { llmConfigured, startExtraction } from './extract.js';
 import { resolveSubjects } from './subjects.js';
 import { deduceRoles, accountableDoubt } from './roles.js';
+import { loadContradictions } from './contradictions.js';
 import { locateQuote } from './quoteOffsets.js';
 import { loadPreviousMembers } from './memberFacts.js';
 import * as store from './store.js';
@@ -142,14 +143,21 @@ async function withManualSubject(db, contextId, interview, claim) {
   return { ...claim, principalId: r.principalId ?? null, identityId: r.identityId ?? null, subjectMatch: r.match ?? null };
 }
 
-/** The claims of a context in `statuses`, and the claim that doubts its current Accountable (or null). */
+/**
+ * The claims of a context in `statuses`, the claim that doubts its current
+ * Accountable (or null — kept for the People block; it is also a 'notOwner'
+ * contradiction), and the contradictions among those claims and the context's
+ * facts (contradictions.js — a reader's are read from confirmed claims only).
+ */
 export async function claimsOf(contextId, { statuses }, deps) {
   const { db } = defaults(deps);
   await existingContext(db, contextId);
   const [claims, accountable] = await Promise.all([store.listClaims(db, contextId, statuses), store.currentAccountable(db, contextId)]);
   const doubt = accountableDoubt(claims, accountable);
+  const contradictions = await loadContradictions(db, contextId, claims, accountable);
   return {
     data: claims,
+    contradictions,
     accountableDoubt: doubt ? { claimId: doubt.id, quote: doubt.quote, intervieweeName: doubt.intervieweeName, interviewedAt: doubt.interviewedAt } : null,
   };
 }

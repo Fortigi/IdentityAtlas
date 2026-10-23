@@ -16,6 +16,7 @@
   "mutate": [
     "src/contexts/interviews/aliasHints.js",
     "src/contexts/interviews/claims.js",
+    "src/contexts/interviews/contradictions.js",
     "src/contexts/interviews/decide.js",
     "src/contexts/interviews/extract.js",
     "src/contexts/interviews/firstNames.js",

@@ -311,6 +311,49 @@ context names: the list upload matches contexts by key, the report-script lookup
 client-side. The activity upload (`feature/context-activity`) places rows by context name
 and is meant to adopt this matcher.
 
+## Contradictions
+
+A claim that only adds knowledge keeps the ordinary review. A claim that **disagrees** with
+something we hold — or with another claim — is shown as a pair and asks for a decision
+(`contexts/interviews/contradictions.js`, fixed rules, set-based: the claims already read,
+one statement for the context and its source system, one for which of the people named are
+direct members). `GET …/claims` returns them as `contradictions`:
+
+| Rule | The claim | Against |
+|---|---|---|
+| `leftButMember` | membership former / left, or a role claim that says left | the member list still lists them (*"Interview: Lotte left · HR export (upload) still lists Lotte"*) — not when they came back |
+| `memberNotListed` | membership current / joined / rejoined | the member list does not list them |
+| `accountable` | a role claim suggesting X as Accountable | Y is the Accountable (synced owner, a rule, an analyst) |
+| `notOwner` | the Accountable says they are not the owner | they are the Accountable — this is the old *In doubt* (`accountableDoubt` stays in the response for the People block) |
+| `property` | a property claim | the context's attribute holds another value (case, accents, spacing aside) |
+| `claims` | two claims | one person current in one interview and gone in another; two values for one property; two people named as owner while there is no Accountable |
+
+Aliases never contradict: a context may have any number of names, and a name that is another
+context's is dropped at extraction. Each side carries its source: the claim its interviewee, date
+and quote; a fact *"<system>, last synced <date>"* (`Systems.lastSyncDateTime`, else *"listed
+since"* the member's `addedAt`; *"The member list"* for a context kept by hand).
+
+**Deciding one is deciding its claim(s) — no table, no migration.** The claim's status,
+`decidedBy` and `decidedAt` are the record (and `_history` keeps the change):
+*The interview is right* confirms it (a member who left stays listed — members come from their
+source; the row says *Interview: left*, and fixing the source is its owner's job; for another
+owner it confirms with `replace`); *The list is right* / *Keep …* rejects it; *Both true, at
+different times* saves it with the period asked for (`edited`); of a pair, keeping one confirms
+it and rejects the other, *both* confirms both. A decided contradiction says how
+(`resolution`: interview, source, both, first, second, neither), leaves the panel, and the
+Timeline shows *"Decided: <claim> · <the other> — the interview is right"* in place of the plain
+decision (a pair once, on its last decision). A rule that no longer holds after the decision (an
+Accountable replaced, an attribute set) stops matching; its decision reads as an ordinary one.
+
+Two interviews that disagree about a person are a contradiction while either claim is proposed;
+confirmed both (an earlier *left*, a later *current*), they are a return — `rejoinOf` counts them,
+so *"Both true, at different times"* on that pair makes the person *rejoined*.
+
+On the page: a **Contradictions (n)** panel at the top of *What we know*, never folded — each
+item the two statements side by side (*View in transcript* on a claim, for an analyst) with the
+choices; a *"n contradictions to decide"* badge under the page header and beside *To review*,
+jumping to the panel. A reader sees the open ones without choices.
+
 ## The review list and What we know
 
 - **What we know** is folded by default to one line — *"7 facts · 3 people · 2 proposed to

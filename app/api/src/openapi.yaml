@@ -3263,6 +3263,9 @@ paths:
         The claims of the context's interviews, newest interview first, each with its source. A
         business reader (and a context owner) sees decided, confirmed claims only.
         `accountableDoubt` names the claim in which the current Accountable says they are not the owner.
+        `contradictions` pairs each claim that disagrees with a fact (the member list, the
+        Accountable, an attribute) or with another claim — open while a claim of it is proposed,
+        decided (with how) once its claims are decided. Read from the claims in the reader's statuses.
       security:
         - EntraIdBearer: []
       responses:
@@ -3284,6 +3287,9 @@ paths:
                       quote: { type: string, nullable: true }
                       intervieweeName: { type: string }
                       interviewedAt: { type: string, format: date }
+                  contradictions:
+                    type: array
+                    items: { $ref: '#/components/schemas/ContextContradiction' }
         '404':
           description: No such context
   /contexts/{id}/claims/reject:
@@ -3733,6 +3739,29 @@ components:
         - type: object
           properties:
             history: { type: array, items: { $ref: '#/components/schemas/ContextMemberClaimFact' } }
+    ContextContradiction:
+      type: object
+      description: >
+        A claim and what it contradicts, each with its source. Decided by deciding its claim(s): no
+        record of its own.
+      properties:
+        id: { type: string }
+        rule: { type: string, enum: [leftButMember, memberNotListed, accountable, notOwner, property, claims] }
+        status: { type: string, enum: [open, decided] }
+        resolution: { type: string, nullable: true, enum: [interview, source, both, first, second, neither, null] }
+        claimIds: { type: array, items: { type: string, format: uuid } }
+        decidedAt: { type: string, format: date-time, nullable: true }
+        decidedBy: { type: string, nullable: true }
+        claim: { $ref: '#/components/schemas/ContextContradictionSide' }
+        other: { $ref: '#/components/schemas/ContextContradictionSide' }
+    ContextContradictionSide:
+      type: object
+      description: One side — a claim (kind claim, with the claim and its interview) or a fact (kind fact, with its source in words).
+      properties:
+        kind: { type: string, enum: [claim, fact] }
+        statement: { type: string }
+        source: { type: string }
+        claim: { type: object, additionalProperties: true }
     ContextMemberRejoinFact:
       type: object
       nullable: true

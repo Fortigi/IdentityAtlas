@@ -232,6 +232,15 @@ describe('context interviews against PostgreSQL', () => {
     expect(readerOnly.decisions.every(d => d.status !== 'rejected')).toBe(true);
   });
 
+  it('reads the context, its source and which named people are members for the contradiction check', async () => {
+    const { loadContradictions, CONTRADICTION_CONTEXT_SQL } = await import('../src/contexts/interviews/contradictions.js');
+    const context = (await pool.query(CONTRADICTION_CONTEXT_SQL, [ctxId])).rows[0];
+    expect(context).toMatchObject({ targetType: 'Principal', variant: 'manual', systemName: 'interviews-1' });
+    const gone = { id: '00000000-0000-4000-8000-0000000000aa', claimKind: 'membership', attribute: 'left', value: 'left', status: 'proposed', principalId: P.piet, subjectDisplayName: 'Piet Proefpersoon', interviewedAt: '2026-10-01' };
+    const out = await loadContradictions(db, ctxId, [gone], null);
+    expect(out.map(c => [c.rule, c.other.statement])).toEqual([['leftButMember', 'The member list still lists Piet Proefpersoon as a member']]);
+  });
+
   it('the context timeline leaves out updates that only moved bookkeeping', async () => {
     process.env.USE_SQL = 'true';
     const { timelineHandler } = await import('../src/routes/recentChanges/timeline.js');

@@ -117,10 +117,13 @@ function saysBack(c) {
 }
 
 // A present membership claim from a LATER interview than a claim that said the
-// person left: they left and are back.
+// person left, BOTH confirmed: they left and are back. While either is only
+// proposed the two interviews disagree — a contradiction (contradictions.js)
+// for an analyst to decide ("both true at different times" confirms both).
+const isDecidedTrue = (c) => c.status === 'confirmed' || c.status === 'edited';
 function backAfterGone(claims) {
-  const present = claims.filter(c => c.claimKind === 'membership' && PRESENT.has(c.attribute));
-  const gone = claims.filter(leftSignal);
+  const present = claims.filter(c => c.claimKind === 'membership' && PRESENT.has(c.attribute) && isDecidedTrue(c));
+  const gone = claims.filter(c => leftSignal(c) && isDecidedTrue(c));
   if (present.length === 0 || gone.length === 0) return null;
   const latest = newest(present);
   return gone.some(g => cmp(g.interviewedAt ?? '', latest.interviewedAt ?? '') < 0) ? latest : null;

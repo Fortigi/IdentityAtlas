@@ -168,6 +168,18 @@ describe('claimsOf', () => {
     expect(r.data).toHaveLength(2);
   });
 
+  it('carries the contradictions among the claims and the context (the doubt is one of them)', async () => {
+    const doubt = { id: 'c2', claimKind: 'role', attribute: 'notOwner', principalId: ANNA, subjectDisplayName: 'Anna Voorbeeld', status: 'proposed', quote: 'q', intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-01' };
+    store.listClaims.mockResolvedValue([doubt]);
+    store.currentAccountable.mockResolvedValue({ id: 'r1', principalId: ANNA, displayName: 'Anna Voorbeeld', addedBy: 'sync' });
+    const db = fakeDb();
+    db.query.mockResolvedValue({ rows: [{ targetType: 'Principal', variant: 'synced', systemName: 'HR' }] });
+    const r = await claimsOf(CTX, { statuses: ['proposed'] }, { db });
+    expect(r.contradictions.map(c => [c.rule, c.status, c.claim.statement, c.other.statement])).toEqual([
+      ['notOwner', 'open', 'Interview: Anna Voorbeeld says they are not the owner', 'Anna Voorbeeld is the Accountable'],
+    ]);
+  });
+
   it('no doubt without an Accountable; 404 for an unknown context', async () => {
     store.listClaims.mockResolvedValue([]);
     store.currentAccountable.mockResolvedValue(null);

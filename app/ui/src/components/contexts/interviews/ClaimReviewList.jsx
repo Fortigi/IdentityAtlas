@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import ChoosePersonModal from './ChoosePersonModal';
+import { ContradictionsBadge } from './Contradictions';
 import { KIND_LABELS, byRelevance, claimLine, isLowConfidence, isUncertainMatch, periodLabel, sourceLabel } from './claims.helpers';
 
 // ─── Claims waiting for review ───────────────────────────────────────────
@@ -119,7 +120,10 @@ export default function ClaimReviewList({ claims, decide, rejectMany, openTransc
   const row = (c) => <ClaimRow key={c.id} claim={c} decide={decide} openTranscript={openTranscript} />;
   return (
     <div className="space-y-1">
-      <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300">To review ({claims.length})</h4>
+      <div className="flex flex-wrap items-center gap-2">
+        <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300">To review ({claims.length})</h4>
+        <ContradictionsBadge />
+      </div>
       <BulkActions low={low.length} descriptions={descriptions} rejectMany={rejectMany} />
       {high.length > 0 && <ul aria-label="Claims to review" className="divide-y divide-gray-100 dark:divide-gray-700">{high.map(row)}</ul>}
       {low.length > 0 && (

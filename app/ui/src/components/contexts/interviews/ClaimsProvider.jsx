@@ -14,7 +14,8 @@ import TranscriptPanel from './TranscriptPanel';
 // and, for a writer, GET …/interviews, refreshed every few seconds while one is
 // still being read. decide(claim, body) PATCHes a claim; when an Accountable is
 // already set the API answers 409 with the current holder, and the analyst is
-// asked whether to replace them. rejectMany({ kind?, relevance? }) rejects the
+// asked whether to replace them. `contradictions` are the API's pairs of a claim
+// and what it disagrees with (Contradictions.jsx decides them through decide()). rejectMany({ kind?, relevance? }) rejects the
 // proposed claims of a kind or a relevance tier in one request. `rolesVersion`
 // goes up after every decision that may have changed a role, so the People
 // block re-reads its roles; `onDecided` tells the page (its members lists show
@@ -46,7 +47,7 @@ function OwnClaimsProvider({ contextId, children, onDecided }) {
   const dialog = useDialog();
   const sharedView = useIsSharedView();
   const canWrite = useHasPermission('data.write.contexts') && !sharedView;
-  const claims = useFetch(`/api/contexts/${contextId}/claims`, { authFetch, initialData: { data: [], accountableDoubt: null } });
+  const claims = useFetch(`/api/contexts/${contextId}/claims`, { authFetch, initialData: { data: [], accountableDoubt: null, contradictions: [] } });
   const interviews = useFetch(`/api/contexts/${contextId}/interviews`, { authFetch, enabled: canWrite, initialData: [], transform: b => b.data || [] });
   const [rolesVersion, bumpRoles] = useReducer(n => n + 1, 0);
   // The open transcript: { interviewId, claimId, at } — `at` makes a second click on the same claim scroll again.
@@ -101,6 +102,7 @@ function OwnClaimsProvider({ contextId, children, onDecided }) {
     canWrite,
     claims: claims.data?.data || [],
     accountableDoubt: claims.data?.accountableDoubt || null,
+    contradictions: claims.data?.contradictions || [],
     loading: claims.loading,
     error: claims.error,
     interviews: interviews.data || [],

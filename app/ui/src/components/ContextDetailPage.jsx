@@ -19,6 +19,7 @@ import { promptAndAddSubUnit } from './contexts/addSubUnit';
 import { useContextMembers, MEMBER_PAGE_SIZE } from './contexts/useContextMembers';
 import { useContextDetail, contextPageView } from './contexts/useContextDetail';
 import ClaimsProvider from './contexts/interviews/ClaimsProvider';
+import { ContradictionsBadge } from './contexts/interviews/Contradictions';
 
 // ─── Context Detail Page ──────────────────────────────────────────────────────
 // One page, two readers (decided 2026-10-20, permission-driven):
@@ -265,6 +266,7 @@ function DetailTop({ contextId, attrs, subContexts, analyst, onShowMembers, onSh
   return (
     <>
       <ContextDetailHeader attrs={attrs} onOpenDetail={openEntity} {...headerProps} />
+      {profile && <div className="flex"><ContradictionsBadge /></div>}
       <UploadProvenance attrs={attrs} />
       {attrs.description && (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{attrs.description}</div>

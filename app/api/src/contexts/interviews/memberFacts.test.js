@@ -258,13 +258,16 @@ describe('rejoined — left once, in it again', () => {
     expect(factsByMember(other).get(JAN).rejoined).toBeNull();
   });
 
-  it('a membership rejoined says it without roles; a present membership after an earlier "left" says it too', () => {
+  it('a membership rejoined says it without roles; a CONFIRMED present membership after an earlier confirmed "left" says it too', () => {
     expect(rejoinOf([joris({ claimKind: 'membership', attribute: 'rejoined', value: 'back' })])).toMatchObject({ earlier: [] });
     const leftThenBack = [
-      joris({ claimKind: 'membership', attribute: 'left', interviewedAt: '2025-01-01' }),
-      joris({ claimKind: 'membership', attribute: 'current', interviewedAt: '2026-09-01' }),
+      joris({ claimKind: 'membership', attribute: 'left', interviewedAt: '2025-01-01', status: 'confirmed' }),
+      joris({ claimKind: 'membership', attribute: 'current', interviewedAt: '2026-09-01', status: 'edited' }),
     ];
     expect(rejoinOf(leftThenBack)).toMatchObject({ membershipStatus: 'rejoined', interviewedAt: '2026-09-01' });
+    // while one of them is only proposed the interviews disagree: a contradiction, not a return
+    expect(rejoinOf([leftThenBack[0], { ...leftThenBack[1], status: 'proposed' }])).toBeNull();
+    expect(rejoinOf([{ ...leftThenBack[0], status: 'proposed' }, leftThenBack[1]])).toBeNull();
     // the same interview saying both is a contradiction, not a return
     expect(rejoinOf([joris({ claimKind: 'membership', attribute: 'left' }), joris({ claimKind: 'membership', attribute: 'current', createdAt: '2026-10-01T11:00:00Z' })])).toBeNull();
   });

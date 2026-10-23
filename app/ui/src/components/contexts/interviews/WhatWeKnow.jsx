@@ -3,6 +3,8 @@ import { useContextClaims } from './claimsContext';
 import ClaimReviewList from './ClaimReviewList';
 import InterviewList from './InterviewList';
 import RoleTimeline from './RoleTimeline';
+import Contradictions from './Contradictions';
+import { openContradictions } from './contradiction.helpers';
 import { groupConfirmed, proposedClaims, sourceLabel, timelines, whatWeKnowSummary } from './claims.helpers';
 
 // ─── What we know — the context's page, from its interviews ──────────────
@@ -12,6 +14,9 @@ import { groupConfirmed, proposedClaims, sourceLabel, timelines, whatWeKnowSumma
 // "View transcript". A reader (business view, context owner) is sent confirmed
 // claims only, and sees no review, no interviews, no transcript. Renders
 // nothing until there is something to show.
+//
+// Contradictions (a claim against a fact, or two claims) sit at the top, never
+// folded: they wait for a decision.
 //
 // Folded by default to one line — "7 facts · 3 people · 2 proposed to review"
 // — and opened on click; whether it is open is remembered per context for the
@@ -89,7 +94,8 @@ export default function WhatWeKnow() {
   const toReview = ctx.canWrite ? proposedClaims(ctx.claims) : [];
   const interviews = ctx.canWrite ? ctx.interviews : [];
   const personTimelines = timelines(ctx.claims);
-  if (description.length + properties.length + aliases.length + people.length + toReview.length + interviews.length === 0) return null;
+  const contradictions = openContradictions(ctx.contradictions).length;
+  if (description.length + properties.length + aliases.length + people.length + toReview.length + interviews.length + contradictions === 0) return null;
 
   function toggle() {
     setOpen(o => { writeOpen(ctx.contextId, !o); return !o; });
@@ -109,6 +115,7 @@ export default function WhatWeKnow() {
             className="text-xs text-blue-700 underline hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">View transcript</button>
         )}
       </div>
+      <Contradictions />
       {open && (
         <div id={`what-we-know-${ctx.contextId}`} className="space-y-3">
           <Known description={description} properties={properties} aliases={aliases} personTimelines={personTimelines} />

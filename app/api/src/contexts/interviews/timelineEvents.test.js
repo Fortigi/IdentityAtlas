@@ -84,3 +84,44 @@ describe('loadInterviewTimeline', () => {
     expect(TIMELINE_INTERVIEWS_SQL).toMatch(/FILTER \(WHERE c."proposedBy" = 'model'\)/);
   });
 });
+
+describe('a decided contradiction on the timeline', () => {
+  const con = (over) => ({
+    id: 'leftButMember:c-1', claimIds: ['c-1'], status: 'decided', resolution: 'interview', decidedAt: '2026-10-02T10:00:00Z',
+    claim: { statement: 'Interview: Lotte Lindeboom left' }, other: { kind: 'fact', statement: 'HR export still lists Lotte Lindeboom as a member' }, ...over,
+  });
+  const row = (over) => decided({ id: 'c-1', claimKind: 'membership', attribute: 'left', subjectName: 'Lotte', ...over });
+
+  it('reads as "Decided: <claim> · <fact> — <how>" instead of the plain decision', () => {
+    const [ev] = interviewTimelineEvents({ decisions: [row()], contradictions: [con()] });
+    expect(ev).toMatchObject({ summary: 'Decided: Interview: Lotte Lindeboom left · HR export still lists Lotte Lindeboom as a member — the interview is right', contradictionId: 'leftButMember:c-1' });
+  });
+
+  it('each way of deciding is worded', async () => {
+    const { resolutionWords } = await import('./timelineEvents.js');
+    const pairCon = { claim: { statement: 'A' }, other: { kind: 'claim', statement: 'B' } };
+    expect(['interview', 'source', 'both', 'first', 'second', 'neither'].map(resolution => resolutionWords({ ...pairCon, resolution }))).toEqual([
+      'the interview is right', 'what we had is right', 'both true, at different times', 'kept “A”', 'kept “B”', 'neither',
+    ]);
+  });
+
+  it('a pair reads once, on its last decision; an open contradiction changes nothing', () => {
+    const pairCon = con({ id: 'claims:c-1+c-2', claimIds: ['c-1', 'c-2'], resolution: 'both', decidedAt: '2026-10-03T10:00:00Z' });
+    const out = interviewTimelineEvents({ decisions: [row({ decidedAt: '2026-10-02T10:00:00Z' }), row({ id: 'c-2', attribute: 'current', decidedAt: '2026-10-03T10:00:00Z' })], contradictions: [pairCon] });
+    expect(out.map(e => e.summary.split(' — ')[0])).toEqual([
+      'Decided: Interview: Lotte Lindeboom left · HR export still lists Lotte Lindeboom as a member',
+      'Confirmed: Membership',
+    ]);
+    const open = interviewTimelineEvents({ decisions: [row()], contradictions: [con({ status: 'open' })] });
+    expect(open[0].summary).toMatch(/^Confirmed: Membership/);
+  });
+
+  it('the loader reads the claims and facts for it only when something was decided', async () => {
+    const decisionRow = row();
+    const db = { query: vi.fn(async (sql) => ({ rows: sql === TIMELINE_DECISIONS_SQL ? [decisionRow] : [] })), queryOne: vi.fn() };
+    await loadInterviewTimeline(db, CTX, { sinceDays: 90, limit: 50, canWrite: false });
+    const sqls = db.query.mock.calls.map(c => c[0]);
+    expect(sqls.some(s => s.includes('FROM "ContextClaims" c') && s.includes('c."claimStatus" = ANY($2::text[])'))).toBe(true);
+    expect(db.query.mock.calls.find(c => c[0].includes('ORDER BY iv."interviewedAt" DESC, c."createdAt"'))[1]).toEqual([CTX, ['confirmed', 'edited']]);
+  });
+});

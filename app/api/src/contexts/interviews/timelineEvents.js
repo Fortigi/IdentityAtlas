@@ -14,6 +14,9 @@
 //   ...that set a role          "Piet Proef set as Responsible — from the interview with Anna Voorbeeld, 2026-10-01"
 //   ...that changed the context "Also known as: Havenkantoor added — from the interview with …",
 //                               "sector set to logistics — …", "Description extended — …"
+//   ...that decided a contradiction  "Decided: Interview: Jan Smit left · HR export still
+//                               lists Jan Smit as a member — the interview is right"
+//                               (contradictions.js; a pair reads once, on its last decision)
 //
 // A reader (no data.write.contexts) gets confirmed decisions only: no uploads,
 // no extraction counts, nothing rejected (the route passes the statuses).
@@ -22,6 +25,7 @@
 // leaves it out.
 
 import * as store from './store.js';
+import { loadContradictions } from './contradictions.js';
 
 const KIND_WORDS = {
   description: 'Description', property: 'Property', role: 'Role', roleHistory: 'Role history', membership: 'Membership', alias: 'Also known as',
@@ -68,8 +72,31 @@ function decisionEvent(c) {
   return event(c.decidedAt, 'changed', `Rejected: ${KIND_WORDS[c.claimKind] || c.claimKind} — ${claimWords(c)} — ${from(c)}`);
 }
 
+/** How a decided contradiction was decided, in words. Pure. */
+export function resolutionWords(con) {
+  if (con.resolution === 'interview') return 'the interview is right';
+  if (con.resolution === 'both') return 'both true, at different times';
+  if (con.resolution === 'first') return `kept “${con.claim.statement}”`;
+  if (con.resolution === 'second') return `kept “${con.other.statement}”`;
+  if (con.resolution === 'neither') return 'neither';
+  return 'what we had is right';
+}
+
+// claimId → the decided contradiction whose (last) decision that claim's is.
+function decidedByClaim(contradictions) {
+  const out = new Map();
+  for (const con of contradictions) {
+    if (con.status !== 'decided') continue;
+    for (const id of con.claimIds) out.set(id, con);
+  }
+  return out;
+}
+
+const sameMoment = (a, b) => new Date(a).getTime() === new Date(b).getTime();
+
 /** The timeline events of a context's interviews and claim decisions, newest first. Pure. */
-export function interviewTimelineEvents({ interviews = [], decisions = [] }) {
+export function interviewTimelineEvents({ interviews = [], decisions = [], contradictions = [] }) {
+  const decided = decidedByClaim(contradictions);
   const out = [];
   for (const iv of interviews) {
     out.push(event(iv.createdAt, 'added', `Interview with ${iv.intervieweeName} uploaded (${iv.fileName})`));
@@ -77,7 +104,14 @@ export function interviewTimelineEvents({ interviews = [], decisions = [] }) {
       out.push(event(iv.extractedAt, 'changed', `${plural(iv.extracted, 'claim', 'claims')} extracted from the interview with ${iv.intervieweeName}`));
     }
   }
-  for (const c of decisions) out.push(decisionEvent(c));
+  for (const c of decisions) {
+    const con = decided.get(c.id);
+    if (con && (con.claimIds.length === 1 || sameMoment(c.decidedAt, con.decidedAt))) {
+      out.push(event(c.decidedAt, 'changed', `Decided: ${con.claim.statement} · ${con.other.statement} — ${resolutionWords(con)}`, { contradictionId: con.id }));
+    } else {
+      out.push(decisionEvent(c));
+    }
+  }
   return out.sort((a, b) => new Date(b.at) - new Date(a.at));
 }
 
@@ -88,5 +122,10 @@ export function interviewTimelineEvents({ interviews = [], decisions = [] }) {
 export async function loadInterviewTimeline(db, contextId, { sinceDays, limit, canWrite }) {
   const statuses = canWrite ? ['confirmed', 'edited', 'rejected'] : ['confirmed', 'edited'];
   const rows = await store.timelineRows(db, contextId, { sinceDays, statuses, limit, withInterviews: canWrite });
-  return interviewTimelineEvents(rows);
+  let contradictions = [];
+  if (rows.decisions.length) {
+    const [claims, accountable] = await Promise.all([store.listClaims(db, contextId, statuses), store.currentAccountable(db, contextId)]);
+    contradictions = await loadContradictions(db, contextId, claims, accountable);
+  }
+  return interviewTimelineEvents({ ...rows, contradictions });
 }
