@@ -127,6 +127,34 @@ describe('ActivitySection — a root', () => {
     expect(onOpenDetail).toHaveBeenCalledWith('context', 'c-north', 'Northwind Traders');
   });
 
+  it('rows on the root itself make a first line "<name> itself", plain text — the page you are on', async () => {
+    const itself = { contextId: 'root-1', itself: true, displayName: 'Customers', total: 1, activePeople: 1, activeNotMember: 1, activeUnknown: 0, memberNoActivity: 0, perMonth: [{ month: '2026-03', amount: 1 }, { month: '2026-04', amount: 0 }] };
+    mount({ attrs: { ...UNIT, id: 'root-1', displayName: 'Customers' }, subContexts: [{ id: 'c-north' }], authFetch: api({ own: EMPTY, summary: { ...SUMMARY, children: [itself, ...SUMMARY.children] } }) });
+    const table = await screen.findByTestId('activity-children');
+    expect(within(table).getAllByRole('row')[1].textContent).toBe('Customers itself1 h1101');
+    expect(within(table).queryByRole('button', { name: /Customers/ })).toBeNull();
+    expect(within(table).getByRole('button', { name: 'Northwind Traders' })).toBeInTheDocument();
+  });
+
+  it('"Include sub-units" is on by default and asks for the subtree; switched off it asks for the root alone', async () => {
+    const { user, authFetch } = mount({ attrs: { ...UNIT, id: 'root-1' }, subContexts: [{ id: 'c-north' }] });
+    const box = await screen.findByRole('checkbox', { name: 'Include sub-units' });
+    expect(box).toBeChecked();
+    await screen.findByTestId('activity-groups');
+    expect(called(authFetch, '/api/contexts/root-1/activity?')).toEqual(['/api/contexts/root-1/activity?includeSubUnits=true']);
+    await user.click(box);
+    await waitFor(() => expect(called(authFetch, 'includeSubUnits=false')).toEqual(['/api/contexts/root-1/activity?includeSubUnits=false']));
+    // The table of the units below is not affected by the switch.
+    expect(called(authFetch, '/activity/summary')).toEqual(['/api/contexts/root-1/activity/summary']);
+  });
+
+  it('a unit without sub-units has no switch and asks without it', async () => {
+    const { authFetch } = mount();
+    await screen.findByTestId('activity-groups');
+    expect(screen.queryByRole('checkbox', { name: 'Include sub-units' })).toBeNull();
+    expect(called(authFetch, '/api/contexts/unit-1/activity').filter(u => !u.includes('/uploads'))).toEqual(['/api/contexts/unit-1/activity']);
+  });
+
   it('a tree of resources has no suggestion columns', async () => {
     mount({ subContexts: [{ id: 'c' }], authFetch: api({ own: EMPTY, summary: { ...SUMMARY, comparable: false } }) });
     const table = await screen.findByTestId('activity-children');

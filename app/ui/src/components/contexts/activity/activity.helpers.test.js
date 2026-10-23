@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   activityRoleFields, withActivityRole, usedActivityColumns, activityProblems, activityStepFooter, ACTIVITY_STEPS,
   formatAmount, monthLabel, barHeights, groupInfo, personLink, periodFor, periodQuery, uploadLine, importLine, skippedLine, sectionShape,
+  contextMatchHint, emptyContextOptions, distributionLine, sampleItems,
 } from './activity.helpers';
 
 const mapping = {
@@ -108,6 +109,36 @@ describe('groups, people and periods', () => {
     expect(periodFor('3', null)).toBeNull();
     expect(periodQuery({ from: '2026-01-01', to: '2026-03-31' })).toBe('?from=2026-01-01&to=2026-03-31');
     expect(periodQuery(null)).toBe('');
+    expect(periodQuery(null, true)).toBe('?includeSubUnits=true');
+    expect(periodQuery({ from: '2026-01-01', to: '2026-03-31' }, false)).toBe('?from=2026-01-01&to=2026-03-31&includeSubUnits=false');
+    expect(periodQuery(null, undefined)).toBe('');
+  });
+
+  it('contextMatchHint: the match count of the chosen column, singular for one value; null without a column or a count', () => {
+    const analysis = { contextColumnMatches: { Client: { matched: 52, distinct: 58 }, Project: { matched: 0, distinct: 1 } } };
+    expect(contextMatchHint(analysis, 'Client')).toBe('Client: 52 of 58 values match a unit');
+    expect(contextMatchHint(analysis, 'Project')).toBe('Project: 0 of 1 value matches a unit');
+    expect(contextMatchHint(analysis, 'User')).toBeNull();
+    expect(contextMatchHint(analysis, null)).toBeNull();
+    expect(contextMatchHint({}, 'Client')).toBeNull();
+  });
+
+  it('emptyContextOptions: this unit by name first (the default), then leave out', () => {
+    expect(emptyContextOptions('Customers')).toEqual([{ value: 'self', label: 'Customers itself (default)' }, { value: 'skip', label: 'Leave them out' }]);
+    expect(emptyContextOptions(undefined)[0].label).toBe('This unit itself (default)');
+  });
+
+  it('distributionLine: on itself always; the other parts only when there are rows', () => {
+    const d = { onSelf: 0, onSubUnits: 0, subUnits: 0, deepestLevel: 0, unmatched: 0, ambiguous: 0, empty: 2, emptyTo: 'self' };
+    expect(distributionLine(d, 'Customers')).toBe('On Customers itself: 0 rows');
+    expect(distributionLine({ ...d, onSelf: 1, onSubUnits: 1, subUnits: 1, deepestLevel: 3, unmatched: 1, ambiguous: 2, emptyTo: 'skip' }, null))
+      .toBe('On this unit itself: 1 row · on sub-units: 1 row across 1 unit (deepest level 3) · unmatched: 1 row · ambiguous: 2 rows · without a unit, left out: 2 rows');
+    expect(distributionLine(null, 'Customers')).toBe('');
+  });
+
+  it('sampleItems: each sample with its rows', () => {
+    expect(sampleItems([{ value: 'Support', rows: 1 }, { value: 'Ops', rows: 4 }])).toEqual(['Support (1 row)', 'Ops (4 rows)']);
+    expect(sampleItems(undefined)).toEqual([]);
   });
 
   it('sectionShape: empty only without own activity, sub-unit activity and uploads', () => {

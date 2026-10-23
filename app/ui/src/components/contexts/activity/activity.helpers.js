@@ -9,9 +9,9 @@ export const ACTIVITY_STEP_LIST = [
   { n: ACTIVITY_STEPS.preview, label: 'Preview' },
 ];
 
-// The single-column roles, in the order the form shows them. The sub-unit
-// column is offered only on a context with sub-units.
-const SUB_UNIT_FIELD = { field: 'contextColumn', label: 'Sub-unit', help: 'The column naming the unit below this one each row is about (a client, a project). Matched by key, then by name.' };
+// The single-column roles, in the order the form shows them. The unit column
+// is offered only on a context with units below it.
+const SUB_UNIT_FIELD = { field: 'contextColumn', label: 'Unit column', help: 'The column naming the unit each row is about: this one or any unit below it (a client, a project). Matched by key, then by name. Empty: every row lands on this unit.' };
 const PERSON_FIELDS = [
   { field: 'subjectNameColumn', label: 'Person (name)', help: 'Who did it. A name or a user name.' },
   { field: 'subjectEmailColumn', label: 'Person (e-mail)', help: 'Matched before the name when both are given.' },
@@ -23,6 +23,37 @@ const PERSON_FIELDS = [
 export function activityRoleFields(hasChildren) {
   return hasChildren ? [SUB_UNIT_FIELD, ...PERSON_FIELDS] : PERSON_FIELDS;
 }
+
+/** Where a row with an empty unit cell goes: this unit (the default) or nowhere. */
+export function emptyContextOptions(name) {
+  return [{ value: 'self', label: `${name || 'This unit'} itself (default)` }, { value: 'skip', label: 'Leave them out' }];
+}
+
+/** "Client: 52 of 58 values match a unit" for the chosen unit column; null without a column or a count. */
+export function contextMatchHint(analysis, column) {
+  const m = column ? analysis?.contextColumnMatches?.[column] : null;
+  if (!m) return null;
+  return `${column}: ${m.matched} of ${m.distinct} ${m.distinct === 1 ? 'value matches' : 'values match'} a unit`;
+}
+
+const rowsWord = (n) => `${n} ${n === 1 ? 'row' : 'rows'}`;
+
+/**
+ * The preview's distribution: "On Customers itself: 3 rows · on sub-units: 40 rows across
+ * 6 units (deepest level 2) · unmatched: 2 rows · ambiguous: 1 row". Empty without one.
+ */
+export function distributionLine(d, name) {
+  if (!d) return '';
+  const parts = [`On ${name || 'this unit'} itself: ${rowsWord(d.onSelf)}`];
+  if (d.onSubUnits) parts.push(`on sub-units: ${rowsWord(d.onSubUnits)} across ${d.subUnits} ${d.subUnits === 1 ? 'unit' : 'units'} (deepest level ${d.deepestLevel})`);
+  if (d.unmatched) parts.push(`unmatched: ${rowsWord(d.unmatched)}`);
+  if (d.ambiguous) parts.push(`ambiguous: ${rowsWord(d.ambiguous)}`);
+  if (d.empty && d.emptyTo === 'skip') parts.push(`without a unit, left out: ${rowsWord(d.empty)}`);
+  return parts.join(' · ');
+}
+
+/** The samples of one kind of distribution miss as "Value (n rows)". */
+export const sampleItems = (samples) => (samples || []).map(x => `${x.value} (${rowsWord(x.rows)})`);
 
 export const UNIT_OPTIONS = [{ value: 'hours', label: 'Hours' }, { value: 'events', label: 'Events (a count)' }];
 export const DATE_ORDER_OPTIONS = [{ value: 'dmy', label: 'Day first (18-04-2026)' }, { value: 'mdy', label: 'Month first (04/18/2026)' }];
@@ -131,8 +162,12 @@ export function periodFor(value, latest) {
   return { from: isoDay(new Date(Date.UTC(y, m - option.months, 1))), to: latest };
 }
 
-/** The query string of a period, '' for the default. */
-export const periodQuery = (period) => (period ? `?from=${period.from}&to=${period.to}` : '');
+/** The query string of a period (and of the include-sub-units switch, when set), '' for the defaults. */
+export function periodQuery(period, includeSubUnits) {
+  const parts = period ? [`from=${period.from}`, `to=${period.to}`] : [];
+  if (typeof includeSubUnits === 'boolean') parts.push(`includeSubUnits=${includeSubUnits}`);
+  return parts.length ? `?${parts.join('&')}` : '';
+}
 
 /** One line on an upload of the history. */
 export function uploadLine(u) {

@@ -2,18 +2,23 @@ import { Field } from '@ui/components/contexts/ModalPrimitives';
 import AiMark from '@ui/components/contexts/upload/AiMark';
 import { ColumnRoleFields, AttributeColumns, MAPPING_INPUT as INPUT } from '@ui/components/contexts/upload/MappingFields';
 import { aiSuggested, toggleAttribute } from '@ui/components/contexts/upload/uploadMapping.helpers';
-import { activityRoleFields, withActivityRole, usedActivityColumns, UNIT_OPTIONS, DATE_ORDER_OPTIONS } from './activity.helpers';
+import {
+  activityRoleFields, withActivityRole, usedActivityColumns, contextMatchHint, emptyContextOptions, UNIT_OPTIONS, DATE_ORDER_OPTIONS,
+} from './activity.helpers';
 
 // Step "Mapping" of Upload activity: the best guess, every part changeable —
-// the source, which column names the sub-unit (on a context with sub-units),
+// the source, which column names the unit a row lands on (on a context with
+// units below it: this one or any below, with how many of the column's values
+// match a unit, and where rows without a unit go),
 // the person, the date and how to read it, the amount and its unit, the kind,
 // and which other columns are kept on each row. Built from the list upload's
 // mapping pieces (upload/MappingFields.jsx).
 
-export default function ActivityMappingStep({ analysis, mapping, onChange }) {
+export default function ActivityMappingStep({ analysis, mapping, onChange, contextName }) {
   const columns = analysis.columns.map(c => c.header);
   const ai = analysis.aiFields;
   const set = (patch) => onChange({ ...mapping, ...patch });
+  const hint = contextMatchHint(analysis, mapping.contextColumn);
   return (
     <div className="space-y-3">
       <p className="text-xs text-gray-600 dark:text-gray-400">
@@ -21,7 +26,9 @@ export default function ActivityMappingStep({ analysis, mapping, onChange }) {
         {analysis.previousUpload?.mappingReused && ' It starts from the mapping of the previous upload of this source.'}
       </p>
       {analysis.hasChildren && (
-        <p className="text-xs text-gray-600 dark:text-gray-400">This context has {analysis.subUnitCount} sub-units below it: each row lands on the one its sub-unit column names.</p>
+        <p className="text-xs text-gray-600 dark:text-gray-400">
+          This context has {analysis.subUnitCount} units below it{analysis.levels > 1 ? `, ${analysis.levels} levels deep` : ''}. Each row lands on the unit its unit column names — this one or any below it. Without a unit column every row lands on this one.
+        </p>
       )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Source" help="A later upload of the same source here replaces the overlapping period.">
@@ -29,6 +36,13 @@ export default function ActivityMappingStep({ analysis, mapping, onChange }) {
         </Field>
         <ColumnRoleFields fields={activityRoleFields(analysis.hasChildren)} mapping={mapping} columns={columns} aiFields={ai}
           onPick={(field, column) => onChange(withActivityRole(mapping, field, column))} />
+        {analysis.hasChildren && mapping.contextColumn && (
+          <Field label="Rows without a unit go to" help={hint ?? undefined}>
+            <select aria-label="Rows without a unit go to" value={mapping.emptyContext ?? 'self'} className={INPUT} onChange={e => set({ emptyContext: e.target.value })}>
+              {emptyContextOptions(contextName).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </Field>
+        )}
         <Field label="Dates are written">
           <select aria-label="Dates are written" value={mapping.dateOrder} className={INPUT} onChange={e => set({ dateOrder: e.target.value })}>
             {DATE_ORDER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}

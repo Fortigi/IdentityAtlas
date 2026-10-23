@@ -3,7 +3,8 @@ import { formatAmount, monthLabel } from './activity.helpers';
 // The activity table of a parent (a tree's root): its sub-units × months, with
 // each sub-unit's total, its active people and the two suggestion counts
 // (active, not a member; member, no activity), and a totals line. A sub-unit's
-// name opens it.
+// name opens it; the parent's own line ("<name> itself", rows that landed on the
+// parent) comes first and is plain text — it is the page you are on.
 
 export default function ActivityChildrenTable({ summary, onOpenDetail }) {
   const { months, unit, comparable } = summary;
@@ -24,9 +25,7 @@ export default function ActivityChildrenTable({ summary, onOpenDetail }) {
           {summary.children.map(c => (
             <tr key={c.contextId}>
               <th scope="row" className="px-2 py-1 text-left font-normal">
-                {onOpenDetail
-                  ? <button type="button" className="text-left text-blue-700 hover:underline dark:text-blue-300" onClick={() => onOpenDetail('context', c.contextId, c.displayName)}>{c.displayName}</button>
-                  : <span className="text-gray-900 dark:text-gray-100">{c.displayName}</span>}
+                <LineName line={c} onOpenDetail={onOpenDetail} />
               </th>
               <td className="px-2 py-1 text-right tabular-nums text-gray-900 dark:text-gray-100">{formatAmount(c.total, unit)}</td>
               <td className="px-2 py-1 text-right tabular-nums text-gray-800 dark:text-gray-200">{c.activePeople}</td>
@@ -49,6 +48,13 @@ export default function ActivityChildrenTable({ summary, onOpenDetail }) {
       </table>
     </div>
   );
+}
+
+// The name of a line: the parent's own line is plain text, a sub-unit opens when the page can open it.
+function LineName({ line, onOpenDetail }) {
+  if (line.itself) return <span className="italic text-gray-900 dark:text-gray-100">{line.displayName} itself</span>;
+  if (!onOpenDetail) return <span className="text-gray-900 dark:text-gray-100">{line.displayName}</span>;
+  return <button type="button" className="text-left text-blue-700 hover:underline dark:text-blue-300" onClick={() => onOpenDetail('context', line.contextId, line.displayName)}>{line.displayName}</button>;
 }
 
 // A suggestion count: highlighted when there is something to review.

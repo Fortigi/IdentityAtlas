@@ -14,7 +14,9 @@ import { PERIOD_OPTIONS, periodFor, sectionShape } from './activity.helpers';
 
 // The Activity section of a unit's or application's page: who was active on it
 // in a period — compared with its current members — and, on a parent, a table
-// of its sub-units by month. Shown only when there is activity here or below.
+// of its sub-units by month (each over its subtree, with a line for the parent
+// itself when rows landed on it). On a parent "Include sub-units" (on by
+// default, as on the members list) widens the people groups to the subtree. Shown only when there is activity here or below.
 // Activity is evidence: nothing here changes the members. Read-only for a
 // reader without data.write.contexts (no Undo); absent from a read-only shared
 // view (a context owner's page), which cannot read it.
@@ -34,8 +36,9 @@ function Activity({ attrs, hasChildren, onOpenDetail }) {
   const version = useActivityVersion(attrs.id);
   const [choice, setChoice] = useState({ value: DEFAULT_PERIOD, latest: null });
   const [busyId, setBusyId] = useState(null);
+  const [includeSubUnits, setIncludeSubUnits] = useState(true);
   const period = choice.value === DEFAULT_PERIOD ? null : periodFor(choice.value, choice.latest);
-  const a = useContextActivity(authFetch, attrs.id, { hasChildren, period, version });
+  const a = useContextActivity(authFetch, attrs.id, { hasChildren, period, version, includeSubUnits });
 
   const shape = sectionShape({ own: a.own, summary: a.summary, uploads: a.uploads, chosenLatest: choice.latest });
   if (shape.empty) return null;
@@ -62,11 +65,19 @@ function Activity({ attrs, hasChildren, onOpenDetail }) {
             Who worked on this, from uploaded exports — evidence, not membership.{shownPeriod(shape.shown)}
           </p>
         </div>
-        <Select id={`activity-period-${attrs.id}`} value={choice.value} aria-label="Period"
-          className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
-          onChange={e => setChoice({ value: e.target.value, latest: shape.latest })}>
-          {PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </Select>
+        <div className="flex items-center gap-3">
+          {hasChildren && (
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
+              <input type="checkbox" checked={includeSubUnits} onChange={e => setIncludeSubUnits(e.target.checked)} className="h-3.5 w-3.5" />
+              Include sub-units
+            </label>
+          )}
+          <Select id={`activity-period-${attrs.id}`} value={choice.value} aria-label="Period"
+            className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            onChange={e => setChoice({ value: e.target.value, latest: shape.latest })}>
+            {PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </Select>
+        </div>
       </div>
       {a.error && <p className="text-xs text-red-700 dark:text-red-300">The activity could not be read.</p>}
       {shape.hasPeople && <ActivityGroups view={a.own} onOpenDetail={onOpenDetail} />}

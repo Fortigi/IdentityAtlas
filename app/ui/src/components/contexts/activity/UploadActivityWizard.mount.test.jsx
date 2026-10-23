@@ -16,7 +16,8 @@ const GUESS = {
 };
 const HEADERS = ['Project', 'Client', 'Description', 'Task', 'User', 'Email', 'Start Date', 'Duration (decimal)'];
 const ANALYSIS = {
-  uploadDraftId: 'draft-1', fileName: 'clockify.csv', rowCount: 3, aiUsed: true, aiFields: ['kindColumn'], hasChildren: true, subUnitCount: 2,
+  uploadDraftId: 'draft-1', fileName: 'clockify.csv', rowCount: 3, aiUsed: true, aiFields: ['kindColumn'], hasChildren: true, subUnitCount: 2, levels: 2,
+  contextColumnMatches: { Client: { matched: 52, distinct: 58 }, Project: { matched: 1, distinct: 1 }, User: { matched: 0, distinct: 3 } },
   columns: HEADERS.map(header => ({ header, samples: [`${header} 1`] })), guess: GUESS, previousUpload: null,
 };
 const PREVIEW = {
@@ -26,6 +27,10 @@ const PREVIEW = {
     unmatchedSamples: [{ kind: 'Context', value: 'Unknown Ltd', reason: 'not found', rows: 4 }] },
   subjects: { matched: 2, byName: 1, fuzzy: 0, unmatched: 1, ambiguous: 0, fuzzySamples: [], unmatchedSamples: [{ kind: 'Identity', value: 'Ghost Person', reason: 'not found' }] },
   rowsToImport: 2, rowsNotPlaced: 1, rowsUnknownPerson: 1, subUnitsReached: 2,
+  distribution: {
+    onSelf: 1, onSubUnits: 40, subUnits: 6, deepestLevel: 2, unmatched: 4, ambiguous: 3, empty: 2, emptyTo: 'skip',
+    unmatchedSamples: [{ value: 'Unknown Ltd', rows: 4 }], ambiguousSamples: [{ value: 'Support', rows: 3 }],
+  },
   replaces: { rows: 7, uploads: [{ id: 'u-old', fileName: 'q1.csv', uploadedAt: '2026-04-01T10:00:00.000Z', rows: 7 }] },
   sample: [{ context: 'Northwind Traders', subject: 'Vera Example', date: '2026-04-18', amount: 1.5, kind: 'Build' }],
 };
@@ -74,11 +79,34 @@ describe('Upload activity wizard', () => {
     const { user } = mount();
     await toMapping(user);
     expect(screen.getByRole('textbox', { name: 'Source' })).toHaveValue('Clockify');
-    expect(screen.getByRole('combobox', { name: 'Sub-unit' })).toHaveValue('Client');
+    expect(screen.getByRole('combobox', { name: 'Unit column' })).toHaveValue('Client');
     expect(screen.getByRole('combobox', { name: 'Date' })).toHaveValue('Start Date');
     expect(screen.getByRole('combobox', { name: 'Dates are written' })).toHaveValue('mdy');
     expect(screen.getAllByTitle('Suggested by the AI — change it if it is wrong')).toHaveLength(1);
-    expect(screen.getByText(/2 sub-units below it/)).toBeInTheDocument();
+    expect(screen.getByText(/2 units below it, 2 levels deep/)).toBeInTheDocument();
+  });
+
+  it('says how many values of the unit column match a unit, and asks where rows without a unit go', async () => {
+    const { user, authFetch } = mount();
+    await toMapping(user);
+    expect(screen.getByText('Client: 52 of 58 values match a unit')).toBeInTheDocument();
+    const empty = screen.getByRole('combobox', { name: 'Rows without a unit go to' });
+    expect(empty).toHaveValue('self');
+    expect(within(empty).getAllByRole('option').map(o => o.textContent)).toEqual(['Customers itself (default)', 'Leave them out']);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Unit column' }), 'Project');
+    expect(screen.getByText('Project: 1 of 1 value matches a unit')).toBeInTheDocument();
+    await user.selectOptions(empty, 'skip');
+    await user.click(screen.getByRole('button', { name: 'Preview ▸' }));
+    await screen.findByTestId('activity-import-line');
+    expect(bodyOf(authFetch, 'activity/preview').mapping).toMatchObject({ contextColumn: 'Project', emptyContext: 'skip' });
+  });
+
+  it('without a unit column there is no question about rows without one', async () => {
+    const { user } = mount();
+    await toMapping(user);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Unit column' }), '');
+    expect(screen.queryByRole('combobox', { name: 'Rows without a unit go to' })).toBeNull();
+    expect(screen.queryByText(/values match a unit/)).toBeNull();
   });
 
   it('blocks the preview while the mapping has a problem, and says why', async () => {
@@ -94,12 +122,16 @@ describe('Upload activity wizard', () => {
     window.addEventListener(ACTIVITY_CHANGED, changed);
     const { user, authFetch } = mount();
     await toMapping(user);
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Sub-unit' }), 'Project');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Unit column' }), 'Project');
     await user.click(screen.getByRole('checkbox', { name: /^Client/ }));
     await user.click(screen.getByRole('button', { name: 'Preview ▸' }));
 
     expect(await screen.findByTestId('activity-import-line')).toHaveTextContent('2 rows to import on 2 units · 1 not placed · 1 by people not found');
-    expect(screen.getByTestId('activity-units')).toHaveTextContent('Sub-units: 1 matched (1 fuzzy) · 1 not found');
+    expect(screen.getByTestId('activity-distribution')).toHaveTextContent(
+      'On Customers itself: 1 row · on sub-units: 40 rows across 6 units (deepest level 2) · unmatched: 4 rows · ambiguous: 3 rows · without a unit, left out: 2 rows');
+    expect(screen.getByText(/name two units/)).toBeInTheDocument();
+    expect(screen.getByText('Support (3 rows)')).toBeInTheDocument();
+    expect(screen.getByTestId('activity-units')).toHaveTextContent('Units: 1 matched (1 fuzzy) · 1 not found');
     expect(screen.getByTestId('activity-skipped')).toHaveTextContent('1 without a date');
     expect(screen.getByText(/Replaces 7 rows of earlier uploads/)).toBeInTheDocument();
     expect(within(screen.getByTestId('activity-fuzzy-units')).getByText(/Contoso Bakeri → Contoso Bakery/)).toBeInTheDocument();

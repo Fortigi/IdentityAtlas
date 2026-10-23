@@ -33,8 +33,8 @@ export default function UploadActivityWizard({ attrs, onClose, onImported }) {
         <Stepper steps={ACTIVITY_STEP_LIST} current={step} onStepClick={(n) => n < step && setStep(n)} />
       </div>
       {step === ACTIVITY_STEPS.file && <FileStep file={u.file} onFile={u.setFile} />}
-      {step === ACTIVITY_STEPS.mapping && u.mapping && <ActivityMappingStep analysis={u.analysis} mapping={u.mapping} onChange={u.setMapping} />}
-      {step === ACTIVITY_STEPS.preview && <ActivityPreviewStep preview={u.preview} />}
+      {step === ACTIVITY_STEPS.mapping && u.mapping && <ActivityMappingStep analysis={u.analysis} mapping={u.mapping} onChange={u.setMapping} contextName={attrs.displayName} />}
+      {step === ACTIVITY_STEPS.preview && <ActivityPreviewStep preview={u.preview} contextName={attrs.displayName} />}
       <ErrorBox message={u.error} />
       <div className="mt-5 flex items-center justify-between gap-2">
         <div className="text-[11px] text-gray-600 dark:text-gray-400">{step === ACTIVITY_STEPS.mapping && problems.join(' ')}</div>
