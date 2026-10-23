@@ -65,12 +65,13 @@ export function withTimeout(promise, ms) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-async function askModel(fileName, profile) {
+// Ask the report generator's model; the activity upload passes its own prompt and schema.
+export async function askModel(fileName, profile, { systemPrompt = SYSTEM_PROMPT, schema = RESPONSE_SCHEMA } = {}) {
   const model = await getReportModel().catch(() => undefined);
   const { content } = await chat({
     model,
-    schema: RESPONSE_SCHEMA,
-    messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: buildUserMessage(fileName, profile) }],
+    schema,
+    messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: buildUserMessage(fileName, profile) }],
   });
   return JSON.parse(content);
 }

@@ -1,6 +1,6 @@
 // Context upload — read an uploaded list (xlsx or csv) into columns + rows.
 //
-//   parseList(buffer, { fileName }) → Promise<{ columns: string[], rows: object[] }>
+//   parseList(buffer, { fileName, maxRows }) →Promise<{ columns: string[], rows: object[] }>
 //
 // Ported from the Org Info prototype (orgtruth/import/parse.js), narrowed to what
 // an upload needs: a header row is required (the first row with at least two
@@ -14,7 +14,8 @@
 // occurs most on the first non-empty line; RFC 4180 quoting (quoted delimiters,
 // quoted line breaks, "" for a quote).
 // Both: an empty or repeated header cell becomes `Column <n>`; blank rows are
-// dropped; more than MAX_ROWS data rows is refused.
+// dropped; more than MAX_ROWS data rows (or the caller's `maxRows`: an activity
+// export is longer than a list) is refused.
 //
 // Every refusal throws a ListParseError whose message is a sentence for the
 // person who uploaded the file (the route answers 400 with it).
@@ -33,10 +34,10 @@ export class ListParseError extends Error {
   }
 }
 
-export async function parseList(buffer, { fileName = '' } = {}) {
+export async function parseList(buffer, { fileName = '', maxRows = MAX_ROWS } = {}) {
   if (!buffer || buffer.length === 0) throw new ListParseError('The file is empty.');
-  const matrix = detectFormat(buffer, fileName) === 'xlsx' ? await readXlsx(buffer) : readCsv(buffer);
-  return toTable(matrix);
+  const matrix = detectFormat(buffer, fileName) === 'xlsx' ? await readXlsx(buffer, maxRows) : readCsv(buffer, maxRows);
+  return toTable(matrix, maxRows);
 }
 
 // ─── Format detection ────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ export function detectFormat(buffer, fileName = '') {
 }
 
 // ─── xlsx ────────────────────────────────────────────────────────────────
-async function readXlsx(buffer) {
+async function readXlsx(buffer, max) {
   const wb = new ExcelJS.Workbook();
   try {
     await wb.xlsx.load(buffer);
@@ -70,7 +71,7 @@ async function readXlsx(buffer) {
     const cells = [];
     for (let c = 1; c <= row.cellCount; c++) cells.push(cellToString(row.getCell(c).value));
     matrix.push(cells);
-    if (matrix.length > MAX_ROWS + 1) throw tooManyRows();
+    if (matrix.length > max + 1) throw tooManyRows(max);
   }
   return matrix;
 }
@@ -88,10 +89,10 @@ export function cellToString(value) {
 }
 
 // ─── csv ─────────────────────────────────────────────────────────────────
-function readCsv(buffer) {
+function readCsv(buffer, max) {
   let text = buffer.toString('utf8');
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
-  return parseCsv(text, sniffDelimiter(text));
+  return parseCsv(text, sniffDelimiter(text), max);
 }
 
 // The delimiter that occurs most on the first non-empty line (outside quotes).
@@ -112,7 +113,7 @@ export function sniffDelimiter(text) {
 function endField(st) { st.row.push(st.field); st.field = ''; }
 function endRow(st) {
   endField(st); st.rows.push(st.row); st.row = [];
-  if (st.rows.length > MAX_ROWS + 1) throw tooManyRows();
+  if (st.rows.length > st.max + 1) throw tooManyRows(st.max);
 }
 // Inside quotes: a doubled quote is a literal quote (returns the extra char consumed).
 function quotedChar(st, ch, next) {
@@ -122,11 +123,11 @@ function quotedChar(st, ch, next) {
   return 0;
 }
 
-export function parseCsv(text, delimiter) {
+export function parseCsv(text, delimiter, max = MAX_ROWS) {
   // Only ever a decoded string: the loop below walks its characters, so an
   // array or an object with a made-up length must never reach it.
   if (typeof text !== 'string') throw new ListParseError('The CSV file could not be read as text.');
-  const st ={ rows: [], row: [], field: '', inQuotes: false };
+  const st = { rows: [], row: [], field: '', inQuotes: false, max };
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     const next = text[i + 1];
@@ -152,12 +153,12 @@ export function findHeaderIndex(matrix) {
   return wide >= 0 ? wide : matrix.findIndex(cells => filledCells(cells) > 0);
 }
 
-function toTable(matrix) {
+function toTable(matrix, max) {
   const headerAt = findHeaderIndex(matrix);
   if (headerAt < 0) throw new ListParseError('The file has no header row: every row is empty.');
   const columns = headerNames(matrix[headerAt]);
   const data = matrix.slice(headerAt + 1).filter(cells => filledCells(cells) > 0);
-  if (data.length > MAX_ROWS) throw tooManyRows();
+  if (data.length > max) throw tooManyRows(max);
   const rows = data.map(cells => Object.fromEntries(columns.map((name, i) => [name, (cells[i] ?? '').trim()])));
   return { columns, rows };
 }
@@ -178,6 +179,6 @@ export function headerNames(cells) {
   });
 }
 
-function tooManyRows() {
-  return new ListParseError(`The list has more than ${MAX_ROWS.toLocaleString('en-US')} data rows, the maximum for an upload. Split it into smaller lists.`);
+function tooManyRows(max) {
+  return new ListParseError(`The file has more than ${max.toLocaleString('en-US')} data rows, the maximum for an upload. Split it into smaller files.`);
 }

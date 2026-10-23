@@ -49,18 +49,21 @@ export function sendFailure(res, err, label) {
   return res.status(500).json({ error: `${label} failed` });
 }
 
-function receiveFile(req, res, next) {
-  upload.single('file')(req, res, (err) => {
-    if (err?.code === 'LIMIT_FILE_SIZE') {
-      return res.status(413).json({ error: `The file is larger than ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB; a list for upload is at most 50,000 rows.` });
-    }
-    if (err) return res.status(400).json({ error: err instanceof ListParseError ? err.message : 'The file could not be received.' });
-    if (!req.file) return res.status(400).json({ error: 'Choose a file to upload (field "file").' });
-    return next();
-  });
+// The multipart intake of one `file`, answering a too-large file with
+// `tooLarge` (a sentence) — shared with the activity upload (./activity.js).
+export function fileReceiver(tooLarge) {
+  return function receiveFile(req, res, next) {
+    upload.single('file')(req, res, (err) => {
+      if (err?.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: tooLarge });
+      if (err) return res.status(400).json({ error: err instanceof ListParseError ? err.message : 'The file could not be received.' });
+      if (!req.file) return res.status(400).json({ error: 'Choose a file to upload (field "file").' });
+      return next();
+    });
+  };
 }
+const receiveFile = fileReceiver(`The file is larger than ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB; a list for upload is at most 50,000 rows.`);
 
-const requireSql = (req, res, next) => (useSql ? next() : res.status(503).json({ error: 'SQL not configured' }));
+export const requireSql = (req, res, next) => (useSql ? next() : res.status(503).json({ error: 'SQL not configured' }));
 
 router.get('/contexts/uploads', writeContexts, requireSql, async (req, res) => {
   try {

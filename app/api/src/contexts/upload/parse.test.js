@@ -79,6 +79,17 @@ describe('parseList — csv', () => {
     await expect(parseList(csv(body(MAX_ROWS + 1)))).rejects.toThrow(/more than 50,000 data rows/);
   });
 
+  it('takes a caller\'s maxRows instead (an activity export is longer than a list), for csv and xlsx', async () => {
+    const lines = (n) => `Naam,Code\n${Array.from({ length: n }, (_, i) => `n${i},${i}`).join('\n')}`;
+    await expect(parseList(csv(lines(3)), { maxRows: 3 })).resolves.toMatchObject({ rows: [{}, {}, {}] });
+    await expect(parseList(csv(lines(4)), { maxRows: 3 })).rejects.toThrow(/more than 3 data rows/);
+    // Above the list maximum: the larger cap is what applies.
+    await expect(parseList(csv(lines(MAX_ROWS + 1)), { maxRows: MAX_ROWS + 1 })).resolves.toMatchObject({ columns: ['Naam', 'Code'] });
+    const book = await xlsx([['Naam', 'Code'], ['a', '1'], ['b', '2'], ['c', '3']]);
+    await expect(parseList(book, { fileName: 'x.xlsx', maxRows: 2 })).rejects.toThrow(/more than 2 data rows/);
+    await expect(parseList(book, { fileName: 'x.xlsx', maxRows: 3 })).resolves.toMatchObject({ columns: ['Naam', 'Code'] });
+  });
+
   it('refuses an empty file and a file of blank lines', async () => {
     await expect(parseList(Buffer.alloc(0))).rejects.toThrow(ListParseError);
     await expect(parseList(csv('\n\n'))).rejects.toThrow(/no header row/);

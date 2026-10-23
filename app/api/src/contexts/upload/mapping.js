@@ -19,7 +19,7 @@ const OPTIONAL_ROLES = [['ownerColumn', 'owner'], ['responsibleColumn', 'respons
 
 const text = (v) => (typeof v === 'string' ? v.trim() : '');
 
-function columnOrNull(value, label, known, errors) {
+export function columnOrNull(value, label, known, errors) {
   const v = text(value);
   if (!v) return null;
   if (!known.has(v)) { errors.push(`The ${label} column "${v}" is not in the file.`); return null; }
@@ -45,7 +45,7 @@ function checkMembers(input, known, errors) {
   return out;
 }
 
-function checkAttributes(input, known, errors) {
+export function checkAttributes(input, known, errors) {
   const out = [];
   for (const c of Array.isArray(input) ? input : []) {
     const column = text(c);

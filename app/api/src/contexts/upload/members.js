@@ -142,14 +142,14 @@ export const emptyStats = () => ({ matched: 0, byName: 0, fuzzy: 0, unmatched: 0
 
 // Count one value that matched nothing (or more than one thing) and keep it as a
 // sample while there is room.
-function countMiss(stats, kind, value, ambiguous) {
+export function countMiss(stats, kind, value, ambiguous) {
   if (ambiguous) stats.ambiguous++; else stats.unmatched++;
   if (stats.unmatchedSamples.length < MAX_UNMATCHED_SAMPLES) {
     stats.unmatchedSamples.push({ kind, value, reason: ambiguous ? 'ambiguous' : 'not found' });
   }
 }
 
-function countHit(stats, kind, value, hit) {
+export function countHit(stats, kind, value, hit) {
   stats.matched++;
   if (hit.kind === 'name') stats.byName++;
   if (hit.kind !== 'fuzzy') return;
