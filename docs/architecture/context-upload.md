@@ -1,7 +1,8 @@
 # Context upload — your own lists as context trees
 
 **Status:** built (first slice). Organisation units and applications only; no
-activity / hours import, no sources page, no knowledge graph.
+sources page, no knowledge graph. Activity / hours exports are uploaded onto a
+tree with [Context activity](context-activity.md).
 
 An analyst often has a list the tool cannot crawl: a spreadsheet of customers
 with an account manager and the people who work for each, or an application
@@ -203,6 +204,6 @@ is what is applied (decision principle B3).
 
 ## Not in this slice
 
-A sources page, a model page, signals, review, the knowledge graph, activity /
-hours imports, a downloadable list of unmatched values (the first 50 are shown),
+A sources page, a model page, signals, review, the knowledge graph (activity /
+hours imports: [Context activity](context-activity.md)), a downloadable list of unmatched values (the first 50 are shown),
 streaming parse.

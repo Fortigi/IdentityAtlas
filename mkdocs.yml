@@ -185,6 +185,7 @@ nav:
           - Context Templates (phase B): architecture/context-templates-phase-b.md
           - Template UI: architecture/template-ui.md
           - Context Upload: architecture/context-upload.md
+          - Context Activity: architecture/context-activity.md
           - Ownership and Manager Surveys (spec): architecture/ownership-survey.md
           - Crawler Architecture: architecture/crawler-architecture.md
           - SQL Connector Delta Loading: architecture/sql-connector-delta.md

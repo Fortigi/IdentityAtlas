@@ -125,6 +125,18 @@ Synced nodes are otherwise read-only — you can graft manual children under the
 
 ---
 
+## Upload activity
+
+A time registration or an activity log tells you who actually *works* on something — hours per person per customer, edits in a document library. On an organisation unit or an application, **Actions → Upload activity** imports such an export (a `.csv` or `.xlsx`, for example a Clockify detailed time report). Upload it on the **root** of a tree — say the root of your customer list — and each row lands on the sub-unit it names (Clockify's *Client* or *Project* column, matched to the units by key or name).
+
+The wizard reads the file, guesses which column is the person, the date, the hours and the sub-unit (marking what the AI suggested), shows a preview — rows that match no unit, people it could not find, and what an earlier upload of the same source will be replaced by — and imports.
+
+The context page then shows an **Activity** section: per person the hours, the first and last date and a small bar per month, in four groups against the unit's current members — *member and active*, *active, not a member*, *member, no activity in period*, and *active, unknown person*. On a root you get a table of its units by month, with the two suggestion counts per unit. Choose the period at the top; the upload history below it has **Undo**.
+
+Activity is evidence, not access and not membership: it never adds or removes a member. Uploading the same source again replaces the overlapping period, so nothing is counted twice. Uploading needs the `data.write.contexts` permission; anyone who can read data sees the section. Details: [Context activity](../architecture/context-activity.md).
+
+---
+
 ## Filter the Matrix by a context
 
 Contexts earn their keep on the **Matrix**. In the Matrix toolbar, next to the other filters, use the **Context** control:

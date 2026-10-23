@@ -1,0 +1,7 @@
+- Added "Upload activity" on organisation units and applications: import an activity export (such as a Clockify time report or a document-library audit log) as a .csv or .xlsx, also on the root of a tree so each row lands on the matching sub-unit.
+- The upload wizard guesses the person, date, hours and sub-unit columns (recognising Clockify exports, day-first and month-first dates, Excel date numbers and durations like 01:30:00 or 1h 30m), marks what the AI suggested, and previews unmatched sub-units and people before importing.
+- Uploading the same source again replaces the overlapping period instead of counting it twice; every upload can be undone from the upload history.
+- Added an Activity section to the context page: per person the hours, first and last date and a per-month bar, grouped into member and active, active but not a member, member without activity, and unknown person, for a chosen period.
+- On a tree root or parent, an activity table shows each sub-unit by month with its totals and the two member-review suggestion counts.
+- Activity never changes membership or access; readers without edit rights see the Activity section read-only.
+- The core ontology (2.2.0) describes activity as evidence beside the graph, explicitly not a way of holding access.
