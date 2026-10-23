@@ -2,12 +2,11 @@ import { Field } from '@ui/components/contexts/ModalPrimitives';
 import { TEMPLATE_OPTIONS, ROLE_FIELDS, withRole, toggleAttribute, usedColumns, treesOf, aiSuggested } from './uploadMapping.helpers';
 import UploadMemberColumns from './UploadMemberColumns';
 import AiMark from './AiMark';
+import { ColumnRoleFields, AttributeColumns, MAPPING_INPUT as INPUT } from './MappingFields';
 
 // Step "Mapping": the best guess, every part of it changeable — what the list
 // holds, its name, which column is the name / key / owner / responsible /
 // parent, the member columns, and which columns are kept as attributes.
-
-const INPUT = 'w-full border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600';
 
 export default function UploadMappingStep({ analysis, mapping, onChange, listLocked, existingOffer, onUseExisting }) {
   const columns = analysis.columns.map(c => c.header);
@@ -28,44 +27,14 @@ export default function UploadMappingStep({ analysis, mapping, onChange, listLoc
           <input aria-label="List name" value={mapping.listName} disabled={listLocked} className={`${INPUT} disabled:opacity-60`}
             onChange={e => onChange({ ...mapping, listName: e.target.value })} />
         </Field>
-        {ROLE_FIELDS.map(r => (
-          <Field key={r.field} label={<>{r.label}{r.required ? ' *' : ''}<AiMark show={aiSuggested(ai, r.field)} /></>} help={r.help}>
-            <select aria-label={r.label} value={mapping[r.field] || ''} className={INPUT} onChange={e => onChange(withRole(mapping, r.field, e.target.value))}>
-              <option value="">{r.required ? '(choose a column)' : '(none)'}</option>
-              {columns.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </Field>
-        ))}
+        <ColumnRoleFields fields={ROLE_FIELDS} mapping={mapping} columns={columns} aiFields={ai}
+          onPick={(field, column) => onChange(withRole(mapping, field, column))} />
       </div>
       <UploadMemberColumns mapping={mapping} columns={columns} aiFields={ai} onChange={onChange} />
-      <AttributeColumns analysis={analysis} mapping={mapping} onChange={onChange} />
+      <AttributeColumns columns={analysis.columns} used={usedColumns(mapping)} selected={mapping.attributeColumns}
+        onToggle={column => onChange(toggleAttribute(mapping, column))} />
       <p className="text-[11px] text-gray-600 dark:text-gray-400">Trees: {treesOf(mapping).join(' and ')}.</p>
     </div>
-  );
-}
-
-// The columns no role takes: tick the ones to keep on each unit as attributes.
-function AttributeColumns({ analysis, mapping, onChange }) {
-  const used = usedColumns(mapping);
-  const free = analysis.columns.filter(c => !used.has(c.header));
-  if (free.length === 0) return null;
-  return (
-    <fieldset>
-      <legend className="text-xs font-medium text-gray-700 dark:text-gray-300">Keep as attributes</legend>
-      <ul className="mt-1 grid grid-cols-1 gap-x-3 sm:grid-cols-2">
-        {free.map(c => (
-          <li key={c.header}>
-            <label className="flex items-start gap-1.5 text-xs text-gray-800 dark:text-gray-200">
-              <input type="checkbox" checked={mapping.attributeColumns.includes(c.header)} onChange={() => onChange(toggleAttribute(mapping, c.header))} className="mt-0.5" />
-              <span>
-                {c.header}
-                {c.samples?.length > 0 && <span className="block text-[11px] text-gray-600 dark:text-gray-400">{c.samples.slice(0, 3).join(', ')}</span>}
-              </span>
-            </label>
-          </li>
-        ))}
-      </ul>
-    </fieldset>
   );
 }
 

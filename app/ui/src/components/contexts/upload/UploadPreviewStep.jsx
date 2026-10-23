@@ -45,7 +45,9 @@ const TONES = {
   warning: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
 };
 
-function Messages({ title, items, tone }) {
+// Messages, FuzzyMatches and Unmatched are shared with the activity upload
+// preview (contexts/activity/ActivityPreviewStep.jsx).
+export function Messages({ title, items, tone }) {
   if (!items?.length) return null;
   return (
     <div className={`rounded border px-3 py-2 ${TONES[tone]}`}>
@@ -58,7 +60,7 @@ function Messages({ title, items, tone }) {
 const sampleCount = (samples) => `${samples.length}${samples.length === 50 ? '+' : ''}`;
 
 // Near misses are open by default: each one is a guess the analyst should see.
-function FuzzyMatches({ title, samples, testId }) {
+export function FuzzyMatches({ title, samples, testId }) {
   if (!samples?.length) return null;
   return (
     <details open data-testid={testId} className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
@@ -75,7 +77,10 @@ function FuzzyMatches({ title, samples, testId }) {
   );
 }
 
-function Unmatched({ title, samples }) {
+// `describe(sample)` says what the value is and why it missed (default: its member kind and reason).
+const kindAndReason = (s) => `${memberKindLabel(s.kind).toLowerCase()}, ${s.reason}`;
+
+export function Unmatched({ title, samples, describe = kindAndReason }) {
   if (!samples?.length) return null;
   return (
     <details>
@@ -83,7 +88,7 @@ function Unmatched({ title, samples }) {
       <ul className="mt-1 max-h-40 overflow-auto pl-4 text-gray-700 dark:text-gray-300">
         {samples.map(s => (
           <li key={`${s.kind}:${s.value}`}>
-            {s.value} <span className="text-gray-600 dark:text-gray-400">— {memberKindLabel(s.kind).toLowerCase()}, {s.reason}</span>
+            {s.value} <span className="text-gray-600 dark:text-gray-400">— {describe(s)}</span>
           </li>
         ))}
       </ul>

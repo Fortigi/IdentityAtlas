@@ -8,7 +8,9 @@ import { useFetch } from '@ui/hooks/useFetch';
 // plus the uploaded lists for the "update an existing list" picker.
 // Each call sets `busy` while it runs and `error` (a sentence) when it fails.
 
-async function readJson(res) {
+// The JSON body of a response, or an Error carrying the API's sentence (and its
+// details). Shared with the activity upload (contexts/activity/useActivityUpload.js).
+export async function readJson(res) {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const detail = Array.isArray(body.details) && body.details.length ? `: ${body.details.join(' ')}` : '';
