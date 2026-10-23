@@ -66,3 +66,23 @@ describe('currentAccountable / setExtraction / deleteInterview', () => {
     expect(del.query.mock.calls[0][1]).toEqual(['iv', 'ctx']);
   });
 });
+
+describe('rejectProposed / interviewQuotes', () => {
+  it('rejects only proposed claims of the context, by kind and/or tier (no tier counts as high), as the user', async () => {
+    const d = db([{ id: 'c1' }, { id: 'c2' }]);
+    expect(await store.rejectProposed(d, 'ctx', { relevance: 'low' }, 'u@example.test')).toEqual(['c1', 'c2']);
+    const [sql, params] = d.query.mock.calls[0];
+    expect(params).toEqual(['ctx', null, 'low', 'u@example.test']);
+    expect(sql).toMatch(/"claimStatus" = 'proposed'/);
+    expect(sql).toMatch(/COALESCE\(relevance, 'high'\) = \$3/);
+    await store.rejectProposed(d, 'ctx', { kind: 'description' }, 'u');
+    expect(d.query.mock.calls[1][1]).toEqual(['ctx', 'description', null, 'u']);
+  });
+
+  it('reads the quotes of one interview with their stored offsets', async () => {
+    const d = db([{ id: 'c1', quote: 'q', quoteStart: 1, quoteEnd: 2 }]);
+    expect(await store.interviewQuotes(d, 'iv')).toEqual([{ id: 'c1', quote: 'q', quoteStart: 1, quoteEnd: 2 }]);
+    expect(d.query.mock.calls[0][1]).toEqual(['iv']);
+    expect(d.query.mock.calls[0][0]).toMatch(/quote IS NOT NULL/);
+  });
+});

@@ -27,7 +27,8 @@ access (the holding rule is untouched).
 | `description` | appended to the context's description under *From interview with NAME, DATE:* (a second description from the same interview goes under the same heading) |
 | `property` | `extendedAttributes[attribute] = value` |
 | `role` with a `roleSuggestion` | the `ContextRole` — `addedBy = 'analyst'` (a person decided), `sourceClaimId` = the claim |
-| `role` without one, `roleHistory` | nothing beyond the claim: confirmed knowledge, shown under *What we know* and on the role timeline |
+| `alias` | added to `extendedAttributes.aliases` (an array; a spelling already there — case, accents, dots aside — is not added twice), shown as *Also known as* |
+| `role` without one, `roleHistory`, `membership` | nothing beyond the claim: confirmed knowledge, shown under *What we know*, on the role timeline and in the members lists. A membership claim **never changes `ContextMembers`** — members come from their source |
 
 **Accountable.** Set only when the context has none, or the same person already holds
 it. Otherwise the API answers 409 with the current holder and the page asks *"X is the
@@ -41,7 +42,7 @@ The roles API returns the interviewee, the date and the quote with it, and the P
 block says *"from the interview with …"*. No new `addedBy` value was added: who decided
 is the analyst; *where it came from* is the claim.
 
-## Data (migration 097)
+## Data (migrations 097, 098)
 
 `ContextInterviews` — `contextId` (cascade), the interviewee as `principalId` or
 `identityId` (at most one; set NULL when that row goes) and `intervieweeName` (kept),
@@ -51,14 +52,21 @@ characters), `language`, `extractionStatus` (`pending`, `running`, `done`, `fail
 `createdAt`.
 
 `ContextClaims` — `interviewId` (cascade), `contextId`, `claimKind` (`description`,
-`property`, `role`, `roleHistory`), `subjectKind` (`Context` | `Person`), the person as
+`property`, `role`, `roleHistory`, `membership`, `alias`), `subjectKind` (`Context` | `Person`), the person as
 `principalId` | `identityId` | neither, plus `subjectName` as spoken and `subjectMatch`
-(`interviewee`, `key`, `name`, `fuzzy`, `firstName`), `attribute` (a property's key, or a
-role claim's relation: `owner`, `notOwner`, `dayToDay`, `delegate`, `member`, `other`),
+(`interviewee`, `key`, `name`, `fuzzy`, `firstName`), `attribute` (a property's key, a
+role claim's relation: `owner`, `notOwner`, `dayToDay`, `delegate`, `member`, `other` — or a
+membership claim's status: `current`, `former`, `joined`, `left`),
 `value`, `periodFrom` / `periodTo` (dates) and `periodText` (as said), `quote`,
-`confidence` (0–1, not a decision), `roleSuggestion`, `claimStatus` (`proposed`,
+`confidence` (0–1, not a decision), `relevance` (`high` | `low`; NULL, from before 098, reads
+as high), `quoteStart` / `quoteEnd` (the quote's span in the stored transcript, string offsets,
+end exclusive), `roleSuggestion`, `claimStatus` (`proposed`,
 `confirmed`, `edited`, `rejected`), `proposedBy` (`model` | `analyst`), `decidedBy`,
 `decidedAt`. Every change is recorded in `_history`.
+
+Migration 098 widened the kinds and added `relevance`, `quoteStart` and `quoteEnd`. It is a
+separate migration rather than an edit of 097 because the demo database had already run 097
+(and a changed migration fails the hash ratchet).
 
 (`claimStatus` and `proposedBy` are not called `status` and `origin` because the
 ontology names a column property after its column, and `ia:status` / `ia:origin` already
@@ -77,9 +85,13 @@ the list upload's refinement uses), the upload starts extraction in the backgrou
 
 1. The transcript is read in parts of 10,000 characters, at most 40 (a longer one says
    how much was read — never silently less). Each part is asked for claims with a
-   template-aware prompt (a unit: what it is, sector, customer since, who leads it, role
-   history; an application: purpose, users, data, vendor, owner, day-to-day people) and
-   a strict JSON schema; an unreadable reply gets one repair round. Each answer may take
+   prompt that names what identity and access governance runs on — people and their
+   roles and membership over time (who joined, who **left**, who worked on it before), who
+   owns it or answers for it, other names it goes by, the systems used, facts that change
+   who may have access (sector, contract, regulation, sensitive data) — and says to
+   **skip** small talk and generic facts; then what differs per template (a unit: what it
+   is, customer since, who leads it; an application: purpose, users, data, vendor, owner,
+   day-to-day people). A strict JSON schema, with a relevance tier per claim; an unreadable reply gets one repair round. Each answer may take
    the report model's time budget — `INTERVIEW_LLM_TIMEOUT_MS`, else
    `NL_REPORTS_LLM_TIMEOUT_MS` (the nl-reports overlay sets 900000), else 15 minutes.
    Extraction runs in the background, and on a 2-CPU box with a 4B model one part takes
@@ -101,7 +113,8 @@ the list upload's refinement uses), the upload starts extraction in the backgrou
    kind). 1 claim had a field filled in from the quote — check it."* There is no second
    model round asking for the missing fields: on a small box it costs as much as the
    part itself.
-3. Repeats are dropped, and so is anything already decided in an earlier run.
+3. Repeats are dropped, and so is anything already decided in an earlier run, and an
+   "alias" that is only the context's own name.
 4. Names are matched: the interviewee (*"I"*, their name, their first name); then the
    upload's account matching (`upload/members.js`: e-mail, employee id, external id, the
    normalised name, a near miss — `fuzzy`); then a first name alone that is the first
@@ -118,13 +131,19 @@ the list upload's refinement uses), the upload starts extraction in the backgrou
 
    `fuzzy` and `firstName` are flagged *check the person*. An unmatched name keeps its
    raw text.
-5. Fixed rules (`contexts/interviews/roles.js`, no model) set the role suggestions:
+5. **Relevance** (`contexts/interviews/relevance.js`, fixed rules first): role, roleHistory,
+   membership and alias are always `high`; a property is `high` when its attribute or value
+   names something access depends on (sector, contract, customer, regulation, systems,
+   applications, data, vendor, hosting, …), else the model's tier, else `low`; a description
+   takes the model's tier, else `high` only when it names such a term. Each claim also gets
+   the span of its quote in the transcript (`quoteOffsets.js`).
+6. Fixed rules (`contexts/interviews/roles.js`, no model) set the role suggestions:
    `owner` → Accountable, `dayToDay` / `delegate` → Responsible, `notOwner` → none. A
    subject who says both that they own it and that they do not gets no Accountable
    suggestion. *"I'm not the owner, Y is"* is two claims: notOwner for the interviewee,
    owner for Y — and when the interviewee is the current Accountable, the People block
    shows *In doubt:* with the quote.
-6. The interview's undecided model claims are replaced in one transaction; status
+7. The interview's undecided model claims are replaced in one transaction; status
    `done`. Any failure: status `failed` with the reason, and *Read again*.
 
 The model only proposes (decision principle B3): the confirmed claim is the record.
@@ -144,11 +163,14 @@ All writes need `data.write.contexts`; OpenAPI documents each.
 ```
 POST   /api/contexts/:id/interviews                       multipart file + principalId|identityId + interviewedAt
 GET    /api/contexts/:id/interviews                       the interviews, with claim counts (writers)
-GET    /api/contexts/:id/interviews/:interviewId          one, with its transcript (writers)
+GET    /api/contexts/:id/interviews/:interviewId          one, with its transcript and highlights [{ claimId, start, end }] (writers)
 POST   /api/contexts/:id/interviews/:interviewId/extract  read again (409 while a run of < 30 min is going; 503 without a model)
 POST   /api/contexts/:id/interviews/:interviewId/claims   an analyst's own claim
 DELETE /api/contexts/:id/interviews/:interviewId          the interview and its claims
 GET    /api/contexts/:id/claims?status=…                  the claims + accountableDoubt
+POST   /api/contexts/:id/claims/reject                    { kind?, relevance? }: reject the proposed claims of a kind / tier, one statement
+GET    /api/contexts/:id/previous-members                 who the interviews say left, with live entitlements (every reader)
+GET    /api/contexts/:id/members                          (existing) each account / person also carries interview: { role, left }
 PATCH  /api/contexts/claims/:claimId                      { status: confirmed|edited|rejected, value?, period?, principalId|identityId?, replace? }
 GET    /api/contexts/claims/mentions?principalId=|identityId=   the contexts whose interviews mention a person
 ```
@@ -157,6 +179,77 @@ GET    /api/contexts/claims/mentions?principalId=|identityId=   the contexts who
 — a description section, an attribute, a role — **stays**; a role only loses its link
 (`sourceClaimId` → NULL).
 
+## Membership over time — the members lists
+
+A membership claim is knowledge about a person and the context; members still come from
+their source. Two places show it, both set-based (`contexts/interviews/memberFacts.js`):
+
+- **The members list.** `GET /contexts/:id/members` adds, on a unit or an application whose
+  members are accounts or persons, `interview: { role, left }` to every row: one more
+  statement for the whole page (the claims about the page's ids — for persons also those
+  about their accounts, via `IdentityMembers`), never a query per row. `role` is the latest
+  role there — a `role` claim (said in the present) or a roleHistory whose period is open or
+  "now" first, then the latest period, then the newest interview — with the whole
+  `history`; the table shows it in a **Role** column, the history on hover. `left` is the
+  latest membership claim (newest interview first) when it says `former` or `left`; the row
+  then carries *"Interview: left (last month)"*, the quote as tooltip, which opens the
+  transcript at the claim for an analyst.
+- **Previous members**, below the members: everyone whose latest membership claim says they
+  left and who is not a direct member now. Matched to an account or a person, they come with
+  their **live entitlements** (ResourceAssignments not deleted — a person's own and their
+  accounts') and how many of those are on **this context's resources**: its own resource
+  members, or those of a `SameUnitAs` variant that holds resources (*"3 on this
+  application"*, highlighted). A name nobody matched is listed as said, without counts.
+  Three statements in all: the claims, the counts for every matched person at once, and the
+  size of the linked resource set. The question it answers: *does this person still have
+  access?*
+
+Proposed claims read **dashed and italic**, confirmed ones plain. The reader rule is the
+claims list's: a reader gets confirmed claims only.
+
+## Aliases
+
+A confirmed alias claim adds to `extendedAttributes.aliases` (`lib/contextNameMatch.js`,
+`mergeAliases`); More details shows that attribute as *Also known as*. Anything that places a
+**name** onto a context should try aliases too: `buildContextNameMatcher` (same file) tries a
+context's display name, then an alias (exact, normalised), then a near miss of the display
+name — never a near miss of an alias, which is short. No caller in this branch matches
+context names: the list upload matches contexts by key, the report-script lookup is
+client-side. The activity upload (`feature/context-activity`) places rows by context name
+and is meant to adopt this matcher.
+
+## The review list and What we know
+
+- **What we know** is folded by default to one line — *"7 facts · 3 people · 2 proposed to
+  review"* (facts: the confirmed claims; people: the distinct persons they name; the review
+  count only for an analyst) — and opens on click. Open or folded is remembered per context
+  for the browser session (`sessionStorage`, inside try/catch: a browser that refuses it
+  starts folded).
+- **To review** lists the `high` tier first; the `low` tier waits folded under *Less
+  relevant (n)*. *Reject all less relevant* and *Reject all descriptions* each send one
+  request.
+
+## The transcript view
+
+*View transcript* (in the What we know header, and per interview in the list) opens a side
+panel: the transcript as a dialogue — a speaker column (*"Name:"* at the start of a line; a
+.vtt / .srt transcript arrives as such lines) beside their words — with every claim's quote
+highlighted. A colour per kind (role, role history, membership, alias, property,
+description); the fill for the status: a light fill with a dashed underline while proposed,
+a solid fill once confirmed, grey and struck through when rejected; a legend says which is
+which. A highlight is a keyboard-focusable button with an aria label naming its claims; it
+opens the claim card (kind, person, value, period, status, Confirm / Reject while
+proposed). *In transcript* next to a claim in the review list — and the *left* flag in the
+members list — opens the panel scrolled to the quote, which pulses. Escape closes it.
+
+The spans come from the API: stored at extraction (and for an analyst's claim), found from
+the verbatim quote when the transcript is opened for a claim from before 098. A quote may
+run over a line break into the next turn (highlighted in both, never in the speaker column)
+and quotes may overlap (the piece lists every claim, takes the shorter quote's style and an
+outline). The view cuts each turn only at highlight boundaries, in one pass over the turns,
+and renders 2,000 turns at a time (*Show more*), always as far as the focused quote — a
+transcript at the 5,000,000-character cap is not rendered in one go.
+
 ## Who sees what
 
 - **Analyst** (`data.write.contexts`): everything — the card, the review list, the
@@ -164,12 +257,20 @@ GET    /api/contexts/claims/mentions?principalId=|identityId=   the contexts who
 - **Business reader** (no `data.write.contexts`) and **context owner** (the read-only
   shared page; `…/claims` is on the owner allow-list): **confirmed claims only**, under
   *What we know* — the API narrows the list, the page does not filter it. No card, no
-  review, no transcripts.
+  review, no transcripts. In the members lists the role, the *left* flag and Previous
+  members are read from confirmed claims only, and are plain text. `…/previous-members` is
+  not on the context owner's allow-list, so the owner's shared page shows no Previous
+  members (it would name people outside the owner's members, with their entitlements).
+- **The transcript stays analyst-only.** Showing it to a reader would show the words behind
+  proposed and rejected claims too, and deciding which parts a reader may read is not cheap;
+  the view is offered only with `data.write.contexts` (the transcript GET already required
+  it).
 
 ## On the page
 
-- **What we know** (below the template's facts): Description, Properties, People &
-  roles — each with its source, the quote on expand — and per person a **role timeline**
+- **What we know** (below the template's facts, folded to one line): Description,
+  Properties, Also known as, People & roles — each with its source, the quote on expand —
+  and per person a **role timeline**
   (*"junior (early years) → left → architect CCoE (now)"*, with bars where the interviews
   gave dates). For an analyst also *To review* and *Interviews*.
 - **People block**: interview suggestions under Accountable and Responsible, next to the
@@ -179,8 +280,14 @@ GET    /api/contexts/claims/mentions?principalId=|identityId=   the contexts who
 ## Known limits
 
 - A **synced** context's re-sync rewrites what its source sends: an upload replaces
-  `extendedAttributes`, so a property confirmed from an interview is overwritten by the
-  next re-import of that list. The confirmed claim stays under *What we know*.
+  `extendedAttributes`, so a property or an alias confirmed from an interview is
+  overwritten by the next re-import of that list. The confirmed claim stays under *What we
+  know*.
+- After confirming a property or an alias, *More details* shows it on the next load of the
+  page (the page does not re-read the context after a decision; *What we know* shows it at
+  once).
+- A person in a membership claim is matched once, at extraction; an account of that person
+  created later is not linked to the old claim.
 - Extraction runs inside the API process; a restart during a run leaves it `running`,
   and *Read again* is allowed once it is 30 minutes old. The status says *Waiting for
   the model…* before a run starts and *Reading…* while it goes; from two minutes on it
