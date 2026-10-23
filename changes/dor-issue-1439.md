@@ -1,0 +1,7 @@
+- Fixed Account Linking reading academic titles and surname particles as names, which could attach an account to a namesake instead of its real owner. "Jan de Vries MSc" was parsed as given name "Jan", surname "MSc", so the person never matched her own accounts.
+- Account Linking now uses a person's given-name and surname fields when the source provides them, instead of re-parsing the display name — the display name is only used to fill in whichever half is missing.
+- Pre- and post-nominal titles (drs., dr., ir., ing., prof., MSc, BSc, MBA, LLM, PhD and similar) are stripped from a display name before it is parsed, including several titles at once.
+- Multi-word surnames keep their particles, so "van den Berg" and "ter Horst" are matched in full and "van der Steen" is no longer treated as the same surname as "Schilder-van der Steen".
+- Two people who genuinely share a name are now both found as candidates, so an account that could belong to either is left for review rather than confidently attached to one of them.
+- Note: links that were already written to the wrong person are not corrected automatically — Account Linking only considers accounts that belong to nobody. Reject or move those from the identity's Linked Accounts.
+- The demo dataset's realism slice now writes academic titles in HR display names while keeping the name fields clean, so this case is covered by the sample data.

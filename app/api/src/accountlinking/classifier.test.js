@@ -351,4 +351,28 @@ describe('parseName - titles and multi-word surnames (#1439)', () => {
   it('still separates two people whose surnames differ only by a particle', () => {
     expect(nameMatchLevel(parseName('Mark van der Steen'), parseName('Mark Steen'))).toBe('none');
   });
+
+  it('does not let a hyphenated GIVEN name start the surname', () => {
+    // Only a compound ending in a particle ("Schilder-van") begins the surname. A
+    // hyphenated first or middle name is just a name token -- treat it as a surname
+    // start and "Anna Maria-Louise Bakker" stops matching "Anna Bakker", which is
+    // the same person under a system that records no middle name.
+    expect(parseName('Anna Maria-Louise Bakker')).toMatchObject({ given: 'anna', surname: 'bakker' });
+    expect(nameMatchLevel(parseName('Anna Maria-Louise Bakker'), parseName('Anna Bakker'))).toBe('full');
+  });
+
+  it('reads a trailing comma as a surname with no given name', () => {
+    // "Doe," is what a source with an empty given-name column writes. The surname
+    // half must still land -- it is the half nameMatchLevel requires, so losing it
+    // means the account matches nothing at all rather than matching too much.
+    expect(parseName('Doe,')).toMatchObject({ given: '', surname: 'doe' });
+    expect(parseName('de Vries,', '', '')).toMatchObject({ given: '', surname: 'devries' });
+  });
+
+  it('keeps a short surname that happens to spell a degree', () => {
+    // The title strip never takes a name down to fewer than two tokens, so the
+    // surname of someone called "Jan Ma" survives being spelled like an MA.
+    expect(parseName('Jan Ma')).toMatchObject({ given: 'jan', surname: 'ma' });
+    expect(parseName('Ma, Jan')).toMatchObject({ given: 'jan', surname: 'ma' });
+  });
 });

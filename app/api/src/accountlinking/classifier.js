@@ -85,29 +85,95 @@ export function classifyAccount(principal, rules = DEFAULT_RULES) {
 const QUALIFIER_RE = /\([^)]*\)|\[[^\]]*\]/g;
 const normToken = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 
+// Pre- and post-nominal titles that HR and directory display names routinely
+// carry ("drs. Anna Bakker", "Jan de Vries MSc"). A title is not a name token:
+// parsed as one, the owner is indexed under the wrong name, stops matching her
+// own accounts, and they link to an untitled namesake instead. Matched after
+// normToken, so "drs.", "Drs" and "DRS" all hit.
+const TITLES = new Set([
+  // Pre-nominals (Dutch / Belgian / German / English)
+  'dr', 'drs', 'ir', 'ing', 'mr', 'mrs', 'ms', 'miss', 'prof', 'em', 'bc',
+  'lic', 'mgr', 'jhr', 'jkvr', 'dipl', 'hon', 'rev',
+  // Post-nominal degrees and registrations
+  'msc', 'bsc', 'ma', 'ba', 'bba', 'mba', 'emba', 'beng', 'meng', 'pdeng',
+  'llm', 'llb', 'phd', 'dphil', 'mphil', 'md', 'jd', 'bed', 'med', 'edd',
+  'ra', 'rc', 'ea', 'cpa', 'cisa', 'cissp', 'cia', 'cma', 'pmp',
+]);
+
+// Surname particles ("van der Steen", "ter Horst", "in 't Veld"). The surname
+// starts at the first of these, so the particles stay part of it — dropped,
+// every "van den Berg" in the tenant collapses onto "berg" and a surname match
+// stops meaning anything.
+const PARTICLES = new Set([
+  'van', 'von', 'de', 'den', 'der', 'des', 'du', 'del', 'della', 'di', 'da',
+  'do', 'dos', 'das', 'la', 'le', 'el', 'al', 'ten', 'ter', 'te', 'tot',
+  'op', 'aan', 'in', 'uit', 'het', 'mac', 'mc', 'af', 'av', 'bin', 'ibn',
+]);
+
+const tokenize = (s) => String(s || '').trim().split(/\s+/).filter(Boolean);
+const isTitle = (tok) => TITLES.has(normToken(tok));
+const isParticle = (tok) => PARTICLES.has(normToken(tok));
+
+/**
+ * Whether a token begins the surname: a bare particle, or a hyphenated compound
+ * whose tail is one ("Schilder-van" in "Schilder-van der Steen" — a different
+ * family from "van der Steen", which the last-token rule conflated).
+ */
+function startsSurname(tok) {
+  if (isParticle(tok)) return true;
+  const parts = String(tok).split('-').filter(Boolean);
+  return parts.length > 1 && isParticle(parts[parts.length - 1]);
+}
+
+/**
+ * Drop leading and trailing title tokens, never trimming below `keep` tokens.
+ * The floor is what keeps a genuine short surname that happens to spell a
+ * degree ("Jan Ma") from being stripped down to nothing.
+ */
+function stripTitles(tokens, keep) {
+  let t = tokens;
+  while (t.length > keep && isTitle(t[0])) t = t.slice(1);
+  while (t.length > keep && isTitle(t[t.length - 1])) t = t.slice(0, -1);
+  return t;
+}
+
+/** A structured givenName/surname column: clean already, bar the odd title. */
+const parseField = (value) => normToken(stripTitles(tokenize(value), 1).join(' '));
+
+/**
+ * Parse the free-text display name into its given/surname halves.
+ * Handles "Surname, Given" and "Given Surname".
+ */
+function parseDisplayName(dn) {
+  if (dn.includes(',')) {
+    const [a, b] = dn.split(',');
+    // The comma already delimits the surname, so it keeps every token it has.
+    return { given: stripTitles(tokenize(b), 1)[0] || '', sur: stripTitles(tokenize(a), 1).join(' ') };
+  }
+  const t = stripTitles(tokenize(dn), Math.min(2, tokenize(dn).length));
+  if (t.length === 1) return { given: '', sur: t[0] };
+  if (!t.length) return { given: '', sur: '' };
+  // The surname runs from the first particle to the end; with no particle it is
+  // the last token only, so middle names ("John Michael Doe") still collapse.
+  let start = -1;
+  for (let i = 1; i < t.length - 1; i++) {
+    if (startsSurname(t[i])) { start = i; break; }
+  }
+  return { given: t[0], sur: start === -1 ? t[t.length - 1] : t.slice(start).join(' ') };
+}
+
 /**
  * Parse a person name into { given, surname, initial, key }.
- * Handles "Surname, Given" and "Given Surname"; falls back to explicit
- * givenName/surname fields when the display name yields nothing.
+ * The explicit givenName/surname fields are the primary source — they are the
+ * structured columns, while the display name is free text carrying titles and
+ * qualifiers. The display name fills whichever half the columns leave empty.
  * `key` is the order-independent surname+given token (for candidate indexing).
  */
 export function parseName(displayName, givenName, surname) {
   const dn = String(displayName || '').replace(QUALIFIER_RE, ' ').trim();
-  let given = '';
-  let sur = '';
-  if (dn.includes(',')) {
-    const [a, b] = dn.split(',');
-    sur = a;
-    given = (b || '').trim().split(/\s+/)[0] || '';
-  } else if (dn) {
-    const t = dn.split(/\s+/).filter(Boolean);
-    if (t.length >= 2) { given = t[0]; sur = t[t.length - 1]; }
-    else if (t.length === 1) { sur = t[0]; }
-  }
-  if (!sur && surname) sur = surname;
-  if (!given && givenName) given = givenName;
-  given = normToken(given);
-  sur = normToken(sur);
+  const parsed = parseDisplayName(dn);
+  const given = parseField(givenName) || normToken(parsed.given);
+  const sur = parseField(surname) || normToken(parsed.sur);
   return {
     given,
     surname: sur,

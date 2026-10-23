@@ -65,7 +65,15 @@ The dictionary is shipped with sensible defaults (`DEFAULT_RULES`) and is editab
 
 ### Graded name matching + ambiguity guard
 
-Names are parsed from `displayName` (falling back to `givenName`/`surname`) with role/company qualifiers like `(OGD)`, `[extern]`, or `(ADM-azure)` stripped, so `Euson, Robin (OGD)` and `(ADM-azure) Euson, Robin` both reduce to `{euson, robin}`. Both `Surname, Given` and `Given Surname` orderings are handled.
+`parseName` reduces a person to `{ given, surname }`, and it reads the structured `givenName` / `surname` columns **first** — they are the clean, per-field values a directory or HR source already provides. The free-text `displayName` only fills whichever half the columns leave empty, and each half falls back independently.
+
+When the display name *is* parsed, three things happen before the halves are taken:
+
+1. **Role/company qualifiers are stripped** — `(OGD)`, `[extern]`, `(ADM-azure)` — so `Euson, Robin (OGD)` and `(ADM-azure) Euson, Robin` both reduce to `{euson, robin}`. Both `Surname, Given` and `Given Surname` orderings are handled.
+2. **Pre- and post-nominal titles are stripped** — `drs.`, `dr.`, `ir.`, `ing.`, `prof.`, `MSc`, `BSc`, `MBA`, `LLM`, `PhD`, … — repeatedly, from both ends, so `Prof. dr. ir. Willem van der Laan MSc` reduces to `{willem, vanderlaan}`. The strip never removes so much that fewer than two name tokens remain, which is what keeps a genuine short surname that happens to spell a degree (`Jan Ma`) intact.
+3. **The surname keeps its particles.** In the `Given Surname` ordering the surname runs from the first particle (`van`, `de`, `den`, `der`, `ter`, `ten`, …) to the end of the name, including a hyphenated compound whose tail is a particle (`Schilder-van der Steen`). With no particle present it is the last token only, so inconsistently-recorded middle names still collapse (`John Michael Doe` → `{john, doe}`). Taking only the last token instead would reduce every `van den Berg` in a tenant to `berg`, and conflate `van der Steen` with `Schilder-van der Steen`.
+
+The title and particle lists live next to `QUALIFIER_RE` in `classifier.js`; they are not per-tenant editable today.
 
 `nameMatchLevel` returns the strongest of:
 
@@ -77,7 +85,7 @@ Names are parsed from `displayName` (falling back to `givenName`/`surname`) with
 
 The two name signals are mutually exclusive — only the signal whose `level` equals the computed best level fires.
 
-**Ambiguity guard:** a *name-only* best match (no strong email/employeeId signal) that ties in confidence across multiple identities is too risky to auto-pick, so the engine leaves the account orphaned for manual review rather than guess.
+**Ambiguity guard:** a *name-only* best match (no strong email/employeeId signal) that ties in confidence across multiple identities is too risky to auto-pick, so the engine leaves the account orphaned for manual review rather than guess. Two genuine namesakes therefore produce a review item, not a guess — including when one of them carries a title in their display name and the other does not, which previously hid one of the pair from the candidate set and made the guess look certain.
 
 ### Candidate scope = orphans only
 
