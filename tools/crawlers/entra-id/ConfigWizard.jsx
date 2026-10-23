@@ -205,6 +205,7 @@ export const ENTRA_OBJECT_TYPES_FALLBACK = [
   { key: 'appsAppRoles', label: 'Apps & AppRoles', description: 'Application registrations and role assignments' },
   { key: 'appOwners', label: 'App Owners', description: 'Owners of app registrations (who can add credentials and impersonate the app) and enterprise-app service principals' },
   { key: 'appPermissions', label: 'Application Permissions', description: 'App-only permissions each service principal / managed identity / AI agent holds on other APIs (e.g. Mail.Read on Microsoft Graph) — the admin-consented, tenant-wide kind' },
+  { key: 'appRegistrations', label: 'App Registrations & Credentials', description: 'Each app registration’s secrets and certificates (dates only, never the values), public-client flows, redirect URIs, requested permissions and federated credentials' },
   { key: 'principalRelationships', label: 'Agent Owners & Guest Sponsors', description: 'Owners of AI agents and sponsors of guest accounts — the person accountable for each non-human / external identity, shown on its relations tab' },
   { key: 'directoryRoles', label: 'Directory Roles', description: 'Entra ID directory role assignments' },
   { key: 'pim', label: 'PIM', description: 'Privileged Identity Management eligible group memberships' },
@@ -220,7 +221,7 @@ export const ENTRA_OBJECT_TYPES_FALLBACK = [
     warning: 'Photos are personal data, and a photo is a separate request per user — the first crawl can take a while on a large tenant. Afterwards only new and 30-day-old entries are re-checked.',
   },
   { key: 'signInLogs', label: 'Sign-in Logs (per-app activity)', description: 'Aggregated sign-in events — last activity per (user, app) pair' },
-  { key: 'oauth2Grants', label: 'OAuth2 Delegated Grants', description: 'Per-user consent grants (user X allowed app Y to call API Z with scope W). Tenant-wide consents are skipped.' },
+  { key: 'oauth2Grants', label: 'OAuth2 Delegated Grants', description: 'Consent grants: per user (user X allowed app Y to call API Z with scope W) and tenant-wide admin consents, which mark the scope as admin-consented.' },
 ];
 
 // ─── Wizard ───────────────────────────────────────────────────────────────────

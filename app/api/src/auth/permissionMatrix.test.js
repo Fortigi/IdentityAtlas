@@ -330,8 +330,18 @@ describe('asking a question and building a report are separate rights', () => {
 
   const ASKING = [
     { method: 'POST', path: '/api/nl-reports/interpret', body: { question: 'who owns Finance?' } },
-    { method: 'POST', path: '/api/nl-reports/run', body: { spec: { entity: 'group', conditions: [] } } },
     { method: 'GET', path: '/api/nl-reports/status' },
+    { method: 'GET', path: '/api/nl-reports/conversations' },
+  ];
+  // The model-free routes the report builder stands on. Someone who may only
+  // build opens the builder without the model; before, these 403'd and the
+  // "New report" button they were shown led to an error page.
+  const SHARED = [
+    { method: 'GET', path: '/api/nl-reports/catalog' },
+    { method: 'GET', path: '/api/nl-reports/lookup?entity=resource&q=fin' },
+    { method: 'POST', path: '/api/nl-reports/run', body: { spec: { entity: 'group', conditions: [] } } },
+    { method: 'POST', path: '/api/nl-reports/resolve', body: { spec: { entity: 'group', conditions: [] } } },
+    { method: 'GET', path: '/api/nl-reports/saved/00000000-0000-0000-0000-000000000000' },
   ];
   const BUILDING = [
     { method: 'POST', path: '/api/nl-reports/saved', body: { name: 'x' } },
@@ -348,6 +358,20 @@ describe('asking a question and building a report are separate rights', () => {
       // The discriminating half. Building does not imply asking — if it did,
       // the read permission would be decorative.
       const res = await call(app, ep, bearer(['data.write.reports']));
+      expect(res.status).toBe(403);
+    });
+  }
+
+  for (const ep of SHARED) {
+    for (const perm of ['data.read.reports', 'data.write.reports']) {
+      it(`${ep.method} ${ep.path} is allowed by ${perm} alone`, async () => {
+        const res = await call(app, ep, bearer([perm]));
+        expect(res.status).not.toBe(403);
+      });
+    }
+
+    it(`${ep.method} ${ep.path} is refused to someone with neither`, async () => {
+      const res = await call(app, ep, bearer(['data.read']));
       expect(res.status).toBe(403);
     });
   }

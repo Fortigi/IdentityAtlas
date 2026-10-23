@@ -1,5 +1,39 @@
 ## Changes in this PR
 
+- Fixed development (`:edge`) builds still reporting a 5.x version after 6.0 was released. Dev builds now take their major version from the newest release, so they show 6.x now and will move to 7.x automatically once 7.0 is released.
+
+## Changes in this PR
+
+- Resolved a code-scanning alert on attribute-based matrix roll-ups. No change to which attribute names are accepted.
+
+## Changes in this PR
+
+- Fixed the report builder failing with a permission error for users who may build custom reports but not ask questions in plain language. They now get the builder without the "Describe it" (local model) panel.
+
+## Changes in this PR
+
+- Added the "Risky Applications (Entra ID)" report: every enterprise application, managed identity and AI agent gets a 0–100 risk score with the findings behind it. It covers apps on a public list of malicious apps, Microsoft look-alikes, high-risk app-only permissions, admin and user consent, public-client flows (ROPC), wildcard or http redirect URIs, secrets that never expire or are hidden on the enterprise application, departed or guest owners, and unused apps that keep powerful permissions.
+- The report says which checks it could not run because a crawler option was off, and leaves Microsoft's own apps out unless asked.
+
+## Changes in this PR
+
+- Added an "App Registrations & Credentials" option to the Entra ID crawler. It reads every app registration with its secret and certificate dates (never the values), whether public-client flows such as ROPC and device-code sign-in are allowed, redirect URIs, implicit grant settings, requested permissions and federated credentials.
+- Service principals now carry their own credentials (a secret on the service principal is hidden from the portal's App registrations page), verified publisher, sign-in audience, reply URLs and whether users need an assignment to sign in.
+- OAuth2 consent grants now include tenant-wide admin consents. They mark the consented scope as admin-consented instead of being skipped, and per-user consents are labelled as such.
+- Application (app-only) permissions now record when each permission was granted.
+
+## Changes in this PR
+
+- Added the **Access Review Adoption** report. It lists each business role with when a person last really reviewed it, longest ago first. Reviews that Entra ID completed by applying the default decision because nobody responded do not count as reviewed. Roles never reviewed and roles too new for a review are listed as their own categories. Roles whose policies do not require an access review are left out, unless you choose to include them.
+- Added the **Access Reviewer Response** report. It lists each reviewer with how many reviews they were asked to do, how many they answered themselves and how they decided, so you can see whom to follow up with and whom to thank.
+- Report Excel downloads can now open with pie charts. Both new reports have two, plus ready-made pivot tables.
+- The Entra ID crawler now records the reviewers each access review contacted, the review's "if reviewers don't respond" setting, and who applied each decision. Run a full sync to fill them in.
+- Added the **High-risk Application Permissions (Entra ID)** report to the Reports list: one row per application (app-only) permission a service principal actually holds that reaches SharePoint/OneDrive content, mailboxes, or directory control tenant-wide, with the API, a category and a severity from an explicit shortlist. Requested-but-unconsented permissions and delegated (user) consent are never listed; the report says when nothing was collected or when a grant's API could not be identified.
+- The report can be widened per run: pick further permissions from the ones granted in your tenant (each picked on its own API), or switch the standard list off to list only your picks. Save the choice as a view to keep it.
+- The Entra ID crawler's application-permission sync now records the tenant-independent application ID of the holding app and of the target API next to the permission, so a permission on Microsoft Graph is told apart from a same-named one on another API.
+
+## Changes in this PR
+
 - Entra ID delta runs now take minutes instead of hours. A delta reads only what changed: new, changed and deleted users, service principals and groups, plus members and owners added to or removed from groups. Delta runs used to re-read every group's members and took as long as a full sync.
 - PIM eligibility, governance, app roles, OAuth2 grants, app permissions, directory roles, nested (indirect) group memberships and sign-in activity are refreshed by full runs only. Keep at least one full run a day.
 - A delta run on an Entra ID crawler that has never completed a sync now runs as a full sync, so a new crawler never shows users without their groups.
