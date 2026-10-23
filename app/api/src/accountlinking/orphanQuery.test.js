@@ -27,6 +27,18 @@ describe('fetchOrphanPrincipals', () => {
     expect(params).toEqual([NON_HUMAN_PRINCIPAL_TYPES]);
   });
 
+  it('restricts the orphan set to live principals — a soft-deleted account is not an orphan', async () => {
+    // A full sync stamps "deletedAt" on principals that vanished from the
+    // source rather than deleting the row, so every live-rows read has to
+    // filter it out. The behavioural proof is in the reports contract test;
+    // this pins the filter so it cannot be silently dropped from the one
+    // shared orphan definition.
+    query.mockResolvedValue({ rows: [] });
+    await fetchOrphanPrincipals();
+
+    expect(query.mock.calls[0][0]).toMatch(/(?:\w+\.)?"deletedAt" IS NULL/);
+  });
+
   it('excludes exactly the three non-human principal classes', () => {
     expect(NON_HUMAN_PRINCIPAL_TYPES).toEqual(['ServicePrincipal', 'ManagedIdentity', 'AIAgent']);
   });

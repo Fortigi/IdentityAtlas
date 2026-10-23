@@ -163,6 +163,36 @@ describe('loadRules', () => {
   });
 });
 
+// ── live-rows filter ─────────────────────────────────────────────────────────
+//
+// A full sync stamps "deletedAt" on principals that vanished from the source
+// instead of removing the row, so an account a sync has removed must not be a
+// linking candidate and must not count as a remaining orphan. The mocked db is
+// SQL-blind, so these pin the query text; the behaviour is proven against real
+// PostgreSQL in contract-tests/accountLinking.contract.test.js.
+
+const LIVE_ROWS_FILTER = /"deletedAt" IS NULL/;
+
+describe('runLinking — soft-deleted principals', () => {
+  it('restricts the orphan candidate set to live principals', async () => {
+    const db = makeDb();
+    const { runLinking } = await loadEngine(db);
+    await runLinking(RUN_ID);
+
+    const orphanLoad = db.query.mock.calls.map(c => c[0]).find(sql => /FROM "Principals"/.test(sql));
+    expect(orphanLoad).toMatch(LIVE_ROWS_FILTER);
+  });
+
+  it('restricts the orphansRemaining count to live principals', async () => {
+    const db = makeDb();
+    const { runLinking } = await loadEngine(db);
+    await runLinking(RUN_ID);
+
+    const countQuery = db.queryOne.mock.calls.map(c => c[0]).find(sql => /COUNT\(\*\)/.test(sql));
+    expect(countQuery).toMatch(LIVE_ROWS_FILTER);
+  });
+});
+
 describe('countOrphans', () => {
   it('reports zero rather than throwing when the count query returns nothing', async () => {
     // `r?.n ?? 0`. Drop the optional chaining and a database that returns no row -- a
