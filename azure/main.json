@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "4666055610691824487"
+      "templateHash": "14765428134518033351"
     }
   },
   "parameters": {
@@ -34,6 +34,20 @@
         "description": "Release channel. **stable** = the last cut release tag (recommended for production). **edge** = the latest main-branch build — includes newer fixes and features but less testing."
       }
     },
+    "imageTag": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: the exact release to run, e.g. 6.0.2.0 (a release) or 6.1.0-beta.1 (a pre-release) — every release is published under its version for all three images. When set it overrides imageChannel, so each deployment is reproducible and an upgrade or a rollback is a change to this one value. Empty = follow imageChannel."
+      }
+    },
+    "containerRegistryResourceId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: FULL ARM resource ID of your own Azure Container Registry to pull the images from instead of ghcr.io — typically a pull-through cache of ghcr.io/fortigi/* (an ACR cache rule). The images must be at the same paths: fortigi/identity-atlas, fortigi/identity-atlas-worker, fortigi/identity-atlas-report-generator. The template creates a pull identity and grants it AcrPull on this registry, so the deployer needs the right to create role assignments there. Empty = pull from public ghcr.io."
+      }
+    },
     "deployReportGenerator": {
       "type": "bool",
       "defaultValue": false,
@@ -43,9 +57,9 @@
     },
     "reportGeneratorApiKey": {
       "type": "securestring",
-      "defaultValue": "[newGuid()]",
+      "defaultValue": "",
       "metadata": {
-        "description": "API key the web app uses to reach the report generator. Generated per deployment; you never need to set this."
+        "description": "Optional: the API key the web app uses to reach the report generator. Empty (recommended) = generated once into Key Vault and kept across redeploys. Set it only to choose the key yourself."
       }
     },
     "reportGeneratorAllowedCallerIps": {
@@ -104,6 +118,20 @@
       "metadata": {
         "description": "Restore the legacy Postgres firewall rule that admits all Azure services (any tenant). Not recommended; public network mode only."
       }
+    },
+    "entraTenantId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: Entra ID tenant (directory) GUID for sign-in. Set it together with entraClientId to keep sign-in configured across redeploys — needed when this template is redeployed for upgrades. Empty = configure sign-in with Step 2 (main-auth), which a redeploy of this template clears again."
+      }
+    },
+    "entraClientId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: Entra ID App Registration (client) GUID for sign-in. See entraTenantId."
+      }
     }
   },
   "variables": {
@@ -152,10 +180,9 @@
     },
     "profile": "[variables('sizeMap')[parameters('sizeProfile')]]",
     "location": "[resourceGroup().location]",
-    "_imageTag": "[if(equals(parameters('imageChannel'), 'stable'), 'latest', 'edge')]",
-    "webImage": "[format('ghcr.io/fortigi/identity-atlas:{0}', variables('_imageTag'))]",
-    "workerImage": "[format('ghcr.io/fortigi/identity-atlas-worker:{0}', variables('_imageTag'))]",
-    "reportGeneratorImage": "[format('ghcr.io/fortigi/identity-atlas-report-generator:{0}', variables('_imageTag'))]",
+    "_imageTag": "[if(not(empty(parameters('imageTag'))), parameters('imageTag'), if(equals(parameters('imageChannel'), 'stable'), 'latest', 'edge'))]",
+    "privateRegistry": "[not(empty(parameters('containerRegistryResourceId')))]",
+    "_acrIdParts": "[split(if(variables('privateRegistry'), parameters('containerRegistryResourceId'), '/subscriptions/none/resourceGroups/none/providers/Microsoft.ContainerRegistry/registries/none'), '/')]",
     "privateNetworking": "[equals(parameters('networkMode'), 'private')]",
     "kvName": "[take(format('{0}-kv-{1}', variables('namePrefix'), uniqueString(resourceGroup().id)), 24)]"
   },
@@ -814,6 +841,12 @@
           },
           "existingLogAnalyticsWorkspaceId": {
             "value": "[parameters('existingLogAnalyticsWorkspaceId')]"
+          },
+          "containerRegistryResourceId": {
+            "value": "[parameters('containerRegistryResourceId')]"
+          },
+          "reportGeneratorApiKey": {
+            "value": "[parameters('reportGeneratorApiKey')]"
           }
         },
         "template": {
@@ -823,7 +856,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "2644938403818243241"
+              "templateHash": "10713929029052283703"
             }
           },
           "parameters": {
@@ -870,6 +903,20 @@
               "metadata": {
                 "description": "BYO Log Analytics workspace resource ID — validated by this script (format check) before any module tries to use it."
               }
+            },
+            "containerRegistryResourceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Resource ID of the customer's Azure Container Registry to pull the images from — validated by this script (format check) before the AcrPull assignment is attempted. Empty = pull from ghcr.io."
+              }
+            },
+            "reportGeneratorApiKey": {
+              "type": "securestring",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional: the report generator API key to store. Empty = generate one if Key Vault has none yet, and keep it."
+              }
             }
           },
           "resources": [
@@ -891,21 +938,8 @@
                 "retentionInterval": "PT1H",
                 "cleanupPreference": "OnSuccess",
                 "forceUpdateTag": "[parameters('forceUpdateTag')]",
-                "environmentVariables": [
-                  {
-                    "name": "KV_NAME",
-                    "value": "[parameters('keyVaultName')]"
-                  },
-                  {
-                    "name": "ROTATE_PG_PASSWORD",
-                    "value": "[string(parameters('rotatePostgresPassword'))]"
-                  },
-                  {
-                    "name": "EXISTING_LAW_ID",
-                    "value": "[parameters('existingLogAnalyticsWorkspaceId')]"
-                  }
-                ],
-                "scriptContent": "set -euo pipefail\n\necho \"==> Validating existingLogAnalyticsWorkspaceId\"\nif [ -n \"$EXISTING_LAW_ID\" ]; then\n  # Format check — must be the FULL workspace resource ID, not a resource group.\n  EXPECTED='^/subscriptions/[0-9a-fA-F-]+/resourceGroups/[^/]+/providers/Microsoft\\.OperationalInsights/workspaces/[^/]+$'\n  if ! [[ \"$EXISTING_LAW_ID\" =~ $EXPECTED ]]; then\n    echo \"\"\n    echo \"ERROR: existingLogAnalyticsWorkspaceId is not a valid Log Analytics workspace resource ID.\"\n    echo \"       You provided: $EXISTING_LAW_ID\"\n    echo \"       Expected format:\"\n    echo \"         /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>\"\n    echo \"\"\n    echo \"       Common mistake: copying the parent resource GROUP's ID instead of the workspace ID.\"\n    echo \"       To get the correct one: open the workspace in the portal → Overview → JSON View → copy 'id'.\"\n    echo \"       Or leave the field BLANK to create a fresh workspace inside this deployment's RG.\"\n    echo \"\"\n    exit 1\n  fi\n  echo \"    LAW format OK — $EXISTING_LAW_ID\"\n  echo \"    (note: existence is verified by log-analytics module; if you see a ResourceNotFound\"\n  echo \"     error there, the workspace doesn't exist at that path or you lack Log Analytics Reader)\"\nelse\n  echo \"    no LAW provided — a new workspace will be created in this RG\"\nfi\n\necho \"==> Generating master key (if absent)\"\nif ! az keyvault secret show --vault-name \"$KV_NAME\" --name identityatlas-master-key >/dev/null 2>&1; then\n  MASTER_KEY=$(openssl rand -base64 32)\n  az keyvault secret set \\\n    --vault-name \"$KV_NAME\" \\\n    --name identityatlas-master-key \\\n    --value \"$MASTER_KEY\" \\\n    --output none\n  echo \"    wrote identityatlas-master-key\"\nelse\n  echo \"    identityatlas-master-key already present, skipping\"\nfi\n\n# Random, never derived. 32 random alphanumerics (~190 bits) plus a fixed\n# \"Aa1\" suffix so the value always meets the Postgres complexity rule\n# (upper + lower + digit), whatever the random part happens to contain.\nnew_pg_password() {\n  local random\n  random=$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9')\n  printf '%sAa1' \"${random:0:32}\"\n}\n\necho \"==> Postgres admin password\"\nif [ \"$ROTATE_PG_PASSWORD\" = \"True\" ] || [ \"$ROTATE_PG_PASSWORD\" = \"true\" ]; then\n  az keyvault secret set --vault-name \"$KV_NAME\" --name postgres-admin-password \\\n    --value \"$(new_pg_password)\" --output none\n  echo \"    rotated postgres-admin-password (rotatePostgresPassword=true)\"\nelif ! az keyvault secret show --vault-name \"$KV_NAME\" --name postgres-admin-password >/dev/null 2>&1; then\n  az keyvault secret set --vault-name \"$KV_NAME\" --name postgres-admin-password \\\n    --value \"$(new_pg_password)\" --output none\n  echo \"    generated postgres-admin-password\"\nelse\n  echo \"    postgres-admin-password already present, keeping it\"\nfi\n\n# The App Service references the exact secret version, so a rotation changes\n# the app setting and restarts the app onto the new password. The URI holds no\n# secret value, so it is safe as a script output.\nPG_SECRET_URI=$(az keyvault secret show --vault-name \"$KV_NAME\" --name postgres-admin-password --query id -o tsv)\nprintf '{\"pgPasswordSecretUri\":\"%s\"}' \"$PG_SECRET_URI\" > \"$AZ_SCRIPTS_OUTPUT_PATH\"\n\necho \"==> Done\"\n"
+                "environmentVariables": "[concat(createArray(createObject('name', 'KV_NAME', 'value', parameters('keyVaultName')), createObject('name', 'ROTATE_PG_PASSWORD', 'value', string(parameters('rotatePostgresPassword'))), createObject('name', 'EXISTING_LAW_ID', 'value', parameters('existingLogAnalyticsWorkspaceId')), createObject('name', 'ACR_ID', 'value', parameters('containerRegistryResourceId'))), if(empty(parameters('reportGeneratorApiKey')), createArray(), createArray(createObject('name', 'REPORT_GENERATOR_API_KEY', 'secureValue', parameters('reportGeneratorApiKey')))))]",
+                "scriptContent": "set -euo pipefail\n\necho \"==> Validating existingLogAnalyticsWorkspaceId\"\nif [ -n \"$EXISTING_LAW_ID\" ]; then\n  # Format check — must be the FULL workspace resource ID, not a resource group.\n  EXPECTED='^/subscriptions/[0-9a-fA-F-]+/resourceGroups/[^/]+/providers/Microsoft\\.OperationalInsights/workspaces/[^/]+$'\n  if ! [[ \"$EXISTING_LAW_ID\" =~ $EXPECTED ]]; then\n    echo \"\"\n    echo \"ERROR: existingLogAnalyticsWorkspaceId is not a valid Log Analytics workspace resource ID.\"\n    echo \"       You provided: $EXISTING_LAW_ID\"\n    echo \"       Expected format:\"\n    echo \"         /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>\"\n    echo \"\"\n    echo \"       Common mistake: copying the parent resource GROUP's ID instead of the workspace ID.\"\n    echo \"       To get the correct one: open the workspace in the portal → Overview → JSON View → copy 'id'.\"\n    echo \"       Or leave the field BLANK to create a fresh workspace inside this deployment's RG.\"\n    echo \"\"\n    exit 1\n  fi\n  echo \"    LAW format OK — $EXISTING_LAW_ID\"\n  echo \"    (note: existence is verified by log-analytics module; if you see a ResourceNotFound\"\n  echo \"     error there, the workspace doesn't exist at that path or you lack Log Analytics Reader)\"\nelse\n  echo \"    no LAW provided — a new workspace will be created in this RG\"\nfi\n\necho \"==> Validating containerRegistryResourceId\"\nif [ -n \"$ACR_ID\" ]; then\n  EXPECTED='^/subscriptions/[0-9a-fA-F-]+/resourceGroups/[^/]+/providers/Microsoft\\.ContainerRegistry/registries/[^/]+$'\n  if ! [[ \"$ACR_ID\" =~ $EXPECTED ]]; then\n    echo \"\"\n    echo \"ERROR: containerRegistryResourceId is not a valid Azure Container Registry resource ID.\"\n    echo \"       You provided: $ACR_ID\"\n    echo \"       Expected format:\"\n    echo \"         /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.ContainerRegistry/registries/<registry-name>\"\n    echo \"       Copy it from the registry's Overview → JSON View → 'id', or leave it empty to pull from ghcr.io.\"\n    echo \"\"\n    exit 1\n  fi\n  echo \"    registry format OK — $ACR_ID\"\nelse\n  echo \"    no registry provided — images are pulled from ghcr.io\"\nfi\n\necho \"==> Generating master key (if absent)\"\nif ! az keyvault secret show --vault-name \"$KV_NAME\" --name identityatlas-master-key >/dev/null 2>&1; then\n  MASTER_KEY=$(openssl rand -base64 32)\n  az keyvault secret set \\\n    --vault-name \"$KV_NAME\" \\\n    --name identityatlas-master-key \\\n    --value \"$MASTER_KEY\" \\\n    --output none\n  echo \"    wrote identityatlas-master-key\"\nelse\n  echo \"    identityatlas-master-key already present, skipping\"\nfi\n\n# Random, never derived. 32 random alphanumerics (~190 bits) plus a fixed\n# \"Aa1\" suffix so the value always meets the Postgres complexity rule\n# (upper + lower + digit), whatever the random part happens to contain.\nnew_pg_password() {\n  local random\n  random=$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9')\n  printf '%sAa1' \"${random:0:32}\"\n}\n\necho \"==> Postgres admin password\"\nif [ \"$ROTATE_PG_PASSWORD\" = \"True\" ] || [ \"$ROTATE_PG_PASSWORD\" = \"true\" ]; then\n  az keyvault secret set --vault-name \"$KV_NAME\" --name postgres-admin-password \\\n    --value \"$(new_pg_password)\" --output none\n  echo \"    rotated postgres-admin-password (rotatePostgresPassword=true)\"\nelif ! az keyvault secret show --vault-name \"$KV_NAME\" --name postgres-admin-password >/dev/null 2>&1; then\n  az keyvault secret set --vault-name \"$KV_NAME\" --name postgres-admin-password \\\n    --value \"$(new_pg_password)\" --output none\n  echo \"    generated postgres-admin-password\"\nelse\n  echo \"    postgres-admin-password already present, keeping it\"\nfi\n\n# The App Service references the exact secret version, so a rotation changes\n# the app setting and restarts the app onto the new password. The URI holds no\n# secret value, so it is safe as a script output.\nPG_SECRET_URI=$(az keyvault secret show --vault-name \"$KV_NAME\" --name postgres-admin-password --query id -o tsv)\n\n# Generated once and kept, so a redeploy does not hand both containers a new key\n# (it used to be a newGuid() template default). Written even when the report\n# generator is not deployed, so switching it on later needs no extra step.\necho \"==> Report generator API key\"\nif [ -n \"${REPORT_GENERATOR_API_KEY:-}\" ]; then\n  CURRENT=$(az keyvault secret show --vault-name \"$KV_NAME\" --name report-generator-api-key --query value -o tsv 2>/dev/null || true)\n  if [ \"$CURRENT\" != \"$REPORT_GENERATOR_API_KEY\" ]; then\n    az keyvault secret set --vault-name \"$KV_NAME\" --name report-generator-api-key \\\n      --value \"$REPORT_GENERATOR_API_KEY\" --output none\n    echo \"    stored the supplied report-generator-api-key\"\n  else\n    echo \"    supplied report-generator-api-key already stored\"\n  fi\nelif ! az keyvault secret show --vault-name \"$KV_NAME\" --name report-generator-api-key >/dev/null 2>&1; then\n  az keyvault secret set --vault-name \"$KV_NAME\" --name report-generator-api-key \\\n    --value \"$(openssl rand -hex 32)\" --output none\n  echo \"    generated report-generator-api-key\"\nelse\n  echo \"    report-generator-api-key already present, keeping it\"\nfi\nRG_KEY_SECRET_URI=$(az keyvault secret show --vault-name \"$KV_NAME\" --name report-generator-api-key --query id -o tsv)\n\nprintf '{\"pgPasswordSecretUri\":\"%s\",\"reportGeneratorKeySecretUri\":\"%s\"}' \"$PG_SECRET_URI\" \"$RG_KEY_SECRET_URI\" > \"$AZ_SCRIPTS_OUTPUT_PATH\"\n\necho \"==> Done\"\n"
               }
             }
           ],
@@ -916,6 +950,13 @@
                 "description": "Versioned Key Vault URI of the Postgres admin password (no secret value)."
               },
               "value": "[reference(resourceId('Microsoft.Resources/deploymentScripts', format('{0}-bootstrap', parameters('namePrefix'))), '2023-08-01').outputs.pgPasswordSecretUri]"
+            },
+            "reportGeneratorKeySecretUri": {
+              "type": "string",
+              "metadata": {
+                "description": "Versioned Key Vault URI of the report generator API key (no secret value)."
+              },
+              "value": "[reference(resourceId('Microsoft.Resources/deploymentScripts', format('{0}-bootstrap', parameters('namePrefix'))), '2023-08-01').outputs.reportGeneratorKeySecretUri]"
             }
           }
         }
@@ -923,6 +964,149 @@
       "dependsOn": [
         "[resourceId('Microsoft.Resources/deployments', 'identities')]",
         "[resourceId('Microsoft.Resources/deployments', 'key-vault')]"
+      ]
+    },
+    {
+      "condition": "[variables('privateRegistry')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "registry-pull-identity",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "namePrefix": {
+            "value": "[variables('namePrefix')]"
+          },
+          "location": {
+            "value": "[variables('location')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "3452754308277509466"
+            }
+          },
+          "parameters": {
+            "namePrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource name prefix"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2023-01-31",
+              "name": "[format('{0}-mi-acrpull', parameters('namePrefix'))]",
+              "location": "[parameters('location')]"
+            }
+          ],
+          "outputs": {
+            "identityId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-mi-acrpull', parameters('namePrefix')))]"
+            },
+            "principalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-mi-acrpull', parameters('namePrefix'))), '2023-01-31').principalId]"
+            },
+            "clientId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-mi-acrpull', parameters('namePrefix'))), '2023-01-31').clientId]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "condition": "[variables('privateRegistry')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "acr-pull-role",
+      "subscriptionId": "[variables('_acrIdParts')[2]]",
+      "resourceGroup": "[variables('_acrIdParts')[4]]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "registryName": {
+            "value": "[variables('_acrIdParts')[8]]"
+          },
+          "principalId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'registry-pull-identity'), '2025-04-01').outputs.principalId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "1209388875330297926"
+            }
+          },
+          "parameters": {
+            "registryName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the existing container registry, in this module's resource group."
+              }
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of the image-pull identity."
+              }
+            }
+          },
+          "variables": {
+            "acrPullRoleId": "7f951dda-4ed3-4680-a7ca-43fe172d538d"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName'))]",
+              "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName')), parameters('principalId'), variables('acrPullRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('acrPullRoleId'))]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ],
+          "outputs": {
+            "loginServer": {
+              "type": "string",
+              "metadata": {
+                "description": "Login server of the registry, e.g. contoso.azurecr.io."
+              },
+              "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName')), '2023-07-01').loginServer]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'bootstrap')]",
+        "[resourceId('Microsoft.Resources/deployments', 'registry-pull-identity')]"
       ]
     },
     {
@@ -935,19 +1119,14 @@
         },
         "mode": "Incremental",
         "parameters": {
+          "keyVaultName": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'key-vault'), '2025-04-01').outputs.kvName.value]"
+          },
           "namePrefix": {
             "value": "[variables('namePrefix')]"
           },
           "location": {
             "value": "[variables('location')]"
-          },
-          "adminPassword": {
-            "reference": {
-              "keyVault": {
-                "id": "[resourceId('Microsoft.KeyVault/vaults', variables('kvName'))]"
-              },
-              "secretName": "postgres-admin-password"
-            }
           },
           "skuName": {
             "value": "[variables('profile').postgresSku]"
@@ -967,14 +1146,18 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "10552132338734878009"
+              "templateHash": "15499714568708164063"
             }
           },
           "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Key Vault holding the postgres-admin-password secret. Pass a module output, never a static name (see above)."
+              }
+            },
             "namePrefix": {
               "type": "string",
-              "minLength": 3,
-              "maxLength": 15,
               "metadata": {
                 "description": "Resource name prefix"
               }
@@ -985,171 +1168,286 @@
                 "description": "Azure region"
               }
             },
-            "adminUsername": {
-              "type": "string",
-              "defaultValue": "identityatlas",
-              "metadata": {
-                "description": "Postgres admin username"
-              }
-            },
-            "adminPassword": {
-              "type": "securestring",
-              "metadata": {
-                "description": "Postgres admin password (passed in from Key Vault)."
-              }
-            },
-            "databaseName": {
-              "type": "string",
-              "defaultValue": "identity_atlas",
-              "metadata": {
-                "description": "Database name to create"
-              }
-            },
             "skuName": {
               "type": "string",
               "metadata": {
-                "description": "SKU name (Standard_B1ms, Standard_B2s, Standard_D2ds_v5, Standard_D4ds_v5)."
+                "description": "SKU name"
               }
             },
             "skuTier": {
               "type": "string",
-              "allowedValues": [
-                "Burstable",
-                "GeneralPurpose",
-                "MemoryOptimized"
-              ],
               "metadata": {
                 "description": "SKU tier"
               }
             },
             "storageGb": {
               "type": "int",
-              "defaultValue": 32,
-              "allowedValues": [
-                32,
-                64,
-                128,
-                256,
-                512,
-                1024
-              ],
               "metadata": {
                 "description": "Storage size in GB"
               }
             },
             "publicNetworkAccess": {
               "type": "string",
-              "defaultValue": "Enabled",
-              "allowedValues": [
-                "Enabled",
-                "Disabled"
-              ],
               "metadata": {
                 "description": "Public network access. Disabled in the private network mode."
               }
-            },
-            "postgresVersion": {
-              "type": "string",
-              "defaultValue": "16",
-              "allowedValues": [
-                "14",
-                "15",
-                "16",
-                "17"
-              ],
-              "metadata": {
-                "description": "Postgres version"
-              }
             }
-          },
-          "variables": {
-            "pgName": "[take(format('{0}-pg-{1}', parameters('namePrefix'), uniqueString(resourceGroup().id)), 63)]"
           },
           "resources": [
             {
-              "type": "Microsoft.DBforPostgreSQL/flexibleServers",
-              "apiVersion": "2024-11-01-preview",
-              "name": "[variables('pgName')]",
-              "location": "[parameters('location')]",
-              "sku": {
-                "name": "[parameters('skuName')]",
-                "tier": "[parameters('skuTier')]"
-              },
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "postgres-server",
               "properties": {
-                "version": "[parameters('postgresVersion')]",
-                "administratorLogin": "[parameters('adminUsername')]",
-                "administratorLoginPassword": "[parameters('adminPassword')]",
-                "storage": {
-                  "storageSizeGB": "[parameters('storageGb')]",
-                  "autoGrow": "Enabled"
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
                 },
-                "backup": {
-                  "backupRetentionDays": 7,
-                  "geoRedundantBackup": "Disabled"
+                "mode": "Incremental",
+                "parameters": {
+                  "namePrefix": {
+                    "value": "[parameters('namePrefix')]"
+                  },
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "adminPassword": {
+                    "reference": {
+                      "keyVault": {
+                        "id": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+                      },
+                      "secretName": "postgres-admin-password"
+                    }
+                  },
+                  "skuName": {
+                    "value": "[parameters('skuName')]"
+                  },
+                  "skuTier": {
+                    "value": "[parameters('skuTier')]"
+                  },
+                  "storageGb": {
+                    "value": "[parameters('storageGb')]"
+                  },
+                  "publicNetworkAccess": {
+                    "value": "[parameters('publicNetworkAccess')]"
+                  }
                 },
-                "highAvailability": {
-                  "mode": "Disabled"
-                },
-                "network": {
-                  "publicNetworkAccess": "[parameters('publicNetworkAccess')]"
-                },
-                "authConfig": {
-                  "activeDirectoryAuth": "Disabled",
-                  "passwordAuth": "Enabled"
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.43.8.12551",
+                      "templateHash": "10552132338734878009"
+                    }
+                  },
+                  "parameters": {
+                    "namePrefix": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 15,
+                      "metadata": {
+                        "description": "Resource name prefix"
+                      }
+                    },
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region"
+                      }
+                    },
+                    "adminUsername": {
+                      "type": "string",
+                      "defaultValue": "identityatlas",
+                      "metadata": {
+                        "description": "Postgres admin username"
+                      }
+                    },
+                    "adminPassword": {
+                      "type": "securestring",
+                      "metadata": {
+                        "description": "Postgres admin password (passed in from Key Vault)."
+                      }
+                    },
+                    "databaseName": {
+                      "type": "string",
+                      "defaultValue": "identity_atlas",
+                      "metadata": {
+                        "description": "Database name to create"
+                      }
+                    },
+                    "skuName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "SKU name (Standard_B1ms, Standard_B2s, Standard_D2ds_v5, Standard_D4ds_v5)."
+                      }
+                    },
+                    "skuTier": {
+                      "type": "string",
+                      "allowedValues": [
+                        "Burstable",
+                        "GeneralPurpose",
+                        "MemoryOptimized"
+                      ],
+                      "metadata": {
+                        "description": "SKU tier"
+                      }
+                    },
+                    "storageGb": {
+                      "type": "int",
+                      "defaultValue": 32,
+                      "allowedValues": [
+                        32,
+                        64,
+                        128,
+                        256,
+                        512,
+                        1024
+                      ],
+                      "metadata": {
+                        "description": "Storage size in GB"
+                      }
+                    },
+                    "publicNetworkAccess": {
+                      "type": "string",
+                      "defaultValue": "Enabled",
+                      "allowedValues": [
+                        "Enabled",
+                        "Disabled"
+                      ],
+                      "metadata": {
+                        "description": "Public network access. Disabled in the private network mode."
+                      }
+                    },
+                    "postgresVersion": {
+                      "type": "string",
+                      "defaultValue": "16",
+                      "allowedValues": [
+                        "14",
+                        "15",
+                        "16",
+                        "17"
+                      ],
+                      "metadata": {
+                        "description": "Postgres version"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "pgName": "[take(format('{0}-pg-{1}', parameters('namePrefix'), uniqueString(resourceGroup().id)), 63)]"
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+                      "apiVersion": "2024-11-01-preview",
+                      "name": "[variables('pgName')]",
+                      "location": "[parameters('location')]",
+                      "sku": {
+                        "name": "[parameters('skuName')]",
+                        "tier": "[parameters('skuTier')]"
+                      },
+                      "properties": {
+                        "version": "[parameters('postgresVersion')]",
+                        "administratorLogin": "[parameters('adminUsername')]",
+                        "administratorLoginPassword": "[parameters('adminPassword')]",
+                        "storage": {
+                          "storageSizeGB": "[parameters('storageGb')]",
+                          "autoGrow": "Enabled"
+                        },
+                        "backup": {
+                          "backupRetentionDays": 7,
+                          "geoRedundantBackup": "Disabled"
+                        },
+                        "highAvailability": {
+                          "mode": "Disabled"
+                        },
+                        "network": {
+                          "publicNetworkAccess": "[parameters('publicNetworkAccess')]"
+                        },
+                        "authConfig": {
+                          "activeDirectoryAuth": "Disabled",
+                          "passwordAuth": "Enabled"
+                        }
+                      }
+                    },
+                    {
+                      "type": "Microsoft.DBforPostgreSQL/flexibleServers/databases",
+                      "apiVersion": "2024-11-01-preview",
+                      "name": "[format('{0}/{1}', variables('pgName'), parameters('databaseName'))]",
+                      "properties": {
+                        "charset": "UTF8",
+                        "collation": "en_US.utf8"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.DBforPostgreSQL/flexibleServers/configurations",
+                      "apiVersion": "2024-11-01-preview",
+                      "name": "[format('{0}/{1}', variables('pgName'), 'azure.extensions')]",
+                      "properties": {
+                        "value": "PG_TRGM",
+                        "source": "user-override"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName'))]"
+                      ]
+                    }
+                  ],
+                  "outputs": {
+                    "pgId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName'))]"
+                    },
+                    "pgFqdn": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName')), '2024-11-01-preview').fullyQualifiedDomainName]"
+                    },
+                    "pgName": {
+                      "type": "string",
+                      "value": "[variables('pgName')]"
+                    },
+                    "databaseName": {
+                      "type": "string",
+                      "value": "[parameters('databaseName')]"
+                    },
+                    "adminUsername": {
+                      "type": "string",
+                      "value": "[parameters('adminUsername')]"
+                    }
+                  }
                 }
               }
-            },
-            {
-              "type": "Microsoft.DBforPostgreSQL/flexibleServers/databases",
-              "apiVersion": "2024-11-01-preview",
-              "name": "[format('{0}/{1}', variables('pgName'), parameters('databaseName'))]",
-              "properties": {
-                "charset": "UTF8",
-                "collation": "en_US.utf8"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName'))]"
-              ]
-            },
-            {
-              "type": "Microsoft.DBforPostgreSQL/flexibleServers/configurations",
-              "apiVersion": "2024-11-01-preview",
-              "name": "[format('{0}/{1}', variables('pgName'), 'azure.extensions')]",
-              "properties": {
-                "value": "PG_TRGM",
-                "source": "user-override"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName'))]"
-              ]
             }
           ],
           "outputs": {
             "pgId": {
               "type": "string",
-              "value": "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName'))]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'postgres-server'), '2025-04-01').outputs.pgId.value]"
             },
             "pgFqdn": {
               "type": "string",
-              "value": "[reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName')), '2024-11-01-preview').fullyQualifiedDomainName]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'postgres-server'), '2025-04-01').outputs.pgFqdn.value]"
             },
             "pgName": {
               "type": "string",
-              "value": "[variables('pgName')]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'postgres-server'), '2025-04-01').outputs.pgName.value]"
             },
             "databaseName": {
               "type": "string",
-              "value": "[parameters('databaseName')]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'postgres-server'), '2025-04-01').outputs.databaseName.value]"
             },
             "adminUsername": {
               "type": "string",
-              "value": "[parameters('adminUsername')]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'postgres-server'), '2025-04-01').outputs.adminUsername.value]"
             }
           }
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'bootstrap')]"
+        "[resourceId('Microsoft.Resources/deployments', 'bootstrap')]",
+        "[resourceId('Microsoft.Resources/deployments', 'key-vault')]"
       ]
     },
     {
@@ -1163,7 +1461,7 @@
         "mode": "Incremental",
         "parameters": {
           "reportGeneratorUrl": "[if(parameters('deployReportGenerator'), createObject('value', format('https://{0}-report-generator.{1}', variables('namePrefix'), reference(resourceId('Microsoft.Resources/deployments', 'aca-env'), '2025-04-01').outputs.defaultDomain.value)), createObject('value', ''))]",
-          "reportGeneratorApiKey": "[if(parameters('deployReportGenerator'), createObject('value', parameters('reportGeneratorApiKey')), createObject('value', ''))]",
+          "reportGeneratorKeySecretUri": "[if(parameters('deployReportGenerator'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'bootstrap'), '2025-04-01').outputs.reportGeneratorKeySecretUri.value), createObject('value', ''))]",
           "namePrefix": {
             "value": "[variables('namePrefix')]"
           },
@@ -1174,8 +1472,11 @@
             "value": "[variables('profile').appServiceSku]"
           },
           "image": {
-            "value": "[variables('webImage')]"
+            "value": "[format('{0}/fortigi/identity-atlas:{1}', if(variables('privateRegistry'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('_acrIdParts')[2], variables('_acrIdParts')[4]), 'Microsoft.Resources/deployments', 'acr-pull-role'), '2025-04-01').outputs.loginServer.value, 'ghcr.io'), variables('_imageTag'))]"
           },
+          "registryServer": "[if(variables('privateRegistry'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('_acrIdParts')[2], variables('_acrIdParts')[4]), 'Microsoft.Resources/deployments', 'acr-pull-role'), '2025-04-01').outputs.loginServer.value), createObject('value', 'ghcr.io'))]",
+          "pullIdentityId": "[if(variables('privateRegistry'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'registry-pull-identity'), '2025-04-01').outputs.identityId.value), createObject('value', ''))]",
+          "pullIdentityClientId": "[if(variables('privateRegistry'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'registry-pull-identity'), '2025-04-01').outputs.clientId.value), createObject('value', ''))]",
           "identityId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identities'), '2025-04-01').outputs.webIdentityId.value]"
           },
@@ -1203,6 +1504,12 @@
           "pgPasswordSecretUri": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'bootstrap'), '2025-04-01').outputs.pgPasswordSecretUri.value]"
           },
+          "entraTenantId": {
+            "value": "[parameters('entraTenantId')]"
+          },
+          "entraClientId": {
+            "value": "[parameters('entraClientId')]"
+          },
           "ipSecurityRestrictionsDefaultAction": {
             "value": "[parameters('webAccessDefaultAction')]"
           },
@@ -1219,7 +1526,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "942055595053625800"
+              "templateHash": "7964829706269690446"
             }
           },
           "parameters": {
@@ -1247,6 +1554,27 @@
               "type": "string",
               "metadata": {
                 "description": "Web App image reference, e.g. ghcr.io/fortigi/identity-atlas:latest"
+              }
+            },
+            "registryServer": {
+              "type": "string",
+              "defaultValue": "ghcr.io",
+              "metadata": {
+                "description": "Registry host the image is pulled from, e.g. ghcr.io or contoso.azurecr.io."
+              }
+            },
+            "pullIdentityId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Image-pull identity (resource ID) for a private Azure Container Registry. Empty = anonymous pull from a public registry."
+              }
+            },
+            "pullIdentityClientId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Client ID of the image-pull identity. Empty = anonymous pull."
               }
             },
             "identityId": {
@@ -1312,11 +1640,11 @@
                 "description": "URL of the report generator (experimental). Empty = the feature is not deployed."
               }
             },
-            "reportGeneratorApiKey": {
-              "type": "securestring",
+            "reportGeneratorKeySecretUri": {
+              "type": "string",
               "defaultValue": "",
               "metadata": {
-                "description": "API key the web app sends to the report generator."
+                "description": "Versioned Key Vault secret URI of the API key the web app sends to the report generator. Empty = the feature is not deployed."
               }
             },
             "ipSecurityRestrictionsDefaultAction": {
@@ -1349,6 +1677,20 @@
               "metadata": {
                 "description": "Versioned Key Vault secret URI of the Postgres admin password (from the bootstrap script)."
               }
+            },
+            "entraTenantId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Entra ID tenant GUID for sign-in. Empty = left for Step 2 (main-auth.bicep) to patch in."
+              }
+            },
+            "entraClientId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Entra ID App Registration (client) GUID for sign-in. Empty = left for Step 2."
+              }
             }
           },
           "variables": {
@@ -1366,6 +1708,8 @@
             ],
             "linuxFxVersion": "[format('DOCKER|{0}', parameters('image'))]",
             "privateNetworking": "[not(empty(parameters('vnetIntegrationSubnetId')))]",
+            "privateRegistry": "[not(empty(parameters('pullIdentityId')))]",
+            "siteIdentities": "[union(createObject(format('{0}', parameters('identityId')), createObject()), if(variables('privateRegistry'), createObject(format('{0}', parameters('pullIdentityId')), createObject()), createObject()))]",
             "workerRule": "[if(empty(parameters('workerSubnetId')), createArray(), createArray(createObject('name', 'allow-worker-subnet', 'action', 'Allow', 'priority', 90, 'vnetSubnetResourceId', parameters('workerSubnetId'))))]",
             "restrictionsDefaultAction": "[if(or(equals(parameters('ipSecurityRestrictionsDefaultAction'), 'Deny'), not(empty(parameters('allowedIpCidrs')))), 'Deny', 'Allow')]"
           },
@@ -1391,9 +1735,7 @@
               "kind": "app,linux,container",
               "identity": {
                 "type": "UserAssigned",
-                "userAssignedIdentities": {
-                  "[format('{0}', parameters('identityId'))]": {}
-                }
+                "userAssignedIdentities": "[variables('siteIdentities')]"
               },
               "properties": {
                 "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', format('{0}-plan', parameters('namePrefix')))]",
@@ -1408,10 +1750,11 @@
                   "http20Enabled": true,
                   "minTlsVersion": "1.2",
                   "healthCheckPath": "/api/health",
-                  "acrUseManagedIdentityCreds": false,
+                  "acrUseManagedIdentityCreds": "[variables('privateRegistry')]",
+                  "acrUserManagedIdentityID": "[if(variables('privateRegistry'), parameters('pullIdentityClientId'), null())]",
                   "ipSecurityRestrictionsDefaultAction": "[variables('restrictionsDefaultAction')]",
                   "ipSecurityRestrictions": "[concat(variables('workerRule'), variables('ipRules'))]",
-                  "appSettings": "[concat(createArray(createObject('name', 'DOCKER_REGISTRY_SERVER_URL', 'value', 'https://ghcr.io'), createObject('name', 'WEBSITES_PORT', 'value', '3001'), createObject('name', 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', 'value', 'false'), createObject('name', 'WEBSITES_CONTAINER_START_TIME_LIMIT', 'value', '1800'), createObject('name', 'NODE_ENV', 'value', 'production'), createObject('name', 'USE_SQL', 'value', 'true'), createObject('name', 'PORT', 'value', '3001'), createObject('name', 'BEHIND_TLS', 'value', 'true'), createObject('name', 'AUTH_ENABLED', 'value', 'true'), createObject('name', 'AUTH_TENANT_ID', 'value', ''), createObject('name', 'AUTH_CLIENT_ID', 'value', ''), createObject('name', 'IDENTITY_ATLAS_MASTER_KEY', 'value', format('@Microsoft.KeyVault(SecretUri={0}secrets/identityatlas-master-key/)', parameters('keyVaultUri'))), createObject('name', 'POSTGRES_PASSWORD', 'value', format('@Microsoft.KeyVault(SecretUri={0})', parameters('pgPasswordSecretUri'))), createObject('name', 'POSTGRES_HOST', 'value', parameters('pgFqdn')), createObject('name', 'POSTGRES_PORT', 'value', '5432'), createObject('name', 'POSTGRES_DB', 'value', parameters('pgDatabaseName')), createObject('name', 'POSTGRES_USER', 'value', parameters('pgUsername')), createObject('name', 'PGSSLMODE', 'value', 'require'), createObject('name', 'AZURE_KEY_VAULT_URI', 'value', parameters('keyVaultUri'))), if(empty(parameters('reportGeneratorUrl')), createArray(), createArray(createObject('name', 'FEATURE_CUSTOM_REPORTS', 'value', 'true'), createObject('name', 'NL_REPORTS_LLM_URL', 'value', parameters('reportGeneratorUrl')), createObject('name', 'NL_REPORTS_LLM_API_KEY', 'value', parameters('reportGeneratorApiKey')))))]",
+                  "appSettings": "[concat(createArray(createObject('name', 'DOCKER_REGISTRY_SERVER_URL', 'value', format('https://{0}', parameters('registryServer'))), createObject('name', 'WEBSITES_PORT', 'value', '3001'), createObject('name', 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', 'value', 'false'), createObject('name', 'WEBSITES_CONTAINER_START_TIME_LIMIT', 'value', '1800'), createObject('name', 'NODE_ENV', 'value', 'production'), createObject('name', 'USE_SQL', 'value', 'true'), createObject('name', 'PORT', 'value', '3001'), createObject('name', 'BEHIND_TLS', 'value', 'true'), createObject('name', 'AUTH_ENABLED', 'value', 'true'), createObject('name', 'AUTH_TENANT_ID', 'value', parameters('entraTenantId')), createObject('name', 'AUTH_CLIENT_ID', 'value', parameters('entraClientId')), createObject('name', 'IDENTITY_ATLAS_MASTER_KEY', 'value', format('@Microsoft.KeyVault(SecretUri={0}secrets/identityatlas-master-key/)', parameters('keyVaultUri'))), createObject('name', 'POSTGRES_PASSWORD', 'value', format('@Microsoft.KeyVault(SecretUri={0})', parameters('pgPasswordSecretUri'))), createObject('name', 'POSTGRES_HOST', 'value', parameters('pgFqdn')), createObject('name', 'POSTGRES_PORT', 'value', '5432'), createObject('name', 'POSTGRES_DB', 'value', parameters('pgDatabaseName')), createObject('name', 'POSTGRES_USER', 'value', parameters('pgUsername')), createObject('name', 'PGSSLMODE', 'value', 'require'), createObject('name', 'AZURE_KEY_VAULT_URI', 'value', parameters('keyVaultUri'))), if(empty(parameters('reportGeneratorUrl')), createArray(), createArray(createObject('name', 'FEATURE_CUSTOM_REPORTS', 'value', 'true'), createObject('name', 'NL_REPORTS_LLM_URL', 'value', parameters('reportGeneratorUrl')), createObject('name', 'NL_REPORTS_LLM_API_KEY', 'value', format('@Microsoft.KeyVault(SecretUri={0})', parameters('reportGeneratorKeySecretUri'))))))]",
                   "azureStorageAccounts": {
                     "uploads": {
                       "type": "AzureFiles",
@@ -1489,6 +1832,7 @@
         }
       },
       "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('_acrIdParts')[2], variables('_acrIdParts')[4]), 'Microsoft.Resources/deployments', 'acr-pull-role')]",
         "[resourceId('Microsoft.Resources/deployments', 'bootstrap')]",
         "[resourceId('Microsoft.Resources/deployments', 'aca-env')]",
         "[resourceId('Microsoft.Resources/deployments', 'identities')]",
@@ -1496,6 +1840,7 @@
         "[resourceId('Microsoft.Resources/deployments', 'log-analytics')]",
         "[resourceId('Microsoft.Resources/deployments', 'network')]",
         "[resourceId('Microsoft.Resources/deployments', 'postgres')]",
+        "[resourceId('Microsoft.Resources/deployments', 'registry-pull-identity')]",
         "[resourceId('Microsoft.Resources/deployments', 'storage')]"
       ]
     },
@@ -1972,8 +2317,10 @@
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aca-env'), '2025-04-01').outputs.uploadsStorageName.value]"
           },
           "image": {
-            "value": "[variables('workerImage')]"
+            "value": "[format('{0}/fortigi/identity-atlas-worker:{1}', if(variables('privateRegistry'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('_acrIdParts')[2], variables('_acrIdParts')[4]), 'Microsoft.Resources/deployments', 'acr-pull-role'), '2025-04-01').outputs.loginServer.value, 'ghcr.io'), variables('_imageTag'))]"
           },
+          "registryServer": "[if(variables('privateRegistry'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('_acrIdParts')[2], variables('_acrIdParts')[4]), 'Microsoft.Resources/deployments', 'acr-pull-role'), '2025-04-01').outputs.loginServer.value), createObject('value', 'ghcr.io'))]",
+          "pullIdentityId": "[if(variables('privateRegistry'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'registry-pull-identity'), '2025-04-01').outputs.identityId.value), createObject('value', ''))]",
           "webAppHostname": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'app-service'), '2025-04-01').outputs.appHostname.value]"
           },
@@ -1991,7 +2338,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "1125172534652634110"
+              "templateHash": "6440374303475994734"
             }
           },
           "parameters": {
@@ -2027,6 +2374,20 @@
                 "description": "Container image full reference, e.g. ghcr.io/fortigi/identity-atlas-worker:latest"
               }
             },
+            "registryServer": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Registry host the image is pulled from, e.g. contoso.azurecr.io. Only used with pullIdentityId."
+              }
+            },
+            "pullIdentityId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Image-pull identity (resource ID) for a private Azure Container Registry. Empty = anonymous pull from a public registry."
+              }
+            },
             "webAppHostname": {
               "type": "string",
               "metadata": {
@@ -2048,16 +2409,21 @@
               }
             }
           },
+          "variables": {
+            "privateRegistry": "[not(empty(parameters('pullIdentityId')))]"
+          },
           "resources": [
             {
               "type": "Microsoft.App/containerApps",
               "apiVersion": "2024-10-02-preview",
               "name": "[format('{0}-worker', parameters('namePrefix'))]",
               "location": "[parameters('location')]",
+              "identity": "[if(variables('privateRegistry'), createObject('type', 'UserAssigned', 'userAssignedIdentities', createObject(format('{0}', parameters('pullIdentityId')), createObject())), null())]",
               "properties": {
                 "managedEnvironmentId": "[parameters('envId')]",
                 "configuration": {
-                  "activeRevisionsMode": "Single"
+                  "activeRevisionsMode": "Single",
+                  "registries": "[if(variables('privateRegistry'), createArray(createObject('server', parameters('registryServer'), 'identity', parameters('pullIdentityId'))), createArray())]"
                 },
                 "template": {
                   "containers": [
@@ -2110,7 +2476,9 @@
         }
       },
       "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('_acrIdParts')[2], variables('_acrIdParts')[4]), 'Microsoft.Resources/deployments', 'acr-pull-role')]",
         "[resourceId('Microsoft.Resources/deployments', 'aca-env')]",
+        "[resourceId('Microsoft.Resources/deployments', 'registry-pull-identity')]",
         "[resourceId('Microsoft.Resources/deployments', 'app-service')]"
       ]
     },
@@ -2125,6 +2493,9 @@
         },
         "mode": "Incremental",
         "parameters": {
+          "keyVaultName": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'key-vault'), '2025-04-01').outputs.kvName.value]"
+          },
           "namePrefix": {
             "value": "[variables('namePrefix')]"
           },
@@ -2138,11 +2509,10 @@
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aca-env'), '2025-04-01').outputs.promptCacheStorageName.value]"
           },
           "image": {
-            "value": "[variables('reportGeneratorImage')]"
+            "value": "[format('{0}/fortigi/identity-atlas-report-generator:{1}', if(variables('privateRegistry'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('_acrIdParts')[2], variables('_acrIdParts')[4]), 'Microsoft.Resources/deployments', 'acr-pull-role'), '2025-04-01').outputs.loginServer.value, 'ghcr.io'), variables('_imageTag'))]"
           },
-          "apiKey": {
-            "value": "[parameters('reportGeneratorApiKey')]"
-          },
+          "registryServer": "[if(variables('privateRegistry'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('_acrIdParts')[2], variables('_acrIdParts')[4]), 'Microsoft.Resources/deployments', 'acr-pull-role'), '2025-04-01').outputs.loginServer.value), createObject('value', 'ghcr.io'))]",
+          "pullIdentityId": "[if(variables('privateRegistry'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'registry-pull-identity'), '2025-04-01').outputs.identityId.value), createObject('value', ''))]",
           "allowedCallerIps": "[if(variables('privateNetworking'), createObject('value', createArray()), createObject('value', parameters('reportGeneratorAllowedCallerIps')))]"
         },
         "template": {
@@ -2152,14 +2522,18 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "2932284995967627565"
+              "templateHash": "15470851054757849444"
             }
           },
           "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Key Vault holding the report-generator-api-key secret. Pass a module output, never a static name (see above)."
+              }
+            },
             "namePrefix": {
               "type": "string",
-              "minLength": 3,
-              "maxLength": 15,
               "metadata": {
                 "description": "Resource name prefix"
               }
@@ -2185,138 +2559,286 @@
             "image": {
               "type": "string",
               "metadata": {
-                "description": "Container image, e.g. ghcr.io/fortigi/identity-atlas-report-generator:latest"
+                "description": "Container image"
               }
             },
-            "apiKey": {
-              "type": "securestring",
-              "metadata": {
-                "description": "API key the web app must send. Generated per deployment by main.bicep."
-              }
-            },
-            "cpu": {
+            "registryServer": {
               "type": "string",
-              "defaultValue": "2",
+              "defaultValue": "",
               "metadata": {
-                "description": "CPU cores. Consumption requires memory = 2x cpu (2 -> 4Gi)."
+                "description": "Registry host the image is pulled from. Only used with pullIdentityId."
               }
             },
-            "memory": {
+            "pullIdentityId": {
               "type": "string",
-              "defaultValue": "4Gi",
+              "defaultValue": "",
               "metadata": {
-                "description": "Memory, e.g. 4Gi"
-              }
-            },
-            "scaleToZeroAfterSeconds": {
-              "type": "int",
-              "defaultValue": 300,
-              "metadata": {
-                "description": "Seconds of inactivity before the app scales back to zero."
+                "description": "Image-pull identity (resource ID) for a private Azure Container Registry. Empty = anonymous pull."
               }
             },
             "allowedCallerIps": {
               "type": "array",
               "defaultValue": [],
               "metadata": {
-                "description": "Caller IPs allowed to reach the ingress (the web app outbound set). Empty = any IP, and the API key is the only control."
+                "description": "Caller IPs allowed to reach the ingress. Empty = any IP, and the API key is the only control."
               }
             }
           },
           "resources": [
             {
-              "type": "Microsoft.App/containerApps",
-              "apiVersion": "2024-10-02-preview",
-              "name": "[format('{0}-report-generator', parameters('namePrefix'))]",
-              "location": "[parameters('location')]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "report-generator-app",
               "properties": {
-                "managedEnvironmentId": "[parameters('envId')]",
-                "configuration": {
-                  "activeRevisionsMode": "Single",
-                  "ingress": {
-                    "copy": [
-                      {
-                        "name": "ipSecurityRestrictions",
-                        "count": "[length(parameters('allowedCallerIps'))]",
-                        "input": {
-                          "name": "[format('allow-web-{0}', copyIndex('ipSecurityRestrictions'))]",
-                          "action": "Allow",
-                          "ipAddressRange": "[parameters('allowedCallerIps')[copyIndex('ipSecurityRestrictions')]]"
-                        }
-                      }
-                    ],
-                    "external": true,
-                    "targetPort": 8080,
-                    "transport": "auto",
-                    "allowInsecure": false
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "namePrefix": {
+                    "value": "[parameters('namePrefix')]"
                   },
-                  "secrets": [
-                    {
-                      "name": "api-key",
-                      "value": "[parameters('apiKey')]"
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "envId": {
+                    "value": "[parameters('envId')]"
+                  },
+                  "promptCacheStorageName": {
+                    "value": "[parameters('promptCacheStorageName')]"
+                  },
+                  "image": {
+                    "value": "[parameters('image')]"
+                  },
+                  "apiKey": {
+                    "reference": {
+                      "keyVault": {
+                        "id": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+                      },
+                      "secretName": "report-generator-api-key"
                     }
-                  ]
+                  },
+                  "registryServer": {
+                    "value": "[parameters('registryServer')]"
+                  },
+                  "pullIdentityId": {
+                    "value": "[parameters('pullIdentityId')]"
+                  },
+                  "allowedCallerIps": {
+                    "value": "[parameters('allowedCallerIps')]"
+                  }
                 },
                 "template": {
-                  "containers": [
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.43.8.12551",
+                      "templateHash": "1075088054677707807"
+                    }
+                  },
+                  "parameters": {
+                    "namePrefix": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 15,
+                      "metadata": {
+                        "description": "Resource name prefix"
+                      }
+                    },
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region"
+                      }
+                    },
+                    "envId": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Container Apps Environment ID"
+                      }
+                    },
+                    "promptCacheStorageName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Storage name registered on the CAE for the prompt cache share"
+                      }
+                    },
+                    "image": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Container image, e.g. ghcr.io/fortigi/identity-atlas-report-generator:latest"
+                      }
+                    },
+                    "apiKey": {
+                      "type": "securestring",
+                      "metadata": {
+                        "description": "API key the web app must send. Generated once by the bootstrap script and read from Key Vault (see report-generator-kv-key.bicep)."
+                      }
+                    },
+                    "registryServer": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Registry host the image is pulled from, e.g. contoso.azurecr.io. Only used with pullIdentityId."
+                      }
+                    },
+                    "pullIdentityId": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Image-pull identity (resource ID) for a private Azure Container Registry. Empty = anonymous pull from a public registry."
+                      }
+                    },
+                    "cpu": {
+                      "type": "string",
+                      "defaultValue": "2",
+                      "metadata": {
+                        "description": "CPU cores. Consumption requires memory = 2x cpu (2 -> 4Gi)."
+                      }
+                    },
+                    "memory": {
+                      "type": "string",
+                      "defaultValue": "4Gi",
+                      "metadata": {
+                        "description": "Memory, e.g. 4Gi"
+                      }
+                    },
+                    "scaleToZeroAfterSeconds": {
+                      "type": "int",
+                      "defaultValue": 300,
+                      "metadata": {
+                        "description": "Seconds of inactivity before the app scales back to zero."
+                      }
+                    },
+                    "allowedCallerIps": {
+                      "type": "array",
+                      "defaultValue": [],
+                      "metadata": {
+                        "description": "Caller IPs allowed to reach the ingress (the web app outbound set). Empty = any IP, and the API key is the only control."
+                      }
+                    }
+                  },
+                  "variables": {
+                    "privateRegistry": "[not(empty(parameters('pullIdentityId')))]"
+                  },
+                  "resources": [
                     {
-                      "name": "report-generator",
-                      "image": "[parameters('image')]",
-                      "resources": {
-                        "cpu": "[json(parameters('cpu'))]",
-                        "memory": "[parameters('memory')]"
-                      },
-                      "env": [
-                        {
-                          "name": "LLAMA_API_KEY",
-                          "secretRef": "api-key"
-                        },
-                        {
-                          "name": "LLAMA_ARG_THREADS",
-                          "value": "[parameters('cpu')]"
-                        }
-                      ],
-                      "volumeMounts": [
-                        {
-                          "volumeName": "promptcache",
-                          "mountPath": "/slots"
-                        }
-                      ],
-                      "probes": [
-                        {
-                          "type": "Readiness",
-                          "httpGet": {
-                            "path": "/health",
-                            "port": 8080
+                      "type": "Microsoft.App/containerApps",
+                      "apiVersion": "2024-10-02-preview",
+                      "name": "[format('{0}-report-generator', parameters('namePrefix'))]",
+                      "location": "[parameters('location')]",
+                      "identity": "[if(variables('privateRegistry'), createObject('type', 'UserAssigned', 'userAssignedIdentities', createObject(format('{0}', parameters('pullIdentityId')), createObject())), null())]",
+                      "properties": {
+                        "managedEnvironmentId": "[parameters('envId')]",
+                        "configuration": {
+                          "activeRevisionsMode": "Single",
+                          "registries": "[if(variables('privateRegistry'), createArray(createObject('server', parameters('registryServer'), 'identity', parameters('pullIdentityId'))), createArray())]",
+                          "ingress": {
+                            "copy": [
+                              {
+                                "name": "ipSecurityRestrictions",
+                                "count": "[length(parameters('allowedCallerIps'))]",
+                                "input": {
+                                  "name": "[format('allow-web-{0}', copyIndex('ipSecurityRestrictions'))]",
+                                  "action": "Allow",
+                                  "ipAddressRange": "[parameters('allowedCallerIps')[copyIndex('ipSecurityRestrictions')]]"
+                                }
+                              }
+                            ],
+                            "external": true,
+                            "targetPort": 8080,
+                            "transport": "auto",
+                            "allowInsecure": false
                           },
-                          "initialDelaySeconds": 10,
-                          "periodSeconds": 10,
-                          "failureThreshold": 30
-                        }
-                      ]
-                    }
-                  ],
-                  "volumes": [
-                    {
-                      "name": "promptcache",
-                      "storageType": "AzureFile",
-                      "storageName": "[parameters('promptCacheStorageName')]"
-                    }
-                  ],
-                  "scale": {
-                    "minReplicas": 0,
-                    "maxReplicas": 1,
-                    "cooldownPeriod": "[parameters('scaleToZeroAfterSeconds')]",
-                    "rules": [
-                      {
-                        "name": "http",
-                        "http": {
-                          "metadata": {
-                            "concurrentRequests": "4"
+                          "secrets": [
+                            {
+                              "name": "api-key",
+                              "value": "[parameters('apiKey')]"
+                            }
+                          ]
+                        },
+                        "template": {
+                          "containers": [
+                            {
+                              "name": "report-generator",
+                              "image": "[parameters('image')]",
+                              "resources": {
+                                "cpu": "[json(parameters('cpu'))]",
+                                "memory": "[parameters('memory')]"
+                              },
+                              "env": [
+                                {
+                                  "name": "LLAMA_API_KEY",
+                                  "secretRef": "api-key"
+                                },
+                                {
+                                  "name": "LLAMA_ARG_THREADS",
+                                  "value": "[parameters('cpu')]"
+                                }
+                              ],
+                              "volumeMounts": [
+                                {
+                                  "volumeName": "promptcache",
+                                  "mountPath": "/slots"
+                                }
+                              ],
+                              "probes": [
+                                {
+                                  "type": "Readiness",
+                                  "httpGet": {
+                                    "path": "/health",
+                                    "port": 8080
+                                  },
+                                  "initialDelaySeconds": 10,
+                                  "periodSeconds": 10,
+                                  "failureThreshold": 30
+                                }
+                              ]
+                            }
+                          ],
+                          "volumes": [
+                            {
+                              "name": "promptcache",
+                              "storageType": "AzureFile",
+                              "storageName": "[parameters('promptCacheStorageName')]"
+                            }
+                          ],
+                          "scale": {
+                            "minReplicas": 0,
+                            "maxReplicas": 1,
+                            "cooldownPeriod": "[parameters('scaleToZeroAfterSeconds')]",
+                            "rules": [
+                              {
+                                "name": "http",
+                                "http": {
+                                  "metadata": {
+                                    "concurrentRequests": "4"
+                                  }
+                                }
+                              }
+                            ]
                           }
                         }
                       }
-                    ]
+                    }
+                  ],
+                  "outputs": {
+                    "appHostname": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Hostname of the report generator (no scheme)."
+                      },
+                      "value": "[reference(resourceId('Microsoft.App/containerApps', format('{0}-report-generator', parameters('namePrefix'))), '2024-10-02-preview').configuration.ingress.fqdn]"
+                    },
+                    "appUrl": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "URL the web app should call."
+                      },
+                      "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', format('{0}-report-generator', parameters('namePrefix'))), '2024-10-02-preview').configuration.ingress.fqdn)]"
+                    }
                   }
                 }
               }
@@ -2325,23 +2847,20 @@
           "outputs": {
             "appHostname": {
               "type": "string",
-              "metadata": {
-                "description": "Hostname of the report generator (no scheme)."
-              },
-              "value": "[reference(resourceId('Microsoft.App/containerApps', format('{0}-report-generator', parameters('namePrefix'))), '2024-10-02-preview').configuration.ingress.fqdn]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'report-generator-app'), '2025-04-01').outputs.appHostname.value]"
             },
             "appUrl": {
               "type": "string",
-              "metadata": {
-                "description": "URL the web app should call."
-              },
-              "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', format('{0}-report-generator', parameters('namePrefix'))), '2024-10-02-preview').configuration.ingress.fqdn)]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'report-generator-app'), '2025-04-01').outputs.appUrl.value]"
             }
           }
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'aca-env')]"
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('_acrIdParts')[2], variables('_acrIdParts')[4]), 'Microsoft.Resources/deployments', 'acr-pull-role')]",
+        "[resourceId('Microsoft.Resources/deployments', 'aca-env')]",
+        "[resourceId('Microsoft.Resources/deployments', 'key-vault')]",
+        "[resourceId('Microsoft.Resources/deployments', 'registry-pull-identity')]"
       ]
     },
     {

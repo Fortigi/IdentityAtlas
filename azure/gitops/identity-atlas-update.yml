@@ -1,0 +1,132 @@
+# Identity Atlas — propose an upgrade when a new release is out.
+#
+# Copy to .github/workflows/ in the repository that holds your Identity Atlas
+# deployment (see docs: "Managing the Azure deployment as code").
+#
+# Once a working day it compares identity-atlas/RELEASE with the latest stable
+# Identity Atlas release. When the release is NEWER, it replaces identity-atlas/
+# with that release's template package (IdentityAtlas-azure-<version>.zip, the
+# template pinned to the release's images) and opens a pull request carrying
+# the release notes. Review it, let the deploy workflow show the what-if, merge.
+#
+# Your own settings live outside identity-atlas/ (parameters/), so replacing the
+# folder never touches them.
+#
+# Token: a pull request opened with the default GITHUB_TOKEN does NOT start
+# other workflows, so the deploy workflow's what-if would not run on it. Give
+# this workflow a token that can (a GitHub App installation token or a
+# fine-grained token with contents + pull-requests write) as the secret
+# IDENTITY_ATLAS_UPDATE_TOKEN. Without it the PR is still opened; push an
+# empty commit or re-open it to start the checks.
+
+name: Identity Atlas update
+
+on:
+  schedule:
+    - cron: '17 5 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  TEMPLATE_DIR: identity-atlas
+  UPSTREAM: Fortigi/IdentityAtlas
+
+jobs:
+  propose-upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ secrets.IDENTITY_ATLAS_UPDATE_TOKEN || github.token }}
+
+      - name: Compare with the latest release
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG=$(gh release view --repo "$UPSTREAM" --json tagName --jq .tagName)
+          VERSION="${TAG#v}"
+          # The package pins images X.Y.Z.0; RELEASE records exactly that.
+          LATEST="${VERSION}.0"
+          # No RELEASE yet (a repository adopting the package for the first time):
+          # anything is newer.
+          CURRENT="0.0.0.0"
+          if [ -f "$TEMPLATE_DIR/RELEASE" ]; then CURRENT=$(tr -d '[:space:]' < "$TEMPLATE_DIR/RELEASE"); fi
+          echo "Deployed: $CURRENT   Latest release: $LATEST ($TAG)"
+
+          # Only ever upwards. A hotfix for an OLDER line can be marked "latest"
+          # on GitHub after a newer release; that must not become a downgrade PR.
+          HIGHEST=$(printf '%s\n%s\n' "$CURRENT" "$LATEST" | sort -V | tail -n1)
+          if [ "$LATEST" = "$CURRENT" ] || [ "$HIGHEST" != "$LATEST" ]; then
+            echo "Nothing to do."
+            echo "upgrade=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BRANCH="identity-atlas/${VERSION}"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
+            echo "Branch $BRANCH already exists: the upgrade was proposed before."
+            echo "upgrade=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          {
+            echo "upgrade=true"
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo "branch=$BRANCH"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Replace the template with the release's package
+        if: steps.check.outputs.upgrade == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.check.outputs.tag }}
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          set -euo pipefail
+          ASSET="IdentityAtlas-azure-${VERSION}.zip"
+          if ! gh release download "$TAG" --repo "$UPSTREAM" --pattern "$ASSET" --dir "$RUNNER_TEMP"; then
+            echo "::error::$TAG has no $ASSET. Releases before the template package was introduced cannot be adopted this way."
+            exit 1
+          fi
+          rm -rf "$RUNNER_TEMP/pkg" && mkdir "$RUNNER_TEMP/pkg"
+          unzip -q "$RUNNER_TEMP/$ASSET" -d "$RUNNER_TEMP/pkg"
+          test -f "$RUNNER_TEMP/pkg/azure/RELEASE"
+          rm -rf "$TEMPLATE_DIR"
+          mv "$RUNNER_TEMP/pkg/azure" "$TEMPLATE_DIR"
+
+      - name: Open the pull request
+        if: steps.check.outputs.upgrade == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.IDENTITY_ATLAS_UPDATE_TOKEN || github.token }}
+          TAG: ${{ steps.check.outputs.tag }}
+          BRANCH: ${{ steps.check.outputs.branch }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          git config user.name  "identity-atlas-update[bot]"
+          git config user.email "identity-atlas-update@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add -A "$TEMPLATE_DIR"
+          git commit -q -m "Identity Atlas $TAG"
+          git push -q origin "$BRANCH"
+
+          {
+            echo "Upgrades Identity Atlas to **$TAG**: the template and the images it deploys, together."
+            echo
+            echo "- Template changes: see the diff of \`$TEMPLATE_DIR/\` in this PR, and the what-if the deploy workflow posts."
+            echo "- Database migrations run forward only. Merging deploys this release; going back across a migration needs a Postgres point-in-time restore."
+            echo "- Release: https://github.com/$UPSTREAM/releases/tag/$TAG"
+            echo
+            echo "## Release notes"
+            echo
+            gh release view "$TAG" --repo "$UPSTREAM" --json body --jq .body
+          } > "$RUNNER_TEMP/body.md"
+
+          gh pr create --base "$BASE" --head "$BRANCH" \
+            --title "Identity Atlas $TAG" --body-file "$RUNNER_TEMP/body.md"

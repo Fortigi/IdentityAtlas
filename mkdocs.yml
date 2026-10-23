@@ -120,6 +120,7 @@ nav:
           - Sharing a Matrix: ui/sharing-a-matrix.md
       - Entitlement Pivot and Saved Views: ui/entitlement-pivot.md
       - Unit Report: ui/unit-report.md
+      - Access Review Adoption: ui/access-review-adoption.md
       - Custom Reports: ui/custom-reports.md
       - Contexts: ui/contexts.md
       - Building a Context by Describing It: ui/context-assistant.md
@@ -135,6 +136,7 @@ nav:
           - Docker Setup: architecture/docker-setup.md
           - Azure Deployment Walkthrough: architecture/azure-deployment-walkthrough.md
           - Azure Deployment Reference: architecture/azure-deployment.md
+          - Azure as Code (GitOps): architecture/azure-gitops.md
           - Portable Windows Launcher: architecture/desktop-portable.md
           - Scaling & Load Testing: architecture/scaling.md
           - "Scale Rehearsal: 41 M Assignments": architecture/scale-rehearsal.md

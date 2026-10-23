@@ -35,11 +35,17 @@ function steps(yaml) {
   return yaml.split(/\n(?=      - (?:name|uses): )/).slice(1);
 }
 
-// The positional .zip arguments of the `gh release create` command.
+// The .zip files the release step uploads: the positional arguments of
+// `gh release create`, and what the step collects into ASSETS before it (the
+// Azure template package is appended there only when it was written).
 function uploadedZips(step) {
   const cmd = step.match(/gh release create[\s\S]*?(?=\n\s*--|\n\n|$)/);
   if (!cmd) return null;
-  return cmd[0].split(/\s+\\?\s*/).filter((tok) => tok.endsWith('.zip'));
+  const collected = [...step.slice(0, cmd.index).matchAll(/ASSETS\+?=\(([^)]*)\)/g)].map((m) => m[1]);
+  return [...collected, cmd[0]].join(' ')
+    .split(/\s+\\?\s*/)
+    .map((tok) => tok.replace(/^"|"$/g, ''))
+    .filter((tok) => tok.endsWith('.zip'));
 }
 
 // The paths the build script writes its two zips to, resolved from its own
@@ -95,10 +101,18 @@ describe.each(WORKFLOWS)('%s ships both portable ZIPs', (file) => {
     expect(all.some((s) => /npm run build:node-launcher/.test(s))).toBe(false);
   });
 
-  it('attaches exactly the two zips the script produced', () => {
+  it('attaches the two zips the script produced, and the Azure template package', () => {
     const release = all.filter((s) => s.includes('gh release create'));
     expect(release).toHaveLength(1);
-    expect(uploadedZips(release[0])).toEqual([defaultZip, postgresZip]);
+    // The third is covered in releaseWorkflows.guard.test.js.
+    expect(uploadedZips(release[0])).toEqual([defaultZip, postgresZip, '$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip']);
+  });
+
+  it('reads both ways a step can name its uploads', () => {
+    const inline = '      - name: x\n        run: |\n          gh release create "$TAG" \\\n            a.zip \\\n            b.zip \\\n            --title "$TAG"';
+    expect(uploadedZips(inline)).toEqual(['a.zip', 'b.zip']);
+    const collected = '      - name: x\n        run: |\n          ASSETS=(a.zip\n                  b.zip)\n          ASSETS+=("c.zip")\n          gh release create "$TAG" \\\n            "${ASSETS[@]}" \\\n            --title "$TAG"';
+    expect(uploadedZips(collected)).toEqual(['a.zip', 'b.zip', 'c.zip']);
   });
 
   it('appends the download guide after polishing and before publishing', () => {

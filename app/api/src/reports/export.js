@@ -28,6 +28,7 @@
 
 import ExcelJS from 'exceljs';
 import { addPivotTables } from './xlsxPivots.js';
+import { addCharts, writeChartTables } from './xlsxCharts.js';
 
 const FILENAME_PREFIX = 'identity-atlas';
 
@@ -225,6 +226,7 @@ function pivotKeys(pivots) {
 async function toXlsx({
   displayName, columns: declared = [], rows = [], notices, total, generatedAt, truncated, constantColumns, pivots = [],
   details,
+  charts = [],
 } = {}) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Identity Atlas';
@@ -239,8 +241,13 @@ async function toXlsx({
   writeSummary(workbook.addWorksheet(SUMMARY_SHEET), {
     displayName, generatedAt, total, notices, truncated, header, details,
   });
-  const sheet = workbook.addWorksheet(DATA_SHEET);
   const headerRow = HEADER_ROW;
+  const capped = rows.length > SHEET_ROW_LIMIT - headerRow ? rows.slice(0, SHEET_ROW_LIMIT - headerRow) : rows;
+  // Charts read the rows, not the table, so a column the run held constant can
+  // still be charted. Their tab sits right after the Summary: it is what a
+  // reader opens the workbook for.
+  const chartPlan = writeChartTables(workbook, charts, capped);
+  const sheet = workbook.addWorksheet(DATA_SHEET);
 
   columns.forEach((column, i) => { sheet.getColumn(i + 1).width = columnWidth(column, rows); });
 
@@ -253,7 +260,6 @@ async function toXlsx({
   });
   labelRow.commit?.();
 
-  const capped = rows.length > SHEET_ROW_LIMIT - headerRow ? rows.slice(0, SHEET_ROW_LIMIT - headerRow) : rows;
   capped.forEach((row, i) => {
     const target = sheet.getRow(headerRow + 1 + i);
     columns.forEach((column, c) => {
@@ -274,12 +280,13 @@ async function toXlsx({
     : [];
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
   const lastColumn = sheet.getColumn(columns.length || 1).letter;
-  return addPivotTables(buffer, {
+  const withPivots = await addPivotTables(buffer, {
     sheet: sheet.name,
     ref: `A${headerRow}:${lastColumn}${headerRow + capped.length}`,
     columns,
     rows: capped,
   }, pivotSheets);
+  return addCharts(withPivots, chartPlan);
 }
 
 // Order is the order the UI offers them in, and the first is the default.

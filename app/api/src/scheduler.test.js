@@ -109,6 +109,34 @@ describe('scheduleMatches', () => {
       expect(scheduleMatches({ frequency: 'weekly', day: 3, minute: 30 }, REF)).toBe(false);
     });
   });
+
+  describe('interval', () => {
+    const at = (hhmm) => new Date(`2026-06-17T${hhmm}:00Z`);
+    it('fires on every multiple of the interval, counted from midnight', () => {
+      const every10 = { frequency: 'interval', intervalMinutes: 10 };
+      expect(scheduleMatches(every10, at('14:30'))).toBe(true);
+      expect(scheduleMatches(every10, at('14:40'))).toBe(true);
+      expect(scheduleMatches(every10, at('00:00'))).toBe(true);
+      expect(scheduleMatches(every10, at('14:35'))).toBe(false);
+    });
+    it('needs no hour or minute', () => {
+      expect(scheduleMatches({ frequency: 'interval', intervalMinutes: 15 }, at('14:45'))).toBe(true);
+      expect(scheduleMatches({ frequency: 'interval', intervalMinutes: 15 }, at('14:50'))).toBe(false);
+    });
+    it('refuses an interval that does not divide the hour, or none at all', () => {
+      // 7 would fire at 14:00 (840 % 7 = 0) if it were accepted.
+      expect(scheduleMatches({ frequency: 'interval', intervalMinutes: 7 }, at('14:00'))).toBe(false);
+      expect(scheduleMatches({ frequency: 'interval', intervalMinutes: '10' }, at('14:00'))).toBe(false);
+      expect(scheduleMatches({ frequency: 'interval' }, at('14:00'))).toBe(false);
+    });
+    it('respects enabled: false', () => {
+      expect(scheduleMatches({ enabled: false, frequency: 'interval', intervalMinutes: 5 }, at('14:30'))).toBe(false);
+    });
+  });
+
+  it('returns false for an unknown frequency', () => {
+    expect(scheduleMatches({ frequency: 'monthly', hour: 14, minute: 30 }, REF)).toBe(false);
+  });
 });
 
 // ─── recentlyQueuedJobExists and queueScheduledJob — require mocked deps ──
@@ -162,15 +190,50 @@ describe('recentlyQueuedJobExists', () => {
     expect(await recentlyQueuedJobExists(1, 'csv')).toBe(true);
   });
 
-  it('passes jobType and configId to the query', async () => {
+  it('looks only at jobs of the same schedule entry, within that entry\'s window', async () => {
     const db = makeDb();
     const { recentlyQueuedJobExists } = await loadScheduler(db);
-    await recentlyQueuedJobExists(42, 'omada');
+    await recentlyQueuedJobExists(42, 'omada', 3, 9);
     const [sql, params] = db.queryOne.mock.calls[0];
     expect(sql).toMatch(/"CrawlerJobs"/);
     expect(sql).toContain('"configId" = $2');
-    expect(params).toContain('omada');
-    expect(params).toContain(42);
+    expect(sql).toContain("config->>'_scheduleIndex' = $3");
+    expect(sql).toContain('$4::int * interval');
+    expect(params).toEqual(['omada', 42, '3', 9]);
+  });
+
+  it('defaults to a 55-minute window', async () => {
+    const db = makeDb();
+    const { recentlyQueuedJobExists } = await loadScheduler(db);
+    await recentlyQueuedJobExists(42, 'omada', 0);
+    expect(db.queryOne.mock.calls[0][1]).toEqual(['omada', 42, '0', 55]);
+  });
+});
+
+describe('guardWindowMinutes', () => {
+  it('is just under the interval for an interval schedule', async () => {
+    const { guardWindowMinutes } = await import('./scheduler.js');
+    expect(guardWindowMinutes({ frequency: 'interval', intervalMinutes: 10 })).toBe(9);
+    expect(guardWindowMinutes({ frequency: 'interval', intervalMinutes: 5 })).toBe(4);
+  });
+  it('is 55 minutes for every other frequency', async () => {
+    const { guardWindowMinutes } = await import('./scheduler.js');
+    expect(guardWindowMinutes({ frequency: 'hourly', minute: 0 })).toBe(55);
+    expect(guardWindowMinutes({ frequency: 'daily', hour: 2, minute: 0 })).toBe(55);
+    expect(guardWindowMinutes(undefined)).toBe(55);
+  });
+});
+
+describe('scheduleFiringOrder', () => {
+  it('puts full-sync entries first and keeps the order within each group', async () => {
+    const { scheduleFiringOrder } = await import('./scheduler.js');
+    const schedules = [
+      { frequency: 'interval', intervalMinutes: 10, syncMode: 'delta' },
+      { frequency: 'daily', hour: 3, minute: 0, syncMode: 'full' },
+      { frequency: 'hourly', minute: 0 },
+      { frequency: 'daily', hour: 12, minute: 0, syncMode: 'full' },
+    ];
+    expect(scheduleFiringOrder(schedules)).toEqual([1, 3, 0, 2]);
   });
 });
 
@@ -347,13 +410,13 @@ describe('fireScheduleIfDue — a configuration that is still busy', () => {
   }
   const queued = (db) => db.queryOne.mock.calls.some(c => /INSERT INTO "CrawlerJobs"/.test(c[0]));
 
-  it('skips the occurrence while an older job of the same configuration is still running, and says why', async () => {
+  it('does not queue while an older job of the same configuration is still running, and says why', async () => {
     const db = busyDb([{ id: 12, status: 'running' }]);
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     const { fireScheduleIfDue } = await loadScheduler(db);
     await fireScheduleIfDue(configRow, 0, configRow.config.schedules[0], SIX_AM, 'k1');
     expect(queued(db)).toBe(false);
-    expect(log).toHaveBeenCalledWith(expect.stringMatching(/skipped config 7 \(SailPoint SQL\) — job 12 is still running/));
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/postponed config 7 \(SailPoint SQL\) — job 12 is still running/));
     log.mockRestore();
   });
 
@@ -390,6 +453,98 @@ describe('fireScheduleIfDue — a configuration that is still busy', () => {
     await fireScheduleIfDue(configRow, 0, configRow.config.schedules[0], SIX_AM, 'k1');
     await fireScheduleIfDue(configRow, 0, configRow.config.schedules[0], SIX_AM, 'k1');
     expect(db.query.mock.calls.filter(c => /"configId" = \$1 AND status IN \('queued', 'running'\)/.test(c[0]))).toHaveLength(1);
+    log.mockRestore();
+  });
+});
+
+// ─── A full that lands on a busy config is retried, not lost ───────────────
+//
+// With a delta every five minutes, the daily full at 03:00 often finds a delta
+// still running. Skipping it there would lose it for the whole day.
+describe('fireScheduleIfDue — retrying an occurrence that found the config busy', () => {
+  beforeEach(() => vi.resetModules());
+
+  const full = { enabled: true, frequency: 'daily', hour: 3, minute: 0, syncMode: 'full' };
+  const delta = { enabled: true, frequency: 'interval', intervalMinutes: 5, syncMode: 'delta' };
+  const configRow = { id: 8, crawlerType: 'entra-id', displayName: 'Tenant', nextRunMode: null, config: { schedules: [delta, full] } };
+  const at = (hhmm) => new Date(`2026-10-20T${hhmm}:00Z`);
+
+  // A db whose busy answer is switched per call by the test.
+  function switchableDb() {
+    const state = { busy: true };
+    const db = {
+      queryOne: vi.fn(async (sql) => (/INSERT INTO "CrawlerJobs"/.test(sql) ? { id: 99 } : null)),
+      query: vi.fn(async (sql) => ({
+        rows: /status IN \('queued', 'running'\)/.test(sql) && state.busy ? [{ id: 50, status: 'running' }] : [],
+      })),
+    };
+    return { db, state };
+  }
+  const inserts = (db) => db.queryOne.mock.calls.filter(c => /INSERT INTO "CrawlerJobs"/.test(c[0]));
+
+  it('queues the full on a later tick once the delta has finished', async () => {
+    const { db, state } = switchableDb();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const { fireScheduleIfDue } = await loadScheduler(db);
+
+    await fireScheduleIfDue(configRow, 1, full, at('03:00'), 'm0');   // busy → postponed
+    expect(inserts(db)).toHaveLength(0);
+    await fireScheduleIfDue(configRow, 1, full, at('03:01'), 'm1');   // still busy
+    expect(inserts(db)).toHaveLength(0);
+    state.busy = false;
+    await fireScheduleIfDue(configRow, 1, full, at('03:02'), 'm2');   // not due by the clock, but pending
+    expect(inserts(db)).toHaveLength(1);
+    expect(JSON.parse(inserts(db)[0][1][1])._syncMode).toBe('full');
+
+    // Queued once — not again on the tick after.
+    await fireScheduleIfDue(configRow, 1, full, at('03:03'), 'm3');
+    expect(inserts(db)).toHaveLength(1);
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/postponed config 8 \(Tenant\) — job 50 is still running/));
+    log.mockRestore();
+  });
+
+  it('skips a busy interval occurrence instead of retrying it', async () => {
+    const { db, state } = switchableDb();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const { fireScheduleIfDue } = await loadScheduler(db);
+
+    await fireScheduleIfDue(configRow, 0, delta, at('03:05'), 'm0');
+    state.busy = false;
+    await fireScheduleIfDue(configRow, 0, delta, at('03:06'), 'm1');   // not due, nothing pending
+    expect(inserts(db)).toHaveLength(0);
+    await fireScheduleIfDue(configRow, 0, delta, at('03:10'), 'm2');   // next occurrence
+    expect(inserts(db)).toHaveLength(1);
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/skipped config 8/));
+    log.mockRestore();
+  });
+
+  it('gives up after an hour and stops retrying', async () => {
+    const { db, state } = switchableDb();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const { fireScheduleIfDue, pruneSchedulerState } = await loadScheduler(db);
+
+    await fireScheduleIfDue(configRow, 1, full, at('03:00'), 'm0');
+    pruneSchedulerState('m59', at('03:59'));        // within the hour: kept
+    pruneSchedulerState('m61', at('04:01'));        // past it: dropped
+    state.busy = false;
+    await fireScheduleIfDue(configRow, 1, full, at('04:02'), 'm62');
+    expect(inserts(db)).toHaveLength(0);
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/gave up on crawler:8:1/));
+    log.mockRestore();
+  });
+
+  it('does not run the cross-restart look-back for a retry', async () => {
+    const { db, state } = switchableDb();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const { fireScheduleIfDue } = await loadScheduler(db);
+
+    await fireScheduleIfDue(configRow, 1, full, at('03:00'), 'm0');
+    const lookBacks = () => db.queryOne.mock.calls.filter(c => /_scheduleIndex/.test(c[0])).length;
+    expect(lookBacks()).toBe(1);
+    state.busy = false;
+    await fireScheduleIfDue(configRow, 1, full, at('03:01'), 'm1');
+    expect(lookBacks()).toBe(1);
+    expect(inserts(db)).toHaveLength(1);
     log.mockRestore();
   });
 });

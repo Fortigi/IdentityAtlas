@@ -37,6 +37,13 @@ param forceUpdateTag string = utcNow()
 @description('BYO Log Analytics workspace resource ID — validated by this script (format check) before any module tries to use it.')
 param existingLogAnalyticsWorkspaceId string
 
+@description('Resource ID of the customer\'s Azure Container Registry to pull the images from — validated by this script (format check) before the AcrPull assignment is attempted. Empty = pull from ghcr.io.')
+param containerRegistryResourceId string = ''
+
+@description('Optional: the report generator API key to store. Empty = generate one if Key Vault has none yet, and keep it.')
+@secure()
+param reportGeneratorApiKey string = ''
+
 resource script 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   name: '${namePrefix}-bootstrap'
   location: location
@@ -53,13 +60,17 @@ resource script 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
     retentionInterval: 'PT1H'
     cleanupPreference: 'OnSuccess'
     forceUpdateTag: forceUpdateTag
-    environmentVariables: [
+    environmentVariables: concat([
       { name: 'KV_NAME', value: keyVaultName }
       { name: 'ROTATE_PG_PASSWORD', value: string(rotatePostgresPassword) }
       // BYO Log Analytics — validation block checks format before log-analytics
       // module runs (it depends on this bootstrap).
       { name: 'EXISTING_LAW_ID', value: existingLogAnalyticsWorkspaceId }
-    ]
+      { name: 'ACR_ID', value: containerRegistryResourceId }
+    ], empty(reportGeneratorApiKey) ? [] : [
+      // Only when the operator chose a key: the script generates one otherwise.
+      { name: 'REPORT_GENERATOR_API_KEY', secureValue: reportGeneratorApiKey }
+    ])
     scriptContent: '''
 set -euo pipefail
 
@@ -85,6 +96,24 @@ if [ -n "$EXISTING_LAW_ID" ]; then
   echo "     error there, the workspace doesn't exist at that path or you lack Log Analytics Reader)"
 else
   echo "    no LAW provided — a new workspace will be created in this RG"
+fi
+
+echo "==> Validating containerRegistryResourceId"
+if [ -n "$ACR_ID" ]; then
+  EXPECTED='^/subscriptions/[0-9a-fA-F-]+/resourceGroups/[^/]+/providers/Microsoft\.ContainerRegistry/registries/[^/]+$'
+  if ! [[ "$ACR_ID" =~ $EXPECTED ]]; then
+    echo ""
+    echo "ERROR: containerRegistryResourceId is not a valid Azure Container Registry resource ID."
+    echo "       You provided: $ACR_ID"
+    echo "       Expected format:"
+    echo "         /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.ContainerRegistry/registries/<registry-name>"
+    echo "       Copy it from the registry's Overview → JSON View → 'id', or leave it empty to pull from ghcr.io."
+    echo ""
+    exit 1
+  fi
+  echo "    registry format OK — $ACR_ID"
+else
+  echo "    no registry provided — images are pulled from ghcr.io"
 fi
 
 echo "==> Generating master key (if absent)"
@@ -126,7 +155,30 @@ fi
 # the app setting and restarts the app onto the new password. The URI holds no
 # secret value, so it is safe as a script output.
 PG_SECRET_URI=$(az keyvault secret show --vault-name "$KV_NAME" --name postgres-admin-password --query id -o tsv)
-printf '{"pgPasswordSecretUri":"%s"}' "$PG_SECRET_URI" > "$AZ_SCRIPTS_OUTPUT_PATH"
+
+# Generated once and kept, so a redeploy does not hand both containers a new key
+# (it used to be a newGuid() template default). Written even when the report
+# generator is not deployed, so switching it on later needs no extra step.
+echo "==> Report generator API key"
+if [ -n "${REPORT_GENERATOR_API_KEY:-}" ]; then
+  CURRENT=$(az keyvault secret show --vault-name "$KV_NAME" --name report-generator-api-key --query value -o tsv 2>/dev/null || true)
+  if [ "$CURRENT" != "$REPORT_GENERATOR_API_KEY" ]; then
+    az keyvault secret set --vault-name "$KV_NAME" --name report-generator-api-key \
+      --value "$REPORT_GENERATOR_API_KEY" --output none
+    echo "    stored the supplied report-generator-api-key"
+  else
+    echo "    supplied report-generator-api-key already stored"
+  fi
+elif ! az keyvault secret show --vault-name "$KV_NAME" --name report-generator-api-key >/dev/null 2>&1; then
+  az keyvault secret set --vault-name "$KV_NAME" --name report-generator-api-key \
+    --value "$(openssl rand -hex 32)" --output none
+  echo "    generated report-generator-api-key"
+else
+  echo "    report-generator-api-key already present, keeping it"
+fi
+RG_KEY_SECRET_URI=$(az keyvault secret show --vault-name "$KV_NAME" --name report-generator-api-key --query id -o tsv)
+
+printf '{"pgPasswordSecretUri":"%s","reportGeneratorKeySecretUri":"%s"}' "$PG_SECRET_URI" "$RG_KEY_SECRET_URI" > "$AZ_SCRIPTS_OUTPUT_PATH"
 
 echo "==> Done"
 '''
@@ -137,3 +189,8 @@ echo "==> Done"
 #disable-next-line outputs-should-not-contain-secrets
 @description('Versioned Key Vault URI of the Postgres admin password (no secret value).')
 output pgPasswordSecretUri string = script.properties.outputs.pgPasswordSecretUri
+
+// A versioned secret URI (no secret value), so it is safe as an output.
+#disable-next-line outputs-should-not-contain-secrets
+@description('Versioned Key Vault URI of the report generator API key (no secret value).')
+output reportGeneratorKeySecretUri string = script.properties.outputs.reportGeneratorKeySecretUri

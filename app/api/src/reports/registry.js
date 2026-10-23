@@ -84,6 +84,8 @@ export function reportMetadata(template) {
     exportFormats: [...EXPORT_FORMAT_NAMES],
     // Pivot tables a workbook download opens with, declared in column keys.
     pivots: template.pivots || [],
+    // Pie charts the workbook download opens with, on a Charts tab.
+    charts: template.charts || [],
     // Where the report came from: shipped with Identity Atlas, built by someone in
     // this deployment, or a saved view of a shipped one. The Reports page lists
     // them apart.

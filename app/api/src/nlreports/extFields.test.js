@@ -129,6 +129,22 @@ describe('loadExtFields', () => {
     await loadExtFields();
     expect(discoverExtendedAttrKeys).toHaveBeenCalledTimes(8);
   });
+
+  // Discovery reads whole tables. Callers arriving while it runs used to each
+  // start their own, so a burst on a cold cache multiplied the scans.
+  it('shares one discovery between callers that arrive while it is running', async () => {
+    let release;
+    const gate = new Promise(res => { release = res; });
+    discoverExtendedAttrKeys.mockImplementation(async () => { await gate; return ['sfDepartmentID']; });
+
+    const calls = Array.from({ length: 12 }, () => loadExtFields());
+    release();
+    const results = await Promise.all(calls);
+
+    expect(discoverExtendedAttrKeys).toHaveBeenCalledTimes(4); // one per table, for all twelve
+    expect(new Set(results).size).toBe(1);
+    expect(results[0].user['ext.sfDepartmentID']).toBeDefined();
+  });
 });
 
 describe('matchQuestionAttributes', () => {

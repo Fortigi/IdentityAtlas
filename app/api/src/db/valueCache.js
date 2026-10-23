@@ -57,24 +57,31 @@ export function valuePageSize() {
 // being trustworthy, so past STALE_GRACE the caller waits for a real answer
 // (and gets the error) rather than being told stale values indefinitely.
 //
-// `pageSize` is part of the cached value, not just its key: a deployment that
-// changes MATRIX_VALUE_PAGE_SIZE must not keep serving pages cut to the old
-// size, not even as a stale stand-in.
-export function createValueCache(label, load) {
+// Concurrent callers share ONE load: while a load runs, every other caller
+// awaits that same promise instead of starting its own. Without that, a cold
+// cache hit by N requests at once ran the whole discovery N times in parallel
+// and could drain the connection pool (the Reports list with a dozen custom
+// reports did exactly that).
+//
+// `key()` names what the cached value was built for; an entry built for a
+// different key is not used, not even as a stale stand-in. It is passed to
+// `load` so the load builds for the current key.
+export function createSharedCache(label, load, key = () => null) {
   let cached = null;
+  let cachedKey;
   let cachedAt = 0;
   let inflight = null;
   let generation = 0;
 
-  function refresh(pageSize) {
+  function refresh(k) {
     if (inflight) return inflight;
     const startedAt = generation;
     inflight = (async () => {
       try {
-        const result = { ...await load(pageSize), pageSize };
+        const result = await load(k);
         // A clear() during the refresh means the caller wanted the cache gone;
         // repopulating it from a run that started before would resurrect it.
-        if (generation === startedAt) { cached = result; cachedAt = Date.now(); }
+        if (generation === startedAt) { cached = result; cachedKey = k; cachedAt = Date.now(); }
         return result;
       } finally {
         inflight = null;
@@ -85,16 +92,23 @@ export function createValueCache(label, load) {
 
   return {
     async get() {
-      const pageSize = valuePageSize();
-      const usable = cached && cached.pageSize === pageSize;
+      const k = key();
+      const usable = cached !== null && cachedKey === k;
       const age = Date.now() - cachedAt;
       if (usable && age < COLUMN_CACHE_TTL) return cached;
       if (usable && age < STALE_GRACE) {
-        refresh(pageSize).catch(err => console.error(`${label} value refresh failed:`, err.message));
+        refresh(k).catch(err => console.error(`${label} refresh failed:`, err.message));
         return cached;
       }
-      return refresh(pageSize);
+      return refresh(k);
     },
     clear() { cached = null; cachedAt = 0; generation += 1; },
   };
+}
+
+// `pageSize` is part of the cached value, not just its key: a deployment that
+// changes MATRIX_VALUE_PAGE_SIZE must not keep serving pages cut to the old
+// size, not even as a stale stand-in.
+export function createValueCache(label, load) {
+  return createSharedCache(`${label} value`, async (pageSize) => ({ ...await load(pageSize), pageSize }), valuePageSize);
 }

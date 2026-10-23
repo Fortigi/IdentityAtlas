@@ -9,7 +9,9 @@
       3. Push a test system via POST /api/ingest/systems using the key
       4. Push a test user via POST /api/ingest/principals
       5. Verify the data landed via GET /api/users
-      6. Clean up: the crawler persists (no delete API) but the test data
+      6. Remove one of two memberships by its key (deletedKeys) and verify the
+         live count in the database drops to one
+      7. Clean up: the crawler persists (no delete API) but the test data
          is ephemeral — it'll be wiped on the next clean-database cycle.
 
     Supports both colocated CI discovery (called with -ApiBaseUrl/-ApiKey) and
@@ -74,6 +76,7 @@ if (-not $connectorKey) {
     Write-Result 'CustomConnector/IngestSystem' $false 'skipped: no API key'
     Write-Result 'CustomConnector/IngestUser' $false 'skipped: no API key'
     Write-Result 'CustomConnector/DataLanded' $false 'skipped: no API key'
+    Write-Result 'CustomConnector/DeleteByKey' $false 'skipped: no API key'
     if (-not $WriteResult) { exit $standaloneFailures }
     return
 }
@@ -139,6 +142,34 @@ try {
     Write-Result 'CustomConnector/DataLanded' ($found.Count -ge 1) "found=$($found.Count)"
 } catch {
     Write-Result 'CustomConnector/DataLanded' $false $_.Exception.Message
+}
+
+# ─── 6. Remove one membership by its key (delta deletedKeys) ────
+# Two memberships in, one named back out by (resourceId, principalId,
+# assignmentType): the live count, read from the database, must drop to one.
+if ($systemId) {
+    try {
+        $since = (Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/whoami" -Headers $headers -TimeoutSec 10).serverTime
+        $groupId = [guid]::NewGuid().ToString()
+        $keep = @{ resourceId = $groupId; principalId = [guid]::NewGuid().ToString(); assignmentType = 'Direct' }
+        $drop = @{ resourceId = $groupId; principalId = [guid]::NewGuid().ToString(); assignmentType = 'Direct' }
+        $post = { param($body) Invoke-RestMethod -Uri "$ApiBaseUrl/ingest/resource-assignments" -Method Post -Headers $headers -Body ($body | ConvertTo-Json -Depth 5) -TimeoutSec 30 }
+        $count = {
+            (Invoke-RestMethod -Uri "$ApiBaseUrl/ingest/count" -Method Post -Headers $headers -TimeoutSec 30 `
+                -Body (@{ entity = 'resource-assignments'; systemId = [int]$systemId; before = $since } | ConvertTo-Json)).count
+        }
+
+        & $post @{ systemId = [int]$systemId; syncMode = 'delta'; records = @($keep, $drop) } | Out-Null
+        $before = & $count
+        $r = & $post @{ systemId = [int]$systemId; syncMode = 'delta'; records = @(); deletedKeys = @($drop) }
+        $after = & $count
+        $ok = $before -eq 2 -and $r.deleted -eq 1 -and $after -eq 1
+        Write-Result 'CustomConnector/DeleteByKey' $ok "before=$before deleted=$($r.deleted) after=$after"
+    } catch {
+        Write-Result 'CustomConnector/DeleteByKey' $false $_.Exception.Message
+    }
+} else {
+    Write-Result 'CustomConnector/DeleteByKey' $false 'skipped: no systemId'
 }
 
 Write-Host "`n  Custom connector round-trip complete." -ForegroundColor Green

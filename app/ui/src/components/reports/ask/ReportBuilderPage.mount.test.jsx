@@ -345,4 +345,27 @@ describe('ReportBuilderPage', () => {
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Name' })).not.toBeInTheDocument();
   });
+
+  it('opens the builder without the model for someone who may build but not ask', async () => {
+    const { authFetch } = renderBuilder({
+      auth: { hasWildcard: false, permissions: new Set(['data.read', 'data.write.reports']) },
+    });
+
+    expect(await screen.findByRole('heading', { name: /New report/ })).toBeInTheDocument();
+    expect(entitySelect()).toHaveValue('user');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Describe it/ })).not.toBeInTheDocument();
+
+    await settle();
+    // The model is never asked about — not even its status.
+    expect(authFetch.mock.calls.map(([u]) => String(u))).toEqual([CATALOG_URL]);
+  });
+
+  it('offers the model to someone who may both build and ask', async () => {
+    renderBuilder({
+      auth: { hasWildcard: false, permissions: new Set(['data.write.reports', 'data.read.reports']) },
+    });
+
+    expect(await screen.findByRole('heading', { name: /Describe it/ })).toBeInTheDocument();
+  });
 });

@@ -43,7 +43,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 - **Languages:** PowerShell (crawlers), JavaScript (Node API + React UI), SQL (postgres migrations)
 - **Stack:** PostgreSQL 16 + Node.js API (port 3001) + PowerShell worker — all in Docker
 - **Author:** Wim van den Heijkant / Fortigi — https://github.com/Fortigi/IdentityAtlas
-- **Current Version:** 5.x.yyyyMMdd.HHmm (auto-bumped by `bump-version.yml` on every PR merge to `main`)
+- **Current Version:** 6.x.yyyyMMdd.HHmm (auto-bumped by `bump-version.yml` on every PR merge to `main`; `Major` follows the newest release tag)
 
 **Subdirectory coding guides (loaded contextually):**
 - `Functions/CLAUDE.md` — PowerShell SDK conventions (style, naming, Graph API patterns) — note: folder paths inside are v4-era; conventions still apply
@@ -70,7 +70,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 **Rules:**
 - `feature/` branches must be branched off `main`.
 - `bugfixes/` branches branch from `main` for pre-release fixes. For hotfixes to an already-released version, branch from the release tag: `git checkout -b bugfixes/fix-foo v5.2.0`.
-- Hotfix commits must be cherry-picked back to `main` via a separate PR so the fix is included in future releases.
+- **Main first — nothing is released that is not on `main`.** A hotfix is fixed on `main` (PR, approval, merge) *before* it is released; the hotfix branch then holds only `git cherry-pick -x <main commit>`s. Cut Release / Cut Beta / Cut Hotfix enforce this (`tools/release/Assert-ReleaseFromMain.ps1`) and refuse to tag anything else.
 - All merges go through a Pull Request — no direct pushes to `main` ever.
 - Branch names: `feature/<short-descriptive-name>` or `bugfixes/<short-descriptive-name>` (lowercase, hyphens).
 - When starting work, always create a new branch. Never work directly on `main`.
@@ -89,7 +89,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 
 | Context | Who updates it | When |
 |---------|---------------|------|
-| `main` dev builds | `bump-version.yml` (automated) | Every PR merge — increments `Minor`, updates timestamp |
+| `main` dev builds | `bump-version.yml` (automated) | Every PR merge — increments `Minor`, updates timestamp. `Major` follows the highest `vX.Y.Z` tag (Minor restarts when it moves), so cutting `v7.0.0` puts `main` on `7.x` |
 | Pre-release tags | `cut-beta.yml` (automated) | When you run Actions → Cut Beta |
 | Release tags | `cut-release.yml` / `cut-hotfix.yml` (automated) | When you run Actions → Cut Release or Cut Hotfix |
 | `feature/*` / `bugfixes/*` | **Nobody** | Never touch `setup/IdentityAtlas.psd1` on a branch |
@@ -167,6 +167,7 @@ The data model supports importing authorization data from any system. Resources,
 | `ApplicationOwnership` | `SyncAppOwners` phase | Owners of an app registration — they can add a credential and authenticate *as* the app. Matched to the app's SP by `appId` and linked via `HasAppOwnership`. Each owner is a `Direct` assignment |
 | `GroupOwnership` | `SyncAssignments` phase | Owners of a group. One resource per owned group, named after the group, linked to it via `relationshipType='HasOwnership'`. Each owner is a `Direct` assignment |
 | `ResourceOwnership` | SQL connector | Owners of a resource loaded by the SQL connector, linked via `HasOwnership`; the owned resource's type is in `extendedAttributes.ownedResourceType` |
+| `AppRegistration` | `SyncAppRegistrations` phase | One per app registration (`id` = application object id; `appId` in `extendedAttributes` joins it to its service principal). Grants nothing and has no assignments — it carries the app's security set-up: credential metadata (never values), `isFallbackPublicClient`, redirect URIs, implicit grant, `requiredResourceAccess`, federated credentials |
 
 **Assignment types in use:**
 
@@ -257,10 +258,12 @@ git checkout -b bugfixes/<name>
 
 **Hotfix (bug in a released version):**
 ```bash
-git checkout -b bugfixes/<name> v5.2.0   # branch from the release tag, NOT main
-git push origin bugfixes/<name>
-# Then run Actions → Cut Hotfix with the branch name and new version
-# After the hotfix ships, cherry-pick the fix to main via a separate PR
+# 1. Fix it on main first: bugfixes/<name> from main → PR → approval → merge
+# 2. Then branch from the release tag and cherry-pick the MERGED commit with -x
+git checkout -b bugfixes/<name>-hotfix v5.2.0
+git cherry-pick -x <merged commit on main>
+git push origin bugfixes/<name>-hotfix
+# 3. Run Actions → Cut Hotfix (from main) with the branch name and new version
 ```
 
 ### Making Changes
@@ -305,12 +308,15 @@ When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main
 
 ### Hotfix Releases
 
+Merge the fix to `main` through an approved PR first, then:
+
 ```bash
-git checkout -b bugfixes/fix-foo v5.2.0
-git push origin bugfixes/fix-foo
+git checkout -b bugfixes/fix-foo-hotfix v5.2.0
+git cherry-pick -x <merged commit on main>
+git push origin bugfixes/fix-foo-hotfix
 ```
 
-Then: **Actions → Cut Hotfix** with branch name and new version (e.g. `5.2.1`). Cherry-pick to `main` afterward.
+Then: **Actions → Cut Hotfix** with branch name and new version (e.g. `5.2.1`). The workflow refuses any commit that is not a clean `-x` cherry-pick of a commit on `main`.
 
 ---
 

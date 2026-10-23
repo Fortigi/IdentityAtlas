@@ -20,6 +20,16 @@
     stable / edge. Default: stable. stable tracks :latest (the last cut release);
     edge tracks :edge (the latest main-branch build).
 
+.PARAMETER ImageTag
+    Optional: the exact release to run, e.g. 6.0.2.0 or 6.1.0-beta.1. Overrides
+    ImageChannel, so the deployment is reproducible and a rollback is redeploying
+    the previous version. Empty = follow ImageChannel.
+
+.PARAMETER ContainerRegistryResourceId
+    Optional: ARM ID of your own Azure Container Registry (e.g. a pull-through
+    cache of ghcr.io/fortigi/*) to pull the images from instead of ghcr.io. You
+    need the right to create role assignments on that registry.
+
 .PARAMETER ExistingLogAnalyticsWorkspaceId
     Optional: ARM ID of an existing Log Analytics workspace.
 
@@ -56,6 +66,15 @@ Param(
     [ValidateSet('stable', 'edge')]
     [string]$ImageChannel = 'stable',
 
+    # The version every release image is published under: X.Y.Z.0, or X.Y.Z-beta.N
+    # (also -rc / -alpha) for a pre-release. Checked here because a Bicep template
+    # cannot match a pattern, and a typo would otherwise surface as an image that
+    # fails to pull halfway through the deployment.
+    [ValidatePattern('^$|^\d+\.\d+\.\d+(\.0|-(alpha|beta|rc)\.\d+)$')]
+    [string]$ImageTag = '',
+
+    [string]$ContainerRegistryResourceId = '',
+
     [string]$ExistingLogAnalyticsWorkspaceId = '',
 
     # Deploy the experimental report generator (a small local model in its own
@@ -74,13 +93,19 @@ if (-not $ParametersFile) {
     $ParametersFile = Join-Path $here 'main.parameters.example.json'
 }
 
-Write-Host "=== Identity Atlas Azure deploy (Simple shape) ===" -ForegroundColor Cyan
-Write-Host "  ResourceGroup : $ResourceGroup"
-Write-Host "  Location      : $Location"
-Write-Host "  SizeProfile   : $SizeProfile"
-Write-Host "  ImageChannel  : $ImageChannel"
-Write-Host "  ReportGen     : $(if ($DeployReportGenerator) { 'deployed (scales to zero)' } else { 'not deployed' })"
-Write-Host "  Bicep         : $bicepFile"
+# What is about to be deployed, before anything is touched.
+function Write-DeployPlan {
+    Write-Host "=== Identity Atlas Azure deploy (Simple shape) ===" -ForegroundColor Cyan
+    Write-Host "  ResourceGroup : $ResourceGroup"
+    Write-Host "  Location      : $Location"
+    Write-Host "  SizeProfile   : $SizeProfile"
+    Write-Host "  ImageChannel  : $ImageChannel"
+    Write-Host "  ImageTag      : $(if ($ImageTag) { $ImageTag } else { "(none - follows $ImageChannel)" })"
+    Write-Host "  Registry      : $(if ($ContainerRegistryResourceId) { $ContainerRegistryResourceId } else { 'ghcr.io' })"
+    Write-Host "  ReportGen     : $(if ($DeployReportGenerator) { 'deployed (scales to zero)' } else { 'not deployed' })"
+    Write-Host "  Bicep         : $bicepFile"
+}
+Write-DeployPlan
 
 # ── az login ────────────────────────────────────────────────────────────
 $account = az account show 2>$null | ConvertFrom-Json
@@ -147,9 +172,15 @@ if ($DeployReportGenerator) {
         Write-Host "  ReportGen ingress    : API key only on this deployment; re-run once the web app exists to add the IP allow-list" -ForegroundColor DarkGray
     }
 }
-if ($ExistingLogAnalyticsWorkspaceId) {
-    $deployArgs += @('--parameters', "existingLogAnalyticsWorkspaceId=$ExistingLogAnalyticsWorkspaceId")
-}
+# Optional parameters are passed only when given, so an omitted one leaves the
+# template's own default in place — for imageTag that default may be the release
+# the template was shipped with.
+$optionalParameters = @(
+    @{ Given = $ExistingLogAnalyticsWorkspaceId; Arg = "existingLogAnalyticsWorkspaceId=$ExistingLogAnalyticsWorkspaceId" }
+    @{ Given = $ImageTag;                        Arg = "imageTag=$ImageTag" }
+    @{ Given = $ContainerRegistryResourceId;     Arg = "containerRegistryResourceId=$ContainerRegistryResourceId" }
+)
+$deployArgs += @($optionalParameters | Where-Object { $_.Given } | ForEach-Object { '--parameters'; $_.Arg })
 
 $result = az @deployArgs | ConvertFrom-Json
 
