@@ -3331,6 +3331,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#risky-applications" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Risky applications
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5542,6 +5553,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#risky-applications" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Risky applications
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5887,7 +5909,8 @@ source, with a reviewer recorded, who is not the platform (Entra ID's all-zero r
 reviewer named "… Access Reviews"). This is stricter than the compliance view's
 <code>decision &lt;&gt; 'NotReviewed'</code>, which counts a review Entra ID closed by applying its default decision as
 done.</p>
-<p>| <code>high-risk-application-permissions</code> | <code>list</code> | One row per application (app-only) permission a service principal actually holds — an <code>ApplicationPermission</code> resource with a live <code>Direct</code> assignment — that is on the shortlist in <code>reports/appPermissionRisk.js</code>, with a fixed category and severity. See <a href="#high-risk-application-permissions">below</a>. |</p>
+<p>| <code>high-risk-application-permissions</code> | <code>list</code> | One row per application (app-only) permission a service principal actually holds — an <code>ApplicationPermission</code> resource with a live <code>Direct</code> assignment — that is on the shortlist in <code>reports/appPermissionRisk.js</code>, with a fixed category and severity. See <a href="#high-risk-application-permissions">below</a>. |
+| <code>risky-applications</code> | <code>list</code> | One row per service principal with a 0–100 risk score and the findings behind it: reputation, permissions, consent, set-up, credentials, ownership and activity. See <a href="#risky-applications">below</a>. |</p>
 <h3 id="high-risk-application-permissions">High-risk application permissions<a class="headerlink" href="#high-risk-application-permissions" title="Permanent link">&para;</a></h3>
 <p>Reads what the Entra ID crawler's <code>SyncAppPermissions</code> phase stores from
 <code>/servicePrincipals/{id}/appRoleAssignments</code>: the app roles an SP was <strong>granted</strong> on another API. It
@@ -5923,6 +5946,96 @@ shortlist assigns one. A choice can be kept as a <a href="#saved-views">saved vi
 <code>targetApiAppId</code> on each permission. For data crawled before that, the report falls back to the API's
 own service-principal record, and it states how many grants it could not identify. An empty result
 says that nothing was collected, because the phase is off by default.</p>
+<h3 id="risky-applications">Risky applications<a class="headerlink" href="#risky-applications" title="Permanent link">&para;</a></h3>
+<p><code>risky-applications</code> judges each enterprise application, managed identity and AI agent as a whole.
+High-risk application permissions lists grants; this report scores the app. Each row is one service
+principal with a 0–100 score, a level, its three main reasons, and in the <em>Findings</em> column every
+finding with its points.</p>
+<p>The score is a <strong>sum of named findings</strong>, not a model. Every point traces to one sentence a reviewer
+can check in Entra. The rules and their weights live in one table (<code>POINTS</code> in
+<code>reports/appRiskRules.js</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Findings</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reputation</td>
+<td>appId on the OAuthSentry malicious-app list (overrides everything: Critical, 100); Microsoft-looking name registered in another organisation's tenant; third-party app without a verified publisher</td>
+</tr>
+<tr>
+<td>Permissions</td>
+<td>highest app-only permission tier; several high-risk app-only permissions</td>
+</tr>
+<tr>
+<td>Consent</td>
+<td>scopes an administrator consented to for every user; scopes users consented to themselves (more when ten or more did)</td>
+</tr>
+<tr>
+<td>Configuration</td>
+<td>public-client flows allowed (ROPC, device code); implicit grant issuing access tokens; wildcard or off-machine <code>http</code> redirect URIs; one of this tenant's apps open to any organisation</td>
+</tr>
+<tr>
+<td>Credentials</td>
+<td>a secret valid for more than two, or more than ten, years; secrets on the enterprise application itself; expired credentials left behind; three or more valid secrets; federated credentials that match a pattern</td>
+</tr>
+<tr>
+<td>Ownership</td>
+<td>disabled or deleted owners; guest owners; user owners of an app with critical app-only permissions (they can add a secret and act as it); no owner on this tenant's high-reach app</td>
+</tr>
+<tr>
+<td>Activity</td>
+<td>high-reach app unused for <code>inactiveDays</code>; app created in the last 30 days that already holds critical permissions</td>
+</tr>
+</tbody>
+</table>
+<p>Levels: Critical from 60, High from 35, Medium from 15, Low above 0. A disabled app keeps its
+findings but counts half.</p>
+<p><strong>One permission tier.</strong> <code>reports/appRiskPermissions.js</code> combines the two lists that already existed.
+The appId-keyed shortlist above (<code>appPermissionRisk.js</code>) decides app-only permissions it names. The
+name tiering of the risky-consent plugin (<code>riskyConsentRiskMap.js</code>) covers delegated scopes and the
+rest. That name tiering is applied only to Microsoft's own APIs, matched by appId. Anything else is
+<em>Unknown</em> and adds nothing.</p>
+<p><strong>Coverage.</strong> The report reads what the crawler's toggles collected. <em>Service Principals</em> defines the
+apps. <em>Application Permissions</em>, <em>OAuth2 Delegated Grants</em>, <em>App Owners</em> and <em>App Registrations &amp;
+Credentials</em> each feed their rules. A rule whose data was not collected stays silent: "no owners"
+is only said when owners were crawled. A notice names every missing source, and also says when the
+malicious-app list could not be read. Microsoft's first-party apps (registered in Microsoft's own
+tenants) are left out unless <code>includeMicrosoft</code> is on.</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Default</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>minimumLevel</code></td>
+<td>Medium</td>
+<td>Leave out apps below this level</td>
+</tr>
+<tr>
+<td><code>includeMicrosoft</code></td>
+<td>off</td>
+<td>Include Microsoft's first-party apps</td>
+</tr>
+<tr>
+<td><code>useThreatFeed</code></td>
+<td>on</td>
+<td>Look up each appId in the OAuthSentry list (needs internet access; a failure becomes a notice, not an error)</td>
+</tr>
+<tr>
+<td><code>inactiveDays</code></td>
+<td>90</td>
+<td>When a high-reach app counts as unused</td>
+</tr>
+</tbody>
+</table>
 <p>Orphaned Accounts shares its definition with the <code>orphaned-accounts</code> <strong>context plugin</strong> via
 <code>app/api/src/accountlinking/orphanQuery.js</code>. That is deliberate: the report and the context answer
 the same question, so they must not be able to drift apart. Note that before account linking has run
