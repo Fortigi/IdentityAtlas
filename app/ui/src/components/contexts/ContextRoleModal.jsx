@@ -94,7 +94,7 @@ function ResponsibleBody({ holders, onAdd, onRemove, onClose }) {
 
 // Search accounts (/api/users, debounced) and hand the chosen row to onPick;
 // the list closes and the box clears once one is picked.
-function PersonSearch({ inputId, label = 'Find a person', onPick }) {
+export function PersonSearch({ inputId, label = 'Find a person', onPick }) {
   const { authFetch } = useAuth();
   const [query, setQuery] = useState('');
   const term = useDebouncedValue(query.trim(), 250);

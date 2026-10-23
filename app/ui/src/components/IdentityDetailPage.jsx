@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import useFeatures from '@ui/hooks/useFeatures';
 import EntityDetailPage from './EntityDetailPage';
+import InterviewMentions from './contexts/interviews/InterviewMentions';
 import RiskScoreSection from './RiskScoreSection';
 import LinkedAccountsPanel from './LinkedAccountsPanel';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
@@ -125,12 +126,15 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
       renderHeader={(data) => <IdentityHeader data={data} onOpenDetail={onOpenDetail} />}
       headerCard
       renderRelationshipsExtra={(data) => (
-        <LinkedAccountsPanel
-          members={data.members || []}
-          busyMember={busyMember}
-          onOverride={overrideMember}
-          onOpenDetail={onOpenDetail}
-        />
+        <>
+          <LinkedAccountsPanel
+            members={data.members || []}
+            busyMember={busyMember}
+            onOverride={overrideMember}
+            onOpenDetail={onOpenDetail}
+          />
+          <InterviewMentions holder={{ identityId }} onOpenDetail={onOpenDetail} />
+        </>
       )}
       renderRisk={riskData ? () => (
         <RiskScoreSection attributes={riskData} entityType="identities" entityId={identityId} authFetch={authFetch} />

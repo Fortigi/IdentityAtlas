@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
+import SuggestionRow from './SuggestionRow';
 
 // ─── Suggested Accountable ───────────────────────────────────────────────
 // Shown under the Accountable role while nobody holds it. The API names one
@@ -62,19 +63,8 @@ export default function ContextBestGuess({ contextId, canWrite, onConfirm, onCho
     setBusy(false);
   }
 
-  const btn = 'px-2 py-0.5 rounded text-xs disabled:opacity-50';
   return (
-    <div data-testid="best-guess" className="flex flex-wrap items-center gap-1.5 rounded border border-dashed border-gray-300 bg-gray-50 px-2 py-1 text-xs text-gray-800 dark:border-gray-600 dark:bg-gray-900/40 dark:text-gray-200">
-      <span><span className="font-semibold">Suggested:</span> {name}</span>
-      {suggestion.reason && <span className="text-gray-600 dark:text-gray-400">· {suggestion.reason}</span>}
-      {canWrite && (
-        <>
-          <button type="button" onClick={confirm} disabled={busy} className={`${btn} bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600`}>Confirm</button>
-          <button type="button" onClick={reject} disabled={busy} className={`${btn} bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600`}>Not this person</button>
-          <button type="button" onClick={onChooseOther} className={`${btn} text-blue-700 underline hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200`}>Choose someone else</button>
-        </>
-      )}
-      {actionError && <span role="alert" className="text-red-700 dark:text-red-400">{actionError}</span>}
-    </div>
+    <SuggestionRow testId="best-guess" name={name} reason={suggestion.reason} canWrite={canWrite} busy={busy}
+      onConfirm={confirm} onReject={reject} onChooseOther={onChooseOther} error={actionError} />
   );
 }
