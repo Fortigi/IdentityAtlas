@@ -1,7 +1,7 @@
 // Unit tests for the pure reconcile helpers (runner.helpers.js).
 
 import { describe, it, expect } from 'vitest';
-import { buildNewIdMap, buildMemberInsertBatch, buildRoleInsertBatch, roleKeys } from './runner.helpers.js';
+import { buildNewIdMap, buildMemberInsertBatch, buildRoleInsertBatch, roleKeys, withPluginRoot, PLUGIN_ROOT_EXTERNAL_ID } from './runner.helpers.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -122,5 +122,40 @@ describe('roleKeys', () => {
       { contextExternalId: 'gone', principalId: 'p2', role: 'Accountable' },
       { contextExternalId: 'a', principalId: 'p3', identityId: 'i3', role: 'Responsible' },
     ], ids)).toEqual({ ctx: ['ctx-a', 'ctx-b'], holder: ['p1', 'i1'], role: ['Accountable', 'Responsible'] });
+  });
+});
+
+describe('withPluginRoot', () => {
+  const PLUGIN = { displayName: 'Department from Principal', rootDisplayName: 'Departments', contextTypes: ['Department', 'Other'] };
+  const ROOT = PLUGIN_ROOT_EXTERNAL_ID;
+  const parentsOf = out => Object.fromEntries(out.map(n => [n.externalId, n.parentExternalId ?? null]));
+
+  it('wraps several roots under one root named after the plugin, keeping nested nodes where they are', () => {
+    const out = withPluginRoot([
+      { externalId: 'dept:Sales', displayName: 'Sales', contextType: 'Department' },
+      { externalId: 'dept:Ops', displayName: 'Ops', contextType: 'Department', parentExternalId: 'gone' }, // dangling parent = a root
+      { externalId: 'dept:Ops/EU', displayName: 'EU', contextType: 'Department', parentExternalId: 'dept:Ops' },
+    ], PLUGIN);
+    expect(out[0]).toEqual({ externalId: '__plugin-root__', displayName: 'Departments', contextType: 'Department', description: 'Created by the Department from Principal rule.' });
+    expect(parentsOf(out)).toEqual({ [ROOT]: null, 'dept:Sales': ROOT, 'dept:Ops': ROOT, 'dept:Ops/EU': 'dept:Ops' });
+  });
+
+  it('names the root after the plugin when it declares no root name', () => {
+    const out = withPluginRoot([{ externalId: 'a' }, { externalId: 'b' }], { displayName: 'Risky Consent', contextTypes: ['RiskyConsent'] });
+    expect(out[0].displayName).toBe('Risky Consent');
+    expect(out[0].contextType).toBe('RiskyConsent');
+  });
+
+  it('leaves a single-root tree, and an empty run, unchanged', () => {
+    const single = [{ externalId: 'r' }, { externalId: 'c1', parentExternalId: 'r' }, { externalId: 'c2', parentExternalId: 'r' }];
+    expect(withPluginRoot(single, PLUGIN)).toBe(single);
+    const one = [{ externalId: 'dept:Sales' }];
+    expect(withPluginRoot(one, PLUGIN)).toBe(one);
+    expect(withPluginRoot([], PLUGIN, true)).toEqual([]);
+  });
+
+  it('keeps the root once the tree has it, even when a run is down to one node', () => {
+    const out = withPluginRoot([{ externalId: 'dept:Sales' }], PLUGIN, true);
+    expect(parentsOf(out)).toEqual({ [ROOT]: null, 'dept:Sales': ROOT });
   });
 });

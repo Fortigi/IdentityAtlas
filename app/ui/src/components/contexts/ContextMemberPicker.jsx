@@ -1,5 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { memberKindNoun } from '@ui/utils/contextStyles';
 
 // ─── Member typeahead for manual contexts ─────────────────────────────────────
 // Renders an input + debounced search; clicking a result POSTs to
@@ -96,7 +97,7 @@ export default function ContextMemberPicker({ contextId, targetType, onAdded, ex
   }, [authFetch, contextId, onAdded]);
 
   if (!SEARCH_ENDPOINT[targetType]) {
-    return <p className="text-[11px] text-gray-500 dark:text-gray-400">No search endpoint for target type "{targetType}".</p>;
+    return <p className="text-xs text-gray-600 dark:text-gray-400">Members of this kind cannot be added here.</p>;
   }
 
   return (
@@ -105,8 +106,8 @@ export default function ContextMemberPicker({ contextId, targetType, onAdded, ex
         value={query}
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
-        aria-label={`Search ${targetType.toLowerCase()}s to add`}
-        placeholder={`Search ${targetType.toLowerCase()}s to add…`}
+        aria-label={`Search ${memberKindNoun(targetType)} to add`}
+        placeholder={`Search ${memberKindNoun(targetType)} to add…`}
         className="w-full border border-gray-200 dark:border-gray-700 rounded px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 dark:focus:ring-sky-500 focus:border-transparent"
       />
 

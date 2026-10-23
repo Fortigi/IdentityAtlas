@@ -100,3 +100,32 @@ export function wizardOpening(options) {
     fresh: options?.fresh === true,
   };
 }
+
+// Update the open detail tabs from a detail page's freshly loaded payload
+// (onCacheData): a tab opened by URL gets its real name in place of the id it
+// was labelled with, and a context tab learns its template (`category`), so
+// the tab can show the template's icon. Matched by id only — some routes use
+// different type keys (#group: opens ResourceDetailPage, which reports
+// type 'resource'). Returns the same array when nothing changes.
+export function relabelDetailTabs(tabs, id, partialData) {
+  const displayName = pickDisplayName(partialData);
+  const category = partialData?.attributes?.contextCategory;
+  let changed = false;
+  const next = tabs.map(t => {
+    if (t.id !== id) return t;
+    const patch = {};
+    if (displayName && t.displayName === id) patch.displayName = displayName;
+    if (t.type === 'context' && category && t.category !== category) patch.category = category;
+    if (Object.keys(patch).length === 0) return t;
+    changed = true;
+    return { ...t, ...patch };
+  });
+  return changed ? next : tabs;
+}
+
+// The standalone page of a context, seen by someone who cannot edit contexts:
+// the business view, which the app shows without its navigation (the page's
+// breadcrumb is the way around). An analyst keeps the nav.
+export function isScopedContextPage(page, canWriteContexts) {
+  return !canWriteContexts && typeof page === 'string' && page.startsWith('context:');
+}

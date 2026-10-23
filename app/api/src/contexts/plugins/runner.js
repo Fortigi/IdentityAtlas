@@ -21,12 +21,16 @@
 //     (addedBy='algorithm') rows are replaced, an analyst's or a sync's survive.
 //   - Every node carries its template (contextCategory): the node's own, else
 //     the plugin's.
+//   - A run whose output has several roots is wrapped under one root named
+//     after the plugin (withPluginRoot), with a fixed externalId so re-runs
+//     reuse it. Nodes a previous run left as flat roots match on their own
+//     externalId as before and are re-parented under it.
 
 import * as db from '../../db/connection.js';
 import { randomUUID } from 'crypto';
 import { getPlugin } from './registry.js';
 import { wouldCreateCycle } from '../cycleGuard.js';
-import { buildNewIdMap, buildMemberInsertBatch, buildRoleInsertBatch, roleKeys } from './runner.helpers.js';
+import { buildNewIdMap, buildMemberInsertBatch, buildRoleInsertBatch, roleKeys, withPluginRoot, PLUGIN_ROOT_EXTERNAL_ID } from './runner.helpers.js';
 
 // Second pass of reconcile: set parent pointers now that every target row exists.
 // Skips analyst-reparented nodes and unresolved parents, and — via wouldCreateCycle
@@ -244,19 +248,20 @@ async function reconcile(plugin, algorithmId, runId, params, result, instanceKey
     //    only ever touches its own tree.
     const { existingRows, existingByExternalId, reparentedIds } =
       await loadExistingContexts(client, algorithmId, scopeSystemId, instanceKey);
+    const contexts = withPluginRoot(result.contexts, plugin, existingByExternalId.has(PLUGIN_ROOT_EXTERNAL_ID));
 
     // 2) Resolve every produced externalId to its final Contexts.id up front.
     //    Two passes follow because parents may appear after children in output.
-    const newByExternalId = buildNewIdMap(result.contexts, existingByExternalId);
+    const newByExternalId = buildNewIdMap(contexts, existingByExternalId);
 
     // 3a) First pass: INSERT/UPDATE every node with parentContextId = NULL.
-    await upsertContexts(client, result.contexts, {
+    await upsertContexts(client, contexts, {
       plugin, scopeSystemId, algorithmId, runId, instanceKey,
       newByExternalId, existingByExternalId, counts,
     });
 
     // 3b) Second pass: set parent pointers now that every target row exists.
-    await linkContextParents(client, result.contexts, newByExternalId, reparentedIds, plugin.name);
+    await linkContextParents(client, contexts, newByExternalId, reparentedIds, plugin.name);
 
     // Acyclicity is handled up front by linkContextParents (it skips a loop-closing
     // link, leaving the node a root) and guaranteed by migration 059's deferred
@@ -265,7 +270,7 @@ async function reconcile(plugin, algorithmId, runId, params, result, instanceKey
 
     // 4) Remove contexts that previously belonged to this (algorithm, scope)
     //    but are no longer in the plugin's output.
-    await deleteStaleContexts(client, existingRows, result.contexts, counts);
+    await deleteStaleContexts(client, existingRows, contexts, counts);
 
     // 5) Members — we own rows with addedBy='algorithm' for produced contexts.
     const producedContextIds = [...newByExternalId.values()];

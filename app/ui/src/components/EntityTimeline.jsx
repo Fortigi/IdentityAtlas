@@ -49,24 +49,38 @@ function contextLabel(moment) {
   return [attr && `${attr} attr`, rel && `${rel} rel`].filter(Boolean).join(' · ');
 }
 
+// An attribute value as the rest of the app shows it: an ISO timestamp as a
+// readable date and time, anything else as recorded.
+function readableValue(v) {
+  return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v) ? formatDate(v) : v;
+}
+
+// `hideFields`: attribute names a page does not want on its timeline
+// (bookkeeping stamps such as lastCalculatedAt); their events are skipped.
+function visibleEvents(events, hideFields) {
+  if (!hideFields?.length) return events || [];
+  const hide = new Set(hideFields);
+  return (events || []).filter(ev => !(ev.eventKind === 'attribute' && hide.has(ev.attribute?.field)));
+}
+
 function AttributeDiff({ attribute }) {
   return (
     <span className="text-xs">
       <span className="font-medium text-gray-700 dark:text-gray-300">{friendlyLabel(attribute.field)}</span>
       <span className="text-gray-600 dark:text-gray-500 mx-1">:</span>
-      <span className="text-red-600 dark:text-red-400 line-through mr-1">{attribute.from}</span>
+      <span className="text-red-600 dark:text-red-400 line-through mr-1">{readableValue(attribute.from)}</span>
       <span className="text-gray-600 dark:text-gray-500 mr-1">&rarr;</span>
-      <span className="text-green-700 dark:text-green-400">{attribute.to}</span>
+      <span className="text-green-700 dark:text-green-400">{readableValue(attribute.to)}</span>
     </span>
   );
 }
 
-export default function EntityTimeline({ events, loading, sinceDays, onSinceDaysChange, onOpenDetail }) {
+export default function EntityTimeline({ events, loading, sinceDays, onSinceDaysChange, onOpenDetail, hideFields }) {
   // Group events into one dot per DAY, oldest → newest (left → right). A day's
   // dot bundles everything that changed that day; clicking it lists them all.
   const moments = useMemo(() => {
     const byDay = new Map();
-    for (const ev of events || []) {
+    for (const ev of visibleEvents(events, hideFields)) {
       const d = new Date(ev.at);
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
       if (!byDay.has(key)) byDay.set(key, { at: ev.at, events: [] });
@@ -78,7 +92,7 @@ export default function EntityTimeline({ events, loading, sinceDays, onSinceDays
     for (const m of arr) m.events.sort((a, b) => new Date(a.at) - new Date(b.at));
     arr.sort((a, b) => new Date(a.at) - new Date(b.at));
     return arr;
-  }, [events]);
+  }, [events, hideFields]);
 
   // Default selection = the most recent moment (no effect needed, so it also
   // renders correctly server-side). Clicking a dot overrides it.

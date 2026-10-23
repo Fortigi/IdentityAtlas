@@ -319,6 +319,51 @@ describe('GET /contexts/:id/members', () => {
     expect(dataSql).toContain('LIMIT 50 OFFSET 50000');
   });
 
+  // The members table shows email / job title / type / status — the page query
+  // must select them, or every row reads "-" (it once returned the name only).
+  it.each([
+    ['Principal', 'm.email, m."jobTitle", m."principalType", m."accountEnabled"'],
+    ['Identity', 'm.email, m."jobTitle", m.department'],
+    ['Resource', 'm."resourceType", m.description, m.enabled'],
+    ['System', 'm.description'],
+  ])('selects the shown columns for %s members', async (targetType, columns) => {
+    queryOne.mockResolvedValueOnce({ targetType });
+    query.mockResolvedValueOnce({ rows: [] });
+    queryOne.mockResolvedValueOnce({ total: 0 });
+    await request(app).get(`/api/contexts/${ID}/members?include=descendants`);
+    expect(query.mock.calls[0][0]).toContain(`m.id, m."displayName", ${columns},`);
+  });
+
+  it('gives resource members their holder count and owner, without their raw attributes', async () => {
+    queryOne.mockResolvedValueOnce({ targetType: 'Resource' });
+    query.mockImplementation(async (sql) => {
+      if (sql.includes('FROM "ContextMembers" cm')) {
+        return { rows: [{ id: ID2, displayName: 'ENT_A', resourceType: 'Entitlement', extendedAttributes: { ownerName: 'Gone Person' } }] };
+      }
+      if (sql.includes('AS "holderCount"')) return { rows: [{ id: ID2, holderCount: 7 }] };
+      return { rows: [] }; // owner links
+    });
+    queryOne.mockResolvedValueOnce({ total: 1 });
+    const res = await request(app).get(`/api/contexts/${ID}/members`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([{
+      id: ID2, displayName: 'ENT_A', resourceType: 'Entitlement',
+      holderCount: 7, ownerDisplayName: 'Gone Person', ownerEmployeeId: null, ownerEmail: null,
+      ownerPrincipalId: null,
+    }]);
+    // Page, holders, owner links — no read per row, and no reference read without an ownerId.
+    expect(query).toHaveBeenCalledTimes(3);
+  });
+
+  it('adds nothing to members that are not resources', async () => {
+    queryOne.mockResolvedValueOnce({ targetType: 'Principal' });
+    query.mockResolvedValueOnce({ rows: [{ id: 'm1', displayName: 'P' }] });
+    queryOne.mockResolvedValueOnce({ total: 1 });
+    const res = await request(app).get(`/api/contexts/${ID}/members`);
+    expect(res.body.data).toEqual([{ id: 'm1', displayName: 'P' }]);
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the text comparison for System members (integer ids)', async () => {
     queryOne.mockResolvedValueOnce({ targetType: 'System' });
     query.mockResolvedValueOnce({ rows: [] });

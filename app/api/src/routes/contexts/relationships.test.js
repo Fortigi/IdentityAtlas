@@ -62,6 +62,8 @@ describe('GET /contexts/:id/relationships', () => {
     expect(sql).toContain(`CASE WHEN r."contextId" = $1 THEN 'out' ELSE 'in' END AS direction`);
     expect(sql).toContain('WHERE r."contextId" = $1 OR r."relatedContextId" = $1');
     expect(sql).toContain('o."displayName" AS "relatedDisplayName"');
+    // The other end's member count comes along, so a unit page shows its variants' sizes in one call.
+    expect(sql).toContain('o."totalMemberCount" AS "relatedTotalMemberCount"');
     expect(params).toEqual([CTX]);
   });
 

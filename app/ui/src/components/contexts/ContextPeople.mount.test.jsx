@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createElement as h } from 'react';
 import ContextPeople from './ContextPeople';
-import { renderWithProviders, makeAuthFetch, jsonResponse, screen, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, makeAuthFetch, jsonResponse, screen, waitFor, within, userEvent } from '@ui/test-utils/renderWithProviders';
 
 const ORG = { id: 'ctx-1', contextCategory: 'OrganizationalUnit' };
 
@@ -32,6 +32,7 @@ function api({ roles = ROLES, failWrite = null } = {}) {
     }
     if (u === '/api/contexts/ctx-1/roles') return state.roles;
     if (u.startsWith('/api/users?search=ann')) return { data: [{ id: 'p-ann', displayName: 'Ann Manager', userPrincipalName: 'ann@contoso.com' }] };
+    if (u.startsWith('/api/users?search=tom')) return { data: [{ id: 'p-2', displayName: 'Tom Okafor' }] };
     if (u.startsWith('/api/users?')) return { data: [] };
     return undefined;
   });
@@ -41,7 +42,19 @@ function api({ roles = ROLES, failWrite = null } = {}) {
 function mount(attrs, { auth = {}, onOpenDetail } = {}) {
   const { authFetch, state } = auth.api || api();
   renderWithProviders(h(ContextPeople, { attrs, onOpenDetail }), { auth: { authFetch, ...auth.value } });
-  return { authFetch, state };
+  return { authFetch, state, user: userEvent.setup() };
+}
+
+// The holders of a role, as text: the role block minus its label and helper.
+const fact = (label) => {
+  const block = screen.getByRole('group', { name: label });
+  return block.lastElementChild;
+};
+const writes = (authFetch) => authFetch.mock.calls.filter(([, o]) => o?.method === 'PUT' || o?.method === 'DELETE');
+
+async function pickPerson(user, term, name) {
+  await user.type(screen.getByRole('textbox', { name: /Find a person|Add a person/ }), term);
+  await user.click(await screen.findByRole('button', { name: new RegExp(name) }));
 }
 
 describe('ContextPeople (mounted)', () => {
@@ -56,19 +69,44 @@ describe('ContextPeople (mounted)', () => {
     expect(screen.queryByText('People')).toBeNull();
   });
 
-  it('lists the accountable and the responsible, with who added each', async () => {
+  it('shows each role as a people block: label, what it means, initials and name; no inline pickers', async () => {
     mount(ORG);
     expect(await screen.findByText('Mara Lindqvist')).toBeInTheDocument();
-    expect(screen.getByText('Tom Okafor')).toBeInTheDocument();
-    expect(screen.getByTitle('Added by algorithm')).toHaveTextContent('Mara Lindqvist');
-    expect(screen.getByTitle('Added by analyst')).toHaveTextContent('Tom Okafor');
-    expect(screen.queryByText('not set')).toBeNull();
+    expect(fact('Accountable')).toHaveTextContent(/^MLMara Lindqvist$/);
+    expect(fact('Responsible')).toHaveTextContent(/^TOTom Okafor$/);
+    expect(screen.getByRole('group', { name: 'Accountable' })).toHaveTextContent('Answers for who may access this unit');
+    expect(screen.getByRole('group', { name: 'Responsible' })).toHaveTextContent('Keeps the membership and access correct day to day');
+    // Who added a role is bookkeeping, not shown to the reader.
+    expect(screen.queryByTitle(/Added by/)).toBeNull();
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Remove / })).toBeNull();
+    // One pencil per role.
+    expect(screen.getByRole('button', { name: 'Edit Accountable' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit Responsible' })).toBeInTheDocument();
   });
 
-  it('says "not set" / "none" when nobody holds a role, and the application template counts too', async () => {
-    mount({ id: 'ctx-1', contextCategory: 'LogicalApplication' }, { auth: { api: api({ roles: [] }) } });
-    expect(await screen.findByText('not set')).toBeInTheDocument();
-    expect(screen.getByText('none')).toBeInTheDocument();
+  it('says nobody holds a role, with a Set button for an editor instead of a pencil', async () => {
+    const { user } = mount(ORG, { auth: { api: api({ roles: [] }) } });
+    await waitFor(() => expect(fact('Accountable')).toHaveTextContent(/^Nobody is accountable yet.Set accountable$/));
+    expect(fact('Responsible')).toHaveTextContent(/^Nobody is responsible yet.Set responsible$/);
+    expect(screen.queryByRole('button', { name: /^Edit / })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Set responsible' }));
+    expect(screen.getByRole('heading', { name: 'Edit Responsible' })).toBeInTheDocument();
+    expect(screen.getByTestId('role-helper')).toHaveTextContent('Responsible: keeps the membership and access correct day to day.');
+  });
+
+  it('an application calls its Accountable the Owner, in the empty sentence too, and a reader gets no Set button', async () => {
+    renderWithProviders(h(ContextPeople, { attrs: { id: 'ctx-1', contextCategory: 'LogicalApplication' }, accountableLabel: 'Owner', noun: 'this application' }),
+      { auth: { authFetch: api({ roles: [] }).authFetch, hasWildcard: false, permissions: new Set(['data.read']) } });
+    await waitFor(() => expect(fact('Owner')).toHaveTextContent(/^No owner yet.$/));
+    expect(screen.getByRole('group', { name: 'Owner' })).toHaveTextContent('Answers for who may access this application');
+    expect(screen.queryByRole('button', { name: /^Set / })).toBeNull();
+  });
+
+  it('shows the holder e-mail on hover when the API gives one', async () => {
+    mount(ORG, { auth: { api: api({ roles: [{ ...ROLES[0], email: 'mara@contoso.com' }] }) } });
+    expect(await screen.findByTitle('mara@contoso.com')).toHaveTextContent('Mara Lindqvist');
   });
 
   // A synced context's owner is stated by the ingest (addedBy 'sync'); the chip
@@ -79,15 +117,16 @@ describe('ContextPeople (mounted)', () => {
       { id: 'r-res', role: 'Responsible', principalId: 'p-2', identityId: null, displayName: 'Tom Okafor', addedBy: 'analyst' },
     ];
     mount({ id: 'ctx-1', contextCategory: 'LogicalApplication', scopeSystemName: 'IdentityIQ' }, { auth: { api: api({ roles }) } });
-    expect(await screen.findByTitle('Added by sync')).toHaveTextContent(/^Ivo Brandt\s*from IdentityIQ/);
-    expect(screen.getByTitle('Added by analyst')).not.toHaveTextContent('from');
+    expect((await screen.findByText('Ivo Brandt')).parentElement).toHaveTextContent(/Ivo Brandt\s*from IdentityIQ$/);
+    expect(screen.getByText('Tom Okafor').parentElement).not.toHaveTextContent('from');
     expect(screen.getAllByText(/^from /)).toHaveLength(1);
   });
 
   it('shows no source hint when the context names no source system', async () => {
     const roles = [{ id: 'r-sync', role: 'Accountable', principalId: 'p-9', identityId: null, displayName: 'Ivo Brandt', addedBy: 'sync' }];
     mount({ id: 'ctx-1', contextCategory: 'LogicalApplication' }, { auth: { api: api({ roles }) } });
-    expect(await screen.findByTitle('Added by sync')).not.toHaveTextContent('from');
+    expect((await screen.findByText('Ivo Brandt')).parentElement).not.toHaveTextContent('from');
+    expect(screen.queryByText(/^from /)).toBeNull();
   });
 
   it('opens the account behind a name', async () => {
@@ -105,56 +144,122 @@ describe('ContextPeople (mounted)', () => {
     expect(onOpenDetail).toHaveBeenCalledWith('identity', 'i-9', 'Ida Person');
   });
 
-  it('removes a role and shows the list without it', async () => {
-    const { authFetch } = mount(ORG);
-    const user = userEvent.setup();
-    await screen.findByText('Tom Okafor');
-    await user.click(screen.getByRole('button', { name: 'Remove Tom Okafor as Responsible' }));
-    expect(authFetch).toHaveBeenCalledWith('/api/contexts/ctx-1/roles/r-res', expect.objectContaining({ method: 'DELETE' }));
-    await waitFor(() => expect(screen.queryByText('Tom Okafor')).toBeNull());
-    expect(screen.getByText('none')).toBeInTheDocument();
-    expect(screen.getByText('Mara Lindqvist')).toBeInTheDocument();
-  });
-
-  it('searches people and adds the chosen one with the chosen role', async () => {
-    const { authFetch } = mount(ORG);
-    const user = userEvent.setup();
-    await screen.findByText('Tom Okafor');
-
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Role to add' }), 'Accountable');
-    await user.type(screen.getByRole('textbox', { name: 'Add a person' }), 'ann');
-    await user.click(await screen.findByRole('button', { name: /Ann Manager/ }));
-
-    expect(authFetch).toHaveBeenCalledWith('/api/contexts/ctx-1/roles', expect.objectContaining({
-      method: 'PUT',
-      body: JSON.stringify({ role: 'Accountable', principalId: 'p-ann' }),
-    }));
-    // The new accountable replaces the old one; the search box is cleared.
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Remove Ann Manager as Accountable' })).toBeInTheDocument());
-    expect(screen.queryByText('Mara Lindqvist')).toBeNull();
-    expect(screen.getByRole('textbox', { name: 'Add a person' })).toHaveValue('');
-  });
-
-  it('hides the add and remove controls from a reader', async () => {
+  it('hides the pencils from a reader', async () => {
     mount(ORG, { auth: { value: { hasWildcard: false, permissions: new Set(['data.read']) } } });
     expect(await screen.findByText('Mara Lindqvist')).toBeInTheDocument();
-    expect(screen.queryByRole('textbox', { name: 'Add a person' })).toBeNull();
-    expect(screen.queryByRole('button', { name: /^Remove / })).toBeNull();
-  });
-
-  it('shows the API refusal when a write fails', async () => {
-    mount(ORG, { auth: { api: api({ failWrite: 'roles are not allowed on this context' }) } });
-    const user = userEvent.setup();
-    await screen.findByText('Tom Okafor');
-    await user.click(screen.getByRole('button', { name: 'Remove Tom Okafor as Responsible' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('roles are not allowed on this context');
-    // Nothing was removed.
-    expect(screen.getByText('Tom Okafor')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Edit / })).toBeNull();
   });
 
   it('shows a failed roles read', async () => {
     const authFetch = makeAuthFetch({ '/api/contexts/ctx-1/roles': jsonResponse({}, { ok: false, status: 500 }) });
     renderWithProviders(h(ContextPeople, { attrs: ORG }), { auth: { authFetch } });
     expect(await screen.findByRole('alert')).toHaveTextContent('HTTP 500');
+  });
+});
+
+describe('ContextPeople — the Accountable modal', () => {
+  it('replaces the Accountable with the person looked up, on Save', async () => {
+    const { authFetch, user } = mount(ORG);
+    await screen.findByText('Mara Lindqvist');
+    await user.click(screen.getByRole('button', { name: 'Edit Accountable' }));
+    expect(screen.getByRole('heading', { name: 'Set Accountable' })).toBeInTheDocument();
+    expect(screen.getByTestId('role-helper')).toHaveTextContent('Accountable: answers for who may access this unit.');
+    expect(screen.getByText(/^Current:/)).toHaveTextContent('Current: Mara Lindqvist');
+    // Nothing chosen yet: Save does nothing.
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+    await pickPerson(user, 'ann', 'Ann Manager');
+    expect(screen.getByText(/^New Accountable:/)).toHaveTextContent('Ann Manager');
+    expect(writes(authFetch)).toEqual([]); // picking is not saving
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(authFetch).toHaveBeenCalledWith('/api/contexts/ctx-1/roles', expect.objectContaining({
+      method: 'PUT', body: JSON.stringify({ role: 'Accountable', principalId: 'p-ann' }),
+    }));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Set Accountable' })).toBeNull());
+    await waitFor(() => expect(fact('Accountable')).toHaveTextContent('Ann Manager'));
+    expect(screen.queryByText('Mara Lindqvist')).toBeNull();
+  });
+
+  it('Clear removes the Accountable and closes', async () => {
+    const { authFetch, user } = mount(ORG);
+    await screen.findByText('Mara Lindqvist');
+    await user.click(screen.getByRole('button', { name: 'Edit Accountable' }));
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(authFetch).toHaveBeenCalledWith('/api/contexts/ctx-1/roles/r-acc', expect.objectContaining({ method: 'DELETE' }));
+    await waitFor(() => expect(fact('Accountable')).toHaveTextContent(/^Nobody is accountable yet/));
+    expect(screen.queryByRole('heading', { name: 'Set Accountable' })).toBeNull();
+    expect(fact('Responsible')).toHaveTextContent('Tom Okafor');
+  });
+
+  it('offers no Clear when nobody is Accountable', async () => {
+    const { user } = mount(ORG, { auth: { api: api({ roles: [ROLES[1]] }) } });
+    await screen.findByText('Tom Okafor');
+    await user.click(screen.getByRole('button', { name: 'Set accountable' }));
+    expect(screen.getByText(/^Current:/)).toHaveTextContent('Current: not set');
+    expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull();
+  });
+
+  it('Cancel closes without writing, even after a pick', async () => {
+    const { authFetch, user } = mount(ORG);
+    await screen.findByText('Mara Lindqvist');
+    await user.click(screen.getByRole('button', { name: 'Edit Accountable' }));
+    await pickPerson(user, 'ann', 'Ann Manager');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('heading', { name: 'Set Accountable' })).toBeNull();
+    expect(writes(authFetch)).toEqual([]);
+    expect(fact('Accountable')).toHaveTextContent('Mara Lindqvist');
+  });
+
+  it('keeps the modal open and shows the API refusal when the save fails', async () => {
+    const { user } = mount(ORG, { auth: { api: api({ failWrite: 'roles are not allowed on this context' }) } });
+    await screen.findByText('Mara Lindqvist');
+    await user.click(screen.getByRole('button', { name: 'Edit Accountable' }));
+    await pickPerson(user, 'ann', 'Ann Manager');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('roles are not allowed on this context')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Set Accountable' })).toBeInTheDocument();
+    expect(fact('Accountable')).toHaveTextContent('Mara Lindqvist');
+  });
+});
+
+describe('ContextPeople — the Responsible modal', () => {
+  it('removes a holder straight away', async () => {
+    const { authFetch, user } = mount(ORG);
+    await screen.findByText('Tom Okafor');
+    await user.click(screen.getByRole('button', { name: 'Edit Responsible' }));
+    expect(screen.getByRole('heading', { name: 'Edit Responsible' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Remove Tom Okafor as Responsible' }));
+    expect(authFetch).toHaveBeenCalledWith('/api/contexts/ctx-1/roles/r-res', expect.objectContaining({ method: 'DELETE' }));
+    expect(await screen.findAllByText('Nobody is responsible yet.')).toHaveLength(2); // the modal and the page behind it
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(fact('Responsible')).toHaveTextContent(/^Nobody is responsible yet/);
+    expect(fact('Accountable')).toHaveTextContent('Mara Lindqvist');
+  });
+
+  it('adds the person looked up, and lists them', async () => {
+    const { authFetch, user } = mount(ORG);
+    await screen.findByText('Tom Okafor');
+    await user.click(screen.getByRole('button', { name: 'Edit Responsible' }));
+    await pickPerson(user, 'ann', 'Ann Manager');
+    expect(authFetch).toHaveBeenCalledWith('/api/contexts/ctx-1/roles', expect.objectContaining({
+      method: 'PUT', body: JSON.stringify({ role: 'Responsible', principalId: 'p-ann' }),
+    }));
+    const list = await screen.findByRole('list', { name: 'Responsible' });
+    await waitFor(() => expect(within(list).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Tom Okafor✕', 'Ann Manager✕']));
+    expect(screen.getByRole('textbox', { name: 'Add a person' })).toHaveValue('');
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(fact('Responsible')).toHaveTextContent(/^TOTom OkaforAMAnn Manager/);
+  });
+
+  it('does not add someone who is already Responsible', async () => {
+    const { authFetch, user } = mount(ORG);
+    await screen.findByText('Tom Okafor');
+    await user.click(screen.getByRole('button', { name: 'Edit Responsible' }));
+    await user.type(screen.getByRole('textbox', { name: 'Add a person' }), 'tom');
+    const list = screen.getByRole('list', { name: 'Responsible' });
+    const hit = (await screen.findAllByRole('button', { name: 'Tom Okafor' })).find(b => !list.contains(b));
+    await user.click(hit);
+    expect(writes(authFetch)).toEqual([]);
   });
 });

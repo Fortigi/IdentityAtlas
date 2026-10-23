@@ -25,9 +25,17 @@ describe('status/account badge dark-mode coverage', () => {
     }
   });
 
-  it('ContextTreeSelector select inputs and selected row carry dark: variants', () => {
+  it('ContextTreeSelector select inputs carry dark: variants', () => {
     const src = read('contexts/ContextTreeSelector.jsx');
-    for (const tok of ['dark:bg-gray-700', 'dark:border-gray-600', 'dark:text-gray-200', 'dark:bg-blue-900/30']) {
+    for (const tok of ['dark:bg-gray-700', 'dark:border-gray-600', 'dark:text-gray-200']) {
+      expect(src, tok).toContain(tok);
+    }
+  });
+
+  it('the selected node in the contexts tree carries dark: variants', () => {
+    // The row chip (and its selected state) lives in ContextTreeParts.
+    const src = read('contexts/ContextTreeParts.jsx');
+    for (const tok of ['dark:bg-blue-900/30', 'dark:border-blue-400']) {
       expect(src, tok).toContain(tok);
     }
   });

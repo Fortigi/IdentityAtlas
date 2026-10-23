@@ -56,6 +56,8 @@
  * @typedef {Object} ContextPlugin
  * @property {string} name                Matches ContextAlgorithms.name. Stable.
  * @property {string} displayName
+ * @property {string} [rootDisplayName] The name of the root the runner adds when a run produces several
+ *                                        roots (runner.helpers.js withPluginRoot); else displayName.
  * @property {string} description
  * @property {('Identity'|'Resource'|'Principal'|'System')} targetType
  * @property {string[]} contextTypes      Every contextType the plugin can emit. The core

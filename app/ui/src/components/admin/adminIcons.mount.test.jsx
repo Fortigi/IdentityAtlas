@@ -12,11 +12,12 @@ import {
   RiskProfileIcon,
   ClassifiersIcon,
   WarningIcon,
+  PencilIcon,
 } from './adminIcons';
 import { Section } from './adminUi';
 import DangerZoneSection from './DangerZoneSection';
 
-const ICONS = { CuratedDataIcon, WorkbookIcon, RiskProfileIcon, ClassifiersIcon, WarningIcon };
+const ICONS = { CuratedDataIcon, WorkbookIcon, RiskProfileIcon, ClassifiersIcon, WarningIcon, PencilIcon };
 
 describe('admin section icons (#755)', () => {
   for (const [name, IconCmp] of Object.entries(ICONS)) {

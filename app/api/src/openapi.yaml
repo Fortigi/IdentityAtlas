@@ -806,6 +806,25 @@ paths:
                         description: >
                           True when the report stopped at its row cap, so `rows` holds only the first
                           `total` rows. Custom reports cap at their definition's limit (1,000 by default).
+                      details:
+                        type: array
+                        description: >
+                          Facts about what the run covers, as titled blocks of label/value pairs. The
+                          Entitlement Pivot returns one block per context: every attribute, the
+                          Accountable and Responsibles, or the suggested Accountable and why. Empty for
+                          a report that has none. The xlsx download writes them on its Summary tab;
+                          csv and json downloads leave them out.
+                        items:
+                          type: object
+                          properties:
+                            title: { type: string }
+                            entries:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  label: { type: string }
+                                  value: {}
                       generatedAt:
                         type: string
                         format: date-time
@@ -2675,6 +2694,70 @@ paths:
           description: The caller may not write contexts
         '404':
           description: No such context, principal or identity
+  /contexts/{id}/roles/suggestion:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Contexts]
+      summary: Best guess for the Accountable of a context that has none
+      operationId: getContextRoleSuggestion
+      description: >
+        For a people or accounts unit, the manager of the most members; for a resource unit or a
+        logical application, the account that owns the most of its resources. Suggested only when
+        they cover at least 40 % of the members, and never once rejected for this context. Confirm
+        it with PUT /contexts/{id}/roles.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The suggested Accountable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContextRoleSuggestion' }
+        '204':
+          description: >
+            No suggestion — the context already has an Accountable, its template (Segment, Tag)
+            carries no roles, or no signal gives a candidate
+        '400':
+          description: Invalid id
+        '404':
+          description: No such context
+  /contexts/{id}/roles/suggestion/reject:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Contexts]
+      summary: Reject the suggested Accountable
+      operationId: rejectContextRoleSuggestion
+      description: >
+        Remembers that this account (`principalId`) or person (`identityId`), exactly one, is not
+        the context's Accountable, so it is never suggested again for this context. Idempotent.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                principalId: { type: string, format: uuid }
+                identityId: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Rejected (also when already rejected)
+        '400':
+          description: Invalid id or body
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: No such context, principal or identity
   /contexts/{id}/roles/{roleId}:
     parameters:
       - name: id
@@ -2872,6 +2955,18 @@ components:
         displayName: { type: string, nullable: true }
         addedBy: { type: string, enum: [sync, algorithm, analyst] }
         addedAt: { type: string, format: date-time }
+        holderCount:
+          type: integer
+          description: Resource members only — distinct holders of the resource (live assignments).
+        ownerDisplayName:
+          type: string
+          nullable: true
+          description: >
+            Resource members only — the owner: through the ownership link, else the source's ownerId
+            resolved to an account, else the source's ownerName as-is.
+        ownerEmployeeId: { type: string, nullable: true, description: Resource members only. }
+        ownerEmail: { type: string, nullable: true, description: Resource members only. }
+      additionalProperties: true
     ContextRole:
       type: object
       description: Who answers for a context; the holder is an account or a person, exactly one.
@@ -2882,6 +2977,18 @@ components:
         identityId: { type: string, format: uuid, nullable: true }
         displayName: { type: string, nullable: true }
         addedBy: { type: string, enum: [sync, algorithm, analyst] }
+    ContextRoleSuggestion:
+      type: object
+      description: A suggested Accountable and why; the holder is an account or a person, exactly one.
+      required: [role, displayName, reason, count, total]
+      properties:
+        role: { type: string, enum: [Accountable] }
+        principalId: { type: string, format: uuid }
+        identityId: { type: string, format: uuid }
+        displayName: { type: string }
+        reason: { type: string, example: manages 11 of the 14 members }
+        count: { type: integer, description: Members the candidate manages or owns }
+        total: { type: integer, description: Members of the context's kind }
     ContextRelationship:
       type: object
       description: A relationship as seen from one context.
@@ -2895,6 +3002,7 @@ components:
           allOf: [{ $ref: '#/components/schemas/ContextCategory' }]
           nullable: true
         relatedTargetType: { type: string }
+        relatedTotalMemberCount: { type: integer, nullable: true, description: "Members of the related context, sub-contexts included." }
         addedBy: { type: string, enum: [sync, algorithm, analyst] }
         createdAt: { type: string, format: date-time }
     ContextRecipe:

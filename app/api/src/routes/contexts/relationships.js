@@ -41,7 +41,8 @@ router.get('/contexts/:id/relationships', async (req, res) => {
       SELECT r.id, r."relationshipType", r."addedBy", r."createdAt",
              CASE WHEN r."contextId" = $1 THEN 'out' ELSE 'in' END AS direction,
              o.id AS "relatedContextId", o."displayName" AS "relatedDisplayName",
-             o."contextCategory" AS "relatedContextCategory", o."targetType" AS "relatedTargetType"
+             o."contextCategory" AS "relatedContextCategory", o."targetType" AS "relatedTargetType",
+             o."totalMemberCount" AS "relatedTotalMemberCount"
         FROM "ContextRelationships" r
         JOIN "Contexts" o
           ON o.id = CASE WHEN r."contextId" = $1 THEN r."relatedContextId" ELSE r."contextId" END

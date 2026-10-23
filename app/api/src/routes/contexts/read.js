@@ -13,6 +13,7 @@ import { CONTEXT_CATEGORIES } from '../../ingest/validation.js';
 import { useSql, UUID_RE, TARGET_TYPES } from './shared.js';
 import { loadContextRoles } from './roles.js';
 import { OWNER_PRINCIPAL_ORDER } from '../../ingest/contextOwners.js';
+import { withResourceMemberFacts } from '../../contexts/resourceMemberFacts.js';
 
 const router = Router();
 
@@ -26,6 +27,18 @@ const MEMBER_TABLE = {
   Resource:  'Resources',
   Principal: 'Principals',
   System:    'Systems',
+};
+
+// What a member row carries besides its name, per kind of member — the columns
+// the context's members table shows (email and job title for people and
+// accounts, type and description for resources). A resource's extendedAttributes
+// are read only for its owner reference and are not returned: a resource member
+// also gets holderCount and its owner, from contexts/resourceMemberFacts.js.
+export const MEMBER_COLUMNS = {
+  Identity:  'm.email, m."jobTitle", m.department',
+  Resource:  'm."resourceType", m.description, m.enabled, m."extendedAttributes"',
+  Principal: 'm.email, m."jobTitle", m."principalType", m."accountEnabled"',
+  System:    'm.description',
 };
 
 // How a member row joins its entity. ContextMembers."memberId" is a uuid, and so
@@ -277,16 +290,17 @@ router.get('/contexts/:id/members', async (req, res) => {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-async function loadMembers(contextId, targetType, { limit = 100, offset = 0, search = '', withTotal = false, includeDescendants = false } = {}) {
-  const table = MEMBER_TABLE[targetType];
-  if (!table) return withTotal ? { rows: [], total: 0 } : [];
-
-  // When includeDescendants=true, we expand $1 into "this context plus every
-  // descendant" via a recursive CTE. The selected member rows are then
-  // de-duplicated on memberId (a person could theoretically be a direct
-  // member of two sub-contexts; we only want them once).
-  const contextSet = includeDescendants
-    ? `(
+// The SQL pieces that scope a member read to this context alone, or to it and
+// every descendant. With descendants, $1 expands into "this context plus every
+// descendant" via a recursive CTE, and the member rows are de-duplicated on
+// memberId (a person could be a direct member of two sub-contexts; we want them
+// once) — the DISTINCT adds a small sort cost but keeps counts and paging right.
+function memberScopeSql(includeDescendants) {
+  if (!includeDescendants) {
+    return { contextFilter: `cm."contextId" = $1`, distinct: '', orderPrefix: '', countExpr: '*' };
+  }
+  return {
+    contextFilter: `cm."contextId" IN (
         WITH RECURSIVE subtree AS (
           SELECT id FROM "Contexts" WHERE id = $1
           UNION ALL
@@ -295,11 +309,19 @@ async function loadMembers(contextId, targetType, { limit = 100, offset = 0, sea
         -- CYCLE guard: corrupt parent chains must not recurse forever.
         CYCLE id SET "isCycle" USING "cyclePath"
         SELECT id FROM subtree
-      )`
-    : null;
+      )`,
+    distinct: 'DISTINCT ON (m.id)',
+    orderPrefix: 'm.id, ',
+    countExpr: 'DISTINCT m.id',
+  };
+}
 
-  // Identity / Resource / Principal all have displayName. Systems have
-  // displayName too. Keep the projection uniform.
+async function loadMembers(contextId, targetType, { limit = 100, offset = 0, search = '', withTotal = false, includeDescendants = false } = {}) {
+  const table = MEMBER_TABLE[targetType];
+  if (!table) return withTotal ? { rows: [], total: 0 } : [];
+
+  // Every member table has displayName; the rest of the row is what the members
+  // table shows for that kind of member (MEMBER_COLUMNS).
   const params = [contextId];
   let searchClause = '';
   if (search) {
@@ -307,31 +329,25 @@ async function loadMembers(contextId, targetType, { limit = 100, offset = 0, sea
     searchClause = ` AND m."displayName" ILIKE $${params.length} ESCAPE '\\'`;
   }
 
-  const contextFilter = includeDescendants
-    ? `cm."contextId" IN ${contextSet}`
-    : `cm."contextId" = $1`;
-
-  // When descendants are included we dedupe on memberId so siblings don't
-  // produce duplicates. The DISTINCT adds a small sort cost but matters for
-  // accurate counts and pagination.
-  const distinct = includeDescendants ? 'DISTINCT ON (m.id)' : '';
+  const { contextFilter, distinct, orderPrefix, countExpr } = memberScopeSql(includeDescendants);
 
   const dataSql = `
-    SELECT ${distinct} m.id, m."displayName",
+    SELECT ${distinct} m.id, m."displayName", ${MEMBER_COLUMNS[targetType]},
            cm."addedBy", cm."addedAt"
       FROM "ContextMembers" cm
       JOIN "${table}" m ON ${memberJoinOn(targetType)}
      WHERE ${contextFilter}
        AND cm."memberType" = '${targetType}'
        ${searchClause}
-     ORDER BY ${includeDescendants ? 'm.id, ' : ''}m."displayName"
+     ORDER BY ${orderPrefix}m."displayName"
      LIMIT ${parseInt(limit, 10)} OFFSET ${parseInt(offset, 10)}
   `;
-  const rows = (await db.query(dataSql, params)).rows;
+  const page = (await db.query(dataSql, params)).rows;
+  const rows = targetType === 'Resource' ? await withResourceMemberFacts(page) : page;
   if (!withTotal) return rows;
 
   const countSql = `
-    SELECT COUNT(${includeDescendants ? 'DISTINCT m.id' : '*'})::int AS total
+    SELECT COUNT(${countExpr})::int AS total
       FROM "ContextMembers" cm
       JOIN "${table}" m ON ${memberJoinOn(targetType)}
      WHERE ${contextFilter}

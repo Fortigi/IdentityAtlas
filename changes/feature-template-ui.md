@@ -1,0 +1,47 @@
+- Contexts now has a tab per template (Organisation, Applications, Tags, Segments), with counts; Organisation switches between People, Accounts and Resources trees, so each tree holds one kind of member
+- Organisational units and applications open with their key facts: who is accountable (the owner, for an application) and responsible, members, sub-units, and the unit's variants ("Contoso · People 12 · Accounts 15 · Resources 31"), each opening its own context
+- When nobody is accountable, the page suggests someone and says why — the manager of most of the unit's people or accounts, or the owner of most of its resources — with Confirm, Reject (never suggested again for that unit) and Choose someone else
+- A unit or application can download its Entitlement Pivot report straight from its page; a people or accounts unit uses its resources variant, or offers the matrix scoped to the unit when it has none
+- Contexts now shows the tab's trees as one tree on the left and the selected context on the right; selecting a unit, application, tag or segment no longer opens a new tab, and "Open as page" still does.
+- Variant and sub-context links on a context select it in place, switching between People, Accounts and Resources where needed, and each tab remembers what you last selected.
+- The suggested owner's reason reads naturally for small units ("manager of the only member", "all 5 members").
+- The context page no longer has an Attributes tab: every attribute now appears once at the top, with the less-used ones under a collapsible "More details", and editing a context moved to an Edit button in the header.
+- Accountable and Responsible are shown read-only with a small edit button that opens a pop-up to look people up, add, remove or clear them; the best guess's "Choose someone else" opens the same pop-up.
+- A context's member list now shows each member's details: e-mail, job title, type and status for accounts; e-mail, job title and department for people; type, description and status for resources.
+- Contexts tree panel lists trees under a heading per source (Imported · <system>, Derived · <rule in words>, Manager hierarchy, Created here) instead of a caption line and coloured dots
+- Each tree row shows one member count (everyone including sub-units), with the direct share in its tooltip; the kind badge is gone, and on Tags and Segments a root names its kind ("Tags · People")
+- Add sub-unit, rename and drag are offered only on trees whose edits are kept (not imported trees) and only to users who may change contexts; "+ New" likewise
+- Refresh (formerly Sync) and "Delete this tree…" moved into a ⋯ menu on the tree's root row; deleting asks for confirmation first
+- The People / Accounts / Resources switch moved into the tree panel header as "Show:", offers only kinds that have units and opens on the first one that has any
+- Filters use plain words: Source (Imported / Derived / Created here), System, and on Tags/Segments a Kind filter; the extended search is labelled "Also search other fields"
+- The template tabs no longer show tree counts; the List mode was removed from the panel
+- Empty states explain where units come from in plain words; the right pane says "Pick a unit on the left."
+- The "New context tree" wizard offers "Import from a system", "Derive from data" and "Create by hand", without colour bars
+- Tree rows no longer announce themselves as disabled to screen readers, and tree text is at least 12px
+- A unit's page now has two views: someone who cannot edit contexts sees a reading view (facts, the people who answer for it, actions, sub-units and members) without Edit, Timeline, raw details or member editing; someone who can edit sees the same page plus Edit, Add sub-unit, More details with the raw classification, the Timeline and an "Edit members" mode.
+- Opened on its own, a unit's page shows no app navigation to a reader, a breadcrumb of its parent units instead, and the unit's name as the browser tab title; every unit page has a "Copy link" button.
+- The row of classification badges under a unit's name is replaced by one sentence, such as "Department · imported from Fortigi Demo HR" or "Team · derived from who reports to whom in Fortigi Demo EntraID".
+- Accountable and Responsible are shown as a people block with initials and a line on what each role means; an empty role reads "Nobody is accountable yet." with a "Set accountable" button for editors.
+- A suggested Accountable now reads "Suggested: … · reason" with Confirm, "Not this person" and "Choose someone else".
+- The "Variants of this unit" section is renamed "This unit as" and only appears when the unit is also held as another kind of member.
+- The "Relationships" tab is gone: a unit lists its "Sub-units" and "Members" directly, and the member count in the facts card matches the list ("12 in this unit · 37 including sub-units") and jumps to it.
+- The members table hides columns that are empty for every member on the page, shows account types in words (Member, Guest, Service account) and reads as a card list on narrow screens; the add box says "Search people / accounts / resources to add" (no more "identitys").
+- Members derived by a rule are no longer offered a "Remove (will return)" action; in edit mode they say "from the rule", and a note explains which members stay.
+- The edit form of a unit has no separate Owner field, one Delete whose confirmation explains what happens, and no add-child form (use "Add sub-unit" in the header).
+- More details shows "Last updated" instead of "Last Calculated At"; the Timeline skips that bookkeeping stamp and shows dates readably.
+- A context tab in the app's tab strip shows its template's icon instead of the letter "C", and an analyst returns with "Back to Contexts".
+- The unit page's "Workflows" area is now **Actions**: "View in matrix" opens in a new tab (an application's resources as columns), and "Download entitlement report" gives an Excel file for applications and units of accounts.
+- The Entitlement Pivot can now run on a unit of accounts: it lists the resources the unit's members hold, counted among those members only.
+- The "Download entitlement report" card is now offered on applications only; organisational units (of people, accounts or resources) keep "View in matrix", and the "Reports are available on the accounts view" hint is gone. The Entitlement Pivot still runs on a unit of accounts from the Reports page.
+- A rule that derives several top-level units (one per department, one per risk tier) now puts them under one root named after the rule — the departments appear under "Departments" instead of six loose trees. Existing trees move under the new root on the next refresh, keeping their names, members and edits.
+- The Contexts tree names the rule that derived a tree ("Derived · Department from Principal"), and a derived unit's subtitle says which rule made it ("Department · derived by the Department from Principal rule").
+- A unit whose members cannot be loaded now says so instead of showing "No members found", and the detail pane shows "Loading…" while the trees are read instead of staying blank.
+- The Entitlement Pivot's Excel download now opens with everything known about each context it covers: every attribute the context page lists under "More details", who is Accountable and Responsible (with employee ID and e-mail), and — when nobody is Accountable yet — the suggested person and why.
+- The Entitlement Pivot shows the entitlement owner in three columns (name, employee ID, e-mail); when an entitlement has no owner link but its source named one (as the IdentityIQ preset stores in ownerId/ownerName), the owner is looked up from that, or shown as the source named them.
+- The Entitlement Pivot adds a column for every attribute the entitlements in the report carry (such as certification frequency or requestable), up to 60, without having to pick them; any beyond that are named on the Summary tab.
+- A logical application's (or any resource context's) member list now shows how many users hold each resource and who owns it (the owner's e-mail on hover), using the same owner lookup as the Entitlement Pivot.
+- New **Unit report** for organisational units of accounts or people: one row per member with their details, how many entitlements each holds (for a person, across their linked accounts) and every attribute their source stored; its Excel download opens with everything known about the unit, including who is accountable for it. Optionally includes the members of sub-units.
+- Units of accounts or people have a "Download unit report" action, also on the unit owner's read-only page.
+- "Edit members" is now offered only on contexts created in Identity Atlas, where both adding and removing members last; imported and rule-derived contexts no longer offer it, since their members would come back on the next refresh.
+- A report downloaded for one context is named after it and the day, e.g. "SAP ERP 2026-10-22.xlsx".
+- In an application's member list the Owner column comes before Users, and a resolved owner links to their account.
