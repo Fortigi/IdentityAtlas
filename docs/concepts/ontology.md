@@ -399,6 +399,10 @@ never a new way of holding. That rule is what keeps every matrix cell to three v
 ontology grows; [Core Ontology](../architecture/core-ontology.md#three-layers-one-way-of-holding)
 has the full table of concepts and where each one lives.
 
+Activity uploaded on a context — hours from a time registration, events from an audit log — is
+**evidence** (`ia:Activity`), kept beside the graph: it is not a holding and it does not make anyone
+a member. It can only suggest a member review.
+
 ---
 
 ## How it stays true

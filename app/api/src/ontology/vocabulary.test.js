@@ -23,4 +23,9 @@ describe('vocabulary', () => {
       for (const t of sqlTypes) expect(SQL_TO_XSD[t], t).toBeDefined();
     }
   });
+
+  it('maps the evidence columns: a calendar date to xsd:date, a numeric amount to xsd:decimal', () => {
+    expect(shortIri(SQL_TO_XSD.date)).toBe('xsd:date');
+    expect(shortIri(SQL_TO_XSD.numeric)).toBe('xsd:decimal');
+  });
 });

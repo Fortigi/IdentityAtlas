@@ -30,6 +30,9 @@
 #     an account reaches a resource only through ResourceAssignments, and its
 #     assignmentType is exactly Direct, Indirect or Eligible. A new kind of
 #     right is a new resource plus a relationship, never a new way of holding.
+#   * Beside the layers, EVIDENCE (ia:Evidence: ia:Activity, ia:ActivityUpload)
+#     records what people did — hours, events — on a context. It is neither a
+#     node nor an edge: never a holding and never a membership.
 #   * The scissors comment lines (start / end markers) mark excerpts that
 #     docs/concepts/ontology.md quotes verbatim (pymdownx.snippets).
 
@@ -44,8 +47,8 @@
     a owl:Ontology ;
     dcterms:title "Identity Atlas core ontology"@en ;
     rdfs:comment "The built-in Identity Atlas graph model: systems, accounts (principals), resources, persons (identities) and contexts, and the edge tables that connect them. Describes what the PostgreSQL schema and the ingest API implement today."@en ;
-    owl:versionInfo "2.1.0" ;
-    owl:versionIRI <https://identityatlas.io/ontology/2.1.0> ;
+    owl:versionInfo "2.2.0" ;
+    owl:versionIRI <https://identityatlas.io/ontology/2.2.0> ;
     dcterms:license <https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE> .
 
 # jsonb columns use rdf:JSON (RDF 1.1 / JSON-LD 1.1). It is not in the OWL 2
@@ -225,6 +228,28 @@ ia:ContextRelationship a owl:Class ; rdfs:subClassOf ia:Edge ;
     ia:table "ContextRelationships" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" ;
     ia:typeColumn "relationshipType" ;
     ia:sourceProperty ia:contextId ; ia:targetProperty ia:relatedContextId .
+
+# ─── Evidence (observations about the graph; never a holding) ────────────────
+# What an outside source says people DID — hours on a customer, edits in a
+# library — kept next to the graph, never in it. Evidence is not a node and not
+# an edge: it grants nothing and makes no one a member. The holding rule stands
+# unchanged: an account reaches a resource only through ResourceAssignments, and
+# a member belongs to a context only through ContextMembers. Evidence can only
+# SUGGEST (an active person who is not a member, a member with no activity).
+
+ia:Evidence a owl:Class ;
+    rdfs:label "Evidence" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An evidence table: observations from an outside source about who does what, kept beside the graph. Not a node, not an edge — never a holding (only ResourceAssignments hold access) and never a membership (only ContextMembers make a member)." .
+
+ia:Activity a owl:Class ; rdfs:subClassOf ia:Evidence ;
+    rdfs:label "Activity" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An observation: a subject — an account (principalId), a person (identityId), or a name that matched neither (subjectName / subjectEmail) — did an amount of activity (amount in unit, of a kind) on a context on a date (activityDate), as reported by one upload of a source (uploadId). Evidence of who works on what. It is NOT a holding: it grants no access, and it does not make the subject a member of the context." ;
+    ia:table "ContextActivity" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
+
+ia:ActivityUpload a owl:Class ; rdfs:subClassOf ia:Evidence ;
+    rdfs:label "Activity upload" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "One upload of an activity export (a time registration, an audit log) on a context — the root of a tree or a unit. Its source (sourceLabel) and period (periodStart..periodEnd) decide what a later upload replaces: a new upload of the same source on the same context replaces the activity of earlier ones in its period." ;
+    ia:table "ContextActivityUploads" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
 
 # ─── Principal types (closed: ingest enum on principalType) ──────────────────
 # Three templates say what kind of actor an account is. Who answers for what it
@@ -821,7 +846,7 @@ ia:complianceState a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:label "complianceState" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The source system's compliance verdict for the assignment." .
 ia:contextId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ContextMember ia:ContextRole ia:ContextRelationship ) ] ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ContextMember ia:ContextRole ia:ContextRelationship ia:Activity ia:ActivityUpload ) ] ;
     rdfs:range ia:Context ;
     ia:ingestAlias "contextExternalId" ;
     rdfs:label "contextId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -980,7 +1005,7 @@ ia:hrScore a owl:DatatypeProperty ; ia:sqlType "integer" ;
     rdfs:label "hrScore" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "How strongly this account looks like the HR record." .
 ia:identityId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:IdentityMember ia:ResourceAssignment ia:ContextRole ) ] ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:IdentityMember ia:ResourceAssignment ia:ContextRole ia:Activity ) ] ;
     rdfs:range ia:Identity ;
     ia:ingestAlias "identityExternalId" ;
     rdfs:label "identityId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -1139,7 +1164,7 @@ ia:primaryPrincipalId a owl:ObjectProperty ; ia:sqlType "uuid" ;
     rdfs:label "primaryPrincipalId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The person's primary account." .
 ia:principalId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ResourceAssignment ia:PrincipalRelationship ia:IdentityMember ia:ContextRole ) ] ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ResourceAssignment ia:PrincipalRelationship ia:IdentityMember ia:ContextRole ia:Activity ) ] ;
     rdfs:range ia:Principal ;
     ia:ingestAlias "principalExternalId", "userExternalId" ;
     rdfs:label "principalId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -1300,3 +1325,96 @@ ia:visibility a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:range xsd:string ;
     rdfs:label "visibility" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Visibility as the source reports it (Public / Private for groups)." .
+
+# Evidence columns (ia:Activity → ContextActivity, ia:ActivityUpload → ContextActivityUploads, migration 096).
+# contextId, principalId and identityId are the shared column properties above.
+ia:uploadId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:Activity ;
+    rdfs:range ia:ActivityUpload ;
+    rdfs:label "uploadId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The upload that reported this activity; undoing the upload removes it." .
+ia:subjectName a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Activity ;
+    rdfs:range xsd:string ;
+    rdfs:label "subjectName" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The subject's name as the source wrote it — kept when it matched no account or person." .
+ia:subjectEmail a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Activity ;
+    rdfs:range xsd:string ;
+    rdfs:label "subjectEmail" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The subject's e-mail address or user name as the source wrote it (lower case)." .
+ia:activityDate a owl:DatatypeProperty ; ia:sqlType "date" ;
+    rdfs:domain ia:Activity ;
+    rdfs:range xsd:date ;
+    rdfs:label "activityDate" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The day the activity took place." .
+ia:amount a owl:DatatypeProperty ; ia:sqlType "numeric" ;
+    rdfs:domain ia:Activity ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "amount" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How much activity, in unit: hours of a time entry, or a number of events (1 per audit-log row)." .
+ia:unit a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Activity ;
+    rdfs:range xsd:string ;
+    rdfs:label "unit" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The unit of amount: 'hours' or 'events' as the upload writes it." .
+ia:kind a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Activity ;
+    rdfs:range xsd:string ;
+    rdfs:label "kind" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What kind of activity, in the source's words (a task, an operation), when it says." .
+ia:attributes a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
+    rdfs:domain ia:Activity ;
+    rdfs:range rdf:JSON ;
+    rdfs:label "attributes" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The other columns of the source row the analyst chose to keep (a description, tags), by header." .
+ia:fileName a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ActivityUpload ;
+    rdfs:range xsd:string ;
+    rdfs:label "fileName" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The file as uploaded." .
+ia:sourceLabel a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ActivityUpload ;
+    rdfs:range xsd:string ;
+    rdfs:label "sourceLabel" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source of the export (Clockify, an audit log); a later upload of the same source on the same context replaces this one's activity in its period." .
+ia:mapping a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
+    rdfs:domain ia:ActivityUpload ;
+    rdfs:range rdf:JSON ;
+    rdfs:label "mapping" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The confirmed column mapping; the next upload of the source starts from it." .
+ia:periodStart a owl:DatatypeProperty ; ia:sqlType "date" ;
+    rdfs:domain ia:ActivityUpload ;
+    rdfs:range xsd:date ;
+    rdfs:label "periodStart" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The earliest activity date in the file." .
+ia:periodEnd a owl:DatatypeProperty ; ia:sqlType "date" ;
+    rdfs:domain ia:ActivityUpload ;
+    rdfs:range xsd:date ;
+    rdfs:label "periodEnd" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The latest activity date in the file." .
+ia:rowCount a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:ActivityUpload ;
+    rdfs:range xsd:integer ;
+    rdfs:label "rowCount" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Data rows in the file." .
+ia:matchedRows a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:ActivityUpload ;
+    rdfs:range xsd:integer ;
+    rdfs:label "matchedRows" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Rows imported: readable, and landed on a context." .
+ia:unmatchedRows a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:ActivityUpload ;
+    rdfs:range xsd:integer ;
+    rdfs:label "unmatchedRows" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Rows not imported: no date, amount or person, or a sub-unit that matched nothing." .
+ia:uploadedBy a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ActivityUpload ;
+    rdfs:range xsd:string ;
+    rdfs:label "uploadedBy" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Who uploaded the file." .
+ia:uploadedAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain ia:ActivityUpload ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "uploadedAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When it was uploaded." .

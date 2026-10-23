@@ -5,7 +5,7 @@
     Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
     [Maintaining the Core Ontology](../contributing/maintaining-the-ontology.md).
 
-Ontology `https://identityatlas.io/ontology`, version `2.1.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
+Ontology `https://identityatlas.io/ontology`, version `2.2.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: [core.ttl](https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl).
 
 A column is identified by the property of the same name: `Principals.accountEnabled` is
@@ -569,6 +569,50 @@ Edge: `parentResourceId` → `childResourceId`.
 | `roleOriginSystem` | `ia:roleOriginSystem` | text |  | Where that role is defined. |
 | `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. |
 | `updatedAt` | `ia:updatedAt` | timestamp with time zone |  | When the row was last written by the ingest (full-sync reconcile cutoff). |
+
+## Evidence tables
+
+Observations from outside sources, kept beside the graph: never a holding and never a membership.
+
+### ContextActivity
+
+`ia:Activity` · Evidence table · An observation: a subject — an account (principalId), a person (identityId), or a name that matched neither (subjectName / subjectEmail) — did an amount of activity (amount in unit, of a kind) on a context on a date (activityDate), as reported by one upload of a source (uploadId). Evidence of who works on what. It is NOT a holding: it grants no access, and it does not make the subject a member of the context.
+
+Identifier: `id` (uuid) — the instance IRI, not a property.
+
+| Column | Property | SQL type | Values / references | Description |
+|---|---|---|---|---|
+| `activityDate` | `ia:activityDate` | date |  | The day the activity took place. |
+| `amount` | `ia:amount` | numeric |  | How much activity, in unit: hours of a time entry, or a number of events (1 per audit-log row). |
+| `attributes` | `ia:attributes` | jsonb |  | The other columns of the source row the analyst chose to keep (a description, tags), by header. |
+| `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
+| `identityId` | `ia:identityId` | uuid | → Identities | The person. On ResourceAssignments set instead of principalId for person-level assignments. Ingest alias: `identityExternalId`. |
+| `kind` | `ia:kind` | text |  | What kind of activity, in the source's words (a task, an operation), when it says. |
+| `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor. Ingest alias: `principalExternalId`, `userExternalId`. |
+| `subjectEmail` | `ia:subjectEmail` | text |  | The subject's e-mail address or user name as the source wrote it (lower case). |
+| `subjectName` | `ia:subjectName` | text |  | The subject's name as the source wrote it — kept when it matched no account or person. |
+| `unit` | `ia:unit` | text |  | The unit of amount: 'hours' or 'events' as the upload writes it. |
+| `uploadId` | `ia:uploadId` | uuid | → ContextActivityUploads | The upload that reported this activity; undoing the upload removes it. |
+
+### ContextActivityUploads
+
+`ia:ActivityUpload` · Evidence table · One upload of an activity export (a time registration, an audit log) on a context — the root of a tree or a unit. Its source (sourceLabel) and period (periodStart..periodEnd) decide what a later upload replaces: a new upload of the same source on the same context replaces the activity of earlier ones in its period.
+
+Identifier: `id` (uuid) — the instance IRI, not a property.
+
+| Column | Property | SQL type | Values / references | Description |
+|---|---|---|---|---|
+| `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
+| `fileName` | `ia:fileName` | text |  | The file as uploaded. |
+| `mapping` | `ia:mapping` | jsonb |  | The confirmed column mapping; the next upload of the source starts from it. |
+| `matchedRows` | `ia:matchedRows` | integer |  | Rows imported: readable, and landed on a context. |
+| `periodEnd` | `ia:periodEnd` | date |  | The latest activity date in the file. |
+| `periodStart` | `ia:periodStart` | date |  | The earliest activity date in the file. |
+| `rowCount` | `ia:rowCount` | integer |  | Data rows in the file. |
+| `sourceLabel` | `ia:sourceLabel` | text |  | The source of the export (Clockify, an audit log); a later upload of the same source on the same context replaces this one's activity in its period. |
+| `unmatchedRows` | `ia:unmatchedRows` | integer |  | Rows not imported: no date, amount or person, or a sub-unit that matched nothing. |
+| `uploadedAt` | `ia:uploadedAt` | timestamp with time zone |  | When it was uploaded. |
+| `uploadedBy` | `ia:uploadedBy` | text |  | Who uploaded the file. |
 
 ## Value lists
 

@@ -129,6 +129,20 @@ ontology declares the templates, the defaults and the holding rule now (2.0.0); 
 carry a template and an accountability per row, and the removal of the six root context types and
 of `ExternalUser`, follow in later pull requests.
 
+### Beside the layers: evidence (2.2.0)
+
+Some data says what people **did**, not what they hold or belong to: hours in a time registration
+per customer, edits in an audit log of a document library. That is `ia:Evidence` — tables kept
+beside the graph, neither node nor edge. `ia:Activity` (`ContextActivity`) is one observation: a
+subject — an account, a person, or a name that matched neither — did an amount of activity on a
+context on a date, reported by one `ia:ActivityUpload` (`ContextActivityUploads`) of a source.
+
+Evidence is **not a holding** and **not a membership**: it grants nothing, and an active person is
+not made a member of the context. The holding rule above is unchanged — only
+`ia:ResourceAssignment` holds access — and only `ContextMembers` make a member. What evidence can do
+is suggest: "active, not a member" and "member, no activity" are questions for a member review, not
+changes. See [Context activity](context-activity.md).
+
 ---
 
 ## Scope

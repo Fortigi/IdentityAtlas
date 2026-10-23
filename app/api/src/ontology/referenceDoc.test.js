@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderReference } from './referenceDoc.js';
 import { coreClassDiagram } from './mermaid.js';
-import { CONTEXT_TTL, MINI_TTL, modelOf } from './__tests__/miniOntology.js';
+import { CONTEXT_TTL, EVIDENCE_TTL, MINI_TTL, modelOf } from './__tests__/miniOntology.js';
 
 describe('renderReference', () => {
   const md = renderReference(modelOf());
@@ -80,5 +80,26 @@ describe('renderReference — context types', () => {
 
   it('keeps the four-column table for type lists without context annotations', () => {
     expect(md).toContain('| `GroupOwnership` | `ia:GroupOwnership` | Permission | Owners of a group. |');
+  });
+});
+
+describe('renderReference — evidence tables', () => {
+  const md = renderReference(modelOf(EVIDENCE_TTL));
+
+  it('lists them in their own section after the edge tables, never as nodes', () => {
+    const headings = md.split('\n').filter(l => /^##+ /.test(l));
+    expect(headings).toEqual([
+      '## Type hierarchy and relationship types',
+      '## Node tables', '### Principals', '### Resources', '### Systems',
+      '## Edge tables', '### ResourceAssignments', '### ResourceRelationships',
+      '## Evidence tables', '### ContextActivity',
+      '## Value lists', '### Assignment type',
+    ]);
+    expect(md).toContain('`ia:Activity` · Evidence table · An observation.');
+    expect(md).toContain('| `activityDate` | `ia:activityDate` | date |');
+  });
+
+  it('has no evidence section when there are no evidence tables', () => {
+    expect(renderReference(modelOf())).not.toContain('## Evidence tables');
   });
 });

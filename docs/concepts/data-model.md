@@ -68,6 +68,17 @@ The diagram below is **generated from the [core ontology](../reference/core-mode
 <!-- BEGIN GENERATED: ontology core-erd -->
 ```mermaid
 erDiagram
+    ContextActivity {
+        uuid id PK
+        uuid contextId FK
+        uuid identityId FK
+        uuid principalId FK
+        uuid uploadId FK
+    }
+    ContextActivityUploads {
+        uuid id PK
+        uuid contextId FK
+    }
     ContextMembers {
         string addedBy "sync, algorithm, analyst"
         uuid contextId FK
@@ -151,6 +162,11 @@ erDiagram
         string displayName
     }
 
+    Contexts |o--o{ ContextActivity : "contextId"
+    Identities |o--o{ ContextActivity : "identityId"
+    Principals |o--o{ ContextActivity : "principalId"
+    ContextActivityUploads |o--o{ ContextActivity : "uploadId"
+    Contexts |o--o{ ContextActivityUploads : "contextId"
     Contexts |o--o{ ContextMembers : "contextId"
     Identities |o--o{ ContextMembers : "memberId"
     Resources |o--o{ ContextMembers : "memberId"

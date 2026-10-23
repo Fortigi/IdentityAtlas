@@ -35,6 +35,9 @@ export const SQL_TO_XSD = {
   'jsonb': `${RDF}JSON`,
   'timestamp with time zone': `${XSD}dateTime`,
   'bytea': `${XSD}base64Binary`,
+  // The activity observation (ia:Activity, migration 096): a calendar date and an amount.
+  'date': `${XSD}date`,
+  'numeric': `${XSD}decimal`,
 };
 
 // Ingest field types (validation.js SCHEMAS) → the SQL types they can land in.

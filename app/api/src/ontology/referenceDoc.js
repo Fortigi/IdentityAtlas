@@ -78,8 +78,14 @@ function relationshipSection(model, cls) {
   return [`${code(cls.typeColumn)} accepts exactly these relationship types:`, '', ...table(['Value', 'Property', 'From → to', 'Meaning'], rows)];
 }
 
+// Node, Edge or Evidence (beside the graph: an observation, never a holding).
+function tableKind(model, cls) {
+  if (isSubClassOf(model, cls.local, 'Edge')) return 'Edge';
+  return isSubClassOf(model, cls.local, 'Evidence') ? 'Evidence' : 'Node';
+}
+
 function classSection(model, cls) {
-  const kind = isSubClassOf(model, cls.local, 'Edge') ? 'Edge' : 'Node';
+  const kind = tableKind(model, cls);
   const lines = [`### ${cls.table}`, '', `${code(`ia:${cls.local}`)} · ${kind} table · ${cls.comment}`, ''];
   if (cls.ingestEntities.length) lines.push(`Written by the ingest API as ${cls.ingestEntities.map(code).join(', ')}.`, '');
   if (cls.identifierColumn) lines.push(`Identifier: ${code(cls.identifierColumn)} (${cls.identifierSqlType}) — the instance IRI, not a property.`, '');
@@ -105,8 +111,10 @@ function schemeSection(model) {
 
 /** The full reference page as markdown. */
 export function renderReference(model) {
-  const nodes = tableClasses(model).filter(c => !isSubClassOf(model, c.local, 'Edge')).sort((a, b) => byName(a.table, b.table));
-  const edges = tableClasses(model).filter(c => isSubClassOf(model, c.local, 'Edge')).sort((a, b) => byName(a.table, b.table));
+  const ofKind = (kind) => tableClasses(model).filter(c => tableKind(model, c) === kind).sort((a, b) => byName(a.table, b.table));
+  const nodes = ofKind('Node');
+  const edges = ofKind('Edge');
+  const evidence = ofKind('Evidence');
   return [
     '# Core Model Reference',
     '',
@@ -137,6 +145,7 @@ export function renderReference(model) {
     '## Edge tables',
     '',
     ...edges.flatMap(c => classSection(model, c)),
+    ...(evidence.length ? ['## Evidence tables', '', 'Observations from outside sources, kept beside the graph: never a holding and never a membership.', '', ...evidence.flatMap(c => classSection(model, c))] : []),
     '## Value lists',
     '',
     ...schemeSection(model),

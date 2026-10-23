@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { coreClassDiagram, coreErDiagram, coreOverviewDiagram, GENERATED_DIAGRAMS } from './mermaid.js';
-import { MINI_TTL, edit, modelOf } from './__tests__/miniOntology.js';
+import { EVIDENCE_TTL, MINI_TTL, edit, modelOf } from './__tests__/miniOntology.js';
 
 describe('coreErDiagram', () => {
   const er = coreErDiagram(modelOf());
@@ -100,5 +100,15 @@ describe('coreOverviewDiagram', () => {
     const out = coreOverviewDiagram(modelOf(ttl));
     expect(out).toContain('    Thing["Thing<br/><small>Things</small>"]:::Thing');
     expect(out).not.toContain('classDef Thing');
+  });
+});
+
+describe('evidence tables in the diagrams', () => {
+  it('the overview of the graph leaves them out; the ERD draws them with their references', () => {
+    const model = modelOf(EVIDENCE_TTL);
+    expect(coreOverviewDiagram(model)).toBe(coreOverviewDiagram(modelOf()));
+    const er = coreErDiagram(model);
+    expect(er).toContain('    ContextActivity {\n        uuid id PK\n        uuid actor FK\n    }');
+    expect(er).toContain('    Principals |o--o{ ContextActivity : "actor"');
   });
 });

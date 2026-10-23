@@ -160,3 +160,15 @@ export function contextRegistry() {
     },
   };
 }
+
+// An evidence table (ia:Evidence) on top of the mini ontology: beside the graph,
+// so neither a node nor an edge table.
+export const EVIDENCE_TTL = `${MINI_TTL}
+ia:Evidence a owl:Class ; rdfs:label "Evidence" ; rdfs:comment "Beside the graph." ; ${DEF} .
+ia:Activity a owl:Class ; rdfs:subClassOf ia:Evidence ; rdfs:label "Activity" ; rdfs:comment "An observation." ; ${DEF} ;
+    ia:table "ContextActivity" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
+ia:activityDate a owl:DatatypeProperty ; ia:sqlType "date" ; rdfs:domain ia:Activity ; rdfs:range xsd:date ;
+    rdfs:label "activityDate" ; rdfs:comment "The day." ; ${DEF} .
+ia:actor a owl:ObjectProperty ; ia:sqlType "uuid" ; rdfs:domain ia:Activity ; rdfs:range ia:Principal ;
+    rdfs:label "actor" ; rdfs:comment "Who." ; ${DEF} .
+`;

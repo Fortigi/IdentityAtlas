@@ -19,6 +19,8 @@ const SQL_SHORT = {
   'jsonb': 'json',
   'timestamp with time zone': 'timestamptz',
   'bytea': 'bytes',
+  'date': 'date',
+  'numeric': 'decimal',
 };
 
 const byName = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
@@ -117,7 +119,8 @@ function foreignKeyArrows(model, node) {
 }
 
 export function coreOverviewDiagram(model) {
-  const tables = tableClasses(model);
+  // Evidence tables (ia:Evidence) are beside the graph, not part of it: not drawn here.
+  const tables = tableClasses(model).filter(c => !isSubClassOf(model, c.local, 'Evidence'));
   const nodes = tables.filter(c => !isSubClassOf(model, c.local, 'Edge')).sort((a, b) => byName(a.local, b.local));
   const edges = tables.filter(c => isSubClassOf(model, c.local, 'Edge')).sort((a, b) => byName(a.table, b.table));
   const lines = ['flowchart LR', ...nodes.map(n => `    ${n.local}["${n.label}<br/><small>${n.table}</small>"]:::${n.local}`)];
