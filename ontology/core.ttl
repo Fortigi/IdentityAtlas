@@ -957,7 +957,7 @@ ia:complianceState a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:label "complianceState" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The source system's compliance verdict for the assignment." .
 ia:contextId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ContextMember ia:ContextRole ia:ContextRelationship ia:Interview ia:Claim ia:MemberOverride ) ] ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ContextMember ia:ContextRole ia:ContextRelationship ia:Interview ia:Claim ia:MemberOverride ia:ChangeRequest ) ] ;
     rdfs:range ia:Context ;
     ia:ingestAlias "contextExternalId" ;
     rdfs:label "contextId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -1194,7 +1194,7 @@ ia:managerIdentityId a owl:ObjectProperty ; ia:sqlType "uuid" ;
     rdfs:label "managerIdentityId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The manager as a PERSON." .
 ia:memberId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ContextMember ia:MemberOverride ) ] ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ContextMember ia:MemberOverride ia:ChangeRequest ) ] ;
     rdfs:range [ a owl:Class ; owl:unionOf ( ia:Identity ia:Resource ia:Principal ia:System ) ] ;
     ia:ingestAlias "memberExternalId" ;
     rdfs:label "memberId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -1525,10 +1525,10 @@ ia:subjectMatch a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:label "subjectMatch" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "How the person was matched; NULL when they were not." .
 ia:attribute a owl:DatatypeProperty ; ia:sqlType "text" ;
-    rdfs:domain ia:Claim ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Claim ia:ChangeRequest ) ] ;
     rdfs:range xsd:string ;
     rdfs:label "attribute" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined)." .
+    rdfs:comment "A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined). On a change request (AttributeUpdate): the attribute to change in the source." .
 ia:value a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain ia:Claim ;
     rdfs:range xsd:string ;

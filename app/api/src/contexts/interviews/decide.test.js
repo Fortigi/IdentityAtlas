@@ -17,22 +17,30 @@ const base = {
 // A transaction client that answers by statement and records every write.
 function fakeDb(claim, { accountable = null, holder = { displayName: 'Piet Jansen' }, context = null, rowCount = 1 } = {}) {
   const writes = [];
+  const rowsOf = (row) => ({ rows: row ? [row] : [] });
+  // Reads: answered, not recorded. The first statement that matches answers.
+  const reads = [
+    [(sql) => sql.includes('FOR UPDATE OF c'), () => rowsOf(claim)],
+    [(sql) => sql.includes('AS "isListed"'), () => rowsOf(context)],
+    // The change request a mark raises reads the context again, with the member's name.
+    [(sql) => sql.includes('AS "memberName"'), () => rowsOf(context && { displayName: 'Klanten', variant: context.variant, scopeSystemId: 7, systemName: context.systemName, memberName: 'Piet Jansen' })],
+    [(sql) => sql.includes(`r.role = 'Accountable'`), () => rowsOf(accountable)],
+    [(sql) => /^SELECT "displayName" FROM/.test(sql.trim()), () => rowsOf(holder)],
+  ];
+  // Writes whose answer a test depends on; every other write answers one row changed.
+  const answers = [
+    ['INSERT INTO "ContextRoles"', () => ({ rows: [{ id: ROLE_ID }] })],
+    ['INSERT INTO "ContextMemberOverrides"', () => ({ rows: [{ id: 'ovr-1' }] })],
+    ['INSERT INTO "ChangeRequests"', (params) => ({ rows: [{ id: 'cr-1', summary: 'Remove Piet Jansen from Klanten', targetName: params[2] }] })],
+  ];
   const client = {
     query: vi.fn(async (sql, params) => {
-      if (sql.includes('FOR UPDATE OF c')) return { rows: claim ? [claim] : [] };
-      if (sql.includes('AS "isListed"')) return { rows: context ? [context] : [] };
-      // The change request a mark raises reads the context again, with the member's name.
-      if (sql.includes('AS "memberName"')) {
-        return { rows: context ? [{ displayName: 'Klanten', variant: context.variant, scopeSystemId: 7, systemName: context.systemName, memberName: 'Piet Jansen' }] : [] };
-      }
+      const read = reads.find(([match]) => match(sql));
+      if (read) return read[1]();
       if (sql.startsWith('DELETE FROM "ContextMemberOverrides" WHERE "claimId"')) { writes.push({ sql, params }); return { rows: [], rowCount }; }
-      if (sql.includes(`r.role = 'Accountable'`)) return { rows: accountable ? [accountable] : [] };
-      if (/^SELECT "displayName" FROM/.test(sql.trim())) return { rows: holder ? [holder] : [] };
       writes.push({ sql: sql.replace(/\s+/g, ' ').trim(), params });
-      if (sql.includes('INSERT INTO "ContextRoles"')) return { rows: [{ id: ROLE_ID }] };
-      if (sql.includes('INSERT INTO "ContextMemberOverrides"')) return { rows: [{ id: 'ovr-1' }] };
-      if (sql.includes('INSERT INTO "ChangeRequests"')) return { rows: [{ id: 'cr-1', summary: 'Remove Piet Jansen from Klanten', targetName: params[2] }] };
-      return { rows: [], rowCount: 1 };
+      const answer = answers.find(([text]) => sql.includes(text));
+      return answer ? answer[1](params) : { rows: [], rowCount: 1 };
     }),
   };
   return {

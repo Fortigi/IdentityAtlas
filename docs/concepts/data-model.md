@@ -72,6 +72,8 @@ erDiagram
         uuid id PK
         uuid basisClaimId FK
         string changeKind "EntityCreate, EntityDelete, RelationshipAdd, RelationshipRemove, AttributeUpdate"
+        uuid contextId FK
+        uuid memberId FK
         uuid overrideId FK
         string requestStatus "open, resolved, withdrawn"
         int targetSystemId FK
@@ -188,6 +190,11 @@ erDiagram
     }
 
     ContextClaims |o--o{ ChangeRequests : "basisClaimId"
+    Contexts |o--o{ ChangeRequests : "contextId"
+    Identities |o--o{ ChangeRequests : "memberId"
+    Resources |o--o{ ChangeRequests : "memberId"
+    Principals |o--o{ ChangeRequests : "memberId"
+    Systems |o--o{ ChangeRequests : "memberId"
     ContextMemberOverrides |o--o{ ChangeRequests : "overrideId"
     Systems |o--o{ ChangeRequests : "targetSystemId"
     Contexts |o--o{ ContextClaims : "contextId"

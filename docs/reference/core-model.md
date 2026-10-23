@@ -583,13 +583,16 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
+| `attribute` | `ia:attribute` | text |  | A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined). On a change request (AttributeUpdate): the attribute to change in the source. |
 | `basisClaimId` | `ia:basisClaimId` | uuid | → ContextClaims | The claim whose decision raised it. Cleared when its interview is deleted; the request stays. |
 | `changeKind` | `ia:changeKind` | text | `EntityCreate`, `EntityDelete`, `RelationshipAdd`, `RelationshipRemove`, `AttributeUpdate` | What kind of change the source should make. |
 | `closedAt` | `ia:closedAt` | timestamp with time zone |  | When it was resolved or withdrawn; empty exactly while it is open. |
 | `closedReason` | `ia:closedReason` | text |  | Why it was closed, in one sentence. |
+| `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
 | `contextName` | `ia:contextName` | text |  | The context's name when the request was raised. |
 | `currentValue` | `ia:currentValue` | text |  | For an AttributeUpdate: what the source says now. |
 | `expectedValue` | `ia:expectedValue` | text |  | For an AttributeUpdate: what the source should say. |
+| `memberId` | `ia:memberId` | uuid | → Identities / Resources / Principals / Systems | The member; memberType names its table. Ingest alias: `memberExternalId`. |
 | `memberName` | `ia:memberName` | text |  | The member's name when the request was raised. |
 | `overrideId` | `ia:overrideId` | uuid | → ContextMemberOverrides | The override that acts in Identity Atlas until the source is corrected. |
 | `raisedAt` | `ia:raisedAt` | timestamp with time zone |  | When it was raised, or last raised again. |
@@ -607,7 +610,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
-| `attribute` | `ia:attribute` | text |  | A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined). |
+| `attribute` | `ia:attribute` | text |  | A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined). On a change request (AttributeUpdate): the attribute to change in the source. |
 | `claimKind` | `ia:claimKind` | text | `description`, `property`, `role`, `roleHistory`, `membership`, `alias` | What the claim states. |
 | `claimStatus` | `ia:claimStatus` | text | `proposed`, `confirmed`, `edited`, `rejected` | Where the claim stands in review. |
 | `confidence` | `ia:confidence` | numeric |  | How clearly the transcript states it, 0 to 1. Not a decision. |
