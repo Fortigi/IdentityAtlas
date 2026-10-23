@@ -20,6 +20,47 @@ export const TARGET_TYPE_META = {
   System:    { label: 'System',    badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700' },
 };
 
+// The four context templates (phase B of the ontology) plus "Other" for a
+// context whose contextCategory is null (a contextType the backfill did not
+// know). Hues stay clear of the variant (blue/emerald/amber) and target-type
+// (purple/orange/sky/yellow) metas so the three dimensions never look alike.
+// `groupLabel` is the heading the tree selector groups roots under.
+export const CATEGORY_META = {
+  OrganizationalUnit: {
+    label: 'Organisation', groupLabel: 'Organisation',
+    description: 'A unit of the organisation: department, team, cost center, project.',
+    badgeClass: 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-700',
+  },
+  LogicalApplication: {
+    label: 'Application', groupLabel: 'Applications',
+    description: 'A logical application: the resources that together make up one system.',
+    badgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700',
+  },
+  Tag: {
+    label: 'Tag', groupLabel: 'Tags',
+    description: 'A label an analyst attaches to anything.',
+    badgeClass: 'bg-pink-100 text-pink-800 border-pink-200 dark:bg-pink-900/30 dark:text-pink-300 dark:border-pink-700',
+  },
+  Segment: {
+    label: 'Segment', groupLabel: 'Segments',
+    description: 'A slice of the data: a location, a type, a system membership.',
+    badgeClass: 'bg-lime-100 text-lime-800 border-lime-200 dark:bg-lime-900/30 dark:text-lime-300 dark:border-lime-700',
+  },
+};
+
+// Grouping order in the tree selector: the four templates, then Other.
+export const CATEGORY_ORDER = ['OrganizationalUnit', 'LogicalApplication', 'Tag', 'Segment', 'Other'];
+
+const OTHER_CATEGORY_META = {
+  label: 'Other', groupLabel: 'Other',
+  description: 'No template: the context type is not one of the four templates.',
+  badgeClass: 'bg-stone-100 text-stone-700 border-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:border-stone-600',
+};
+
+export function categoryMeta(c) {
+  return CATEGORY_META[c] || OTHER_CATEGORY_META;
+}
+
 export function variantMeta(variant) {
   return VARIANT_META[variant] || { label: variant || 'Unknown', borderClass: 'border-gray-300', dotClass: 'bg-gray-300', textClass: 'text-gray-600 dark:text-gray-400' };
 }

@@ -24,7 +24,8 @@ export default {
     'child context per category holding the matching groups. Lets you browse or filter by the ' +
     'kind of group.',
   targetType: 'Resource',
-  contextTypes: ['EntraGroupRoot', 'EntraGroupCategory'],
+  contextCategory: 'Segment',
+  contextTypes: ['EntraGroupCategory'],
   parametersSchema: {
     type: 'object',
     properties: {
@@ -55,7 +56,7 @@ export default {
     }
 
     const rootExt = 'entra-groups-root';
-    const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'EntraGroupRoot' }];
+    const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'EntraGroupCategory' }];
     const members = [];
     const seen = new Map(); // category → externalId
     for (const r of rows) {

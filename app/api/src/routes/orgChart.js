@@ -11,6 +11,7 @@
 
 import { Router } from 'express';
 import * as db from '../db/connection.js';
+import { MANAGER_HIERARCHY_ALGORITHM } from './contexts/shared.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -59,15 +60,18 @@ router.get('/org-chart/user/:id/reports', async (req, res) => {
 
 // GET /api/org-chart  — DepartmentDetailPage probes this to know whether
 // org-chart data is available. Return availability based on whether the
-// manager-hierarchy plugin has produced anything.
+// manager-hierarchy plugin has produced anything — keyed on the producing
+// algorithm, not on the nodes' contextType.
 router.get('/org-chart', async (req, res) => {
   if (!useSql) return res.json({ available: false });
   try {
     const row = await db.queryOne(
       `SELECT count(*)::int AS n
-         FROM "Contexts"
-        WHERE "contextType" = 'ManagerHierarchy'
-          AND variant       = 'generated'`
+         FROM "Contexts" c
+         JOIN "ContextAlgorithms" a ON c."sourceAlgorithmId" = a.id
+        WHERE a.name    = $1
+          AND c.variant = 'generated'`,
+      [MANAGER_HIERARCHY_ALGORITHM]
     );
     res.json({ available: !!(row && row.n > 0) });
   } catch {

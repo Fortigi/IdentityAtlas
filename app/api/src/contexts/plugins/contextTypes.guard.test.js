@@ -14,6 +14,7 @@ import { readFileSync, readdirSync, statSync } from 'fs';
 import { dirname, join, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { REGISTERED_PLUGINS } from './registry.js';
+import { CONTEXT_CATEGORIES } from '../../ingest/validation.js';
 
 const DIR = dirname(fileURLToPath(import.meta.url));
 const LITERAL = /\b(?:contextType|rootType|childType)\s*:\s*'([^']+)'/g;
@@ -46,12 +47,13 @@ describe('context plugins declare the context types they emit', () => {
     const declared = new Set(REGISTERED_PLUGINS.flatMap(p => p.contextTypes));
     const found = emittedLiterals();
     // Guard against a vacuous pass: the scan must see the known emitters.
-    expect(found.map(f => f.value)).toEqual(expect.arrayContaining(['OrganisationalUnit', 'EntraGroupRoot', 'SystemMembershipRoot']));
+    expect(found.map(f => f.value)).toEqual(expect.arrayContaining(['OrganisationalUnit', 'EntraGroupCategory', 'SystemMembership']));
     const undeclared = found.filter(f => !declared.has(f.value)).map(f => `${f.file}: '${f.value}'`);
     expect(undeclared, 'add these to the emitting plugin\'s contextTypes (and to ontology/core.ttl)').toEqual([]);
   });
 
-  it('only scope-hierarchy types nodes after a resourceType', () => {
-    expect(REGISTERED_PLUGINS.filter(p => p.contextTypesFromResourceType).map(p => p.name)).toEqual(['scope-hierarchy']);
+  it('every registered plugin declares a template, and none types nodes after a resourceType', () => {
+    for (const p of REGISTERED_PLUGINS) expect(CONTEXT_CATEGORIES, `${p.name} declares template ${p.contextCategory}`).toContain(p.contextCategory);
+    expect(REGISTERED_PLUGINS.filter(p => p.contextTypesFromResourceType)).toEqual([]);
   });
 });

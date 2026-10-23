@@ -76,6 +76,19 @@ describe('GET /org-chart (availability)', () => {
     expect(res.body).toMatchObject({ available: true });
   });
 
+  // "Produced by the manager-hierarchy plugin" is a property of the source
+  // algorithm, not of the nodes' contextType (a template choice).
+  it('counts generated contexts by their source algorithm, not by contextType', async () => {
+    queryOne.mockResolvedValueOnce({ n: 1 });
+    await request(app).get('/api/org-chart');
+    const [sql, params] = queryOne.mock.calls[0];
+    expect(sql).toContain('JOIN "ContextAlgorithms" a ON c."sourceAlgorithmId" = a.id');
+    expect(sql).toContain('a.name    = $1');
+    expect(sql).toContain(`c.variant = 'generated'`);
+    expect(sql).not.toContain('contextType');
+    expect(params).toEqual(['manager-hierarchy']);
+  });
+
   it('available false when none', async () => {
     queryOne.mockResolvedValueOnce({ n: 0 });
     const res = await request(app).get('/api/org-chart');

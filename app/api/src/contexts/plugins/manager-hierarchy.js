@@ -24,6 +24,7 @@ import {
   buildManagerIds,
   buildManagerContexts,
   buildMemberRows,
+  buildManagerRoles,
   MANAGER_HIERARCHY_CONTEXT_TYPE,
 } from './manager-hierarchy.helpers.js';
 
@@ -36,6 +37,7 @@ export default {
     'Each node is named from configurable Principal attributes (default: Department) — a real column or an ' +
     'extendedAttributes key — optionally with the manager name appended. Requires Principals.managerId to be populated by the crawler.',
   targetType: 'Principal',
+  contextCategory: 'OrganizationalUnit',
   contextTypes: [MANAGER_HIERARCHY_CONTEXT_TYPE],
   parametersSchema: {
     type: 'object',
@@ -154,8 +156,9 @@ export default {
       ...buildManagerContexts(managerIds, byId, rootExt, naming),
     ];
     const members = buildMemberRows(rows, managerIds, overrides, rootExt);
+    const roles = buildManagerRoles(managerIds, byId);
 
     ctx.log?.(`Built ${contexts.length} contexts, ${members.length} member rows. Named by [${nameFieldLabels.join(', ') || 'manager name'}].`);
-    return { contexts, members };
+    return { contexts, members, roles };
   },
 };

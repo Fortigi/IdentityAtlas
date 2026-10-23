@@ -9,7 +9,10 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { createParams, likeContains } from '../../db/sqlParams.js';
 import { buildSearchWhere, parseExtendedSearch, withMatchedOn } from '../../lib/entitySearch.js';
+import { CONTEXT_CATEGORIES } from '../../ingest/validation.js';
 import { useSql, UUID_RE, TARGET_TYPES } from './shared.js';
+import { loadContextRoles } from './roles.js';
+import { OWNER_PRINCIPAL_ORDER } from '../../ingest/contextOwners.js';
 
 const router = Router();
 
@@ -53,6 +56,11 @@ export function memberJoinOn(targetType) {
 // Needs ix_Principals_externalId (migration 076); without it this is a
 // sequential scan of the whole Principals table per context row.
 //
+// The tie-break is OWNER_PRINCIPAL_ORDER, shared with the ingest that states a
+// synced owner as the context's Accountable (ingest/contextOwners.js), so the
+// owner shown here and the Accountable are the same account. (The ingest also
+// falls back to a unique employeeId, which this per-row join does not.)
+//
 // Exported so the tests can pin the shape rather than matching a substring.
 export const OWNER_COLUMNS = 'own.id AS "ownerPrincipalId", own."displayName" AS "ownerDisplayName"';
 
@@ -61,15 +69,14 @@ export const OWNER_JOIN = `
           SELECT p.id, p."displayName"
             FROM "Principals" p
            WHERE p."externalId" = c."ownerUserId"
-           ORDER BY (p."deletedAt" IS NULL) DESC,
-                    (p."systemId" IS NOT DISTINCT FROM c."scopeSystemId") DESC,
-                    p.id
+           ORDER BY ${OWNER_PRINCIPAL_ORDER}
            LIMIT 1
         ) own ON TRUE`;
 
 // ─── GET /api/contexts ───────────────────────────────────────────────
 // List all root contexts (parentContextId IS NULL). Optional filters:
-// ?targetType, ?variant, ?contextType, ?scopeSystemId.
+// ?targetType, ?variant, ?contextType, ?contextCategory (one of the four
+// templates), ?sourceAlgorithm (the producing plugin's name), ?scopeSystemId.
 //
 // ?search= looks at every level, not only the roots — the logical application
 // you are looking for by its CMDB reference usually sits under a catalogue —
@@ -85,6 +92,9 @@ export function buildContextListWhere(query, bind) {
   if (query.targetType && TARGET_TYPES.has(query.targetType)) eq('targetType', query.targetType);
   if (query.variant && VARIANTS.has(query.variant))           eq('variant', query.variant);
   if (query.contextType) eq('contextType', String(query.contextType).slice(0, 100));
+  if (CONTEXT_CATEGORIES.includes(query.contextCategory)) eq('contextCategory', query.contextCategory);
+  // The algorithm is joined as `a` by every caller of this WHERE.
+  if (query.sourceAlgorithm) clauses.push(`a.name = ${bind(String(query.sourceAlgorithm).slice(0, 100))}`);
   if (query.scopeSystemId) {
     const sys = parseInt(query.scopeSystemId, 10);
     if (!Number.isNaN(sys)) eq('scopeSystemId', sys);
@@ -101,7 +111,7 @@ router.get('/contexts', async (req, res) => {
     const { where, search, extended } = buildContextListWhere(req.query, bind);
 
     const r = await db.query(`
-      SELECT c.id, c.variant, c."targetType", c."contextType", c."displayName",
+      SELECT c.id, c.variant, c."targetType", c."contextType", c."contextCategory", c."displayName",
              c.description, c."scopeSystemId", c."sourceAlgorithmId", c."ownerUserId",
              c."createdByUser", c."externalId", c."directMemberCount", c."totalMemberCount",
              c."userRenamed", c."userReparented", c."sourceInstanceKey",
@@ -146,7 +156,7 @@ router.get('/contexts/tree', async (req, res) => {
         -- CYCLE guard: a corrupt parent chain (A→B→A) would otherwise recurse
         -- forever. PG stops descending the moment an id repeats on the path.
         CYCLE id SET "isCycle" USING "cyclePath"
-        SELECT id, variant, "targetType", "contextType", "displayName", description,
+        SELECT id, variant, "targetType", "contextType", "contextCategory", "displayName", description,
                "parentContextId", "scopeSystemId", "sourceAlgorithmId", "ownerUserId",
                "directMemberCount", "totalMemberCount", "userRenamed", "userReparented"
           FROM descendants
@@ -154,7 +164,7 @@ router.get('/contexts/tree', async (req, res) => {
       `, [rootParam])).rows;
     } else {
       rows = (await db.query(`
-        SELECT id, variant, "targetType", "contextType", "displayName", description,
+        SELECT id, variant, "targetType", "contextType", "contextCategory", "displayName", description,
                "parentContextId", "scopeSystemId", "sourceAlgorithmId", "ownerUserId",
                "directMemberCount", "totalMemberCount", "userRenamed", "userReparented"
           FROM "Contexts"
@@ -197,9 +207,13 @@ router.get('/contexts/tree', async (req, res) => {
 });
 
 // ─── GET /api/contexts/:id ───────────────────────────────────────────
+// The detail carries the context's roles (Accountable / Responsible) too: the
+// detail page shows the template badge and the People block in one paint, and
+// the roles lookup is one indexed read per context. /contexts/:id/roles stays
+// for the People block's refresh after an add or remove.
 router.get('/contexts/:id', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
-  if (!useSql) return res.json({ attributes: null, members: [], subContexts: [] });
+  if (!useSql) return res.json({ attributes: null, members: [], subContexts: [], roles: [] });
 
   try {
     const attr = await db.queryOne(`
@@ -220,14 +234,16 @@ router.get('/contexts/:id', async (req, res) => {
     const members = await loadMembers(req.params.id, attr.targetType, { limit: 50 });
 
     const subs = (await db.query(`
-      SELECT id, variant, "targetType", "contextType", "displayName",
+      SELECT id, variant, "targetType", "contextType", "contextCategory", "displayName",
              "directMemberCount", "totalMemberCount"
         FROM "Contexts"
        WHERE "parentContextId" = $1
        ORDER BY "displayName"
     `, [req.params.id])).rows;
 
-    res.json({ attributes: attr, members, subContexts: subs });
+    const roles = await loadContextRoles(req.params.id);
+
+    res.json({ attributes: attr, members, subContexts: subs, roles });
   } catch (err) {
     console.error('GET /contexts/:id failed:', err.message);
     res.status(500).json({ error: 'Failed to load context details' });

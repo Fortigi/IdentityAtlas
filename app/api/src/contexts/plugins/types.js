@@ -16,6 +16,8 @@
  * @property {string} externalId         Stable id within this plugin run.
  * @property {string} displayName
  * @property {string} contextType        Sub-classification; one of the plugin's contextTypes.
+ * @property {string} [contextCategory]   The template (OrganizationalUnit | LogicalApplication | Tag | Segment)
+ *                                        when it differs per node (the recipe); else the plugin's.
  * @property {string} [description]
  * @property {string} [parentExternalId] Optional parent (must match another node's externalId in the same run).
  * @property {Object} [extendedAttributes]
@@ -31,6 +33,16 @@
  * @typedef {Object} PluginRunResult
  * @property {ContextNode[]} contexts
  * @property {ContextMemberLink[]} members
+ * @property {ContextRoleLink[]} [roles]   Who answers for a context; only an OrganizationalUnit
+ *                                          or LogicalApplication carries roles.
+ */
+
+/**
+ * @typedef {Object} ContextRoleLink
+ * @property {string} contextExternalId
+ * @property {string} [principalId]        UUID of the account, or
+ * @property {string} [identityId]         UUID of the person; exactly one.
+ * @property {('Accountable'|'Responsible')} role
  */
 
 /**
@@ -49,8 +61,8 @@
  * @property {string[]} contextTypes      Every contextType the plugin can emit. The core
  *                                        ontology (ontology/core.ttl) declares each one;
  *                                        npm run ontology:check compares the two.
- * @property {boolean} [contextTypesFromResourceType]  True when nodes below the declared
- *                                        types are typed after a resourceType (open list).
+ * @property {string} contextCategory    The template every node falls under (see contextCategory on
+ *                                        ContextNode for a per-node override). One of CONTEXT_CATEGORIES.
  * @property {Object} parametersSchema    JSON-Schema-ish (required + properties).
  * @property {Function} run               (params, ctx) => Promise<PluginRunResult>
  */

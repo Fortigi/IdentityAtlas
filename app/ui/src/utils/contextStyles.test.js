@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { VARIANT_META, TARGET_TYPE_META, variantMeta, targetTypeMeta, editedMeta } from './contextStyles';
+import {
+  VARIANT_META, TARGET_TYPE_META, CATEGORY_META, CATEGORY_ORDER,
+  variantMeta, targetTypeMeta, categoryMeta, editedMeta,
+} from './contextStyles';
 
 // These metas are applied raw (no per-call dark: overrides) by every Contexts
 // component, so a colour class without a dark: variant breaks the whole tab in
@@ -25,6 +28,45 @@ describe('contextStyles dark-mode coverage', () => {
 
   it('Principal is visually distinct from the Unknown fallback', () => {
     expect(TARGET_TYPE_META.Principal.badgeClass).not.toEqual(targetTypeMeta('nope').badgeClass);
+  });
+
+  it('every template badgeClass has a dark: variant, and so does Other', () => {
+    for (const [key, meta] of Object.entries(CATEGORY_META)) {
+      expect(meta.badgeClass, `CATEGORY_META.${key}.badgeClass`).toMatch(/dark:/);
+    }
+    expect(categoryMeta(null).badgeClass).toMatch(/dark:/);
+  });
+});
+
+describe('categoryMeta — the four templates plus Other', () => {
+  it('labels the four templates and describes each one', () => {
+    expect(categoryMeta('OrganizationalUnit').label).toBe('Organisation');
+    expect(categoryMeta('LogicalApplication').label).toBe('Application');
+    expect(categoryMeta('Tag').label).toBe('Tag');
+    expect(categoryMeta('Segment').label).toBe('Segment');
+    for (const meta of Object.values(CATEGORY_META)) expect(meta.description).toMatch(/\S/);
+  });
+
+  it('falls back to Other for null, undefined and an unknown value', () => {
+    expect(categoryMeta(null).label).toBe('Other');
+    expect(categoryMeta(undefined).groupLabel).toBe('Other');
+    expect(categoryMeta('Nope').label).toBe('Other');
+  });
+
+  it('uses hues no variant or target-type meta already uses', () => {
+    const taken = [
+      ...Object.values(VARIANT_META).map(m => m.dotClass),
+      ...Object.values(TARGET_TYPE_META).map(m => m.badgeClass),
+    ].join(' ');
+    for (const [key, meta] of Object.entries(CATEGORY_META)) {
+      const hue = meta.badgeClass.match(/^bg-([a-z]+)-/)[1];
+      expect(taken, `${key} reuses ${hue}`).not.toMatch(new RegExp(`\\b(bg|text)-${hue}-`));
+    }
+  });
+
+  it('orders the templates with Other last', () => {
+    expect(CATEGORY_ORDER).toEqual(['OrganizationalUnit', 'LogicalApplication', 'Tag', 'Segment', 'Other']);
+    expect(CATEGORY_ORDER.slice(0, 4).every(k => CATEGORY_META[k])).toBe(true);
   });
 });
 

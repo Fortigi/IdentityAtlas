@@ -117,6 +117,12 @@ export function buildManagerContexts(managerIds, byId, rootExt, naming) {
   return contexts;
 }
 
+// The manager answers for their node: one Accountable role per manager that is
+// an account of the system (a ghost manager has no row to point at).
+export function buildManagerRoles(managerIds, byId) {
+  return [...managerIds].filter(id => byId.has(id)).map(id => ({ contextExternalId: id, principalId: id, role: 'Accountable' }));
+}
+
 // Every principal with an effective manager becomes a member of that manager's
 // context. If the manager was excluded (or is an override target that does not
 // exist), the principal goes to root instead — unless it is itself a top-level

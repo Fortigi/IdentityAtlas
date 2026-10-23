@@ -69,7 +69,7 @@ export function ensureTypeContext(seen, contexts, val, rootExt) {
 // Fold the attribute rows into the two-level tree (synthetic root + one child per distinct value).
 export function buildTree(rows, rootName) {
   const rootExt = 'type-root';
-  const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'ResourceTypeRoot' }];
+  const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'ResourceType' }];
   const members = [];
   const seen = new Map(); // value → externalId
   for (const r of rows) {
@@ -139,7 +139,8 @@ export default {
     'one child context per distinct value, each holding the matching resources as members. Lets ' +
     'you ask "who can access any VM / any storage account?".',
   targetType: 'Resource',
-  contextTypes: ['ResourceTypeRoot', 'ResourceType', 'ResourcePlane', 'ResourceRole'],
+  contextCategory: 'Segment',
+  contextTypes: ['ResourceType', 'ResourcePlane', 'ResourceRole'],
   parametersSchema: {
     type: 'object',
     required: ['scopeSystemId'],

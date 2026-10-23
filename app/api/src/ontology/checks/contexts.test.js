@@ -83,7 +83,7 @@ describe('checkContextTypes', () => {
     it('fails when the named plugin no longer declares the type (a renamed type)', () => {
       const registry = contextRegistry();
       plugin(registry).contextTypes = ['Team'];
-      const ttl = `${CONTEXT_TTL}\nia:TeamContext a owl:Class ; rdfs:subClassOf ia:Context ; ia:typeValue "Team" ; ia:producedBy "manager-hierarchy" ; ia:allowedTargetType ia:EntityKind_Principal .`;
+      const ttl = `${CONTEXT_TTL}\nia:TeamContext a owl:Class ; rdfs:subClassOf ia:OrganizationalUnit ; ia:typeValue "Team" ; ia:producedBy "manager-hierarchy" ; ia:allowedTargetType ia:EntityKind_Principal .`;
       expect(run({ ttl, registry })).toEqual(['context-producer-stale ia:ManagerHierarchyContext']);
     });
   });
@@ -137,5 +137,52 @@ describe('checkIntegrity — context-type annotations', () => {
   it('does not require a target type on an untyped context subclass (a grouping superclass)', () => {
     const ttl = `${CONTEXT_TTL}\nia:TreeContext a owl:Class ; rdfs:subClassOf ia:Context ; rdfs:label "Tree" ; rdfs:comment "Any tree." ; rdfs:isDefinedBy <https://identityatlas.io/ontology> .`;
     expect(findings(ttl)).toEqual([]);
+  });
+});
+
+describe('checkContextTypes — the template value list and plugin templates', () => {
+  const scheme = `
+ia:denotesTemplate a owl:AnnotationProperty .
+ia:ContextCategory a owl:Class ; rdfs:label "Context category" ; rdfs:comment "x." ; rdfs:isDefinedBy <https://identityatlas.io/ontology> .
+ia:ContextCategory_OrganizationalUnit a owl:NamedIndividual, ia:ContextCategory ; ia:typeValue "OrganizationalUnit" ; ia:denotesTemplate ia:OrganizationalUnit ; rdfs:label "OU" ; rdfs:comment "x." ; rdfs:isDefinedBy <https://identityatlas.io/ontology> .
+ia:ContextCategory_Tag a owl:NamedIndividual, ia:ContextCategory ; ia:typeValue "Tag" ; ia:denotesTemplate ia:TagContext ; rdfs:label "Tag" ; rdfs:comment "x." ; rdfs:isDefinedBy <https://identityatlas.io/ontology> .`;
+  const WITH = `${CONTEXT_TTL}${scheme}`;
+
+  it('accepts a value list that names every template under ia:Context exactly once', () => {
+    expect(run({ ttl: WITH })).toEqual([]);
+  });
+
+  it('is silent when the ontology declares no value list yet', () => {
+    expect(run({ ttl: CONTEXT_TTL })).toEqual([]);
+  });
+
+  it('fails for a value that names no template, a template no value names, and a template named twice', () => {
+    const noTemplate = edit(WITH, 'ia:denotesTemplate ia:TagContext ;', 'ia:denotesTemplate ia:ManagerHierarchyContext ;');
+    expect(run({ ttl: noTemplate })).toEqual(['context-category-template ia:ContextCategory_Tag', 'context-category-template ia:TagContext']);
+    const missing = edit(WITH, 'ia:denotesTemplate ia:TagContext ;', '');
+    expect(run({ ttl: missing })).toEqual(['context-category-template ia:ContextCategory_Tag', 'context-category-template ia:TagContext']);
+    const twice = edit(WITH, 'ia:denotesTemplate ia:TagContext ;', 'ia:denotesTemplate ia:OrganizationalUnit ;');
+    expect(run({ ttl: twice })).toEqual(['context-category-template ia:TagContext', 'context-category-template ia:OrganizationalUnit']);
+  });
+
+  it('resolves a plugin template through the value list, and through the class name without one', () => {
+    expect(run({ ttl: WITH })).toEqual([]);
+    const registry = contextRegistry();
+    plugin(registry).contextCategory = 'Nowhere';
+    expect(run({ ttl: WITH, registry })).toEqual(['plugin-category-undefined plugin:manager-hierarchy']);
+  });
+
+  it('fails when a plugin emits a type that is not under its template', () => {
+    const registry = contextRegistry();
+    plugin(registry).contextCategory = 'Tag';
+    const out = checkContextTypes(modelOf(WITH), registry);
+    expect(out.map(f => `${f.code} ${f.subject}`)).toEqual(['plugin-category-mismatch plugin:manager-hierarchy']);
+    expect(out[0].message).toBe('emits "ManagerHierarchy" (ia:ManagerHierarchyContext), which is not under its template ia:TagContext');
+  });
+
+  it('ignores a plugin that declares no template', () => {
+    const registry = contextRegistry();
+    delete plugin(registry).contextCategory;
+    expect(run({ ttl: WITH, registry })).toEqual([]);
   });
 });

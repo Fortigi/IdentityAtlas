@@ -51,7 +51,6 @@ const UNDOCUMENTED_FILES = new Set([
   'bulkLists.js',
   'categories.js',
   'contextPlugins.js',
-  'contexts.js',
   'crawlerFiles.js',
   'dataExport.js',
   'details.js',

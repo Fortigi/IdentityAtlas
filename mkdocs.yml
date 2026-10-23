@@ -180,6 +180,7 @@ nav:
       - Test Coverage: reference/coverage.md
       - Under the hood:
           - Core Ontology: architecture/core-ontology.md
+          - Context Templates (phase B): architecture/context-templates-phase-b.md
           - Crawler Architecture: architecture/crawler-architecture.md
           - SQL Connector Delta Loading: architecture/sql-connector-delta.md
           - Reports: architecture/reports.md

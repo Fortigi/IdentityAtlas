@@ -70,15 +70,27 @@ describe('getOrCreateTagRoot', () => {
     const id = await getOrCreateTagRoot('Resource');
     // Returned id should be a uuid (randomUUID).
     expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-    // One INSERT into Contexts with the right shape.
+    // One INSERT into Contexts with the right shape: the root is a Tag context
+    // of the Tag template, marked tagRoot — there is no root type any more.
     expect(calls.query.length).toBe(1);
     expect(calls.query[0].sql).toMatch(/INSERT INTO "Contexts"/);
-    expect(calls.query[0].sql).toMatch(/'TagGroup'/);
-    expect(calls.query[0].sql).toMatch(/'manual'/);
-    // Params: [id, targetType, description]
+    expect(calls.query[0].sql).toContain(`VALUES ($1, 'manual', $2, 'Tag', 'Tag', 'Tags', $3, 'system-bootstrap', $4::jsonb)`);
+    expect(calls.query[0].sql).not.toMatch(/TagGroup/);
+    // Params: [id, targetType, description, marker]
     expect(calls.query[0].params[0]).toBe(id);
     expect(calls.query[0].params[1]).toBe('Resource');
     expect(calls.query[0].params[2]).toMatch(/Resource tags/);
+    expect(JSON.parse(calls.query[0].params[3])).toEqual({ tagRoot: true });
+  });
+
+  it('finds an existing root by the tagRoot marker on a parentless Tag context', async () => {
+    const { getOrCreateTagRoot, calls } = await loadBootstrapWithExistingRoots({ Principal: TAGS_PRINCIPAL_ID });
+    await getOrCreateTagRoot('Principal');
+    const sql = calls.queryOne[0].sql;
+    expect(sql).toContain(`"contextType" = 'Tag'`);
+    expect(sql).toContain(`"extendedAttributes"->>'tagRoot' = 'true'`);
+    expect(sql).toContain('"parentContextId" IS NULL');
+    expect(sql).not.toMatch(/TagGroup/);
   });
 
   it('round-trips three different targetTypes independently', async () => {

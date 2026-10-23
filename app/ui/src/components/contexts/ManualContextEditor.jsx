@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import ContextPicker from './ContextPicker';
-import { isContextDirty, normalizeContextFields } from './ManualContextEditor.helpers';
+import ContextCategorySelect from './ContextCategorySelect';
+import { isContextDirty, normalizeContextFields, defaultChildCategory } from './ManualContextEditor.helpers';
 
 // ─── Manual-context inline editor ─────────────────────────────────────────────
 // Rename, edit description, set parent (picker restricted to same targetType),
@@ -19,6 +20,7 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
   const [displayName, setDisplayName] = useState(seed.displayName);
   const [description, setDescription] = useState(seed.description);
   const [ownerUserId, setOwnerUserId] = useState(seed.ownerUserId);
+  const [contextCategory, setContextCategory] = useState(seed.contextCategory);
   const [parentId, setParentId] = useState(seed.parentId);
   const [parentLabel, setParentLabel] = useState(seed.parentLabel);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -30,6 +32,7 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [childName, setChildName] = useState('');
+  const [childCategory, setChildCategory] = useState(() => defaultChildCategory(attrs));
   const [addingChild, setAddingChild] = useState(false);
 
   // Reset when a different context opens in this tab.
@@ -37,10 +40,12 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
     setDisplayName(attrs.displayName || '');
     setDescription(attrs.description || '');
     setOwnerUserId(attrs.ownerUserId || '');
+    setContextCategory(attrs.contextCategory || '');
+    setChildCategory(defaultChildCategory({ contextCategory: attrs.contextCategory }));
     setParentId(attrs.parentContextId || '');
     setParentLabel(attrs.parentDisplayName || '');
     setError(null); setSaved(false);
-  }, [attrs.id, attrs.displayName, attrs.description, attrs.ownerUserId, attrs.parentContextId, attrs.parentDisplayName]);
+  }, [attrs.id, attrs.displayName, attrs.description, attrs.ownerUserId, attrs.contextCategory, attrs.parentContextId, attrs.parentDisplayName]);
 
   // Compute the set of context ids that can NOT be picked as a parent:
   // self + self's descendants (would create a cycle). The picker fetches
@@ -65,7 +70,7 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
 
   useEffect(() => { refreshExcludes(); }, [refreshExcludes]);
 
-  const dirty = isContextDirty(attrs, { displayName, description, ownerUserId, parentId });
+  const dirty = isContextDirty(attrs, { displayName, description, ownerUserId, contextCategory, parentId });
 
   async function save() {
     setSaving(true); setError(null); setSaved(false);
@@ -74,6 +79,7 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
         displayName: displayName.trim(),
         description: description.trim() || null,
         ownerUserId: ownerUserId.trim() || null,
+        contextCategory: contextCategory || null,
         parentContextId: parentId || null,
       };
       const r = await authFetch(`/api/contexts/${contextId}`, {
@@ -94,7 +100,8 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
   }
 
   // Create a new manual child context directly under this one. Inherits this
-  // context's targetType + contextType so it sits naturally in the tree.
+  // context's targetType + contextType so it sits naturally in the tree; the
+  // template defaults to this context's but can be chosen.
   async function addChild() {
     const name = childName.trim();
     if (!name) return;
@@ -106,6 +113,7 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
         body: JSON.stringify({
           displayName: name,
           contextType: attrs.contextType || 'Manual',
+          contextCategory: childCategory,
           targetType: attrs.targetType,
           parentContextId: contextId,
         }),
@@ -147,8 +155,9 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="Display name">
+        <Field label="Display name" id="ctx-display-name">
           <input
+            id="ctx-display-name"
             value={displayName} onChange={e => setDisplayName(e.target.value)}
             className="w-full border rounded px-2 py-1 text-sm"
           />
@@ -160,7 +169,13 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
             className="w-full border rounded px-2 py-1 text-sm"
           />
         </Field>
-        <Field label="Description" full>
+        <Field label="Template" help="An organisation or application can name the people who answer for it.">
+          <ContextCategorySelect
+            value={contextCategory} onChange={setContextCategory} allowNone
+            className="w-full border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
+          />
+        </Field>
+        <Field label="Description">
           <textarea
             value={description} onChange={e => setDescription(e.target.value)}
             rows={2}
@@ -183,6 +198,8 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
 
       <AddChildRow
         childName={childName}
+        childCategory={childCategory}
+        onCategoryChange={setChildCategory}
         addingChild={addingChild}
         onChange={e => setChildName(e.target.value)}
         onSubmit={addChild}
@@ -221,10 +238,10 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
 }
 
 
-function Field({ label, help, full, children }) {
+function Field({ label, help, full, id, children }) {
   return (
     <div className={full ? 'sm:col-span-2' : ''}>
-      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">{label}</label>
+      <label htmlFor={id} className="block text-xs font-medium text-gray-700 dark:text-gray-300">{label}</label>
       {children}
       {help && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{help}</p>}
     </div>
@@ -258,18 +275,25 @@ function ParentField({ parentId, parentLabel, onOpen, onClear }) {
   );
 }
 
-// Add a manual child context directly under this node.
-function AddChildRow({ childName, addingChild, onChange, onSubmit }) {
+// Add a manual child context directly under this node, with the template it
+// starts as (its parent's by default).
+function AddChildRow({ childName, childCategory, onCategoryChange, addingChild, onChange, onSubmit }) {
   return (
     <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
-      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Add child context</label>
+      <label htmlFor="add-child-name" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Add child context</label>
       <div className="flex items-center gap-2">
         <input
+          id="add-child-name"
           value={childName}
           onChange={onChange}
           onKeyDown={e => { if (e.key === 'Enter') onSubmit(); }}
           placeholder="New child name…"
           className="flex-1 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
+        />
+        <ContextCategorySelect
+          aria-label="Child template"
+          value={childCategory} onChange={onCategoryChange}
+          className="border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
         />
         <button
           onClick={onSubmit}

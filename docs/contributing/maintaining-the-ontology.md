@@ -174,6 +174,7 @@ only shrinks: an entry that no longer matches a finding fails as `stale-known-ga
 | `relationship-endpoint-mismatch`, `polymorphic-target-mismatch`, `fk-type-mismatch` | a relationship does not fit its edge table |
 | `context-type-undefined`, `context-type-unused`, `context-producer-*`, `context-target-type-mismatch`, `plugin-context-types-undeclared` | context types differ between the plugins, the code and the ontology |
 | `context-target-type-missing`, `context-target-type-invalid`, `context-annotation-misplaced` | a context type's annotations are incomplete or misplaced |
+| `context-category-template`, `plugin-category-undefined`, `plugin-category-mismatch` | the stored template values differ from the templates, or a plugin declares a template its types do not sit under |
 | `template-missing`, `template-ambiguous`, `template-misplaced` | a type has no template, two templates, or a template sits outside the three kinds of node |
 | `expands-access-mismatch`, `control-permission-link` | what holding a resource reaches differs from the engine, or a control permission is not linked to what it controls |
 | `accountability-default-misplaced`, `accountability-default-invalid` | an accountability default sits on the wrong class or names no `ia:Accountability` value |

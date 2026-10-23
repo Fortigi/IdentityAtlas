@@ -21,10 +21,9 @@ export default {
     'emits. Use leafResourceTypes to stop the tree at chosen types and attach their descendants ' +
     'as members instead of nodes.',
   targetType: 'Resource',
-  // Below the root, a node is typed after the resource it stands for (an Azure
-  // subscription is contextType 'subscription'), so the list is open.
-  contextTypes: ['ScopeHierarchy', 'Scope'],
-  contextTypesFromResourceType: true,
+  contextCategory: 'Segment',
+  // Every node is a Scope; the resource's own type is in extendedAttributes.resourceType.
+  contextTypes: ['Scope'],
   parametersSchema: {
     type: 'object',
     required: ['scopeSystemId'],
@@ -44,74 +43,86 @@ export default {
   },
   async run(params, ctx) {
     const scopeSystemId = parseInt(params.scopeSystemId, 10);
-    if (!Number.isFinite(scopeSystemId)) throw new Error('scopeSystemId is required and must be an integer');
-    const rootName = (params.rootName || 'Scope Hierarchy').slice(0, 500);
-    const leafTypes = new Set(
-      (Array.isArray(params.leafResourceTypes) ? params.leafResourceTypes : []).filter((t) => typeof t === 'string'),
-    );
-
-    // Scope nodes only. Capability-resources ("<role> @ <scope>") live in the same system but are
-    // not part of the containment hierarchy — they carry a capabilityId, so exclude them.
-    const nodes = (await db.query(
-      `SELECT id::text AS id, "displayName" AS name, "resourceType" AS rtype
-         FROM "Resources" WHERE "systemId" = $1 AND "capabilityId" IS NULL`,
-      [scopeSystemId],
-    )).rows;
-    if (nodes.length === 0) {
-      ctx.log?.(`No resources in system ${scopeSystemId} — nothing to do.`);
-      return { contexts: [], members: [] };
-    }
-
-    const edges = (await db.query(
-      `SELECT rr."parentResourceId"::text AS parent, rr."childResourceId"::text AS child
-         FROM "ResourceRelationships" rr
-         JOIN "Resources" rc ON rc.id = rr."childResourceId" AND rc."systemId" = $1
-        WHERE rr."relationshipType" = 'Contains'
-          AND COALESCE((rr."extendedAttributes" ->> 'propagates')::boolean, true) = true`,
-      [scopeSystemId],
-    )).rows;
-
-    const byId = new Map(nodes.map((n) => [n.id, n]));
-    const parentOf = new Map();
-    for (const e of edges) { if (!parentOf.has(e.child)) parentOf.set(e.child, e.parent); }
-
-    // The nearest ancestor (if any) whose resourceType is a leaf type — that ancestor "absorbs"
-    // this node as a member instead of letting it be its own context. Memoised; cycle-safe.
-    const leafAncCache = new Map();
-    function leafAncestor(id, seen = new Set()) {
-      if (leafAncCache.has(id)) return leafAncCache.get(id);
-      if (seen.has(id)) return null; // defensive: a containment cycle
-      seen.add(id);
-      const parent = parentOf.get(id);
-      let result = null;
-      if (parent && byId.has(parent)) {
-        result = leafTypes.has(byId.get(parent).rtype) ? parent : leafAncestor(parent, seen);
-      }
-      leafAncCache.set(id, result);
-      return result;
-    }
-
-    const rootExt = 'scope-root';
-    const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'ScopeHierarchy' }];
-    const members = [];
-
-    for (const n of nodes) {
-      const leafAnc = leafAncestor(n.id);
-      if (leafAnc) {
-        members.push({ contextExternalId: leafAnc, memberId: n.id }); // absorbed into a leaf node
-        continue;
-      }
-      const parent = parentOf.get(n.id);
-      const parentIsContext = parent && byId.has(parent) && !leafAncestor(parent);
-      contexts.push({
-        externalId: n.id,
-        displayName: n.name || n.id,
-        contextType: n.rtype || 'Scope',
-        parentExternalId: parentIsContext ? parent : rootExt,
-      });
-    }
-
-    ctx.log?.(`Built ${contexts.length} scope contexts, ${members.length} member rows (leaf types: ${[...leafTypes].join(', ') || 'none'}).`);
-    return { contexts, members };
+    return runScopeHierarchy(scopeSystemId, params, ctx);
   },
 };
+
+// Every scope that is not absorbed into a leaf ancestor becomes a Scope context
+// under its containing scope (else under the synthetic root), with the
+// resource's own type kept as an attribute; absorbed scopes become members.
+function buildScopeTree(nodes, rootName, { parentOf, byId, leafAncestor }) {
+  const rootExt = 'scope-root';
+  const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'Scope' }];
+  const members = [];
+  for (const n of nodes) {
+    const leafAnc = leafAncestor(n.id);
+    if (leafAnc) {
+      members.push({ contextExternalId: leafAnc, memberId: n.id }); // absorbed into a leaf node
+      continue;
+    }
+    const parent = parentOf.get(n.id);
+    const parentIsContext = parent && byId.has(parent) && !leafAncestor(parent);
+    contexts.push({
+      externalId: n.id,
+      displayName: n.name || n.id,
+      contextType: 'Scope',
+      extendedAttributes: { resourceType: n.rtype || null },
+      parentExternalId: parentIsContext ? parent : rootExt,
+    });
+  }
+  return { contexts, members };
+}
+
+async function runScopeHierarchy(scopeSystemId, params, ctx) {
+  if (!Number.isFinite(scopeSystemId)) throw new Error('scopeSystemId is required and must be an integer');
+  const rootName = (params.rootName || 'Scope Hierarchy').slice(0, 500);
+  const leafTypes = new Set(
+    (Array.isArray(params.leafResourceTypes) ? params.leafResourceTypes : []).filter((t) => typeof t === 'string'),
+  );
+
+  // Scope nodes only. Capability-resources ("<role> @ <scope>") live in the same system but are
+  // not part of the containment hierarchy — they carry a capabilityId, so exclude them.
+  const nodes = (await db.query(
+    `SELECT id::text AS id, "displayName" AS name, "resourceType" AS rtype
+       FROM "Resources" WHERE "systemId" = $1 AND "capabilityId" IS NULL`,
+    [scopeSystemId],
+  )).rows;
+  if (nodes.length === 0) {
+    ctx.log?.(`No resources in system ${scopeSystemId} — nothing to do.`);
+    return { contexts: [], members: [] };
+  }
+
+  const edges = (await db.query(
+    `SELECT rr."parentResourceId"::text AS parent, rr."childResourceId"::text AS child
+       FROM "ResourceRelationships" rr
+       JOIN "Resources" rc ON rc.id = rr."childResourceId" AND rc."systemId" = $1
+      WHERE rr."relationshipType" = 'Contains'
+        AND COALESCE((rr."extendedAttributes" ->> 'propagates')::boolean, true) = true`,
+    [scopeSystemId],
+  )).rows;
+
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const parentOf = new Map();
+  for (const e of edges) { if (!parentOf.has(e.child)) parentOf.set(e.child, e.parent); }
+
+  // The nearest ancestor (if any) whose resourceType is a leaf type — that ancestor "absorbs"
+  // this node as a member instead of letting it be its own context. Memoised; cycle-safe.
+  const leafAncCache = new Map();
+  function leafAncestor(id, seen = new Set()) {
+    if (leafAncCache.has(id)) return leafAncCache.get(id);
+    if (seen.has(id)) return null; // defensive: a containment cycle
+    seen.add(id);
+    const parent = parentOf.get(id);
+    let result = null;
+    if (parent && byId.has(parent)) {
+      result = leafTypes.has(byId.get(parent).rtype) ? parent : leafAncestor(parent, seen);
+    }
+    leafAncCache.set(id, result);
+    return result;
+  }
+
+  const { contexts, members } = buildScopeTree(nodes, rootName, { parentOf, byId, leafAncestor });
+
+  ctx.log?.(`Built ${contexts.length} scope contexts, ${members.length} member rows (leaf types: ${[...leafTypes].join(', ') || 'none'}).`);
+  return { contexts, members };
+}

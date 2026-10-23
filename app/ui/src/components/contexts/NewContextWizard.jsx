@@ -49,6 +49,9 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
 
   // Manual path state
   const [mTargetType, setMTargetType] = useState('Identity');
+  // A new tree has no parent to inherit a template from, so it starts as a
+  // Segment — the template that carries no roles and claims the least.
+  const [mContextCategory, setMContextCategory] = useState('Segment');
   const [mContextType, setMContextType] = useState('');
   const [mDisplayName, setMDisplayName] = useState('');
   const [mDescription, setMDescription] = useState('');
@@ -90,7 +93,7 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
     setStep(1); setSource(null);
     setSelected(null); setParams({}); setDryResult(null);
     setError(null); setRunning(false); setDryRunning(false);
-    setMTargetType('Identity'); setMContextType(''); setMDisplayName('');
+    setMTargetType('Identity'); setMContextCategory('Segment'); setMContextType(''); setMDisplayName('');
     setMDescription(''); setMScopeSystemId(''); setCreating(false);
     setMode('new'); setRefreshKey('');
   }
@@ -192,6 +195,7 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           targetType: mTargetType,
+          contextCategory: mContextCategory,
           contextType: mContextType.trim(),
           displayName: mDisplayName.trim(),
           description: mDescription.trim() || null,
@@ -228,6 +232,7 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
         refreshTargets={refreshTargets}
         dryRunning={dryRunning} dryResult={dryResult} onDryRun={dryRun}
         mTargetType={mTargetType} setMTargetType={setMTargetType}
+        mContextCategory={mContextCategory} setMContextCategory={setMContextCategory}
         mContextType={mContextType} setMContextType={setMContextType}
         mDisplayName={mDisplayName} setMDisplayName={setMDisplayName}
         mDescription={mDescription} setMDescription={setMDescription}

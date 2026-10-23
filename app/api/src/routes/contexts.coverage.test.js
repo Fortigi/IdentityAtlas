@@ -124,6 +124,35 @@ describe('GET /contexts', () => {
     expect(sql).not.toContain('LIMIT 1000');
     expect(sql).not.toContain('c."extendedAttributes"');
   });
+
+  // The tree selector groups roots by template, so the list must carry the
+  // category and filter on it; the matrix's "By Manager Hierarchy" sort lists
+  // roots by the plugin that produced them.
+  it('returns contextCategory and filters on a valid ?contextCategory', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: ID, contextCategory: 'LogicalApplication' }] });
+    const res = await request(app).get('/api/contexts?contextCategory=LogicalApplication');
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toContain('c."contextCategory",');
+    expect(sql).toContain('c."contextCategory" = $1');
+    expect(params).toEqual(['LogicalApplication']);
+    expect(res.body.data[0].contextCategory).toBe('LogicalApplication');
+  });
+
+  it('ignores a ?contextCategory outside the four templates', async () => {
+    query.mockResolvedValueOnce({ rows: [] });
+    await request(app).get('/api/contexts?contextCategory=Department');
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).not.toContain('"contextCategory" =');
+    expect(params).toEqual([]);
+  });
+
+  it('filters on the producing plugin with ?sourceAlgorithm', async () => {
+    query.mockResolvedValueOnce({ rows: [] });
+    await request(app).get('/api/contexts?sourceAlgorithm=manager-hierarchy');
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toContain('a.name = $1');
+    expect(params).toEqual(['manager-hierarchy']);
+  });
 });
 
 // ─── GET /contexts/tree ──────────────────────────────────────────────
@@ -182,15 +211,19 @@ describe('GET /contexts/:id', () => {
     expect(res.status).toBe(404);
   });
 
-  it('returns attributes, members, and sub-contexts', async () => {
-    queryOne.mockResolvedValueOnce({ id: ID, targetType: 'Identity', displayName: 'X' }); // attr
+  it('returns attributes, members, sub-contexts and roles', async () => {
+    queryOne.mockResolvedValueOnce({ id: ID, targetType: 'Identity', displayName: 'X', contextCategory: 'OrganizationalUnit' }); // attr
     query.mockResolvedValueOnce({ rows: [{ id: 'm1', displayName: 'Member' }] }); // loadMembers data
     query.mockResolvedValueOnce({ rows: [{ id: ID2, displayName: 'Sub' }] }); // subs
+    query.mockResolvedValueOnce({ rows: [{ id: ID3, role: 'Accountable', principalId: 'p1', identityId: null, displayName: 'Boss', addedBy: 'algorithm' }] }); // roles
     const res = await request(app).get(`/api/contexts/${ID}`);
     expect(res.status).toBe(200);
-    expect(res.body.attributes.id).toBe(ID);
+    expect(res.body.attributes).toMatchObject({ id: ID, contextCategory: 'OrganizationalUnit' });
     expect(res.body.members).toEqual([{ id: 'm1', displayName: 'Member' }]);
     expect(res.body.subContexts).toEqual([{ id: ID2, displayName: 'Sub' }]);
+    expect(res.body.roles).toEqual([{ id: ID3, role: 'Accountable', principalId: 'p1', identityId: null, displayName: 'Boss', addedBy: 'algorithm' }]);
+    expect(query.mock.calls[2][0]).toContain('FROM "ContextRoles" r');
+    expect(query.mock.calls[2][1]).toEqual([ID]);
     // The detail header is where the owner is shown, so the detail query must
     // resolve it too — not only the roots list.
     expect(queryOne.mock.calls[0][0]).toContain(OWNER_JOIN);
@@ -200,9 +233,11 @@ describe('GET /contexts/:id', () => {
   it('returns empty members for an unknown targetType (no member table)', async () => {
     queryOne.mockResolvedValueOnce({ id: ID, targetType: 'Mystery' }); // attr
     query.mockResolvedValueOnce({ rows: [] }); // subs (loadMembers short-circuits)
+    query.mockResolvedValueOnce({ rows: [] }); // roles
     const res = await request(app).get(`/api/contexts/${ID}`);
     expect(res.status).toBe(200);
     expect(res.body.members).toEqual([]);
+    expect(res.body.roles).toEqual([]);
   });
 
   it('500 when the attr query rejects', async () => {
@@ -313,6 +348,57 @@ describe('POST /contexts', () => {
     });
     expect(res.status).toBe(500);
   });
+
+  // The template (contextCategory) is the last bound value of the INSERT.
+  const insertedCategory = () => query.mock.calls[0][1].at(-1);
+
+  it('stores the given contextCategory', async () => {
+    query.mockResolvedValueOnce({});
+    queryOne.mockResolvedValueOnce({ id: 'new' });
+    const res = await request(app).post('/api/contexts').send({
+      targetType: 'Resource', contextType: 'Application', displayName: 'Payroll', contextCategory: 'LogicalApplication',
+    });
+    expect(res.status).toBe(201);
+    expect(query.mock.calls[0][0]).toContain('"contextCategory"');
+    expect(insertedCategory()).toBe('LogicalApplication');
+  });
+
+  it('defaults the contextCategory to the parent\'s when a parent is given', async () => {
+    queryOne.mockResolvedValueOnce({ targetType: 'Principal', contextCategory: 'OrganizationalUnit' }); // parent
+    query.mockResolvedValueOnce({});
+    queryOne.mockResolvedValueOnce({ id: 'new' });
+    const res = await request(app).post('/api/contexts').send({
+      targetType: 'Principal', contextType: 'Department', displayName: 'Eng', parentContextId: ID,
+    });
+    expect(res.status).toBe(201);
+    expect(insertedCategory()).toBe('OrganizationalUnit');
+  });
+
+  it('a given contextCategory wins over the parent\'s', async () => {
+    queryOne.mockResolvedValueOnce({ targetType: 'Principal', contextCategory: 'OrganizationalUnit' });
+    query.mockResolvedValueOnce({});
+    queryOne.mockResolvedValueOnce({ id: 'new' });
+    await request(app).post('/api/contexts').send({
+      targetType: 'Principal', contextType: 'Location', displayName: 'Utrecht', parentContextId: ID, contextCategory: 'Segment',
+    });
+    expect(insertedCategory()).toBe('Segment');
+  });
+
+  it('stores null (Other) without a parent or a category', async () => {
+    query.mockResolvedValueOnce({});
+    queryOne.mockResolvedValueOnce({ id: 'new' });
+    await request(app).post('/api/contexts').send({ targetType: 'Principal', contextType: 'Department', displayName: 'Eng' });
+    expect(insertedCategory()).toBeNull();
+  });
+
+  it('400 on a contextCategory outside the four templates, nothing written', async () => {
+    const res = await request(app).post('/api/contexts').send({
+      targetType: 'Principal', contextType: 'Department', displayName: 'Eng', contextCategory: 'Department',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/OrganizationalUnit, LogicalApplication, Tag, Segment/);
+    expect(query).not.toHaveBeenCalled();
+  });
 });
 
 // ─── PATCH /contexts/:id ─────────────────────────────────────────────
@@ -410,6 +496,26 @@ describe('PATCH /contexts/:id', () => {
     query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).patch(`/api/contexts/${ID}`).send({ displayName: 'Y' });
     expect(res.status).toBe(500);
+  });
+
+  it('changes the template (contextCategory), null included', async () => {
+    for (const contextCategory of ['Segment', null]) {
+      query.mockReset(); queryOne.mockReset();
+      queryOne.mockResolvedValueOnce({ variant: 'generated', targetType: 'Identity', displayName: 'X', parentContextId: null });
+      query.mockResolvedValueOnce({});
+      queryOne.mockResolvedValueOnce({ id: ID, contextCategory });
+      const res = await request(app).patch(`/api/contexts/${ID}`).send({ contextCategory });
+      expect(res.status).toBe(200);
+      expect(query.mock.calls[0][0]).toContain('"contextCategory" = $1');
+      expect(query.mock.calls[0][1]).toEqual([contextCategory, ID]);
+    }
+  });
+
+  it('400 on a contextCategory outside the four templates, nothing written', async () => {
+    queryOne.mockResolvedValueOnce({ variant: 'manual', targetType: 'Identity', displayName: 'X', parentContextId: null });
+    const res = await request(app).patch(`/api/contexts/${ID}`).send({ contextCategory: 'Team' });
+    expect(res.status).toBe(400);
+    expect(query).not.toHaveBeenCalled();
   });
 });
 
@@ -587,35 +693,61 @@ describe('PATCH /contexts/:id/members/:memberId/move', () => {
     expect(res.status).toBe(400);
   });
 
+  // A node is in the manager hierarchy by the plugin that produced it; its
+  // contextType is a template choice the move must not depend on.
+  const mhNode = (extra = {}) => ({ targetType: 'Principal', sourceAlgorithmName: 'manager-hierarchy', ...extra });
+
   it('404 when a context is not found', async () => {
     queryOne.mockResolvedValueOnce(null); // from
-    queryOne.mockResolvedValueOnce({ contextType: 'ManagerHierarchy', targetType: 'Principal' }); // to
+    queryOne.mockResolvedValueOnce(mhNode()); // to
     const res = await request(app).patch(`/api/contexts/${ID}/members/${ID2}/move`).send({ toContextId: ID3 });
     expect(res.status).toBe(404);
   });
 
-  it('400 when not in the Manager Hierarchy tree', async () => {
-    queryOne.mockResolvedValueOnce({ contextType: 'Department', targetType: 'Principal' }); // from
-    queryOne.mockResolvedValueOnce({ contextType: 'Department', targetType: 'Principal' }); // to
-    const res = await request(app).patch(`/api/contexts/${ID}/members/${ID2}/move`).send({ toContextId: ID3 });
-    expect(res.status).toBe(400);
+  it('400 when either node was not produced by the manager-hierarchy plugin', async () => {
+    for (const [from, to] of [
+      [{ sourceAlgorithmName: 'department-tree' }, mhNode()],
+      [mhNode(), { sourceAlgorithmName: null }],
+    ]) {
+      queryOne.mockReset();
+      queryOne.mockResolvedValueOnce({ targetType: 'Principal', ...from });
+      queryOne.mockResolvedValueOnce({ targetType: 'Principal', externalId: ID, ...to });
+      const res = await request(app).patch(`/api/contexts/${ID}/members/${ID2}/move`).send({ toContextId: ID3 });
+      expect(res.status).toBe(400);
+      expect(query).not.toHaveBeenCalled();
+    }
+  });
+
+  it('looks the nodes up by their source algorithm, not their contextType', async () => {
+    queryOne.mockResolvedValueOnce(mhNode());
+    queryOne.mockResolvedValueOnce(mhNode({ externalId: ID }));
+    queryOne.mockResolvedValueOnce({ managerId: ID });
+    query.mockResolvedValue({});
+    await request(app).patch(`/api/contexts/${ID2}/members/${ID3}/move`).send({ toContextId: ID });
+    for (const call of queryOne.mock.calls.slice(0, 2)) {
+      expect(call[0]).toContain('LEFT JOIN "ContextAlgorithms" a ON c."sourceAlgorithmId" = a.id');
+      expect(call[0]).toContain('a.name AS "sourceAlgorithmName"');
+      expect(call[0]).not.toContain('contextType');
+    }
+    expect(queryOne.mock.calls[0][1]).toEqual([ID2]);
+    expect(queryOne.mock.calls[1][1]).toEqual([ID]);
   });
 
   it('moves a member and sets a manager override', async () => {
-    queryOne.mockResolvedValueOnce({ contextType: 'ManagerHierarchy', targetType: 'Principal' }); // from
-    queryOne.mockResolvedValueOnce({ contextType: 'ManagerHierarchy', targetType: 'Principal', externalId: ID }); // to (manager id)
+    queryOne.mockResolvedValueOnce(mhNode()); // from
+    queryOne.mockResolvedValueOnce(mhNode({ externalId: ID })); // to (manager id)
     queryOne.mockResolvedValueOnce({ managerId: 'someone-else' }); // principal's current manager → override path
     query.mockResolvedValue({}); // override upsert + member delete/insert
     const res = await request(app).patch(`/api/contexts/${ID2}/members/${ID3}/move`).send({ toContextId: ID });
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ from: ID2, to: ID, memberId: ID3 });
+    expect(res.body).toMatchObject({ from: ID2, to: ID, memberId: ID3, managerPrincipalId: ID });
     expect(recalcMemberCountsForChain).toHaveBeenCalledWith(ID2);
     expect(recalcMemberCountsForChain).toHaveBeenCalledWith(ID);
   });
 
   it('clears the override when dropped back on the source manager', async () => {
-    queryOne.mockResolvedValueOnce({ contextType: 'ManagerHierarchy', targetType: 'Principal' }); // from
-    queryOne.mockResolvedValueOnce({ contextType: 'ManagerHierarchy', targetType: 'Principal', externalId: ID }); // to
+    queryOne.mockResolvedValueOnce(mhNode()); // from
+    queryOne.mockResolvedValueOnce(mhNode({ externalId: ID })); // to
     queryOne.mockResolvedValueOnce({ managerId: ID }); // matches target manager → clear override
     query.mockResolvedValue({});
     const res = await request(app).patch(`/api/contexts/${ID2}/members/${ID3}/move`).send({ toContextId: ID });
@@ -626,8 +758,8 @@ describe('PATCH /contexts/:id/members/:memberId/move', () => {
   });
 
   it('500 when the move queries reject', async () => {
-    queryOne.mockResolvedValueOnce({ contextType: 'ManagerHierarchy', targetType: 'Principal' });
-    queryOne.mockResolvedValueOnce({ contextType: 'ManagerHierarchy', targetType: 'Principal', externalId: ID });
+    queryOne.mockResolvedValueOnce(mhNode());
+    queryOne.mockResolvedValueOnce(mhNode({ externalId: ID }));
     queryOne.mockRejectedValueOnce(new Error('boom')); // principal lookup rejects
     const res = await request(app).patch(`/api/contexts/${ID2}/members/${ID3}/move`).send({ toContextId: ID });
     expect(res.status).toBe(500);
