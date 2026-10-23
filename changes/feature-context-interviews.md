@@ -5,3 +5,6 @@
 - Added "What we know" to the page of a unit or application: what interviews established — description, properties and people with a timeline of their roles over the years — each with its source and quote, plus the claims still to review and the interviews themselves.
 - Account and person pages now list the units and applications whose interviews mention them.
 - Business readers and context owners see only confirmed claims; transcripts and review stay with the analyst.
+- Interview extraction now finds the person when the model shortens a name ("Vries" for "Piet de Vries" in the quote), and as a last resort matches a surname that only one user account has; both are marked "check the person".
+- Fewer interview claims are lost: a quote that differs only in case or punctuation is kept, a property without a name becomes a description, and a claim without a value takes its quote. The run's note now says why each remaining claim was left out.
+- Interview extraction waits as long as the report model does (15 minutes per answer by default, `INTERVIEW_LLM_TIMEOUT_MS` to change it), so a busy or slow model no longer makes it fail; the status says how long a long run has been going.

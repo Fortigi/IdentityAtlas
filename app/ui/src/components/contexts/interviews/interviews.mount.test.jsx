@@ -210,6 +210,16 @@ describe('while an interview is being read', () => {
     await vi.advanceTimersByTimeAsync(POLL_MS * 3);
     expect(calls()).toBe(2);
   });
+
+  it('a run that goes on says how long, and that the model may be busy — and the line keeps ticking', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-10-23T12:00:00Z'));
+    mount({ interviews: [{ ...INTERVIEW, extractionStatus: 'running', extractionStartedAt: '2026-10-23T11:59:00Z' }] });
+    const status = await screen.findByTestId('extraction-status');
+    expect(status).toHaveTextContent(/^Reading…$/);
+    await vi.advanceTimersByTimeAsync(90_000);
+    await waitFor(() => expect(screen.getByTestId('extraction-status')).toHaveTextContent('Reading… 2 min — the model may still be busy with another request'));
+  });
 });
 
 describe('the Upload interview card', () => {

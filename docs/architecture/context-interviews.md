@@ -79,18 +79,45 @@ the list upload's refinement uses), the upload starts extraction in the backgrou
    how much was read — never silently less). Each part is asked for claims with a
    template-aware prompt (a unit: what it is, sector, customer since, who leads it, role
    history; an application: purpose, users, data, vendor, owner, day-to-day people) and
-   a strict JSON schema, within 180 seconds; an unreadable reply gets one repair round.
+   a strict JSON schema; an unreadable reply gets one repair round. Each answer may take
+   the report model's time budget — `INTERVIEW_LLM_TIMEOUT_MS`, else
+   `NL_REPORTS_LLM_TIMEOUT_MS` (the nl-reports overlay sets 900000), else 15 minutes.
+   Extraction runs in the background, and on a 2-CPU box with a 4B model one part takes
+   minutes — longer when the model server's single slot is still busy with another
+   request (a report, a prompt-cache warm-up): the request simply waits. The model's own
+   HTTP client (`nlreports/llamacpp.js`, `ollama.js`) stops at `NL_REPORTS_LLM_TIMEOUT_MS`,
+   so a larger interview budget does not outlast it.
 2. Every claim is checked: closed kinds, a value, a person for a role claim, an
    attribute for a property — and **the quote must be a verbatim part of the
-   transcript** (compared after folding whitespace and typographic quotes, nothing more),
-   or the claim is dropped. The run's message counts what was dropped and why.
+   transcript** (compared after folding whitespace and typographic quotes), or the claim
+   is dropped. A *near*-verbatim quote — only case, punctuation or spacing differ — is
+   kept, with the transcript's own words as its quote; different words never match.
+   What a small model leaves out is filled where that needs no guess: a property
+   without an attribute name becomes a description claim, a claim without a value takes
+   its quote as the value, a roleHistory without a period is kept with the period empty.
+   A role without its person, an unknown kind and a quote that is not there are still
+   dropped. Every drop is logged with the field it failed on, and the run's message says
+   it — *"2 incomplete claims were left out (1 without the person, 1 of an unknown
+   kind). 1 claim had a field filled in from the quote — check it."* There is no second
+   model round asking for the missing fields: on a small box it costs as much as the
+   part itself.
 3. Repeats are dropped, and so is anything already decided in an earlier run.
 4. Names are matched: the interviewee (*"I"*, their name, their first name); then the
    upload's account matching (`upload/members.js`: e-mail, employee id, external id, the
    normalised name, a near miss — `fuzzy`); then a first name alone that is the first
    name of exactly one person the context already knows (a member or a role holder —
-   `firstName`). `fuzzy` and `firstName` are flagged *check the person*. An unmatched
-   name keeps its raw text.
+   `firstName`). Two fallbacks for a name still unmatched, both `fuzzy`:
+   - **the quote's full name** — a small model cuts names short (*"Vries"* for *"Piet de
+     Vries does most of the day-to-day work"*). The quote is verbatim, so a longer run
+     of 2–4 capitalised words in it (particles such as van / de / der / den / von / el
+     between them) that contains the subject's words is tried, longest first; the first
+     that resolves wins and the claim carries that name (`interviews/nameSpan.js`);
+   - **a unique surname** — a surname alone (*"Vries"*, *"de Vries"*) that ends the name
+     of exactly one live user account; two such accounts, or 200 or more candidate rows,
+     is no match.
+
+   `fuzzy` and `firstName` are flagged *check the person*. An unmatched name keeps its
+   raw text.
 5. Fixed rules (`contexts/interviews/roles.js`, no model) set the role suggestions:
    `owner` → Accountable, `dayToDay` / `delegate` → Responsible, `notOwner` → none. A
    subject who says both that they own it and that they do not gets no Accountable
@@ -118,7 +145,7 @@ All writes need `data.write.contexts`; OpenAPI documents each.
 POST   /api/contexts/:id/interviews                       multipart file + principalId|identityId + interviewedAt
 GET    /api/contexts/:id/interviews                       the interviews, with claim counts (writers)
 GET    /api/contexts/:id/interviews/:interviewId          one, with its transcript (writers)
-POST   /api/contexts/:id/interviews/:interviewId/extract  read again (409 while a run of < 15 min is going; 503 without a model)
+POST   /api/contexts/:id/interviews/:interviewId/extract  read again (409 while a run of < 30 min is going; 503 without a model)
 POST   /api/contexts/:id/interviews/:interviewId/claims   an analyst's own claim
 DELETE /api/contexts/:id/interviews/:interviewId          the interview and its claims
 GET    /api/contexts/:id/claims?status=…                  the claims + accountableDoubt
@@ -155,7 +182,10 @@ GET    /api/contexts/claims/mentions?principalId=|identityId=   the contexts who
   `extendedAttributes`, so a property confirmed from an interview is overwritten by the
   next re-import of that list. The confirmed claim stays under *What we know*.
 - Extraction runs inside the API process; a restart during a run leaves it `running`,
-  and *Read again* is allowed once it is 15 minutes old.
+  and *Read again* is allowed once it is 30 minutes old. The status says *Waiting for
+  the model…* before a run starts and *Reading…* while it goes; from two minutes on it
+  says how long, and that the model may be busy with another request — the API cannot
+  tell waiting from reading, so it does not pretend to.
 - A decided claim cannot be undecided; reverse its effect by hand (edit the description,
   remove the role).
 - Not in this slice: audio, speaker diarisation, merging claims across interviews,

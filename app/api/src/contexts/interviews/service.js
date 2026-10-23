@@ -29,7 +29,9 @@ export class InterviewError extends Error {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // A run that started this long ago and never finished (the API restarted) may be run again.
-export const STALE_RUN_MS = 15 * 60 * 1000;
+// Well past one model answer's default budget (extract.js, 15 minutes): a run whose
+// first part waits behind a busy model is not stale.
+export const STALE_RUN_MS = 30 * 60 * 1000;
 
 const defaults = (deps = {}) => ({ db: defaultDb, enabled: llmConfigured, start: startExtraction, ...deps });
 

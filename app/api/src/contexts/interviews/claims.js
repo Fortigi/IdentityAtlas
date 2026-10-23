@@ -1,6 +1,6 @@
 // Context interviews — what a claim is, and the one check every claim passes.
 //
-//   checkClaim(raw, transcript) → { claim } | { error, reason }
+//   checkClaim(raw, transcript) → { claim, repaired? } | { error, reason, field }
 //
 // Used for a model's reply (extract.js) and for a claim an analyst adds by hand
 // (the manual "Add claim" form), so both obey the same rules:
@@ -10,11 +10,19 @@
 //   - a property names its attribute (a short key, ≤ MAX_ATTRIBUTE, no control characters);
 //   - a role / roleHistory names its relation (RELATIONS; anything else reads 'other');
 //   - the quote, when there is one, is VERBATIM in the transcript — compared after
-//     folding whitespace and typographic quotes, nothing more — or the claim is
-//     dropped (reason 'quote'): a claim must rest on words that were said;
+//     folding whitespace and typographic quotes — or the claim is dropped (reason
+//     'quote'): a claim must rest on words that were said. A NEAR-verbatim quote
+//     (only case, punctuation or spacing differ) is kept as the transcript has it;
+//     different words are never a match;
 //   - a period is from / to (a year, a year-month or a date; anything else is
 //     kept only as text) and the text as spoken ("early years").
-// Confidence is clamped to 0..1 (default 0.5). Pure.
+// Confidence is clamped to 0..1 (default 0.5).
+//
+// With { repair: true } (a model's reply — a small model leaves fields out) what
+// can be recovered without guessing is: a property without a usable attribute
+// name becomes a description claim; a claim without a value takes its quote as
+// the value. A role without its person, an unknown kind or a missing quote is
+// still dropped. Every drop names the field it failed on (`field`). Pure.
 
 export const CLAIM_KINDS = Object.freeze(['description', 'property', 'role', 'roleHistory']);
 export const RELATIONS = Object.freeze(['owner', 'notOwner', 'dayToDay', 'delegate', 'member', 'other']);
@@ -49,7 +57,47 @@ export function foldForQuote(s) {
 export function verbatimQuote(quote, folded) {
   const q = foldForQuote(quote).replace(/^["']+|["']+$/g, '').trim();
   if (q.length < MIN_QUOTE || q.length > MAX_QUOTE) return null;
-  return folded.includes(q) ? q : null;
+  return folded.includes(q) ? q : nearVerbatim(q, folded);
+}
+
+// The loose form: letters and digits lowercased, every run of anything else one
+// space; map[k] is the index in the input of loose character k.
+function looseForm(s) {
+  let text = '';
+  const map = [];
+  let gap = true;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (/[\p{L}\p{N}]/u.test(ch)) {
+      for (const low of ch.toLowerCase()) { text += low; map.push(i); }
+      gap = false;
+    } else if (!gap) {
+      text += ' ';
+      map.push(i);
+      gap = true;
+    }
+  }
+  return { text, map };
+}
+
+// One transcript is checked against many claims in a row: keep its loose form.
+let cached = { folded: null, loose: null };
+const looseOf = (folded) => {
+  if (cached.folded !== folded) cached = { folded, loose: looseForm(folded) };
+  return cached.loose;
+};
+
+/**
+ * The transcript's own words for a quote that differs from them only in case,
+ * punctuation or spacing ('i am the owner' for 'I am the owner,'), or null.
+ */
+export function nearVerbatim(quote, folded) {
+  const q = looseForm(quote).text.trim();
+  if (q.length < MIN_QUOTE) return null;
+  const loose = looseOf(folded);
+  const at = loose.text.indexOf(q);
+  if (at < 0) return null;
+  return folded.slice(loose.map[at], loose.map[at + q.length - 1] + 1);
 }
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -77,14 +125,19 @@ const text = (v, max) => {
 };
 
 const CONTROL = /[\u0000-\u001f\u007f]/;
+const PERSON_KINDS = new Set(['role', 'roleHistory']);
+
+const attributeName = (v) => {
+  const key = text(v, MAX_ATTRIBUTE + 1);
+  return key && key.length <= MAX_ATTRIBUTE && !CONTROL.test(v) ? key : null;
+};
 
 function checkAttribute(kind, raw) {
   if (kind === 'property') {
-    const key = text(raw.attribute, MAX_ATTRIBUTE + 1);
-    if (!key || key.length > MAX_ATTRIBUTE || CONTROL.test(raw.attribute)) return { error: 'a property claim needs an attribute name (at most 80 characters)' };
-    return { attribute: key };
+    const key = attributeName(raw.attribute);
+    return key ? { attribute: key } : { error: 'a property claim needs an attribute name (at most 80 characters)' };
   }
-  if (kind === 'role' || kind === 'roleHistory') return { attribute: RELATIONS.includes(raw.relation) ? raw.relation : 'other' };
+  if (PERSON_KINDS.has(kind)) return { attribute: RELATIONS.includes(raw.relation) ? raw.relation : 'other' };
   return { attribute: null };
 }
 
@@ -101,35 +154,67 @@ function checkQuote(raw, folded, required) {
 }
 
 /**
+ * A model's claim with a field left out, made whole where that needs no guess:
+ * a property without a usable attribute name is a description; a claim without
+ * a value takes its quote. `repaired` collects the fields filled. Pure.
+ */
+export function repairClaim(raw, repaired = []) {
+  let out = raw;
+  if (raw.kind === 'property' && !attributeName(raw.attribute)) {
+    out = { ...out, kind: 'description' };
+    repaired.push('attribute');
+  }
+  const quote = typeof raw.quote === 'string' ? raw.quote.replace(/^\s*["'“”‘’]+|["'“”‘’]+\s*$/g, '') : '';
+  if (!text(raw.value, MAX_VALUE) && text(quote, MAX_VALUE)) {
+    out = { ...out, value: quote };
+    repaired.push('value');
+  }
+  return out;
+}
+
+const drop = (field, error, reason = 'invalid') => ({ error, reason, field });
+
+/**
  * @param raw         { kind, value, subject?, attribute?, relation?, periodFrom?, periodTo?, periodText?, quote?, confidence? }
  * @param folded      foldForQuote(transcript)
  * @param opts.quoteRequired  a model's claim must carry a quote; an analyst's may not
+ * @param opts.repair         fill what a model left out where that needs no guess (repairClaim)
  */
-export function checkClaim(raw, folded, { quoteRequired = true } = {}) {
-  if (!raw || typeof raw !== 'object') return { error: 'a claim must be an object', reason: 'invalid' };
+// The fields every claim of its kind must have: { value, subject, attribute } or a drop.
+function checkFields(raw) {
   const kind = raw.kind;
-  if (!CLAIM_KINDS.includes(kind)) return { error: `kind must be one of ${CLAIM_KINDS.join(', ')}`, reason: 'invalid' };
   const value = text(raw.value, MAX_VALUE);
-  if (!value) return { error: 'a claim needs a value', reason: 'invalid' };
+  if (!value) return drop('value', 'a claim needs a value');
   const subject = CONTEXT_KINDS.has(kind) ? null : text(raw.subject, MAX_SUBJECT);
-  if ((kind === 'role' || kind === 'roleHistory') && !subject) return { error: 'a role claim needs the person it is about', reason: 'invalid' };
+  if (PERSON_KINDS.has(kind) && !subject) return drop('subject', 'a role claim needs the person it is about');
   const attr = checkAttribute(kind, raw);
-  if (attr.error) return { error: attr.error, reason: 'invalid' };
-  const { quote, error } = checkQuote(raw.quote, folded, quoteRequired);
-  if (error) return { error, reason: 'quote' };
+  if (attr.error) return drop('attribute', attr.error);
+  return { value, subject, attribute: attr.attribute };
+}
 
-  return {
-    claim: {
-      claimKind: kind,
-      subjectKind: subject ? 'Person' : 'Context',
-      subjectName: subject,
-      attribute: attr.attribute,
-      value,
-      periodFrom: periodDate(raw.periodFrom),
-      periodTo: periodDate(raw.periodTo, true),
-      periodText: text(raw.periodText, MAX_PERIOD_TEXT),
-      quote,
-      confidence: confidenceOf(raw.confidence),
-    },
+export function checkClaim(input, folded, { quoteRequired = true, repair = false } = {}) {
+  if (!input || typeof input !== 'object') return drop('claim', 'a claim must be an object');
+  if (!CLAIM_KINDS.includes(input.kind)) return drop('kind', `kind must be one of ${CLAIM_KINDS.join(', ')}`);
+  const repaired = [];
+  const raw = repair ? repairClaim(input, repaired) : input;
+  const kind = raw.kind;
+  const fields = checkFields(raw);
+  if (fields.error) return fields;
+  const { value, subject, attribute } = fields;
+  const { quote, error } = checkQuote(raw.quote, folded, quoteRequired);
+  if (error) return drop('quote', error, 'quote');
+
+  const claim = {
+    claimKind: kind,
+    subjectKind: subject ? 'Person' : 'Context',
+    subjectName: subject,
+    attribute,
+    value,
+    periodFrom: periodDate(raw.periodFrom),
+    periodTo: periodDate(raw.periodTo, true),
+    periodText: text(raw.periodText, MAX_PERIOD_TEXT),
+    quote,
+    confidence: confidenceOf(raw.confidence),
   };
+  return repaired.length ? { claim, repaired } : { claim };
 }

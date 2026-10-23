@@ -15,7 +15,7 @@ import pg from 'pg';
 process.env.DATABASE_URL = process.env.CONTRACT_DB_URL;
 const store = await import('../src/contexts/interviews/store.js');
 const { decideClaim } = await import('../src/contexts/interviews/decide.js');
-const { resolveSubjects } = await import('../src/contexts/interviews/subjects.js');
+const { resolveSubjects, resolveClaimSubjects } = await import('../src/contexts/interviews/subjects.js');
 
 let pool;
 let sysId;
@@ -58,6 +58,7 @@ beforeAll(async () => {
   await principal('anna', 'Anna Voorbeeldig');
   await principal('piet', 'Piet Proefpersoon');
   await principal('yara', 'Yara Testpersoon');
+  await principal('zeldzaam', 'Henk Zeldzaamhuizen');
   ctxId = (await pool.query(
     `INSERT INTO "Contexts" (id, variant, "targetType", "contextType", "displayName", "contextCategory", "scopeSystemId", description)
      VALUES (gen_random_uuid(), 'manual', 'Principal', 'LogicalApplication', 'ivw-Planner', 'LogicalApplication', $1, 'The planning tool.') RETURNING id`,
@@ -105,6 +106,11 @@ describe('context interviews against PostgreSQL', () => {
   it('finds a first name among the context\'s own people', async () => {
     const out = await resolveSubjects(db, ['Piet'], { contextId: ctxId, interviewee: { principalId: P.anna, name: 'Anna Voorbeeldig' } });
     expect(out.get('Piet')).toEqual({ principalId: P.piet, match: 'firstName' });
+  });
+
+  it('a surname only one live user account ends in is matched, flagged fuzzy', async () => {
+    const out = await resolveClaimSubjects(db, [{ subjectName: 'Zeldzaamhuizen', quote: 'Zeldzaamhuizen does it' }], { contextId: ctxId, interviewee: { principalId: P.anna, name: 'Anna Voorbeeldig' } });
+    expect(out).toEqual([{ principalId: P.zeldzaam, match: 'fuzzy', subjectName: 'Zeldzaamhuizen' }]);
   });
 
   it('confirming writes the description section, the attribute and the Responsible with its source', async () => {

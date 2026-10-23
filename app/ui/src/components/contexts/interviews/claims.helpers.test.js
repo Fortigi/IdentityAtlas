@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   sourceLabel, subjectLabel, isUncertainMatch, periodLabel, groupConfirmed, proposedClaims, roleSuggestions,
-  timelines, segmentBars, anyInProgress, manualClaimBody, manualClaimReady,
+  timelines, segmentBars, anyInProgress, manualClaimBody, manualClaimReady, extractionLabel, BUSY_AFTER_MS,
 } from './claims.helpers';
 
 const claim = (over) => ({ id: over.id ?? 'c', claimKind: 'role', status: 'proposed', intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-01', ...over });
@@ -86,6 +86,27 @@ describe('timelines', () => {
   it('gives a one-day role a visible bar', () => {
     const bars = segmentBars([{ from: '2015-01-01', to: '2025-01-01' }, { from: '2020-01-01', to: '2020-01-01' }], Date.now());
     expect(bars[1].width).toBe(2);
+  });
+});
+
+describe('extractionLabel', () => {
+  const now = Date.parse('2026-10-23T12:00:00Z');
+  const iv = (status, startedAt) => ({ extractionStatus: status, extractionStartedAt: startedAt });
+
+  it('says waiting before the run starts and reading while it is young', () => {
+    expect(extractionLabel(iv('pending', null), now)).toBe('Waiting for the model…');
+    expect(extractionLabel(iv('running', '2026-10-23T11:58:01Z'), now)).toBe('Reading…');
+    expect(extractionLabel(iv('running', null), now)).toBe('Reading…');
+  });
+
+  it(`from ${BUSY_AFTER_MS / 60_000} minutes on says how long, and that the model may be busy`, () => {
+    expect(extractionLabel(iv('running', '2026-10-23T11:58:00Z'), now)).toBe('Reading… 2 min — the model may still be busy with another request');
+    expect(extractionLabel(iv('running', '2026-10-23T11:47:30Z'), now)).toMatch(/^Reading… 12 min/);
+  });
+
+  it('a finished run and an unknown status keep their own label', () => {
+    expect(extractionLabel(iv('done', '2026-10-23T11:00:00Z'), now)).toBe('Read');
+    expect(extractionLabel(iv('mystery', null), now)).toBe('mystery');
   });
 });
 

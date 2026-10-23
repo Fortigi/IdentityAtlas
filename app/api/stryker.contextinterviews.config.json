@@ -17,6 +17,7 @@
     "src/contexts/interviews/claims.js",
     "src/contexts/interviews/decide.js",
     "src/contexts/interviews/extract.js",
+    "src/contexts/interviews/nameSpan.js",
     "src/contexts/interviews/prompt.js",
     "src/contexts/interviews/roles.js",
     "src/contexts/interviews/service.js",

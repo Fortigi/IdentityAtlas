@@ -1,6 +1,6 @@
 // The one check every claim passes — a model's and an analyst's.
 import { describe, it, expect } from 'vitest';
-import { checkClaim, foldForQuote, verbatimQuote, periodDate, MIN_QUOTE, MAX_ATTRIBUTE } from './claims.js';
+import { checkClaim, foldForQuote, verbatimQuote, nearVerbatim, repairClaim, periodDate, MIN_QUOTE, MAX_ATTRIBUTE } from './claims.js';
 
 const TRANSCRIPT = `Interviewer: Who owns the planning tool?
 Anna Voorbeeld: Yes, I’m the owner of this app,   but it's mostly Piet who does the day-to-day.
@@ -24,6 +24,25 @@ describe('verbatimQuote', () => {
   });
 });
 
+describe('nearVerbatim', () => {
+  it("keeps the transcript's own words when only case, punctuation or spacing differ", () => {
+    expect(verbatimQuote("yes i'm the owner of this app but", folded)).toBe("Yes, I'm the owner of this app, but");
+    expect(verbatimQuote('WE HAVE BEEN A CUSTOMER since 2019!', folded)).toBe('We have been a customer since 2019');
+    expect(nearVerbatim('who owns -- the planning tool', folded)).toBe('Who owns the planning tool');
+  });
+
+  it('never matches different words, a dropped word, or a quote that is short once loosened', () => {
+    expect(verbatimQuote('yes i am the owner of this app', folded)).toBeNull(); // "I'm" is not "I am"
+    expect(nearVerbatim('we have been customer since 2019', folded)).toBeNull();
+    expect(nearVerbatim('!!! Yes, I ...', folded)).toBeNull(); // "yes i" is under MIN_QUOTE
+  });
+
+  it('reads a second transcript afresh (the loose form is not reused across transcripts)', () => {
+    expect(nearVerbatim('who owns the planning tool', foldForQuote('Who owns the planning tool?'))).toBe('Who owns the planning tool');
+    expect(nearVerbatim('who owns the planning tool', foldForQuote('Nobody said this.'))).toBeNull();
+  });
+});
+
 describe('periodDate', () => {
   it('takes the first day of a start period and the last day of an end period', () => {
     expect(periodDate('2019')).toBe('2019-01-01');
@@ -39,7 +58,55 @@ describe('periodDate', () => {
   });
 });
 
+describe('repairClaim', () => {
+  it('a property without a usable attribute name is a description; a missing value takes the quote', () => {
+    const repaired = [];
+    expect(repairClaim({ kind: 'property', attribute: '  ', value: '', quote: '"a customer since 2019"' }, repaired))
+      .toEqual({ kind: 'description', attribute: '  ', value: 'a customer since 2019', quote: '"a customer since 2019"' });
+    expect(repaired).toEqual(['attribute', 'value']);
+  });
+
+  it('leaves a whole claim as it is, and a role without value and quote without a value', () => {
+    const whole = role();
+    const repaired = [];
+    expect(repairClaim(whole, repaired)).toBe(whole);
+    expect(repairClaim({ kind: 'role', subject: 'Piet' }, repaired)).toEqual({ kind: 'role', subject: 'Piet' });
+    expect(repaired).toEqual([]);
+  });
+});
+
 describe('checkClaim', () => {
+  it('names the field each drop failed on', () => {
+    expect(checkClaim(null, folded).field).toBe('claim');
+    expect(checkClaim(role({ kind: 'fact' }), folded).field).toBe('kind');
+    expect(checkClaim(role({ value: '' }), folded).field).toBe('value');
+    expect(checkClaim(role({ subject: '' }), folded).field).toBe('subject');
+    expect(checkClaim({ kind: 'property', value: '2019', quote: 'a customer since 2019' }, folded).field).toBe('attribute');
+  });
+
+  it('with repair: a property without a name is kept as a description, a value comes from the quote — and it says so', () => {
+    const p = checkClaim({ kind: 'property', value: 'about 2019', quote: 'a customer since 2019' }, folded, { repair: true });
+    expect(p).toEqual({ claim: expect.objectContaining({ claimKind: 'description', attribute: null, value: 'about 2019' }), repaired: ['attribute'] });
+    const v = checkClaim(role({ value: undefined }), folded, { repair: true });
+    expect(v.claim.value).toBe("it's mostly Piet who does the day-to-day");
+    expect(v.repaired).toEqual(['value']);
+  });
+
+  it('with repair: a role without its person, and a quote not in the transcript, are still dropped', () => {
+    expect(checkClaim(role({ subject: undefined }), folded, { repair: true }).field).toBe('subject');
+    expect(checkClaim(role({ value: undefined, quote: 'Piet runs the whole thing' }), folded, { repair: true }).reason).toBe('quote');
+    expect(checkClaim(role({ value: undefined, quote: undefined }), folded, { repair: true }).field).toBe('value');
+  });
+
+  it('a roleHistory without any period is kept, with every period field null', () => {
+    const h = checkClaim({ ...role(), kind: 'roleHistory' }, folded, { repair: true });
+    expect(h).toEqual({ claim: expect.objectContaining({ claimKind: 'roleHistory', periodFrom: null, periodTo: null, periodText: null }) });
+  });
+
+  it('without repair (an analyst) a property without a name is still refused', () => {
+    expect(checkClaim({ kind: 'property', value: '2019', quote: 'a customer since 2019' }, folded).reason).toBe('invalid');
+  });
+
   it('a role claim keeps its person, relation, period and folded quote', () => {
     expect(checkClaim(role({ periodFrom: '2021', periodText: ' now ', confidence: 0.83 }), folded)).toEqual({
       claim: {
@@ -50,7 +117,7 @@ describe('checkClaim', () => {
   });
 
   it('drops a claim whose quote is not in the transcript, saying why', () => {
-    expect(checkClaim(role({ quote: 'Piet runs the whole thing' }), folded)).toEqual({ error: expect.stringMatching(/verbatim/), reason: 'quote' });
+    expect(checkClaim(role({ quote: 'Piet runs the whole thing' }), folded)).toEqual({ error: expect.stringMatching(/verbatim/), reason: 'quote', field: 'quote' });
   });
 
   it('a model claim without a quote is dropped; an analyst may add one without', () => {

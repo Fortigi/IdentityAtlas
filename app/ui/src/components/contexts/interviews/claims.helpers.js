@@ -116,12 +116,25 @@ export function segmentBars(segments, today) {
 }
 
 export const EXTRACTION_LABELS = {
-  pending: 'Waiting to be read',
-  running: 'Being read…',
+  pending: 'Waiting for the model…',
+  running: 'Reading…',
   done: 'Read',
   failed: 'Reading failed',
   notConfigured: 'No model configured — add claims by hand',
 };
+
+// The model answers one request at a time: past this, a run may be queued behind
+// another (a report, a cache warm-up) rather than slow. The API cannot tell which.
+export const BUSY_AFTER_MS = 2 * 60_000;
+
+/** The status line of an interview; a long run says how long, and why it may wait. Pure; `now` is passed in. */
+export function extractionLabel(iv, now) {
+  const label = EXTRACTION_LABELS[iv.extractionStatus] || iv.extractionStatus;
+  const started = iv.extractionStartedAt ? new Date(iv.extractionStartedAt).getTime() : Number.NaN;
+  if (iv.extractionStatus !== 'running' || !(now - started >= BUSY_AFTER_MS)) return label;
+  const minutes = Math.floor((now - started) / 60_000);
+  return `Reading… ${minutes} min — the model may still be busy with another request`;
+}
 
 /** True while any interview is still being read (the list then refreshes itself). */
 export function anyInProgress(interviews) {
