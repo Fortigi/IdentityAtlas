@@ -132,6 +132,9 @@ function Add-DemoOrg {
         $parts   = $emp.name -split ' ', 2
         $email   = "$($parts[0].ToLower()).$($parts[1].ToLower())@fortigidemo.com"
         $mgrGuid = if ($emp.manager) { Get-DemoPrincipalId $emp.manager } else { $null }
+        # The same org chart at person level: an identity's manager is another
+        # IDENTITY, so it resolves in the identity namespace, not the principal one.
+        $mgrIdGuid = if ($emp.manager) { Get-DemoIdentityId $emp.manager } else { $null }
 
         $null = Add-DemoPrincipal $State -Record @{
             id                 = $pGuid
@@ -154,15 +157,16 @@ function Add-DemoOrg {
         }
 
         $null = Add-DemoIdentity $State -Record @{
-            id          = $idGuid
-            displayName = $emp.name
-            email       = $email
-            department  = $emp.dept
-            jobTitle    = $emp.title
-            employeeId  = $emp.id
-            givenName   = $parts[0]
-            surname     = $parts[1]
-            companyName = 'Fortigi Demo Corp'
+            id                = $idGuid
+            displayName       = $emp.name
+            email             = $email
+            department        = $emp.dept
+            jobTitle          = $emp.title
+            employeeId        = $emp.id
+            givenName         = $parts[0]
+            surname           = $parts[1]
+            companyName       = 'Fortigi Demo Corp'
+            managerIdentityId = $mgrIdGuid
         }
         Add-DemoIdentityMember $State -IdentityId $idGuid -PrincipalId $pGuid `
             -DisplayName $emp.name -AccountType 'EntraID' -IsPrimary $true

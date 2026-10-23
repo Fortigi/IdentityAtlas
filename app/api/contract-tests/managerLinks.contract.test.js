@@ -46,7 +46,7 @@ async function load(records, systemPrefix = 'mgrA') {
   const systemId = systemPrefix === 'mgrA' ? sysA : sysB;
   const normalized = shape(records, systemPrefix);
   await ingest(null, 'Principals', ['id'], normalized, { syncMode: 'delta', systemId, scope: {} });
-  return repairManagerLinks(asRunner(), 'Principals', systemId, batchHasManagerLink(normalized));
+  return repairManagerLinks(asRunner(), 'Principals', systemId, batchHasManagerLink(normalized, 'Principals'));
 }
 
 // The manager as the database resolves it: follow the link and report who it hit.
@@ -185,6 +185,119 @@ describe('manager relationship — a manager nobody loaded', () => {
     await pool.query(`UPDATE "Principals" SET "deletedAt" = now() WHERE "externalId" = 'boss' AND "systemId" = $1`, [sysA]);
     const repair = await repairManagerLinks(asRunner(), 'Principals', sysA, true);
     expect(repair).toBeNull();
+    expect(await managerOf('alice')).toMatchObject({ managerExternalId: 'boss' });
+  });
+});
+
+// ─── The identity half (#1216) ──────────────────────────────────────────────
+//
+// An identity's manager is another IDENTITY, in a different column on a
+// different table — and "Identities" has no systemId, so the sweep is unscoped.
+// Same reason the principals assertions all join through the link: a resolved
+// uuid proves nothing until you name the row it lands on.
+//
+// Isolation: every identity this block creates carries the IDENTITY_MARKER
+// employeeId, which is how they are deleted again.
+const IDENTITY_COLUMNS = [
+  'id', 'displayName', 'email', 'employeeId', 'managerIdentityId', 'department', 'jobTitle', 'extendedAttributes',
+];
+const IDENTITY_MARKER = 'ctr-mgr-id';
+
+function shapeIdentities(records) {
+  return normalizeRecords(records, IDENTITY_COLUMNS, {
+    idGeneration: 'deterministic',
+    idPrefix: 'mgrA-identities',
+    systemPrefix: 'mgrA',
+  });
+}
+
+async function loadIdentities(records) {
+  const normalized = shapeIdentities(records);
+  await ingest(null, 'Identities', ['id'], normalized, { syncMode: 'delta', systemId: sysA, scope: {} });
+  return repairManagerLinks(asRunner(), 'Identities', sysA, batchHasManagerLink(normalized, 'Identities'));
+}
+
+// The person this identity reports to, as the database resolves it.
+async function identityManagerOf(externalId) {
+  const r = await pool.query(
+    `SELECT m."employeeId" AS "managerExternalId", m."displayName" AS "managerName", i."managerIdentityId"
+       FROM "Identities" i
+       LEFT JOIN "Identities" m ON m.id = i."managerIdentityId"
+      WHERE i."employeeId" = $1`,
+    [`${IDENTITY_MARKER}-${externalId}`],
+  );
+  return r.rows[0];
+}
+
+const anIdentity = (externalId, displayName, managerExternalId) => ({
+  externalId, displayName, employeeId: `${IDENTITY_MARKER}-${externalId}`,
+  ...(managerExternalId === undefined ? {} : { managerIdentityExternalId: `${IDENTITY_MARKER}-${managerExternalId}` }),
+});
+
+describe('identity manager relationship (#1216)', () => {
+  beforeEach(async () => {
+    await pool.query(`DELETE FROM "Identities" WHERE "employeeId" LIKE $1`, [`${IDENTITY_MARKER}-%`]);
+  });
+
+  afterAll(async () => {
+    await pool.query(`DELETE FROM "Identities" WHERE "employeeId" LIKE $1`, [`${IDENTITY_MARKER}-%`]);
+  });
+
+  it('points at the manager IDENTITY, by name', async () => {
+    // The identity's managerIdentityExternalId names the manager by the
+    // manager's own external id, so it resolves into the identities namespace —
+    // the distinction that makes the link land on a person rather than nowhere.
+    const repair = await loadIdentities([
+      anIdentity('anna', 'Anna Bakker'),
+      anIdentity('bob', 'Bob Chen', 'anna'),
+    ]);
+    expect(repair).toBeNull();
+    expect(await identityManagerOf('bob')).toMatchObject({ managerExternalId: `${IDENTITY_MARKER}-anna`, managerName: 'Anna Bakker' });
+    expect((await identityManagerOf('anna')).managerIdentityId).toBeNull();
+  });
+
+  it('links a manager that arrives after the report in the same load', async () => {
+    await loadIdentities([anIdentity('bob', 'Bob Chen', 'anna'), anIdentity('anna', 'Anna Bakker')]);
+    expect(await identityManagerOf('bob')).toMatchObject({ managerName: 'Anna Bakker' });
+  });
+
+  it('clears a manager nobody loaded, rather than storing an id that goes nowhere', async () => {
+    // The Entra case: the manager is outside the identity filter, so the
+    // identity set never contains them. missing-managers reads
+    // `managerIdentityId IS NULL`, so a dangling id would misreport as "has one".
+    const repair = await loadIdentities([anIdentity('bob', 'Bob Chen', 'ghost')]);
+    expect(repair).toEqual({ unresolved: 1, selfReferences: 0 });
+    expect((await identityManagerOf('bob')).managerIdentityId).toBeNull();
+  });
+
+  it('clears an identity that names itself as manager', async () => {
+    const repair = await loadIdentities([anIdentity('ceo', 'Cara Diaz', 'ceo')]);
+    expect(repair).toEqual({ unresolved: 0, selfReferences: 1 });
+    expect((await identityManagerOf('ceo')).managerIdentityId).toBeNull();
+  });
+
+  it('counts both kinds separately and leaves the good links alone', async () => {
+    const repair = await loadIdentities([
+      anIdentity('ceo', 'Cara Diaz', 'ceo'),
+      anIdentity('anna', 'Anna Bakker', 'ceo'),
+      anIdentity('bob', 'Bob Chen', 'ghost'),
+      anIdentity('dave', 'Dave Evans', 'anna'),
+    ]);
+    expect(repair).toEqual({ unresolved: 1, selfReferences: 1 });
+    expect(await identityManagerOf('dave')).toMatchObject({ managerName: 'Anna Bakker' });
+    expect(await identityManagerOf('anna')).toMatchObject({ managerName: 'Cara Diaz' });
+  });
+
+  it('re-links on the next load once the manager exists — the clear is not permanent', async () => {
+    expect(await loadIdentities([anIdentity('bob', 'Bob Chen', 'late')])).toEqual({ unresolved: 1, selfReferences: 0 });
+    const repair = await loadIdentities([anIdentity('late', 'Late Manager'), anIdentity('bob', 'Bob Chen', 'late')]);
+    expect(repair).toBeNull();
+    expect(await identityManagerOf('bob')).toMatchObject({ managerName: 'Late Manager' });
+  });
+
+  it('leaves principals alone — the identity sweep touches one table', async () => {
+    await load([person('boss', 'Bea Boss'), person('alice', 'Alice A', 'boss')]);
+    await loadIdentities([anIdentity('bob', 'Bob Chen', 'ghost')]);
     expect(await managerOf('alice')).toMatchObject({ managerExternalId: 'boss' });
   });
 });
