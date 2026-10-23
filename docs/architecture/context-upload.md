@@ -143,13 +143,43 @@ each pair linked `SameUnitAs`.
 break. `long`: several rows share a key, one member per row; the other columns
 are read from the first row of the key.
 
+**SharePoint cells** (`contexts/upload/cellValues.js`). A person or lookup
+column exported from SharePoint reads `Alice Example;#27;#Bob Sample;#16`:
+such a cell splits on `;#` and the lookup ids are dropped. A person claim
+(`i:0#.f|membership|alice@example.com`) and `Name <address>` become the
+address. The owner cell is read the same way but never split on a comma
+(`Example, Alice` is one owner). The column profile reports such a column as
+shape `lookup`, and an unlabelled multi-valued one is guessed as accounts.
+
 **Matching order** (first unique hit wins; a value matching two candidates is
 ambiguous and unmatched):
 
-- accounts: e-mail / UPN, then `employeeId`, then `externalId`, then exact
-  display name when it is unique;
-- people: e-mail, then `employeeId`, then exact display name when unique;
+- accounts: e-mail / UPN, then `employeeId`, then `externalId`, then the name;
+- people: e-mail, then `employeeId`, then the name;
 - resources: `externalId`, then exact display name when unique.
+
+**The name** (`lib/nameMatch.js`, shared with the owner resolution of the
+contexts ingest). Both sides are normalised: accents dropped, case and extra
+whitespace ignored, one trailing ` | Org` or ` (Org)` dropped, `Last, First`
+read as `First Last`, dots / hyphens / underscores read as spaces. A
+normalised-equal name matches when exactly one **user** account has it (else
+exactly one principal of any type) — reported as *by name*. Failing that, a
+**near miss**: Jaro-Winkler ≥ 0.93 on the normalised names and at least 0.03
+ahead of the runner-up — reported as *fuzzy*, and every fuzzy match is listed in
+the preview as *value → account* (the first 50) before anything is written. A
+runner-up closer than that is ambiguous, never a guess. Name candidates come
+from a trigram lookup per value (`<%` word similarity: the displayName index
+of migration 013 for accounts, the search index of migration 091 for people).
+
+**Owners.** The preview matches the owner column the same way and reports
+resolved / by name / fuzzy / not found with samples. On apply every matched
+owner is written as the unit's Accountable (insert-only, `addedBy 'sync'`),
+next to the contexts ingest's own resolution (`ingest/contextOwners.js`:
+externalId, employeeId, e-mail, then the normalised name). The ingest does
+**not** take near misses: deciding one needs a runner-up per owner across the
+whole directory, which for a crawl of thousands of owners against hundreds of
+thousands of accounts is not a cheap set-based step; its name step is an index
+lookup per still-unresolved owner plus an equality test.
 
 ## The best guess (and the AI)
 

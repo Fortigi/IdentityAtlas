@@ -98,6 +98,12 @@ describe('reading the results', () => {
     expect(membersLine({ matched: 4, unmatched: 1, ambiguous: 2 })).toBe('4 matched · 1 not found · 2 ambiguous');
     expect(membersLine(undefined)).toBe('');
   });
+
+  it('membersLine says how many matches were by name or fuzzy, only when there are some', () => {
+    expect(membersLine({ matched: 9, byName: 5, fuzzy: 2, unmatched: 1, ambiguous: 0 })).toBe('9 matched (5 by name, 2 fuzzy) · 1 not found');
+    expect(membersLine({ matched: 9, byName: 5, fuzzy: 0 })).toBe('9 matched (5 by name)');
+    expect(membersLine({ matched: 9, byName: 0, fuzzy: 1 })).toBe('9 matched (1 fuzzy)');
+  });
 });
 
 describe('stepFooter', () => {

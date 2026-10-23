@@ -5,3 +5,6 @@
 - The owner column becomes the unit's Accountable (by e-mail address, employee number or account id); imported owners named by e-mail address are now resolved for every imported context.
 - Uploading the same list again updates the existing units instead of creating a new tree; units no longer in the file are kept unless you choose to remove them. An uploaded tree has a "Re-import…" action in its ⋯ menu.
 - A unit created from an upload shows on its page which file it came from, when and by whom it was uploaded, and when the list was last updated.
+- Fixed members of a list exported from SharePoint: a person or lookup column ("Alice Example;#27;#Bob Sample;#16") now yields every person in the cell instead of only the first; person claims and "Name <address>" are read as the address.
+- Owners and members named by display name now resolve to their account — ignoring accents, case, "Last, First" order and a trailing " | Organisation" — preferring user accounts over service principals with the same name. This also applies to owners delivered by crawlers.
+- The upload also accepts near misses (a typo in a name) when one account is clearly the closest; the preview lists every such fuzzy match as "value → account", and shows how owners and members matched (by address or id, by name, fuzzy, ambiguous, not found) before you import.

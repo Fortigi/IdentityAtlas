@@ -255,3 +255,67 @@ describe('ingestAll', () => {
     expect(failing).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('a SharePoint export: lookup members and owners named by display name', () => {
+  // Team is a SharePoint person column ("name;#id;#…"); Eigenaar holds names,
+  // one written "Last, First | Org", one with a typo.
+  const SHAREPOINT = 'Title;Eigenaar;Team\n'
+    + 'Unit A;Example, Ann | Some Org;"Ann Example;#27;#Bo Sampel;#16"\n'
+    + 'Unit B;Cy Tset;"Bo Sample;#16"\n';
+  const store = () => {
+    const s = fakeStore();
+    s.principals = [
+      { id: 'P-ann', email: 'ann@x.nl', displayName: 'Ann Example', principalType: 'User' },
+      { id: 'P-bo', email: 'bo@x.nl', displayName: 'Bo Sample', principalType: 'User' },
+      { id: 'SP-bo', email: null, displayName: 'Bo Sample', principalType: 'ServicePrincipal' },
+      { id: 'P-cy', email: 'cy@x.nl', displayName: 'Cy Test', principalType: 'User' },
+    ];
+    return s;
+  };
+  const sharepoint = async (s) => analyzeUpload({ buffer: Buffer.from(SHAREPOINT), fileName: 'teams.csv', uploadedBy: 'a' },
+    { db: s.db, refine: async ({ guess }) => ({ mapping: guess, aiUsed: false, aiFields: [] }) });
+
+  it('the preview counts every name of a lookup cell, by name and fuzzy apart, for members and owners', async () => {
+    const s = store();
+    const a = await sharepoint(s);
+    expect(a.guess).toMatchObject({ nameColumn: 'Title', ownerColumn: 'Eigenaar', memberColumns: [{ column: 'Team', kind: 'Principal' }] });
+    const p = await previewUpload({ uploadDraftId: a.uploadDraftId, mapping: a.guess }, { db: s.db });
+    expect(p.members).toMatchObject({
+      matched: 3, byName: 2, fuzzy: 1, unmatched: 0, ambiguous: 0,
+      fuzzySamples: [{ kind: 'Principal', value: 'Bo Sampel', matched: 'Bo Sample' }],
+    });
+    expect(p.owners).toMatchObject({
+      matched: 2, byName: 1, fuzzy: 1, unmatched: 0,
+      fuzzySamples: [{ kind: 'Principal', value: 'Cy Tset', matched: 'Cy Test' }],
+    });
+    expect(p.sample.map(u => u.owner)).toEqual(['Example, Ann | Some Org', 'Cy Tset']);
+  });
+
+  it('apply writes the members it matched and each matched owner as the Accountable', async () => {
+    const s = store();
+    const a = await sharepoint(s);
+    const r = await applyUpload({ uploadDraftId: a.uploadDraftId, mapping: a.guess }, 'a', s);
+    const keyOf = (id) => s.contexts.find(c => c.id === id).externalId;
+    expect(s.members.map(m => `${keyOf(m.contextId)}:${m.memberId}`).sort()).toEqual(['Unit A:P-ann', 'Unit A:P-bo', 'Unit B:P-bo']);
+    const accountable = s.insertRoleRows.mock.calls.flatMap(c => c[0]).filter(row => row.role === 'Accountable');
+    expect(accountable.map(row => `${keyOf(row.contextId)}:${row.holderId}`)).toEqual(['Unit A:P-ann', 'Unit B:P-cy']);
+    expect(r.owners).toMatchObject({ matched: 2, fuzzy: 1, written: 2 });
+  });
+
+  it('owners that match nobody write no Accountable and are counted as not found', async () => {
+    const s = store();
+    s.principals = s.principals.filter(p => p.id === 'P-bo');
+    const a = await sharepoint(s);
+    const r = await applyUpload({ uploadDraftId: a.uploadDraftId, mapping: a.guess }, 'a', s);
+    expect(r.owners).toMatchObject({ matched: 0, unmatched: 2, written: 0 });
+    expect(s.insertRoleRows.mock.calls.flatMap(c => c[0]).filter(row => row.role === 'Accountable')).toEqual([]);
+  });
+
+  it('without an owner column nothing is written as Accountable and owners is null', async () => {
+    const s = store();
+    const a = await sharepoint(s);
+    const r = await applyUpload({ uploadDraftId: a.uploadDraftId, mapping: { ...a.guess, ownerColumn: null, attributeColumns: ['Eigenaar'] } }, 'a', s);
+    expect(r.owners).toBeNull();
+    expect(s.insertRoleRows.mock.calls.flatMap(c => c[0]).filter(row => row.role === 'Accountable')).toEqual([]);
+  });
+});

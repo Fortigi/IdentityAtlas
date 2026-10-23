@@ -115,6 +115,46 @@ describe('Upload a list', () => {
     expect(screen.getByRole('button', { name: 'Import' })).toBeDisabled();
   });
 
+  it('the preview shows how members and owners matched, and lists every near miss marked fuzzy', async () => {
+    const authFetch = api({
+      'uploads/preview': {
+        ...PREVIEW,
+        members: { ...PREVIEW.members, matched: 5, byName: 3, fuzzy: 1, fuzzySamples: [{ kind: 'Principal', value: 'Bo Sampel', matched: 'Bo Sample' }] },
+        owners: {
+          matched: 2, byName: 1, fuzzy: 1, unmatched: 1, ambiguous: 0,
+          fuzzySamples: [{ kind: 'Principal', value: 'Cy Tset', matched: 'Cy Test' }],
+          unmatchedSamples: [{ kind: 'Principal', value: 'Nobody Known', reason: 'not found' }],
+        },
+      },
+    });
+    const { user } = mount({}, authFetch);
+    await user.click(await screen.findByRole('button', { name: /^Upload a list/ }));
+    await user.click(screen.getByText('Next ▸'));
+    await user.upload(await screen.findByLabelText('List file'), csvFile());
+    await user.click(screen.getByRole('button', { name: 'Read the file ▸' }));
+    await user.click(await screen.findByRole('button', { name: 'Preview ▸' }));
+    expect(await screen.findByTestId('upload-members')).toHaveTextContent('Members: 5 matched (3 by name, 1 fuzzy) · 1 not found');
+    expect(screen.getByTestId('upload-owners')).toHaveTextContent('Owners: 2 matched (1 by name, 1 fuzzy) · 1 not found');
+    const members = screen.getByTestId('upload-fuzzy-members');
+    expect(members).toHaveAttribute('open');
+    expect(within(members).getByText(/Bo Sampel → Bo Sample/)).toBeInTheDocument();
+    expect(within(members).getByText('fuzzy')).toBeInTheDocument();
+    expect(within(screen.getByTestId('upload-fuzzy-owners')).getByText(/Cy Tset → Cy Test/)).toBeInTheDocument();
+    expect(screen.getByText('Owners that matched nothing (1)')).toBeInTheDocument();
+  });
+
+  it('a preview without owners or near misses shows neither', async () => {
+    const { user } = mount();
+    await user.click(await screen.findByRole('button', { name: /^Upload a list/ }));
+    await user.click(screen.getByText('Next ▸'));
+    await user.upload(await screen.findByLabelText('List file'), csvFile());
+    await user.click(screen.getByRole('button', { name: 'Read the file ▸' }));
+    await user.click(await screen.findByRole('button', { name: 'Preview ▸' }));
+    expect(await screen.findByTestId('upload-members')).toBeInTheDocument();
+    expect(screen.queryByTestId('upload-owners')).toBeNull();
+    expect(screen.queryByTestId('upload-fuzzy-members')).toBeNull();
+  });
+
   it('an analyze refusal is shown and the wizard stays on the file step', async () => {
     const authFetch = api({ 'uploads/analyze': jsonResponse({ error: 'The file is empty.' }, { ok: false, status: 400 }) });
     const { user } = mount({}, authFetch);

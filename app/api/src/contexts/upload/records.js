@@ -116,19 +116,28 @@ export function buildMemberRecords(units, mapping, systemId, ids) {
   return records;
 }
 
-/** Responsible role rows (contextLinks.js shape) for every tree, from matched accounts. */
-export function buildResponsibleRows(units, mapping, systemId, accountIds) {
+// Role rows (contextLinks.js shape) for every tree: per unit, the values
+// `valuesOf(unit)` names that matched an account.
+function roleRows(units, mapping, systemId, accountIds, role, valuesOf) {
   const rows = [];
   for (const kind of treeKinds(mapping)) {
     for (const u of units) {
-      for (const value of u.responsibles) {
+      for (const value of valuesOf(u)) {
         const holderId = accountIds.get(value);
-        if (holderId) rows.push({ contextId: contextIdFor(systemId, kind, u.key), role: 'Responsible', holderCol: 'principalId', holderId });
+        if (holderId) rows.push({ contextId: contextIdFor(systemId, kind, u.key), role, holderCol: 'principalId', holderId });
       }
     }
   }
   return rows;
 }
+
+/** Responsible role rows for every tree, from matched accounts. */
+export const buildResponsibleRows = (units, mapping, systemId, accountIds) =>
+  roleRows(units, mapping, systemId, accountIds, 'Responsible', u => u.responsibles);
+
+/** Accountable role rows for every tree: each unit's owner, when it matched an account. */
+export const buildOwnerRows = (units, mapping, systemId, accountIds) =>
+  roleRows(units, mapping, systemId, accountIds, 'Accountable', u => (u.owner ? [u.owner] : []));
 
 /** SameUnitAs rows between the two trees of a list: the roots, and each key's pair. */
 export function buildLinkRows(units, mapping, systemId) {

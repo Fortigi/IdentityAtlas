@@ -107,10 +107,19 @@ export function countsLine(contexts) {
   return parts.join(' · ');
 }
 
-/** The member matching as one line: "41 matched · 3 not found · 1 ambiguous". */
+// "(5 by name, 2 fuzzy)" — how many of the matches were found by name, or as a
+// near miss; empty when all were found by address or id.
+function howMatched(stats) {
+  const how = [];
+  if (stats.byName) how.push(`${stats.byName} by name`);
+  if (stats.fuzzy) how.push(`${stats.fuzzy} fuzzy`);
+  return how.length ? ` (${how.join(', ')})` : '';
+}
+
+/** Member (or owner) matching as one line: "41 matched (5 by name, 2 fuzzy) · 3 not found · 1 ambiguous". */
 export function membersLine(stats) {
   if (!stats) return '';
-  const parts = [`${stats.matched} matched`];
+  const parts = [`${stats.matched} matched${howMatched(stats)}`];
   if (stats.unmatched) parts.push(`${stats.unmatched} not found`);
   if (stats.ambiguous) parts.push(`${stats.ambiguous} ambiguous`);
   return parts.join(' · ');

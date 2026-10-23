@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Mutation testing for the context upload (docs/architecture/context-upload.md): reading a list (csv/xlsx), the column profile, the deterministic best guess of a mapping and the optional model refinement, the mapping check, turning rows into units, member matching, the ingest records and the diff that decides created / updated / unchanged / not in this file, the draft store, the three-step service and its routes. WHY THESE FILES: every failure here is silent in the same way the context assistant's are -- a matcher one step too eager links a customer to the wrong account, a key decision one column off merges two customers, a diff that misses a change reports \"unchanged\" while the tree is rewritten, and the re-import repeats the wrong answer on every upload. Scoped like the sibling API configs: these files plus their own unit tests, which are self-contained (temp folders from os.tmpdir(), no repository paths outside the sandbox, no PostgreSQL). MUTATOR SET: StringLiteral and ObjectLiteral disabled, matching the sibling configs -- so the SQL in lists.js/members.js is not mutated and stays the contract test's job (contract-tests/contextUpload.contract.test.js). Run: cd app/api && npm run test:mutation:contextupload NOT YET MEASURED: this config ships with the feature; break is deliberately absent until a first run measures a score.",
+  "_comment": "Mutation testing for the context upload (docs/architecture/context-upload.md): reading a list (csv/xlsx), the values of a cell (SharePoint lookups, person claims), the column profile, the deterministic best guess of a mapping and the optional model refinement, the mapping check, turning rows into units, member matching and the shared name matcher (lib/nameMatch.js: normalising, the near-miss threshold and runner-up margin), the ingest records and the diff that decides created / updated / unchanged / not in this file, the draft store, the three-step service and its routes. WHY THESE FILES: every failure here is silent in the same way the context assistant's are -- a matcher one step too eager links a customer to the wrong account, a key decision one column off merges two customers, a diff that misses a change reports \"unchanged\" while the tree is rewritten, and the re-import repeats the wrong answer on every upload. Scoped like the sibling API configs: these files plus their own unit tests, which are self-contained (temp folders from os.tmpdir(), no repository paths outside the sandbox, no PostgreSQL). MUTATOR SET: StringLiteral and ObjectLiteral disabled, matching the sibling configs -- so the SQL in lists.js/members.js is not mutated and stays the contract test's job (contract-tests/contextUpload.contract.test.js). Run: cd app/api && npm run test:mutation:contextupload NOT YET MEASURED: this config ships with the feature; break is deliberately absent until a first run measures a score.",
   "packageManager": "npm",
   "testRunner": "vitest",
   "vitest": {
@@ -15,6 +15,7 @@
   },
   "mutate": [
     "src/contexts/upload/aiRefine.js",
+    "src/contexts/upload/cellValues.js",
     "src/contexts/upload/diff.js",
     "src/contexts/upload/drafts.js",
     "src/contexts/upload/guess.js",
@@ -26,7 +27,8 @@
     "src/contexts/upload/profile.js",
     "src/contexts/upload/records.js",
     "src/contexts/upload/service.js",
-    "src/routes/contexts/uploads.js"
+    "src/routes/contexts/uploads.js",
+    "src/lib/nameMatch.js"
   ],
   "thresholds": {
     "high": 90,

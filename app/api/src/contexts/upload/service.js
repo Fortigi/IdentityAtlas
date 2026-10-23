@@ -15,7 +15,7 @@ import { checkMapping } from './mapping.js';
 import { planUnits, ROOT_KEY } from './plan.js';
 import { matchAll } from './members.js';
 import {
-  buildContextRecords, buildMemberRecords, buildResponsibleRows, buildLinkRows, memberValues, treeKinds, contextIdFor, keptRecord,
+  buildContextRecords, buildMemberRecords, buildResponsibleRows, buildOwnerRows, buildLinkRows, memberValues, treeKinds, contextIdFor, keptRecord,
 } from './records.js';
 import { diffContexts } from './diff.js';
 import { saveDraft, loadDraft, deleteDraft, sweepDrafts } from './drafts.js';
@@ -78,6 +78,12 @@ const summarizeList = (list) => ({
   lastUploadedAt: list.uploadedAt ?? null, rootContextId: list.rootContextId ?? null,
 });
 
+// The accounts a set of values names (Responsibles, owners), or null for none.
+async function matchAccounts(db, values) {
+  const distinct = [...new Set(values)];
+  return distinct.length ? matchAll(db, { Principal: distinct }) : null;
+}
+
 // Shared by preview and apply: the draft, the checked mapping, the plan, the
 // list (when updating one) and the member matches. Throws UploadError for
 // anything the analyst has to fix.
@@ -93,12 +99,12 @@ async function prepare({ uploadDraftId, mapping: input, listId }, db) {
   if (list) mapping.listName = listNameOf(list);
   const plan = planUnits(rows, mapping);
   const matches = await matchAll(db, memberValues(plan.units));
-  const responsibleValues = [...new Set(plan.units.flatMap(u => u.responsibles))];
-  const responsibles = responsibleValues.length ? await matchAll(db, { Principal: responsibleValues }) : null;
-  return { draft, rows, mapping, list, plan, matches, responsibles };
+  const responsibles = await matchAccounts(db, plan.units.flatMap(u => u.responsibles));
+  const owners = await matchAccounts(db, plan.units.map(u => u.owner).filter(Boolean));
+  return { draft, rows, mapping, list, plan, matches, responsibles, owners };
 }
 
-function previewOf({ rows, plan, matches, responsibles }, records, existing) {
+function previewOf({ rows, plan, matches, responsibles, owners }, records, existing) {
   const diff = diffContexts(records, existing);
   return {
     rowCount: rows.length,
@@ -107,6 +113,7 @@ function previewOf({ rows, plan, matches, responsibles }, records, existing) {
     contexts: { created: diff.created, updated: diff.updated, unchanged: diff.unchanged, notInFile: diff.missingIds.length },
     members: matches.stats,
     responsibles: responsibles?.stats ?? null,
+    owners: owners?.stats ?? null,
     errors: plan.errors,
     warnings: plan.warnings,
     sample: plan.units.slice(0, MAX_SAMPLE_UNITS).map(u => ({ key: u.key, name: u.name, parentKey: u.parentKey, owner: u.owner })),
@@ -189,6 +196,17 @@ async function writeMembers(systemId, members, keptIds, deps) {
   }), 'members');
 }
 
+// The owners this upload matched — by name or as a near miss too, which the
+// contexts ingest's own resolution does not take — as their unit's Accountable.
+// An Accountable the ingest just set, or an analyst's, stays (insert-only).
+// Returns the owner matching with the number written, or null without owners.
+async function writeOwners(prep, systemId, deps) {
+  if (!prep.owners) return null;
+  const rows = buildOwnerRows(prep.plan.units, prep.mapping, systemId, prep.owners.ids.Principal);
+  const out = rows.length ? await deps.insertRoleRows(rows, systemId) : null;
+  return { ...prep.owners.stats, written: out?.inserted ?? 0 };
+}
+
 /**
  * Step 3: write the list. Returns the result the wizard shows, with the root to select.
  * @param {object} body  { uploadDraftId, mapping, listId?, removeMissing? }
@@ -211,6 +229,7 @@ export async function applyUpload(body, uploadedBy, deps) {
   await writeMembers(systemId, memberRecords, keptIds, deps);
   const responsibleRows = prep.responsibles ? buildResponsibleRows(units, prep.mapping, systemId, prep.responsibles.ids.Principal) : [];
   const roles = await deps.insertRoleRows(responsibleRows, systemId);
+  const owners = await writeOwners(prep, systemId, deps);
   const links = await deps.insertRelationshipRows(buildLinkRows(units, prep.mapping, systemId), systemId);
   await deps.refreshMemberCounts(deps.db, [...records.map(r => r.id), ...keptIds]);
 
@@ -230,6 +249,7 @@ export async function applyUpload(body, uploadedBy, deps) {
     contexts: { created: diff.created, updated: diff.updated, unchanged: diff.unchanged, removed, notInFile: removeMissing ? 0 : diff.missingIds.length },
     members: { written: memberRecords.length, ...prep.matches.stats },
     accountable: written.accountable ?? null,
+    owners,
     responsibles: roles,
     links,
     warnings: prep.plan.warnings,

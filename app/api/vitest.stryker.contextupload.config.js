@@ -14,6 +14,7 @@ export default defineConfig({
     include: [
       'src/contexts/upload/*.test.js',
       'src/routes/contexts/uploads.test.js',
+      'src/lib/nameMatch.test.js',
     ],
     exclude: ['**/node_modules/**'],
     coverage: { ...base.test.coverage, thresholds: undefined },
