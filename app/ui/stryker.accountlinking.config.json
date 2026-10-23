@@ -1,0 +1,35 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for how the UI reads an account-linking run. WHY THIS FILE: accountLinkingRuns.js carries one rule and the rule is a claim about data — the three name-only columns are NULLABLE, where null means 'this run predates the corroboration guard' and 0 means 'the run looked and held nothing back'. Collapse the two (a truthiness check instead of `!= null`, the wrong branch of the find) and the screen states something the data does not support: a historical run reported as clean, or a tenant with matches waiting shown an empty card. Nothing throws and no mount test has to notice, which is exactly the shape worth measuring. MUTATOR SET: StringLiteral and ObjectLiteral disabled, matching every sibling config. The notice's wording is therefore unmeasured; its exact text is pinned by assertion in accountLinkingRuns.test.js instead. EXCLUDED: the card itself, which is presentational — see mutationExclusions. NOT YET MEASURED: ships with the feature, so `break` is absent until a first run measures a score; add `{ pkg: ui, name: accountlinking, label: 'UI account linking' }` to .github/workflows/js-mutation.yml then, with the floor a few points under what it reports. Run: cd app/ui && npm run test:mutation:accountlinking",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.accountlinking.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-accountlinking.json"
+  },
+  "mutate": [
+    "src/utils/accountLinkingRuns.js"
+  ],
+  "mutationExclusions": {
+    "src/components/NameOnlyMatchesCard.jsx": "Presentational: a read-only table of the matches the engine held back, rendered from the run row. Its two decisions live elsewhere and are mutated — which run to read (latestNameOnlyRun in utils/accountLinkingRuns.js) and which matches exist at all (the API's buildLinks). What is left here is markup plus the tie badge and the truncation line, both pinned by NameOnlyMatchesCard.mount.test.jsx — the same decision as the presentational panels in the context-assistant config."
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70
+  },
+  "concurrency": 2,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false,
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  }
+}

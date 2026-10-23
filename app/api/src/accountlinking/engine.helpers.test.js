@@ -13,6 +13,8 @@ import {
   prefixesFrom,
   suffixesFrom,
   nameSignalNames,
+  isNameOnly,
+  parseLinkSignals,
   indexIdentities,
   collectCandidates,
   aggregateByIdentity,
@@ -222,6 +224,64 @@ describe('signal lookup by type', () => {
   });
 
   it('collects every name signal, and only name signals', () => {
-    expect([...nameSignalNames(rules)].sort()).toEqual(['displayName', 'fullName']);
+    // 'f' is the fuzzy signal: the legacy single-signal name comparison, which is a name
+    // match by definition. Leaving it out would let a fuzzy-only match read as
+    // corroborated and link on one name signal -- the exact case the guard exists for.
+    expect([...nameSignalNames(rules)].sort()).toEqual(['displayName', 'f', 'fullName']);
+    expect(nameSignalNames({ signals: [{ type: 'exact', name: 'email' }] }).size).toBe(0);
+  });
+});
+
+// ── isNameOnly / parseLinkSignals ────────────────────────────────────────────
+//
+// The two predicates behind the corroboration guard. isNameOnly decides whether a match
+// is allowed to link at all; parseLinkSignals reads the signals back off a stored member
+// row so the retroactive cleanup can recognise the links the guard would no longer make.
+
+describe('isNameOnly', () => {
+  const nameSigs = new Set(['fullName', 'surnameInitial']);
+
+  it('is true when every fired signal is a name signal', () => {
+    expect(isNameOnly(['fullName'], nameSigs)).toBe(true);
+    expect(isNameOnly(['fullName', 'surnameInitial'], nameSigs)).toBe(true);
+  });
+
+  it('is false as soon as one signal is not a name signal', () => {
+    expect(isNameOnly(['fullName', 'email'], nameSigs)).toBe(false);
+    expect(isNameOnly(['employeeId'], nameSigs)).toBe(false);
+  });
+
+  it('is false for a match that fired nothing at all', () => {
+    // `signals.length > 0 &&` -- without it, [].every() is vacuously true and a match
+    // that matched NOTHING would be classified as name-only.
+    expect(isNameOnly([], nameSigs)).toBe(false);
+  });
+});
+
+describe('parseLinkSignals', () => {
+  it('reads the CSV node-postgres hands back from the JSONB string', () => {
+    // The column holds a JSON *string* of CSV, so the driver returns the bare CSV --
+    // which is not itself valid JSON. Mis-handling this returns [], the cleanup then
+    // recognises nothing, and every pre-existing name-only link stays attached.
+    expect(parseLinkSignals('fullName')).toEqual(['fullName']);
+    expect(parseLinkSignals('email,fullName')).toEqual(['email', 'fullName']);
+    expect(parseLinkSignals('email, fullName ')).toEqual(['email', 'fullName']);
+  });
+
+  it('reads a double-encoded legacy value', () => {
+    expect(parseLinkSignals('"fullName"')).toEqual(['fullName']);
+  });
+
+  it('reads an array, however it was stored', () => {
+    expect(parseLinkSignals(['email', 'fullName'])).toEqual(['email', 'fullName']);
+    expect(parseLinkSignals('["email","fullName"]')).toEqual(['email', 'fullName']);
+  });
+
+  it('returns an empty list for nothing recorded', () => {
+    expect(parseLinkSignals(null)).toEqual([]);
+    expect(parseLinkSignals(undefined)).toEqual([]);
+    expect(parseLinkSignals('')).toEqual([]);
+    expect(parseLinkSignals(',, ,')).toEqual([]);
+    expect(parseLinkSignals(42)).toEqual([]);
   });
 });

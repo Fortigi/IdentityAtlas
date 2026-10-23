@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scoreMatch, buildLinks } from './engine.js';
+import { scoreMatch, buildLinks, MAX_NAME_ONLY_SUGGESTIONS } from './engine.js';
 import { DEFAULT_RULES } from './defaultRules.js';
 
 const identity = { id: 'idy-1', displayName: 'Doe, John', email: 'jdoe@contoso.com', employeeId: 'E1' };
@@ -37,15 +37,18 @@ describe('scoreMatch', () => {
 });
 
 describe('buildLinks', () => {
-  it('links all of a person’s accounts (admin + alternate-domain) to one identity', () => {
-    const identities = [{ id: 'euson', displayName: 'Euson, Robin', email: 'r.euson@por.com', employeeId: 'E9' }];
-    const orphans = [
-      { id: 'adm', displayName: '(ADM-azure) Euson, Robin', email: 'R.Euson@por.onmicrosoft.com' },
-      { id: 'ogd', displayName: 'Euson, Robin (OGD)', email: 'robin.euson@ogd.nl' },
-      { id: 'admogd', displayName: '(ADM-azure) Euson, Robin (OGD)', email: 'robin.euson@por.onmicrosoft.com' },
-      { id: 'svc', displayName: 'svc-backup', email: 'svc-backup@por.com' }, // service → skipped
-    ];
-    const links = buildLinks(orphans, identities, DEFAULT_RULES);
+  const EUSON = [{ id: 'euson', displayName: 'Euson, Robin', email: 'r.euson@por.com', employeeId: 'E9' }];
+  const EUSON_ORPHANS = [
+    // adm-prefixed address shares the identity's email local part → corroborated.
+    { id: 'adm', displayName: '(ADM-azure) Euson, Robin', email: 'R.Euson@por.onmicrosoft.com' },
+    // robin.euson vs r.euson — the name is the only thing that matches.
+    { id: 'ogd', displayName: 'Euson, Robin (OGD)', email: 'robin.euson@ogd.nl' },
+    { id: 'admogd', displayName: '(ADM-azure) Euson, Robin (OGD)', email: 'robin.euson@por.onmicrosoft.com' },
+    { id: 'svc', displayName: 'svc-backup', email: 'svc-backup@por.com' }, // service → skipped
+  ];
+
+  it('links all of a person’s accounts (admin + alternate-domain) when name-only links are allowed', () => {
+    const { links } = buildLinks(EUSON_ORPHANS, EUSON, { ...DEFAULT_RULES, allowNameOnlyLinks: true });
     const linkedIds = links.map(l => l.principalId).sort();
     expect(linkedIds).toEqual(['adm', 'admogd', 'ogd']);
     expect(links.every(l => l.identityId === 'euson')).toBe(true);
@@ -55,19 +58,31 @@ describe('buildLinks', () => {
     );
   });
 
+  it('links only the corroborated account of that same set under the shipped defaults', () => {
+    // The paired case for the test above, on identical input: the two accounts
+    // whose ONLY matching signal is the name are held back, the one that also
+    // matches on the email prefix still links.
+    const { links, stats } = buildLinks(EUSON_ORPHANS, EUSON, DEFAULT_RULES);
+    expect(links.map(l => l.principalId)).toEqual(['adm']);
+    expect(stats.nameOnlyMatches).toBe(2);
+    expect(stats.suggestions.map(s => s.principalId).sort()).toEqual(['admogd', 'ogd']);
+  });
+
   it('does not auto-link an ambiguous name-only match (two identities, same name)', () => {
     const identities = [
       { id: 'a', displayName: 'Jansen, Jan', email: 'jan.jansen@x.com' },
       { id: 'b', displayName: 'Jansen, Jan', email: 'j.jansen@y.com' },
     ];
     const orphan = { id: 'o', displayName: 'Jansen, Jan', email: 'jjansen@z.com' };
-    expect(buildLinks([orphan], identities, DEFAULT_RULES)).toHaveLength(0);
+    expect(buildLinks([orphan], identities, DEFAULT_RULES).links).toHaveLength(0);
   });
 
   it('returns nothing when no identity matches', () => {
     const identities = [identity];
-    const links = buildLinks([{ id: 'p-z', displayName: 'Zee, Zed', email: 'zzee@contoso.com' }], identities, DEFAULT_RULES);
+    const { links, stats } = buildLinks(
+      [{ id: 'p-z', displayName: 'Zee, Zed', email: 'zzee@contoso.com' }], identities, DEFAULT_RULES);
     expect(links).toHaveLength(0);
+    expect(stats).toEqual({ nameOnlyMatches: 0, suggestions: [] });
   });
 });
 
@@ -240,6 +255,9 @@ describe('buildLinks - selection and thresholds', () => {
     linkThreshold: 50,
     onlyLinkTypes: ['Secondary', 'Admin'],
     accountTypeRules: [{ accountType: 'Admin', priority: 1, patterns: ['^adm-'] }],
+    // These cases are about which candidate wins at which threshold, so the
+    // corroboration guard is opted out of here and tested on its own below.
+    allowNameOnlyLinks: true,
     ...over,
   });
 
@@ -250,7 +268,7 @@ describe('buildLinks - selection and thresholds', () => {
     // rejected -- and the threshold is a slider an admin sets, so "60 or better" quietly
     // becoming "better than 60" changes who links with no visible cause.
     const r = rules({ linkThreshold: 60 });
-    const links = buildLinks(
+    const { links } = buildLinks(
       [person('p1', 'John Doe')],
       [person('i1', 'John Doe')],
       r,
@@ -261,7 +279,26 @@ describe('buildLinks - selection and thresholds', () => {
 
   it('refuses a candidate just under the threshold', () => {
     const r = rules({ linkThreshold: 61 });
-    expect(buildLinks([person('p1', 'John Doe')], [person('i1', 'John Doe')], r)).toHaveLength(0);
+    expect(buildLinks([person('p1', 'John Doe')], [person('i1', 'John Doe')], r).links).toHaveLength(0);
+  });
+
+  it('falls back to the shipped threshold when the rule set omits one', () => {
+    // `rules.linkThreshold ?? DEFAULT_RULES.linkThreshold` -- this used to fall back to a
+    // hard-coded 70, a second source of truth for a default that is 50. Two custom
+    // non-name signals summing to 60 discriminate: they link under 50 and not under 70.
+    const r = {
+      signals: [
+        { name: 'dept', type: 'exact', field: 'department', weight: 30 },
+        { name: 'office', type: 'exact', field: 'officeLocation', weight: 30 },
+      ],
+      onlyLinkTypes: ['Secondary'],
+      accountTypeRules: [],
+    };
+    const pair = { department: 'IT', officeLocation: 'Utrecht', displayName: 'Ann Jones' };
+    const { links } = buildLinks([{ id: 'p1', ...pair }], [{ id: 'i1', ...pair }], r);
+    expect(links).toHaveLength(1);
+    expect(links[0].confidence).toBe(60);
+    expect(DEFAULT_RULES.linkThreshold).toBe(50); // the single source of that default
   });
 
   it('takes the HIGHEST scoring candidate, not the first one seen', () => {
@@ -269,7 +306,7 @@ describe('buildLinks - selection and thresholds', () => {
     // purpose: without the > comparison the first plausible identity wins and the person
     // is linked to the weaker match.
     const r = rules();
-    const links = buildLinks(
+    const { links } = buildLinks(
       [person('p1', 'John Doe', { employeeId: 'E1' })],
       [person('i-weak', 'John Doe'), person('i-strong', 'John Doe', { employeeId: 'E1' })],
       r,
@@ -286,11 +323,15 @@ describe('buildLinks - selection and thresholds', () => {
       onlyLinkTypes: ['Secondary'],
       accountTypeRules: [{ accountType: 'Service', priority: 1, patterns: ['^svc-'] }],
     });
-    expect(buildLinks([person('p1', 'svc-john doe')], [person('i1', 'John Doe')], r)).toHaveLength(0);
+    const { links, stats } = buildLinks([person('p1', 'svc-john doe')], [person('i1', 'John Doe')], r);
+    expect(links).toHaveLength(0);
+    expect(stats.nameOnlyMatches).toBe(0); // never scored, so never counted either
   });
 });
 
 describe('buildLinks - the ambiguity guard', () => {
+  // Name-only matches are allowed here so the TIE guard is what the cases turn on;
+  // the corroboration guard gets its own block below.
   const nameOnlyRules = {
     signals: [
       { name: 'employeeId', type: 'exact', field: 'employeeId', weight: 95 },
@@ -299,6 +340,7 @@ describe('buildLinks - the ambiguity guard', () => {
     linkThreshold: 50,
     onlyLinkTypes: ['Secondary'],
     accountTypeRules: [],
+    allowNameOnlyLinks: true,
   };
 
   it('refuses a NAME-ONLY match that ties across two identities', () => {
@@ -306,29 +348,35 @@ describe('buildLinks - the ambiguity guard', () => {
     // humans, and the tie means there is no evidence to prefer one -- so the safe answer
     // is to leave it orphan for review. This guard is the difference between "we do not
     // know" and a confident wrong answer.
-    const links = buildLinks(
+    const { links, stats } = buildLinks(
       [{ id: 'p1', displayName: 'John Doe' }],
       [{ id: 'i1', displayName: 'John Doe' }, { id: 'i2', displayName: 'John Doe' }],
       nameOnlyRules,
     );
     expect(links).toHaveLength(0);
+    // Dropped by the tie guard, but still a name-only match that cleared the
+    // threshold -- so it is counted once and carries its tie count for review.
+    expect(stats.nameOnlyMatches).toBe(1);
+    expect(stats.suggestions).toHaveLength(1);
+    expect(stats.suggestions[0].ties).toBe(2);
   });
 
   it('links a NAME-ONLY match when there is exactly one candidate', () => {
     // The paired case: the guard must fire on ambiguity, not on name matches generally.
-    const links = buildLinks(
+    const { links, stats } = buildLinks(
       [{ id: 'p1', displayName: 'John Doe' }],
       [{ id: 'i1', displayName: 'John Doe' }],
       nameOnlyRules,
     );
     expect(links).toHaveLength(1);
     expect(links[0].identityId).toBe('i1');
+    expect(stats.suggestions[0].ties).toBe(1); // one candidate → no ambiguity
   });
 
   it('links a tie that rests on a STRONG signal, not just a name', () => {
     // Same tie, but both candidates share the employee id -- that is a deliberate data
     // duplicate, not two people who happen to share a name, so the guard must not fire.
-    const links = buildLinks(
+    const { links, stats } = buildLinks(
       [{ id: 'p1', displayName: 'John Doe', employeeId: 'E1' }],
       [
         { id: 'i1', displayName: 'John Doe', employeeId: 'E1' },
@@ -337,6 +385,7 @@ describe('buildLinks - the ambiguity guard', () => {
       nameOnlyRules,
     );
     expect(links).toHaveLength(1);
+    expect(stats).toEqual({ nameOnlyMatches: 0, suggestions: [] });
   });
 
   it('links when nothing matched at all only if above threshold - otherwise stays orphan', () => {
@@ -344,6 +393,137 @@ describe('buildLinks - the ambiguity guard', () => {
       [{ id: 'p1', displayName: 'Nobody Here' }],
       [{ id: 'i1', displayName: 'Someone Else' }],
       nameOnlyRules,
-    )).toHaveLength(0);
+    ).links).toHaveLength(0);
+  });
+});
+
+// ── buildLinks: the corroboration guard ──────────────────────────────────────
+//
+// A name is not evidence enough on its own. Where the tie guard above only fires when two
+// identities score IDENTICALLY, this one fires on the single-candidate case the tie guard
+// cannot see: the real owner's name is spelled a little differently, a namesake matches
+// cleanly, and the account is handed to the wrong person with no indication it rested on
+// one signal. Every wrong link in the measured dataset behind #1440 was this case.
+
+describe('buildLinks - the corroboration guard', () => {
+  const rules = (over = {}) => ({
+    signals: [
+      { name: 'employeeId', type: 'exact', field: 'employeeId', weight: 95 },
+      { name: 'email', type: 'exact', field: 'email', weight: 90 },
+      { name: 'fullName', type: 'name', level: 'full', weight: 60 },
+      { name: 'surnameInitial', type: 'name', level: 'surnameInitial', weight: 45 },
+    ],
+    linkThreshold: 50,
+    onlyLinkTypes: ['Secondary'],
+    accountTypeRules: [],
+    ...over,
+  });
+
+  const JOHN = { id: 'i1', displayName: 'John Doe', email: 'john.doe@corp.com', employeeId: 'E1' };
+
+  it('holds back a name-only match and records what it nearly linked', () => {
+    const orphan = { id: 'p1', displayName: 'John Doe', email: 'jd2@elsewhere.com' };
+    const { links, stats } = buildLinks([orphan], [JOHN], rules());
+
+    expect(links).toHaveLength(0);
+    expect(stats.nameOnlyMatches).toBe(1);
+    expect(stats.suggestions).toEqual([{
+      principalId: 'p1',
+      displayName: 'John Doe',
+      identityId: 'i1',
+      identityName: 'John Doe',
+      confidence: 60,
+      signals: ['fullName'],
+      accountType: 'Secondary',
+      ties: 1,
+    }]);
+  });
+
+  it('links the very same match when the tenant opts back in', () => {
+    // The paired case on identical input: allowNameOnlyLinks is the whole difference, and
+    // the match is STILL counted -- the run reports what it linked on a name alone.
+    const orphan = { id: 'p1', displayName: 'John Doe', email: 'jd2@elsewhere.com' };
+    const { links, stats } = buildLinks([orphan], [JOHN], rules({ allowNameOnlyLinks: true }));
+
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ identityId: 'i1', confidence: 60, signals: ['fullName'] });
+    expect(stats.nameOnlyMatches).toBe(1);
+  });
+
+  it('treats only a literal true as opting in', () => {
+    // `=== true`. A config that stored the string "false", or 0, must not read as
+    // permission to link -- the safe default has to survive a sloppy value.
+    for (const value of ['false', 'true', 1, 0, null, undefined, {}]) {
+      const { links } = buildLinks(
+        [{ id: 'p1', displayName: 'John Doe' }], [JOHN], rules({ allowNameOnlyLinks: value }));
+      expect(links).toHaveLength(0);
+    }
+  });
+
+  it('links a name match that is corroborated by an email match', () => {
+    // Two signals, one of them not a name → the guard must not fire. Measured on the
+    // dataset behind #1440, no link combining a name with an email or employeeId was wrong.
+    const orphan = { id: 'p1', displayName: 'John Doe', email: 'john.doe@corp.com' };
+    const { links, stats } = buildLinks([orphan], [JOHN], rules());
+
+    expect(links).toHaveLength(1);
+    expect(links[0].confidence).toBe(100);           // 90 + 60, capped
+    expect(links[0].signals).toEqual(['email', 'fullName']);
+    expect(stats).toEqual({ nameOnlyMatches: 0, suggestions: [] });
+  });
+
+  it('links on a strong signal alone, with no name agreement at all', () => {
+    const orphan = { id: 'p1', displayName: 'J.D. (service desk)', employeeId: 'E1' };
+    const { links, stats } = buildLinks([orphan], [JOHN], rules());
+
+    expect(links.map(l => l.signals)).toEqual([['employeeId']]);
+    expect(stats.nameOnlyMatches).toBe(0);
+  });
+
+  it('does not count a name match that never cleared the threshold', () => {
+    // surnameInitial alone scores 45 against a threshold of 50. It was already not
+    // linking; counting it would inflate "held for review" with matches nobody held.
+    const orphan = { id: 'p1', displayName: 'J. Doe', givenName: 'J', surname: 'Doe' };
+    const idy = { id: 'i1', displayName: 'John Doe', givenName: 'John', surname: 'Doe' };
+    const { links, stats } = buildLinks([orphan], [idy], rules());
+
+    expect(links).toHaveLength(0);
+    expect(stats).toEqual({ nameOnlyMatches: 0, suggestions: [] });
+  });
+
+  it('counts every name-only match but caps the stored list', () => {
+    // The count is the true number; the list is capped so one run cannot write an
+    // unbounded document onto its row.
+    const identities = [];
+    const orphans = [];
+    for (let i = 0; i < MAX_NAME_ONLY_SUGGESTIONS + 7; i++) {
+      identities.push({ id: `i${i}`, displayName: `Person${i} Surname${i}` });
+      orphans.push({ id: `p${i}`, displayName: `Person${i} Surname${i}` });
+    }
+    const { links, stats } = buildLinks(orphans, identities, rules());
+
+    expect(links).toHaveLength(0);
+    expect(stats.nameOnlyMatches).toBe(MAX_NAME_ONLY_SUGGESTIONS + 7);
+    expect(stats.suggestions).toHaveLength(MAX_NAME_ONLY_SUGGESTIONS);
+  });
+
+  it('counts nothing for an empty tenant', () => {
+    expect(buildLinks([], [], rules())).toEqual({ links: [], stats: { nameOnlyMatches: 0, suggestions: [] } });
+  });
+
+  it('holds back a match resting only on a legacy FUZZY name signal', () => {
+    // `fuzzy` is the legacy single-signal name comparison, so a match resting only on it
+    // is exactly as uncorroborated as a `fullName`-only one.
+    const fuzzyRules = {
+      signals: [{ name: 'fuzzyName', type: 'fuzzy', field: 'displayName', weight: 60 }],
+      linkThreshold: 50,
+      onlyLinkTypes: ['Secondary'],
+      accountTypeRules: [],
+    };
+    const { links, stats } = buildLinks(
+      [{ id: 'p1', displayName: 'John Doe' }], [{ id: 'i1', displayName: 'John Doe' }], fuzzyRules);
+
+    expect(links).toHaveLength(0);
+    expect(stats.suggestions[0].signals).toEqual(['fuzzyName']);
   });
 });

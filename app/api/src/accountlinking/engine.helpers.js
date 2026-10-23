@@ -10,6 +10,7 @@ import {
   stripKnownPrefixes,
   parseName,
 } from './classifier.js';
+import { parseJsonbColumn } from '../lib/jsonb.js';
 
 /** Normalise any scalar to a trimmed, lower-cased comparison token. */
 export const norm = (v) => (v == null ? '' : String(v).trim().toLowerCase());
@@ -27,8 +28,36 @@ export function prefixesFrom(rules) {
 export function suffixesFrom(rules) {
   return (rules.signals || []).find(s => s.type === 'fuzzy')?.stripSuffixes || [];
 }
+/**
+ * The names of every signal that is a name match and nothing else. `fuzzy` is
+ * included: it is the legacy single-signal name comparison, so a match resting
+ * only on it is just as uncorroborated as one resting on `fullName`.
+ */
 export function nameSignalNames(rules) {
-  return new Set((rules.signals || []).filter(s => s.type === 'name').map(s => s.name));
+  return new Set((rules.signals || [])
+    .filter(s => s.type === 'name' || s.type === 'fuzzy')
+    .map(s => s.name));
+}
+
+/** True when a match fired at least one signal and every one of them is a name signal. */
+export function isNameOnly(signals, nameSigs) {
+  return signals.length > 0 && signals.every(s => nameSigs.has(s));
+}
+
+/**
+ * The signal names recorded on a stored `IdentityMembers.linkSignals` value.
+ *
+ * The column is JSONB holding a JSON *string* of comma-separated names, so
+ * node-postgres hands back the bare CSV (`fullName`, `email,fullName`) — which
+ * is not itself valid JSON. Accept that, a legacy double-encoded string, and a
+ * JSON array, and return [] for anything else.
+ * @returns {string[]}
+ */
+export function parseLinkSignals(stored) {
+  const value = typeof stored === 'string' ? (parseJsonbColumn(stored) ?? stored) : parseJsonbColumn(stored);
+  const csv = Array.isArray(value) ? value.join(',') : value;
+  if (typeof csv !== 'string') return [];
+  return csv.split(',').map(s => s.trim()).filter(Boolean);
 }
 
 /**

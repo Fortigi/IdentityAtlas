@@ -1,0 +1,5 @@
+- Account linking no longer links an account to a person on a display-name match alone. A match needs a second signal (email, email prefix or employee ID) to be applied automatically; a match resting only on name signals is held for review instead.
+- Each linking run now reports how many name-only matches it held back and lists them — the account, the identity it nearly linked to, the confidence and the signals — in a new "Name-only matches (held for review)" card in Admin → Account Linking.
+- Name-only links created by earlier runs are removed on the next run and re-evaluated under the new policy, so a corroborated account re-links immediately and an uncorroborated one becomes a held-for-review match. Analyst-confirmed links and links supplied by a crawler are never touched.
+- The run-completion notice now also reports the name-only matches held for review and the stale name-only links removed.
+- A new "Link on a name match alone" setting next to the certainty slider restores the previous behaviour for tenants that want it. It is off by default, including on existing installations after upgrade.

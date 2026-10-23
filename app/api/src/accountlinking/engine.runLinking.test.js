@@ -26,9 +26,10 @@ const RUN_ID = 'run-1';
 
 // A mocked db whose queryOne dispatches by SQL fragment. The caller supplies the
 // responses for the two preservation lookups.
-function makeDb({ rejected = null, existing = null } = {}) {
+function makeDb({ rejected = null, existing = null, orphans = [ORPHAN], members = [] } = {}) {
   const query = vi.fn(async (sql) => {
-    if (/FROM "Principals"/.test(sql)) return { rows: [ORPHAN] };
+    if (/FROM "Principals"/.test(sql)) return { rows: orphans };
+    if (/FROM "IdentityMembers"/.test(sql) && /^\s*SELECT/.test(sql.trim())) return { rows: members };
     if (/FROM "Identities"/.test(sql)) return { rows: [IDENTITY] };
     return { rows: [] }; // UPDATE/INSERT IdentityMembers, UPDATE Identities, run updates
   });
@@ -160,6 +161,148 @@ describe('loadRules', () => {
     const { runLinking } = await loadEngine(db);
     await expect(runLinking(RUN_ID)).resolves.not.toThrow();
     expect(memberWrites(db).length).toBeGreaterThan(0);
+  });
+});
+
+// ── The name-only corroboration guard, end to end through a run ──────────────
+//
+// Three things the run owes the operator: it must not create a name-only link, it must
+// remove the ones made before the guard existed (otherwise the data that motivated the
+// guard stays wrong forever), and it must report both on its own row. Every one of these
+// is silent when broken -- the run still says "completed".
+
+// A name-only match against the IDENTITY fixture: same parsed name, unrelated email,
+// no employee id. Scores 60 on fullName alone.
+const NAME_ONLY_ORPHAN = { id: 'p-namesake', displayName: 'Doe, John', email: 'jd@elsewhere.com' };
+
+/** The fields written by the run's final 'completed' UPDATE, as a column→value object. */
+function completionFields(db) {
+  const call = db.query.mock.calls.find(c =>
+    /UPDATE "AccountLinkingRuns"/.test(c[0]) && Array.isArray(c[1]) && c[1].includes('completed'));
+  if (!call) return null;
+  const cols = [...call[0].matchAll(/"(\w+)" = \$\d+/g)].map(m => m[1]);
+  return Object.fromEntries(cols.map((c, i) => [c, call[1][i + 1]]));
+}
+
+function memberDeletes(db) {
+  return db.query.mock.calls.filter(c => /DELETE FROM "IdentityMembers"/.test(c[0]));
+}
+
+describe('runLinking — the corroboration guard', () => {
+  it('writes no link for a name-only orphan and reports it on the run row', async () => {
+    const db = makeDb({ orphans: [NAME_ONLY_ORPHAN] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(memberWrites(db)).toHaveLength(0);
+    const fields = completionFields(db);
+    expect(fields.linksCreated).toBe(0);
+    expect(fields.nameOnlyMatches).toBe(1);
+    expect(JSON.parse(fields.nameOnlySuggestions)).toEqual([expect.objectContaining({
+      principalId: 'p-namesake', identityId: 'idy-1', confidence: 60, signals: ['fullName'], ties: 1,
+    })]);
+  });
+
+  it('still links the corroborated orphan and reports nothing held back', async () => {
+    // The paired case on the same run: the admin account whose email prefix matches is
+    // untouched by the guard, and the run says so rather than reporting a suppression.
+    const db = makeDb();
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(memberWrites(db).length).toBeGreaterThan(0);
+    const fields = completionFields(db);
+    expect(fields.nameOnlyMatches).toBe(0);
+    expect(JSON.parse(fields.nameOnlySuggestions)).toEqual([]);
+  });
+
+  it('reports zeroes rather than nothing on an empty tenant', async () => {
+    const db = makeDb({ orphans: [] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    const fields = completionFields(db);
+    expect(fields.nameOnlyMatches).toBe(0);
+    expect(fields.linksRemoved).toBe(0);
+    expect(fields.nameOnlySuggestions).toBe('[]');
+  });
+});
+
+describe('runLinking — retroactive removal of name-only links', () => {
+  const scoredNameOnly = { identityId: 'idy-1', principalId: 'p-old', linkSignals: 'fullName' };
+
+  it('detaches an engine-scored name-only link and recomputes the identity account count', async () => {
+    const db = makeDb({ orphans: [], members: [scoredNameOnly] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(memberDeletes(db).map(c => c[1])).toEqual([['idy-1', 'p-old']]);
+    expect(db.query.mock.calls.some(c =>
+      /UPDATE\s+"Identities"/.test(c[0]) && /"accountCount"/.test(c[0]) && c[1][0] === 'idy-1')).toBe(true);
+    expect(completionFields(db).linksRemoved).toBe(1);
+  });
+
+  it('runs the removal BEFORE loading orphans, so a detached account re-scores in the same run', async () => {
+    // Ordering is the whole mechanism: remove first and the account is an orphan again by
+    // the time candidates are gathered, so a corroborated one re-links immediately and an
+    // uncorroborated one becomes a suggestion. Reversed, it would be skipped for a run.
+    const db = makeDb({ orphans: [], members: [scoredNameOnly] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    const sqls = db.query.mock.calls.map(c => c[0]);
+    const deleteAt = sqls.findIndex(s => /DELETE FROM "IdentityMembers"/.test(s));
+    const orphanLoadAt = sqls.findIndex(s => /FROM "Principals"/.test(s));
+    expect(deleteAt).toBeGreaterThanOrEqual(0);
+    expect(deleteAt).toBeLessThan(orphanLoadAt);
+  });
+
+  it('leaves a corroborated link attached', async () => {
+    const db = makeDb({
+      orphans: [],
+      members: [{ identityId: 'idy-1', principalId: 'p-keep', linkSignals: 'email,fullName' }],
+    });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(memberDeletes(db)).toHaveLength(0);
+    expect(completionFields(db).linksRemoved).toBe(0);
+  });
+
+  it('only considers engine-scored, analyst-untouched rows', async () => {
+    // The exclusions are in the WHERE clause, so what is asserted here is that the clause
+    // is actually there -- an analyst decision and a crawler-sourced link must never be
+    // candidates for removal, whatever their signals say.
+    const db = makeDb({ orphans: [], members: [] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    const scan = db.query.mock.calls.map(c => c[0])
+      .find(s => /SELECT "identityId", "principalId", "linkSignals"/.test(s));
+    expect(scan).toMatch(/"linkConfidence" IS NOT NULL/);
+    expect(scan).toMatch(/"analystOverride" IS NULL/);
+  });
+
+  it('does not run the removal at all when the tenant allows name-only links', async () => {
+    const db = makeDb({ orphans: [], members: [scoredNameOnly] });
+    db.queryOne = vi.fn(async (sql) => {
+      if (/AccountLinkingConfig/.test(sql)) return { rules: { allowNameOnlyLinks: true } };
+      if (/COUNT\(\*\)/.test(sql)) return { n: 0 };
+      return null;
+    });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(memberDeletes(db)).toHaveLength(0);
+    expect(completionFields(db).linksRemoved).toBe(0);
   });
 });
 

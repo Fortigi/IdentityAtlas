@@ -30,12 +30,14 @@ The engine lives in [`app/api/src/accountlinking/`](https://github.com/Fortigi/I
 | `defaultRules.js` | The shipped default dictionary (`DEFAULT_RULES`). |
 | `classifier.js` | Pure helpers: account-type classification, email-local-part / prefix handling, name parsing, graded name matching. Regex rules are compiled with **RE2** (linear-time, ReDoS-safe). |
 | `engine.js` | `scoreMatch`, `buildLinks` (pure scoring), and `runLinking(runId, configId)` (the DB-writing run). |
+| `engine.helpers.js` | Pure building blocks: identity indexing, candidate collection, the name-signal set, the `isNameOnly` predicate, reading stored `linkSignals`. |
+| `staleNameOnlyLinks.js` | The retroactive cleanup: removes engine-scored, analyst-untouched links that rest on name signals alone. |
 
 A run is top-down: for each existing Identity, find orphan accounts that belong to that person and attach them.
 
 ### The dictionary
 
-The dictionary is shipped with sensible defaults (`DEFAULT_RULES`) and is editable per-tenant via `AccountLinkingConfig.rules`. It has four parts:
+The dictionary is shipped with sensible defaults (`DEFAULT_RULES`) and is editable per-tenant via `AccountLinkingConfig.rules`. It has five parts:
 
 ```jsonc
 {
@@ -54,16 +56,18 @@ The dictionary is shipped with sensible defaults (`DEFAULT_RULES`) and is editab
     { "accountType": "Shared",  "priority": 3, "patterns": ["\\broom\\b", "\\bequipment\\b", "\\bshared\\b", "\\bmailbox\\b"] }
   ],
   "linkThreshold": 50,
-  "onlyLinkTypes": ["Admin", "Guest", "Secondary"]
+  "onlyLinkTypes": ["Admin", "Guest", "Secondary"],
+  "allowNameOnlyLinks": false
 }
 ```
 
 - **`signals`** — weighted match rules. An orphan links to the candidate identity with the highest *summed* weight that clears `linkThreshold`. Strong signals (`employeeId`, `email` exact, `emailPrefix` after stripping a known prefix) are near-certain; name signals are softer (see below).
 - **`accountTypeRules`** — regex patterns that classify an account's type. Lowest `priority` wins; the matched pattern is recorded on the link (`accountTypePattern`). Anything that matches nothing is `Secondary` (a plain extra human account). Directory metadata is the strongest guest signal: `userType=Guest` or an `#ext#` UPN short-circuits to `Guest` before the regexes run.
-- **`linkThreshold`** — the minimum confidence to auto-link, surfaced as the **certainty slider** in the admin UI. The shipped default is `50`, which links name-only matches (they land around 45–60) at honest, low confidence; raise it to require stronger evidence.
+- **`linkThreshold`** — the minimum confidence to auto-link, surfaced as the **certainty slider** in the admin UI. The shipped default is `50`. Name signals land at 45–60, so the threshold alone does not decide whether a name-only match links — the corroboration guard below does. Raise the threshold to require stronger evidence from *every* match.
 - **`onlyLinkTypes`** — only these account types are attached to a person. `Service` and `Shared` accounts are deliberately left out so they fall through to the Orphaned Accounts context rather than being glued onto a person.
+- **`allowNameOnlyLinks`** — default `false`: a match whose signals are *all* name signals is held for review instead of linked (see the corroboration guard below). Set to `true` — the **"Link on a name match alone"** checkbox in the admin UI — to restore the pre-6.2 behaviour of linking namesakes automatically. Configs are merged over `DEFAULT_RULES`, so an existing install that never stored the key gets the safe default on upgrade.
 
-### Graded name matching + ambiguity guard
+### Graded name matching + the two guards
 
 Names are parsed from `displayName` (falling back to `givenName`/`surname`) with role/company qualifiers like `(OGD)`, `[extern]`, or `(ADM-azure)` stripped, so `Euson, Robin (OGD)` and `(ADM-azure) Euson, Robin` both reduce to `{euson, robin}`. Both `Surname, Given` and `Given Surname` orderings are handled.
 
@@ -77,7 +81,13 @@ Names are parsed from `displayName` (falling back to `givenName`/`surname`) with
 
 The two name signals are mutually exclusive — only the signal whose `level` equals the computed best level fires.
 
-**Ambiguity guard:** a *name-only* best match (no strong email/employeeId signal) that ties in confidence across multiple identities is too risky to auto-pick, so the engine leaves the account orphaned for manual review rather than guess.
+A match is **name-only** when every signal that fired is a name signal — the graded `name` signals, plus the legacy single-signal `fuzzy` type, which is a name comparison by definition. Two guards apply to those:
+
+**Corroboration guard** (default on): a name-only match is **not auto-linked**. A name on its own is not evidence enough — the real owner's parsed name may differ slightly (a title, an accent, a married name) while a namesake matches cleanly, and the account then inherits the wrong person's access review, risk score and leaver handling. Measured on a synthetic 7,000-identity dataset, *every* wrong link was a name-only link and no link combining a name with an email or `employeeId` was wrong. Such matches are counted and recorded on the run instead (see below). Set `allowNameOnlyLinks: true` to opt back in.
+
+**Ambiguity guard:** a name-only best match that ties in confidence across multiple identities is too risky to auto-pick, so the engine leaves the account orphaned rather than guess. This one fires even when `allowNameOnlyLinks` is `true` — a tie has no evidence to prefer one candidate.
+
+**Retroactive cleanup.** The guard would otherwise only apply to *new* links, leaving every name-only link made before it existed attached forever. So a run under the guard first detaches the links it would no longer create — engine-scored (`linkConfidence IS NOT NULL`), analyst-untouched (`analystOverride IS NULL`) member rows whose stored `linkSignals` are all name signals — and recomputes `accountCount` for the identities that lost an account. Those accounts rejoin the orphan pool and re-score in the *same* run, so a corroborated one re-links immediately and an uncorroborated one becomes a suggestion. Crawler-sourced links (no confidence) and analyst decisions are never touched — the same exclusions the crawler's reconcile honours.
 
 ### Candidate scope = orphans only
 
@@ -85,7 +95,7 @@ The only accounts the engine ever considers are **orphan Principals** — Princi
 
 ### Confidence scoring + writes
 
-`scoreMatch` sums the weights of every matched signal, capped at 100. `buildLinks` keeps the highest-scoring candidate above `linkThreshold` per orphan. When `runLinking` writes the links into `IdentityMembers`:
+`scoreMatch` sums the weights of every matched signal, capped at 100. `buildLinks` keeps the highest-scoring candidate above `linkThreshold` per orphan and returns `{ links, stats }`, where `stats` carries the name-only matches it held back. When `runLinking` writes the links into `IdentityMembers`:
 
 - A non-primary member row is created (or updated) with `linkConfidence`, `linkSignals` (stored as a CSV string), `accountType`, and `accountTypePattern`.
 - Per-identity rollups are written back to `Identities`: `accountCount`, `linkConfidence` (the best newly-linked account), `linkSignals` (the union), and `linkedAt`.
@@ -98,9 +108,21 @@ Account Linking runs on a schedule and on demand. Configuration and run history 
 | Table | Role |
 |---|---|
 | `AccountLinkingConfig` | Single active config row: `rules` (the dictionary), `schedules` (array), `isActive`, `updatedBy`. |
-| `AccountLinkingRuns` | One row per run: `status`, `step`, `pct`, `candidatesScanned`, `linksCreated`, `linksUpdated`, `skippedAnalystOverride`, `orphansRemaining`, timestamps, `triggeredBy`. |
+| `AccountLinkingRuns` | One row per run: `status`, `step`, `pct`, `candidatesScanned`, `linksCreated`, `linksUpdated`, `skippedAnalystOverride`, `orphansRemaining`, timestamps, `triggeredBy`, plus the name-only reporting columns below. |
 
 [`scheduler.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/scheduler.js) ticks every 60 s. Each tick it loads active configs that have at least one schedule, matches each `schedule` against the current minute, and queues a run (`triggeredBy = 'scheduler'`). A 55-minute look-back on `AccountLinkingRuns` prevents double-firing across container restarts. Runs are fire-and-forget — `runLinking` records its own progress and errors into the `AccountLinkingRuns` row, the same pattern manual runs use.
+
+### What a run reports about name-only matches
+
+Added by [`092_account_linking_name_only.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/092_account_linking_name_only.sql). All three are **nullable**: `NULL` means the run predates the feature, which is not the same as a run that looked and found none.
+
+| Column | Meaning |
+|---|---|
+| `nameOnlyMatches` | How many orphans had an above-threshold best match resting on name signals alone — including the ones the ambiguity guard already dropped, and including matches that *did* link when `allowNameOnlyLinks` is on. The true, uncapped count. |
+| `linksRemoved` | How many pre-existing name-only links the retroactive cleanup detached. `0` when the tenant allows name-only links (the cleanup does not run). |
+| `nameOnlySuggestions` | The held-back matches themselves — `{ principalId, displayName, identityId, identityName, confidence, signals, accountType, ties }` — capped at 500 entries so one run cannot store an unbounded document. |
+
+They surface in the run-completion notice and in the read-only **"Name-only matches (held for review)"** card in Admin → Account Linking. The routes `SELECT *`, so no API change was needed. There is deliberately **no confirm/reject action** on a suggestion: a durable reviewable link object would have to not act as linked while awaiting review (any `IdentityMembers` row removes the account from the orphan set and feeds the matrix and risk rollups), which is a separate feature. The analyst acts through the existing per-account override controls on the identity page.
 
 ## The "Orphaned Accounts" context
 
@@ -146,5 +168,5 @@ The analyst-facing override endpoints live on the identities route and are gated
 - Engine + dictionary — [`app/api/src/accountlinking/*`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/accountlinking)
 - Run/config API — [`app/api/src/routes/accountLinking.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/routes/accountLinking.js)
 - Orphaned Accounts plugin — [`app/api/src/contexts/plugins/orphaned-accounts.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/orphaned-accounts.js)
-- Schema — [`030_account_linking.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/030_account_linking.sql)
+- Schema — [`030_account_linking.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/030_account_linking.sql), [`092_account_linking_name_only.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/092_account_linking_name_only.sql)
 - Scheduler — [`app/api/src/scheduler.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/scheduler.js)
