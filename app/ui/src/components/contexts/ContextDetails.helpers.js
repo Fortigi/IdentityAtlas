@@ -79,10 +79,15 @@ export function hiddenDetailKeys(attrs, { hasProfile = false, analyst = false } 
   return hidden;
 }
 
+// Extended attributes a templated context's profile shows itself: the aliases
+// are its "Also known as" fact (interviews/AlsoKnownAs.jsx), with the proposed ones.
+const PROFILE_EXTENDED = ['aliases'];
+
 /** [key, value, meta?] rows for the details list — core attributes, then extendedAttributes. */
 export function detailEntries(attrs, opts) {
   if (!attrs) return [];
-  const ext = attrs.extendedAttributes && typeof attrs.extendedAttributes === 'object' ? attrs.extendedAttributes : null;
+  let ext = attrs.extendedAttributes && typeof attrs.extendedAttributes === 'object' ? attrs.extendedAttributes : null;
+  if (ext && opts?.hasProfile) ext = Object.fromEntries(Object.entries(ext).filter(([k]) => !PROFILE_EXTENDED.includes(k)));
   return buildAttributeEntries(attrs, ext, hiddenDetailKeys(attrs, opts));
 }
 

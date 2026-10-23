@@ -21,6 +21,7 @@ export const MEMBERSHIP_LABELS = {
   former: 'former member',
   joined: 'joined',
   left: 'left',
+  rejoined: 'back again (rejoined)',
 };
 
 // The statuses that say a person is not in it any more.
@@ -126,6 +127,32 @@ export function whatWeKnowSummary(claims, canWrite) {
 }
 
 export const proposedClaims = (claims) => (claims || []).filter(c => c.status === 'proposed');
+
+// A name as the API's alias merge compares it: case, accents, dots and spacing aside.
+const aliasKey = (name) => String(name ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[.\s]+/g, '');
+
+/**
+ * The context's other names, for its "Also known as" fact: [{ name, status, claim }].
+ * Confirmed first — what extendedAttributes.aliases holds (the record; claim null)
+ * and confirmed alias claims a re-import may have wiped from it — then, for a
+ * writer, the proposed alias claims not yet among them. One entry per name. Pure.
+ */
+export function aliasFacts(attrs, claims, canWrite) {
+  const out = [];
+  const seen = new Set();
+  const add = (name, status, claim) => {
+    const key = aliasKey(name);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push({ name: String(name), status, claim });
+  };
+  const stored = attrs?.extendedAttributes?.aliases;
+  for (const name of Array.isArray(stored) ? stored : []) if (typeof name === 'string') add(name, 'confirmed', null);
+  const aliases = (claims || []).filter(c => c.claimKind === 'alias');
+  for (const c of aliases.filter(isConfirmed)) add(c.value, 'confirmed', c);
+  if (canWrite) for (const c of aliases.filter(c => c.status === 'proposed')) add(c.value, 'proposed', c);
+  return out;
+}
 
 /** Proposed role claims that would set `role` — the People block's interview suggestions. */
 export function roleSuggestions(claims, role) {

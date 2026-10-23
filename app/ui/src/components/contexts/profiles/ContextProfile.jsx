@@ -4,6 +4,7 @@ import WorkflowsArea from '@ui/components/contexts/workflows/WorkflowsArea';
 import ContextDetails from '@ui/components/contexts/ContextDetails';
 import ClaimsProvider from '@ui/components/contexts/interviews/ClaimsProvider';
 import WhatWeKnow from '@ui/components/contexts/interviews/WhatWeKnow';
+import AlsoKnownAs from '@ui/components/contexts/interviews/AlsoKnownAs';
 import UnitVariants from './UnitVariants';
 import { useUnitVariants } from './useUnitVariants';
 import { memberCountText } from './variants.helpers';
@@ -16,7 +17,8 @@ import { memberCountText } from './variants.helpers';
 // edit contexts (More details then carries the raw classification).
 // onShowMembers / onShowSubUnits make the counts links to the lists below.
 // Its interviews' claims (ClaimsProvider) are shared by the People block's
-// suggestions, What we know and the Upload interview card.
+// suggestions, its "Also known as" fact (proposed names with Confirm / Reject),
+// What we know and the Upload interview card.
 export default function ContextProfile({ profile, attrs, subContexts = [], onOpenDetail, analyst = false, onShowMembers, onShowSubUnits }) {
   const { variants, loading } = useUnitVariants(attrs);
   const membersLabel = profile.membersWithKind ? memberKindLabel(attrs.targetType) : profile.membersLabel;
@@ -37,6 +39,7 @@ export default function ContextProfile({ profile, attrs, subContexts = [], onOpe
               </dd>
             </>
           )}
+          <AlsoKnownAs attrs={attrs} />
         </dl>
         <UnitVariants variants={variants} onOpenDetail={onOpenDetail} label={profile.variantsLabel} />
         <ContextDetails attrs={attrs} hasProfile analyst={analyst} />

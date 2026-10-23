@@ -1,7 +1,7 @@
 // What interviews say about the people in the members lists: role, left, previous members.
 import { describe, it, expect, vi } from 'vitest';
 import {
-  personRole, latestMembership, leftOf, factsByMember, withInterviewMemberFacts, previousMembersOf, loadPreviousMembers, compareRoles,
+  personRole, latestMembership, leftOf, factsByMember, withInterviewMemberFacts, previousMembersOf, loadPreviousMembers, compareRoles, rejoinOf,
 } from './memberFacts.js';
 import { MEMBER_CLAIMS_SQL, PEOPLE_CLAIMS_SQL, ENTITLEMENT_COUNTS_SQL, LINKED_RESOURCE_COUNT_SQL, PERSON_CLAIM_KINDS } from './store.js';
 
@@ -210,5 +210,83 @@ describe('left from a role claim (a model that did not say membership)', () => {
       ['name:kees', 'Kees', null, 'former'],
       ['name:ruud', 'Ruud', null, 'former'],
     ]);
+  });
+});
+
+describe('rejoined — left once, in it again', () => {
+  // Mirrors the demo unit's claims (invented names): a roleHistory "junior developer"
+  // with a garbled period, a roleHistory "architect within CCoE" said "now" whose
+  // quote says the person is back, and a membership 'joined' from the first half.
+  const QUOTE = 'Joris Jansen begon als junior en is sinds ongeveer een half jaar terug, nu als architect binnen het CCoE.';
+  const joris = (over) => claim({ principalId: JAN, memberId: JAN, subjectName: 'Joris Jansen', subjectDisplayName: 'Joris Jansen', status: 'proposed', isMember: true, ...over });
+  const demo = () => [
+    joris({ value: 'junior developer', attribute: 'other', periodFrom: '2026-05-01', periodTo: '2026-10-23', periodText: 'sinds ongeveer een half jaar terug', quote: 'Joris Jansen begon als junior' }),
+    joris({ value: 'architect within CCoE', attribute: 'other', periodFrom: '2026-10-23', periodText: 'nu', quote: QUOTE }),
+    joris({ claimKind: 'membership', attribute: 'joined', value: 'joined', quote: 'Joris Jansen begon als junior' }),
+  ];
+
+  it('the members list: current role architect, rejoined with the earlier role and the quote that says it', async () => {
+    const claims = demo();
+    const f = factsByMember(claims).get(JAN);
+    expect(f.role.value).toBe('architect within CCoE');
+    expect(f.left).toBeNull();
+    expect(f.rejoined).toMatchObject({ membershipStatus: 'rejoined', quote: QUOTE, value: 'architect within CCoE' });
+    expect(f.rejoined.earlier.map(e => [e.value, e.periodText])).toEqual([['junior developer', 'sinds ongeveer een half jaar terug']]);
+    expect(rejoinOf(claims)).toEqual(f.rejoined);
+  });
+
+  it('previous members: the same person again, for the earlier stint, marked a member now', () => {
+    const [row] = previousMembersOf(demo());
+    expect(row).toMatchObject({ key: `principalId:${JAN}`, displayName: 'Joris Jansen', stint: 'earlier', nowMember: true, left: null, role: { value: 'junior developer' } });
+    expect(row.role.history.map(h => h.value)).toEqual(['junior developer']);
+  });
+
+  it('a promotion without a word for coming back is no second stint: no marker, no previous-members row', () => {
+    const promoted = [
+      joris({ value: 'junior developer', periodTo: '2024-12-31', quote: 'Joris Jansen begon als junior' }),
+      joris({ value: 'architect', periodText: 'nu', quote: 'Joris Jansen is nu architect.' }),
+    ];
+    expect(factsByMember(promoted).get(JAN).rejoined).toBeNull();
+    expect(previousMembersOf(promoted)).toEqual([]);
+  });
+
+  it('the return word must be in the clause about the person, not about someone else', () => {
+    const other = [
+      joris({ value: 'junior', periodTo: '2024-12-31' }),
+      joris({ value: 'architect', periodText: 'nu', quote: 'Joris Jansen is architect; Femke kwam terug als tester.' }),
+    ];
+    expect(factsByMember(other).get(JAN).rejoined).toBeNull();
+  });
+
+  it('a membership rejoined says it without roles; a present membership after an earlier "left" says it too', () => {
+    expect(rejoinOf([joris({ claimKind: 'membership', attribute: 'rejoined', value: 'back' })])).toMatchObject({ earlier: [] });
+    const leftThenBack = [
+      joris({ claimKind: 'membership', attribute: 'left', interviewedAt: '2025-01-01' }),
+      joris({ claimKind: 'membership', attribute: 'current', interviewedAt: '2026-09-01' }),
+    ];
+    expect(rejoinOf(leftThenBack)).toMatchObject({ membershipStatus: 'rejoined', interviewedAt: '2026-09-01' });
+    // the same interview saying both is a contradiction, not a return
+    expect(rejoinOf([joris({ claimKind: 'membership', attribute: 'left' }), joris({ claimKind: 'membership', attribute: 'current', createdAt: '2026-10-01T11:00:00Z' })])).toBeNull();
+  });
+
+  it('a "left" role in the earlier stint is not listed as a role; a person who left again gets the left row only', () => {
+    const back = rejoinOf([
+      joris({ value: 'junior', periodTo: '2020-12-31' }),
+      joris({ value: 'left', periodTo: '2021-06-30', interviewedAt: '2021-07-01' }),
+      joris({ claimKind: 'membership', attribute: 'rejoined', interviewedAt: '2026-09-01' }),
+      joris({ value: 'architect', periodText: 'nu' }),
+    ]);
+    expect(back.earlier.map(e => e.value)).toEqual(['junior']);
+    const goneAgain = [
+      joris({ claimKind: 'membership', attribute: 'rejoined', interviewedAt: '2025-01-01', isMember: false }),
+      joris({ claimKind: 'membership', attribute: 'left', interviewedAt: '2026-09-01', isMember: false }),
+    ];
+    expect(rejoinOf(goneAgain)).toBeNull();
+    expect(previousMembersOf(goneAgain).map(p => p.stint)).toEqual(['left']);
+  });
+
+  it('a person who came back but is not in the source list is still an earlier-stint row, not a member now', () => {
+    const rows = previousMembersOf([joris({ claimKind: 'membership', attribute: 'rejoined', isMember: false })]);
+    expect(rows).toMatchObject([{ stint: 'earlier', nowMember: false, role: null }]);
   });
 });

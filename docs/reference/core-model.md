@@ -583,7 +583,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
-| `attribute` | `ia:attribute` | text |  | A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left). |
+| `attribute` | `ia:attribute` | text |  | A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined). |
 | `claimKind` | `ia:claimKind` | text | `description`, `property`, `role`, `roleHistory`, `membership`, `alias` | What the claim states. |
 | `claimStatus` | `ia:claimStatus` | text | `proposed`, `confirmed`, `edited`, `rejected` | Where the claim stands in review. |
 | `confidence` | `ia:confidence` | numeric |  | How clearly the transcript states it, 0 to 1. Not a decision. |
@@ -674,7 +674,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `property` | `ia:ClaimKind_property` | One fact about the context, under an attribute name. Confirmed, it sets that extended attribute. |
 | `role` | `ia:ClaimKind_role` | What a person is to the context (the relation as said: owner, notOwner, dayToDay, delegate, member, other). With a roleSuggestion, confirmed, it becomes a ContextRole. |
 | `roleHistory` | `ia:ClaimKind_roleHistory` | A role a person held at the context over a period. Knowledge only. |
-| `membership` | `ia:ClaimKind_membership` | Whether a person is in the context: the status (current, former, joined, left) in attribute, with the period. Knowledge only: confirming it never changes the context's members, which come from their source. |
+| `membership` | `ia:ClaimKind_membership` | Whether a person is in the context: the status (current, former, joined, left, rejoined) in attribute, with the period. Knowledge only: confirming it never changes the context's members, which come from their source. |
 | `alias` | `ia:ClaimKind_alias` | Another name the context goes by. Confirmed, it is added to the context's extendedAttributes.aliases. |
 
 ### Claim proposer

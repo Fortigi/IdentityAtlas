@@ -56,7 +56,8 @@ characters), `language`, `extractionStatus` (`pending`, `running`, `done`, `fail
 `principalId` | `identityId` | neither, plus `subjectName` as spoken and `subjectMatch`
 (`interviewee`, `key`, `name`, `fuzzy`, `firstName`), `attribute` (a property's key, a
 role claim's relation: `owner`, `notOwner`, `dayToDay`, `delegate`, `member`, `other` — or a
-membership claim's status: `current`, `former`, `joined`, `left`),
+membership claim's status: `current`, `former`, `joined`, `left`, `rejoined` — a closed list in
+code (`claims.js` `MEMBERSHIP_STATUSES`) and the ontology, not a CHECK, so `rejoined` needed no migration),
 `value`, `periodFrom` / `periodTo` (dates) and `periodText` (as said), `quote`,
 `confidence` (0–1, not a decision), `relevance` (`high` | `low`; NULL, from before 098, reads
 as high), `quoteStart` / `quoteEnd` (the quote's span in the stored transcript, string offsets,
@@ -134,6 +135,13 @@ the list upload's refinement uses), the upload starts extraction in the backgrou
      mark);
    - neither → kept, its confidence lowered to at most 0.3; the review flags a claim
      below 0.4 *unsure — read the quote*.
+
+   Before all three: **the sentence says the person came back** (`leftSignal.js`
+   `saysReturned`: *rejoined, came back, back as, returned, joined again*; *weer terug,
+   teruggekomen, kwam terug, is terug, terug als / bij, opnieuw, weer bij*, and *"is sinds …
+   terug"*) → a membership becomes `rejoined`, a role claim loses its left reading; the
+   value says so (*"corrected: the sentence says they came back"*). A bare *terug* or *weer*
+   is not enough — *"een jaar terug"* is *"a year ago"*.
 
    The stored quote stays the transcript's own words; when the sentence is at most 300
    characters it becomes the whole sentence, so the highlight shows the reason.
@@ -259,8 +267,21 @@ their source. Two places show it, both set-based (`contexts/interviews/memberFac
   vertrokken, weg, niet meer, gestopt, voormalig(e), oud-…* — whole words only. So claims
   stored before the membership kind existed, or a model that answers *roleHistory "left"*,
   still count.
+- **Who came back** (`memberFacts.js` `rejoinOf`): a person whose latest word does not say
+  they left, and for whom a claim says they returned — a membership `rejoined`; the return
+  words above in a role claim's value or period, or in the clause of its quote about them
+  (*"Joris begon als junior en is sinds een half jaar terug, nu als architect"*: the model
+  put the return in neither value nor period); or a present membership (current, joined,
+  rejoined) said in a later interview than one that said they left. Their **earlier stint** is
+  every role before the latest one. A promotion without a word for coming back is no second
+  stint. The members list adds `interview.rejoined` (the claim that says it, with
+  `earlier`): the row's Role cell carries *"rejoined · earlier: Junior developer"*, the
+  quote and the earlier periods as tooltip.
 - **Previous members**, below the members: everyone whose latest such claim says they
-  left and who is not a direct member now. Matched to an account or a person, they come with
+  left and who is not a direct member now (`stint: 'left'`) — and everyone who came back,
+  for the EARLIER stint (`stint: 'earlier'`, `role` = the roles they had then,
+  `nowMember`): *"Joris Jansen — Junior developer (earlier period)"*, with *now a member
+  again* scrolling to their current row. A person is one row at most. Matched to an account or a person, they come with
   their **live entitlements** (ResourceAssignments not deleted — a person's own and their
   accounts') and how many of those are on **this context's resources**: its own resource
   members, or those of a `SameUnitAs` variant that holds resources (*"3 on this
@@ -275,7 +296,14 @@ claims list's: a reader gets confirmed claims only.
 ## Aliases
 
 A confirmed alias claim adds to `extendedAttributes.aliases` (`lib/contextNameMatch.js`,
-`mergeAliases`); More details shows that attribute as *Also known as*. Anything that places a
+`mergeAliases`). On a unit or an application the profile's facts show **Also known as**
+(`interviews/AlsoKnownAs.jsx`, `claims.helpers.js` `aliasFacts`): the stored aliases and the
+confirmed alias claims plain, then — for an analyst — the proposed ones dashed, each with
+Confirm / Reject inline. (More details no longer repeats the attribute there.) Before this, a
+proposed alias was only in the review list, folded inside *What we know* among all the other
+claims — which is why it looked missing. After any claim decision the page re-reads the
+context quietly (`useContextDetail` `refreshDetail`: no loading state, open panels stay), so
+a confirmed alias, property or description shows at once. Anything that places a
 **name** onto a context should try aliases too: `buildContextNameMatcher` (same file) tries a
 context's display name, then an alias (exact, normalised), then a near miss of the display
 name — never a near miss of an alias, which is short. No caller in this branch matches
@@ -315,6 +343,24 @@ outline). The view cuts each turn only at highlight boundaries, in one pass over
 and renders 2,000 turns at a time (*Show more*), always as far as the focused quote — a
 transcript at the 5,000,000-character cap is not rendered in one go.
 
+## On the Timeline
+
+The context's Timeline (`GET /contexts/:id/timeline`, `routes/recentChanges/timeline.js`)
+merges the context row's own `_history` with what its interviews did
+(`contexts/interviews/timelineEvents.js`, two statements in `store.js`, `eventKind:
+'interview'`, a violet dot): *"Interview with X uploaded (file)"*, *"n claims extracted from
+the interview with X"*, each decision — *"Confirmed: Membership — Jan Smit (former member)"*,
+*"Rejected: …"* — and a confirmed claim that changed something reads as that change: *"Piet
+set as Responsible — from the interview with X, date"* (linked to the holder), *"Also known
+as: Havenkantoor added — …"*, *"sector set to logistics — …"*, *"Description extended — …"*.
+Decisions are read from `decidedAt` and the role a claim set from `ContextRoles.sourceClaimId`.
+A reader gets confirmed decisions only — no uploads, no extraction counts, nothing rejected.
+
+The context's `_history` part now leaves out updates that only moved bookkeeping
+(`lastCalculatedAt`, `updatedAt`, the member counts) **in SQL, before the LIMIT**: the
+plugin runner re-stamps `lastCalculatedAt` every few minutes, which had filled the whole page
+of 50 rows; the page hid those, and the Timeline came up empty.
+
 ## Who sees what
 
 - **Analyst** (`data.write.contexts`): everything — the card, the review list, the
@@ -348,9 +394,6 @@ transcript at the 5,000,000-character cap is not rendered in one go.
   `extendedAttributes`, so a property or an alias confirmed from an interview is
   overwritten by the next re-import of that list. The confirmed claim stays under *What we
   know*.
-- After confirming a property or an alias, *More details* shows it on the next load of the
-  page (the page does not re-read the context after a decision; *What we know* shows it at
-  once).
 - A person in a membership claim is matched once, at extraction; an account of that person
   created later is not linked to the old claim.
 - Extraction runs inside the API process; a restart during a run leaves it `running`,

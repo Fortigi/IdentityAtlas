@@ -10,7 +10,8 @@
 //   - a property names its attribute (a short key, ≤ MAX_ATTRIBUTE, no control characters);
 //   - a role / roleHistory names its relation (RELATIONS; anything else reads 'other');
 //   - a membership names the person and its status (MEMBERSHIP_STATUSES: current,
-//     former, joined, left), kept in `attribute` as a role's relation is;
+//     former, joined, left, rejoined — was in it before, left, and is back), kept in
+//     `attribute` as a role's relation is;
 //   - an alias is another name of the context ("also known as X"): no subject, the
 //     name as value (≤ MAX_ALIAS);
 //   - the quote, when there is one, is VERBATIM in the transcript — compared after
@@ -32,7 +33,8 @@
 
 export const CLAIM_KINDS = Object.freeze(['description', 'property', 'role', 'roleHistory', 'membership', 'alias']);
 // A membership claim's status, in `attribute`: is the person in it now, did they leave?
-export const MEMBERSHIP_STATUSES = Object.freeze(['current', 'former', 'joined', 'left']);
+// 'rejoined': was in it before, left, and is in it again. A code list, not a CHECK.
+export const MEMBERSHIP_STATUSES = Object.freeze(['current', 'former', 'joined', 'left', 'rejoined']);
 // How much a claim matters for identity and access governance (relevance.js).
 export const RELEVANCE = Object.freeze(['high', 'low']);
 export const RELATIONS = Object.freeze(['owner', 'notOwner', 'dayToDay', 'delegate', 'member', 'other']);

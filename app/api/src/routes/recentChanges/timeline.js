@@ -9,6 +9,8 @@
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { useSql, UUID_RE, clampTimelineDays, clampLimit, toEvent, resourceCounterpartyKind } from './shared.js';
+import { loadInterviewTimeline } from '../../contexts/interviews/timelineEvents.js';
+import { canWriteContexts } from '../contexts/interviews.js';
 
 const router = Router();
 
@@ -225,7 +227,7 @@ async function resolveTimelineLabels(rows) {
 // Retention note: `_history` is unbounded (migration 009 defers retention),
 // so the window (sinceDays) and LIMIT bound the work; the
 // ("tableName","rowId","changedAt") / ("changedAt") indexes cover the WHERE.
-async function runTimeline(res, { entityKind, id, sinceDays, limit, where }) {
+async function runTimeline(res, { entityKind, id, sinceDays, limit, where, extraEvents }) {
   const r = await db.query(`
     SELECT "tableName", operation, "changedAt", "rowData", "prevData"
       FROM "_history"
@@ -244,6 +246,16 @@ async function runTimeline(res, { entityKind, id, sinceDays, limit, where }) {
     if (reviewEvents.length) {
       built.events.push(...reviewEvents);
       built.changedCount += reviewEvents.length;
+      built.events.sort((a, b) => new Date(b.at) - new Date(a.at));
+    }
+  }
+
+  // A context's interviews: uploads, extraction, claim decisions and what they changed.
+  if (extraEvents) {
+    const more = await extraEvents();
+    if (more.length) {
+      built.events.push(...more);
+      built.changedCount += more.length;
       built.events.sort((a, b) => new Date(b.at) - new Date(a.at));
     }
   }
@@ -283,6 +295,20 @@ async function reviewInstanceEvents(id) {
   return out;
 }
 
+// Context columns that change without anything happening to the context.
+export const CONTEXT_NOISE_FIELDS = Object.freeze(['lastCalculatedAt', 'updatedAt', 'directMemberCount', 'totalMemberCount', 'ValidFrom', 'ValidTo']);
+const CONTEXT_NOISE_SQL = `ARRAY[${CONTEXT_NOISE_FIELDS.map(f => `'${f}'`).join(', ')}]::text[]`;
+
+// The interview events of a context for this reader; a failure leaves the rest of the timeline.
+async function contextInterviewEvents(req, id, sinceDays, limit) {
+  try {
+    return await loadInterviewTimeline(db, id, { sinceDays, limit, canWrite: canWriteContexts(req) });
+  } catch (err) {
+    console.error('context interview timeline failed:', err.message);
+    return [];
+  }
+}
+
 // Per-entity _history WHERE clauses ($2 = entity id).
 const TIMELINE_WHERE = {
   user: `("tableName" = 'ResourceAssignments' AND "rowData"->>'principalId' = $2)
@@ -297,8 +323,12 @@ const TIMELINE_WHERE = {
   identity: `("tableName" = 'IdentityMembers' AND "rowData"->>'identityId' = $2)
       OR ("tableName" = 'Identities' AND "rowId" = $2)`,
   // ContextMembers isn't history-tracked (it's owned by its parent context),
-  // so a context timeline reflects the context row's own changes.
-  context: `("tableName" = 'Contexts' AND "rowId" = $2)`,
+  // so a context timeline reflects the context row's own changes — minus the
+  // updates that only moved bookkeeping (CONTEXT_NOISE_FIELDS: the plugin runner
+  // re-stamps lastCalculatedAt every few minutes, which filled the whole LIMIT
+  // and left the page nothing to show once it hid those).
+  context: `("tableName" = 'Contexts' AND "rowId" = $2
+      AND NOT (operation = 'U' AND ("rowData" - ${CONTEXT_NOISE_SQL}) IS NOT DISTINCT FROM ("prevData" - ${CONTEXT_NOISE_SQL})))`,
 };
 
 export function timelineHandler(entityKind) {
@@ -309,7 +339,8 @@ export function timelineHandler(entityKind) {
     const sinceDays = clampTimelineDays(req.query.sinceDays);
     const limit = clampLimit(req.query.limit);
     try {
-      await runTimeline(res, { entityKind, id, sinceDays, limit, where: TIMELINE_WHERE[entityKind] });
+      const extraEvents = entityKind === 'context' ? () => contextInterviewEvents(req, id, sinceDays, limit) : null;
+      await runTimeline(res, { entityKind, id, sinceDays, limit, where: TIMELINE_WHERE[entityKind], extraEvents });
     } catch (err) {
       console.error(`${entityKind} timeline failed:`, err.message);
       res.status(500).json({ error: 'Failed to load timeline' });

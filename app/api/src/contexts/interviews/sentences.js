@@ -15,6 +15,10 @@
 // breaks; a turn is one line, "Speaker: words", and the speaker label is not
 // part of the sentence):
 //
+//   the sentence says they came back (saysReturned: "came back as", "is weer terug",
+//                                "is sinds een half jaar terug") → a membership becomes
+//                                'rejoined', a role claim loses its left reading; the
+//                                value says so (CORRECTED_RETURNED)
 //   the sentence says gone      (saysLeft, or past-only phrasing: "een periode",
 //                                "destijds", "vroeger", "used to", "for a while")
 //                               → kept as it is
@@ -33,7 +37,7 @@
 
 import { foldForQuote, MAX_VALUE } from './claims.js';
 import { locateQuote } from './quoteOffsets.js';
-import { GONE_STATUSES, CORRECTED_CURRENT, leftSignal, saysLeft } from './leftSignal.js';
+import { GONE_STATUSES, CORRECTED_CURRENT, CORRECTED_RETURNED, leftSignal, saysLeft, saysReturned } from './leftSignal.js';
 
 export const MAX_WIDE_QUOTE = 300;
 export const UNSURE_CONFIDENCE = 0.3;
@@ -99,6 +103,13 @@ export function checkLeftClaim(claim, transcript) {
   const wide = foldForQuote(sentence.text);
   const quote = wide.length <= MAX_WIDE_QUOTE && wide.length > claim.quote.length ? wide : claim.quote;
   const about = clauseFor(sentence.text, claim.subjectName);
+  // "left in 2022 and came back as architect": gone once, in it now.
+  if (saysReturned(about)) {
+    if (claim.claimKind === 'membership') {
+      return { ...claim, quote, attribute: 'rejoined', value: noted(claim.value, `${CORRECTED_RETURNED}; the model said ${claim.attribute}`) };
+    }
+    return { ...claim, quote, value: noted(claim.value, `${CORRECTED_RETURNED}, in it again`) };
+  }
   if (saysLeft(about) || PAST_RE.test(about)) return { ...claim, quote };
   if (CURRENT_RE.test(about)) {
     if (claim.claimKind === 'membership') {

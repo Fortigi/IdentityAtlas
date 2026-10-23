@@ -30,6 +30,7 @@
     "src/contexts/interviews/service.js",
     "src/contexts/interviews/store.js",
     "src/contexts/interviews/subjects.js",
+    "src/contexts/interviews/timelineEvents.js",
     "src/contexts/interviews/transcript.js",
     "src/lib/contextNameMatch.js",
     "src/routes/contexts/interviews.js"

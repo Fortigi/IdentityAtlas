@@ -66,3 +66,20 @@ describe('EntityTimeline — hidden fields and readable dates', () => {
     expect(html).toContain('2026');
   });
 });
+
+describe('EntityTimeline — a context\'s interviews', () => {
+  it('counts interview events as their own kind, in violet, and shows a description claim\'s words under it', () => {
+    const interviewEvents = [
+      { at: '2026-10-01T08:00:00Z', operation: 'added', eventKind: 'interview', summary: 'Interview with Anna Voorbeeld uploaded (gesprek.txt)' },
+      { at: '2026-10-01T09:00:00Z', operation: 'changed', eventKind: 'interview', summary: 'Description extended — from the interview with Anna Voorbeeld, 2026-10-01', detail: 'Runs the quays.' },
+      { at: '2026-10-01T10:00:00Z', operation: 'changed', eventKind: 'attribute', summary: 'x', attribute: { field: 'displayName', from: 'A', to: 'B' } },
+    ];
+    const html = renderToStaticMarkup(h(EntityTimeline, { events: interviewEvents, loading: false, sinceDays: 90 }));
+    expect(html).toContain('1 attr · 2 interview');
+    expect(html).toContain('Interview with Anna Voorbeeld uploaded (gesprek.txt)');
+    expect(html).toContain('Runs the quays.');
+    const only = renderToStaticMarkup(h(EntityTimeline, { events: interviewEvents.slice(0, 1), loading: false, sinceDays: 90 }));
+    expect(only).toContain('border-violet-500');
+    expect(only).toContain('1 interview');
+  });
+});

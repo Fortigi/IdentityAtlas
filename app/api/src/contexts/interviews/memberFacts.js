@@ -22,6 +22,11 @@
 //          "recently left", "inmiddels uitgestroomd") — newest interview first,
 //          when it says they are not in it any more (former, left; a role claim
 //          reads former)
+//   rejoined  the person left once and is in it again (rejoinOf): a membership
+//          'rejoined', words for coming back in a role claim's value, period or
+//          its quote's clause about them (leftSignal.js saysReturned), or a present
+//          membership said in a later interview than a left one — with the roles
+//          of the earlier stint (`earlier`, every role before the latest)
 //
 // A previous member is a person whose latest such claim says they left and who
 // is not a direct member now (a current member who left is flagged in the
@@ -29,11 +34,14 @@
 // live entitlements they still hold — "does this person still have access?" —
 // and how many of those are on the resources this context is linked to (its
 // own resource members, or those of a resources variant). Unmatched, with the
-// name as said and no counts.
+// name as said and no counts. A person who came back is listed too, for the
+// EARLIER stint (stint 'earlier'): "Junior developer (earlier period)", beside
+// their current row.
 
 import { normalizeName } from '../../lib/nameMatch.js';
 import * as store from './store.js';
-import { leftSignal } from './leftSignal.js';
+import { leftSignal, returnSignal, saysReturned } from './leftSignal.js';
+import { clauseFor } from './sentences.js';
 
 const NOW = /\b(now|nu|current(ly)?|today|still|nog steeds|tegenwoordig)\b/i;
 const OPEN_END = '9999-12-31';
@@ -95,6 +103,45 @@ export function leftOf(claims) {
   return { ...fact(latest), membershipStatus: latest.claimKind === 'membership' ? latest.attribute : 'former' };
 }
 
+// A membership status that says the person is in it.
+const PRESENT = new Set(['current', 'joined', 'rejoined']);
+
+// Says the person came back: a membership 'rejoined', a role claim whose value or
+// period says so, or a role / present membership claim whose quote says so in the
+// clause about them ("begon als junior en is sinds een half jaar terug, nu als
+// architect" — the model put the return in neither value nor period).
+function saysBack(c) {
+  if (returnSignal(c)) return true;
+  const about = isRoleClaim(c) || (c.claimKind === 'membership' && PRESENT.has(c.attribute));
+  return about && !!c.quote && saysReturned(clauseFor(c.quote, c.subjectName));
+}
+
+// A present membership claim from a LATER interview than a claim that said the
+// person left: they left and are back.
+function backAfterGone(claims) {
+  const present = claims.filter(c => c.claimKind === 'membership' && PRESENT.has(c.attribute));
+  const gone = claims.filter(leftSignal);
+  if (present.length === 0 || gone.length === 0) return null;
+  const latest = newest(present);
+  return gone.some(g => cmp(g.interviewedAt ?? '', latest.interviewedAt ?? '') < 0) ? latest : null;
+}
+
+/**
+ * The earlier stint of a person who is in it again, or null: { ...the claim that
+ * says they came back, membershipStatus: 'rejoined', earlier: [the roles before
+ * the latest one, oldest first] }. Null for a person whose latest word says they
+ * left (that is a Previous members row of its own) and for a role change without
+ * a word for coming back (a promotion is not a second stint). Pure.
+ */
+export function rejoinOf(claims) {
+  if (leftOf(claims)) return null;
+  const said = claims.filter(saysBack);
+  const signal = said.length ? newest(said) : backAfterGone(claims);
+  if (!signal) return null;
+  const earlier = claims.filter(isRoleClaim).sort(compareRoles).slice(0, -1).filter(r => !leftSignal(r));
+  return { ...fact(signal), membershipStatus: 'rejoined', earlier: earlier.map(fact) };
+}
+
 function groupBy(rows, keyOf) {
   const out = new Map();
   for (const r of rows) {
@@ -105,17 +152,19 @@ function groupBy(rows, keyOf) {
   return out;
 }
 
-/** Map(memberId → { role, left }) over the claims about a page of members. Pure. */
+/** Map(memberId → { role, left, rejoined }) over the claims about a page of members. Pure. */
 export function factsByMember(claimRows) {
   const out = new Map();
-  for (const [id, claims] of groupBy(claimRows, r => r.memberId)) out.set(id, { role: personRole(claims), left: leftOf(claims) });
+  for (const [id, claims] of groupBy(claimRows, r => r.memberId)) {
+    out.set(id, { role: personRole(claims), left: leftOf(claims), rejoined: rejoinOf(claims) });
+  }
   return out;
 }
 
 export async function withInterviewMemberFacts(db, contextId, targetType, rows, statuses) {
   if (rows.length === 0 || !store.MEMBER_CLAIMS_SQL[targetType]) return rows;
   const facts = factsByMember(await store.memberClaims(db, contextId, targetType, [...new Set(rows.map(r => r.id))], statuses));
-  return rows.map(r => ({ ...r, interview: facts.get(r.id) ?? { role: null, left: null } }));
+  return rows.map(r => ({ ...r, interview: facts.get(r.id) ?? { role: null, left: null, rejoined: null } }));
 }
 
 /** Who a person claim is about, as one key: the account, the person, else the name as said. */
@@ -125,23 +174,43 @@ export function personKey(c) {
   return `name:${normalizeName(c.subjectName)}`;
 }
 
-/** The previous members among a context's person claims, by name. Pure. */
+// One previous member's row: who, and the stint it is about.
+function stintRow(key, claims, stint) {
+  const first = claims[0];
+  return {
+    key,
+    principalId: first.principalId ?? null,
+    identityId: first.identityId ?? null,
+    displayName: first.subjectDisplayName || first.subjectName || '',
+    subjectName: first.subjectName ?? null,
+    accountDeleted: !!first.accountDeleted,
+    nowMember: claims.some(c => c.isMember),
+    ...stint,
+  };
+}
+
+// The earlier stint's role: its latest role, with the earlier roles as history.
+const earlierRole = (back) => (back.earlier.length ? { ...back.earlier[back.earlier.length - 1], history: back.earlier } : null);
+
+/**
+ * The previous members among a context's person claims, by name. Pure. Two kinds
+ * of row (`stint`):
+ *   left     the latest word says they left, and they are not a direct member now
+ *   earlier  they left once and came back (rejoinOf): the row is their EARLIER
+ *            stint — role = the roles they had then — beside their current row in
+ *            the members list (nowMember says whether they are a member now)
+ * A person is one row at most; nobody is listed for a role change alone.
+ */
 export function previousMembersOf(claimRows) {
   const out = [];
   for (const [key, claims] of groupBy(claimRows, personKey)) {
     const left = leftOf(claims);
-    if (!left || claims.some(c => c.isMember)) continue;
-    const first = claims[0];
-    out.push({
-      key,
-      principalId: first.principalId ?? null,
-      identityId: first.identityId ?? null,
-      displayName: first.subjectDisplayName || first.subjectName || '',
-      subjectName: first.subjectName ?? null,
-      accountDeleted: !!first.accountDeleted,
-      left,
-      role: personRole(claims),
-    });
+    if (left) {
+      if (!claims.some(c => c.isMember)) out.push(stintRow(key, claims, { stint: 'left', left, role: personRole(claims), rejoined: null }));
+      continue;
+    }
+    const back = rejoinOf(claims);
+    if (back) out.push(stintRow(key, claims, { stint: 'earlier', left: null, role: earlierRole(back), rejoined: back }));
   }
   return out.sort((a, b) => a.displayName.localeCompare(b.displayName));
 }

@@ -3,7 +3,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useContextClaims } from './claimsContext';
 import { InterviewRole } from './MemberInterviewFacts';
-import { entitlementText, factClass, factTitle, LEFT_WORDS } from './memberInterview.helpers';
+import { earlierStintText, entitlementText, factClass, factTitle, LEFT_WORDS, memberRowId, rejoinedTitle } from './memberInterview.helpers';
 import { periodLabel, sourceLabel } from './claims.helpers';
 
 // ─── Previous members — who the interviews say left ───────────────────────
@@ -16,7 +16,10 @@ import { periodLabel, sourceLabel } from './claims.helpers';
 // those are on this context's resources (its own, or a resources variant's;
 // highlighted when there are any). The question it answers: "does this person
 // still have access?". A name the interviews gave but nobody matched is shown
-// as said, with "no account found" and no counts. Proposed claims read dashed and italic; confirming
+// as said, with "no account found" and no counts. A person who left once and came
+// back is listed for the EARLIER stint ("Junior developer (earlier period)"), with
+// "now a member again" pointing at their row in the members list above (the API's
+// stint 'earlier'). Proposed claims read dashed and italic; confirming
 // one never changes the members (they come from their source). A reader is
 // sent confirmed claims only (the API decides). Nothing when nobody left.
 
@@ -30,6 +33,50 @@ function NameCell({ person, onOpenDetail }) {
     <button type="button" className="text-left text-blue-700 hover:underline dark:text-blue-300" onClick={() => onOpenDetail(kind, id, person.displayName)}>
       {person.displayName}
     </button>
+  );
+}
+
+// Scrolls to the person's current row in the members list, and marks it for a moment.
+function showCurrentRow(id) {
+  const row = document.getElementById(memberRowId(id));
+  if (!row) return;
+  row.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  row.classList.add('bg-sky-50', 'dark:bg-sky-900/30');
+  setTimeout(() => row.classList.remove('bg-sky-50', 'dark:bg-sky-900/30'), 2000);
+}
+
+function NowMemberCell({ person }) {
+  const id = person.principalId || person.identityId;
+  if (!person.nowMember || !id) return <span className="text-xs text-gray-600 dark:text-gray-400">back again, says the interview</span>;
+  return (
+    <button type="button" data-testid="previous-member-now-member" onClick={() => showCurrentRow(id)}
+      className="text-xs text-blue-700 underline hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">now a member again</button>
+  );
+}
+
+// The Role / Left cells of a row: the role then and when they left — or, for an
+// earlier stint, the roles they had then and the claim that says they came back.
+function StintCells({ person }) {
+  if (person.stint === 'earlier') {
+    return (
+      <>
+        <td className={CELL}>
+          <span data-testid="previous-member-earlier" title={rejoinedTitle(person.rejoined)}
+            className={`text-gray-700 dark:text-gray-300 ${factClass(person.rejoined.status)}`}>{earlierStintText(person)}</span>
+        </td>
+        <td className={`${CELL} text-xs text-gray-700 dark:text-gray-300`}>left, came back</td>
+      </>
+    );
+  }
+  return (
+    <>
+      <td className={CELL}><InterviewRole role={person.role} /></td>
+      <td className={CELL}>
+        <span className={`text-gray-700 dark:text-gray-300 ${factClass(person.left.status)}`} title={factTitle(person.left)}>
+          {LEFT_WORDS[person.left.membershipStatus] || person.left.membershipStatus}{periodLabel(person.left) ? ` (${periodLabel(person.left)})` : ''}
+        </span>
+      </td>
+    </>
   );
 }
 
@@ -61,7 +108,7 @@ export default function PreviousMembers({ contextId, onOpenDetail }) {
   return (
     <section aria-label="Previous members" className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Previous members ({people.length})</h3>
-      <p className="mb-3 text-xs text-gray-600 dark:text-gray-400">People the interviews say left — and what they still hold.</p>
+      <p className="mb-3 text-xs text-gray-600 dark:text-gray-400">People the interviews say left — and what they still hold — and the earlier stint of anyone who came back.</p>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="hidden sm:table-header-group">
@@ -75,16 +122,13 @@ export default function PreviousMembers({ contextId, onOpenDetail }) {
           </thead>
           <tbody>
             {people.map(p => (
-              <tr key={p.key} data-testid="previous-member" className="flex flex-wrap gap-x-3 border-b border-gray-100 dark:border-gray-700 sm:table-row">
+              <tr key={p.key} data-testid="previous-member" data-stint={p.stint || 'left'} className="flex flex-wrap gap-x-3 border-b border-gray-100 dark:border-gray-700 sm:table-row">
                 <td className={`w-full sm:w-auto ${CELL}`}><NameCell person={p} onOpenDetail={onOpenDetail} /></td>
-                <td className={CELL}><InterviewRole role={p.role} /></td>
+                <StintCells person={p} />
+                <td className={`${CELL} text-xs text-gray-600 dark:text-gray-400`}>{sourceLabel(p.left || p.rejoined)}</td>
                 <td className={CELL}>
-                  <span className={`text-gray-700 dark:text-gray-300 ${factClass(p.left.status)}`} title={factTitle(p.left)}>
-                    {LEFT_WORDS[p.left.membershipStatus] || p.left.membershipStatus}{periodLabel(p.left) ? ` (${periodLabel(p.left)})` : ''}
-                  </span>
+                  {p.stint === 'earlier' ? <NowMemberCell person={p} /> : <AccessCell person={p} linkedResources={data.linkedResources} />}
                 </td>
-                <td className={`${CELL} text-xs text-gray-600 dark:text-gray-400`}>{sourceLabel(p.left)}</td>
-                <td className={CELL}><AccessCell person={p} linkedResources={data.linkedResources} /></td>
               </tr>
             ))}
           </tbody>

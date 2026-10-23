@@ -175,7 +175,7 @@ Piet de Vries: Jan Smit just left the account. The client calls it the Port Co, 
 
   it('a membership without a known status is dropped on that field, without its person on the subject', () => {
     expect(checkClaim(left({ membership: undefined }), f)).toEqual({
-      error: 'a membership claim needs its status: current, former, joined, left', reason: 'invalid', field: 'membership',
+      error: 'a membership claim needs its status: current, former, joined, left, rejoined', reason: 'invalid', field: 'membership',
     });
     expect(checkClaim(left({ membership: 'gone' }), f).field).toBe('membership');
     expect(checkClaim(left({ subject: null }), f).field).toBe('subject');

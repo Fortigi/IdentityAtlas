@@ -3342,7 +3342,9 @@ paths:
         left) and who are not a direct member now, with their latest role there. A matched account
         or person comes with the live entitlements it still holds, and how many of those are on the
         resources the context is linked to (its own resource members, or a resources variant's) —
-        null when it has none. Knowledge only: members come from their source. A reader without
+        null when it has none. A person who left once and came back is listed too, for the EARLIER
+        stint (`stint: earlier`, `role` = the roles they had then, `nowMember` whether they are a
+        direct member now). Knowledge only: members come from their source. A reader without
         `data.write.contexts` gets confirmed claims only.
       security:
         - EntraIdBearer: []
@@ -3366,7 +3368,10 @@ paths:
                         displayName: { type: string }
                         subjectName: { type: string, nullable: true }
                         accountDeleted: { type: boolean }
+                        stint: { type: string, enum: [left, earlier] }
+                        nowMember: { type: boolean }
                         left: { $ref: '#/components/schemas/ContextMemberClaimFact' }
+                        rejoined: { $ref: '#/components/schemas/ContextMemberRejoinFact' }
                         role: { $ref: '#/components/schemas/ContextMemberRoleFact' }
                         liveEntitlements: { type: integer, nullable: true }
                         linkedEntitlements: { type: integer, nullable: true }
@@ -3701,6 +3706,7 @@ components:
           properties:
             role: { $ref: '#/components/schemas/ContextMemberRoleFact' }
             left: { $ref: '#/components/schemas/ContextMemberClaimFact' }
+            rejoined: { $ref: '#/components/schemas/ContextMemberRejoinFact' }
       additionalProperties: true
     ContextMemberClaimFact:
       type: object
@@ -3711,7 +3717,7 @@ components:
         interviewId: { type: string, format: uuid }
         value: { type: string }
         status: { type: string, enum: [proposed, confirmed, edited] }
-        membershipStatus: { type: string, enum: [current, former, joined, left] }
+        membershipStatus: { type: string, enum: [current, former, joined, left, rejoined] }
         periodFrom: { type: string, format: date, nullable: true }
         periodTo: { type: string, format: date, nullable: true }
         periodText: { type: string, nullable: true }
@@ -3727,6 +3733,17 @@ components:
         - type: object
           properties:
             history: { type: array, items: { $ref: '#/components/schemas/ContextMemberClaimFact' } }
+    ContextMemberRejoinFact:
+      type: object
+      nullable: true
+      description: >
+        The member left once and is in it again: the claim that says they came back, with the roles
+        of the earlier stint, oldest first.
+      allOf:
+        - $ref: '#/components/schemas/ContextMemberClaimFact'
+        - type: object
+          properties:
+            earlier: { type: array, items: { $ref: '#/components/schemas/ContextMemberClaimFact' } }
     ContextRole:
       type: object
       description: Who answers for a context; the holder is an account or a person, exactly one.

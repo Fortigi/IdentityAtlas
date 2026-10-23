@@ -43,3 +43,34 @@ export function entitlementText(n) {
   if (n === 0) return 'none';
   return `${n.toLocaleString('en-US')} ${n === 1 ? 'entitlement' : 'entitlements'}`;
 }
+
+const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+/** The earlier stint's roles, as one phrase: "Junior developer", "Junior → Developer"; '' for none. */
+export function earlierRolesText(rejoined) {
+  return (rejoined?.earlier || []).map(e => capitalize(e.value)).join(' → ');
+}
+
+/** "rejoined · earlier: Junior developer" — the marker on a current member who came back. */
+export function rejoinedText(rejoined) {
+  const earlier = earlierRolesText(rejoined);
+  return earlier ? `rejoined · earlier: ${earlier}` : 'rejoined';
+}
+
+/** The marker's tooltip: what was said, by whom, and the earlier roles with their periods. */
+export function rejoinedTitle(rejoined) {
+  const periods = (rejoined.earlier || []).map(e => {
+    const period = periodLabel(e);
+    return period ? `${capitalize(e.value)} (${period})` : capitalize(e.value);
+  });
+  return [factTitle(rejoined), periods.length ? `Earlier: ${periods.join(' → ')}` : null].filter(Boolean).join('\n');
+}
+
+/** "Junior developer (earlier period)" — a previous-members row for the earlier stint. */
+export function earlierStintText(person) {
+  const role = earlierRolesText(person.rejoined);
+  return role ? `${role} (earlier period)` : 'earlier period';
+}
+
+/** The DOM id of a member's row, so another list can point at it. */
+export const memberRowId = (id) => `context-member-${id}`;

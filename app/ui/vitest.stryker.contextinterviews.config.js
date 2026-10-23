@@ -19,6 +19,7 @@ export default defineConfig({
       'src/components/contexts/interviews/interviewKnowledge.mount.test.jsx',
       'src/components/contexts/interviews/transcript.helpers.test.js',
       'src/components/contexts/interviews/memberInterview.helpers.test.js',
+      'src/components/contexts/interviews/interviewHistory.mount.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },

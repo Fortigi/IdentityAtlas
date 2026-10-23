@@ -213,7 +213,7 @@ export async function interviewQuotes(db, interviewId) {
 // one statement for a whole page of members, one for the previous members.
 const PERSON_CLAIM_COLUMNS = `c.id, c."interviewId", c."claimKind", c.attribute, c.value,
            c."periodFrom"::text AS "periodFrom", c."periodTo"::text AS "periodTo", c."periodText", c.quote,
-           c."claimStatus" AS status, c."createdAt", iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt"`;
+           c."claimStatus" AS status, c."createdAt", c."subjectName", iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt"`;
 export const PERSON_CLAIM_KINDS = Object.freeze(['role', 'roleHistory', 'membership']);
 
 // memberId: the member the claim is about. A context of accounts reads the
@@ -245,7 +245,7 @@ export async function memberClaims(db, contextId, targetType, ids, statuses) {
 // Every person claim of the context, with the person matched (if any), whether
 // that account or person is a direct member now, and whether the account is gone.
 export const PEOPLE_CLAIMS_SQL = `
-    SELECT ${PERSON_CLAIM_COLUMNS}, c."principalId", c."identityId", c."subjectName",
+    SELECT ${PERSON_CLAIM_COLUMNS}, c."principalId", c."identityId",
            COALESCE(p."displayName", i."displayName") AS "subjectDisplayName",
            (p."deletedAt" IS NOT NULL) AS "accountDeleted",
            EXISTS (SELECT 1 FROM "ContextMembers" cm
@@ -316,4 +316,47 @@ export async function entitlementCounts(db, contextId, principalIds, identityIds
     counts: new Map(counts.rows.map(r => [`${r.col}:${r.id}`, { liveEntitlements: r.liveEntitlements, linkedEntitlements: r.linkedEntitlements }])),
     linkedResources: linked.rows[0]?.n ?? 0,
   };
+}
+
+// ─── The context's timeline (routes/recentChanges/timeline.js) ───────────
+// The interviews uploaded in the window, each with how many claims the model
+// proposed for it and when the last of them was made.
+export const TIMELINE_INTERVIEWS_SQL = `
+    SELECT iv.id, iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt", iv."fileName", iv."createdAt",
+           COUNT(c.id) FILTER (WHERE c."proposedBy" = 'model')::int AS extracted,
+           MAX(c."createdAt") FILTER (WHERE c."proposedBy" = 'model') AS "extractedAt"
+      FROM "ContextInterviews" iv
+      LEFT JOIN "ContextClaims" c ON c."interviewId" = iv.id
+     WHERE iv."contextId" = $1 AND iv."createdAt" > now() - ($2::int || ' days')::interval
+     GROUP BY iv.id`;
+
+// The claims decided in the window, in the given statuses, with the role a
+// confirmed role claim set (its holder by name) and the interview it came from.
+export const TIMELINE_DECISIONS_SQL = `
+    SELECT c.id, c."interviewId", c."claimKind", c.attribute, c.value, c."claimStatus" AS status, c."decidedAt", c."decidedBy",
+           c."principalId", c."identityId", c."subjectName", COALESCE(p."displayName", i."displayName") AS "subjectDisplayName",
+           iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt",
+           r.role AS "appliedRole", COALESCE(rp."displayName", ri."displayName") AS "roleHolderName",
+           COALESCE(r."principalId", r."identityId") AS "roleHolderId", (r."principalId" IS NOT NULL) AS "roleHolderIsAccount"
+      FROM "ContextClaims" c
+      JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
+      LEFT JOIN "Principals" p ON p.id = c."principalId"
+      LEFT JOIN "Identities" i ON i.id = c."identityId"
+      LEFT JOIN LATERAL (SELECT x.role, x."principalId", x."identityId" FROM "ContextRoles" x
+                          WHERE x."sourceClaimId" = c.id LIMIT 1) r ON true
+      LEFT JOIN "Principals" rp ON rp.id = r."principalId"
+      LEFT JOIN "Identities" ri ON ri.id = r."identityId"
+     WHERE c."contextId" = $1 AND c."decidedAt" IS NOT NULL
+       AND c."decidedAt" > now() - ($2::int || ' days')::interval
+       AND c."claimStatus" = ANY($3::text[])
+     ORDER BY c."decidedAt" DESC
+     LIMIT $4`;
+
+/** What the interviews add to a context's timeline: { interviews, decisions }. Two statements. */
+export async function timelineRows(db, contextId, { sinceDays, statuses, limit, withInterviews }) {
+  const [interviews, decisions] = await Promise.all([
+    withInterviews ? db.query(TIMELINE_INTERVIEWS_SQL, [contextId, sinceDays]) : { rows: [] },
+    db.query(TIMELINE_DECISIONS_SQL, [contextId, sinceDays, statuses, limit]),
+  ]);
+  return { interviews: interviews.rows, decisions: decisions.rows };
 }

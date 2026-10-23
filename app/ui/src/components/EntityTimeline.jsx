@@ -21,15 +21,18 @@ const RANGES = [
 
 const REL_KINDS = new Set(['assignment', 'relationship', 'identity-member', 'manager', 'review']);
 
+// A context's interviews (uploads, extraction, claim decisions, roles set from a
+// claim — GET /contexts/:id/timeline) count as their own kind.
 function summarize(moment) {
-  let attr = 0, rel = 0, created = false;
+  let attr = 0, rel = 0, interview = 0, created = false;
   for (const ev of moment.events) {
     if (ev.summary === 'Account created') created = true;
     if (ev.eventKind === 'attribute') attr += 1;
     else if (REL_KINDS.has(ev.eventKind)) rel += 1;
+    else if (ev.eventKind === 'interview') interview += 1;
     else attr += 1;
   }
-  return { attr, rel, created };
+  return { attr, rel, interview, created };
 }
 
 // Dot border colour by kind: created = emerald (the start), relationship-
@@ -37,16 +40,17 @@ function summarize(moment) {
 // The dot itself is white with a dark number inside (the change count), so the
 // number stays WCAG-readable regardless of the kind colour.
 function dotBorder(moment) {
-  const { rel, created } = summarize(moment);
+  const { rel, interview, created } = summarize(moment);
   if (created) return 'border-emerald-500 dark:border-emerald-400';
   if (rel > 0) return 'border-amber-500 dark:border-amber-400';
+  if (interview > 0) return 'border-violet-500 dark:border-violet-400';
   return 'border-blue-500 dark:border-blue-400';
 }
 
 function contextLabel(moment) {
-  const { attr, rel, created } = summarize(moment);
+  const { attr, rel, interview, created } = summarize(moment);
   if (created) return 'Created';
-  return [attr && `${attr} attr`, rel && `${rel} rel`].filter(Boolean).join(' · ');
+  return [attr && `${attr} attr`, rel && `${rel} rel`, interview && `${interview} interview`].filter(Boolean).join(' · ');
 }
 
 // An attribute value as the rest of the app shows it: an ISO timestamp as a
@@ -193,6 +197,7 @@ export default function EntityTimeline({ events, loading, sinceDays, onSinceDays
                       ) : (
                         <span>{ev.summary}</span>
                       )}
+                      {ev.detail && <span className="block text-xs italic text-gray-600 dark:text-gray-400">{ev.detail}</span>}
                     </div>
                   </li>
                 );

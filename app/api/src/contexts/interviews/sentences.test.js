@@ -116,3 +116,27 @@ describe('clauseFor — one clause per person', () => {
     expect(stijn.value).toBe('betrokken');
   });
 });
+
+describe('checkLeftClaim — left and came back', () => {
+  const T = 'Anna Voorbeeld: Joris Jansen begon als junior en is sinds ongeveer een half jaar terug, nu als architect binnen het CCoE. Femke deed het ook, maar is vertrokken.';
+
+  it('a "former" whose sentence says the person came back becomes rejoined, marked as corrected', async () => {
+    const { CORRECTED_RETURNED } = await import('./leftSignal.js');
+    const c = checkLeftClaim(membership({ subjectName: 'Joris Jansen', quote: 'Joris Jansen begon als junior', value: 'former' }), T);
+    expect(c.attribute).toBe('rejoined');
+    expect(c.value).toBe(`former (${CORRECTED_RETURNED}; the model said former)`);
+    expect(c.quote).toBe('Joris Jansen begon als junior en is sinds ongeveer een half jaar terug, nu als architect binnen het CCoE.');
+  });
+
+  it('a role claim that says left in a came-back sentence loses the left reading', async () => {
+    const { CORRECTED_RETURNED } = await import('./leftSignal.js');
+    const c = checkLeftClaim({ claimKind: 'roleHistory', attribute: 'other', subjectName: 'Joris Jansen', value: 'left', quote: 'Joris Jansen begon als junior' }, T);
+    expect(c.value).toBe(`left (${CORRECTED_RETURNED}, in it again)`);
+    expect(leftSignal(c)).toBe(false);
+  });
+
+  it('someone else in the next sentence who left stays former', () => {
+    const c = checkLeftClaim(membership({ subjectName: 'Femke', quote: 'Femke deed het ook', value: 'former' }), T);
+    expect(c.attribute).toBe('former');
+  });
+});

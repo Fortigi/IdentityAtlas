@@ -16,8 +16,8 @@
 //   delegate  the subject stands in for the owner (backup, deputy, delegate)
 //   member    the subject works in / on it, no responsibility stated
 //   other     anything else
-// A membership claim says whether the person is in it now (current, joined) or
-// not any more (former, left); an alias claim is another name of the context.
+// A membership claim says whether the person is in it now (current, joined,
+// rejoined — back after an earlier stint) or not any more (former, left); an alias claim is another name of the context.
 // Every claim carries the model's relevance tier, which relevance.js may overrule.
 
 import { CLAIM_KINDS, RELATIONS, MAX_ATTRIBUTE, MEMBERSHIP_STATUSES, RELEVANCE } from './claims.js';
@@ -78,7 +78,7 @@ const RULES = `Reply with JSON only: {"claims": [...]}. Each claim:
 - kind: ${CLAIM_KINDS.map(k => `"${k}"`).join(', ')}.
 - subject: for role, roleHistory and membership, the person's name exactly as said, or "${INTERVIEWEE}" when it is the interviewee speaking about themselves ("I", "me", "ik"). null for description, property and alias.
 - relation (role and roleHistory only): "owner" (owns it / is accountable), "notOwner" (says they are not the owner), "dayToDay" (does the daily work, handles it), "delegate" (backup, deputy, stands in), "member" (works there), "other".
-- membership (membership only): "current" (is in it now), "former" (used to be, worked on it before), "joined", "left".
+- membership (membership only): "current" (is in it now), "former" (used to be, worked on it before), "joined", "left", "rejoined" (was in it before, left, and is back — "came back as architect", "is weer terug").
 - attribute (property only): a short attribute name.
 - value: the claim in one short sentence or phrase; for roleHistory the role held ("junior developer", "architect for the CCoE"); for membership what was said ("left the account", "worked on it in the early years"); for alias the other name alone ("HA").
 - periodFrom / periodTo: "YYYY", "YYYY-MM" or "YYYY-MM-DD" when the interview gives one, else null. periodText: the period as said ("early on", "now"), else null.

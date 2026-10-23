@@ -106,7 +106,7 @@ describe('ManualClaimForm', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Kind' }), 'membership');
     expect(screen.queryByRole('combobox', { name: 'What they are to it' })).toBeNull();
     const status = screen.getByRole('combobox', { name: 'In it now?' });
-    expect([...status.options].map(o => o.textContent)).toEqual(['current member', 'former member', 'joined', 'left']);
+    expect([...status.options].map(o => o.textContent)).toEqual(['current member', 'former member', 'joined', 'left', 'back again (rejoined)']);
     await user.selectOptions(status, 'former');
     await user.type(screen.getByRole('textbox', { name: 'Person' }), 'Karel');
     await user.type(screen.getByRole('textbox', { name: 'What it says' }), 'worked on it before');

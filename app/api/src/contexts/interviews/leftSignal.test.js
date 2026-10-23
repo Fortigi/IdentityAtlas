@@ -54,3 +54,39 @@ describe('leftSignal — a claim the sentence check corrected', () => {
     expect(leftSignal(history({ value: `left (${CORRECTED_CURRENT}, not left)`, periodText: 'inmiddels uitgestroomd' }))).toBe(false);
   });
 });
+
+describe('saysReturned / returnSignal — left and came back', () => {
+  it('reads the English and Dutch words for coming back', async () => {
+    const { saysReturned } = await import('./leftSignal.js');
+    for (const t of ['rejoined last year', 're-joined', 'came back as architect', 'is back in the team', 'returned in 2024', 'joined again',
+      'is weer terug', 'teruggekomen', 'kwam terug als lead', 'terug als architect', 'opnieuw begonnen', 'weer bij het team',
+      'is sinds ongeveer een half jaar terug, nu als architect', 'zijn sinds maart terug']) {
+      expect(saysReturned(t), t).toBe(true);
+    }
+  });
+
+  it('a bare "terug" or "weer" is not a return: "a year ago", the weather', async () => {
+    const { saysReturned } = await import('./leftSignal.js');
+    for (const t of ['een jaar terug vertrokken', 'sinds een jaar terug betrokken', 'het weer was slecht', 'feedback', 'terugkoppeling', 'backend', '', null]) {
+      expect(saysReturned(t), String(t)).toBe(false);
+    }
+  });
+
+  it('returnSignal: membership rejoined, or the words in a role claim\'s value or period', async () => {
+    const { returnSignal, CORRECTED_RETURNED } = await import('./leftSignal.js');
+    expect(returnSignal({ claimKind: 'membership', attribute: 'rejoined' })).toBe(true);
+    expect(returnSignal({ claimKind: 'membership', attribute: 'joined', value: 'came back' })).toBe(false);
+    expect(returnSignal(history({ value: 'architect', periodText: 'sinds zijn terugkeer; kwam terug in 2025' }))).toBe(true);
+    expect(returnSignal(history({ value: `junior (${CORRECTED_RETURNED}, in it again)` }))).toBe(true);
+    expect(returnSignal(history({ value: 'architect' }))).toBe(false);
+    expect(returnSignal({ claimKind: 'alias', value: 'came back' })).toBe(false);
+    expect(returnSignal(null)).toBe(false);
+  });
+
+  it('a role claim that says left AND came back is not gone', async () => {
+    const { CORRECTED_RETURNED } = await import('./leftSignal.js');
+    expect(leftSignal(history({ value: 'left in 2022, came back as architect' }))).toBe(false);
+    expect(leftSignal(history({ value: 'architect', periodText: 'vertrokken, nu weer terug' }))).toBe(false);
+    expect(leftSignal(history({ value: `left (${CORRECTED_RETURNED}, in it again)` }))).toBe(false);
+  });
+});

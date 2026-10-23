@@ -54,7 +54,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   const [editing, setEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('members');
   const [timelineDays, setTimelineDays] = useState(90);
-  const { detail, loading, error, fetchDetail, riskData } = useContextDetail(authFetch, contextId, refreshKey, onCacheData);
+  const { detail, loading, error, fetchDetail, refreshDetail, riskData } = useContextDetail(authFetch, contextId, refreshKey, onCacheData);
   const m = useContextMembers(authFetch, contextId, refreshKey);
 
   const timeline = useTimeline('context', contextId, authFetch, {
@@ -80,6 +80,9 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   });
   const sectionIds = { members: `context-members-${contextId}`, subUnits: `context-sub-units-${contextId}` };
   const refreshAll = () => { m.fetchMembers(); fetchDetail(); onEdited?.(); };
+  // A claim decision may change the members' facts and the context itself (an
+  // alias, a property, the description): both re-read, the page stays put.
+  const afterDecision = () => { m.fetchMembers(); refreshDetail(); };
 
   // A count in the facts card goes to the list it counts.
   function showSection(sectionId) {
@@ -132,7 +135,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   };
 
   return (
-    <WithClaims contextId={contextId} attrs={attrs} onDecided={m.fetchMembers}>
+    <WithClaims contextId={contextId} attrs={attrs} onDecided={afterDecision}>
       <div className="max-w-7xl mx-auto space-y-4">
         <DetailTop
           contextId={contextId}

@@ -22,7 +22,8 @@
     "src/components/contexts/interviews/memberInterview.helpers.js",
     "src/components/contexts/interviews/TranscriptPanel.jsx",
     "src/components/contexts/interviews/PreviousMembers.jsx",
-    "src/components/contexts/interviews/MemberInterviewFacts.jsx"
+    "src/components/contexts/interviews/MemberInterviewFacts.jsx",
+    "src/components/contexts/interviews/AlsoKnownAs.jsx"
   ],
   "mutationExclusions": {
     "src/components/contexts/interviews/claimsContext.js": "A React context and its one-line accessor; no decision to mutate. Every consumer reading null outside a provider is asserted by the WorkflowsArea and ContextPeople mount tests, which mount without one.",

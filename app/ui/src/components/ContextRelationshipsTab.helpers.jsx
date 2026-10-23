@@ -1,4 +1,4 @@
-import { InterviewRole } from './contexts/interviews/MemberInterviewFacts';
+import { InterviewRejoinedFlag, InterviewRole } from './contexts/interviews/MemberInterviewFacts';
 
 // Pure helpers for the members table in ContextRelationshipsTab.jsx: which
 // columns a kind of member has, which of them this page of members fills,
@@ -37,8 +37,9 @@ export function accountTypeWord(principalType) {
 // a unit or an application its Role from the interviews, contexts/interviews/
 // memberFacts.js). `value` decides whether a
 // row has something to show; `render` draws it; `align: 'right'` for numbers.
-// The member's latest role at the context, as the interviews say (proposed: dashed).
-const INTERVIEW_ROLE = { label: 'Role', value: m => m.interview?.role?.value, render: m => <InterviewRole role={m.interview.role} /> };
+// The member's latest role at the context, as the interviews say (proposed: dashed),
+// and "rejoined · earlier: …" when they left once and came back.
+const INTERVIEW_ROLE = { label: 'Role', value: m => m.interview?.role?.value || m.interview?.rejoined, render: m => <><InterviewRole role={m.interview?.role} /><InterviewRejoinedFlag rejoined={m.interview?.rejoined} /></> };
 
 export const MEMBER_TABLE_COLUMNS = {
   Principal: [

@@ -5,6 +5,7 @@ import { memberKindNoun } from '@ui/utils/contextStyles';
 import { visibleMemberColumns, memberRowAction } from './ContextRelationshipsTab.helpers';
 import { InterviewLeftFlag } from './contexts/interviews/MemberInterviewFacts';
 import PreviousMembers from './contexts/interviews/PreviousMembers';
+import { memberRowId } from './contexts/interviews/memberInterview.helpers';
 
 // ─── Sub-units and members ─────────────────────────────────────────────────
 // Two plain sections: the sub-units (each opening its own page) and the
@@ -172,6 +173,7 @@ function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDeta
           {members.map(m => (
             <tr
               key={m.id}
+              id={memberRowId(m.id)}
               className={`flex flex-wrap items-baseline gap-x-3 py-1.5 sm:table-row sm:py-0 border-b border-gray-100 dark:border-gray-700${onOpenDetail ? ' hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer' : ''}`}
               onClick={onOpenDetail ? () => onOpenDetail(memberDetailKind(attrs.targetType), m.id, m.displayName) : undefined}
             >

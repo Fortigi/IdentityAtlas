@@ -221,6 +221,31 @@ describe('context interviews against PostgreSQL', () => {
     await pool.query(`DELETE FROM "Resources" WHERE "systemId" = $1`, [sysId]);
   });
 
+  it('the timeline reads the interview, its extraction count and the decided claims with the role they set', async () => {
+    const { interviews, decisions } = await store.timelineRows(db, ctxId, { sinceDays: 30, statuses: ['confirmed', 'edited', 'rejected'], limit: 50, withInterviews: true });
+    expect(interviews.find(i => i.id === interview.id)).toMatchObject({ intervieweeName: 'Anna Voorbeeldig', fileName: 'gesprek.vtt', interviewedAt: '2026-10-01' });
+    expect(interviews.find(i => i.id === interview.id).extracted).toBeGreaterThan(0);
+    const responsible = decisions.find(d => d.id === claimIds.responsible);
+    expect(responsible).toMatchObject({ status: 'confirmed', appliedRole: 'Responsible', roleHolderName: 'Piet Proefpersoon', roleHolderIsAccount: true, roleHolderId: P.piet });
+    const readerOnly = await store.timelineRows(db, ctxId, { sinceDays: 30, statuses: ['confirmed', 'edited'], limit: 50, withInterviews: false });
+    expect(readerOnly.interviews).toEqual([]);
+    expect(readerOnly.decisions.every(d => d.status !== 'rejected')).toBe(true);
+  });
+
+  it('the context timeline leaves out updates that only moved bookkeeping', async () => {
+    process.env.USE_SQL = 'true';
+    const { timelineHandler } = await import('../src/routes/recentChanges/timeline.js');
+    await pool.query(`UPDATE "Contexts" SET "lastCalculatedAt" = now() WHERE id = $1`, [ctxId]);
+    await pool.query(`UPDATE "Contexts" SET "displayName" = 'ivw-Planner 2' WHERE id = $1`, [ctxId]);
+    let body;
+    const res = { json: (b) => { body = b; }, status: () => res };
+    await timelineHandler('context')({ params: { id: ctxId }, query: { sinceDays: '30' } }, res);
+    const attrs = body.events.filter(e => e.eventKind === 'attribute').map(e => e.attribute?.field);
+    expect(attrs).toContain('displayName');
+    expect(attrs).not.toContain('lastCalculatedAt');
+    expect(body.events.some(e => e.eventKind === 'interview')).toBe(true);
+  });
+
   it('deleting the interview removes its claims and keeps what they changed, the role losing only its link', async () => {
     expect(await store.deleteInterview(db, ctxId, interview.id)).toBe(1);
     expect((await pool.query(`SELECT count(*)::int AS n FROM "ContextClaims" WHERE "contextId" = $1`, [ctxId])).rows[0].n).toBe(0);

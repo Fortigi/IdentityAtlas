@@ -576,7 +576,7 @@ ia:ClaimKind_roleHistory a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "rol
     rdfs:comment "A role a person held at the context over a period. Knowledge only." .
 ia:ClaimKind_membership a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "membership" ;
     rdfs:label "membership" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "Whether a person is in the context: the status (current, former, joined, left) in attribute, with the period. Knowledge only: confirming it never changes the context's members, which come from their source." .
+    rdfs:comment "Whether a person is in the context: the status (current, former, joined, left, rejoined) in attribute, with the period. Knowledge only: confirming it never changes the context's members, which come from their source." .
 ia:ClaimKind_alias a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "alias" ;
     rdfs:label "alias" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Another name the context goes by. Confirmed, it is added to the context's extendedAttributes.aliases." .
@@ -1523,7 +1523,7 @@ ia:attribute a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain ia:Claim ;
     rdfs:range xsd:string ;
     rdfs:label "attribute" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left)." .
+    rdfs:comment "A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined)." .
 ia:value a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain ia:Claim ;
     rdfs:range xsd:string ;
