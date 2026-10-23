@@ -113,13 +113,24 @@ the list upload's refinement uses), the upload starts extraction in the backgrou
    kind). 1 claim had a field filled in from the quote — check it."* There is no second
    model round asking for the missing fields: on a small box it costs as much as the
    part itself.
-3. Repeats are dropped, and so is anything already decided in an earlier run, and an
+3. A person claim whose subject joins two or more names (*"Ruud en Kees"*, *"Ruud and
+   Kees"*, *"A, B & C"*) becomes one claim per name (`roles.js` `splitJointSubjects`; *en* /
+   *and* are no name particles, so the quote's-full-name fallback never glues them either).
+   Repeats are dropped, and so is anything already decided in an earlier run, and an
    "alias" that is only the context's own name.
 4. Names are matched: the interviewee (*"I"*, their name, their first name); then the
    upload's account matching (`upload/members.js`: e-mail, employee id, external id, the
-   normalised name, a near miss — `fuzzy`); then a first name alone that is the first
-   name of exactly one person the context already knows (a member or a role holder —
-   `firstName`). Two fallbacks for a name still unmatched, both `fuzzy`:
+   normalised name, a near miss — `fuzzy`); then a first name alone, `firstName`
+   (`interviews/firstNames.js`), searched in widening circles — one statement per circle
+   for all the names at once, and the first circle that decides wins:
+   (a) the context's current members and role holders; (b) the people its interviews
+   already name — the holders of its claims (any interview) and its interviewees, which is
+   where a former member is found; (c) the members and role holders of the contexts next to
+   it — its `SameUnitAs` variants, its parent and its siblings; (d) the whole organisation:
+   a live user account, only when exactly **one** has that first name (20 or more candidate
+   rows is no match — at a large organisation this rarely resolves, by design). Two people
+   with the first name in a circle is no match, and the wider circles are not asked: they
+   cannot make it unique. Two fallbacks for a name still unmatched, both `fuzzy`:
    - **the quote's full name** — a small model cuts names short (*"Vries"* for *"Piet de
      Vries does most of the day-to-day work"*). The quote is verbatim, so a longer run
      of 2–4 capitalised words in it (particles such as van / de / der / den / von / el
@@ -142,7 +153,11 @@ the list upload's refinement uses), the upload starts extraction in the backgrou
    subject who says both that they own it and that they do not gets no Accountable
    suggestion. *"I'm not the owner, Y is"* is two claims: notOwner for the interviewee,
    owner for Y — and when the interviewee is the current Accountable, the People block
-   shows *In doubt:* with the quote.
+   shows *In doubt:* with the quote. A role / roleHistory claim that says the person left
+   (see *Who left* below — *"recently left"*, *"inmiddels uitgestroomd"*) adds a
+   `membership` claim with status `former` for the same person, quote and period, unless
+   the model already gave a membership claim for that person (one per person; a re-run
+   does not propose one already decided).
 7. The interview's undecided model claims are replaced in one transaction; status
    `done`. Any failure: status `failed` with the reason, and *Read again*.
 
@@ -191,15 +206,23 @@ their source. Two places show it, both set-based (`contexts/interviews/memberFac
   role there — a `role` claim (said in the present) or a roleHistory whose period is open or
   "now" first, then the latest period, then the newest interview — with the whole
   `history`; the table shows it in a **Role** column, the history on hover. `left` is the
-  latest membership claim (newest interview first) when it says `former` or `left`; the row
+  person's latest word on being in it (newest interview first) — a membership claim, or a
+  role / roleHistory claim that says they left — when it says so (`former` / `left`; a
+  role claim reads `former`); the row
   then carries *"Interview: left (last month)"*, the quote as tooltip, which opens the
   transcript at the claim for an analyst.
-- **Previous members**, below the members: everyone whose latest membership claim says they
+- **Who left** (`contexts/interviews/leftSignal.js`, one shared rule): a membership claim with
+  status `former` or `left`, or a role / roleHistory claim (not `notOwner`) whose value or
+  period says it — *left, no longer, former(ly), quit, departed, moved on*; *uitgestroomd,
+  vertrokken, weg, niet meer, gestopt, voormalig(e), oud-…* — whole words only. So claims
+  stored before the membership kind existed, or a model that answers *roleHistory "left"*,
+  still count.
+- **Previous members**, below the members: everyone whose latest such claim says they
   left and who is not a direct member now. Matched to an account or a person, they come with
   their **live entitlements** (ResourceAssignments not deleted — a person's own and their
   accounts') and how many of those are on **this context's resources**: its own resource
   members, or those of a `SameUnitAs` variant that holds resources (*"3 on this
-  application"*, highlighted). A name nobody matched is listed as said, without counts.
+  application"*, highlighted). A name nobody matched is listed as said, with *no account found* and no counts.
   Three statements in all: the claims, the counts for every matched person at once, and the
   size of the linked resource set. The question it answers: *does this person still have
   access?*

@@ -7,15 +7,16 @@ import { entitlementText, factClass, factTitle, LEFT_WORDS } from './memberInter
 import { periodLabel, sourceLabel } from './claims.helpers';
 
 // ─── Previous members — who the interviews say left ───────────────────────
-// Below the current members: the people whose latest membership claim says
-// they left or used to work on it, and who are not a member now (GET
+// Below the current members: the people whose latest membership claim — or a
+// role claim that says so ("recently left") — says they left or used to work
+// on it, and who are not a member now (GET
 // /api/contexts/:id/previous-members). Each with their role there, when they
 // left as said, the interview it comes from, and — matched to an account or a
 // person — what they STILL hold: their live entitlements, and how many of
 // those are on this context's resources (its own, or a resources variant's;
 // highlighted when there are any). The question it answers: "does this person
 // still have access?". A name the interviews gave but nobody matched is shown
-// as said, without counts. Proposed claims read dashed and italic; confirming
+// as said, with "no account found" and no counts. Proposed claims read dashed and italic; confirming
 // one never changes the members (they come from their source). A reader is
 // sent confirmed claims only (the API decides). Nothing when nobody left.
 
@@ -34,7 +35,7 @@ function NameCell({ person, onOpenDetail }) {
 
 function AccessCell({ person, linkedResources }) {
   const live = entitlementText(person.liveEntitlements);
-  if (live === null) return <span className="text-xs text-gray-600 dark:text-gray-400">not matched to an account</span>;
+  if (live === null) return <span className="text-xs text-gray-600 dark:text-gray-400">no account found</span>;
   return (
     <span className="flex flex-wrap items-baseline gap-x-2">
       <span className="tabular-nums text-gray-700 dark:text-gray-300" data-testid="previous-member-live">{live}</span>

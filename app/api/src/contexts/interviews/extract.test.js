@@ -278,6 +278,44 @@ describe('extractInterview — what matters for access, membership and aliases',
     expect(claims[1]).toMatchObject({ subjectName: 'Bram Test', principalId: null, subjectMatch: null, roleSuggestion: null });
   });
 
+  it('who left: a joint subject is two people, a roleHistory that says left adds a membership (former), never a second one', async () => {
+    const LEFT = [
+      'Anna Voorbeeld: Bram deed dat ook, maar is recent vertrokken.',
+      'Anna Voorbeeld: Ruud en Kees hebben er een tijd aan gewerkt, maar zijn inmiddels uitgestroomd.',
+      'Anna Voorbeeld: Joost Test left last year.',
+    ].join('\n');
+    store.loadForExtraction.mockResolvedValue({ ...INTERVIEW, transcript: LEFT });
+    const reply = { claims: [
+      { kind: 'roleHistory', subject: 'Bram', relation: 'member', value: 'left', periodText: 'recent', quote: 'Bram deed dat ook, maar is recent vertrokken' },
+      { kind: 'roleHistory', subject: 'Ruud en Kees', relation: 'member', value: 'worked', periodText: 'inmiddels uitgestroomd', quote: 'Ruud en Kees hebben er een tijd aan gewerkt' },
+      { kind: 'roleHistory', subject: 'Joost Test', relation: 'member', value: 'left', quote: 'Joost Test left last year' },
+      { kind: 'membership', subject: 'Joost Test', membership: 'left', value: 'left', quote: 'Joost Test left last year' },
+    ] };
+    await extractInterview('iv-1', { db: noMatches, ask: answer(reply), enabled: () => true });
+    const claims = store.insertClaims.mock.calls[0][2];
+    expect(claims.map(c => [c.claimKind, c.subjectName, c.attribute, c.periodText])).toEqual([
+      ['roleHistory', 'Bram', 'member', 'recent'],
+      ['roleHistory', 'Ruud', 'member', 'inmiddels uitgestroomd'],
+      ['roleHistory', 'Kees', 'member', 'inmiddels uitgestroomd'],
+      ['roleHistory', 'Joost Test', 'member', null],
+      ['membership', 'Joost Test', 'left', null],
+      ['membership', 'Bram', 'former', 'recent'],
+      ['membership', 'Ruud', 'former', 'inmiddels uitgestroomd'],
+      ['membership', 'Kees', 'former', 'inmiddels uitgestroomd'],
+    ]);
+    const added = claims.find(c => c.claimKind === 'membership' && c.subjectName === 'Kees');
+    expect(added).toMatchObject({ relevance: 'high', roleSuggestion: null, quote: 'Ruud en Kees hebben er een tijd aan gewerkt' });
+    expect(LEFT.slice(added.quoteStart, added.quoteEnd)).toBe(added.quote);
+  });
+
+  it('a re-run does not add a membership the analyst already decided', async () => {
+    store.loadForExtraction.mockResolvedValue({ ...INTERVIEW, transcript: 'Anna Voorbeeld: Bram deed dat ook, maar is recent vertrokken.' });
+    store.keptClaims.mockResolvedValue([{ claimKind: 'membership', subjectName: 'Bram', attribute: 'former', value: 'left' }]);
+    const reply = { claims: [{ kind: 'roleHistory', subject: 'Bram', relation: 'member', value: 'left', periodText: 'recent', quote: 'Bram deed dat ook, maar is recent vertrokken' }] };
+    await extractInterview('iv-1', { db: noMatches, ask: answer(reply), enabled: () => true });
+    expect(store.insertClaims.mock.calls[0][2].map(c => c.claimKind)).toEqual(['roleHistory']);
+  });
+
   it('asks the model for the governance focus, to skip small talk, and for the new fields', async () => {
     store.loadForExtraction.mockResolvedValue({ ...INTERVIEW, transcript: SAID });
     const ask = vi.fn(answer({ claims: [] }));

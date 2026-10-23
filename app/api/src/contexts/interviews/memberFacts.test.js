@@ -171,3 +171,44 @@ describe('loadPreviousMembers', () => {
     expect(LINKED_RESOURCE_COUNT_SQL).toMatch(/x."targetType" = 'Resource'/);
   });
 });
+
+describe('left from a role claim (a model that did not say membership)', () => {
+  it('a roleHistory that says left, in its value or its period, flags the person as former', () => {
+    const byValue = claim({ value: 'left', periodText: 'recent' });
+    expect(leftOf([byValue])).toMatchObject({ claimId: byValue.id, membershipStatus: 'former', value: 'left', periodText: 'recent' });
+    expect(leftOf([claim({ value: 'worked', periodText: 'inmiddels uitgestroomd' })]).membershipStatus).toBe('former');
+    expect(leftOf([claim({ value: 'worked', periodText: 'for a while' })])).toBeNull();
+  });
+
+  it('the latest word wins: a later "current" membership undoes an earlier "left", and the other way round', () => {
+    const leftEarly = claim({ value: 'left', interviewedAt: '2026-03-01' });
+    const backLater = claim({ claimKind: 'membership', attribute: 'current', interviewedAt: '2026-09-01' });
+    expect(leftOf([leftEarly, backLater])).toBeNull();
+    const currentEarly = claim({ claimKind: 'membership', attribute: 'current', interviewedAt: '2026-03-01' });
+    const goneLater = claim({ value: 'vertrokken', interviewedAt: '2026-09-01' });
+    expect(leftOf([currentEarly, goneLater]).claimId).toBe(goneLater.id);
+  });
+
+  it('a role that does not say left is no word on membership: an earlier "left" stands', () => {
+    const gone = claim({ claimKind: 'membership', attribute: 'left', interviewedAt: '2026-03-01' });
+    expect(leftOf([gone, claim({ claimKind: 'role', value: 'lead', interviewedAt: '2026-09-01' })]).claimId).toBe(gone.id);
+  });
+
+  it('a current member a roleHistory says left is flagged in the members list', () => {
+    expect(factsByMember([claim({ memberId: PIET, value: 'left', periodText: 'recent' })]).get(PIET).left.membershipStatus).toBe('former');
+  });
+
+  it('previous members: matched and unmatched people the role claims say left, the unmatched by the name as said', () => {
+    const out = previousMembersOf([
+      claim({ principalId: JAN, subjectDisplayName: 'Jan Smit', subjectName: 'Jan', value: 'left', periodText: 'recent', isMember: false }),
+      claim({ subjectName: 'Ruud', value: 'worked', periodText: 'inmiddels uitgestroomd', isMember: false }),
+      claim({ subjectName: 'Kees', value: 'worked', periodText: 'inmiddels uitgestroomd', isMember: false }),
+      claim({ subjectName: 'Wim Werkt', value: 'worked', periodText: 'for a while', isMember: false }),
+    ]);
+    expect(out.map(p => [p.key, p.displayName, p.principalId, p.left.membershipStatus])).toEqual([
+      [`principalId:${JAN}`, 'Jan Smit', JAN, 'former'],
+      ['name:kees', 'Kees', null, 'former'],
+      ['name:ruud', 'Ruud', null, 'former'],
+    ]);
+  });
+});

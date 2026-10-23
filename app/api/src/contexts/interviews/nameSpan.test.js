@@ -6,7 +6,7 @@ describe('nameSpansIn', () => {
   it('finds the full name around a surname, across particles', () => {
     expect(nameSpansIn('Vries', 'Piet de Vries does most of the day-to-day work there')).toEqual(['Piet de Vries']);
     expect(nameSpansIn('de Vries', 'and then Piet de Vries took it over')).toEqual(['Piet de Vries']);
-    expect(nameSpansIn('Hilderink', 'Led Hilderink does most of the day-to-day work there')).toEqual(['Led Hilderink']);
+    expect(nameSpansIn('Brinkhorst', 'Bram Brinkhorst does most of the day-to-day work there')).toEqual(['Bram Brinkhorst']);
     expect(nameSpansIn('Berg', 'ask Jan van der Berg about it')).toEqual(['Jan van der Berg']);
   });
 
@@ -15,7 +15,7 @@ describe('nameSpansIn', () => {
   });
 
   it('reads a possessive as the name, and a subject in any case or with punctuation', () => {
-    expect(nameSpansIn("Hilderink's", "it is Led Hilderink's job")).toEqual(['Led Hilderink']);
+    expect(nameSpansIn("Brinkhorst's", "it is Bram Brinkhorst's job")).toEqual(['Bram Brinkhorst']);
     expect(nameSpansIn('VRIES,', 'Piet de Vries does it')).toEqual(['Piet de Vries']);
   });
 
@@ -34,5 +34,11 @@ describe('nameSpansIn', () => {
   it('nothing for an empty subject or quote', () => {
     expect(nameSpansIn('', 'Piet de Vries')).toEqual([]);
     expect(nameSpansIn('Vries', null)).toEqual([]);
+  });
+
+  it('"Ruud en Kees" / "Ruud and Kees" are two names: en and and are no particles, so no span glues them', () => {
+    expect(nameSpansIn('Ruud', 'Ruud en Kees hebben er een tijd aan gewerkt')).toEqual([]);
+    expect(nameSpansIn('Kees', 'Ruud and Kees both worked on it')).toEqual([]);
+    expect(nameSpansIn('Kees', 'Ruud en Kees Bakker zijn inmiddels uitgestroomd')).toEqual(['Kees Bakker']);
   });
 });

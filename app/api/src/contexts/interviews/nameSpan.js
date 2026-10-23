@@ -19,7 +19,7 @@ const WORD = /^[\p{L}][\p{L}'’-]*$/u;
 const isCapital = (w) => /^\p{Lu}/u.test(w);
 const isParticle = (w) => PARTICLES.has(w.toLowerCase().replace('’', "'"));
 const words = (s) => String(s ?? '').trim().split(/\s+/).filter(Boolean);
-// A possessive is the name it belongs to: "Hilderink's" is Hilderink.
+// A possessive is the name it belongs to: "Brinkhorst's" is Brinkhorst.
 const bare = (w) => w.replace(/['’]s$/u, '');
 
 // The runs of name-like words: punctuation and digits break a run.

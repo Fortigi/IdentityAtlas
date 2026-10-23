@@ -11,9 +11,11 @@
 //                the account matching of a context upload (upload/members.js):
 //                e-mail / UPN, employeeId, externalId, then the normalised name and a
 //                near miss (lib/nameMatch.js) — user accounts preferred
-//   firstName    a first name alone ("Piet") that is the first name of exactly one
-//                person the context already knows: a member or a role holder, an
-//                account or a person
+//   firstName    a first name alone ("Piet"), searched in widening circles
+//                (firstNames.js): the context's members and role holders, the
+//                people its interviews already name, the members of the contexts
+//                next to it, then the whole organisation — the first circle that
+//                has exactly one person with that first name decides
 //
 // 'fuzzy' and 'firstName' are flagged in the review list: a person must look
 // before confirming. A name that matches nothing keeps its raw text and no holder.
@@ -22,6 +24,9 @@ import { buildMatcher, loadCandidates } from '../upload/members.js';
 import { normalizeName } from '../../lib/nameMatch.js';
 import { likeContains } from '../../db/sqlParams.js';
 import { nameSpansIn, PARTICLES } from './nameSpan.js';
+import { resolveFirstNames } from './firstNames.js';
+
+export { LOCAL_SQL, uniqueFirstName } from './firstNames.js';
 
 const SELF = new Set(['interviewee', 'the interviewee', 'i', 'me', 'myself', 'ik', 'mij', 'mijzelf', 'self']);
 
@@ -42,40 +47,6 @@ const holderOf = (interviewee) => {
   if (interviewee?.identityId) return { identityId: interviewee.identityId };
   return {};
 };
-
-const escapeLike = (s) => s.replace(/[\\%_]/g, ch => `\\${ch}`);
-
-// The people the context knows whose display name starts with (or, "Last, First",
-// carries after the comma) one of the first names. Accounts and persons, members
-// and role holders.
-export const LOCAL_SQL = `
-  SELECT p.id, p."displayName", 'principalId' AS "holderCol"
-    FROM "Principals" p
-   WHERE p."deletedAt" IS NULL
-     AND (p.id IN (SELECT "principalId" FROM "ContextRoles" WHERE "contextId" = $1)
-          OR p.id IN (SELECT "memberId" FROM "ContextMembers" WHERE "contextId" = $1 AND "memberType" = 'Principal'))
-     AND p."displayName" ILIKE ANY($2::text[])
-  UNION ALL
-  SELECT i.id, i."displayName", 'identityId' AS "holderCol"
-    FROM "Identities" i
-   WHERE (i.id IN (SELECT "identityId" FROM "ContextRoles" WHERE "contextId" = $1)
-          OR i.id IN (SELECT "memberId" FROM "ContextMembers" WHERE "contextId" = $1 AND "memberType" = 'Identity'))
-     AND i."displayName" ILIKE ANY($2::text[])`;
-
-/** The one row whose normalised first name is `first`, or null (none, or two). Pure. */
-export function uniqueFirstName(rows, first) {
-  const hits = new Map();
-  for (const r of rows) {
-    if (firstWord(normalizeName(r.displayName)) === first) hits.set(`${r.holderCol}:${r.id}`, r);
-  }
-  return hits.size === 1 ? [...hits.values()][0] : null;
-}
-
-async function localFirstNames(db, contextId, firsts) {
-  if (firsts.length === 0) return [];
-  const patterns = firsts.flatMap(f => [`${escapeLike(f)} %`, `%, ${escapeLike(f)}%`]);
-  return (await db.query(LOCAL_SQL, [contextId, patterns])).rows;
-}
 
 /**
  * @param names         distinct subject names (as spoken)
@@ -99,9 +70,9 @@ export async function resolveSubjects(db, names, { contextId, interviewee }) {
   }
 
   const singles = leftover.map(n => [n, normalizeName(n)]).filter(([, norm]) => norm && !norm.includes(' '));
-  const rows = await localFirstNames(db, contextId, [...new Set(singles.map(([, norm]) => norm))]);
+  const found = singles.length ? await resolveFirstNames(db, contextId, [...new Set(singles.map(([, norm]) => norm))]) : new Map();
   for (const [name, norm] of singles) {
-    const row = uniqueFirstName(rows, norm);
+    const row = found.get(norm);
     if (row) out.set(name, { [row.holderCol]: row.id, match: 'firstName' });
   }
   for (const name of leftover) if (!out.has(name)) out.set(name, { match: null });
@@ -113,7 +84,7 @@ export async function resolveSubjects(db, names, { contextId, interviewee }) {
 //   resolveClaimSubjects(db, claims, opts) → [{ principalId?, identityId?, match, subjectName }] (one per claim)
 //
 //   quote span   the claim's verbatim quote names the person in full where the
-//                model cut the name short ("Hilderink" for "Led Hilderink does…",
+//                model cut the name short ("Brinkhorst" for "Bram Brinkhorst does…",
 //                nameSpan.js): each longer span, longest first, is resolved as above
 //                and the first that resolves wins — the claim then carries that name
 //   surname      a surname alone ("Vries", "de Vries") that ends the name of exactly

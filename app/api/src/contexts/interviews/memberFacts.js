@@ -17,10 +17,13 @@
 //          present) or a roleHistory claim whose period is open or "now" first,
 //          then by the end and start of the period, then the newest interview;
 //          `history` is every role claim about them, oldest first
-//   left   the person's latest membership claim (newest interview first) when it
-//          says they are not in it any more (former, left)
+//   left   the person's latest claim on whether they are in it — a membership
+//          claim, or a role / roleHistory claim that says they left (leftSignal.js:
+//          "recently left", "inmiddels uitgestroomd") — newest interview first,
+//          when it says they are not in it any more (former, left; a role claim
+//          reads former)
 //
-// A previous member is a person whose latest membership claim says so and who
+// A previous member is a person whose latest such claim says they left and who
 // is not a direct member now (a current member who left is flagged in the
 // members list instead). Matched to an account or a person, they come with the
 // live entitlements they still hold — "does this person still have access?" —
@@ -30,8 +33,8 @@
 
 import { normalizeName } from '../../lib/nameMatch.js';
 import * as store from './store.js';
+import { leftSignal } from './leftSignal.js';
 
-const GONE = new Set(['former', 'left']);
 const NOW = /\b(now|nu|current(ly)?|today|still|nog steeds|tegenwoordig)\b/i;
 const OPEN_END = '9999-12-31';
 
@@ -69,18 +72,27 @@ export function personRole(claims) {
   return { ...fact(roles[roles.length - 1]), history: roles.map(fact) };
 }
 
+// The newest claim of a list: the newest interview, then the newest claim.
+const newest = (list) => list.reduce((best, c) => (cmp(c.interviewedAt ?? '', best.interviewedAt ?? '') || cmp(created(c), created(best))) > 0 ? c : best);
+
 /** The person's latest membership claim (newest interview, then newest claim), or null. Pure. */
 export function latestMembership(claims) {
   const list = claims.filter(c => c.claimKind === 'membership');
   if (list.length === 0) return null;
-  const latest = list.reduce((best, c) => (cmp(c.interviewedAt ?? '', best.interviewedAt ?? '') || cmp(created(c), created(best))) > 0 ? c : best);
+  const latest = newest(list);
   return { ...fact(latest), membershipStatus: latest.attribute };
 }
 
-/** The latest membership claim when it says the person is not in it any more, else null. Pure. */
+/**
+ * The person's latest word on being in it — a membership claim or a role claim
+ * that says they left — when it says they are not any more, else null. Pure.
+ */
 export function leftOf(claims) {
-  const m = latestMembership(claims);
-  return m && GONE.has(m.membershipStatus) ? m : null;
+  const list = claims.filter(c => c.claimKind === 'membership' || leftSignal(c));
+  if (list.length === 0) return null;
+  const latest = newest(list);
+  if (!leftSignal(latest)) return null;
+  return { ...fact(latest), membershipStatus: latest.claimKind === 'membership' ? latest.attribute : 'former' };
 }
 
 function groupBy(rows, keyOf) {

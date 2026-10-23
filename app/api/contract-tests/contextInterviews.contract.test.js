@@ -59,6 +59,10 @@ beforeAll(async () => {
   await principal('piet', 'Piet Proefpersoon');
   await principal('yara', 'Yara Testpersoon');
   await principal('zeldzaam', 'Henk Zeldzaamhuizen');
+  await principal('naast', 'Quirijn Naastgelegen');
+  await principal('eenling', 'Xandrijn Eenling');
+  await principal('zwaan1', 'Zwaantje Eerste');
+  await principal('zwaan2', 'Zwaantje Tweede');
   ctxId = (await pool.query(
     `INSERT INTO "Contexts" (id, variant, "targetType", "contextType", "displayName", "contextCategory", "scopeSystemId", description)
      VALUES (gen_random_uuid(), 'manual', 'Principal', 'LogicalApplication', 'ivw-Planner', 'LogicalApplication', $1, 'The planning tool.') RETURNING id`,
@@ -106,6 +110,19 @@ describe('context interviews against PostgreSQL', () => {
   it('finds a first name among the context\'s own people', async () => {
     const out = await resolveSubjects(db, ['Piet'], { contextId: ctxId, interviewee: { principalId: P.anna, name: 'Anna Voorbeeldig' } });
     expect(out.get('Piet')).toEqual({ principalId: P.piet, match: 'firstName' });
+  });
+
+  it('a first name widens: the people the claims name, a SameUnitAs variant\'s members, then one account org-wide', async () => {
+    const variant = (await pool.query(
+      `INSERT INTO "Contexts" (id, variant, "targetType", "contextType", "displayName", "contextCategory", "scopeSystemId")
+       VALUES (gen_random_uuid(), 'manual', 'Principal', 'Department', 'ivw-Planner team', 'OrganizationalUnit', $1) RETURNING id`, [sysId])).rows[0].id;
+    await pool.query(`INSERT INTO "ContextMembers" ("contextId", "memberId", "memberType", "addedBy") VALUES ($1, $2, 'Principal', 'analyst')`, [variant, P.naast]);
+    await pool.query(`INSERT INTO "ContextRelationships" ("contextId", "relatedContextId", "relationshipType", "addedBy") VALUES ($1, $2, 'SameUnitAs', 'analyst')`, [variant, ctxId]);
+    const out = await resolveSubjects(db, ['Yara', 'Quirijn', 'Xandrijn', 'Zwaantje'], { contextId: ctxId, interviewee: { principalId: P.anna, name: 'Anna Voorbeeldig' } });
+    expect(out.get('Yara')).toEqual({ principalId: P.yara, match: 'firstName' });
+    expect(out.get('Quirijn')).toEqual({ principalId: P.naast, match: 'firstName' });
+    expect(out.get('Xandrijn')).toEqual({ principalId: P.eenling, match: 'firstName' });
+    expect(out.get('Zwaantje')).toEqual({ match: null });
   });
 
   it('a surname only one live user account ends in is matched, flagged fuzzy', async () => {

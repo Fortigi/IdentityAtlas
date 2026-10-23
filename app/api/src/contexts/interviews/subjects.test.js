@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
   resolveSubjects, resolveClaimSubjects, isInterviewee, uniqueFirstName, surnameOf, uniqueSurname, LOCAL_SQL, SURNAME_SQL, SURNAME_ROWS,
 } from './subjects.js';
+import { CLAIMED_SQL, NEARBY_SQL, ORG_SQL } from './firstNames.js';
 
 const ANNA = 'aaaaaaaa-0000-4000-8000-000000000001';
 const PIET = 'aaaaaaaa-0000-4000-8000-000000000002';
@@ -93,6 +94,13 @@ describe('resolveSubjects', () => {
     const out = await resolveSubjects(db, ['Onbekend Mens'], { contextId: 'ctx', interviewee });
     expect(out.get('Onbekend Mens')).toEqual({ match: null });
     expect(db.calls.some(c => c.sql === LOCAL_SQL)).toBe(false);
+  });
+
+  it('a former member, no longer in the context, is found among the people its interviews name — flagged firstName', async () => {
+    const db = fakeDb({ directory: (params) => (params[0] === 'ctx' && params[1]?.[0] === 'kees %' ? [{ id: KEES_PERSON, displayName: 'Kees Vertrokken', holderCol: 'identityId' }] : []) });
+    const out = await resolveSubjects(db, ['Kees'], { contextId: 'ctx', interviewee });
+    expect(out.get('Kees')).toEqual({ identityId: KEES_PERSON, match: 'firstName' });
+    expect(db.calls.map(c => c.sql).filter(sql => [LOCAL_SQL, CLAIMED_SQL, NEARBY_SQL, ORG_SQL].includes(sql))).toEqual([LOCAL_SQL, CLAIMED_SQL]);
   });
 
   it('escapes LIKE wildcards in a first name', async () => {

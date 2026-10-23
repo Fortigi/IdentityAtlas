@@ -16,9 +16,11 @@
 //      what a small model left out is filled where that needs no guess (repairClaim),
 //      and every drop is logged with the field it failed on. No second model round
 //      asks for the missing fields: one costs as much as the part itself;
-//   3. across parts: drop repeats, and anything already decided in an earlier run;
+//   3. across parts: one claim per person where the model joined two ("A en B",
+//      roles.js), then drop repeats, and anything already decided in an earlier run;
 //   4. match the people named (subjects.js — with the quote's full name and a unique
-//      surname as fallbacks), set role suggestions (roles.js), the relevance tier
+//      surname as fallbacks), add a membership claim (former) for a person a role
+//      claim says left, set role suggestions (roles.js), the relevance tier
 //      (relevance.js) and where each quote stands in the transcript (quoteOffsets.js);
 //      an alias that is the context's own name is no alias and is dropped;
 //   5. replace the interview's undecided model claims with these, in one transaction.
@@ -32,7 +34,7 @@ import { withTimeout } from '../upload/aiRefine.js';
 import { checkClaim, foldForQuote } from './claims.js';
 import { buildSystemPrompt, buildUserMessage, RESPONSE_SCHEMA, MAX_CLAIMS_PER_PART } from './prompt.js';
 import { resolveClaimSubjects } from './subjects.js';
-import { deduceRoles } from './roles.js';
+import { deduceRoles, splitJointSubjects, withLeftMemberships } from './roles.js';
 import { withRelevance } from './relevance.js';
 import { withQuoteOffsets } from './quoteOffsets.js';
 import { normalizeName } from '../../lib/nameMatch.js';
@@ -206,8 +208,9 @@ export async function extractInterview(interviewId, { db = defaultDb, ask = defa
   try {
     const run = await runParts(interview, { ask, timeoutMs });
     const kept = await store.keptClaims(db, interviewId);
-    const fresh = dropOwnNameAliases(dedupeClaims(run.claims, kept), interview.contextName);
-    const claims = withQuoteOffsets(withRelevance(deduceRoles(await withSubjects(db, fresh, interview))), interview.transcript);
+    const fresh = dropOwnNameAliases(dedupeClaims(splitJointSubjects(run.claims), kept), interview.contextName);
+    const people = dedupeClaims(withLeftMemberships(await withSubjects(db, fresh, interview)), kept);
+    const claims = withQuoteOffsets(withRelevance(deduceRoles(people)), interview.transcript);
     await db.tx(async (client) => {
       await store.deleteProposedModelClaims(client, interviewId);
       await store.insertClaims(client, { interviewId, contextId: interview.contextId, proposedBy: 'model' }, claims);

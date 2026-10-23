@@ -317,7 +317,7 @@ describe('Previous members', () => {
     const rows = within(section).getAllByTestId('previous-member');
     expect(rows.map(r => [...r.querySelectorAll('td')].map(td => td.textContent))).toEqual([
       ['Bram Test', 'Junior', 'former member (early years)', 'interview with Piet de Vries, 2026-10-01', '12 entitlements3 on this application'],
-      ['Karel', '', 'former member', 'interview with Piet de Vries, 2026-10-01', 'not matched to an account'],
+      ['Karel', '', 'former member', 'interview with Piet de Vries, 2026-10-01', 'no account found'],
       ['Yara Weg', '', 'left', 'interview with Piet de Vries, 2026-10-01', 'noneaccount removed'],
     ]);
     expect(within(rows[0]).getByTestId('previous-member-linked').className).toContain('bg-red-50');
