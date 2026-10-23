@@ -5,6 +5,7 @@ import { Modal } from './contexts/ModalPrimitives';
 import { JobPhasesModal } from './JobPhasesModal';
 import { JOB_PROGRESS_TERMINAL, deriveJobProgressDisplay } from './CrawlersPage.helpers.js';
 import { crawlerMetaFor } from '@ui/utils/crawlerMetaRegistry';
+import { formatSchedule } from '@ui/utils/schedules';
 import SelectType, { ExperimentalBadge } from './CrawlersPage.SelectType.jsx';
 
 // Crawler wizard components and their display metadata are auto-discovered by naming convention:
@@ -50,19 +51,6 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
 
   // Build schedule list (supports both `schedules` array and legacy `schedule` single)
   const scheduleList = cfg.schedules?.length ? cfg.schedules : (cfg.schedule ? [cfg.schedule] : []);
-  const formatSched = (s) => {
-    let label = s.frequency;
-    if (s.frequency !== 'hourly') {
-      label += ` at ${String(s.hour ?? 0).padStart(2,'0')}:${String(s.minute ?? 0).padStart(2,'0')} UTC`;
-    } else {
-      label += ` :${String(s.minute ?? 0).padStart(2,'0')}`;
-    }
-    if (s.frequency === 'weekly') {
-      label += ` on ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][s.day ?? 0]}`;
-    }
-    label += s.syncMode === 'full' ? ' · full' : ' · delta';
-    return label;
-  };
 
   return (
     <div className="p-4 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
@@ -131,7 +119,7 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
           {scheduleList.map((s, i) => (
             <div key={i}>
               <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded dark:bg-blue-900/30 dark:text-blue-300">
-                Schedule: {formatSched(s)}
+                Schedule: {formatSchedule(s)}
               </span>
             </div>
           ))}
@@ -404,7 +392,9 @@ export default function CrawlersPage({ onNavigate, features }) {
 
   const fetchJobs = useCallback(async () => {
     try {
-      const r = await authFetch('/api/admin/crawler-jobs?limit=10');
+      // latestPerMode: also each crawler's last full and last delta run, so a
+      // crawler with frequent deltas still shows when its last full ran.
+      const r = await authFetch('/api/admin/crawler-jobs?limit=10&latestPerMode=true');
       if (!r.ok) return;
       const data = await r.json();
       if (!Array.isArray(data)) return;

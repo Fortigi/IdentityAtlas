@@ -19,7 +19,14 @@
 export const EXT_PREFIX = 'ext.';
 export const MAX_EXT_KEY_LENGTH = 128;
 
-export const EXT_KEY_RE = new RegExp(`^[^'"\\\\\\p{Cc}]{1,${MAX_EXT_KEY_LENGTH}}$`, 'u');
+// Written as an allow-list of code-point ranges rather than as the refusal it
+// means ([^'"\\\p{Cc}]): printable ASCII without ' " \, then U+00A0 upward
+// (U+0080–U+009F are the C1 control characters). It accepts exactly the same
+// keys, but static analysis (CodeQL js/sql-injection) only credits a literal,
+// anchored allow-list as a sanitizer — an inverted class reads as "anything".
+// Keep the {1,128} in step with MAX_EXT_KEY_LENGTH; extKeys.test.js checks it.
+// eslint-disable-next-line security/detect-unsafe-regex -- one character class, bounded repeat, no backtracking ambiguity
+export const EXT_KEY_RE = /^[\x20\x21\x23-\x26\x28-\x5B\x5D-\x7E -\u{10FFFF}]{1,128}$/u;
 
 // The same rule as a PostgreSQL regular expression, for use inside a
 // single-quoted SQL literal (the '' is the doubled quote of that literal).

@@ -371,6 +371,16 @@ describe('crawler-jobs — lifecycle', () => {
   it('GET list returns jobs', async () => {
     expect((await request(app).get('/api/admin/crawler-jobs')).body).toHaveLength(1);
   });
+  it('GET list with latestPerMode also asks for the newest job per crawler and mode', async () => {
+    poolQuery.mockImplementation((sql) => P({ recordset: /DISTINCT ON/.test(sql) ? [{ id: 5 }, { id: 2 }] : [] }));
+    const res = await request(app).get('/api/admin/crawler-jobs?limit=10&latestPerMode=true');
+    expect(res.body.map(j => j.id)).toEqual([5, 2]);
+    expect(poolQuery.mock.calls.at(-1)[1]).toEqual([10]);
+  });
+  it('GET list without latestPerMode keeps the plain newest-N query', async () => {
+    await request(app).get('/api/admin/crawler-jobs?latestPerMode=yes');
+    expect(poolQuery.mock.calls.at(-1)[0]).not.toMatch(/DISTINCT ON/);
+  });
   it('DELETE cancels a queued job', async () => {
     expect((await request(app).delete('/api/admin/crawler-jobs/5')).status).toBe(200);
   });

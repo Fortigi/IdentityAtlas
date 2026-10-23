@@ -49,7 +49,7 @@ export function validateSystemId(body, entityType) {
  * A present-but-non-array records field fails first (and short-circuits the
  * other checks, matching the original if/else-if chain).
  *
- * A body carrying neither records nor deletedIds fails — UNLESS it is a FULL
+ * A body carrying neither records nor deletes (deletedIds / deletedKeys) fails — UNLESS it is a FULL
  * sync. A full sync's records ARE the complete set, and a source can legitimately
  * hold nothing: an empty full batch is how a crawler says "this scope is now
  * empty, delete what you have", and tools/crawlers/shared/Invoke-CrawlerIngest.ps1
@@ -61,14 +61,14 @@ export function validateSystemId(body, entityType) {
  * changed", and nothing-at-all says nothing at all.
  */
 export function validateRecordsArray(body) {
-  const { records, deletedIds } = body;
+  const { records, deletedIds, deletedKeys } = body;
 
   if (records !== undefined && records !== null && !Array.isArray(records)) {
     return ['records must be an array'];
   }
 
   const recordsEmpty = !records || records.length === 0;
-  const deletesEmpty = !Array.isArray(deletedIds) || deletedIds.length === 0;
+  const deletesEmpty = [deletedIds, deletedKeys].every(d => !Array.isArray(d) || d.length === 0);
   if (recordsEmpty && deletesEmpty && body.syncMode !== 'full') {
     // Empty records are fine when the caller is only sending delta deletes, or
     // when this is a full sync of a source that now holds nothing (see above).

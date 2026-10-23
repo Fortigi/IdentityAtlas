@@ -25,6 +25,7 @@
 // to the model, per request, by matchQuestionAttributes().
 
 import { discoverExtendedAttrKeys } from '../db/columnCache.js';
+import { createSharedCache } from '../db/valueCache.js';
 import { getAttributeLabels } from '../lib/attributeLabels.js';
 import { EXT_PREFIX, isExtKey, extValueSql } from '../lib/extKeys.js';
 import { MODEL_ENTITIES, staticExtKeys } from './catalog.js';
@@ -42,13 +43,24 @@ const TARGETS = [
   { table: 'Contexts', target: 'context', entities: ['context'] },
 ];
 
-// Same 5-minute TTL as the column cache and the label cache, so a fresh crawl's
-// attributes appear on the same timescale everywhere in the app.
-const TTL_MS = 5 * 60 * 1000;
-let cache = { at: 0, fields: null };
+// The column cache's own policy (db/valueCache.js): same 5-minute TTL, so a fresh
+// crawl's attributes appear on the same timescale everywhere in the app, and ONE
+// discovery shared by concurrent callers. Discovery reads whole tables, and the
+// Reports list asks for it once per custom report, all at the same time.
+const cache = createSharedCache('Report attribute fields', async () => {
+  const fields = {};
+  for (const { table, target, entities } of TARGETS) {
+    const keys = await discoverExtendedAttrKeys(table);
+    // Labels are cosmetic: without them the raw key is shown, which is ugly but
+    // correct. A label lookup that fails must not cost the analyst the field.
+    const labels = await getAttributeLabels(target).catch(() => ({}));
+    for (const entity of entities) fields[entity] = extFieldsFor(entity, keys, labels);
+  }
+  return fields;
+});
 
 export function clearExtFieldsCache() {
-  cache = { at: 0, fields: null };
+  cache.clear();
 }
 
 /**
@@ -89,18 +101,8 @@ export function extFieldsFor(entityName, keys, labels = {}) {
  * Every entity's discovered fields, keyed by entity name. Cached.
  * @returns {Promise<Record<string, Record<string, object>>>}
  */
-export async function loadExtFields() {
-  if (cache.fields && Date.now() - cache.at < TTL_MS) return cache.fields;
-  const fields = {};
-  for (const { table, target, entities } of TARGETS) {
-    const keys = await discoverExtendedAttrKeys(table);
-    // Labels are cosmetic: without them the raw key is shown, which is ugly but
-    // correct. A label lookup that fails must not cost the analyst the field.
-    const labels = await getAttributeLabels(target).catch(() => ({}));
-    for (const entity of entities) fields[entity] = extFieldsFor(entity, keys, labels);
-  }
-  cache = { at: Date.now(), fields };
-  return fields;
+export function loadExtFields() {
+  return cache.get();
 }
 
 // ─── Telling the model about them ───────────────────────────────────

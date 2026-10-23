@@ -88,6 +88,89 @@ know renders an explanatory panel rather than breaking the page.
 | `orphaned-accounts` | `list` | Accounts with no `IdentityMembers` row — i.e. belonging to no identity — excluding service principals, managed identities and AI agents, with the detected account type for each. |
 | `application-access-review` | `list` | *Entitlement Pivot* (slug kept from its first name, Application Access Review, so links and saved views keep working) — one row per resource of one or more contexts of resources (a logical application, a department, a tag; any resource type) — or of the resources the direct members of one or more units of accounts hold, counted among those members only (business roles left out; units of the two kinds cannot be mixed in one run), with the business roles that grant it and its holders split Direct vs via a role. The other columns, and the rows and filters of its two pivots, are **fields the reader picks** — see [Columns the reader picks](#columns-the-reader-picks). |
 | `unit-members` | `list` | *Unit report* — one row per member of one or more organisational units of accounts (`targetType` Principal) or of people (Identity; units of the two kinds cannot be mixed), direct members unless `includeSubUnits=true` (the subtree, each row naming its unit). Core columns, an **Entitlements** count — distinct non-role resources held through live assignments; for a person, across every account linked through `IdentityMembers` plus assignments on the person — and every member attribute as a column (the same union-and-cap helper as the pivot, `reports/attributeColumns.js` with `MEMBER_ATTRIBUTES`). Its first tab is the same per-context block as the pivot's (`reports/contextDetails.js`). Reads in `reports/unitMembers.js`: one member statement, one grouped count over the member id array. Picked through the `unit-contexts` lookup (organisational units of accounts or people), a slice of the same `contextLookup.js` factory as `resource-contexts`. |
+| `access-review-adoption` | `list` | *Access Review Adoption* — one row per business role with when a **person** last reviewed it and a status (never reviewed, never by a person, latest not by a person, partly, too long ago, reviewed, in progress, new), worst first. Two pies and two pivots in the workbook. See [Access review adoption](../ui/access-review-adoption.md). |
+| `access-reviewer-response` | `list` | *Access Reviewer Response* — one row per reviewer: review rounds asked, answered by themselves, missed, and how they decided. Worst first. |
+
+Both access-review reports share one definition of "a decision a person made",
+`app/api/src/reports/humanReview.js`: a decision value that is not a "nobody answered" value of any
+source, with a reviewer recorded, who is not the platform (Entra ID's all-zero reviewer id, or a
+reviewer named "… Access Reviews"). This is stricter than the compliance view's
+`decision <> 'NotReviewed'`, which counts a review Entra ID closed by applying its default decision as
+done.
+
+| `high-risk-application-permissions` | `list` | One row per application (app-only) permission a service principal actually holds — an `ApplicationPermission` resource with a live `Direct` assignment — that is on the shortlist in `reports/appPermissionRisk.js`, with a fixed category and severity. See [below](#high-risk-application-permissions). |
+| `risky-applications` | `list` | One row per service principal with a 0–100 risk score and the findings behind it: reputation, permissions, consent, set-up, credentials, ownership and activity. See [below](#risky-applications). |
+
+### High-risk application permissions
+
+Reads what the Entra ID crawler's `SyncAppPermissions` phase stores from
+`/servicePrincipals/{id}/appRoleAssignments`: the app roles an SP was **granted** on another API. It
+can never show a permission that was only requested, because the crawler does not store
+`requiredResourceAccess`. Delegated consent (`DelegatedPermission`) and users' assignments to an app's
+own roles (`AppRole`) are other resource types and are not read. Revoked grants drop out because the
+phase full-syncs its scope, which soft-deletes what Graph no longer returns.
+
+The shortlist is keyed by the target API's **appId** (the same in every tenant), then by the exact
+permission value. A role called `Mail.Read` on any API that is not listed is never classified. Extend
+the list by adding a permission to an API's map, or an API with its appId.
+
+A reader can change the selection per run, without a code change. There are two parameters:
+
+| Parameter | What it does |
+|---|---|
+| `includeStandard` | On by default. Off lists only the additions. |
+| `extraPermissions` | Further permissions to list, picked through the `application-permissions` lookup. That lookup offers the permissions actually granted in this deployment, with the API and the number of holding apps. |
+
+A pick is stored as `<apiAppId>|<permission>`, so it selects that permission on that API only. An
+added permission carries the category *Added to this report* and no severity, because only the
+shortlist assigns one. A choice can be kept as a [saved view](#saved-views). The crawler stamps
+`targetApiAppId` on each permission. For data crawled before that, the report falls back to the API's
+own service-principal record, and it states how many grants it could not identify. An empty result
+says that nothing was collected, because the phase is off by default.
+
+### Risky applications
+
+`risky-applications` judges each enterprise application, managed identity and AI agent as a whole.
+High-risk application permissions lists grants; this report scores the app. Each row is one service
+principal with a 0–100 score, a level, its three main reasons, and in the *Findings* column every
+finding with its points.
+
+The score is a **sum of named findings**, not a model. Every point traces to one sentence a reviewer
+can check in Entra. The rules and their weights live in one table (`POINTS` in
+`reports/appRiskRules.js`):
+
+| Category | Findings |
+|---|---|
+| Reputation | appId on the OAuthSentry malicious-app list (overrides everything: Critical, 100); Microsoft-looking name registered in another organisation's tenant; third-party app without a verified publisher |
+| Permissions | highest app-only permission tier; several high-risk app-only permissions |
+| Consent | scopes an administrator consented to for every user; scopes users consented to themselves (more when ten or more did) |
+| Configuration | public-client flows allowed (ROPC, device code); implicit grant issuing access tokens; wildcard or off-machine `http` redirect URIs; one of this tenant's apps open to any organisation |
+| Credentials | a secret valid for more than two, or more than ten, years; secrets on the enterprise application itself; expired credentials left behind; three or more valid secrets; federated credentials that match a pattern |
+| Ownership | disabled or deleted owners; guest owners; user owners of an app with critical app-only permissions (they can add a secret and act as it); no owner on this tenant's high-reach app |
+| Activity | high-reach app unused for `inactiveDays`; app created in the last 30 days that already holds critical permissions |
+
+Levels: Critical from 60, High from 35, Medium from 15, Low above 0. A disabled app keeps its
+findings but counts half.
+
+**One permission tier.** `reports/appRiskPermissions.js` combines the two lists that already existed.
+The appId-keyed shortlist above (`appPermissionRisk.js`) decides app-only permissions it names. The
+name tiering of the risky-consent plugin (`riskyConsentRiskMap.js`) covers delegated scopes and the
+rest. That name tiering is applied only to Microsoft's own APIs, matched by appId. Anything else is
+*Unknown* and adds nothing.
+
+**Coverage.** The report reads what the crawler's toggles collected. *Service Principals* defines the
+apps. *Application Permissions*, *OAuth2 Delegated Grants*, *App Owners* and *App Registrations &
+Credentials* each feed their rules. A rule whose data was not collected stays silent: "no owners"
+is only said when owners were crawled. A notice names every missing source, and also says when the
+malicious-app list could not be read. Microsoft's first-party apps (registered in Microsoft's own
+tenants) are left out unless `includeMicrosoft` is on.
+
+| Parameter | Default | What it does |
+|---|---|---|
+| `minimumLevel` | Medium | Leave out apps below this level |
+| `includeMicrosoft` | off | Include Microsoft's first-party apps |
+| `useThreatFeed` | on | Look up each appId in the OAuthSentry list (needs internet access; a failure becomes a notice, not an error) |
+| `inactiveDays` | 90 | When a high-reach app counts as unused |
 
 Orphaned Accounts shares its definition with the `orphaned-accounts` **context plugin** via
 `app/api/src/accountlinking/orphanQuery.js`. That is deliberate: the report and the context answer
@@ -236,6 +319,20 @@ zip ExcelJS produced: one pivot cache over the Data table, shared by every pivot
 part per tab. The declaration is metadata (`reportMetadata` carries `pivots`), so the serializer still
 never asks which report it is writing. Measured in Excel: a 50,000-row workbook has both pivots ready
 about 4 s after opening, and the pivots add ~0.5 s and ~1 MB to the export.
+
+### Pie charts in the workbook
+
+A template may declare `charts` — each `{ name, type: 'pie', category, value?, title?, valueLabel?,
+colors? }` — and the xlsx download then opens with a **Charts** tab right after the Summary. Each chart
+splits the rows over the `category` key, counting rows, or summing the `value` key when one is named.
+The small table each pie reads is written beside it on the same tab, in the order categories first
+appear in the rows, so a report that sorts worst-first gets a legend that reads worst-first. `colors`
+maps a category to an `RRGGBB` slice colour; anything else keeps Excel's theme colour.
+
+ExcelJS writes no charts either, so `reports/xlsxCharts.js` adds them the same way as the pivots: one
+drawing on the Charts tab, one chart part per declaration, wired in after ExcelJS has written the zip.
+Like `pivots`, `charts` is metadata that `reportMetadata` carries, and a saved view inherits its
+report's. A report with no rows, or with no charts declared, gets no Charts tab.
 
 ## Columns the reader picks
 

@@ -1,5 +1,77 @@
 ## Changes in this PR
 
+- Fixed development (`:edge`) builds still reporting a 5.x version after 6.0 was released. Dev builds now take their major version from the newest release, so they show 6.x now and will move to 7.x automatically once 7.0 is released.
+
+## Changes in this PR
+
+- Resolved a code-scanning alert on attribute-based matrix roll-ups. No change to which attribute names are accepted.
+
+## Changes in this PR
+
+- Fixed the report builder failing with a permission error for users who may build custom reports but not ask questions in plain language. They now get the builder without the "Describe it" (local model) panel.
+
+## Changes in this PR
+
+- Added the "Risky Applications (Entra ID)" report: every enterprise application, managed identity and AI agent gets a 0–100 risk score with the findings behind it. It covers apps on a public list of malicious apps, Microsoft look-alikes, high-risk app-only permissions, admin and user consent, public-client flows (ROPC), wildcard or http redirect URIs, secrets that never expire or are hidden on the enterprise application, departed or guest owners, and unused apps that keep powerful permissions.
+- The report says which checks it could not run because a crawler option was off, and leaves Microsoft's own apps out unless asked.
+
+## Changes in this PR
+
+- Added an "App Registrations & Credentials" option to the Entra ID crawler. It reads every app registration with its secret and certificate dates (never the values), whether public-client flows such as ROPC and device-code sign-in are allowed, redirect URIs, implicit grant settings, requested permissions and federated credentials.
+- Service principals now carry their own credentials (a secret on the service principal is hidden from the portal's App registrations page), verified publisher, sign-in audience, reply URLs and whether users need an assignment to sign in.
+- OAuth2 consent grants now include tenant-wide admin consents. They mark the consented scope as admin-consented instead of being skipped, and per-user consents are labelled as such.
+- Application (app-only) permissions now record when each permission was granted.
+
+## Changes in this PR
+
+- Added the **Access Review Adoption** report. It lists each business role with when a person last really reviewed it, longest ago first. Reviews that Entra ID completed by applying the default decision because nobody responded do not count as reviewed. Roles never reviewed and roles too new for a review are listed as their own categories. Roles whose policies do not require an access review are left out, unless you choose to include them.
+- Added the **Access Reviewer Response** report. It lists each reviewer with how many reviews they were asked to do, how many they answered themselves and how they decided, so you can see whom to follow up with and whom to thank.
+- Report Excel downloads can now open with pie charts. Both new reports have two, plus ready-made pivot tables.
+- The Entra ID crawler now records the reviewers each access review contacted, the review's "if reviewers don't respond" setting, and who applied each decision. Run a full sync to fill them in.
+- Added the **High-risk Application Permissions (Entra ID)** report to the Reports list: one row per application (app-only) permission a service principal actually holds that reaches SharePoint/OneDrive content, mailboxes, or directory control tenant-wide, with the API, a category and a severity from an explicit shortlist. Requested-but-unconsented permissions and delegated (user) consent are never listed; the report says when nothing was collected or when a grant's API could not be identified.
+- The report can be widened per run: pick further permissions from the ones granted in your tenant (each picked on its own API), or switch the standard list off to list only your picks. Save the choice as a view to keep it.
+- The Entra ID crawler's application-permission sync now records the tenant-independent application ID of the holding app and of the target API next to the permission, so a permission on Microsoft Graph is told apart from a same-named one on another API.
+
+## Changes in this PR
+
+- Entra ID delta runs now take minutes instead of hours. A delta reads only what changed: new, changed and deleted users, service principals and groups, plus members and owners added to or removed from groups. Delta runs used to re-read every group's members and took as long as a full sync.
+- PIM eligibility, governance, app roles, OAuth2 grants, app permissions, directory roles, nested (indirect) group memberships and sign-in activity are refreshed by full runs only. Keep at least one full run a day.
+- A delta run on an Entra ID crawler that has never completed a sync now runs as a full sync, so a new crawler never shows users without their groups.
+- Crawler schedules can now run every 5, 10, 15, 20 or 30 minutes: pick "Every few minutes" as the frequency. A new Entra ID crawler proposes a delta every 15 minutes plus a daily full sync.
+- A scheduled full run that comes due while another run of the same crawler is still going now waits and starts as soon as that run finishes, for up to an hour, instead of being skipped until the next day. When a full and a delta are due in the same minute, the full goes first.
+- The Recent Jobs list on the Crawlers page now always includes each crawler's last full run and last delta run, so a crawler with frequent deltas still shows when its last full sync ran and how it went.
+- Connectors can now remove individual assignments in a delta sync by naming them (`deletedKeys` on the ingest API), for example a group member that was removed.
+
+## Changes in this PR
+
+- Azure: new guide "Managing the Azure deployment as code", with ready-to-copy workflows. One proposes each new stable release as a pull request with the release notes; the other shows a what-if on that pull request and deploys after the merge. Template changes arrive in the same reviewable pull request as the new images.
+- Azure: sign-in can now be configured in the deployment template itself (`entraTenantId` / `entraClientId`), so redeploying to upgrade no longer clears it. Configuring it afterwards with Step 2 keeps working as before.
+
+## Changes in this PR
+
+- Every release now includes `IdentityAtlas-azure-<version>.zip`: the Azure template as it is at that release, set to deploy exactly that release's images by default. Keep it in your own repository to manage the deployment as code: the template and the images it runs can no longer drift apart, and an upgrade brings template changes and new images in together.
+
+## Changes in this PR
+
+- Azure: deploy an exact release with the new `imageTag` parameter (for example `6.0.2.0`). It applies to the web app, the worker and the report generator together, overrides `imageChannel`, and makes every deployment reproducible: upgrading or rolling back is a change to one value, and redeploying creates the new revision without a manual restart. Leaving it empty keeps today's behaviour.
+- Azure: pull the images from your own Azure Container Registry (for example a pull-through cache of ghcr.io) with the new `containerRegistryResourceId` parameter. The template creates a pull-only identity and grants it AcrPull on that registry.
+- Azure: redeploying no longer issues a new report generator API key every time, which restarted both containers even when nothing had changed. The key is now generated once and kept in Key Vault.
+
+## Changes in this PR
+
+- Fixed the Reports page intermittently failing with "Error loading reports (HTTP 500)" on deployments with several custom reports and a large dataset. The page no longer looks up the deployment's attributes and value lists once per custom report, and requests that arrive together now share one lookup instead of each starting their own.
+
+## Changes in this PR
+
+- Releases can no longer contain code that has not been merged to `main` through an approved pull request. Cut Release and Cut Beta refuse a ref that is not on `main`. Cut Hotfix refuses any commit that is not a clean `git cherry-pick -x` of a commit on `main`. All three must be started from `main`.
+- Changed the hotfix procedure: fix on `main` first (PR, approval, merge), then cherry-pick the merged commit with `-x` onto a branch from the release tag.
+
+## Changes in this PR
+
+- Fixed the **Deploy to Azure** button failing on every fresh install with "The specified KeyVault … could not be found" (`KeyVaultParameterReferenceNotFound`). The template now reads the Postgres password from Key Vault only after the vault has been created. Existing deployments are not affected and keep their password.
+
+## Changes in this PR
+
 - Fixed the report assistant not recognising you as the person asking when "I" is typed in lower case ("groups i'm in", "what do i own") or when access is "assigned to me" / "van mij": these now give a report about your own account instead of one about everybody.
 - The report assistant can now show who owns each group: "all groups with the group owner" lists the owners' names instead of only an owner count.
 - Group, resource, user and person reports can now show the contexts each row is part of (a *Contexts* column) and filter on them ("groups in the Crown Jewels context", "groups in no context"), both in the definition editor and from the *Ask* box.

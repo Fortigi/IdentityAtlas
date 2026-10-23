@@ -160,6 +160,7 @@ export function toReportTemplate(row) {
     parametersSchema: viewSchema(base.parametersSchema, saved),
     columns: base.columns,
     pivots: base.pivots,
+    charts: base.charts,
     source: 'view',
     author: { createdBy: row.createdBy || null, updatedBy: row.updatedBy || null, updatedAt: isoOrNull(row.updatedAt) },
     view: { id: row.id, reportName: base.name, reportDisplayName: base.displayName },
