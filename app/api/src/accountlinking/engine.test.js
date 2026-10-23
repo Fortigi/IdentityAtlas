@@ -474,11 +474,13 @@ describe('buildLinks - an owner whose birth surname differs from her name in use
     expect(links[0].identityId).toBe('owner');
   });
 
-  it('still refuses when the account only carries the name the two people share', () => {
-    // The guard that must survive the per-key counting: this account really could
-    // be either person's, so it goes to review rather than to a guess.
-    expect(buildLinks([account('p4', 'Anna de Wit')], [owner, namesake], DEFAULT_RULES))
-      .toHaveLength(0);
+  it('gives an account spelled with the shared name to the person called that', () => {
+    // "Anna de Wit" is the namesake's name in use and only the owner's birth
+    // surname, so the two claims to it are not equal: the directory named this
+    // account after the person who goes by it.
+    const links = buildLinks([account('p4', 'Anna de Wit')], [owner, namesake], DEFAULT_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('namesake');
   });
 
   it('does not link an account that carries only half of the double name', () => {
@@ -498,5 +500,74 @@ describe('buildLinks - an owner whose birth surname differs from her name in use
     const links = buildLinks([account('p6', 'Jan de Vries')], [titled], DEFAULT_RULES);
     expect(links).toHaveLength(1);
     expect(links[0].identityId).toBe('titled');
+  });
+});
+
+// ── A birth surname must not tie up a plain directory account (#1439) ────────
+//
+// Indexing the birth-name variant puts a second person under a name key that
+// used to hold one. An ordinary directory account — a display name and nothing
+// else — then matches two identities, ties, and goes to review although it was
+// linked correctly before. The two claims to that key are not equal: the account
+// is named after the name in use, so the person who is actually called that gets
+// it and the one who only carries it as a birth surname does not block her.
+
+describe('buildLinks - a birth surname does not tie up a name that is unique in use (#1439)', () => {
+  // She is called Jansen and her accounts are spelled that way.
+  const owner = {
+    id: 'owner', displayName: 'Anna Jansen', givenName: 'Anna', surname: 'Jansen',
+    email: 'anna.jansen@corp.example', employeeId: 'E400',
+  };
+  // Someone else entirely, known as "de Boer-Jansen"; HR still records her birth
+  // surname "Jansen" in the column, which is what puts her under 'jansen|anna'.
+  const otherFamily = {
+    id: 'other', displayName: 'Anna de Boer-Jansen', givenName: 'Anna', surname: 'Jansen',
+    email: 'anna.deboer@corp.example', employeeId: 'E401',
+  };
+  // A directory account with no address and no employee id: the name is all the
+  // evidence there is, which is the condition that makes this a tie at all.
+  const account = { id: 'p1', displayName: 'Anna Jansen', email: null, employeeId: null };
+
+  it('links the account to the identity whose name in use it carries', () => {
+    const links = buildLinks([account], [owner, otherFamily], DEFAULT_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ identityId: 'owner', signals: ['fullName'] });
+    expect(links[0].confidence).toBe(60);
+  });
+
+  it('links it there whichever order the identities arrive in', () => {
+    const links = buildLinks([account], [otherFamily, owner], DEFAULT_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('owner');
+  });
+
+  it('links it exactly as it would with the other family absent', () => {
+    // The point of the fix stated as the regression it is: adding a person who
+    // merely used to be called Jansen must not change this account's outcome.
+    expect(buildLinks([account], [owner, otherFamily], DEFAULT_RULES))
+      .toEqual(buildLinks([account], [owner], DEFAULT_RULES));
+  });
+
+  it('still refuses when both of them are really called Jansen', () => {
+    // The ambiguity guard is untouched for the case it exists for: two people
+    // who both go by the name, and nothing to choose between them.
+    const twin = { ...otherFamily, displayName: 'Anna Jansen' };
+    expect(buildLinks([account], [owner, twin], DEFAULT_RULES)).toHaveLength(0);
+  });
+
+  it('still refuses when the name is a birth surname for both of them', () => {
+    // Neither goes by Jansen now, so neither has the stronger claim to this
+    // account and it is left for an analyst.
+    const alsoBorn = { ...owner, displayName: 'Anna Bakker-Jansen' };
+    expect(buildLinks([account], [alsoBorn, otherFamily], DEFAULT_RULES)).toHaveLength(0);
+  });
+
+  it('still links the other family’s own account', () => {
+    // The paired positive: preferring the name in use must not cost the person
+    // whose name it is not — her own account is spelled her way.
+    const hers = { id: 'p2', displayName: 'Anna de Boer-Jansen', email: null, employeeId: null };
+    const links = buildLinks([hers], [owner, otherFamily], DEFAULT_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('other');
   });
 });

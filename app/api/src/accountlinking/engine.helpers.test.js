@@ -11,6 +11,7 @@ import {
   fullName,
   personNames,
   nameKeys,
+  nameKeyVariants,
   prefixesFrom,
   suffixesFrom,
   nameSignalNames,
@@ -342,11 +343,12 @@ describe('resolveNameTie', () => {
     expect(resolveNameTie(orphan, [onStranger, onOwner], byNameKey)).toBe(onOwner);
   });
 
-  it('declines when the account only carries the name the two people share', () => {
-    // The guard that has to survive per-name resolution: this account really
-    // could be either person's, so there is nothing to pick.
+  it('gives the shared name to the person who is actually called it', () => {
+    // This account is spelled with the name the stranger goes by and the owner
+    // only *was* born with. Counting the two claims as equal sends it to review;
+    // it belongs to the person the directory would have named it after.
     const shared = { id: 'o2', displayName: 'Anna de Wit' };
-    expect(resolveNameTie(shared, [onOwner, onStranger], byNameKey)).toBeNull();
+    expect(resolveNameTie(shared, [onOwner, onStranger], byNameKey)).toBe(onStranger);
   });
 
   it('declines when different names single out different people', () => {
@@ -378,5 +380,102 @@ describe('resolveNameTie', () => {
     // unfiltered, the owner would count as a second match under the birth name
     // and the stranger's own unique claim to it would disappear.
     expect(resolveNameTie(orphan, [onStranger], byNameKey)).toBe(onStranger);
+  });
+});
+
+// ── The name in use outranks a birth surname under one key (#1439) ───────────
+//
+// Indexing the birth-name variant puts a second person under a key that used to
+// hold one, which turns matches that were unique into ties and sends accounts to
+// review that were linked correctly before. Those two claims to the key are not
+// equal: accounts are provisioned from the name in use, so the person actually
+// called that wins and the one who only carries it in an HR column does not
+// block her. Two claims of the SAME kind still tie.
+
+describe('resolveNameTie - name in use vs birth surname under one key (#1439)', () => {
+  // Called Jansen, and her accounts say so.
+  const jansen = { id: 'jansen', displayName: 'Anna Jansen', givenName: 'Anna', surname: 'Jansen' };
+  // A different person, known as "de Boer-Jansen"; HR still holds "Jansen" as
+  // her birth surname, so she is indexed under 'jansen|anna' too.
+  const deBoer = { id: 'deboer', displayName: 'Anna de Boer-Jansen', givenName: 'Anna', surname: 'Jansen' };
+  const onJansen = { identityId: 'jansen', confidence: 60, signals: ['fullName'] };
+  const onDeBoer = { identityId: 'deboer', confidence: 60, signals: ['fullName'] };
+  // A directory account with nothing but the name, which is the whole case.
+  const account = { id: 'o', displayName: 'Anna Jansen' };
+
+  it('links the account to the identity whose NAME IN USE it carries', () => {
+    const { byNameKey } = indexIdentities([jansen, deBoer]);
+    expect(resolveNameTie(account, [onJansen, onDeBoer], byNameKey)).toBe(onJansen);
+  });
+
+  it('links it there whichever order the two were indexed in', () => {
+    const { byNameKey } = indexIdentities([deBoer, jansen]);
+    expect(resolveNameTie(account, [onDeBoer, onJansen], byNameKey)).toBe(onJansen);
+  });
+
+  it('still declines when both people are really called that', () => {
+    // Two claims of the same kind, which is the namesake tie the guard exists
+    // for: preferring the name in use must not reduce to "pick the first one".
+    const twin = { id: 'deboer', displayName: 'Anna Jansen', givenName: 'Anna', surname: 'Jansen' };
+    const { byNameKey } = indexIdentities([jansen, twin]);
+    expect(resolveNameTie(account, [onJansen, onDeBoer], byNameKey)).toBeNull();
+  });
+
+  it('still declines when the name is a birth surname for BOTH of them', () => {
+    // Neither is called Jansen any more, so neither has the stronger claim and
+    // this old-name account could be either one's.
+    const a = { id: 'jansen', displayName: 'Anna Bakker-Jansen', givenName: 'Anna', surname: 'Jansen' };
+    const b = { id: 'deboer', displayName: 'Anna de Boer-Jansen', givenName: 'Anna', surname: 'Jansen' };
+    const { byNameKey } = indexIdentities([a, b]);
+    expect(resolveNameTie(account, [onJansen, onDeBoer], byNameKey)).toBeNull();
+  });
+
+  it('keeps a lone birth-name claim as a claim', () => {
+    // This account says "Jansen" in the directory and "de Wit" in its HR column.
+    // One person was born Jansen, another goes by de Wit: each is the only match
+    // under one of the two names, which contradict, so it goes to review.
+    // Dropping the unranked claim instead would silently hand it to de Wit.
+    const twoNames = { id: 'o3', displayName: 'Anna Jansen', givenName: 'Anna', surname: 'de Wit' };
+    const bornJansen = { id: 'jansen', displayName: 'Anna Bakker-Jansen', givenName: 'Anna', surname: 'Jansen' };
+    const deWit = { id: 'deboer', displayName: 'Anna de Wit', givenName: 'Anna', surname: 'de Wit' };
+    const { byNameKey } = indexIdentities([bornJansen, deWit]);
+    expect(resolveNameTie(twoNames, [onJansen, onDeBoer], byNameKey)).toBeNull();
+  });
+
+  it('does not rank the claims when the ACCOUNT itself only carries a birth surname', () => {
+    // The account is spelled "de Boer-Jansen" in the directory and "Jansen" in
+    // its HR column, so the column key is an old name on both sides and ranking
+    // it would hand the account to a stranger over its own name in use.
+    const fromHr = { id: 'o2', displayName: 'Anna de Boer-Jansen', givenName: 'Anna', surname: 'Jansen' };
+    const { byNameKey } = indexIdentities([jansen, deBoer]);
+    expect(resolveNameTie(fromHr, [onJansen, onDeBoer], byNameKey)).toBe(onDeBoer);
+  });
+});
+
+describe('nameKeyVariants', () => {
+  it('says which of the person’s names each index key is', () => {
+    expect([...nameKeyVariants({ displayName: 'Anna Bakker-de Wit', givenName: 'Anna', surname: 'de Wit' })])
+      .toEqual([['anna|dewit', 'birth'], ['anna|bakkerdewit', 'inUse']]);
+  });
+
+  it('reads a column the display name agrees with as the name in use', () => {
+    expect([...nameKeyVariants({ displayName: 'Anna de Wit', givenName: 'Anna', surname: 'de Wit' })])
+      .toEqual([['anna|dewit', 'inUse']]);
+  });
+
+  it('reads the columns as the name in use when there is no display name', () => {
+    // Nothing contradicts them, so they are the only name she is known by —
+    // read as a birth name she would lose every tie to anyone else.
+    expect([...nameKeyVariants({ givenName: 'Anna', surname: 'de Wit' })])
+      .toEqual([['anna|dewit', 'inUse']]);
+  });
+
+  it('keeps the stronger variant when two of her names collapse onto one key', () => {
+    // "Bakker Anna" is the reversed pair: the key sorts its halves, so the
+    // display name and the column produce the same one. Read from the column
+    // half alone that key looks like a birth name, and she would lose a tie
+    // under the name she is plainly called by.
+    expect([...nameKeyVariants({ displayName: 'Bakker Anna', givenName: 'Anna', surname: 'Bakker' })])
+      .toEqual([['anna|bakker', 'inUse']]);
   });
 });

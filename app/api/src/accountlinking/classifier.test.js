@@ -449,6 +449,32 @@ describe('nameVariants - birth surname and name in use (#1439)', () => {
     expect(bestNameMatch(hr(), nameVariants('Anna Visser', 'Anna', 'Visser'))).toBe('none');
     expect(bestNameMatch(hr(), nameVariants('Bakker, Anna'))).toBe('none');
   });
+
+  it('records which of her names each variant is', () => {
+    // What tells the two apart when they collide under one name key: the person
+    // whose name in use it is outranks the one who only was born with it, so a
+    // birth surname cannot tie up an account that is unique on the name in use.
+    expect(hr().map(v => [v.surname, v.variant]))
+      .toEqual([['dewit', 'birth'], ['bakkerdewit', 'inUse']]);
+  });
+
+  it('reads a column the display name agrees with as the name in use', () => {
+    expect(nameVariants('Anna de Wit', 'Anna', 'de Wit').map(v => v.variant)).toEqual(['inUse']);
+  });
+
+  it('reads the columns as the name in use when no display name contradicts them', () => {
+    // Nothing marks this as an old name. Called one, she would lose every tie to
+    // anyone who happens to have a display name — including her own accounts'.
+    expect(nameVariants('', 'Anna', 'de Wit').map(v => v.variant)).toEqual(['inUse']);
+    expect(nameVariants(null, 'Anna', 'de Wit').map(v => v.variant)).toEqual(['inUse']);
+  });
+
+  it('reads a half it took from the display name as the name in use', () => {
+    // Only a surname the COLUMN holds can be a birth name; a half filled in from
+    // the display name is the name in use whatever the other half came from.
+    expect(nameVariants('Anna Bakker-de Wit', 'Anna', '').map(v => [v.surname, v.variant]))
+      .toEqual([['', 'inUse'], ['bakkerdewit', 'inUse']]);
+  });
 });
 
 describe('bestNameMatch', () => {

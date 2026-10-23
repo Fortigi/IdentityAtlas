@@ -163,14 +163,23 @@ function parseDisplayName(dn) {
 }
 
 /**
- * One parsed name: { given, surname, initial, key }. `key` is the
+ * One parsed name: { given, surname, initial, key, variant }. `key` is the
  * order-independent surname+given token used for candidate indexing.
+ *
+ * `variant` says which of the person's names this is:
+ *   'inUse' — the name they are known by, which is what their accounts are
+ *             spelled with: the display name's halves, or a column the display
+ *             name does not contradict
+ *   'birth' — a surname only the structured column holds while the display name
+ *             spells a different one: the birth surname behind a partner name
+ *             or a double name
  */
-const parsedName = (given, sur) => ({
+const parsedName = (given, sur, variant) => ({
   given,
   surname: sur,
   initial: given.slice(0, 1),
   key: sur ? [sur, given].filter(Boolean).sort().join('|') : '',
+  variant,
 });
 
 /**
@@ -189,7 +198,11 @@ const parsedName = (given, sur) => ({
  * name re-opens the title/particle mis-parse (a title parsed as the surname).
  * A person is indexed under all of their names and a match on any one counts.
  *
- * @returns {Array<{given: string, surname: string, initial: string, key: string}>}
+ * Each name also records *which* of the person's names it is (see `parsedName`),
+ * so a tie between two people can be read as the unequal thing it usually is:
+ * one of them is actually called that, the other only was.
+ *
+ * @returns {Array<{given: string, surname: string, initial: string, key: string, variant: string}>}
  */
 export function nameVariants(displayName, givenName, surname) {
   const dn = String(displayName || '').replace(QUALIFIER_RE, ' ').trim();
@@ -199,11 +212,17 @@ export function nameVariants(displayName, givenName, surname) {
   const fGiven = parseField(givenName);
   const fSur = parseField(surname);
 
+  // The column surname is a *birth* surname only where the display name spells
+  // a different one. With no display surname to contradict it (a source that
+  // fills the columns and nothing else) the column is simply the name in use.
+  const columnIsBirthName = !!dSur && dSur !== fSur;
+  const variantOf = (sur) => (sur && sur === fSur && columnIsBirthName ? 'birth' : 'inUse');
+
   const out = [];
   const add = (given, sur) => {
     if (!given && !sur) return;
     if (out.some(v => v.given === given && v.surname === sur)) return;
-    out.push(parsedName(given, sur));
+    out.push(parsedName(given, sur, variantOf(sur)));
   };
   add(fGiven, fSur);                       // the structured columns on their own
   add(fGiven || dGiven, fSur || dSur);     // a column for one half, the display name for the other
