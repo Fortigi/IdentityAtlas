@@ -103,6 +103,7 @@ export default function TranscriptPanel({ interviewId, focus, onClose }) {
   const { authFetch } = useAuth();
   const { data, loading, error } = useFetch(`/api/contexts/${ctx.contextId}/interviews/${interviewId}`, { authFetch });
   const bodyRef = useRef(null);
+  const dialogRef = useRef(null);
   const [selected, setSelected] = useState(() => (focus?.claimId ? [focus.claimId] : []));
   const [pulsing, setPulsing] = useState(null);
   const [pages, setPages] = useState(1);
@@ -112,6 +113,8 @@ export default function TranscriptPanel({ interviewId, focus, onClose }) {
   const turns = useMemo(() => buildTranscriptView(data?.transcript, data?.highlights), [data]);
   const shown = turnsToShow(turns, spans, focus?.claimId, pages);
 
+  // Keyboard users land in the panel; Escape closes it.
+  useEffect(() => { dialogRef.current?.focus(); }, []);
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
@@ -133,8 +136,8 @@ export default function TranscriptPanel({ interviewId, focus, onClose }) {
   const cards = selected.map(id => claimsById.get(id)).filter(Boolean);
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30 dark:bg-black/60" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Transcript" onClick={e => e.stopPropagation()}
-        className="flex h-full w-full max-w-3xl flex-col border-l border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Transcript" onClick={e => e.stopPropagation()}
+        className="flex h-full w-full max-w-3xl flex-col outline-none border-l border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
         <div className="space-y-2 border-b border-gray-200 px-5 py-3 dark:border-gray-700">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">

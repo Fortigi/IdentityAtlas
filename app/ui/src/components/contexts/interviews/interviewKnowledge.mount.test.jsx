@@ -172,6 +172,7 @@ describe('the transcript', () => {
   it('reads as a dialogue with the quotes highlighted, a colour per kind and a fill per status, and a legend', async () => {
     const { user } = mountProfile();
     const panel = await openTranscript(user);
+    expect(panel).toHaveFocus();
     const turns = await within(panel).findAllByTestId('transcript-turn');
     expect(turns.map(t => t.firstChild.textContent)).toEqual(['Interviewer', 'Piet de Vries', '', 'Interviewer', 'Piet de Vries']);
     const legend = within(panel).getByRole('group', { name: 'Legend' });
