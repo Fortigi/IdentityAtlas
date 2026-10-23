@@ -3624,6 +3624,54 @@ paths:
         '404':
           description: No such relationship on this context
 
+  /change-requests:
+    get:
+      tags: [Contexts]
+      summary: What should change in the sources a decision overrides
+      operationId: listChangeRequests
+      description: >
+        The change requests: one per correction a source still owes, raised when an analyst decision
+        overrides a context synced from a system or an uploaded list (for example, a member marked
+        former while the list still has them). Before answering, every open request whose change the
+        data now shows is resolved (the source no longer lists the member, or the context is gone).
+        Open requests come first, newest first; at most 500. A request rests on a confirmed decision,
+        so every reader may list them. See docs/architecture/change-requests.md.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, resolved, withdrawn] }
+        - name: systemId
+          in: query
+          description: Only the requests for this source system
+          schema: { type: integer, minimum: 1 }
+        - name: contextId
+          in: query
+          description: Only the requests about this context
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The requests, and how many there are per status (within the system and context filters)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ChangeRequest' }
+                  counts:
+                    type: object
+                    properties:
+                      open: { type: integer }
+                      resolved: { type: integer }
+                      withdrawn: { type: integer }
+        '400':
+          description: A filter is not valid
+        '503':
+          description: The SQL backend is not configured
+
 components:
   securitySchemes:
     CrawlerApiKey:
@@ -3858,6 +3906,31 @@ components:
       type: string
       description: What a role claim's person is to the context, as the speaker said it.
       enum: [owner, notOwner, dayToDay, delegate, member, other]
+    ChangeRequest:
+      type: object
+      description: >
+        What should change in a source that an analyst decision overrides. The names are as they
+        were when the request was raised.
+      properties:
+        id: { type: string, format: uuid }
+        changeKind: { type: string, enum: [EntityCreate, EntityDelete, RelationshipAdd, RelationshipRemove, AttributeUpdate] }
+        targetSystemId: { type: integer, nullable: true }
+        targetName: { type: string }
+        contextId: { type: string, format: uuid, nullable: true }
+        contextName: { type: string, nullable: true }
+        memberId: { type: string, format: uuid, nullable: true }
+        memberName: { type: string, nullable: true }
+        attribute: { type: string, nullable: true }
+        currentValue: { type: string, nullable: true }
+        expectedValue: { type: string, nullable: true }
+        summary: { type: string, description: "One line a person can act on, such as: Remove Led from Klanten" }
+        status: { type: string, enum: [open, resolved, withdrawn] }
+        basisClaimId: { type: string, format: uuid, nullable: true }
+        overrideId: { type: string, format: uuid, nullable: true }
+        raisedBy: { type: string, nullable: true }
+        raisedAt: { type: string, format: date-time }
+        closedAt: { type: string, format: date-time, nullable: true }
+        closedReason: { type: string, nullable: true }
     ContextInterview:
       type: object
       description: An interview about a context, which is a source. The interviewee is an account or a person.

@@ -1613,3 +1613,121 @@ ia:overrides a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:range xsd:string ;
     rdfs:label "overrides" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The source whose member list the decision overrides, by its name when decided (an upload, a system, the rule that derives it, the member list kept by hand)." .
+
+# ─── Change requests (migration 101; docs/architecture/change-requests.md) ───
+# What should change in a source an analyst's decision overrides. Knowledge, like
+# the claim and the override it rests on: never a node, never a way of holding access.
+ia:ChangeRequest a owl:Class ; rdfs:subClassOf ia:Knowledge ;
+    rdfs:label "Change request" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What should change in a source that an analyst's decision overrides: which source (targetSystemId, its name when raised), which kind of change (changeKind), about what (a context, a member, an attribute, with their names when raised), resting on which claim and override. The override acts in Identity Atlas at once; the request records the correction still owed to the source, because the source's next sync or re-import would bring the old fact back. Raised only where a source can be corrected (a context synced from a system or an uploaded list), never for a context Identity Atlas owns. Nobody closes it by hand: it is resolved when the data shows the change, and withdrawn when the decision is undone. At most one open request per change." ;
+    ia:table "ChangeRequests" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
+
+ia:ChangeKind a owl:Class ;
+    rdfs:label "Change kind" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The kind of change a change request asks of its source: an entity, a relationship or an attribute." .
+ia:ChangeKind_EntityCreate a owl:NamedIndividual, ia:ChangeKind ; ia:typeValue "EntityCreate" ;
+    rdfs:label "EntityCreate" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source misses something that exists." .
+ia:ChangeKind_EntityDelete a owl:NamedIndividual, ia:ChangeKind ; ia:typeValue "EntityDelete" ;
+    rdfs:label "EntityDelete" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source lists something that no longer exists." .
+ia:ChangeKind_RelationshipAdd a owl:NamedIndividual, ia:ChangeKind ; ia:typeValue "RelationshipAdd" ;
+    rdfs:label "RelationshipAdd" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source should link the member to the context." .
+ia:ChangeKind_RelationshipRemove a owl:NamedIndividual, ia:ChangeKind ; ia:typeValue "RelationshipRemove" ;
+    rdfs:label "RelationshipRemove" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source should no longer link the member to the context: a person marked former by a decision." .
+ia:ChangeKind_AttributeUpdate a owl:NamedIndividual, ia:ChangeKind ; ia:typeValue "AttributeUpdate" ;
+    rdfs:label "AttributeUpdate" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An attribute in the source should read expectedValue instead of currentValue." .
+
+ia:ChangeRequestStatus a owl:Class ;
+    rdfs:label "Change request status" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Where a change request stands. Set by the data and the decisions, not by hand." .
+ia:ChangeRequestStatus_open a owl:NamedIndividual, ia:ChangeRequestStatus ; ia:typeValue "open" ;
+    rdfs:label "open" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source does not show the change yet." .
+ia:ChangeRequestStatus_resolved a owl:NamedIndividual, ia:ChangeRequestStatus ; ia:typeValue "resolved" ;
+    rdfs:label "resolved" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source shows the change: the member is no longer listed, or the context is gone." .
+ia:ChangeRequestStatus_withdrawn a owl:NamedIndividual, ia:ChangeRequestStatus ; ia:typeValue "withdrawn" ;
+    rdfs:label "withdrawn" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The decision it rested on was undone, or a later decision contradicts it." .
+
+ia:changeKind a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ChangeRequest ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:ChangeKind ;
+    rdfs:label "changeKind" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What kind of change the source should make." .
+ia:targetSystemId a owl:ObjectProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:ChangeRequest ;
+    rdfs:range ia:System ;
+    rdfs:label "targetSystemId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source to correct: the system or uploaded list the context is synced from. Cleared when the system is removed." .
+ia:targetName a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ChangeRequest ;
+    rdfs:range xsd:string ;
+    rdfs:label "targetName" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source's name when the request was raised." .
+ia:contextName a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ChangeRequest ;
+    rdfs:range xsd:string ;
+    rdfs:label "contextName" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The context's name when the request was raised." .
+ia:memberName a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ChangeRequest ;
+    rdfs:range xsd:string ;
+    rdfs:label "memberName" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The member's name when the request was raised." .
+ia:currentValue a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ChangeRequest ;
+    rdfs:range xsd:string ;
+    rdfs:label "currentValue" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "For an AttributeUpdate: what the source says now." .
+ia:expectedValue a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ChangeRequest ;
+    rdfs:range xsd:string ;
+    rdfs:label "expectedValue" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "For an AttributeUpdate: what the source should say." .
+ia:summary a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ChangeRequest ;
+    rdfs:range xsd:string ;
+    rdfs:label "summary" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "One line a person can act on, such as: Remove Led from Klanten." .
+ia:requestStatus a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ChangeRequest ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:ChangeRequestStatus ;
+    rdfs:label "requestStatus" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Where the request stands." .
+ia:basisClaimId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:ChangeRequest ;
+    rdfs:range ia:Claim ;
+    rdfs:label "basisClaimId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The claim whose decision raised it. Cleared when its interview is deleted; the request stays." .
+ia:overrideId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:ChangeRequest ;
+    rdfs:range ia:MemberOverride ;
+    rdfs:label "overrideId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The override that acts in Identity Atlas until the source is corrected." .
+ia:raisedBy a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ChangeRequest ;
+    rdfs:range xsd:string ;
+    rdfs:label "raisedBy" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Who made the decision that raised it." .
+ia:raisedAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain ia:ChangeRequest ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "raisedAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When it was raised, or last raised again." .
+ia:closedAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain ia:ChangeRequest ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "closedAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When it was resolved or withdrawn; empty exactly while it is open." .
+ia:closedReason a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ChangeRequest ;
+    rdfs:range xsd:string ;
+    rdfs:label "closedReason" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Why it was closed, in one sentence." .

@@ -68,6 +68,14 @@ The diagram below is **generated from the [core ontology](../reference/core-mode
 <!-- BEGIN GENERATED: ontology core-erd -->
 ```mermaid
 erDiagram
+    ChangeRequests {
+        uuid id PK
+        uuid basisClaimId FK
+        string changeKind "EntityCreate, EntityDelete, RelationshipAdd, RelationshipRemove, AttributeUpdate"
+        uuid overrideId FK
+        string requestStatus "open, resolved, withdrawn"
+        int targetSystemId FK
+    }
     ContextClaims {
         uuid id PK
         string claimKind "description, property, role, roleHistory, membership, alias"
@@ -179,6 +187,9 @@ erDiagram
         string displayName
     }
 
+    ContextClaims |o--o{ ChangeRequests : "basisClaimId"
+    ContextMemberOverrides |o--o{ ChangeRequests : "overrideId"
+    Systems |o--o{ ChangeRequests : "targetSystemId"
     Contexts |o--o{ ContextClaims : "contextId"
     Identities |o--o{ ContextClaims : "identityId"
     ContextInterviews |o--o{ ContextClaims : "interviewId"
