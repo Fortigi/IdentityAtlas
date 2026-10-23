@@ -244,16 +244,22 @@ export async function memberClaims(db, contextId, targetType, ids, statuses) {
 
 // Every person claim of the context, with the person matched (if any), whether
 // that account or person is a direct member now, and whether the account is gone.
+// A person a decision marked former (ContextMemberOverrides, migration 099) is
+// listed by the source (isListed) but not a member now (isMember), and carries
+// the decision.
 export const PEOPLE_CLAIMS_SQL = `
     SELECT ${PERSON_CLAIM_COLUMNS}, c."principalId", c."identityId",
            COALESCE(p."displayName", i."displayName") AS "subjectDisplayName",
            (p."deletedAt" IS NOT NULL) AS "accountDeleted",
-           EXISTS (SELECT 1 FROM "ContextMembers" cm
-                    WHERE cm."contextId" = c."contextId" AND cm."memberId" = COALESCE(c."principalId", c."identityId")) AS "isMember"
+           l.listed AS "isListed", (l.listed AND o.id IS NULL) AS "isMember",
+           o."claimId" AS "overrideClaimId", o.overrides AS "overrideSource", o."decidedBy" AS "overrideBy", o."decidedAt" AS "overrideAt"
       FROM "ContextClaims" c
       JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
       LEFT JOIN "Principals" p ON p.id = c."principalId"
       LEFT JOIN "Identities" i ON i.id = c."identityId"
+      CROSS JOIN LATERAL (SELECT EXISTS (SELECT 1 FROM "ContextMembers" cm
+                    WHERE cm."contextId" = c."contextId" AND cm."memberId" = COALESCE(c."principalId", c."identityId")) AS listed) l
+      LEFT JOIN "ContextMemberOverrides" o ON o."contextId" = c."contextId" AND o."memberId" = COALESCE(c."principalId", c."identityId")
      WHERE c."contextId" = $1 AND c."claimKind" = ANY($2::text[]) AND c."claimStatus" = ANY($3::text[])`;
 
 export async function peopleClaims(db, contextId, statuses) {
@@ -337,7 +343,8 @@ export const TIMELINE_DECISIONS_SQL = `
            c."principalId", c."identityId", c."subjectName", COALESCE(p."displayName", i."displayName") AS "subjectDisplayName",
            iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt",
            r.role AS "appliedRole", COALESCE(rp."displayName", ri."displayName") AS "roleHolderName",
-           COALESCE(r."principalId", r."identityId") AS "roleHolderId", (r."principalId" IS NOT NULL) AS "roleHolderIsAccount"
+           COALESCE(r."principalId", r."identityId") AS "roleHolderId", (r."principalId" IS NOT NULL) AS "roleHolderIsAccount",
+           o.overrides AS "overridesSource"
       FROM "ContextClaims" c
       JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
       LEFT JOIN "Principals" p ON p.id = c."principalId"
@@ -346,6 +353,7 @@ export const TIMELINE_DECISIONS_SQL = `
                           WHERE x."sourceClaimId" = c.id LIMIT 1) r ON true
       LEFT JOIN "Principals" rp ON rp.id = r."principalId"
       LEFT JOIN "Identities" ri ON ri.id = r."identityId"
+      LEFT JOIN "ContextMemberOverrides" o ON o."claimId" = c.id
      WHERE c."contextId" = $1 AND c."decidedAt" IS NOT NULL
        AND c."decidedAt" > now() - ($2::int || ' days')::interval
        AND c."claimStatus" = ANY($3::text[])

@@ -11,6 +11,7 @@
 //   POST   /api/contexts/:id/claims/reject                      reject the proposed claims of a kind / relevance tier
 //   GET    /api/contexts/:id/previous-members                   who the interviews say left (a reader: confirmed only)
 //   PATCH  /api/contexts/claims/:claimId                        confirm / edit / reject
+//   POST   /api/contexts/claims/:claimId/undo                   back to proposed (a decision that changed only the claim)
 //   GET    /api/contexts/claims/mentions?principalId=|identityId=  where a person is mentioned
 //
 // Writes, and everything that shows a transcript or an undecided claim, need
@@ -30,7 +31,7 @@ import { CLAIM_STATUSES } from '../../contexts/interviews/claims.js';
 import {
   createInterview, retryExtraction, addManualClaim, claimsOf, rejectMany, interviewWithTranscript, previousMembers, InterviewError,
 } from '../../contexts/interviews/service.js';
-import { decideClaim, ClaimError } from '../../contexts/interviews/decide.js';
+import { decideClaim, undoClaim, ClaimError } from '../../contexts/interviews/decide.js';
 import * as store from '../../contexts/interviews/store.js';
 
 const router = Router();
@@ -108,6 +109,16 @@ router.patch('/contexts/claims/:claimId', writeContexts, requireSql, validIds('c
     res.json(await decideClaim(db, req.params.claimId, req.body || {}, userOf(req)));
   } catch (err) {
     sendFailure(res, err, 'Deciding the claim');
+  }
+});
+
+// Reopens the claim (and its contradiction); a person it marked former is a
+// current member again (contexts/interviews/memberOverrides.js).
+router.post('/contexts/claims/:claimId/undo', writeContexts, requireSql, validIds('claimId'), async (req, res) => {
+  try {
+    res.json(await undoClaim(db, req.params.claimId));
+  } catch (err) {
+    sendFailure(res, err, 'Undoing the decision');
   }
 });
 

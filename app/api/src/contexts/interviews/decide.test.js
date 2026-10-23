@@ -1,6 +1,6 @@
 // Deciding a claim: what each confirmation changes, and what it refuses.
 import { describe, it, expect, vi } from 'vitest';
-import { parseDecision, appendDescription, descriptionHeading, mergeDecision, decideClaim, ClaimError } from './decide.js';
+import { parseDecision, appendDescription, descriptionHeading, mergeDecision, decideClaim, undoClaim, canUndo, ClaimError } from './decide.js';
 
 const CLAIM_ID = 'cccccccc-0000-4000-8000-000000000001';
 const CTX = 'dddddddd-0000-4000-8000-000000000001';
@@ -15,11 +15,13 @@ const base = {
 };
 
 // A transaction client that answers by statement and records every write.
-function fakeDb(claim, { accountable = null, holder = { displayName: 'Piet Jansen' } } = {}) {
+function fakeDb(claim, { accountable = null, holder = { displayName: 'Piet Jansen' }, context = null, rowCount = 1 } = {}) {
   const writes = [];
   const client = {
     query: vi.fn(async (sql, params) => {
       if (sql.includes('FOR UPDATE OF c')) return { rows: claim ? [claim] : [] };
+      if (sql.includes('AS "isListed"')) return { rows: context ? [context] : [] };
+      if (sql.startsWith('DELETE FROM "ContextMemberOverrides" WHERE "claimId"')) { writes.push({ sql, params }); return { rows: [], rowCount }; }
       if (sql.includes(`r.role = 'Accountable'`)) return { rows: accountable ? [accountable] : [] };
       if (/^SELECT "displayName" FROM/.test(sql.trim())) return { rows: holder ? [holder] : [] };
       writes.push({ sql: sql.replace(/\s+/g, ' ').trim(), params });
@@ -185,10 +187,97 @@ describe('decideClaim — alias and membership', () => {
     expect((await decide(db, { status: 'edited', value: 'PC' })).effect).toEqual({ kind: 'alias', aliases: ['PC'] });
   });
 
-  it('a confirmed membership changes nothing but the claim — never the members', async () => {
-    const db = fakeDb({ ...base, claimKind: 'membership', attribute: 'left', principalId: PIET, value: 'left the account' });
+  it('a confirmed membership of someone the list does not have changes nothing but the claim', async () => {
+    const db = fakeDb({ ...base, claimKind: 'membership', attribute: 'left', principalId: PIET, value: 'left the account' }, { context: { ...UNIT, isListed: false } });
     const out = await decide(db, { status: 'confirmed' });
     expect(out.effect).toEqual({ kind: 'none' });
-    expect(db.writes.map(w => w.sql.split(' ').slice(0, 2).join(' '))).toEqual(['UPDATE "ContextClaims"']);
+    expect(verbs(db)).toEqual(['UPDATE "ContextClaims"']);
+  });
+});
+
+// The context a person claim's decision reads (memberOverrides.js OVERRIDE_CONTEXT_SQL).
+const UNIT = { targetType: 'Principal', variant: 'synced', systemName: 'Klanten (upload)', isListed: true };
+const verbs = (db) => db.writes.map(w => w.sql.split(' ').slice(0, 2).join(' '));
+const LEFT = { ...base, claimKind: 'membership', attribute: 'former', principalId: PIET, value: 'is a former member', contextCategory: 'OrganizationalUnit' };
+
+describe('decideClaim — the interview is right: marked former, on top of the members', () => {
+  it('confirming that a listed person left marks them former, naming the source it overrides', async () => {
+    const db = fakeDb(LEFT, { context: UNIT });
+    const out = await decide(db, { status: 'confirmed' });
+    expect(out.effect).toEqual({ kind: 'formerMember', overrides: 'Klanten (upload)' });
+    expect(verbs(db)).toEqual(['UPDATE "ContextClaims"', 'INSERT INTO']);
+    const mark = db.writes[1];
+    expect(mark.sql).toContain('INSERT INTO "ContextMemberOverrides"');
+    expect(mark.params).toEqual([CTX, PIET, CLAIM_ID, 'Klanten (upload)', 'analyst@example.test']);
+    // ContextMembers is never written: the source would add the row back.
+    expect(db.writes.some(w => w.sql.includes('"ContextMembers"') && !w.sql.startsWith('SELECT'))).toBe(false);
+  });
+
+  it('a role claim whose words say they left marks them too; a manual list is "The member list"', async () => {
+    const db = fakeDb({ ...LEFT, claimKind: 'roleHistory', attribute: null, value: 'worked on it, has since left' }, { context: { ...UNIT, variant: 'manual' } });
+    expect((await decide(db, { status: 'confirmed' })).effect).toEqual({ kind: 'formerMember', overrides: 'The member list' });
+  });
+
+  it('the list is right (rejected): nothing but the claim; both true at different times (a period): no mark', async () => {
+    const rejected = fakeDb(LEFT, { context: UNIT });
+    expect((await decide(rejected, { status: 'rejected' })).effect).toEqual({ kind: 'none' });
+    expect(verbs(rejected)).toEqual(['UPDATE "ContextClaims"']);
+
+    const both = fakeDb(LEFT, { context: UNIT });
+    expect((await decide(both, { status: 'edited', periodText: 'until 2024' })).effect).toEqual({ kind: 'none' });
+    expect(verbs(both)).toEqual(['UPDATE "ContextClaims"']);
+    expect(claimUpdate(both).params[1]).toBe('edited');
+  });
+
+  it('edited without a period is still "the interview is right"', async () => {
+    const db = fakeDb(LEFT, { context: UNIT });
+    expect((await decide(db, { status: 'edited', value: 'left in the summer' })).effect.kind).toBe('formerMember');
+  });
+
+  it('confirming that they are in it clears an earlier mark', async () => {
+    const db = fakeDb({ ...LEFT, attribute: 'rejoined', value: 'is back' }, { context: UNIT });
+    expect((await decide(db, { status: 'confirmed' })).effect).toEqual({ kind: 'none' });
+    expect(db.writes[1].sql).toBe('DELETE FROM "ContextMemberOverrides" WHERE "contextId" = $1 AND "memberId" = $2');
+    expect(db.writes[1].params).toEqual([CTX, PIET]);
+  });
+
+  it('marks nobody in a unit of people for an account, nor without a person', async () => {
+    const people = fakeDb(LEFT, { context: { ...UNIT, targetType: 'Identity' } });
+    expect((await decide(people, { status: 'confirmed' })).effect).toEqual({ kind: 'none' });
+    expect(verbs(people)).toEqual(['UPDATE "ContextClaims"']);
+    const nobody = fakeDb({ ...LEFT, principalId: null }, { context: UNIT });
+    expect((await decide(nobody, { status: 'confirmed' })).effect).toEqual({ kind: 'none' });
+  });
+});
+
+describe('canUndo / undoClaim', () => {
+  it('undoes a rejection of any kind and a confirmation that changed only the claim', () => {
+    expect(canUndo({ status: 'rejected', claimKind: 'description' })).toBe(true);
+    expect(canUndo({ status: 'confirmed', claimKind: 'membership' })).toBe(true);
+    expect(canUndo({ status: 'edited', claimKind: 'roleHistory' })).toBe(true);
+    expect(canUndo({ status: 'confirmed', claimKind: 'role', roleSuggestion: null })).toBe(true);
+    expect(canUndo({ status: 'confirmed', claimKind: 'role', roleSuggestion: 'Responsible' })).toBe(false);
+    for (const k of ['description', 'property', 'alias']) expect(canUndo({ status: 'confirmed', claimKind: k })).toBe(false);
+    expect(canUndo({ status: 'proposed', claimKind: 'membership' })).toBe(false);
+  });
+
+  it('puts the claim back to proposed and removes the mark it made', async () => {
+    const db = fakeDb({ ...LEFT, status: 'confirmed' });
+    const out = await undoClaim(db, CLAIM_ID);
+    expect(out.unmarked).toBe(true);
+    expect(db.writes[0]).toEqual({ sql: 'DELETE FROM "ContextMemberOverrides" WHERE "claimId" = $1', params: [CLAIM_ID] });
+    expect(db.writes[1].sql).toBe(`UPDATE "ContextClaims" SET "claimStatus" = 'proposed', "decidedBy" = NULL, "decidedAt" = NULL WHERE id = $1`);
+  });
+
+  it('refuses a bad id, a missing claim, an undecided one and one that changed the context', async () => {
+    await expect(undoClaim(fakeDb(LEFT), 'x')).rejects.toMatchObject({ status: 400 });
+    await expect(undoClaim(fakeDb(null), CLAIM_ID)).rejects.toMatchObject({ status: 404 });
+    await expect(undoClaim(fakeDb(LEFT), CLAIM_ID)).rejects.toMatchObject({ status: 409, message: 'This claim has not been decided' });
+    await expect(undoClaim(fakeDb({ ...base, status: 'confirmed' }), CLAIM_ID)).rejects.toMatchObject({ status: 409, message: /changed the context/ });
+  });
+
+  it('a rejected claim had no mark: unmarked is false', async () => {
+    const db = fakeDb({ ...LEFT, status: 'rejected' }, { rowCount: 0 });
+    expect((await undoClaim(db, CLAIM_ID)).unmarked).toBe(false);
   });
 });

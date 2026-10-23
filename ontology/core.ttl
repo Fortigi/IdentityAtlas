@@ -251,6 +251,10 @@ ia:Claim a owl:Class ; rdfs:subClassOf ia:Knowledge ;
     rdfs:label "Claim" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "A statement an interview makes about a subject — the context itself (subjectKind Context) or a person (Person: the account or person it was matched to, and always the name as spoken) — of one claimKind (description, property, role, roleHistory, membership, alias), with its value, the period it is about (from / to, or vague text), the verbatim quote it rests on and a confidence. Proposed until someone decides it (claimStatus confirmed, edited or rejected). A confirmed role claim with a roleSuggestion becomes an ia:ContextRole whose sourceClaimId is the claim; a confirmed description or property claim is written to the context. A claim never creates access." ;
     ia:table "ContextClaims" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
+ia:MemberOverride a owl:Class ; rdfs:subClassOf ia:Knowledge ;
+    rdfs:label "Member override" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An analyst's decision that a person the member list (its source) still lists is a former member of the context: a contradiction 'left, but still listed' decided 'the interview is right'. It sits on top of ia:ContextMember and never changes it (the source would add the row back): the members list leaves the person out of the current members, Previous members lists them with the decision. One per context and member, with the claim it rests on, the source it overrides, who and when. Undone, it is deleted. It never removes access." ;
+    ia:table "ContextMemberOverrides" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
 
 # ─── Principal types (closed: ingest enum on principalType) ──────────────────
 # Three templates say what kind of actor an account is. Who answers for what it
@@ -953,7 +957,7 @@ ia:complianceState a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:label "complianceState" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The source system's compliance verdict for the assignment." .
 ia:contextId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ContextMember ia:ContextRole ia:ContextRelationship ia:Interview ia:Claim ) ] ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ContextMember ia:ContextRole ia:ContextRelationship ia:Interview ia:Claim ia:MemberOverride ) ] ;
     rdfs:range ia:Context ;
     ia:ingestAlias "contextExternalId" ;
     rdfs:label "contextId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -1190,7 +1194,7 @@ ia:managerIdentityId a owl:ObjectProperty ; ia:sqlType "uuid" ;
     rdfs:label "managerIdentityId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The manager as a PERSON." .
 ia:memberId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain ia:ContextMember ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ContextMember ia:MemberOverride ) ] ;
     rdfs:range [ a owl:Class ; owl:unionOf ( ia:Identity ia:Resource ia:Principal ia:System ) ] ;
     ia:ingestAlias "memberExternalId" ;
     rdfs:label "memberId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -1433,8 +1437,9 @@ ia:visibility a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:label "visibility" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Visibility as the source reports it (Public / Private for groups)." .
 
-# Columns of the knowledge tables (ContextInterviews, ContextClaims) and the
-# provenance column they add to ContextRoles (migrations 097, 098).
+# Columns of the knowledge tables (ContextInterviews, ContextClaims,
+# ContextMemberOverrides) and the provenance column they add to ContextRoles
+# (migrations 097, 098, 099).
 ia:sourceClaimId a owl:ObjectProperty ; ia:sqlType "uuid" ;
     rdfs:domain ia:ContextRole ;
     rdfs:range ia:Claim ;
@@ -1589,12 +1594,22 @@ ia:proposedBy a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:label "proposedBy" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Who proposed the claim." .
 ia:decidedBy a owl:DatatypeProperty ; ia:sqlType "text" ;
-    rdfs:domain ia:Claim ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Claim ia:MemberOverride ) ] ;
     rdfs:range xsd:string ;
     rdfs:label "decidedBy" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Who decided it." .
 ia:decidedAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
-    rdfs:domain ia:Claim ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Claim ia:MemberOverride ) ] ;
     rdfs:range xsd:dateTime ;
     rdfs:label "decidedAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "When it was decided." .
+ia:claimId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:MemberOverride ;
+    rdfs:range ia:Claim ;
+    rdfs:label "claimId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The claim the decision was made on; deleting its interview deletes the override with it." .
+ia:overrides a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:MemberOverride ;
+    rdfs:range xsd:string ;
+    rdfs:label "overrides" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source whose member list the decision overrides, by its name when decided (an upload, a system, the rule that derives it, the member list kept by hand)." .

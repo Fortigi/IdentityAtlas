@@ -631,6 +631,21 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor; on ContextInterviews the interviewee, on ContextClaims the account the claim is about. Ingest alias: `principalExternalId`, `userExternalId`. |
 | `transcript` | `ia:transcript` | text |  | The transcript as plain text, one line per turn; every quote is a verbatim part of it. |
 
+### ContextMemberOverrides
+
+`ia:MemberOverride` · Knowledge table · An analyst's decision that a person the member list (its source) still lists is a former member of the context: a contradiction 'left, but still listed' decided 'the interview is right'. It sits on top of ia:ContextMember and never changes it (the source would add the row back): the members list leaves the person out of the current members, Previous members lists them with the decision. One per context and member, with the claim it rests on, the source it overrides, who and when. Undone, it is deleted. It never removes access.
+
+Identifier: `id` (uuid) — the instance IRI, not a property.
+
+| Column | Property | SQL type | Values / references | Description |
+|---|---|---|---|---|
+| `claimId` | `ia:claimId` | uuid | → ContextClaims | The claim the decision was made on; deleting its interview deletes the override with it. |
+| `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
+| `decidedAt` | `ia:decidedAt` | timestamp with time zone |  | When it was decided. |
+| `decidedBy` | `ia:decidedBy` | text |  | Who decided it. |
+| `memberId` | `ia:memberId` | uuid | → Identities / Resources / Principals / Systems | The member; memberType names its table. Ingest alias: `memberExternalId`. |
+| `overrides` | `ia:overrides` | text |  | The source whose member list the decision overrides, by its name when decided (an upload, a system, the rule that derives it, the member list kept by hand). |
+
 ## Value lists
 
 ### Assignment effect

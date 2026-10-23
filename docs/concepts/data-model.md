@@ -89,6 +89,12 @@ erDiagram
         uuid identityId FK
         uuid principalId FK
     }
+    ContextMemberOverrides {
+        uuid id PK
+        uuid claimId FK
+        uuid contextId FK
+        uuid memberId FK
+    }
     ContextMembers {
         string addedBy "sync, algorithm, analyst"
         uuid contextId FK
@@ -180,6 +186,12 @@ erDiagram
     Contexts |o--o{ ContextInterviews : "contextId"
     Identities |o--o{ ContextInterviews : "identityId"
     Principals |o--o{ ContextInterviews : "principalId"
+    ContextClaims |o--o{ ContextMemberOverrides : "claimId"
+    Contexts |o--o{ ContextMemberOverrides : "contextId"
+    Identities |o--o{ ContextMemberOverrides : "memberId"
+    Resources |o--o{ ContextMemberOverrides : "memberId"
+    Principals |o--o{ ContextMemberOverrides : "memberId"
+    Systems |o--o{ ContextMemberOverrides : "memberId"
     Contexts |o--o{ ContextMembers : "contextId"
     Identities |o--o{ ContextMembers : "memberId"
     Resources |o--o{ ContextMembers : "memberId"

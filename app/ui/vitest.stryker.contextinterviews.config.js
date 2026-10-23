@@ -21,6 +21,7 @@ export default defineConfig({
       'src/components/contexts/interviews/memberInterview.helpers.test.js',
       'src/components/contexts/interviews/interviewHistory.mount.test.jsx',
       'src/components/contexts/interviews/contradictions.mount.test.jsx',
+      'src/components/contexts/interviews/memberOverrides.mount.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },

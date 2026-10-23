@@ -123,6 +123,17 @@ describe('previousMembersOf', () => {
       ['name:karel kiezer', 'Karel  Kiezer', 'left', null],
     ]);
   });
+
+  it('a person a decision marked former is listed although the source still lists them, with the decision', () => {
+    const decision = { overrideClaimId: 'cl-led', overrideSource: 'Klanten (upload)', overrideBy: 'analyst@example.test', overrideAt: '2026-10-23T10:00:00Z' };
+    const [led, mia] = previousMembersOf([
+      gone({ principalId: JAN, subjectDisplayName: 'Led Ledeboer', isMember: false, isListed: true, ...decision }),
+      gone({ principalId: PIET, subjectDisplayName: 'Mia Moerman', isMember: false, isListed: false }),
+    ]);
+    expect(led).toMatchObject({ displayName: 'Led Ledeboer', stint: 'left', stillListed: true,
+      decision: { by: 'analyst@example.test', at: '2026-10-23T10:00:00Z', overrides: 'Klanten (upload)', claimId: 'cl-led' } });
+    expect(mia).toMatchObject({ displayName: 'Mia Moerman', stillListed: false, decision: null });
+  });
 });
 
 describe('loadPreviousMembers', () => {

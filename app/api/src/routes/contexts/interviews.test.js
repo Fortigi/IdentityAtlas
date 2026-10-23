@@ -16,7 +16,7 @@ vi.mock('../../contexts/interviews/service.js', async (orig) => ({
   createInterview: vi.fn(), retryExtraction: vi.fn(), addManualClaim: vi.fn(), claimsOf: vi.fn(),
   interviewWithTranscript: vi.fn(), rejectMany: vi.fn(), previousMembers: vi.fn(),
 }));
-vi.mock('../../contexts/interviews/decide.js', async (orig) => ({ ...(await orig()), decideClaim: vi.fn() }));
+vi.mock('../../contexts/interviews/decide.js', async (orig) => ({ ...(await orig()), decideClaim: vi.fn(), undoClaim: vi.fn() }));
 vi.mock('../../contexts/interviews/store.js', async (orig) => ({
   ...(await orig()), listInterviews: vi.fn(), getInterview: vi.fn(), deleteInterview: vi.fn(), mentionsOf: vi.fn(),
 }));
@@ -24,7 +24,7 @@ process.env.USE_SQL = 'true';
 
 const { default: router, canWriteContexts, statusesFor, MAX_TRANSCRIPT_BYTES } = await import('./interviews.js');
 const service = await import('../../contexts/interviews/service.js');
-const { decideClaim, ClaimError } = await import('../../contexts/interviews/decide.js');
+const { decideClaim, undoClaim, ClaimError } = await import('../../contexts/interviews/decide.js');
 const store = await import('../../contexts/interviews/store.js');
 
 const CTX = 'dddddddd-0000-4000-8000-000000000001';
@@ -40,7 +40,7 @@ const app = mountRouterAs(router, () => caller);
 beforeEach(() => {
   caller = analyst;
   authOn = true;
-  for (const f of [service.createInterview, service.retryExtraction, service.addManualClaim, service.claimsOf, decideClaim,
+  for (const f of [service.createInterview, service.retryExtraction, service.addManualClaim, service.claimsOf, decideClaim, undoClaim,
     store.listInterviews, store.getInterview, store.deleteInterview, store.mentionsOf,
     service.interviewWithTranscript, service.rejectMany, service.previousMembers]) vi.mocked(f).mockReset();
 });
@@ -181,6 +181,25 @@ describe('PATCH /contexts/claims/:claimId', () => {
     vi.mocked(decideClaim).mockRejectedValue(new ClaimError(409, 'This context already has an Accountable', { current: { displayName: 'Anna Voorbeeld' } }));
     const res = await request(app).patch(`/api/contexts/claims/${CLAIM}`).send({ status: 'confirmed' });
     expect([res.status, res.body]).toEqual([409, { error: 'This context already has an Accountable', details: { current: { displayName: 'Anna Voorbeeld' } } }]);
+  });
+});
+
+describe('POST /contexts/claims/:claimId/undo', () => {
+  it('reopens the claim and says whether a former-member mark was removed', async () => {
+    vi.mocked(undoClaim).mockResolvedValue({ claim: { id: CLAIM, status: 'proposed' }, unmarked: true });
+    const res = await request(app).post(`/api/contexts/claims/${CLAIM}/undo`);
+    expect([res.status, res.body]).toEqual([200, { claim: { id: CLAIM, status: 'proposed' }, unmarked: true }]);
+    expect(vi.mocked(undoClaim).mock.calls[0][1]).toBe(CLAIM);
+  });
+
+  it('a decision that changed the context is a 409; a bad id never reaches it; a reader is refused', async () => {
+    vi.mocked(undoClaim).mockRejectedValue(new ClaimError(409, 'This decision changed the context; change it there instead'));
+    expect((await request(app).post(`/api/contexts/claims/${CLAIM}/undo`)).status).toBe(409);
+    vi.mocked(undoClaim).mockClear();
+    expect((await request(app).post('/api/contexts/claims/nope/undo')).status).toBe(400);
+    caller = reader;
+    expect((await request(app).post(`/api/contexts/claims/${CLAIM}/undo`)).status).toBe(403);
+    expect(undoClaim).not.toHaveBeenCalled();
   });
 });
 

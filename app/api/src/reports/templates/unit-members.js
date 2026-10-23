@@ -29,6 +29,7 @@ export const MAX_ROWS = 50000;
 const COMMON_LEADING = [
   { key: 'unit', label: 'Unit', read: m => m.unitName },
   { key: 'displayName', label: 'Name', read: m => m.displayName },
+  { key: 'status', label: 'Status', read: m => memberStatus(m) },
   { key: 'email', label: 'Email', read: m => m.email },
   { key: 'employeeId', label: 'Employee ID', read: m => m.employeeId },
   { key: 'jobTitle', label: 'Job title', read: m => m.jobTitle },
@@ -46,6 +47,9 @@ const KIND_COLUMNS = {
   ],
 };
 const ENTITLEMENTS_COLUMN = { key: 'entitlements', label: 'Entitlements' };
+
+/** "current", or "marked former (decision)" when a decision says an interview is right that they left. */
+export const memberStatus = m => (m.markedFormer ? 'marked former (decision)' : 'current');
 
 /** The fixed columns for a kind of unit (Principal or Identity). */
 export function baseColumns(kind) {

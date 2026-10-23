@@ -11,6 +11,11 @@
 // Business roles are not counted: a role is intent, and the entitlements it
 // grants are counted themselves (lib/resourceVisibility.js, the matrix's rule).
 //
+// A member a decision marked former (ContextMemberOverrides, migration 099:
+// an interview says they left, an analyst decided it is right, the source still
+// lists them) stays a row, with markedFormer — the report shows what the source
+// lists and what was decided about it, side by side.
+//
 // Members are the units' DIRECT members unless `includeSubUnits`, which takes
 // the whole subtree under each unit (a recursive walk; UNION stops on a cycle).
 //
@@ -39,10 +44,11 @@ const MEMBER_SQL = {
            m.id, m."displayName", m.email, m."jobTitle", m.department, m."employeeId",
            m."principalType", m."accountEnabled", mgr."displayName" AS "managerName",
            s."displayName" AS "systemName", m."extendedAttributes",
-           cm."contextId", u."displayName" AS "unitName"
+           cm."contextId", u."displayName" AS "unitName", (o.id IS NOT NULL) AS "markedFormer"
       FROM "ContextMembers" cm
       JOIN "Principals" m ON m.id = cm."memberId" AND m."deletedAt" IS NULL
       JOIN "Contexts" u ON u.id = cm."contextId"
+      LEFT JOIN "ContextMemberOverrides" o ON o."contextId" = cm."contextId" AND o."memberId" = cm."memberId"
       LEFT JOIN "Principals" mgr ON mgr.id = m."managerId"
       LEFT JOIN "Systems" s ON s.id = m."systemId"
      WHERE cm."memberType" = 'Principal'`,
@@ -50,10 +56,11 @@ const MEMBER_SQL = {
     SELECT DISTINCT ON (cm."contextId", m.id)
            m.id, m."displayName", m.email, m."jobTitle", m.department, m."employeeId",
            m."accountCount", mgr."displayName" AS "managerName", m."extendedAttributes",
-           cm."contextId", u."displayName" AS "unitName"
+           cm."contextId", u."displayName" AS "unitName", (o.id IS NOT NULL) AS "markedFormer"
       FROM "ContextMembers" cm
       JOIN "Identities" m ON m.id = cm."memberId"
       JOIN "Contexts" u ON u.id = cm."contextId"
+      LEFT JOIN "ContextMemberOverrides" o ON o."contextId" = cm."contextId" AND o."memberId" = cm."memberId"
       LEFT JOIN "Identities" mgr ON mgr.id = m."managerIdentityId"
      WHERE cm."memberType" = 'Identity'`,
 };

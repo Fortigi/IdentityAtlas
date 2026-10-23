@@ -16,7 +16,9 @@ import TranscriptPanel from './TranscriptPanel';
 // already set the API answers 409 with the current holder, and the analyst is
 // asked whether to replace them. `contradictions` are the API's pairs of a claim
 // and what it disagrees with (Contradictions.jsx decides them through decide()). rejectMany({ kind?, relevance? }) rejects the
-// proposed claims of a kind or a relevance tier in one request. `rolesVersion`
+// proposed claims of a kind or a relevance tier in one request. undo(claimId)
+// puts a decided claim back to proposed (POST …/claims/:id/undo): its
+// contradiction opens again, and a member it marked former is current again. `rolesVersion`
 // goes up after every decision that may have changed a role, so the People
 // block re-reads its roles; `onDecided` tells the page (its members lists show
 // what the interviews say about people).
@@ -93,6 +95,12 @@ function OwnClaimsProvider({ contextId, children, onDecided }) {
     return out;
   }, [send, contextId, changed]);
 
+  const undo = useCallback(async (claimId) => {
+    const out = await send(`/api/contexts/claims/${claimId}/undo`, 'POST', {});
+    if (out.ok) changed();
+    return out;
+  }, [send, changed]);
+
   const openTranscript = useCallback((interviewId, claimId = null) => {
     if (interviewId) setTranscript({ interviewId, claimId, at: Date.now() });
   }, []);
@@ -109,9 +117,10 @@ function OwnClaimsProvider({ contextId, children, onDecided }) {
     rolesVersion,
     decide,
     rejectMany,
+    undo,
     openTranscript: canWrite ? openTranscript : null,
     reload: () => { reloadClaims(); reloadInterviews(); },
-  }), [contextId, canWrite, claims.data, claims.loading, claims.error, interviews.data, rolesVersion, decide, rejectMany, openTranscript, reloadClaims, reloadInterviews]);
+  }), [contextId, canWrite, claims.data, claims.loading, claims.error, interviews.data, rolesVersion, decide, rejectMany, undo, openTranscript, reloadClaims, reloadInterviews]);
 
   return (
     <ClaimsContext.Provider value={value}>

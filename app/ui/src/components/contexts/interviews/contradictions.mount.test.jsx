@@ -38,7 +38,7 @@ describe('contradiction.helpers', () => {
       ['source', 'The list is right', [['m-lotte', { status: 'rejected' }]]],
       ['both', 'Both true, at different times', [['m-lotte', { status: 'edited' }]]],
     ]);
-    expect(decisionsFor(LEFT)[0].hint).toContain('remove them in HR export (upload)');
+    expect(decisionsFor(LEFT)[0].hint).toBe('Marks them former here and lists them under Previous members; HR export (upload) still lists them — remove them there, or re-import without them. Undo is possible.');
     expect(decisionsFor(OWNER).map(c => [c.label, c.steps[0].body])).toEqual([
       ['The interview is right — make Piet Proef the Accountable', { status: 'confirmed', replace: true }],
       ['Keep Yara Ypma', { status: 'rejected' }],

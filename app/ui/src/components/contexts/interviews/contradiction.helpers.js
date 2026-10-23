@@ -29,7 +29,7 @@ const step = (side, body) => ({ claimId: side.claim.id, claim: side.claim, body 
 // Single-claim rules: [interview label, interview hint, source label, offer "both"?, confirm body].
 const SINGLE = {
   leftButMember: (con) => ['The interview is right — mark as former',
-    `Keeps the member: members come from their source. Their row says they left; remove them in ${con.other.source?.split(',')[0] || 'the source'} if they should go.`,
+    `Marks them former here and lists them under Previous members; ${con.other.source?.split(',')[0] || 'the source'} still lists them — remove them there, or re-import without them. Undo is possible.`,
     'The list is right', true, { status: 'confirmed' }],
   memberNotListed: (con) => ['The interview is right',
     `Records it; the member list comes from ${con.other.source?.split(',')[0] || 'the source'} — add them there.`,

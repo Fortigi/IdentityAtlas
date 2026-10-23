@@ -74,3 +74,32 @@ export function earlierStintText(person) {
 
 /** The DOM id of a member's row, so another list can point at it. */
 export const memberRowId = (id) => `context-member-${id}`;
+
+// ─── Marked former by a decision (the API's `overridden` / `decision`) ────
+// An interview said the person left, an analyst decided "the interview is
+// right", and the source still lists them: the members list leaves them out of
+// the current members, Previous members lists them. The source is not changed.
+
+const day = (at) => (at ? String(at).slice(0, 10) : null);
+
+/** "1 marked as former by a decision" — the note under the members; '' for none. */
+export function overriddenNoteText(n) {
+  if (!n) return '';
+  return `${n.toLocaleString('en-US')} marked as former by a decision`;
+}
+
+/** "Decided by Ann, 2026-10-23: the interview is right — Klanten (upload) still lists them". */
+export function decisionText(decision, stillListed = true) {
+  const who = [decision.by, day(decision.at)].filter(Boolean).join(', ');
+  const listed = stillListed ? ` — ${decision.overrides} still lists them` : '';
+  return `Decided${who ? ` by ${who}` : ''}: the interview is right${listed}`;
+}
+
+/** The hint beside a decision while the source still lists the person. */
+export const STILL_LISTED_HINT = 'Still listed in the source — remove it there or re-import without them.';
+
+/** "Marked former by a decision (overrides Klanten (upload))" — on a revealed row in the members list. */
+export const overriddenRowText = (decision) => `Marked former by a decision (overrides ${decision.overrides})`;
+
+/** The classes of a revealed row's name: struck through and greyed. */
+export const overriddenNameClass = (decision) => (decision ? ' line-through text-gray-500 dark:text-gray-400' : '');

@@ -25,12 +25,25 @@
 //                the role timeline, the members lists). A membership claim never
 //                changes ContextMembers: members come from their source. A
 //                claim never creates access.
+//   a person claim that says they left, about a person the member list still
+//                lists, confirmed as said ("the interview is right"): the person
+//                is marked former by the decision (memberOverrides.js), on top of
+//                ContextMembers — effect { kind: 'formerMember', overrides }
 // All in one transaction. Decisions are recorded in _history (migration 097).
+//
+//   undoClaim(db, claimId)                  → { claim, unmarked }   (throws ClaimError)
+//
+// Undo puts a decided claim back to proposed (its contradiction opens again) and
+// removes a former-member mark it made. Only a decision that changed nothing but
+// the claim can be undone: any rejection, and a confirmed membership, roleHistory
+// or role without a suggestion. A confirmed description, property, alias or role
+// changed the context; undo that where it was changed.
 
 import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
 import { periodDate, MAX_VALUE, MAX_PERIOD_TEXT } from './claims.js';
 import * as store from './store.js';
 import { mergeAliases } from '../../lib/contextNameMatch.js';
+import { applyMemberOverride, clearClaimOverride } from './memberOverrides.js';
 
 export class ClaimError extends Error {
   constructor(status, message, details) {
@@ -201,7 +214,33 @@ export async function decideClaim(db, claimId, body, user) {
     [claimId, status, merged.value, merged.periodFrom, merged.periodTo, merged.periodText,
       holder?.col === 'principalId' ? holder.id : null, holder?.col === 'identityId' ? holder.id : null,
       !!decision.holder, user]);
-    return result;
+    const marked = await applyMemberOverride(client, claim, { status, merged, holder }, user);
+    return marked && result.kind === 'none' ? { kind: 'formerMember', overrides: marked.overrides } : result;
   });
   return { claim: await store.getClaimRow(db, claimId), effect };
+}
+
+const KNOWLEDGE_ONLY = new Set(['membership', 'roleHistory']);
+
+/** Can this decided claim be undone? Its decision must have changed nothing but the claim. Pure. */
+export function canUndo(claim) {
+  if (claim.status === 'proposed') return false;
+  if (claim.status === 'rejected') return true;
+  return KNOWLEDGE_ONLY.has(claim.claimKind) || (claim.claimKind === 'role' && !claim.roleSuggestion);
+}
+
+/** Put a decided claim back to proposed, and remove the former-member mark it made. */
+export async function undoClaim(db, claimId) {
+  if (!UUID_RE.test(String(claimId))) throw new ClaimError(400, 'Invalid ID format');
+  const unmarked = await db.tx(async (client) => {
+    const claim = (await client.query(LOCK_SQL, [claimId])).rows[0];
+    if (!claim) throw new ClaimError(404, 'Claim not found');
+    if (claim.status === 'proposed') throw new ClaimError(409, 'This claim has not been decided');
+    if (!canUndo(claim)) throw new ClaimError(409, 'This decision changed the context; change it there instead');
+    const n = await clearClaimOverride(client, claimId);
+    await client.query(`
+      UPDATE "ContextClaims" SET "claimStatus" = 'proposed', "decidedBy" = NULL, "decidedAt" = NULL WHERE id = $1`, [claimId]);
+    return n;
+  });
+  return { claim: await store.getClaimRow(db, claimId), unmarked: unmarked > 0 };
 }

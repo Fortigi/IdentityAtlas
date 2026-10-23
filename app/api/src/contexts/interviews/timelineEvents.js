@@ -17,6 +17,8 @@
 //   ...that decided a contradiction  "Decided: Interview: Jan Smit left · HR export still
 //                               lists Jan Smit as a member — the interview is right"
 //                               (contradictions.js; a pair reads once, on its last decision)
+//   ...that marked a member former   "Decided: Jan Smit is a former member (overrides HR export)"
+//                               (memberOverrides.js)
 //
 // A reader (no data.write.contexts) gets confirmed decisions only: no uploads,
 // no extraction counts, nothing rejected (the route passes the statuses).
@@ -106,7 +108,9 @@ export function interviewTimelineEvents({ interviews = [], decisions = [], contr
   }
   for (const c of decisions) {
     const con = decided.get(c.id);
-    if (con && (con.claimIds.length === 1 || sameMoment(c.decidedAt, con.decidedAt))) {
+    if (c.overridesSource) {
+      out.push(event(c.decidedAt, 'changed', `Decided: ${who(c)} is a former member (overrides ${c.overridesSource})`, con ? { contradictionId: con.id } : {}));
+    } else if (con && (con.claimIds.length === 1 || sameMoment(c.decidedAt, con.decidedAt))) {
       out.push(event(c.decidedAt, 'changed', `Decided: ${con.claim.statement} · ${con.other.statement} — ${resolutionWords(con)}`, { contradictionId: con.id }));
     } else {
       out.push(decisionEvent(c));

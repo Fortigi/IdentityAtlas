@@ -94,6 +94,7 @@
     "094_synced_context_accountables.sql": "dc09ac06a3df826bf439bc42632a218e5edf430441f806e830b0e041381ca25f",
     "095_context_uploads.sql": "3c0650ce8f1e969c7cffa6723b3f442fe02e5f9f577453d72cd1cb9e01b7f80e",
     "097_context_interviews.sql": "dfeddc117a9e772effe9eaf3d8445792a541fca3caffbe82b109bb35eb2a303d",
-    "098_context_claims_membership_alias.sql": "5f5e5cf4b84ab25de616ef087e2f57c8563c1941443fdd960f9cb9c3b1d44c77"
+    "098_context_claims_membership_alias.sql": "5f5e5cf4b84ab25de616ef087e2f57c8563c1941443fdd960f9cb9c3b1d44c77",
+    "099_context_member_overrides.sql": "754b259234d1f33a1addc387b71fe68cc96341dee3e5f599370def35368acf2a"
   }
 }

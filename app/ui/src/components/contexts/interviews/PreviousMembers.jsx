@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useContextClaims } from './claimsContext';
 import { InterviewRole } from './MemberInterviewFacts';
-import { earlierStintText, entitlementText, factClass, factTitle, LEFT_WORDS, memberRowId, rejoinedTitle } from './memberInterview.helpers';
+import { decisionText, earlierStintText, entitlementText, factClass, factTitle, LEFT_WORDS, memberRowId, rejoinedTitle, STILL_LISTED_HINT } from './memberInterview.helpers';
 import { periodLabel, sourceLabel } from './claims.helpers';
 
 // ─── Previous members — who the interviews say left ───────────────────────
@@ -22,6 +22,11 @@ import { periodLabel, sourceLabel } from './claims.helpers';
 // stint 'earlier'). Proposed claims read dashed and italic; confirming
 // one never changes the members (they come from their source). A reader is
 // sent confirmed claims only (the API decides). Nothing when nobody left.
+//
+// A person a decision marked former ("the interview is right" on a
+// contradiction "left, but still listed") is here although the source still
+// lists them: the row says who decided and when, that the source still lists
+// them and what to do about it there, and an analyst can undo the decision.
 
 const CELL = 'py-1.5 pr-3 align-baseline';
 
@@ -80,6 +85,25 @@ function StintCells({ person }) {
   );
 }
 
+// The Source cell of a row a decision marked former: the decision, what it means for the source, and Undo.
+function DecisionCell({ person, undo }) {
+  const [error, setError] = useState(null);
+  async function run() {
+    const out = await undo(person.decision.claimId);
+    if (!out.ok) setError(out.error);
+  }
+  return (
+    <span className="flex flex-col gap-0.5 text-xs" data-testid="previous-member-decision">
+      <span className="text-gray-700 dark:text-gray-300">{decisionText(person.decision, person.stillListed)}</span>
+      {person.stillListed && <span className="text-gray-600 dark:text-gray-400">{STILL_LISTED_HINT}</span>}
+      {undo && (
+        <button type="button" onClick={run} className="self-start text-blue-700 underline hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">Undo decision</button>
+      )}
+      {error && <span role="alert" className="text-red-700 dark:text-red-400">{error}</span>}
+    </span>
+  );
+}
+
 function AccessCell({ person, linkedResources }) {
   const live = entitlementText(person.liveEntitlements);
   if (live === null) return <span className="text-xs text-gray-600 dark:text-gray-400">no account found</span>;
@@ -125,7 +149,10 @@ export default function PreviousMembers({ contextId, onOpenDetail }) {
               <tr key={p.key} data-testid="previous-member" data-stint={p.stint || 'left'} className="flex flex-wrap gap-x-3 border-b border-gray-100 dark:border-gray-700 sm:table-row">
                 <td className={`w-full sm:w-auto ${CELL}`}><NameCell person={p} onOpenDetail={onOpenDetail} /></td>
                 <StintCells person={p} />
-                <td className={`${CELL} text-xs text-gray-600 dark:text-gray-400`}>{sourceLabel(p.left || p.rejoined)}</td>
+                <td className={`${CELL} text-xs text-gray-600 dark:text-gray-400`}>
+                  {sourceLabel(p.left || p.rejoined)}
+                  {p.decision && <DecisionCell person={p} undo={ctx.canWrite ? ctx.undo : null} />}
+                </td>
                 <td className={CELL}>
                   {p.stint === 'earlier' ? <NowMemberCell person={p} /> : <AccessCell person={p} linkedResources={data.linkedResources} />}
                 </td>

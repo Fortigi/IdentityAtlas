@@ -42,7 +42,7 @@ The roles API returns the interviewee, the date and the quote with it, and the P
 block says *"from the interview with …"*. No new `addedBy` value was added: who decided
 is the analyst; *where it came from* is the claim.
 
-## Data (migrations 097, 098)
+## Data (migrations 097, 098, 099)
 
 `ContextInterviews` — `contextId` (cascade), the interviewee as `principalId` or
 `identityId` (at most one; set NULL when that row goes) and `intervieweeName` (kept),
@@ -68,6 +68,11 @@ end exclusive), `roleSuggestion`, `claimStatus` (`proposed`,
 Migration 098 widened the kinds and added `relevance`, `quoteStart` and `quoteEnd`. It is a
 separate migration rather than an edit of 097 because the demo database had already run 097
 (and a changed migration fails the hash ratchet).
+
+`ContextMemberOverrides` (099) — a member marked former by a decision, on top of
+`ContextMembers`: `contextId` (cascade), `memberId`, `claimId` (cascade), `overrides` (the
+source's name when decided), `decidedBy`, `decidedAt`; one per (context, member). See
+*Marked former by a decision* under Contradictions.
 
 (`claimStatus` and `proposedBy` are not called `status` and `origin` because the
 ontology names a column property after its column, and `ia:status` / `ia:origin` already
@@ -333,11 +338,10 @@ context's is dropped at extraction. Each side carries its source: the claim its 
 and quote; a fact *"<system>, last synced <date>"* (`Systems.lastSyncDateTime`, else *"listed
 since"* the member's `addedAt`; *"The member list"* for a context kept by hand).
 
-**Deciding one is deciding its claim(s) — no table, no migration.** The claim's status,
+**Deciding one is deciding its claim(s) — no table of its own.** The claim's status,
 `decidedBy` and `decidedAt` are the record (and `_history` keeps the change):
-*The interview is right* confirms it (a member who left stays listed — members come from their
-source; the row says *Interview: left*, and fixing the source is its owner's job; for another
-owner it confirms with `replace`); *The list is right* / *Keep …* rejects it; *Both true, at
+*The interview is right* confirms it (a member who left is **marked former by the decision** —
+see below; for another owner it confirms with `replace`); *The list is right* / *Keep …* rejects it; *Both true, at
 different times* saves it with the period asked for (`edited`); of a pair, keeping one confirms
 it and rejects the other, *both* confirms both. A decided contradiction says how
 (`resolution`: interview, source, both, first, second, neither), leaves the panel, and the
@@ -348,6 +352,50 @@ Accountable replaced, an attribute set) stops matching; its decision reads as an
 Two interviews that disagree about a person are a contradiction while either claim is proposed;
 confirmed both (an earlier *left*, a later *current*), they are a return — `rejoinOf` counts them,
 so *"Both true, at different times"* on that pair makes the person *rejoined*.
+
+### Marked former by a decision (migration 099)
+
+*"Interview: Led is a former member"* against *"Klanten (upload) still lists Led as a member"*,
+decided *the interview is right*: Led is no longer a current member, but a former one. The
+decision is an **override on top of `ContextMembers`**, never a change to it — the source would
+add the row back on its next sync or re-import. `ContextMemberOverrides` holds one row per
+(context, member): the claim it was decided on (`claimId`, cascade: deleting the interview
+deletes the mark), the source it overrides by name (`overrides`), `decidedBy`, `decidedAt`;
+`_history` records it. `contexts/interviews/memberOverrides.js` is the only writer:
+`applyMemberOverride` (inside the decision's transaction) and `clearClaimOverride` (undo).
+
+| Decision | Claim | Mark |
+|---|---|---|
+| The interview is right | confirmed (or edited without a period) | set — when the source lists the person, by the context's own kind (an account of a unit of accounts, a person of a unit of people) |
+| The list is right | rejected | none: the member stays current |
+| Both true, at different times | edited with the period | none: the member stays current; the period is the earlier stint in the claim (members list, role timeline) |
+| a claim that they are in it (current, joined, rejoined) confirmed | confirmed | cleared |
+| **Undo decision** (`POST /contexts/claims/:id/undo`) | back to proposed | removed; the contradiction is open again |
+
+Undo is for a decision that changed nothing but the claim: any rejection, and a confirmed
+membership, roleHistory or role without a suggestion (409 otherwise — a description, property,
+alias or role is changed back where it was changed).
+
+What reads the mark:
+
+- **Members list** (`GET …/members`): a marked member is left out of the current members and of
+  `total`; `overriddenCount` says how many were left out; `?includeOverridden=true` lists them
+  too, each with `overridden: { by, at, overrides, claimId }`. The page says *"1 marked as former
+  by a decision — show"* and shows them struck through with the decision. The facts block says
+  *"12 in this unit (1 marked former)"* (`GET /contexts/:id` → `overriddenMemberCount`; the
+  counts stay the source's).
+- **Previous members** (`GET …/previous-members`): lists them with `decision` and `stillListed`,
+  and the live entitlements they still hold — *"Decided by <who>, <date>: the interview is right —
+  Klanten (upload) still lists them"*, the hint *"Still listed in the source — remove it there or
+  re-import without them"*, and *Undo decision* for an analyst.
+- **Timeline**: *"Decided: Led Ledeboer is a former member (overrides Klanten (upload))"*.
+- **Unit report**: keeps the row and adds a **Status** column — *current* or *marked former
+  (decision)* — so the report shows both what the source lists and what was decided.
+- **Context owner (read-only view)**: the same members list (current members, the note, the
+  toggle); Previous members stays an analyst read, as before.
+- **Matrix and access**: unchanged, deliberately. The matrix shows access, and the access is
+  still there — that is the point of Previous members' *still has access*. The decision never
+  removes an assignment or a membership.
 
 On the page: a **Contradictions (n)** panel at the top of *What we know*, never folded — each
 item the two statements side by side (*View in transcript* on a claim, for an analyst) with the

@@ -97,6 +97,16 @@ describe('a decided contradiction on the timeline', () => {
     expect(ev).toMatchObject({ summary: 'Decided: Interview: Lotte Lindeboom left · HR export still lists Lotte Lindeboom as a member — the interview is right', contradictionId: 'leftButMember:c-1' });
   });
 
+  it('a decision that marked a member former says so, with the source it overrides', () => {
+    const marked = row({ subjectDisplayName: 'Led Ledeboer', overridesSource: 'Klanten (upload)' });
+    const [ev] = interviewTimelineEvents({ decisions: [marked], contradictions: [con()] });
+    expect(ev).toMatchObject({ summary: 'Decided: Led Ledeboer is a former member (overrides Klanten (upload))', contradictionId: 'leftButMember:c-1' });
+    const [plain] = interviewTimelineEvents({ decisions: [marked] });
+    expect(plain.summary).toBe('Decided: Led Ledeboer is a former member (overrides Klanten (upload))');
+    expect(plain.contradictionId).toBeUndefined();
+    expect(TIMELINE_DECISIONS_SQL).toContain('LEFT JOIN "ContextMemberOverrides" o ON o."claimId" = c.id');
+  });
+
   it('each way of deciding is worded', async () => {
     const { resolutionWords } = await import('./timelineEvents.js');
     const pairCon = { claim: { statement: 'A' }, other: { kind: 'claim', statement: 'B' } };

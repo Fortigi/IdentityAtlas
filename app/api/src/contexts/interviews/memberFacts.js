@@ -30,7 +30,9 @@
 //
 // A previous member is a person whose latest such claim says they left and who
 // is not a direct member now (a current member who left is flagged in the
-// members list instead). Matched to an account or a person, they come with the
+// members list instead) — or whom a decision marked former while the source
+// still lists them (memberOverrides.js): their row carries the `decision`
+// (who, when, the source it overrides, the claim) and `stillListed`. Matched to an account or a person, they come with the
 // live entitlements they still hold — "does this person still have access?" —
 // and how many of those are on the resources this context is linked to (its
 // own resource members, or those of a resources variant). Unmatched, with the
@@ -42,6 +44,7 @@ import { normalizeName } from '../../lib/nameMatch.js';
 import * as store from './store.js';
 import { leftSignal, returnSignal, saysReturned } from './leftSignal.js';
 import { clauseFor } from './sentences.js';
+import { decisionOf } from './overrideRows.js';
 
 const NOW = /\b(now|nu|current(ly)?|today|still|nog steeds|tegenwoordig)\b/i;
 const OPEN_END = '9999-12-31';
@@ -188,6 +191,9 @@ function stintRow(key, claims, stint) {
     subjectName: first.subjectName ?? null,
     accountDeleted: !!first.accountDeleted,
     nowMember: claims.some(c => c.isMember),
+    // Marked former by a decision while the source still lists them (memberOverrides.js).
+    decision: decisionOf(claims.find(c => c.overrideClaimId)),
+    stillListed: claims.some(c => c.isListed),
     ...stint,
   };
 }

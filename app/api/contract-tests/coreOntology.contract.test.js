@@ -31,12 +31,12 @@ describe('core ontology ↔ migrated schema', () => {
     const { model, errors } = loadOntology();
     expect(errors).toBeUndefined();
     const tables = tableClasses(model).map(c => c.table);
-    expect(tables).toHaveLength(14);
+    expect(tables).toHaveLength(15);
 
     const columns = (await pool.query(DB_SCHEMA_QUERIES.columns, [tables])).rows;
     const constraints = (await pool.query(DB_SCHEMA_QUERIES.constraints, [tables])).rows;
     // Guard against a vacuous pass: the catalog queries must actually see the schema.
-    expect(new Set(columns.map(c => c.table_name)).size).toBe(14);
+    expect(new Set(columns.map(c => c.table_name)).size).toBe(15);
     expect(constraints.some(c => /"assignmentType" = ANY/.test(c.definition))).toBe(true);
 
     const findings = compareDbSchema(model, columns, constraints);

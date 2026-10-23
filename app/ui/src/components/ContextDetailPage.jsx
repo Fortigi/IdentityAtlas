@@ -110,6 +110,9 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
         onMemberSearchChange={m.setMemberSearch}
         members={m.members}
         memberTotal={m.memberTotal}
+        overriddenCount={m.overriddenCount}
+        includeOverridden={m.includeOverridden}
+        onIncludeOverriddenChange={m.setIncludeOverridden}
         membersLoading={m.membersLoading}
         membersError={m.membersError}
         memberPage={m.memberPage}
