@@ -6,7 +6,8 @@ import { extractionLabel } from './claims.helpers';
 
 // ─── The interviews of this context (analysts only) ──────────────────────
 // Each with who and when, how far the model got (the message says what it left
-// out or why it failed), its claim counts, and: Read again (retry the model),
+// out or why it failed), its claim counts, and: View transcript (with what was
+// taken from it highlighted — TranscriptPanel), Read again (retry the model),
 // Add claim (by hand — always there, with or without a model), Delete (its
 // claims go; what confirmed claims changed stays).
 
@@ -25,7 +26,7 @@ function ExtractionStatus({ interview }) {
   return <span className="text-xs text-gray-700 dark:text-gray-300" data-testid="extraction-status">{extractionLabel(interview, now)}</span>;
 }
 
-export default function InterviewList({ contextId, interviews, onChanged }) {
+export default function InterviewList({ contextId, interviews, onChanged, onViewTranscript }) {
   const { authFetch } = useAuth();
   const dialog = useDialog();
   const [adding, setAdding] = useState(null);
@@ -65,6 +66,10 @@ export default function InterviewList({ contextId, interviews, onChanged }) {
             <span className="text-xs text-gray-600 dark:text-gray-400">{iv.interviewedAt} · {iv.fileName}</span>
             <ExtractionStatus interview={iv} />
             <span className="text-xs text-gray-600 dark:text-gray-400">{iv.proposed ?? 0} to review · {iv.confirmed ?? 0} confirmed</span>
+            {onViewTranscript && (
+              <button type="button" className={BTN} onClick={() => onViewTranscript(iv.id)}
+                aria-label={`View the transcript of the interview with ${iv.intervieweeName}, ${iv.interviewedAt}`}>View transcript</button>
+            )}
             {CAN_RETRY.has(iv.extractionStatus) && <button type="button" className={BTN} onClick={() => retry(iv)}>Read again</button>}
             <button type="button" className={BTN} onClick={() => setAdding(iv)}>Add claim</button>
             <button type="button" className={BTN} onClick={() => remove(iv)}>Delete</button>

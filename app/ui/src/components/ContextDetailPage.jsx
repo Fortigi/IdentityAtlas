@@ -18,6 +18,7 @@ import { useDialog } from '@ui/components/dialogContext';
 import { promptAndAddSubUnit } from './contexts/addSubUnit';
 import { useContextMembers, MEMBER_PAGE_SIZE } from './contexts/useContextMembers';
 import { useContextDetail, contextPageView } from './contexts/useContextDetail';
+import ClaimsProvider from './contexts/interviews/ClaimsProvider';
 
 // ─── Context Detail Page ──────────────────────────────────────────────────────
 // One page, two readers (decided 2026-10-20, permission-driven):
@@ -32,6 +33,9 @@ import { useContextDetail, contextPageView } from './contexts/useContextDetail';
 //                  and Risk tabs, and an "Edit members" mode on a context
 //                  created here (the only kind whose member edits last).
 // Loaded via /api/contexts/:id. Standalone, document.title is the unit name.
+// A unit or an application (a template profile) has interviews: the page sits
+// in one ClaimsProvider, so What we know, the People block and the members
+// lists (role, left, previous members) share its claims and its transcript view.
 //
 // `embedded`: rendered inside the Contexts page's right pane — no close
 // button (onClose then only runs after a delete), an "Open as page" button
@@ -128,36 +132,44 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4">
-      <DetailTop
-        contextId={contextId}
-        attrs={attrs}
-        subContexts={subContexts}
-        analyst={analyst}
-        {...headerActions({ analyst, editable, embedded: embedded && !sharedView, attrs, onClose: close, onOpenAsPage, onEdit: () => setEditing(true), onAddSubUnit })}
-        onOpenDetail={onOpenDetail}
-        openEntity={openEntity}
-        onShowMembers={() => showSection(sectionIds.members)}
-        onShowSubUnits={() => showSection(sectionIds.subUnits)}
-      />
-
-      {editing && (
-        <ContextEditModal
+    <WithClaims contextId={contextId} attrs={attrs} onDecided={m.fetchMembers}>
+      <div className="max-w-7xl mx-auto space-y-4">
+        <DetailTop
           contextId={contextId}
           attrs={attrs}
-          onUpdated={() => { setEditing(false); fetchDetail(); onEdited?.(); }}
-          onDeleted={() => { setEditing(false); onClose?.(); }}
-          onClose={() => setEditing(false)}
+          subContexts={subContexts}
+          analyst={analyst}
+          {...headerActions({ analyst, editable, embedded: embedded && !sharedView, attrs, onClose: close, onOpenAsPage, onEdit: () => setEditing(true), onAddSubUnit })}
+          onOpenDetail={onOpenDetail}
+          openEntity={openEntity}
+          onShowMembers={() => showSection(sectionIds.members)}
+          onShowSubUnits={() => showSection(sectionIds.subUnits)}
         />
-      )}
 
-      {tabs && <TabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />}
+        {editing && (
+          <ContextEditModal
+            contextId={contextId}
+            attrs={attrs}
+            onUpdated={() => { setEditing(false); fetchDetail(); onEdited?.(); }}
+            onDeleted={() => { setEditing(false); onClose?.(); }}
+            onClose={() => setEditing(false)}
+          />
+        )}
 
-      <div className="mt-4 space-y-4">
-        {panels[shownTab]?.()}
+        {tabs && <TabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />}
+
+        <div className="mt-4 space-y-4">
+          {panels[shownTab]?.()}
+        </div>
       </div>
-    </div>
+    </WithClaims>
   );
+}
+
+// The claims of a unit or an application, for the whole page; anything else has none.
+function WithClaims({ contextId, attrs, onDecided, children }) {
+  if (!profileFor(attrs.contextCategory)) return children;
+  return <ClaimsProvider contextId={contextId} onDecided={onDecided}>{children}</ClaimsProvider>;
 }
 
 // An analyst holds data.write.contexts outside a shared read-only view; every
