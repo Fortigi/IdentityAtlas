@@ -272,6 +272,15 @@ describe('answering', () => {
     expect(interviewStore.insertInterview).not.toHaveBeenCalled();
   });
 
+  it('searchPeople: only for whoever may answer; nothing for a term under two characters; the e-mail as userPrincipalName', async () => {
+    store.searchPeople.mockResolvedValue([{ id: PIET, displayName: 'Piet', email: 'piet@example.test' }]);
+    await expect(svc.searchPeople(REQ, 'Piet', stranger, { db: fakeDb() })).rejects.toMatchObject({ status: 403 });
+    expect(await svc.searchPeople(REQ, ' P ', recipient, { db: fakeDb() })).toEqual([]);
+    expect(store.searchPeople).not.toHaveBeenCalled();
+    expect(await svc.searchPeople(REQ, '  Pi ', recipient, { db: fakeDb() })).toEqual([{ id: PIET, displayName: 'Piet', email: 'piet@example.test', userPrincipalName: 'piet@example.test' }]);
+    expect(store.searchPeople.mock.calls[0][1]).toBe('Pi');
+  });
+
   it('cancelSurvey is 404 when there is nothing unanswered to withdraw', async () => {
     store.cancelRequest.mockResolvedValue(0);
     await expect(svc.cancelSurvey(REQ, { db: fakeDb() })).rejects.toMatchObject({ status: 404 });

@@ -85,6 +85,15 @@ describe('requests', () => {
   });
 });
 
+describe('searchPeople', () => {
+  it('matches name or e-mail as a substring, with the LIKE wildcards in the term taken literally', async () => {
+    const d = db([]);
+    await store.searchPeople(d, '50%_a\\b');
+    expect(d.query.mock.calls[0][1]).toEqual(['%50\\%\\_a\\\\b%', 10]);
+    expect(d.query.mock.calls[0][0]).toMatch(/"deletedAt" IS NULL AND "principalType" = 'User'/);
+  });
+});
+
 describe('rows', () => {
   it('row statements read a list of contexts and are capped', async () => {
     for (const sql of [store.MEMBER_ROWS_SQL, store.RESOURCE_ROWS_SQL, store.CHILD_ROWS_SQL]) {

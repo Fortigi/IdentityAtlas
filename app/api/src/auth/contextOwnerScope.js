@@ -69,6 +69,7 @@ export const REPORT_EXPORTS = new Map([
 export const SURVEY_RESPONDENT_PATHS = [
   { method: 'GET', shape: /^\/api\/surveys\/mine$/ },
   { method: 'GET', shape: new RegExp(`^/api/surveys/requests/${UUID}$`) },
+  { method: 'GET', shape: new RegExp(`^/api/surveys/requests/${UUID}/people$`) },
   { method: 'PUT', shape: new RegExp(`^/api/surveys/requests/${UUID}/answers$`) },
   { method: 'POST', shape: new RegExp(`^/api/surveys/requests/${UUID}/submit$`) },
 ];

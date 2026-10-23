@@ -14,6 +14,7 @@
 //   DELETE /api/surveys/requests/:id            withdraw an unanswered one (data.write.contexts)
 //   GET    /api/surveys/mine                    the surveys sent to the signed-in person
 //   GET    /api/surveys/requests/:id            the form: questions, rows, answers so far
+//   GET    /api/surveys/requests/:id/people?search=   people a person question can name
 //   PUT    /api/surveys/requests/:id/answers    save a draft
 //   POST   /api/surveys/requests/:id/submit     submit: the answers become an interview and its claims
 //
@@ -91,6 +92,9 @@ router.get('/surveys/mine', requireSql,
 
 router.get('/surveys/requests/:id', requireSql,
   handle('Opening the survey', async req => surveys.openSurvey(req.params.id, await callerOf(req), deps())));
+
+router.get('/surveys/requests/:id/people', requireSql,
+  handle('Finding people', async req => ({ data: await surveys.searchPeople(req.params.id, req.query.search, await callerOf(req), deps()) })));
 
 router.put('/surveys/requests/:id/answers', requireSql,
   handle('Saving the answers', async req => surveys.saveDraft(req.params.id, req.body?.answers, await callerOf(req), deps())));

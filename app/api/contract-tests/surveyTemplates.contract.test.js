@@ -144,6 +144,12 @@ describe('sending and answering', () => {
     expect(await store.isRecipient(db, requestId, P.piet, null)).toBe(false);
   });
 
+  it('finds people by name for a person question', async () => {
+    const hits = await svc.searchPeople(requestId, 'Enquête', analyst, deps);
+    expect(hits.map(h => h.displayName)).toEqual(expect.arrayContaining(['Anna Enquête', 'Kim Enquête']));
+    expect(await store.searchPeople(db, '100%_nobody')).toEqual([]);
+  });
+
   it('opens with the unit\'s members as rows, and keeps a draft', async () => {
     const form = await svc.openSurvey(requestId, analyst, deps);
     expect(form.rows.belongs.map(r => [r.displayName, r.columns.jobTitle])).toEqual([['Kim Enquête', 'Data scientist'], ['Tom Enquête', 'Intern']]);

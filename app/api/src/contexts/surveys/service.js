@@ -328,6 +328,17 @@ export async function openSurvey(id, caller, deps) {
   };
 }
 
+export const MIN_SEARCH = 2;
+
+/** People a person question can name, for whoever may answer this survey. */
+export async function searchPeople(id, term, caller, deps) {
+  const { db } = defaults(deps);
+  await callerRequest(db, id, caller);
+  const t = String(term ?? '').trim().slice(0, 100);
+  if (t.length < MIN_SEARCH) return [];
+  return (await store.searchPeople(db, t)).map(p => ({ ...p, userPrincipalName: p.email }));
+}
+
 function open(request) {
   if (request.status === 'submitted') throw new SurveyError(409, 'This survey has already been answered.');
   if (request.status === 'cancelled') throw new SurveyError(409, 'This survey was withdrawn.');

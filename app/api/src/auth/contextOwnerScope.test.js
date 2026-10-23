@@ -39,6 +39,7 @@ describe('answering a survey', () => {
   it.each([
     ['GET', '/api/surveys/mine'],
     ['GET', `/api/surveys/requests/${REQ}`],
+    ['GET', `/api/surveys/requests/${REQ}/people`],
     ['PUT', `/api/surveys/requests/${REQ}/answers`],
     ['POST', `/api/surveys/requests/${REQ}/submit`],
   ])('allows %s %s, for an owner and for a respondent', (method, path) => {

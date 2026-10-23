@@ -14,7 +14,7 @@ vi.mock('../auth/resolveMe.js', () => ({ resolveMe: vi.fn() }));
 vi.mock('../contexts/surveys/service.js', async (orig) => {
   const real = await orig();
   const names = ['listTemplates', 'getTemplate', 'createTemplate', 'updateTemplate', 'sendSurvey', 'contextRequests', 'cancelSurvey',
-    'mySurveys', 'openSurvey', 'saveDraft', 'submitSurvey'];
+    'mySurveys', 'openSurvey', 'saveDraft', 'submitSurvey', 'searchPeople'];
   return { ...real, ...Object.fromEntries(names.map(n => [n, vi.fn()])) };
 });
 process.env.USE_SQL = 'true';
@@ -65,6 +65,9 @@ describe('the gate', () => {
     expect((await request(app).put(`/api/surveys/requests/${REQ}/answers`).send({ answers: { a: 'yes' } })).status).toBe(200);
     expect((await request(app).post(`/api/surveys/requests/${REQ}/submit`).send({ answers: {} })).status).toBe(200);
     expect(svc.saveDraft.mock.calls[0].slice(0, 2)).toEqual([REQ, { a: 'yes' }]);
+    svc.searchPeople.mockResolvedValue([{ id: 'p' }]);
+    expect((await request(app).get(`/api/surveys/requests/${REQ}/people?search=Pi`)).body).toEqual({ data: [{ id: 'p' }] });
+    expect(svc.searchPeople.mock.calls[0].slice(0, 2)).toEqual([REQ, 'Pi']);
     expect(svc.submitSurvey.mock.calls[0][2]).toEqual({ me: { principal: { id: 'p' } }, canWrite: false, user: 'anna@example.test' });
   });
 });

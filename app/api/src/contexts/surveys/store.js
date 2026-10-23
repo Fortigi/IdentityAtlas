@@ -223,6 +223,20 @@ export async function cancelRequest(db, id) {
   return r.rowCount;
 }
 
+// ─── Finding a person for a person question ──────────────────────────────
+// A respondent may have no Identity Atlas role and so no /api/users: the form
+// searches here. Enabled, not deleted, users by name or e-mail; at most `limit`.
+export async function searchPeople(db, term, limit = 10) {
+  const r = await db.query(`
+    SELECT id, "displayName", email, "jobTitle", department
+      FROM "Principals"
+     WHERE "deletedAt" IS NULL AND "principalType" = 'User'
+       AND ("displayName" ILIKE $1 OR email ILIKE $1)
+     ORDER BY "displayName", id
+     LIMIT $2`, [`%${term.replace(/[\\%_]/g, c => `\\${c}`)}%`, limit]);
+  return r.rows;
+}
+
 // ─── The rows a per-row question is asked about ──────────────────────────
 // A context's SameUnitAs variants, with their kind: "this unit" as its people,
 // its accounts or its resources (as interviews/store.js reads LINKED_RESOURCES).
