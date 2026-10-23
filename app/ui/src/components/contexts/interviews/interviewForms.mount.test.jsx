@@ -101,6 +101,21 @@ describe('ManualClaimForm', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('a membership claim asks whether the person is in it now, and sends that status', async () => {
+    const { authFetch, onAdded, user } = mountForm();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Kind' }), 'membership');
+    expect(screen.queryByRole('combobox', { name: 'What they are to it' })).toBeNull();
+    const status = screen.getByRole('combobox', { name: 'In it now?' });
+    expect([...status.options].map(o => o.textContent)).toEqual(['current member', 'former member', 'joined', 'left']);
+    await user.selectOptions(status, 'former');
+    await user.type(screen.getByRole('textbox', { name: 'Person' }), 'Karel');
+    await user.type(screen.getByRole('textbox', { name: 'What it says' }), 'worked on it before');
+    await user.click(screen.getByRole('button', { name: 'Add claim' }));
+    await waitFor(() => expect(onAdded).toHaveBeenCalled());
+    const [, init] = authFetch.mock.calls.find(([, o]) => o?.method === 'POST');
+    expect(JSON.parse(init.body)).toEqual({ kind: 'membership', value: 'worked on it before', subject: 'Karel', membership: 'former' });
+  });
+
   it('an empty selection changes nothing', async () => {
     const { user } = mountForm();
     await user.type(screen.getByRole('textbox', { name: 'Quote' }), 'typed');

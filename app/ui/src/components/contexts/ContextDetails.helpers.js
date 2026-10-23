@@ -51,6 +51,20 @@ export function detailLabel(key) {
   return DETAIL_LABELS[key] || friendlyLabel(key);
 }
 
+// Extended attributes keep their own names, except the ones the app itself
+// writes: `aliases` (other names of the context — a confirmed interview alias
+// claim adds to it) reads as "Also known as", its names as one line.
+const EXTENDED_LABELS = { aliases: 'Also known as' };
+
+export function extendedLabel(key) {
+  return EXTENDED_LABELS[key] || key;
+}
+
+/** A value as the details list shows it: a list of names as "A, B"; anything else as given. */
+export function detailValue(value) {
+  return Array.isArray(value) && value.every(v => typeof v === 'string') ? value.join(', ') : value;
+}
+
 /**
  * The keys the details list leaves out for this context: the fixed set above,
  * plus what this particular page happens to show elsewhere — the access

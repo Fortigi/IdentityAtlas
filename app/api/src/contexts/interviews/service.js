@@ -123,21 +123,23 @@ export async function addManualClaim(contextId, interviewId, body = {}, deps) {
   if (body.roleSuggestion != null && !ROLE_SUGGESTIONS.includes(body.roleSuggestion)) {
     throw new InterviewError(400, `roleSuggestion must be one of ${ROLE_SUGGESTIONS.join(', ')}`);
   }
-  let claim = checked.claim;
-  if (claim.subjectName) {
-    const resolved = await resolveSubjects(db, [claim.subjectName], {
-      contextId, interviewee: { principalId: interview.principalId, identityId: interview.identityId, name: interview.intervieweeName },
-    });
-    const r = resolved.get(claim.subjectName) ?? {};
-    claim = { ...claim, principalId: r.principalId ?? null, identityId: r.identityId ?? null, subjectMatch: r.match ?? null };
-  }
-  claim = deduceRoles([claim])[0];
+  let claim = deduceRoles([await withManualSubject(db, contextId, interview, checked.claim)])[0];
   // An analyst chose to add it: it matters.
   const span = claim.quote ? locateQuote(interview.transcript, claim.quote) : null;
   claim = { ...claim, relevance: 'high', quoteStart: span?.start ?? null, quoteEnd: span?.end ?? null };
   if (claim.claimKind === 'role' && body.roleSuggestion !== undefined) claim.roleSuggestion = body.roleSuggestion;
   const [id] = await store.insertClaims(db, { interviewId, contextId, proposedBy: 'analyst' }, [claim]);
   return store.getClaimRow(db, id);
+}
+
+// The person an analyst's claim names, matched like a model's; a claim about the context is returned as is.
+async function withManualSubject(db, contextId, interview, claim) {
+  if (!claim.subjectName) return claim;
+  const resolved = await resolveSubjects(db, [claim.subjectName], {
+    contextId, interviewee: { principalId: interview.principalId, identityId: interview.identityId, name: interview.intervieweeName },
+  });
+  const r = resolved.get(claim.subjectName) ?? {};
+  return { ...claim, principalId: r.principalId ?? null, identityId: r.identityId ?? null, subjectMatch: r.match ?? null };
 }
 
 /** The claims of a context in `statuses`, and the claim that doubts its current Accountable (or null). */

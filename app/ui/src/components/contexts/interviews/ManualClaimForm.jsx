@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { Modal, Field, ErrorBox, PrimaryButton, SecondaryButton } from '@ui/components/contexts/ModalPrimitives';
-import { KIND_LABELS, RELATION_LABELS, PERSON_KINDS, manualClaimBody, manualClaimReady } from './claims.helpers';
+import { KIND_LABELS, RELATION_LABELS, MEMBERSHIP_LABELS, PERSON_KINDS, manualClaimBody, manualClaimReady } from './claims.helpers';
 
 // ─── Add a claim by hand ─────────────────────────────────────────────────
 // The way to record what an interview says without a model (and next to one).
@@ -12,7 +12,7 @@ import { KIND_LABELS, RELATION_LABELS, PERSON_KINDS, manualClaimBody, manualClai
 // the claim is proposed, and then reviewed like any other.
 
 const INPUT = 'mt-1 w-full rounded border border-gray-200 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
-const EMPTY = { kind: 'description', value: '', subject: '', relation: 'owner', attribute: '', periodText: '', quote: '' };
+const EMPTY = { kind: 'description', value: '', subject: '', relation: 'owner', membership: 'left', attribute: '', periodText: '', quote: '' };
 
 export default function ManualClaimForm({ contextId, interview, onAdded, onClose }) {
   const { authFetch } = useAuth();
@@ -71,6 +71,13 @@ export default function ManualClaimForm({ contextId, interview, onAdded, onClose
           <Field label="What they are to it">
             <select aria-label="What they are to it" className={INPUT} value={form.relation} onChange={set('relation')}>
               {Object.entries(RELATION_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </select>
+          </Field>
+        )}
+        {form.kind === 'membership' && (
+          <Field label="In it now?">
+            <select aria-label="In it now?" className={INPUT} value={form.membership} onChange={set('membership')}>
+              {Object.entries(MEMBERSHIP_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </select>
           </Field>
         )}

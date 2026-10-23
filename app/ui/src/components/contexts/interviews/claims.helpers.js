@@ -11,7 +11,20 @@ export const KIND_LABELS = {
   property: 'Property',
   role: 'Role',
   roleHistory: 'Role history',
+  membership: 'Membership',
+  alias: 'Also known as',
 };
+
+// What a membership claim's status means, in the review list.
+export const MEMBERSHIP_LABELS = {
+  current: 'current member',
+  former: 'former member',
+  joined: 'joined',
+  left: 'left',
+};
+
+// The statuses that say a person is not in it any more.
+export const GONE = new Set(['former', 'left']);
 
 // What a role claim's relation means, in the review list.
 export const RELATION_LABELS = {
@@ -42,6 +55,16 @@ export function isUncertainMatch(claim) {
 
 const year = (d) => (d ? String(d).slice(0, 4) : null);
 
+/** "Jan Smit — left the account (left)": who, what, and the status or relation in words. Pure. */
+export function claimLine(claim) {
+  const who = subjectLabel(claim);
+  const what = claim.claimKind === 'property' ? `${claim.attribute}: ${claim.value}` : claim.value;
+  let how = null;
+  if (claim.claimKind === 'role') how = RELATION_LABELS[claim.attribute];
+  if (claim.claimKind === 'membership') how = MEMBERSHIP_LABELS[claim.attribute];
+  return [who && `${who} —`, what, how && how !== claim.value && `(${how})`].filter(Boolean).join(' ');
+}
+
 /** "2015–2017", "since 2021", "until 2019", or the period as said; '' for none. */
 export function periodLabel(claim) {
   const from = year(claim.periodFrom);
@@ -54,14 +77,43 @@ export function periodLabel(claim) {
   return range || claim.periodText || '';
 }
 
-/** The confirmed claims, in the three groups the "What we know" section shows. */
+const PERSON_CLAIM_KINDS = new Set(['role', 'roleHistory', 'membership']);
+
+/** The confirmed claims, in the groups the "What we know" section shows. */
 export function groupConfirmed(claims) {
   const confirmed = (claims || []).filter(isConfirmed);
   return {
     description: confirmed.filter(c => c.claimKind === 'description'),
     properties: confirmed.filter(c => c.claimKind === 'property'),
-    people: confirmed.filter(c => c.claimKind === 'role' || c.claimKind === 'roleHistory'),
+    aliases: confirmed.filter(c => c.claimKind === 'alias'),
+    people: confirmed.filter(c => PERSON_CLAIM_KINDS.has(c.claimKind)),
   };
+}
+
+/** A claim the review folds away: the low tier (a claim without a tier is high). */
+export const isLowRelevance = (c) => c.relevance === 'low';
+
+/** Proposed claims split by tier, each in the order given: { high, low }. */
+export function byRelevance(claims) {
+  const list = claims || [];
+  return { high: list.filter(c => !isLowRelevance(c)), low: list.filter(isLowRelevance) };
+}
+
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * The one line a folded "What we know" shows: "7 facts · 3 people · 2 proposed
+ * to review". Facts are the confirmed claims, people the distinct persons they
+ * name; the review count only for a writer, and only when there is one. Pure.
+ */
+export function whatWeKnowSummary(claims, canWrite) {
+  const { description, properties, aliases, people } = groupConfirmed(claims);
+  const facts = description.length + properties.length + aliases.length + people.length;
+  const persons = new Set(people.map(personKey)).size;
+  const parts = [plural(facts, 'fact', 'facts'), plural(persons, 'person', 'people')];
+  const toReview = canWrite ? proposedClaims(claims).length : 0;
+  if (toReview > 0) parts.push(`${toReview} proposed to review`);
+  return parts.join(' · ');
 }
 
 export const proposedClaims = (claims) => (claims || []).filter(c => c.status === 'proposed');
@@ -142,13 +194,14 @@ export function anyInProgress(interviews) {
 }
 
 // ─── The manual "Add claim" form ─────────────────────────────────────────
-export const PERSON_KINDS = new Set(['role', 'roleHistory']);
+export const PERSON_KINDS = new Set(['role', 'roleHistory', 'membership']);
 
 /** The body POSTed for the form's fields: only what the kind uses. Pure. */
 export function manualClaimBody(form) {
   const body = { kind: form.kind, value: form.value.trim() };
   if (PERSON_KINDS.has(form.kind)) body.subject = form.subject.trim();
   if (form.kind === 'role') body.relation = form.relation;
+  if (form.kind === 'membership') body.membership = form.membership;
   if (form.kind === 'property') body.attribute = form.attribute.trim();
   if (form.periodText.trim()) body.periodText = form.periodText.trim();
   if (form.quote.trim()) body.quote = form.quote.trim();

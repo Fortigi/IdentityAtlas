@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   sourceLabel, subjectLabel, isUncertainMatch, periodLabel, groupConfirmed, proposedClaims, roleSuggestions,
   timelines, segmentBars, anyInProgress, manualClaimBody, manualClaimReady, extractionLabel, BUSY_AFTER_MS,
+  byRelevance, whatWeKnowSummary, claimLine, isLowRelevance,
 } from './claims.helpers';
 
 const claim = (over) => ({ id: over.id ?? 'c', claimKind: 'role', status: 'proposed', intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-01', ...over });
@@ -137,5 +138,59 @@ describe('the manual claim form', () => {
     expect(manualClaimReady(form({ kind: 'roleHistory' }))).toBe(true);
     expect(manualClaimReady(form({ kind: 'property', attribute: '' }))).toBe(false);
     expect(manualClaimReady(form({ kind: 'property' }))).toBe(true);
+  });
+});
+
+describe('relevance, membership and aliases', () => {
+  it('folds only the low tier; a claim without a tier stays with the high ones, in the order given', () => {
+    const list = [claim({ id: 'a', relevance: 'low' }), claim({ id: 'b' }), claim({ id: 'c', relevance: 'high' }), claim({ id: 'd', relevance: 'low' })];
+    const { high, low } = byRelevance(list);
+    expect(high.map(c => c.id)).toEqual(['b', 'c']);
+    expect(low.map(c => c.id)).toEqual(['a', 'd']);
+    expect(isLowRelevance(claim({ relevance: null }))).toBe(false);
+    expect(byRelevance(null)).toEqual({ high: [], low: [] });
+  });
+
+  it('groups confirmed aliases on their own, and memberships with the people', () => {
+    const g = groupConfirmed([
+      claim({ id: 'al', claimKind: 'alias', status: 'confirmed', value: 'Port Co' }),
+      claim({ id: 'm', claimKind: 'membership', status: 'edited', attribute: 'left', principalId: 'p-jan' }),
+      claim({ id: 'mp', claimKind: 'membership', status: 'proposed', attribute: 'left' }),
+    ]);
+    expect(g.aliases.map(c => c.id)).toEqual(['al']);
+    expect(g.people.map(c => c.id)).toEqual(['m']);
+  });
+
+  it('the folded summary counts facts, distinct people, and — for a writer — what is left to review', () => {
+    const claims = [
+      claim({ id: '1', claimKind: 'description', status: 'confirmed' }),
+      claim({ id: '2', claimKind: 'role', status: 'confirmed', principalId: 'p-piet' }),
+      claim({ id: '3', claimKind: 'roleHistory', status: 'edited', principalId: 'p-piet' }),
+      claim({ id: '4', claimKind: 'membership', status: 'confirmed', subjectName: 'Karel' }),
+      claim({ id: '5', claimKind: 'property', status: 'proposed' }),
+      claim({ id: '6', claimKind: 'alias', status: 'rejected' }),
+    ];
+    expect(whatWeKnowSummary(claims, true)).toBe('4 facts · 2 people · 1 proposed to review');
+    expect(whatWeKnowSummary(claims, false)).toBe('4 facts · 2 people');
+    expect(whatWeKnowSummary([claim({ claimKind: 'role', status: 'confirmed', principalId: 'p' })], true)).toBe('1 fact · 1 person');
+    expect(whatWeKnowSummary([], true)).toBe('0 facts · 0 people');
+  });
+
+  it('a claim as one line: who, what, and the relation or the membership status in words when it adds something', () => {
+    expect(claimLine(claim({ claimKind: 'membership', subjectName: 'Jan Smit', attribute: 'left', value: 'went to another team' })))
+      .toBe('Jan Smit — went to another team (left)');
+    expect(claimLine(claim({ claimKind: 'membership', subjectName: 'Jan Smit', attribute: 'left', value: 'left' }))).toBe('Jan Smit — left');
+    expect(claimLine(claim({ claimKind: 'membership', subjectName: 'Karel', attribute: 'former', value: 'early years' }))).toBe('Karel — early years (former member)');
+    expect(claimLine(claim({ claimKind: 'role', subjectName: 'Piet', attribute: 'dayToDay', value: 'handles it' }))).toBe('Piet — handles it (does the day-to-day)');
+    expect(claimLine(claim({ claimKind: 'roleHistory', subjectName: 'Piet', attribute: 'member', value: 'junior' }))).toBe('Piet — junior');
+    expect(claimLine(claim({ claimKind: 'property', attribute: 'sector', value: 'ports' }))).toBe('sector: ports');
+    expect(claimLine(claim({ claimKind: 'alias', value: 'PC' }))).toBe('PC');
+  });
+
+  it('the manual form sends a membership with its status, and needs the person', () => {
+    const form = { kind: 'membership', value: 'left', subject: ' Jan ', relation: 'owner', membership: 'former', attribute: '', periodText: '', quote: '' };
+    expect(manualClaimBody(form)).toEqual({ kind: 'membership', value: 'left', subject: 'Jan', membership: 'former' });
+    expect(manualClaimReady({ ...form, subject: ' ' })).toBe(false);
+    expect(manualClaimBody({ ...form, kind: 'role' }).membership).toBeUndefined();
   });
 });

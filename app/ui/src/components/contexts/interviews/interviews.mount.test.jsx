@@ -59,7 +59,11 @@ function api({ claims = [ACCOUNTABLE, RESPONSIBLE, UNMATCHED, PROPERTY, ...CONFI
   return { authFetch, state };
 }
 
-function mount({ auth = {}, ...opts } = {}) {
+// What we know starts folded; most tests here read what is inside it, so they
+// start with it open (as a reader who opened it earlier in the session would).
+function mount({ auth = {}, open = true, ...opts } = {}) {
+  window.sessionStorage.clear();
+  if (open) window.sessionStorage.setItem('ia.whatWeKnow.open.c-app', '1');
   const { authFetch, state } = api(opts);
   renderWithProviders(h(ContextProfile, { profile: PROFILES.LogicalApplication, attrs: APP }), { auth: { authFetch, ...auth } });
   return { authFetch, state, user: userEvent.setup() };
@@ -234,7 +238,9 @@ describe('a reader without data.write.contexts', () => {
     const { authFetch } = mount({ auth: READER, claims: CONFIRMED });
     const region = await screen.findByRole('region', { name: 'What we know' });
     expect(within(region).getByText('Schedules the nursing shifts')).toBeInTheDocument();
-    expect(within(region).queryByRole('button')).toBeNull();
+    // Only the fold toggle: no review, no transcript.
+    expect(within(region).getAllByRole('button').map(b => b.getAttribute('aria-expanded'))).toEqual(['true']);
+    expect(within(region).queryByRole('button', { name: 'View transcript' })).toBeNull();
     expect(screen.queryByRole('list', { name: 'Claims to review' })).toBeNull();
     expect(screen.queryByTestId('action-upload-interview')).toBeNull();
     expect(screen.queryByTestId('interview-suggestion')).toBeNull();
