@@ -2595,6 +2595,260 @@ paths:
           description: A list with this name was uploaded before; choose it to update it
         '410':
           description: The draft expired; upload the file again
+  /contexts/{id}/activity/analyze:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Contexts]
+      summary: Read an activity export and guess its mapping
+      operationId: analyzeContextActivity
+      description: >
+        Reads a .csv or .xlsx activity export (a time registration such as a Clockify export, an
+        audit log) uploaded on an organisation unit or application — also on the root of a tree,
+        when each row names the sub-unit it is about. Keeps it as a draft for two hours and returns
+        its columns with a complete best-guess mapping; the model may refine it (`aiUsed`,
+        `aiFields`). A later export of the same source starts from the previous mapping. At most
+        500,000 data rows. Activity is evidence of who works on what — never access, never
+        membership. Needs `data.write.contexts`.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '200':
+          description: The columns and the guess
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadDraftId: { type: string, format: uuid }
+                  fileName: { type: string }
+                  rowCount: { type: integer }
+                  columns: { type: array, items: { type: object } }
+                  guess: { $ref: '#/components/schemas/ContextActivityMapping' }
+                  aiUsed: { type: boolean }
+                  aiFields: { type: array, items: { type: string } }
+                  hasChildren: { type: boolean }
+                  subUnitCount: { type: integer }
+                  previousUpload: { type: object, nullable: true }
+        '400':
+          description: The file cannot be read, or the context is not a unit or application
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: Context not found
+        '413':
+          description: The file is too large
+  /contexts/{id}/activity/preview:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Contexts]
+      summary: What an activity upload would do
+      operationId: previewContextActivity
+      description: >
+        Applies the mapping to the draft without writing: rows readable and skipped (no date, no
+        amount, no person), how the sub-unit values matched (key, name, fuzzy, ambiguous, not found,
+        with samples), how the people matched, the period, and the rows of earlier uploads of the
+        same source on this context that the period replaces.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uploadDraftId, mapping]
+              properties:
+                uploadDraftId: { type: string, format: uuid }
+                mapping: { $ref: '#/components/schemas/ContextActivityMapping' }
+      responses:
+        '200':
+          description: The preview
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          description: The mapping is incomplete (details lists why)
+        '403':
+          description: The caller may not write contexts
+        '410':
+          description: The draft expired; upload the file again
+  /contexts/{id}/activity/apply:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Contexts]
+      summary: Import an activity export
+      operationId: applyContextActivity
+      description: >
+        In one transaction: deletes the rows earlier uploads of the same source on this context hold
+        for the file's period (so an overlapping export is never counted twice), records the upload
+        and inserts its rows. Rows whose sub-unit matched nothing are not imported. Changes no
+        membership and no access.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uploadDraftId, mapping]
+              properties:
+                uploadDraftId: { type: string, format: uuid }
+                mapping: { $ref: '#/components/schemas/ContextActivityMapping' }
+      responses:
+        '201':
+          description: The upload run
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadId: { type: string, format: uuid }
+                  contextId: { type: string, format: uuid }
+                  imported: { type: integer }
+                  replaced: { type: integer }
+                  notImported: { type: integer }
+                  period: { type: object, nullable: true }
+                  subjects: { type: object }
+        '400':
+          description: The mapping is incomplete, or no row can be imported
+        '403':
+          description: The caller may not write contexts
+        '410':
+          description: The draft expired; upload the file again
+  /contexts/{id}/activity:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Contexts]
+      summary: Who was active on a context, compared with its members
+      operationId: getContextActivity
+      description: >
+        The activity on this context in a period (default the twelve calendar months up to its
+        latest activity), one entry per person with their amount, first and last date and amount
+        per month, in four groups compared with the context's current members — memberAndActive,
+        activeNotMember, memberNoActivity, activeUnknown (a name that matched nobody). A context of
+        resources has no members to compare: its groups are active and activeUnknown. The two
+        middle groups are suggestions only. Needs `data.read`.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: The groups (period null when the context has no activity)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  period: { type: object, nullable: true }
+                  months: { type: array, items: { type: string } }
+                  unit: { type: string, nullable: true }
+                  comparable: { type: boolean }
+                  groups:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key: { type: string, enum: [memberAndActive, activeNotMember, memberNoActivity, activeUnknown, active] }
+                        people: { type: array, items: { type: object } }
+        '400':
+          description: Malformed id or period
+        '403':
+          description: The caller may not read data
+        '404':
+          description: Context not found
+  /contexts/{id}/activity/summary:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Contexts]
+      summary: Activity per sub-unit and month
+      operationId: getContextActivitySummary
+      description: >
+        For a parent (a tree's root): one line per direct sub-unit, over its whole subtree — total
+        amount, active people, how many of them are not a member, how many members had no activity,
+        and the amount per month — plus the totals per month. Needs `data.read`.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: The table (period null without activity below the context)
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          description: Malformed id or period
+        '403':
+          description: The caller may not read data
+        '404':
+          description: Context not found
+  /contexts/{id}/activity/uploads:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Contexts]
+      summary: The activity upload history of a context
+      operationId: listContextActivityUploads
+      description: >
+        The uploads made on this context and those made on a context above it that put rows on it,
+        newest first, each with the rows it still holds (0 once a later upload replaced them).
+        Needs `data.read`.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The uploads
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { type: object } }
+        '403':
+          description: The caller may not read data
+  /contexts/{id}/activity/uploads/{uploadId}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: uploadId, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      tags: [Contexts]
+      summary: Undo an activity upload
+      operationId: deleteContextActivityUpload
+      description: Removes one upload made on this context and every row it holds. Needs `data.write.contexts`.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The upload is gone
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadId: { type: string, format: uuid }
+                  rowsRemoved: { type: integer }
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: No such upload on this context
   /contexts/tree:
     get:
       tags: [Contexts]
@@ -3166,6 +3420,21 @@ components:
               column: { type: string }
               kind: { type: string, enum: [Identity, Principal, Resource] }
               shape: { type: string, enum: [list, long] }
+        attributeColumns: { type: array, items: { type: string } }
+    ContextActivityMapping:
+      type: object
+      description: How the columns of an activity export become activity rows (docs/architecture/context-activity.md).
+      required: [sourceLabel, dateColumn]
+      properties:
+        sourceLabel: { type: string, maxLength: 80, description: The source; a later upload of the same source on the same context replaces the overlapping period }
+        contextColumn: { type: string, nullable: true, description: The column naming the sub-unit a row lands on (only on a context with sub-units) }
+        subjectNameColumn: { type: string, nullable: true }
+        subjectEmailColumn: { type: string, nullable: true }
+        dateColumn: { type: string }
+        dateOrder: { type: string, enum: [dmy, mdy] }
+        amountColumn: { type: string, nullable: true, description: Without one every row is one event }
+        unit: { type: string, enum: [hours, events] }
+        kindColumn: { type: string, nullable: true }
         attributeColumns: { type: array, items: { type: string } }
     ContextRelationshipType:
       type: string
