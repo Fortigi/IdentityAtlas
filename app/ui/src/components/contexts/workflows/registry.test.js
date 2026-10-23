@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { actionCardsFor } from './registry';
 import MatrixCard from './MatrixCard';
 import DownloadReportCard from './DownloadReportCard';
-import ComingSoonCard from './ComingSoonCard';
 import UploadInterviewCard from '@ui/components/contexts/interviews/UploadInterviewCard';
 
 const APP = { id: 'app', contextCategory: 'LogicalApplication', targetType: 'Resource' };
@@ -10,18 +9,17 @@ const unit = targetType => ({ id: targetType, contextCategory: 'OrganizationalUn
 
 describe('action registry', () => {
   const cardsOf = attrs => actionCardsFor(attrs).map(c => c.Card);
-
-  it('gives an application the matrix, the entitlement report, the interview upload and the ownership survey, in that order', () => {
-    expect(cardsOf(APP)).toEqual([MatrixCard, DownloadReportCard, UploadInterviewCard, ComingSoonCard]);
-    // On its template, whatever it holds.
-    expect(cardsOf({ ...APP, targetType: undefined })).toEqual([MatrixCard, DownloadReportCard, UploadInterviewCard, ComingSoonCard]);
-  });
-
   const keysOf = (attrs, opts) => actionCardsFor(attrs, opts).map(c => c.key);
 
-  it('gives a unit of accounts or people the matrix, the unit report, the interview upload and the survey', () => {
+  it('gives an application the matrix, the entitlement report and the interview upload, in that order', () => {
+    expect(cardsOf(APP)).toEqual([MatrixCard, DownloadReportCard, UploadInterviewCard]);
+    // On its template, whatever it holds.
+    expect(cardsOf({ ...APP, targetType: undefined })).toEqual([MatrixCard, DownloadReportCard, UploadInterviewCard]);
+  });
+
+  it('gives a unit of accounts or people the matrix, the unit report and the interview upload', () => {
     for (const t of ['Identity', 'Principal']) {
-      expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'download-unit-report', 'upload-interview', 'manager-survey', 'review-members']);
+      expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'download-unit-report', 'upload-interview']);
     }
     const card = actionCardsFor(unit('Principal')).find(c => c.key === 'download-unit-report');
     expect(card.Card).toBe(DownloadReportCard);
@@ -29,30 +27,20 @@ describe('action registry', () => {
   });
 
   it('gives a unit of resources (or systems) no report card', () => {
-    for (const t of ['Resource', 'System']) expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'upload-interview', 'manager-survey', 'review-members']);
+    for (const t of ['Resource', 'System']) expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'upload-interview']);
   });
 
-  it('words the survey per template: an owner for an application, a manager for a unit', () => {
-    const props = (attrs, key) => actionCardsFor(attrs).find(c => c.key === key).props;
-    expect(props(APP, 'ownership-survey')).toMatchObject({ title: 'Start ownership survey', testId: 'action-ownership-survey' });
-    expect(props(APP, 'ownership-survey').text).toMatch(/^Ask the accountable owner to confirm they own this/);
-    expect(props(unit('Identity'), 'manager-survey')).toMatchObject({ title: 'Start manager survey', testId: 'action-manager-survey' });
-    expect(props(unit('Identity'), 'manager-survey').text).toMatch(/^Ask the manager to confirm they lead this team/);
-    expect(props(unit('Principal'), 'review-members')).toMatchObject({ title: 'Review team members', button: 'Start review' });
-    // Every coming-soon card is a ComingSoonCard.
-    for (const key of ['manager-survey', 'review-members']) {
-      expect(actionCardsFor(unit('Identity')).find(c => c.key === key).Card).toBe(ComingSoonCard);
+  it('offers no announced-but-unbuilt cards', () => {
+    for (const attrs of [APP, unit('Identity'), unit('Principal'), unit('Resource')]) {
+      expect(keysOf(attrs).filter(k => /survey|review-members/.test(k))).toEqual([]);
     }
   });
 
-  it('leaves the surveys, the interview upload and the matrix out of a read-only shared view, keeping the reports', () => {
-    const shared = attrs => actionCardsFor(attrs, { sharedView: true }).map(c => c.Card);
-    expect(shared(APP)).toEqual([DownloadReportCard]);
-    // A context owner's own unit keeps its report; the surveys and the review are the analyst's,
-    // and the matrix is a page of the app the owner cannot open.
+  // A context owner's read-only page: no matrix (an in-app page they cannot open)
+  // and no interview upload (an analyst's move); the reports stay.
+  it('keeps only the reports on a read-only shared view', () => {
+    expect(keysOf(APP, { sharedView: true })).toEqual(['download-report']);
     expect(keysOf(unit('Identity'), { sharedView: true })).toEqual(['download-unit-report']);
-    expect(keysOf(unit('Principal'), { sharedView: true })).toEqual(['download-unit-report']);
-    // A unit of resources has no report, so nothing is left for its owner.
     expect(keysOf(unit('Resource'), { sharedView: true })).toEqual([]);
   });
 

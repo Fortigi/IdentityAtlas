@@ -10,18 +10,15 @@
 // application holds and who holds it. An organisational unit (of people,
 // accounts or resources) gets the matrix; a unit of accounts or people also
 // gets the unit report (its members, their entitlement counts and attributes) —
-// a unit of resources has no report card. Announced as "Coming soon" until they
-// are built (docs/architecture/ownership-survey.md): an application's ownership
-// survey; a unit's manager survey and its member review.
+// a unit of resources has no report card.
 //
 // A read-only shared view (a context owner's page) leaves out two kinds of card:
-// `analystOnly` — starting a survey is the analyst's move, not the owner's — and
+// `analystOnly` — work only an analyst starts — and
 // `inApp` — a card that opens a page of the app (the matrix), which that reader
 // cannot reach. The report cards stay: the owner may export their own context.
 
 import MatrixCard from './MatrixCard';
 import DownloadReportCard from './DownloadReportCard';
-import ComingSoonCard from './ComingSoonCard';
 import UploadInterviewCard from '@ui/components/contexts/interviews/UploadInterviewCard';
 
 // inApp: the card opens a page of the app, which a read-only shell cannot reach.
@@ -43,31 +40,9 @@ const DOWNLOAD_UNIT_REPORT = {
 // or unreviewed claims (docs/architecture/context-interviews.md).
 const UPLOAD_INTERVIEW = { key: 'upload-interview', Card: UploadInterviewCard, analystOnly: true };
 
-// A card for work announced but not built yet.
-const comingSoon = (key, props) => ({ key, Card: ComingSoonCard, analystOnly: true, props: { ...props, testId: `action-${key}` } });
-
-const OWNERSHIP_SURVEY = comingSoon('ownership-survey', {
-  title: 'Start ownership survey',
-  text: 'Ask the accountable owner to confirm they own this — or tell us who does — and check that the '
-    + 'right responsible people and delegates are set.',
-  button: 'Start survey',
-});
-const MANAGER_SURVEY = comingSoon('manager-survey', {
-  title: 'Start manager survey',
-  text: 'Ask the manager to confirm they lead this team — or tell us who does — and name any delegates who '
-    + 'may manage it with them.',
-  button: 'Start survey',
-});
-const MEMBER_REVIEW = comingSoon('review-members', {
-  title: 'Review team members',
-  text: 'Ask the accountable or responsible person to confirm the members of this team are right, and say '
-    + 'who should be added or removed.',
-  button: 'Start review',
-});
-
 const ACTIONS = {
-  OrganizationalUnit: [VIEW_IN_MATRIX, DOWNLOAD_UNIT_REPORT, UPLOAD_INTERVIEW, MANAGER_SURVEY, MEMBER_REVIEW],
-  LogicalApplication: [VIEW_IN_MATRIX, DOWNLOAD_REPORT, UPLOAD_INTERVIEW, OWNERSHIP_SURVEY],
+  OrganizationalUnit: [VIEW_IN_MATRIX, DOWNLOAD_UNIT_REPORT, UPLOAD_INTERVIEW],
+  LogicalApplication: [VIEW_IN_MATRIX, DOWNLOAD_REPORT, UPLOAD_INTERVIEW],
 };
 
 /** The action cards this context shows, in order; `sharedView` drops the analyst-only and in-app ones. */
