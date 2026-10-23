@@ -23,6 +23,12 @@ param uploadsStorageName string
 @description('Container image full reference, e.g. ghcr.io/fortigi/identity-atlas-worker:latest')
 param image string
 
+@description('Registry host the image is pulled from, e.g. contoso.azurecr.io. Only used with pullIdentityId.')
+param registryServer string = ''
+
+@description('Image-pull identity (resource ID) for a private Azure Container Registry. Empty = anonymous pull from a public registry.')
+param pullIdentityId string = ''
+
 @description('Web app FQDN, used to compute WEB_API_URL')
 param webAppHostname string
 
@@ -32,14 +38,19 @@ param cpu string = '0.25'
 @description('Worker memory (0.5Gi, 1Gi, 1.5Gi, 2Gi, ...)')
 param memory string = '0.5Gi'
 
+var privateRegistry = !empty(pullIdentityId)
+
 resource app 'Microsoft.App/containerApps@2024-10-02-preview' = {
   name: '${namePrefix}-worker'
   location: location
+  // No identity of its own; only the image-pull identity, and only for a private registry.
+  identity: privateRegistry ? { type: 'UserAssigned', userAssignedIdentities: { '${pullIdentityId}': {} } } : null
   properties: {
     managedEnvironmentId: envId
     configuration: {
       activeRevisionsMode: 'Single'
       // No ingress — the worker has no inbound HTTP.
+      registries: privateRegistry ? [{ server: registryServer, identity: pullIdentityId }] : []
     }
     template: {
       containers: [

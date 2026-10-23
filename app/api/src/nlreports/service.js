@@ -24,15 +24,24 @@ import {
   applyTermChoice, correctionMessage, findTerms, loadKnownNames, locateTerms, termConfirmation, termHint, unusedTerms,
 } from './terms.js';
 import { isFeatureEnabled } from '../featureFlags.js';
+import { createSharedCache } from '../db/valueCache.js';
 
-const VALUES_TTL_MS = 5 * 60 * 1000;
 const MAX_CLARIFY_ROUNDS = 2;
 const STATEMENT_TIMEOUT = '15s';
 
-let valuesCache = { at: 0, values: null };
+// Shared and served stale-while-revalidate (db/valueCache.js): the Reports list
+// builds every custom report at once, and each build asks for these lists.
+const valuesCache = createSharedCache('Report value lists', async () => {
+  const values = {};
+  for (const [key, sql] of Object.entries(VALUE_QUERIES)) {
+    const { rows } = await query(sql);
+    values[key] = rows.map(r => r.v).filter(v => v !== null && v !== '').sort();
+  }
+  return values;
+});
 
 /** Test seam: forget the cached value lists, so a test can supply its own. */
-export function clearValuesCache() { valuesCache = { at: 0, values: null }; }
+export function clearValuesCache() { valuesCache.clear(); }
 
 // The prompt-cache warm-up for the report prompt. Why it re-restores on every call
 // instead of remembering an earlier success: see warmup.js.
@@ -54,15 +63,8 @@ export async function warmAtStartup(options = {}) {
   });
 }
 
-export async function loadValues() {
-  if (valuesCache.values && Date.now() - valuesCache.at < VALUES_TTL_MS) return valuesCache.values;
-  const values = {};
-  for (const [key, sql] of Object.entries(VALUE_QUERIES)) {
-    const { rows } = await query(sql);
-    values[key] = rows.map(r => r.v).filter(v => v !== null && v !== '').sort();
-  }
-  valuesCache = { at: Date.now(), values };
-  return values;
+export function loadValues() {
+  return valuesCache.get();
 }
 
 function addTiming(a, b) {

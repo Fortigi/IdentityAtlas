@@ -1,10 +1,9 @@
 // Identity Atlas — Azure deployment, STEP 1 of 2.
 //
-// This template deploys the application in OPEN mode (no Entra ID auth).
-// The output URL is the hostname you'll register in the Entra App Reg.
-//
-// To turn auth ON, run STEP 2 (`main-auth.bicep`) against the SAME RG
-// after registering an Entra App with this hostname as the SPA redirect URI.
+// On a first deployment, sign-in is not configured yet: the output URL is the
+// hostname you'll register in the Entra App Reg. Then either run STEP 2
+// (`main-auth.bicep`) against the SAME RG, or — for a deployment you redeploy
+// to upgrade — pass entraTenantId / entraClientId to this template (see below).
 //
 // What this deploys:
 //   - App Service Plan (Linux) + App Service for Containers (web)
@@ -46,12 +45,18 @@ param sizeProfile string = 's'
 @allowed(['stable', 'edge'])
 param imageChannel string = 'stable'
 
+@description('Optional: the exact release to run, e.g. 6.0.2.0 (a release) or 6.1.0-beta.1 (a pre-release) — every release is published under its version for all three images. When set it overrides imageChannel, so each deployment is reproducible and an upgrade or a rollback is a change to this one value. Empty = follow imageChannel.')
+param imageTag string = ''
+
+@description('Optional: FULL ARM resource ID of your own Azure Container Registry to pull the images from instead of ghcr.io — typically a pull-through cache of ghcr.io/fortigi/* (an ACR cache rule). The images must be at the same paths: fortigi/identity-atlas, fortigi/identity-atlas-worker, fortigi/identity-atlas-report-generator. The template creates a pull identity and grants it AcrPull on this registry, so the deployer needs the right to create role assignments there. Empty = pull from public ghcr.io.')
+param containerRegistryResourceId string = ''
+
 @description('Deploy the EXPERIMENTAL report generator: a small language model in its own container that turns a report described in plain language into a report definition. Scales to zero, so it only costs while in use. Questions and data never leave the deployment. Leave false to keep custom reports hand-built only.')
 param deployReportGenerator bool = false
 
-@description('API key the web app uses to reach the report generator. Generated per deployment; you never need to set this.')
+@description('Optional: the API key the web app uses to reach the report generator. Empty (recommended) = generated once into Key Vault and kept across redeploys. Set it only to choose the key yourself.')
 @secure()
-param reportGeneratorApiKey string = newGuid()
+param reportGeneratorApiKey string = ''
 
 @description('Optional: CIDRs allowed to reach the report generator, e.g. ["20.1.2.3/32"]. The report generator has public ingress (there is no VNet in this shape) and the API key is what protects it; this narrows it further to the web app\'s outbound addresses. deploy.ps1 fills this in from the existing web app, so a first deployment leaves it empty and a re-run narrows it. Empty = any IP may connect, and must still present the key.')
 param reportGeneratorAllowedCallerIps array = []
@@ -76,10 +81,20 @@ param rotatePostgresPassword bool = false
 @description('Restore the legacy Postgres firewall rule that admits all Azure services (any tenant). Not recommended; public network mode only.')
 param postgresAllowAllAzureServices bool = false
 
-// Entra ID auth is NOT configured by this template. It deploys the app in
-// OPEN mode (anyone with the URL can reach it). To turn auth on, run
-// `main-auth.bicep` (Step 2) against the resulting RG once you've registered
-// an App Reg in Entra with the deployed hostname as a SPA redirect URI.
+// Entra ID sign-in: two ways to configure it.
+//   - Step 2 (`main-auth.bicep`) after this one — the Deploy to Azure path,
+//     because the redirect URI needs this deployment's hostname first. But this
+//     template REPLACES the app settings, so every redeploy of it clears what
+//     Step 2 set and users land on "Entra ID setup required" until Step 2 runs
+//     again.
+//   - The two parameters below, for a deployment managed as code: put them in
+//     the parameters file once (after registering the app against the hostname
+//     of the first deployment) and every redeploy keeps sign-in configured.
+@description('Optional: Entra ID tenant (directory) GUID for sign-in. Set it together with entraClientId to keep sign-in configured across redeploys — needed when this template is redeployed for upgrades. Empty = configure sign-in with Step 2 (main-auth), which a redeploy of this template clears again.')
+param entraTenantId string = ''
+
+@description('Optional: Entra ID App Registration (client) GUID for sign-in. See entraTenantId.')
+param entraClientId string = ''
 
 // ─── Size profile → SKUs ─────────────────────────────────────────────────
 
@@ -142,11 +157,21 @@ var profile = sizeMap[sizeProfile]
 // time; resources don't get a per-resource override.
 var location = resourceGroup().location
 
-// Resolve image references from the channel selector.
-var _imageTag = imageChannel == 'stable' ? 'latest' : 'edge'
-var webImage = 'ghcr.io/fortigi/identity-atlas:${_imageTag}'
-var workerImage = 'ghcr.io/fortigi/identity-atlas-worker:${_imageTag}'
-var reportGeneratorImage = 'ghcr.io/fortigi/identity-atlas-report-generator:${_imageTag}'
+// Resolve image references: an exact version when one is given, otherwise the
+// channel's floating tag.
+var _imageTag = !empty(imageTag) ? imageTag : (imageChannel == 'stable' ? 'latest' : 'edge')
+
+// Where the images come from. A configured registry is the customer's own ACR,
+// usually a pull-through cache of ghcr.io; its login server comes from the
+// registry itself (acr-pull-role.bicep), so it cannot be mistyped.
+var privateRegistry = !empty(containerRegistryResourceId)
+// Never split an empty ID: the placeholder keeps the indexes below valid when no
+// registry is configured (the modules that use them are then not deployed).
+var _acrIdParts = split(privateRegistry ? containerRegistryResourceId : '/subscriptions/none/resourceGroups/none/providers/Microsoft.ContainerRegistry/registries/none', '/')
+var registryServer = privateRegistry ? acrPullRole!.outputs.loginServer : 'ghcr.io'
+var webImage = '${registryServer}/fortigi/identity-atlas:${_imageTag}'
+var workerImage = '${registryServer}/fortigi/identity-atlas-worker:${_imageTag}'
+var reportGeneratorImage = '${registryServer}/fortigi/identity-atlas-report-generator:${_imageTag}'
 
 // Postgres admin password: generated randomly by the bootstrap script and kept
 // in Key Vault (SEC-2026-09 H-06). It used to be derived here with
@@ -196,9 +221,8 @@ module identities 'modules/identities.bicep' = {
   }
 }
 
-// Compute the KV name HERE (not inside the module) so the `existing`
-// reference below can use the same static value. Bicep can't take
-// dependencies on names produced by `module.outputs.*` (BCP433).
+// Compute the KV name HERE (not inside the module) so the private-network
+// lockdown pass below re-applies the same vault.
 var kvName = take('${namePrefix}-kv-${uniqueString(resourceGroup().id)}', 24)
 
 module kv 'modules/key-vault.bicep' = {
@@ -209,13 +233,6 @@ module kv 'modules/key-vault.bicep' = {
     webIdentityPrincipalId: identities.outputs.webIdentityPrincipalId
     deployScriptPrincipalId: identities.outputs.deployScriptIdentityPrincipalId
   }
-}
-
-// Same vault, referenced by its static name so the Postgres password can be
-// passed with getSecret(): ARM resolves it at deployment time and the value
-// never appears in the template, the parameters or the deployment history.
-resource kvRef 'Microsoft.KeyVault/vaults@2024-11-01' existing = {
-  name: kvName
 }
 
 // ─── Bootstrap: generate master key + DB password into KV ───────────────
@@ -229,17 +246,48 @@ module bootstrap 'modules/bootstrap.bicep' = {
     keyVaultName: kv.outputs.kvName
     rotatePostgresPassword: rotatePostgresPassword
     existingLogAnalyticsWorkspaceId: existingLogAnalyticsWorkspaceId
+    containerRegistryResourceId: containerRegistryResourceId
+    reportGeneratorApiKey: reportGeneratorApiKey
   }
+}
+
+// ─── Images from your own registry (optional) ──────────────────────────
+//
+// An identity that can only pull, granted AcrPull on the customer's registry.
+// The role assignment waits for the bootstrap script, which checks the
+// registry ID's format first so a typo fails with a readable message.
+
+module pullIdentity 'modules/registry-pull-identity.bicep' = if (privateRegistry) {
+  name: 'registry-pull-identity'
+  params: {
+    namePrefix: namePrefix
+    location: location
+  }
+}
+
+module acrPullRole 'modules/acr-pull-role.bicep' = if (privateRegistry) {
+  name: 'acr-pull-role'
+  scope: resourceGroup(_acrIdParts[2], _acrIdParts[4])
+  params: {
+    registryName: _acrIdParts[8]
+    principalId: pullIdentity!.outputs.principalId
+  }
+  dependsOn: [bootstrap]
 }
 
 // ─── Postgres ───────────────────────────────────────────────────────────
 
-module postgres 'modules/postgres.bicep' = {
+// The password is read with getSecret() INSIDE the wrapper, which gets the vault
+// name from the key-vault module's output. Never pass getSecret() on a vault
+// named statically here: ARM then resolves it at preflight, before the vault
+// exists, and every fresh install fails with KeyVaultParameterReferenceNotFound.
+// The value never appears in the template, the parameters or the history.
+module postgres 'modules/postgres-kv-password.bicep' = {
   name: 'postgres'
   params: {
+    keyVaultName: kv.outputs.kvName
     namePrefix: namePrefix
     location: location
-    adminPassword: kvRef.getSecret('postgres-admin-password')
     skuName: profile.postgresSku
     skuTier: profile.postgresTier
     storageGb: profile.postgresStorageGb
@@ -259,11 +307,14 @@ module web 'modules/app-service.bicep' = {
   name: 'app-service'
   params: {
     reportGeneratorUrl: reportGeneratorUrl
-    reportGeneratorApiKey: deployReportGenerator ? reportGeneratorApiKey : ''
+    reportGeneratorKeySecretUri: deployReportGenerator ? bootstrap.outputs.reportGeneratorKeySecretUri : ''
     namePrefix: namePrefix
     location: location
     sku: profile.appServiceSku
     image: webImage
+    registryServer: registryServer
+    pullIdentityId: privateRegistry ? pullIdentity!.outputs.identityId : ''
+    pullIdentityClientId: privateRegistry ? pullIdentity!.outputs.clientId : ''
     identityId: identities.outputs.webIdentityId
     keyVaultUri: kv.outputs.kvUri
     pgFqdn: postgres.outputs.pgFqdn
@@ -273,6 +324,8 @@ module web 'modules/app-service.bicep' = {
     uploadsShareName: storage.outputs.uploadsShareName
     logAnalyticsWorkspaceId: logs.outputs.workspaceId
     pgPasswordSecretUri: bootstrap.outputs.pgPasswordSecretUri
+    entraTenantId: entraTenantId
+    entraClientId: entraClientId
     ipSecurityRestrictionsDefaultAction: webAccessDefaultAction
     allowedIpCidrs: webAllowedIpCidrs
     vnetIntegrationSubnetId: privateNetworking ? network!.outputs.webSubnetId : ''
@@ -334,6 +387,8 @@ module worker 'modules/aca-app-worker.bicep' = {
     envId: cae.outputs.envId
     uploadsStorageName: cae.outputs.uploadsStorageName
     image: workerImage
+    registryServer: registryServer
+    pullIdentityId: privateRegistry ? pullIdentity!.outputs.identityId : ''
     webAppHostname: web.outputs.appHostname
     cpu: profile.workerCpu
     memory: profile.workerMemory
@@ -342,15 +397,18 @@ module worker 'modules/aca-app-worker.bicep' = {
 
 // ─── Report generator Container App (experimental, opt-in) ──────────────
 
-module reportGenerator 'modules/aca-app-report-generator.bicep' = if (deployReportGenerator) {
+module reportGenerator 'modules/report-generator-kv-key.bicep' = if (deployReportGenerator) {
   name: 'aca-app-report-generator'
   params: {
+    // The API key is read from Key Vault inside the wrapper (bootstrap writes it).
+    keyVaultName: kv.outputs.kvName
     namePrefix: namePrefix
     location: location
     envId: cae.outputs.envId
     promptCacheStorageName: cae.outputs.promptCacheStorageName
     image: reportGeneratorImage
-    apiKey: reportGeneratorApiKey
+    registryServer: registryServer
+    pullIdentityId: privateRegistry ? pullIdentity!.outputs.identityId : ''
     // Only the web app should reach it. These are shared Azure outbound addresses,
     // so this narrows the exposure without being a boundary — the API key is that.
     // NOT in the private network mode: there the web app routes all outbound traffic

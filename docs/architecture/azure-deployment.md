@@ -150,7 +150,72 @@ az webapp restart --name <namePrefix>-web --resource-group <rg>
 az containerapp revision restart --name <namePrefix>-worker --resource-group <rg> --revision <latestRevisionName>
 ```
 
-To pin to an exact version tag rather than a channel, edit `_imageTag` in `main.bicep` directly and redeploy — the CLI/portal `imageChannel` parameter only offers the `stable` / `edge` channels above.
+A restart only re-pulls the floating tag. To make the version part of the
+deployment itself, pin it.
+
+### Pinning an exact release
+
+Set `imageTag` to the release you want (`./deploy.ps1 -ImageTag 6.0.2.0`, or the
+`imageTag` parameter in your parameters file). Every release is published under
+its own version for all three images: `X.Y.Z.0` for a release, `X.Y.Z-beta.N`
+(or `-rc.N` / `-alpha.N`) for a pre-release. When `imageTag` is set it overrides
+`imageChannel`. When it is empty, the deployment follows the channel as before.
+
+**Every release also ships its template, already pinned.** The GitHub release
+has `IdentityAtlas-azure-<version>.zip` attached: the `azure/` folder as it is
+at that release, with `imageTag` defaulting to that release's images. A
+template taken from that package deploys exactly the images it was released
+with, without anyone filling in a version, so template and images cannot drift
+apart. It is the copy to keep in your own repository when you manage the
+deployment as code: an upgrade then brings the template changes and the new
+images in together. (The Deploy to Azure button keeps reading `main`'s
+template, which is not pinned and follows `imageChannel`.) For the full setup,
+an update workflow that proposes each new release as a pull request plus a
+deploy pipeline, see [Managing the Azure deployment as code](azure-gitops.md).
+
+With the version pinned:
+
+- **Every deployment is reproducible.** The same template and parameters run the
+  same release, whenever you deploy them.
+- **An upgrade is a change to one value.** A new version changes the image
+  reference, so redeploying creates a new revision on its own. You don't need to
+  restart anything by hand.
+- **A rollback is redeploying the previous version.** Images only, though:
+  database migrations run forward. If a newer release has already migrated the
+  schema, an older release then runs on a newer schema. Take a Postgres restore
+  point (Flexible Server point-in-time restore) before an upgrade, and restore it
+  if you need to go back across a migration.
+
+### Pulling the images from your own registry
+
+To keep your own copy of the images, for example when the deployment may not
+reach ghcr.io, or to keep exactly what you ran, mirror them into an Azure
+Container Registry with a cache rule, and point the template at that registry:
+
+```bash
+# One cache rule per image. The ghcr.io/fortigi images are public, so the rules
+# need no credentials.
+for img in identity-atlas identity-atlas-worker identity-atlas-report-generator; do
+  az acr cache create --registry <acr> --name "$img" \
+    --source-repo "ghcr.io/fortigi/$img" --target-repo "fortigi/$img"
+done
+```
+
+Then deploy with `containerRegistryResourceId` set to the registry's full
+resource ID (`./deploy.ps1 -ContainerRegistryResourceId /subscriptions/.../registries/<acr>`).
+The template then:
+
+- creates a pull-only managed identity (`<namePrefix>-mi-acrpull`) and grants it
+  **AcrPull** on that registry,
+- pulls the web, worker and report-generator images from
+  `<acr>.azurecr.io/fortigi/...` with that identity.
+
+The images must sit at the same paths (`fortigi/identity-atlas`,
+`fortigi/identity-atlas-worker`, `fortigi/identity-atlas-report-generator`),
+which the cache rules above give you. Whoever runs the deployment needs the
+right to create role assignments on the registry (Owner, User Access
+Administrator or Role Based Access Control Administrator). Combine it with
+`imageTag` to pin the version you pull through.
 
 ### Logs
 
@@ -195,6 +260,8 @@ During a private-mode redeploy, Key Vault and Storage are opened (default action
 
 The admin password is random, generated once by the bootstrap script and stored in Key Vault as `postgres-admin-password`; the template passes it to the server with `getSecret()` and the web app references the exact secret version. Nothing about it is derived from resource names.
 
+The `getSecret()` call sits in a wrapper module (`postgres-kv-password.bicep`) that gets the vault name from the key-vault module's output. Do not move it back to a vault named statically in `main.bicep`: ARM then resolves the reference during preflight validation, before the vault exists, and every fresh install fails with `KeyVaultParameterReferenceNotFound` (this happened in v6.0.0). `test/unit/AzureKeyVaultReferences.Tests.ps1` guards it.
+
 **Deployments created before this change** used a password derived from the subscription ID and resource group name, which anyone who learns both can compute. Redeploying keeps that password (nothing rotates silently). Rotate it once, deliberately:
 
 ```powershell
@@ -228,7 +295,8 @@ Key Vault has soft delete + purge protection (7-day retention). To redeploy with
 | **Architecture** | App Service + Postgres Flex + ACA worker | Matches the customer's CCoE pattern — no networking provisioning. |
 | **Postgres endpoint** | Public + firewall limited to the web app's outbound IPs (default), or private endpoint (`networkMode=private`) | "Allow Azure services" admitted every Azure tenant. The App Service publishes every outbound address it can use, so the rules are exact without a VNet. |
 | **Key Vault endpoint** | Public, access policies (default); private endpoint + Deny (`networkMode=private`) | The bootstrap script and App Service Key Vault references need network access; without a VNet that means the public endpoint. Access is gated by access policies either way. |
-| **App Service image source** | Direct pull from public `ghcr.io` | No ACR needed (~€5/mo saved + simpler deploy). Add ACR later if a tenant demands a private registry. |
+| **App Service image source** | Direct pull from public `ghcr.io` (default); the customer's own ACR with `containerRegistryResourceId` | No ACR needed by default (~€5/mo saved + simpler deploy). A tenant that wants its own copy of the images points the template at its ACR (typically a pull-through cache of ghcr.io), pulled with a dedicated AcrPull-only identity. |
+| **Report generator API key** | Random, generated once by the deployment script, kept in KV | It used to be a `newGuid()` template default, so every redeploy issued a new key and restarted both containers even when nothing else changed. |
 | **Worker model** | ACA App (always-on), not ACA Job | "Sync now" should respond in <2 s. Job would have a 60-300 s schedule lag. |
 | **Master key + DB password** | Random, generated by deployment script, stored in KV, exposed to the app via KV references | Zero secrets in the template, the deployment history, or ARM, and nothing derivable from resource names. App reads them via managed identity at startup. |
 | **Auth** | `AUTH_ENABLED=false` by default | Avoids requiring an App Registration before first login. Configurable post-deploy via Admin → Authentication. |
@@ -263,6 +331,7 @@ Key Vault has soft delete + purge protection (7-day retention). To redeploy with
 | `azure/modules/postgres-firewall.bicep` | Public mode: Postgres firewall rules for the web app's outbound IPs |
 | `azure/modules/bootstrap.bicep` | One-shot deployment script for secrets |
 | `azure/modules/postgres.bicep` | Postgres Flex |
+| `azure/modules/postgres-kv-password.bicep` | Wrapper that reads the Postgres password from Key Vault (`getSecret()`) at deploy time, not at preflight |
 | `azure/modules/app-service.bicep` | App Service Plan + App Service for Containers |
 | `azure/modules/aca-env.bicep` | Container Apps Environment (Consumption) |
 | `azure/modules/aca-app-worker.bicep` | Worker Container App (always-on) |

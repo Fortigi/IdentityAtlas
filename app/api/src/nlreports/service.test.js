@@ -12,6 +12,7 @@ import {
   warmAtStartup, warmupState,
 } from './service.js';
 import { clearExtFieldsCache } from './extFields.js';
+import { VALUE_QUERIES } from './catalog.js';
 
 describe('warm-up at API start', () => {
   const env = { ...process.env };
@@ -875,6 +876,35 @@ describe('interpret — a rejected relation is never noise', () => {
     expect(chat).toHaveBeenCalledTimes(2);
     expect(r.kind).toBe('report');
     expect(r.spec.conditions[1]).toMatchObject({ relation: 'members', quantifier: 'none' });
+  });
+});
+
+describe('loadValues', () => {
+  beforeEach(() => { clearValuesCache(); query.mockReset(); });
+
+  // Every saved report validates against these lists; a burst of callers on a
+  // cold cache must not each run the whole set of DISTINCT scans.
+  it('shares one read between callers that arrive while it is running', async () => {
+    let release;
+    const gate = new Promise(res => { release = res; });
+    query.mockImplementation(async () => { await gate; return { rows: [{ v: 'Member' }, { v: 'Guest' }, { v: null }] }; });
+
+    const calls = Array.from({ length: 12 }, () => loadValues());
+    release();
+    const results = await Promise.all(calls);
+
+    expect(query).toHaveBeenCalledTimes(Object.keys(VALUE_QUERIES).length);
+    expect(new Set(results).size).toBe(1);
+    expect(results[0].userType).toEqual(['Guest', 'Member']);
+  });
+
+  it('reads again after the cache is cleared', async () => {
+    query.mockResolvedValue({ rows: [{ v: 'Member' }] });
+    await loadValues();
+    await loadValues();
+    clearValuesCache();
+    await loadValues();
+    expect(query).toHaveBeenCalledTimes(2 * Object.keys(VALUE_QUERIES).length);
   });
 });
 

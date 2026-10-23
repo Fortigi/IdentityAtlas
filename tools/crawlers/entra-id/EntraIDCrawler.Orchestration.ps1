@@ -20,8 +20,8 @@
 #>
 
 # Run the opt-in application & service-principal permission phases in order — OAuth2
-# delegated grants, app-role assignments, app/SP owners, and application (app-only)
-# permissions. Ordered so the ownership + app-permission ensure-exists Application
+# delegated grants, app-role assignments, app/SP owners, application (app-only)
+# permissions, and app registrations. Ordered so the ownership + app-permission ensure-exists Application
 # upserts (SyncMode 'delta') run after the app-role / OAuth2 full-syncs rather than
 # clobbering them. Each phase is gated individually by its toggle.
 function Invoke-EntraApplicationPhases {
@@ -41,6 +41,7 @@ function Invoke-EntraApplicationPhases {
         $SyncAppRoles       = $false,
         $SyncAppOwners      = $false,
         $SyncAppPermissions = $false,
+        $SyncAppRegistrations = $false,
         $SyncPrincipalRelationships = $false
     )
     if ($SyncOAuth2Grants) {
@@ -54,6 +55,9 @@ function Invoke-EntraApplicationPhases {
     }
     if ($SyncAppPermissions) {
         Sync-EntraAppPermissions -SystemId $SystemId -AINamePatterns $AINamePatterns -Timings $Timings
+    }
+    if ($SyncAppRegistrations) {
+        Sync-EntraAppRegistrations -SystemId $SystemId -Timings $Timings
     }
     if ($SyncPrincipalRelationships) {
         Sync-EntraPrincipalRelationships -SystemId $SystemId -AINamePatterns $AINamePatterns -Timings $Timings

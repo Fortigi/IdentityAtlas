@@ -88,6 +88,7 @@ describe('report registry', () => {
       columns: [{ key: 'a', label: 'A' }],
       exportFormats: EXPORT_FORMAT_NAMES,
       pivots: [],
+      charts: [],
       source: 'builtin',
       author: null,
       editable: null,

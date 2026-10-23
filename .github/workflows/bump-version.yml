@@ -3,6 +3,7 @@
 #   1. Collects all fragment files from changes/*.md and prepends them to
 #      CHANGES.md, then deletes the fragments.
 #   2. Increments Minor and updates the timestamp → Major.Minor.yyyyMMdd.HHmm
+#      (Major follows the highest vX.Y.Z release tag; Minor restarts when it moves)
 #
 # Branches never touch CHANGES.md or the version file directly — each branch
 # creates a uniquely named fragment file in changes/ instead, so merge
@@ -60,12 +61,14 @@ jobs:
           }
 
           # ── 2. Increment Minor + update timestamp → Major.Minor.yyyyMMdd.HHmm
+          # Major follows the newest release tag (cut-* never writes its version
+          # back to main) — see tools/release/Get-NextDevVersion.ps1.
           $content = Get-Content setup/IdentityAtlas.psd1 -Raw
-          if ($content -match "ModuleVersion\s*=\s*'(\d+)\.(\d+)\.\d+\.\d+'") {
-            $major  = $Matches[1]
-            $minor  = [int]$Matches[2] + 1
-            $stamp  = (Get-Date -Format 'yyyyMMdd.HHmm')
-            $newVer = "$major.$minor.$stamp"
+          if ($content -match "ModuleVersion\s*=\s*'(\d+\.\d+\.\d+\.\d+)'") {
+            $current = $Matches[1]
+            $tags = git ls-remote --tags --refs origin 'v*' | ForEach-Object { ($_ -split '\s+')[1] }
+            if ($LASTEXITCODE -ne 0) { Write-Error "Could not list release tags"; exit 1 }
+            $newVer = & ./tools/release/Get-NextDevVersion.ps1 -CurrentVersion $current -Tags $tags
             $content = $content -replace "ModuleVersion\s*=\s*'\d+\.\d+\.\d+\.\d+'", "ModuleVersion = '$newVer'"
             Set-Content setup/IdentityAtlas.psd1 $content -NoNewline
             Write-Host "Bumped to $newVer"

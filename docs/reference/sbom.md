@@ -56,7 +56,7 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | vitest | ^5.0.0 | Unit testing framework | MIT |
 | supertest | ^7.3.1 | HTTP integration testing | MIT |
-| eslint | ^10.12.0 | JavaScript linter | MIT |
+| eslint | ^10.13.0 | JavaScript linter | MIT |
 | eslint-plugin-security | ^4.2.0 | Security-focused lint rules | Apache 2.0 |
 | esbuild | ^0.28.2 | Bundler for desktop launcher build | MIT |
 
@@ -68,8 +68,8 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| react | ^19.3.0 | UI framework | MIT |
-| react-dom | ^19.3.0 | React DOM renderer | MIT |
+| react | ^19.3.1 | UI framework | MIT |
+| react-dom | ^19.3.1 | React DOM renderer | MIT |
 | vite | ^8.3.4 | Build tool and dev server | MIT |
 
 ### Styling
@@ -106,7 +106,7 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | @vitejs/plugin-react | ^6.1.2 | Vite React plugin | MIT |
-| eslint | ^10.12.0 | JavaScript linter | MIT |
+| eslint | ^10.13.0 | JavaScript linter | MIT |
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.7 | React refresh linting | MIT |
 | globals | ^17.13.0 | Global variable definitions | MIT |

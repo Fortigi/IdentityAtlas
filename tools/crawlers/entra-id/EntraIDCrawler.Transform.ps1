@@ -128,6 +128,9 @@ function ConvertTo-EntraServicePrincipalRecord {
     if ($ServicePrincipal.servicePrincipalNames -and $ServicePrincipal.servicePrincipalNames.Count -gt 0) {
         $ext['servicePrincipalNames'] = ($ServicePrincipal.servicePrincipalNames -join ',')
     }
+    # Credentials on the SP itself, verified publisher, audience, reply URLs
+    # (EntraIDCrawler.AppSecurity.ps1).
+    Add-EntraAppSecurityAttributes -Object $ServicePrincipal -Ext $ext
     Add-FGEntraCalculatedAttributes -Object $ServicePrincipal -Ext $ext -Type 'ServicePrincipal' | Out-Null
     if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
     return $rec
@@ -531,24 +534,29 @@ function ConvertTo-EntraOAuth2ClientResource {
     return $rec
 }
 
-# Builds the OAuth2 delegated-grant graph from per-user consent grants: one
-# DelegatedPermission resource per (client, api, scope), a DelegatesScope
-# relationship from the client app, and a Direct assignment per consenting user.
-# Returns a hashtable with .resources / .relationships / .assignments (the caller
-# dedups assignments). $SpInfo maps an SP id -> @{ displayName; appId; publisherName }.
-# New-OAuth2ScopeResourceId / Format-FGDelegatedPermissionName come from
-# EntraIDCrawler.Functions.ps1. Verbatim from the inline `foreach ($g in $userGrants)`.
+# Builds the OAuth2 delegated-grant graph: one DelegatedPermission resource per
+# (client, api, scope), a DelegatesScope relationship from the client app, and a
+# Direct assignment per consenting user. A tenant-wide (admin) consent has no user
+# to hold it, so it marks the scope resource `adminConsented` instead of adding an
+# assignment. Returns a hashtable with .resources / .relationships / .assignments
+# (the caller dedups assignments). $SpInfo maps an SP id -> @{ displayName; appId;
+# publisherName }. New-OAuth2ScopeResourceId / Format-FGDelegatedPermissionName come
+# from EntraIDCrawler.Functions.ps1.
 function ConvertTo-EntraOAuth2ScopeGraph {
     [CmdletBinding()]
     param(
         $UserGrants,
-        [hashtable]$SpInfo = @{}
+        [hashtable]$SpInfo = @{},
+        $AdminGrants = @()
     )
     $scopeResourceMap = @{}   # scopeResId -> record
     $relMap           = @{}   # "parent|child" -> record
     $assignments      = [System.Collections.Generic.List[object]]::new()
 
-    foreach ($g in $UserGrants) {
+    foreach ($g in @($AdminGrants | Where-Object { $_ })) {
+        Add-EntraOAuth2AdminConsentToScopeGraph -Grant $g -SpInfo $SpInfo -ScopeResourceMap $scopeResourceMap -RelMap $relMap
+    }
+    foreach ($g in @($UserGrants | Where-Object { $_ })) {
         Add-EntraOAuth2GrantToScopeGraph -Grant $g -SpInfo $SpInfo `
             -ScopeResourceMap $scopeResourceMap -RelMap $relMap -Assignments $assignments
     }
@@ -559,42 +567,71 @@ function ConvertTo-EntraOAuth2ScopeGraph {
     }
 }
 
-# Fold one per-user OAuth2 grant into the scope graph: one DelegatedPermission
-# Resource + DelegatesScope relationship per (client, api, scope) and one Direct
-# assignment (user → scope resource) per scope. Maps/list are mutated in place.
+# The scopes of one grant ('Mail.Read User.Read' -> two tokens).
+function Get-EntraOAuth2GrantScopes {
+    [CmdletBinding()]
+    param($Grant)
+    if (-not $Grant.scope) { return @() }
+    return @($Grant.scope -split '\s+' | Where-Object { $_ -ne '' })
+}
+
+# Ensure the DelegatedPermission resource + DelegatesScope relationship for one
+# (client, api, scope) are in the maps, and return the resource record.
+function Add-EntraOAuth2ScopeResource {
+    [CmdletBinding()]
+    param([string]$ClientId, [string]$TargetId, [string]$Scope, [hashtable]$SpInfo, [hashtable]$ScopeResourceMap, [hashtable]$RelMap)
+    $scopeResId = New-OAuth2ScopeResourceId -ClientSpId $ClientId -TargetApiSpId $TargetId -Scope $Scope
+    if (-not $ScopeResourceMap.ContainsKey($scopeResId)) {
+        $clientName = if ($SpInfo[$ClientId]) { $SpInfo[$ClientId].displayName } else { $ClientId }
+        $targetName = if ($SpInfo[$TargetId]) { $SpInfo[$TargetId].displayName } else { $TargetId }
+        $ScopeResourceMap[$scopeResId] = @{
+            id           = $scopeResId
+            displayName  = (Format-FGDelegatedPermissionName -Scope $Scope -TargetName $targetName -ClientName $clientName)
+            resourceType = 'DelegatedPermission'
+            enabled      = $true
+            extendedAttributes = @{ clientSpId = $ClientId; clientDisplayName = $clientName; targetApiSpId = $TargetId; targetApiDisplayName = $targetName; scope = $Scope }
+        }
+    }
+    $relKey = "$ClientId|$scopeResId"
+    if (-not $RelMap.ContainsKey($relKey)) {
+        $RelMap[$relKey] = @{ parentResourceId = $ClientId; childResourceId = $scopeResId; relationshipType = 'DelegatesScope'; roleName = $Scope; roleOriginSystem = 'OAuth2' }
+    }
+    return $ScopeResourceMap[$scopeResId]
+}
+
+# Fold one per-user OAuth2 grant into the scope graph: the scope resources plus one
+# Direct assignment (user → scope resource) per scope. Maps/list are mutated in place.
 function Add-EntraOAuth2GrantToScopeGraph {
     [CmdletBinding()]
     param($Grant, [hashtable]$SpInfo, [hashtable]$ScopeResourceMap, [hashtable]$RelMap, $Assignments)
     $clientId = $Grant.clientId; $targetId = $Grant.resourceId; $userId = $Grant.principalId
     if (-not $clientId -or -not $targetId -or -not $userId) { return }
 
-    $clientName = if ($SpInfo[$clientId]) { $SpInfo[$clientId].displayName } else { $clientId }
-    $targetName = if ($SpInfo[$targetId]) { $SpInfo[$targetId].displayName } else { $targetId }
-    $scopeTokens = if ($Grant.scope) { @($Grant.scope -split '\s+' | Where-Object { $_ -ne '' }) } else { @() }
-
-    foreach ($scope in $scopeTokens) {
-        $scopeResId = New-OAuth2ScopeResourceId -ClientSpId $clientId -TargetApiSpId $targetId -Scope $scope
-        if (-not $ScopeResourceMap.ContainsKey($scopeResId)) {
-            $ScopeResourceMap[$scopeResId] = @{
-                id           = $scopeResId
-                displayName  = (Format-FGDelegatedPermissionName -Scope $scope -TargetName $targetName -ClientName $clientName)
-                resourceType = 'DelegatedPermission'
-                enabled      = $true
-                extendedAttributes = @{ clientSpId = $clientId; clientDisplayName = $clientName; targetApiSpId = $targetId; targetApiDisplayName = $targetName; scope = $scope }
-            }
-        }
-        $relKey = "$clientId|$scopeResId"
-        if (-not $RelMap.ContainsKey($relKey)) {
-            $RelMap[$relKey] = @{ parentResourceId = $clientId; childResourceId = $scopeResId; relationshipType = 'DelegatesScope'; roleName = $scope; roleOriginSystem = 'OAuth2' }
-        }
+    foreach ($scope in (Get-EntraOAuth2GrantScopes -Grant $Grant)) {
+        $res = Add-EntraOAuth2ScopeResource -ClientId $clientId -TargetId $targetId -Scope $scope -SpInfo $SpInfo -ScopeResourceMap $ScopeResourceMap -RelMap $RelMap
+        $names = $res.extendedAttributes
         $Assignments.Add(@{
-            resourceId     = $scopeResId
+            resourceId     = $res.id
             principalId    = $userId
             principalType  = 'User'
             assignmentType = 'Direct'
             resourceType   = 'DelegatedPermission'
-            extendedAttributes = @{ grantId = $Grant.id; clientSpId = $clientId; clientDisplayName = $clientName; targetApiSpId = $targetId; targetApiDisplayName = $targetName; scope = $scope }
+            extendedAttributes = @{ grantId = $Grant.id; consentType = 'Principal'; clientSpId = $clientId; clientDisplayName = $names.clientDisplayName; targetApiSpId = $targetId; targetApiDisplayName = $names.targetApiDisplayName; scope = $scope }
         })
+    }
+}
+
+# Fold one tenant-wide (consentType 'AllPrincipals') grant into the scope graph: an
+# administrator consented on behalf of every user, so the scope resource is marked
+# `adminConsented` (with the grant id) and no per-user assignment is invented.
+function Add-EntraOAuth2AdminConsentToScopeGraph {
+    [CmdletBinding()]
+    param($Grant, [hashtable]$SpInfo, [hashtable]$ScopeResourceMap, [hashtable]$RelMap)
+    if (-not $Grant.clientId -or -not $Grant.resourceId) { return }
+    foreach ($scope in (Get-EntraOAuth2GrantScopes -Grant $Grant)) {
+        $res = Add-EntraOAuth2ScopeResource -ClientId $Grant.clientId -TargetId $Grant.resourceId -Scope $scope -SpInfo $SpInfo -ScopeResourceMap $ScopeResourceMap -RelMap $RelMap
+        $res.extendedAttributes['adminConsented'] = $true
+        $res.extendedAttributes['adminConsentGrantId'] = $Grant.id
     }
 }
 
@@ -747,15 +784,69 @@ function ConvertTo-EntraIdentityRecord {
 }
 
 # Shape one access-review decision into a CertificationDecisions ingest record.
-# Verbatim from the inline `$certRecords += @{ ... }` block.
+#
+# extendedAttributes carries what tells a PERSON's decision from the platform's
+# (the Access Review Adoption reports read it): the definition's
+# "if reviewers don't respond" setting, who applied the decision and when, and
+# the reviewers this round contacted — the only record of who SHOULD have
+# decided when nobody did.
 function ConvertTo-EntraCertificationDecisionRecord {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] $Decision,
         [Parameter(Mandatory)] $Definition,
         [Parameter(Mandatory)] $Instance,
-        [string]$ApId
+        [string]$ApId,
+        [object[]]$ContactedReviewers = @()
     )
+    $d = $Decision
+    $rec = New-EntraCertificationDecisionCore -Decision $d -Definition $Definition -Instance $Instance -ApId $ApId
+    $rec['extendedAttributes'] = ConvertTo-EntraReviewDecisionExtras -Decision $d -Definition $Definition -ContactedReviewers $ContactedReviewers
+    return $rec
+}
+
+# The definition's "if reviewers don't respond" action, or 'None' when it is off.
+function Get-EntraReviewDefaultDecision {
+    [CmdletBinding()]
+    param($Settings)
+    if (-not $Settings) { return $null }
+    if ($Settings.defaultDecisionEnabled -eq $true -and $Settings.defaultDecision) { return [string]$Settings.defaultDecision }
+    return 'None'
+}
+
+# The reviewers a round contacted, reduced to who they are (no timestamps, no Graph noise).
+function ConvertTo-EntraContactedReviewerList {
+    [CmdletBinding()]
+    param([object[]]$Reviewers = @())
+    return @(@($Reviewers) | Where-Object { $_ -and $_.id } | ForEach-Object {
+        [ordered]@{ id = [string]$_.id; displayName = $_.displayName; userPrincipalName = $_.userPrincipalName }
+    })
+}
+
+# The extendedAttributes of one decision record. Pure.
+function ConvertTo-EntraReviewDecisionExtras {
+    [CmdletBinding()]
+    param($Decision, $Definition, [object[]]$ContactedReviewers = @())
+    $ext = [ordered]@{ reviewName = $Definition.displayName }
+    $default = Get-EntraReviewDefaultDecision -Settings $Definition.settings
+    if ($default) { $ext['defaultDecision'] = $default }
+    if ($null -ne $Definition.settings.autoApplyDecisionsEnabled) { $ext['autoApplyDecisions'] = [bool]$Definition.settings.autoApplyDecisionsEnabled }
+    if ($Decision.appliedBy) {
+        $ext['appliedBy'] = $Decision.appliedBy.id
+        $ext['appliedByDisplayName'] = $Decision.appliedBy.displayName
+    }
+    if ($Decision.appliedDateTime) { $ext['appliedDateTime'] = $Decision.appliedDateTime }
+    if ($Decision.applyResult) { $ext['applyResult'] = $Decision.applyResult }
+    $contacted = ConvertTo-EntraContactedReviewerList -Reviewers $ContactedReviewers
+    if ($contacted.Count -gt 0) { $ext['contactedReviewers'] = $contacted }
+    return $ext
+}
+
+# The core columns of one decision record. Verbatim from the inline
+# `$certRecords += @{ ... }` block.
+function New-EntraCertificationDecisionCore {
+    [CmdletBinding()]
+    param($Decision, $Definition, $Instance, [string]$ApId)
     $d = $Decision
     return @{
         id                          = $d.id

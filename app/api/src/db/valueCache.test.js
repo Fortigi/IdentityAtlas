@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  createValueCache, valuePageSize, STALE_GRACE, COLUMN_CACHE_TTL,
+  createSharedCache, createValueCache, valuePageSize, STALE_GRACE, COLUMN_CACHE_TTL,
   DEFAULT_VALUE_PAGE_SIZE, MAX_VALUE_PAGE_SIZE, VALUE_SEARCH_LIMIT,
 } from './valueCache.js';
 
@@ -210,6 +210,27 @@ describe('createValueCache — stale-while-revalidate', () => {
     // generation's in-flight refresh produced.
     slow.mockResolvedValue({ values: { a: ['fresh'] }, truncated: {} });
     expect((await cache.get()).values.a).toEqual(['fresh']);
+  });
+
+  it('caches any value as it was loaded when there is no key — nothing stamped onto it', async () => {
+    const plain = vi.fn().mockResolvedValueOnce(['a', 'b']).mockResolvedValue(['c']);
+    const cache = createSharedCache('Plain', plain);
+    expect(await cache.get()).toEqual(['a', 'b']);
+    expect(await cache.get()).toEqual(['a', 'b']);
+    expect(plain).toHaveBeenCalledTimes(1);
+    expect(plain).toHaveBeenCalledWith(null);
+  });
+
+  it('logs a failed background refresh under the label it was given', async () => {
+    vi.useFakeTimers();
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failing = vi.fn().mockResolvedValueOnce({ ok: true }).mockRejectedValue(new Error('db gone'));
+    const cache = createSharedCache('Report value lists', failing);
+    await cache.get();
+    vi.advanceTimersByTime(COLUMN_CACHE_TTL + 1);
+    expect(await cache.get()).toEqual({ ok: true });
+    await vi.waitFor(() => expect(err).toHaveBeenCalledWith('Report value lists refresh failed:', 'db gone'));
+    err.mockRestore();
   });
 
   it('keeps two caches independent', async () => {
