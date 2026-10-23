@@ -376,6 +376,59 @@ describe('ingest handler — delete-by-id', () => {
   });
 });
 
+// ── delete-by-key path ───────────────────────────────────────────────────────
+
+describe('ingest handler — delete-by-key (removed memberships)', () => {
+  const P = '22222222-2222-2222-2222-222222222222';
+  const key = { resourceId: UUID, principalId: P, assignmentType: 'Direct' };
+  const deleteByKey = (sql) => typeof sql === 'string' && /DELETE FROM "ResourceAssignments" t USING unnest/.test(sql);
+
+  it('accepts a delta batch that only removes memberships, and reports the count', async () => {
+    mockQuery.mockImplementation(async (sql) => (deleteByKey(sql) ? { rowCount: 1, rows: [] } : { rows: [], rowCount: 0 }));
+    const res = await request(app).post('/ingest/resource-assignments')
+      .send({ systemId: 5, syncMode: 'delta', records: [], deletedKeys: [key] });
+    expect(res.status).toBe(201);
+    expect(res.body.deleted).toBe(1);
+    const [, params] = mockQuery.mock.calls.find(([sql]) => deleteByKey(sql));
+    expect(params).toEqual([[UUID], [P], ['Direct'], [false], 5]);
+  });
+
+  it('adds the key deletes to the id deletes', async () => {
+    mockQuery.mockImplementation(async (sql) => {
+      if (deleteByKey(sql)) return { rowCount: 2, rows: [] };
+      if (typeof sql === 'string' && /DELETE FROM "ResourceAssignments" t WHERE t.id/.test(sql)) return { rowCount: 3, rows: [] };
+      return { rows: [], rowCount: 0 };
+    });
+    const res = await request(app).post('/ingest/resource-assignments')
+      .send({ systemId: 5, syncMode: 'delta', records: [], deletedIds: [UUID], deletedKeys: [key, key] });
+    expect(res.status).toBe(201);
+    expect(res.body.deleted).toBe(5);
+  });
+
+  it('400 with the bad entry named, before anything is written', async () => {
+    const res = await request(app).post('/ingest/resource-assignments')
+      .send({ systemId: 5, syncMode: 'delta', records: [], deletedKeys: [key, { ...key, principalId: 'user-7' }] });
+    expect(res.status).toBe(400);
+    expect(res.body.details).toEqual(['deletedKeys[1]: principalId must be a UUID']);
+    expect(mockIngest).not.toHaveBeenCalled();
+    expect(mockQuery.mock.calls.some(([sql]) => deleteByKey(sql))).toBe(false);
+  });
+
+  it('400 on an entity that has no composite key to delete by', async () => {
+    const res = await request(app).post('/ingest/principals')
+      .send({ systemId: 5, syncMode: 'delta', records: [], deletedKeys: [{ id: UUID }] });
+    expect(res.status).toBe(400);
+    expect(res.body.details).toEqual(['deletedKeys is not supported for principals']);
+  });
+
+  it('reports envelope errors without looking at deletedKeys', async () => {
+    const res = await request(app).post('/ingest/resource-assignments')
+      .send({ syncMode: 'delta', records: [], deletedKeys: [{ resourceId: 'x' }] });
+    expect(res.status).toBe(400);
+    expect(res.body.details).toEqual(['systemId is required']);
+  });
+});
+
 // ── POST /ingest/sync-log ────────────────────────────────────────────────────
 
 describe('POST /ingest/sync-log', () => {

@@ -974,7 +974,7 @@ paths:
         The entities, fields, relations, operators and pickable columns a report definition may
         use, with the known values of enumerated fields. Alongside the fields every deployment has,
         this includes the `extendedAttributes` keys discovered in this deployment's own data, named
-        `ext.<rawKey>` and marked `discovered`. Requires `data.read.reports`; answers 404 while the
+        `ext.<rawKey>` and marked `discovered`. Requires `data.read.reports` or `data.write.reports`; answers 404 while the
         `customReports` feature is off.
 
       security:
@@ -1074,7 +1074,7 @@ paths:
       operationId: lookupCustomReportNames
       description: >
         Fuzzy name search used by the builder's reference picker. A search text shorter than 2
-        or longer than 100 characters returns an empty list. Requires `data.read.reports`;
+        or longer than 100 characters returns an empty list. Requires `data.read.reports` or `data.write.reports`;
         answers 404 while the `customReports` feature is off.
       security:
         - EntraIdBearer: []
@@ -1326,7 +1326,7 @@ paths:
       description: >
         Validates a report definition, applies the analyst's answer to a "did you mean"
         confirmation (when `choice` is given), and looks up the objects it names again. No model
-        is involved. Requires `data.read.reports`; answers 404 while the `customReports` feature
+        is involved. Requires `data.read.reports` or `data.write.reports`; answers 404 while the `customReports` feature
         is off.
       security:
         - EntraIdBearer: []
@@ -1391,7 +1391,7 @@ paths:
         Validates and runs a report definition in a read-only transaction with a statement
         timeout. A definition that is invalid, or names an object that still needs confirming,
         answers 400 with the errors, the confirmation and the validated definition. Requires
-        `data.read.reports`; answers 404 while the `customReports` feature is off.
+        `data.read.reports` or `data.write.reports`; answers 404 while the `customReports` feature is off.
       security:
         - EntraIdBearer: []
       requestBody:
@@ -1522,7 +1522,7 @@ paths:
       operationId: getSavedCustomReport
       description: >
         One saved report with its definition, for editing in the builder. Requires
-        `data.read.reports`; answers 404 while the `customReports` feature is off.
+        `data.read.reports` or `data.write.reports`; answers 404 while the `customReports` feature is off.
       security:
         - EntraIdBearer: []
       responses:
@@ -2482,6 +2482,23 @@ components:
               rows: { type: array, items: { type: string }, description: "Row fields, outermost first." }
               filters: { type: array, items: { type: string }, description: "Filter fields." }
               values: { type: array, items: { type: string }, description: "Summed fields." }
+        charts:
+          type: array
+          description: >
+            Pie charts the `xlsx` download opens with, on a Charts tab after the summary. Each
+            splits the rows over one column key, counting rows or summing `value`. Empty for most
+            reports.
+          items:
+            type: object
+            required: [name, type, category]
+            properties:
+              name: { type: string }
+              type: { type: string, enum: [pie] }
+              category: { type: string, description: "Column key whose values are the slices." }
+              value: { type: string, description: "Column key summed per slice; omitted, rows are counted." }
+              title: { type: string }
+              valueLabel: { type: string }
+              colors: { type: object, additionalProperties: { type: string }, description: "Slice colour per category, RRGGBB." }
         source:
           type: string
           enum: [builtin, custom, view]

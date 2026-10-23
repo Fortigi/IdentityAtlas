@@ -31,6 +31,28 @@ export async function findActiveConfigJob(query, configId) {
   return r.rows[0] || null;
 }
 
+// The jobs list behind the Crawlers page: the newest `limit` jobs, newest first.
+// With `latestPerMode`, also the newest job of every crawler (its configuration,
+// or its job type for an inline job) in every sync mode, wherever it falls — a
+// crawler that runs a delta every five minutes would otherwise push its last
+// full run out of a short list within the hour. Pure.
+export function recentJobsQuery(limit, latestPerMode = false) {
+  if (!latestPerMode) {
+    return { sql: `SELECT * FROM "CrawlerJobs" ORDER BY "createdAt" DESC LIMIT $1`, params: [limit] };
+  }
+  const crawler = `COALESCE("configId"::text, "jobType")`;
+  const mode = `COALESCE(config->>'_syncMode', '')`;
+  return {
+    sql: `SELECT * FROM "CrawlerJobs" WHERE id IN (
+            (SELECT id FROM "CrawlerJobs" ORDER BY "createdAt" DESC LIMIT $1)
+            UNION
+            (SELECT DISTINCT ON (${crawler}, ${mode}) id FROM "CrawlerJobs"
+              ORDER BY ${crawler}, ${mode}, "createdAt" DESC)
+          ) ORDER BY "createdAt" DESC`,
+    params: [limit],
+  };
+}
+
 // Atomic claim of the oldest queued job whose configuration has nothing running.
 // FOR UPDATE SKIP LOCKED lets several workers contend without double pickup.
 export const CLAIM_NEXT_JOB_SQL = `

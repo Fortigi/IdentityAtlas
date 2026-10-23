@@ -21,6 +21,14 @@ const API = `${BASE}/api`;
 // does not transpile the JSX module that owns the constant.
 const ROWS_PER_PAGE = 100;
 
+// A report's display name as a literal pattern. Names may carry regex
+// metacharacters — "High-risk Application Permissions (Entra ID)" turned its
+// parentheses into a group, so the pattern stopped matching the very link it
+// was looking for.
+function nameMatcher(displayName) {
+  return new RegExp(displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+}
+
 /** The registered report templates, read from the deployment under test. */
 async function fetchReports() {
   const res = await fetch(`${API}/reports`);
@@ -42,7 +50,7 @@ async function openReports(page) {
 /** Open one report in its own tab, from the list. */
 async function openReport(page, report) {
   await openReports(page);
-  await page.getByRole('link', { name: new RegExp(report.displayName) }).click();
+  await page.getByRole('link', { name: nameMatcher(report.displayName) }).click();
   await expect(page).toHaveURL(new RegExp(`#report:${report.name}`));
   await expect(page.getByRole('heading', { name: report.displayName, level: 2 })).toBeVisible({ timeout: 15000 });
 }
@@ -106,7 +114,7 @@ test.describe('Reports', () => {
 
     await openReports(page);
     for (const report of reports) {
-      const link = page.getByRole('link', { name: new RegExp(report.displayName) });
+      const link = page.getByRole('link', { name: nameMatcher(report.displayName) });
       await expect(link).toBeVisible();
       // A real link to the report's route, so it can also be opened in a browser tab.
       await expect(link).toHaveAttribute('href', `#report:${report.name}`);

@@ -48,14 +48,20 @@ BeforeAll {
     . (Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'helpers' 'Get-FGServicePrincipalType.ps1')
     # The unit under test.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Phases.ps1')
+    # Get-EntraAccessReviewCertRecords + the per-instance fetches (own file, file-length ratchet).
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AccessReviews.ps1')
     # Sync-EntraAppOwners + its helpers live in their own file (extracted for the ratchets).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppOwners.ps1')
     # Sync-EntraAppPermissions + its helpers live in their own file too.
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppPermissions.ps1')
+    # Credential / publisher shapers (called by the SP record) + Sync-EntraAppRegistrations.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AppSecurity.ps1')
     # Sync-EntraPrincipalRelationships (agent owners / guest sponsors) — its own file.
     . (Join-Path $script:entraDir 'EntraIDCrawler.PrincipalRelationships.ps1')
     # Invoke-EntraApplicationPhases — dispatch for the application + principal-relationship phases.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Orchestration.ps1')
+    # Get-EntraGroupSelect — the group $select the Resources phase fetches with.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.GroupDelta.ps1')
 
     # Script-scope state the phases + shared helpers read at call time.
     $script:ApiKey     = 'fgc_testkey'
@@ -305,13 +311,15 @@ Describe 'Invoke-EntraApplicationPhases' {
         Mock Sync-EntraAppRoles       -MockWith { }
         Mock Sync-EntraAppOwners      -MockWith { }
         Mock Sync-EntraAppPermissions -MockWith { }
+        Mock Sync-EntraAppRegistrations -MockWith { }
         Mock Sync-EntraPrincipalRelationships -MockWith { }
     }
 
     It 'runs every phase when all toggles are on, forwarding AINamePatterns to app permissions + principal relationships' {
         Invoke-EntraApplicationPhases -SystemId 7 -AINamePatterns @('*copilot*') -Timings ([ordered]@{}) `
-            -SyncOAuth2Grants $true -SyncAppRoles $true -SyncAppOwners $true -SyncAppPermissions $true -SyncPrincipalRelationships $true
+            -SyncOAuth2Grants $true -SyncAppRoles $true -SyncAppOwners $true -SyncAppPermissions $true -SyncAppRegistrations $true -SyncPrincipalRelationships $true
 
+        Should -Invoke Sync-EntraAppRegistrations -Exactly 1 -ParameterFilter { $SystemId -eq 7 }
         Should -Invoke Sync-EntraOAuth2Grants   -Exactly 1 -ParameterFilter { $SystemId -eq 7 }
         Should -Invoke Sync-EntraAppRoles       -Exactly 1 -ParameterFilter { $SystemId -eq 7 }
         Should -Invoke Sync-EntraAppOwners      -Exactly 1 -ParameterFilter { $SystemId -eq 7 }
@@ -325,12 +333,14 @@ Describe 'Invoke-EntraApplicationPhases' {
         Should -Invoke Sync-EntraAppRoles       -Exactly 0
         Should -Invoke Sync-EntraAppOwners      -Exactly 0
         Should -Invoke Sync-EntraAppPermissions -Exactly 0
+        Should -Invoke Sync-EntraAppRegistrations -Exactly 0
         Should -Invoke Sync-EntraPrincipalRelationships -Exactly 0
     }
 
     It 'runs only the phases whose toggle is on' {
         Invoke-EntraApplicationPhases -SystemId 2 -Timings ([ordered]@{}) -SyncAppPermissions $true
         Should -Invoke Sync-EntraAppPermissions -Exactly 1
+        Should -Invoke Sync-EntraAppRegistrations -Exactly 0
         Should -Invoke Sync-EntraOAuth2Grants   -Exactly 0
         Should -Invoke Sync-EntraAppRoles       -Exactly 0
         Should -Invoke Sync-EntraAppOwners      -Exactly 0
@@ -471,13 +481,11 @@ Describe 'Sync-EntraOAuth2Grants' {
     BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
 
 
-    It 'keeps only consents that are per-user AND name the user' {
-        # The existing fixture pairs Principal+principalId against AllPrincipals+null, so
-        # both halves of the filter agree on every row and -and reads exactly like -or.
-        # These two rows disagree: a tenant-wide consent that happens to carry a principal
-        # id, and a per-user consent with none. As -or, the first is ingested as though a
-        # user had personally authorised it -- which is the distinction this phase exists
-        # to make -- and the second produces an assignment held by nobody.
+    It 'never turns a tenant-wide consent into a user''s assignment, and drops a per-user consent naming nobody' {
+        # These two rows are the ones a sloppy filter gets wrong: a tenant-wide consent
+        # that happens to carry a principal id, and a per-user consent with none. The
+        # first must become an admin-consented scope (not u9's personal decision); the
+        # second must produce nothing, not an assignment held by nobody.
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith {
             @(
                 [pscustomobject]@{ id = 'g1'; consentType = 'AllPrincipals'; principalId = 'u9'
@@ -492,20 +500,29 @@ Describe 'Sync-EntraOAuth2Grants' {
 
         Sync-EntraOAuth2Grants -SystemId 3 -Timings ([ordered]@{})
 
-        # Neither row qualifies, so nothing is ingested at all.
-        (Get-Sent { $_.Scope.resourceType -eq 'DelegatedPermission' }) | Should -HaveCount 0
+        $scopes = (Get-Sent { $_.Scope.resourceType -eq 'DelegatedPermission' -and $_.Endpoint -eq 'ingest/resources' })[0].Records
+        @($scopes).Count | Should -Be 1
+        $scopes[0].extendedAttributes.scope               | Should -Be 'Directory.Read.All'
+        $scopes[0].extendedAttributes.adminConsented      | Should -BeTrue
+        $scopes[0].extendedAttributes.adminConsentGrantId | Should -Be 'g1'
+        # No user holds either grant, so the assignment batch is empty (the real
+        # Send-IngestBatch then skips the call; this mock records it anyway).
+        @((Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' }) | ForEach-Object { $_.Records } | Where-Object { $_ }).Count | Should -Be 0
         $script:phaseErrors.Count | Should -Be 0
     }
 
-    It 'ingests per-user consents as apps, scope resources, relationships and assignments' {
+    It 'ingests per-user consents as apps, scope resources, relationships and assignments, and marks admin-consented scopes' {
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith {
             @(
                 [pscustomobject]@{ id = 'g1'; consentType = 'Principal'; principalId = 'u1'
                     clientId = 'cli'; resourceId = 'api'; scope = 'Mail.Read User.Read' }
-                # Tenant-wide consent — must be skipped.
+                # Tenant-wide consent by a different client: its own app + an admin-consented scope, no assignment.
                 [pscustomobject]@{ id = 'g2'; consentType = 'AllPrincipals'; principalId = $null
-                    clientId = 'cli'; resourceId = 'api'; scope = 'Directory.Read.All' }
+                    clientId = 'adm'; resourceId = 'api'; scope = 'Directory.Read.All' }
             )
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/adm' } -MockWith {
+            [pscustomobject]@{ id = 'adm'; displayName = 'Admin-consented App'; appId = 'app-adm' }
         }
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/cli' } -MockWith {
             [pscustomobject]@{ id = 'cli'; displayName = 'Client App'; appId = 'app-cli'; publisherName = 'Acme' }
@@ -516,24 +533,27 @@ Describe 'Sync-EntraOAuth2Grants' {
 
         Sync-EntraOAuth2Grants -SystemId 3 -Timings ([ordered]@{})
 
-        (Get-Sent { $_.Scope.resourceType -eq 'Application' })[0].Records.Count | Should -Be 1
-        # Two scopes -> two DelegatedPermission resources + two assignments.
-        (Get-Sent { $_.Scope.resourceType -eq 'DelegatedPermission' -and $_.Endpoint -eq 'ingest/resources' })[0].Records.Count | Should -Be 2
-        (Get-Sent { $_.Scope.relationshipType -eq 'DelegatesScope' })[0].Records.Count | Should -Be 2
+        $apps = (Get-Sent { $_.Scope.resourceType -eq 'Application' })[0].Records
+        ($apps.id | Sort-Object) -join ',' | Should -Be 'adm,cli'
+        # Two user scopes + one admin scope -> three DelegatedPermission resources; two assignments.
+        $scopes = (Get-Sent { $_.Scope.resourceType -eq 'DelegatedPermission' -and $_.Endpoint -eq 'ingest/resources' })[0].Records
+        $scopes.Count | Should -Be 3
+        @($scopes | Where-Object { $_.extendedAttributes.adminConsented }).extendedAttributes.scope | Should -Be 'Directory.Read.All'
+        (Get-Sent { $_.Scope.relationshipType -eq 'DelegatesScope' })[0].Records.Count | Should -Be 3
         $assigns = Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'DelegatedPermission' }
         $assigns[0].Records.Count | Should -Be 2
-        $assigns[0].Records[0].principalId | Should -Be 'u1'
+        $assigns[0].Records | ForEach-Object { $_.principalId | Should -Be 'u1'; $_.extendedAttributes.consentType | Should -Be 'Principal' }
         $script:phaseErrors.Count | Should -Be 0
     }
 
-    It 'ingests nothing when there are no per-user consents' {
+    It 'ingests nothing when there are no consents at all' {
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith {
-            @([pscustomobject]@{ id = 'g2'; consentType = 'AllPrincipals'; principalId = $null; clientId = 'c'; resourceId = 'a'; scope = 'X' })
+            @([pscustomobject]@{ id = 'g2'; consentType = 'Principal'; principalId = $null; clientId = 'c'; resourceId = 'a'; scope = 'X' })
         }
 
         Sync-EntraOAuth2Grants -SystemId 1 -Timings ([ordered]@{})
 
-        (Get-Sent { $_.Scope.resourceType -eq 'DelegatedPermission' }).Count | Should -Be 0
+        $script:sent.Count | Should -Be 0
         $script:phaseErrors.Count | Should -Be 0
     }
 
@@ -1143,7 +1163,7 @@ Describe 'Sync-EntraServicePrincipals' {
         # the whole fetch select — not `$select=id`, which would leave later
         # delta runs blind to a renamed or re-tagged service principal.
         Should -Invoke Invoke-FGGetDeltaRequest -Exactly 1 -ParameterFilter {
-            $URI -eq 'https://graph.microsoft.com/beta/servicePrincipals/delta?$select=id,appId,displayName,servicePrincipalType,accountEnabled,tags,appOwnerOrganizationId,createdDateTime,notes,servicePrincipalNames,homepage,publisherName'
+            $URI -eq 'https://graph.microsoft.com/beta/servicePrincipals/delta?$select=id,appId,displayName,servicePrincipalType,accountEnabled,tags,appOwnerOrganizationId,createdDateTime,notes,servicePrincipalNames,homepage,publisherName,verifiedPublisher,signInAudience,appRoleAssignmentRequired,replyUrls,passwordCredentials,keyCredentials'
         }
         $timings.Contains('ServicePrincipals') | Should -BeTrue
         $script:phaseErrors.Count | Should -Be 0
@@ -1632,6 +1652,45 @@ Describe 'Sync-EntraGovernanceReviews' {
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/decisions' } -MockWith { throw 'HTTP 400 bad decisions' }
         @(Get-EntraAccessReviewCertRecords -Definition ([pscustomobject]@{ id = 'rd1' }) -ApId 'ap-1').Count | Should -Be 0
     }
+
+    It 'stamps the reviewers the instance contacted on every decision of that instance' {
+        # Two instances with DIFFERENT reviewer lists: a fetch that ignored the
+        # instance id, or reused the first list, puts the wrong person on inst2.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/instances\?' } -MockWith {
+            @([pscustomobject]@{ id = 'inst1' }, [pscustomobject]@{ id = 'inst2' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'instances/inst1/decisions' } -MockWith {
+            @([pscustomobject]@{ id = 'd1' }, [pscustomobject]@{ id = 'd2' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'instances/inst2/decisions' } -MockWith {
+            @([pscustomobject]@{ id = 'd3' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'instances/inst1/contactedReviewers' } -MockWith {
+            @([pscustomobject]@{ id = 'r-ann'; displayName = 'Ann'; userPrincipalName = 'ann@x' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'instances/inst2/contactedReviewers' } -MockWith {
+            @([pscustomobject]@{ id = 'r-bob'; displayName = 'Bob' }, [pscustomobject]@{ id = 'r-cy'; displayName = 'Cy' })
+        }
+
+        $recs = @(Get-EntraAccessReviewCertRecords -Definition ([pscustomobject]@{ id = 'rd1' }) -ApId 'ap-1')
+
+        $recs.Count | Should -Be 3
+        foreach ($r in $recs[0..1]) { @($r.extendedAttributes.contactedReviewers.id) | Should -Be @('r-ann') }
+        @($recs[2].extendedAttributes.contactedReviewers.id) | Should -Be @('r-bob', 'r-cy')
+        Should -Invoke Invoke-FGGetRequest -ParameterFilter { $URI -match 'contactedReviewers' } -Exactly -Times 2
+    }
+
+    It 'keeps the decisions when the contacted-reviewers call fails' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/instances\?' } -MockWith { @([pscustomobject]@{ id = 'inst1' }) }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/decisions' } -MockWith { @([pscustomobject]@{ id = 'd1'; decision = 'Deny' }) }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'contactedReviewers' } -MockWith { throw 'HTTP 403' }
+
+        $recs = @(Get-EntraAccessReviewCertRecords -Definition ([pscustomobject]@{ id = 'rd1' }) -ApId 'ap-1')
+
+        $recs.Count | Should -Be 1
+        $recs[0].decision | Should -Be 'Deny'
+        $recs[0].extendedAttributes.Contains('contactedReviewers') | Should -BeFalse
+    }
 }
 
 # ─── Get-EntraUserSelect (pure) ─────────────────────────────────────────────────
@@ -1908,6 +1967,14 @@ Describe 'Resolve-EntraSyncConfig' {
         $c.SyncPrincipals | Should -BeFalse
         $c.SyncResources | Should -BeFalse
         $c.SyncAssignments | Should -BeFalse
+    }
+
+    It 'defaults SyncAppRegistrations off and honours both toggle shapes' {
+        (Resolve-EntraSyncConfig -RawConfig @{}).SyncAppRegistrations | Should -BeFalse
+        (Resolve-EntraSyncConfig -RawConfig @{ selectedObjects = @{ appRegistrations = $true } }).SyncAppRegistrations | Should -BeTrue
+        (Resolve-EntraSyncConfig -RawConfig @{ syncAppRegistrations = $true }).SyncAppRegistrations | Should -BeTrue
+        # A neighbouring key must not switch it on.
+        (Resolve-EntraSyncConfig -RawConfig @{ selectedObjects = @{ appPermissions = $true } }).SyncAppRegistrations | Should -BeFalse
     }
 
     It 'defaults SyncPrincipalRelationships off and honours both toggle shapes' {

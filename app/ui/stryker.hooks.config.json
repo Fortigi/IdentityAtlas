@@ -18,6 +18,9 @@
     "src/hooks/useMatrixRowOrder.js",
     "src/hooks/useNestedGroupExpand.js"
   ],
+  "mutationExclusions": {
+    "src/utils/schedules.js": "Not yet measured: Stryker's vitest runner does not activate mutants on the Windows workstation this was written on, so any score quoted here would be fiction. The file holds two small pure functions and the interval list, all pinned by src/utils/schedules.test.js with exact expected values: withFrequency is asserted for a missing, a valid and an invalid interval and for every other frequency leaving the schedule alone, formatSchedule is asserted on the full label for each frequency and for a schedule without one, and the interval list is asserted to divide an hour. The editor's use of them is covered by src/components/ScheduleEditor.test.jsx. Measure it on Linux and move it into a scope's mutate list."
+  },
   "mutator": {
     "excludedMutations": [
       "StringLiteral",
