@@ -174,6 +174,24 @@ describe('context interviews against PostgreSQL', () => {
     expect((await pool.query(`SELECT "extendedAttributes"->'aliases' AS a FROM "Contexts" WHERE id = $1`, [ctxId])).rows[0].a).toEqual(['Rooster']);
   });
 
+  // Re-extraction: what is decided on the context, its aliases, and other contexts' names.
+  it('reads the decided claims of the context, its aliases for the prompt, and which names are another context\'s', async () => {
+    await pool.query(
+      `INSERT INTO "Contexts" (id, variant, "targetType", "contextType", "displayName", "contextCategory", "scopeSystemId", "extendedAttributes")
+       VALUES (gen_random_uuid(), 'manual', 'Principal', 'OrganizationalUnit', 'ivw-Kustwacht', 'OrganizationalUnit', $1, '{"aliases": ["ivw-Kustpost"]}'::jsonb),
+              (gen_random_uuid(), 'manual', 'Principal', 'OrganizationalUnit', 'ivw-Zonder', 'OrganizationalUnit', $1, '{"aliases": "not a list"}'::jsonb)`, [sysId]);
+    expect((await store.loadForExtraction(db, interview.id)).contextAliases).toEqual(['Rooster']);
+    const decided = await store.decidedClaims(db, ctxId);
+    const said = decided.map(c => `${c.claimKind}:${c.value}`);
+    // Confirmed (an alias, the earlier tests' description), edited (the property) and rejected (the low tier) — not a proposed one.
+    expect(said).toEqual(expect.arrayContaining(['alias:Rooster', 'description:A nice canteen', 'description:Schedules the nursing shifts', 'property:about 450 nurses']));
+    expect(said).not.toContain('roleHistory:junior');
+    expect(decided.find(c => c.claimKind === 'role' && c.value === 'owner')).toMatchObject({ principalId: P.yara, identityId: null });
+    const names = await store.otherContextNames(db, ctxId, ['ivw kustwacht', 'ivw kustpost', 'rooster', 'ivw zonder', 'ivw nergens']);
+    expect(names.sort()).toEqual(['ivw kustpost', 'ivw kustwacht', 'ivw zonder']);
+    expect(await store.otherContextNames(db, ctxId, [])).toEqual([]);
+  });
+
   it('reads the person claims set-based for a page of members, and the previous members with their live entitlements', async () => {
     const page = await store.memberClaims(db, ctxId, 'Principal', [P.piet, P.yara], ['proposed', 'confirmed', 'edited']);
     expect(page.map(c => `${c.memberId === P.piet ? 'piet' : 'yara'}:${c.claimKind}`).sort()).toEqual(['piet:role', 'piet:roleHistory', 'yara:membership', 'yara:role']);

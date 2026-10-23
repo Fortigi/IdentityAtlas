@@ -116,8 +116,29 @@ the list upload's refinement uses), the upload starts extraction in the backgrou
 3. A person claim whose subject joins two or more names (*"Ruud en Kees"*, *"Ruud and
    Kees"*, *"A, B & C"*) becomes one claim per name (`roles.js` `splitJointSubjects`; *en* /
    *and* are no name particles, so the quote's-full-name fallback never glues them either).
-   Repeats are dropped, and so is anything already decided in an earlier run, and an
-   "alias" that is only the context's own name.
+   **A claim that says someone left is read against its whole sentence**
+   (`interviews/sentences.js`): a small model quotes a fragment and decides from it —
+   *"Gerrit is sinds iets meer dan een jaar betrokken en doet data mining"* came back as
+   `former`. The quote's span is widened to the sentence(s) it stands in (cut at `.` `!`
+   `?` and line breaks; a turn is one line and its *Speaker:* label is not part of it).
+   For a membership `former` / `left`, and a role / roleHistory whose words say left:
+   - the sentence says gone (a *Who left* word, or past-only phrasing: *een periode*,
+     *destijds*, *vroeger*, *used to*, *for a while*) → kept — *"Stijn en Noor hebben
+     een periode meegewerkt, maar zijn inmiddels uitgestroomd"* stays `former` even when
+     the model quoted only the first half;
+   - else it says current (*sinds*, *is betrokken*, *doet*, *nu*, *currently*, *now*,
+     *works*) → a membership becomes `current`, and its value says so: *"… (corrected:
+     the sentence says current; the model said former)"* — the review shows it, and the
+     analyst can edit or reject it; a role claim keeps its relation but loses the left
+     reading (no `former` membership is derived from it; `leftSignal.js` reads the same
+     mark);
+   - neither → kept, its confidence lowered to at most 0.3; the review flags a claim
+     below 0.4 *unsure — read the quote*.
+
+   The stored quote stays the transcript's own words; when the sentence is at most 300
+   characters it becomes the whole sentence, so the highlight shows the reason.
+   Repeats are dropped, and so is anything already kept on this interview, and an
+   "alias" that is the context's own name or an alias it already has.
 4. Names are matched: the interviewee (*"I"*, their name, their first name); then the
    upload's account matching (`upload/members.js`: e-mail, employee id, external id, the
    normalised name, a near miss — `fuzzy`); then a first name alone, `firstName`
@@ -142,6 +163,27 @@ the list upload's refinement uses), the upload starts extraction in the backgrou
 
    `fuzzy` and `firstName` are flagged *check the person*. An unmatched name keeps its
    raw text.
+
+   **Decided claims do not come back.** A claim equal to one already confirmed, edited
+   or **rejected** on the context — in any of its interviews — is dropped: same kind,
+   same person (the matched holder when both have one, else the normalised name) and
+   the same value (case, punctuation and spacing aside). A re-extraction, or a second
+   interview, no longer re-proposes *"chief architect"* for an interviewee whose role
+   claim was confirmed last week, nor a rejected claim.
+
+   **Another name the speaker uses** (`interviews/aliasHints.js`). The prompt names the
+   context's display name and its known aliases and asks for an alias claim when the
+   speaker uses another name. A small model often still leaves it out, so a rule
+   proposes one — an `alias` claim with confidence 0.5, waiting for review like any other:
+   a name after *het / de / the* (up to four capitalised words; *"Jan de Vries"* is a
+   surname — an article after a capitalised word is skipped), or the name a description
+   claim starts with (*"Het Havenkantoor is …"*), said **at least twice**, or in the quote
+   of the first description claim. Never the context's own name or an alias it has
+   (spacing ignored: *Harbour Office* is *HarbourOffice*), an alias the model gave, a
+   pronoun, a word of a person's name (any person claim, the interviewee), a name a
+   property claim gives (*"the Azure platform"*), or another context's display name or
+   alias (`store.otherContextNames`, normalised as `lib/nameMatch.js` does). At most three
+   per run; the quote is the sentence of the first occurrence.
 5. **Relevance** (`contexts/interviews/relevance.js`, fixed rules first): role, roleHistory,
    membership and alias are always `high`; a property is `high` when its attribute or value
    names something access depends on (sector, contract, customer, regulation, systems,

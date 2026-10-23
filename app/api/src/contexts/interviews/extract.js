@@ -17,12 +17,19 @@
 //      and every drop is logged with the field it failed on. No second model round
 //      asks for the missing fields: one costs as much as the part itself;
 //   3. across parts: one claim per person where the model joined two ("A en B",
-//      roles.js), then drop repeats, and anything already decided in an earlier run;
+//      roles.js); a claim that says someone left is read against its whole
+//      sentence (sentences.js: "is sinds een jaar betrokken" is current — corrected,
+//      and the quote widened to the sentence); then drop repeats, and anything
+//      already decided in an earlier run;
 //   4. match the people named (subjects.js — with the quote's full name and a unique
-//      surname as fallbacks), add a membership claim (former) for a person a role
-//      claim says left, set role suggestions (roles.js), the relevance tier
-//      (relevance.js) and where each quote stands in the transcript (quoteOffsets.js);
-//      an alias that is the context's own name is no alias and is dropped;
+//      surname as fallbacks), propose another name of the context the model left
+//      out (aliasHints.js), add a membership claim (former) for a person a role
+//      claim says left, drop what is already decided on the CONTEXT (confirmed,
+//      edited or rejected in any interview: same kind, person and value — a
+//      rejected claim does not come back), set role suggestions (roles.js), the
+//      relevance tier (relevance.js) and where each quote stands in the transcript
+//      (quoteOffsets.js); an alias that is the context's own name or one of its
+//      aliases is no new alias and is dropped;
 //   5. replace the interview's undecided model claims with these, in one transaction.
 // Status: running → done (with a note on what was dropped) or failed (with why).
 // Nothing is written to the context: every claim waits for review.
@@ -37,7 +44,10 @@ import { resolveClaimSubjects } from './subjects.js';
 import { deduceRoles, splitJointSubjects, withLeftMemberships } from './roles.js';
 import { withRelevance } from './relevance.js';
 import { withQuoteOffsets } from './quoteOffsets.js';
+import { checkAgainstSentences } from './sentences.js';
+import { aliasCandidates, aliasHintClaims } from './aliasHints.js';
 import { normalizeName } from '../../lib/nameMatch.js';
+import { aliasesOf } from '../../lib/contextNameMatch.js';
 import * as store from './store.js';
 
 export const PART_CHARS = 10_000;
@@ -138,10 +148,44 @@ export function dedupeClaims(claims, kept = []) {
   });
 }
 
-/** Drop an "alias" that is only the context's own name. Pure. */
-export function dropOwnNameAliases(claims, contextName) {
-  const own = normalizeName(contextName);
-  return claims.filter(c => c.claimKind !== 'alias' || normalizeName(c.value) !== own);
+/** Drop an "alias" that is only the context's own name or an alias it already has. Pure. */
+export function dropOwnNameAliases(claims, contextName, aliases = []) {
+  const own = new Set([contextName, ...aliases].map(normalizeName));
+  return claims.filter(c => c.claimKind !== 'alias' || !own.has(normalizeName(c.value)));
+}
+
+// A value in the form two wordings of it share: case, punctuation and spacing ignored.
+const looseValue = (v) => foldForQuote(v).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+function sameSubject(a, b) {
+  const holderA = a.principalId || a.identityId;
+  const holderB = b.principalId || b.identityId;
+  if (holderA && holderB) return (a.principalId ?? null) === (b.principalId ?? null) && (a.identityId ?? null) === (b.identityId ?? null);
+  return normalizeName(a.subjectName) === normalizeName(b.subjectName);
+}
+
+/**
+ * Drop a claim equal to one already decided on the context (`decided`: confirmed,
+ * edited or rejected, any interview): same kind, same person (the matched holder
+ * when both have one, else the name normalised) and the same value. Pure.
+ */
+export function dropDecided(claims, decided = []) {
+  const byValue = new Map();
+  for (const d of decided) {
+    const k = `${d.claimKind}|${looseValue(d.value)}`;
+    byValue.set(k, [...(byValue.get(k) ?? []), d]);
+  }
+  return claims.filter(c => !(byValue.get(`${c.claimKind}|${looseValue(c.value)}`) ?? []).some(d => sameSubject(c, d)));
+}
+
+/** Alias claims for the names the transcript gives the context that nothing else does (aliasHints.js). */
+async function withAliasHints(db, claims, interview, aliases) {
+  const candidates = aliasCandidates(claims, {
+    transcript: interview.transcript, contextName: interview.contextName, aliases, intervieweeName: interview.intervieweeName,
+  });
+  if (candidates.length === 0) return claims;
+  const other = await store.otherContextNames(db, interview.contextId, candidates.map(c => c.norm));
+  return [...claims, ...aliasHintClaims(candidates, other)];
 }
 
 /** Holder + match for every claim about a person (and the full name, when the quote gave it). */
@@ -182,7 +226,8 @@ async function runParts(interview, { ask, timeoutMs }) {
   let model = null;
   for (let i = 0; i < parts.length; i++) {
     const user = buildUserMessage({
-      contextName: interview.contextName, template: interview.contextCategory, intervieweeName: interview.intervieweeName,
+      contextName: interview.contextName, aliases: aliasesOf({ aliases: interview.contextAliases }),
+      template: interview.contextCategory, intervieweeName: interview.intervieweeName,
       interviewedAt: interview.interviewedAt, part: i + 1, parts: parts.length, text: parts[i],
     });
     const answer = await askPart([{ role: 'system', content: system }, { role: 'user', content: user }], folded, { ask, timeoutMs });
@@ -208,8 +253,12 @@ export async function extractInterview(interviewId, { db = defaultDb, ask = defa
   try {
     const run = await runParts(interview, { ask, timeoutMs });
     const kept = await store.keptClaims(db, interviewId);
-    const fresh = dropOwnNameAliases(dedupeClaims(splitJointSubjects(run.claims), kept), interview.contextName);
-    const people = dedupeClaims(withLeftMemberships(await withSubjects(db, fresh, interview)), kept);
+    const decided = await store.decidedClaims(db, interview.contextId);
+    const aliases = aliasesOf({ aliases: interview.contextAliases });
+    const checked = checkAgainstSentences(splitJointSubjects(run.claims), interview.transcript);
+    const fresh = dropOwnNameAliases(dedupeClaims(checked, kept), interview.contextName, aliases);
+    const named = await withAliasHints(db, await withSubjects(db, fresh, interview), interview, aliases);
+    const people = dropDecided(dedupeClaims(withLeftMemberships(named), kept), decided);
     const claims = withQuoteOffsets(withRelevance(deduceRoles(people)), interview.transcript);
     await db.tx(async (client) => {
       await store.deleteProposedModelClaims(client, interviewId);

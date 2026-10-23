@@ -145,6 +145,16 @@ describe('What we know', () => {
     expect(within(region).getAllByText('interview with Anna Voorbeeld, 2026-10-01').length).toBeGreaterThan(1);
   });
 
+  it('a corrected or unsure claim says so in its row', async () => {
+    const corrected = { ...PROPERTY, id: 'cl-m', claimKind: 'membership', subjectName: 'Gerrit', attribute: 'current', value: 'betrokken (corrected: the sentence says current; the model said former)', confidence: 0.8 };
+    mount({ claims: [corrected, { ...UNMATCHED, confidence: 0.3 }] });
+    const rows = within(await screen.findByRole('list', { name: 'Claims to review' })).getAllByTestId('claim-review-row');
+    const row = (text) => rows.find(r => r.textContent.includes(text));
+    expect(row('Gerrit')).toHaveTextContent('corrected: the sentence says current');
+    expect(row('Gerrit')).not.toHaveTextContent('unsure — read the quote');
+    expect(row('Karel')).toHaveTextContent('unsure — read the quote');
+  });
+
   it('lists what is to review; Edit changes the value and confirms it', async () => {
     const { state, user } = mount();
     const list = await screen.findByRole('list', { name: 'Claims to review' });

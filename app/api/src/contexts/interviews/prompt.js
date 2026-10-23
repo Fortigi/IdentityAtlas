@@ -1,7 +1,7 @@
 // Context interviews — what the model is asked, per template.
 //
 //   buildSystemPrompt(template) → string
-//   buildUserMessage({ contextName, template, intervieweeName, interviewedAt, part, parts, text }) → string
+//   buildUserMessage({ contextName, aliases, template, intervieweeName, interviewedAt, part, parts, text }) → string
 //   RESPONSE_SCHEMA — the strict JSON shape of a reply (the model server enforces it)
 //
 // The model only PROPOSES (decision principle B3): every claim it makes is
@@ -87,6 +87,8 @@ const RULES = `Reply with JSON only: {"claims": [...]}. Each claim:
 - relevance: "high" when it matters for who should have access to what (the list above), "low" when it is true but changes nothing about access.
 "X just left" and "X and Y worked on it in the early years" are membership claims (left; former), one per person.
 When the interviewee says someone else owns it ("I'm not the owner, Y is"), give two claims: notOwner for "${INTERVIEWEE}" and owner for Y.
+Someone who IS involved now ("is since a year involved", "does the data work") is current, not former — read the whole sentence before you decide.
+When the speaker calls the unit or application by another name than the one given above (and not one of its known other names) — "the Harbour Office" for "HarbourOfficeNL" — give an alias claim with that name.
 Only claims the transcript states. Do not guess; do not repeat a claim.`;
 
 export function buildSystemPrompt(template) {
@@ -96,10 +98,11 @@ ${FOCUS[template] || FOCUS.OrganizationalUnit}
 ${RULES}`;
 }
 
-export function buildUserMessage({ contextName, template, intervieweeName, interviewedAt, part = 1, parts = 1, text }) {
+export function buildUserMessage({ contextName, aliases = [], template, intervieweeName, interviewedAt, part = 1, parts = 1, text }) {
   const kind = template === 'LogicalApplication' ? 'Application' : 'Unit';
+  const known = aliases.length ? ` (also known as ${aliases.map(a => JSON.stringify(a)).join(', ')})` : '';
   return [
-    `${kind}: ${JSON.stringify(contextName)}`,
+    `${kind}: ${JSON.stringify(contextName)}${known}`,
     `Interviewee: ${JSON.stringify(intervieweeName)} (interviewed on ${interviewedAt})`,
     parts > 1 ? `Transcript, part ${part} of ${parts}:` : 'Transcript:',
     text,

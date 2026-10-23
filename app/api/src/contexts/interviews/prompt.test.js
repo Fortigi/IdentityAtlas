@@ -33,6 +33,12 @@ describe('buildUserMessage', () => {
     expect(buildUserMessage({ contextName: 'Acme', template: 'OrganizationalUnit', intervieweeName: 'X', interviewedAt: 'd', text: 't' }))
       .toMatch(/^Unit: "Acme"[\s\S]*\nTranscript:\nt$/);
   });
+
+  it('names the other names the context already has, so the model gives only new ones', () => {
+    const m = buildUserMessage({ contextName: 'HarbourOfficeNL', aliases: ['HO', 'Haven'], template: 'OrganizationalUnit', intervieweeName: 'X', interviewedAt: 'd', text: 't' });
+    expect(m.split('\n')[0]).toBe('Unit: "HarbourOfficeNL" (also known as "HO", "Haven")');
+    expect(buildSystemPrompt('OrganizationalUnit')).toMatch(/is current, not former — read the whole sentence/);
+  });
 });
 
 describe('RESPONSE_SCHEMA', () => {

@@ -1,6 +1,6 @@
 // Does a claim say the person left — in English and Dutch, from any person claim.
 import { describe, it, expect } from 'vitest';
-import { leftSignal, saysLeft } from './leftSignal.js';
+import { leftSignal, saysLeft, CORRECTED_CURRENT } from './leftSignal.js';
 
 const history = (over) => ({ claimKind: 'roleHistory', attribute: 'member', value: 'developer', periodText: null, ...over });
 
@@ -44,5 +44,13 @@ describe('leftSignal', () => {
     expect(leftSignal({ claimKind: 'description', value: 'the old team left' })).toBe(false);
     expect(leftSignal({ claimKind: 'property', attribute: 'status', value: 'former' })).toBe(false);
     expect(leftSignal(null)).toBe(false);
+  });
+});
+
+describe('leftSignal — a claim the sentence check corrected', () => {
+  it('says nothing about leaving, whatever its words, once the value carries the correction', () => {
+    expect(leftSignal(history({ value: 'left' }))).toBe(true);
+    expect(leftSignal(history({ value: `left (${CORRECTED_CURRENT}, not left)` }))).toBe(false);
+    expect(leftSignal(history({ value: `left (${CORRECTED_CURRENT}, not left)`, periodText: 'inmiddels uitgestroomd' }))).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import ChoosePersonModal from './ChoosePersonModal';
-import { KIND_LABELS, byRelevance, claimLine, isUncertainMatch, periodLabel, sourceLabel } from './claims.helpers';
+import { KIND_LABELS, byRelevance, claimLine, isLowConfidence, isUncertainMatch, periodLabel, sourceLabel } from './claims.helpers';
 
 // ─── Claims waiting for review ───────────────────────────────────────────
 // One row per proposed claim: its kind, who it is about (flagged when the match
@@ -51,6 +51,7 @@ function ClaimRow({ claim, decide, openTranscript }) {
         {period && <span className="text-xs text-gray-600 dark:text-gray-400">{period}</span>}
         {claim.roleSuggestion && <span className="rounded bg-blue-50 px-1.5 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">→ {claim.roleSuggestion}</span>}
         {isUncertainMatch(claim) && <span className="rounded bg-amber-50 px-1.5 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">check the person</span>}
+        {isLowConfidence(claim) && <span className="rounded bg-amber-50 px-1.5 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">unsure — read the quote</span>}
       </div>
       {claim.quote && (
         <div className="flex flex-wrap items-baseline gap-x-2">

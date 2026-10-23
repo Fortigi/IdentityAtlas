@@ -3,12 +3,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./store.js', () => ({
-  loadForExtraction: vi.fn(), setExtraction: vi.fn(), keptClaims: vi.fn(),
+  loadForExtraction: vi.fn(), setExtraction: vi.fn(), keptClaims: vi.fn(), decidedClaims: vi.fn(), otherContextNames: vi.fn(),
   deleteProposedModelClaims: vi.fn(), insertClaims: vi.fn(),
 }));
 const store = await import('./store.js');
 const {
-  splitTranscript, checkReply, askPart, dedupeClaims, dropOwnNameAliases, runMessage, extractInterview, startExtraction, chatTimeoutMs, MAX_PARTS, PART_CHARS, DEFAULT_TIMEOUT_MS,
+  splitTranscript, checkReply, askPart, dedupeClaims, dropOwnNameAliases, dropDecided, runMessage, extractInterview, startExtraction, chatTimeoutMs, MAX_PARTS, PART_CHARS, DEFAULT_TIMEOUT_MS,
 } = await import('./extract.js');
 const { foldForQuote } = await import('./claims.js');
 const { LOCAL_SQL, SURNAME_SQL } = await import('./subjects.js');
@@ -58,6 +58,8 @@ beforeEach(() => {
   for (const f of Object.values(store)) f.mockReset();
   store.loadForExtraction.mockResolvedValue(INTERVIEW);
   store.keptClaims.mockResolvedValue([]);
+  store.decidedClaims.mockResolvedValue([]);
+  store.otherContextNames.mockResolvedValue([]);
 });
 
 describe('splitTranscript', () => {
@@ -304,7 +306,7 @@ describe('extractInterview — what matters for access, membership and aliases',
       ['membership', 'Kees', 'former', 'inmiddels uitgestroomd'],
     ]);
     const added = claims.find(c => c.claimKind === 'membership' && c.subjectName === 'Kees');
-    expect(added).toMatchObject({ relevance: 'high', roleSuggestion: null, quote: 'Ruud en Kees hebben er een tijd aan gewerkt' });
+    expect(added).toMatchObject({ relevance: 'high', roleSuggestion: null, quote: 'Ruud en Kees hebben er een tijd aan gewerkt, maar zijn inmiddels uitgestroomd.' });
     expect(LEFT.slice(added.quoteStart, added.quoteEnd)).toBe(added.quote);
   });
 
@@ -334,5 +336,89 @@ describe('dropOwnNameAliases', () => {
       { claimKind: 'alias', value: 'harbour  AUTHORITY' }, { claimKind: 'alias', value: 'HA' }, { claimKind: 'description', value: 'Harbour Authority' },
     ], 'Harbour Authority');
     expect(out.map(c => c.value)).toEqual(['HA', 'Harbour Authority']);
+  });
+});
+
+describe('dropOwnNameAliases — with the aliases the context has', () => {
+  it('drops an alias that is already one of the context\'s other names', () => {
+    const out = dropOwnNameAliases([{ claimKind: 'alias', value: 'rs' }, { claimKind: 'alias', value: 'Rooster' }], 'Planner', ['RS']);
+    expect(out.map(c => c.value)).toEqual(['Rooster']);
+  });
+});
+
+describe('dropDecided', () => {
+  const role = (over) => ({ claimKind: 'role', subjectName: 'interviewee', principalId: ANNA, identityId: null, value: 'chief architect IAM', ...over });
+  it('drops a claim equal to a decided one: same kind, same holder, the same value apart from case and punctuation', () => {
+    const decided = [role({ subjectName: 'Anna Voorbeeld', value: 'Chief architect, IAM.' })];
+    expect(dropDecided([role()], decided)).toEqual([]);
+  });
+
+  it('without holders the normalised names decide; two different holders never match', () => {
+    const named = (subjectName, over) => role({ principalId: null, subjectName, ...over });
+    expect(dropDecided([named('Piet  Jansen')], [named('piet jansen')])).toEqual([]);
+    expect(dropDecided([named('Piet Jansen')], [named('Kees Jansen')])).toHaveLength(1);
+    expect(dropDecided([role({ principalId: PIET })], [role()])).toHaveLength(1);
+    expect(dropDecided([role({ principalId: null, identityId: YARA })], [role({ principalId: null, identityId: YARA })])).toEqual([]);
+  });
+
+  it('keeps another value or another kind; a context claim matches on kind and value alone', () => {
+    expect(dropDecided([role({ value: 'architect' })], [role()])).toHaveLength(1);
+    expect(dropDecided([role({ claimKind: 'roleHistory' })], [role()])).toHaveLength(1);
+    const alias = { claimKind: 'alias', subjectName: null, value: 'HK' };
+    expect(dropDecided([alias], [{ ...alias, value: 'hk' }])).toEqual([]);
+    expect(dropDecided([alias])).toEqual([alias]);
+  });
+});
+
+describe('extractInterview — the sentence, what is decided, and other names', () => {
+  const noMatches = { query: async () => ({ rows: [] }), tx: async (fn) => fn({ query: async () => ({ rows: [] }) }) };
+  const SAID = [
+    'Interviewer: Wie werken er aan het account?',
+    'Anna Voorbeeld: Het Havenkantoor is al jaren klant. Ik ben chief architect IAM voor het Havenkantoor.',
+    'Anna Voorbeeld: Gerrit is sinds iets meer dan een jaar betrokken en doet data mining.',
+    'Anna Voorbeeld: Stijn heeft een periode meegewerkt, maar is inmiddels uitgestroomd.',
+  ].join('\n');
+
+  it('corrects a "former" the sentence calls current, keeps a decided claim out, and proposes the name the speaker uses', async () => {
+    store.loadForExtraction.mockResolvedValue({ ...INTERVIEW, contextName: 'HarbourOfficeNL', contextCategory: 'OrganizationalUnit', contextAliases: ['HO'], transcript: SAID });
+    store.decidedClaims.mockResolvedValue([
+      { claimKind: 'role', subjectName: 'interviewee', principalId: ANNA, identityId: null, attribute: 'other', value: 'chief architect IAM' },
+      { claimKind: 'description', subjectName: null, principalId: null, identityId: null, attribute: null, value: 'Al jaren klant' },
+    ]);
+    const reply = { claims: [
+      { kind: 'role', subject: 'interviewee', relation: 'other', value: 'chief architect IAM', quote: 'Ik ben chief architect IAM' },
+      { kind: 'description', value: 'al jaren klant', quote: 'Het Havenkantoor is al jaren klant' },
+      { kind: 'membership', subject: 'Gerrit', membership: 'former', value: 'betrokken', quote: 'Gerrit is sinds iets meer dan een jaar betrokken en doet data mining' },
+      { kind: 'membership', subject: 'Stijn', membership: 'former', value: 'meegewerkt', quote: 'Stijn heeft een periode meegewerkt' },
+      { kind: 'alias', value: 'HO', quote: 'Het Havenkantoor is al jaren klant' },
+    ] };
+    const ask = vi.fn(answer(reply));
+    await extractInterview('iv-1', { db: noMatches, ask, enabled: () => true });
+    const claims = store.insertClaims.mock.calls[0][2];
+    expect(claims.map(c => [c.claimKind, c.subjectName, c.attribute, c.value, c.confidence])).toEqual([
+      ['membership', 'Gerrit', 'current', 'betrokken (corrected: the sentence says current; the model said former)', 0.5],
+      ['membership', 'Stijn', 'former', 'meegewerkt', 0.5],
+      ['alias', null, null, 'Havenkantoor', 0.5],
+    ]);
+    expect(claims[1].quote).toBe('Stijn heeft een periode meegewerkt, maar is inmiddels uitgestroomd.');
+    for (const c of claims) expect(SAID.slice(c.quoteStart, c.quoteEnd)).toBe(c.quote);
+    expect(store.decidedClaims).toHaveBeenCalledWith(noMatches, 'ctx-1');
+    expect(store.otherContextNames).toHaveBeenCalledWith(noMatches, 'ctx-1', ['havenkantoor']);
+    // The model is told the name and the other names it already has, and to give the ones the speaker uses.
+    const [[system, user]] = ask.mock.calls[0];
+    expect(user.content.split('\n')[0]).toBe('Unit: "HarbourOfficeNL" (also known as "HO")');
+    expect(system.content).toMatch(/by another name than the one given above/);
+  });
+
+  it('a name that is another context\'s is not proposed as an alias; a rejected alias does not come back', async () => {
+    store.loadForExtraction.mockResolvedValue({ ...INTERVIEW, contextName: 'HarbourOfficeNL', transcript: SAID });
+    store.otherContextNames.mockResolvedValue(['havenkantoor']);
+    await extractInterview('iv-1', { db: noMatches, ask: answer({ claims: [] }), enabled: () => true });
+    expect(store.insertClaims.mock.calls[0][2]).toEqual([]);
+
+    store.otherContextNames.mockResolvedValue([]);
+    store.decidedClaims.mockResolvedValue([{ claimKind: 'alias', subjectName: null, principalId: null, identityId: null, value: 'Havenkantoor' }]);
+    await extractInterview('iv-1', { db: noMatches, ask: answer({ claims: [] }), enabled: () => true });
+    expect(store.insertClaims.mock.calls[1][2]).toEqual([]);
   });
 });

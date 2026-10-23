@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   sourceLabel, subjectLabel, isUncertainMatch, periodLabel, groupConfirmed, proposedClaims, roleSuggestions,
   timelines, segmentBars, anyInProgress, manualClaimBody, manualClaimReady, extractionLabel, BUSY_AFTER_MS,
-  byRelevance, whatWeKnowSummary, claimLine, isLowRelevance,
+  byRelevance, whatWeKnowSummary, claimLine, isLowRelevance, isLowConfidence, LOW_CONFIDENCE,
 } from './claims.helpers';
 
 const claim = (over) => ({ id: over.id ?? 'c', claimKind: 'role', status: 'proposed', intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-01', ...over });
@@ -18,6 +18,10 @@ describe('labels', () => {
   it('flags a fuzzy or first-name match, nothing else', () => {
     expect(['fuzzy', 'firstName', 'name', 'key', 'interviewee', null].map(m => isUncertainMatch(claim({ subjectMatch: m }))))
       .toEqual([true, true, false, false, false, false]);
+  });
+
+  it('flags a claim below the low-confidence mark, not one at it or without a confidence', () => {
+    expect([0.3, LOW_CONFIDENCE, 0.9, null, undefined].map(c => isLowConfidence(claim({ confidence: c })))).toEqual([true, false, false, false, false]);
   });
 
   it('words a period from its dates and the text as said', () => {

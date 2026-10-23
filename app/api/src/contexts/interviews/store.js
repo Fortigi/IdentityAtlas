@@ -6,6 +6,8 @@
 // Dates leave PostgreSQL as text ('YYYY-MM-DD'): node-postgres turns a DATE into
 // a local-midnight Date, which shifts a day in any timezone west of UTC.
 
+import { normalizedNameSql } from '../../lib/nameMatch.js';
+
 const INTERVIEW_COLUMNS = `iv.id, iv."contextId", iv."principalId", iv."identityId", iv."intervieweeName",
        iv."interviewedAt"::text AS "interviewedAt", iv."fileName", iv.language, iv."extractionStatus",
        iv."extractionMessage", iv."extractionStartedAt", iv.model, iv."createdBy", iv."createdAt"`;
@@ -48,7 +50,8 @@ export async function getInterview(db, contextId, interviewId, { withTranscript 
 /** What extraction needs: the interview, its transcript, and the context it is about. */
 export async function loadForExtraction(db, interviewId) {
   return db.queryOne(`
-    SELECT ${INTERVIEW_COLUMNS}, iv.transcript, ctx."displayName" AS "contextName", ctx."contextCategory"
+    SELECT ${INTERVIEW_COLUMNS}, iv.transcript, ctx."displayName" AS "contextName", ctx."contextCategory",
+           ctx."extendedAttributes"->'aliases' AS "contextAliases"
       FROM "ContextInterviews" iv
       JOIN "Contexts" ctx ON ctx.id = iv."contextId"
      WHERE iv.id = $1`, [interviewId]);
@@ -127,6 +130,32 @@ export async function keptClaims(db, interviewId) {
     SELECT "claimKind", "subjectName", attribute, value FROM "ContextClaims"
      WHERE "interviewId" = $1 AND ("claimStatus" <> 'proposed' OR "proposedBy" = 'analyst')`, [interviewId]);
   return r.rows;
+}
+
+/** Every decided claim of a context (any interview): a re-extraction must not propose one again, a rejected one included. */
+export async function decidedClaims(db, contextId) {
+  const r = await db.query(`
+    SELECT "claimKind", "subjectName", "principalId", "identityId", attribute, value FROM "ContextClaims"
+     WHERE "contextId" = $1 AND "claimStatus" IN ('confirmed', 'edited', 'rejected')`, [contextId]);
+  return r.rows;
+}
+
+/**
+ * Which of `names` (normalised as lib/nameMatch.js does) is the display name or
+ * an alias of ANOTHER context. Returns those names.
+ */
+export async function otherContextNames(db, contextId, names) {
+  if (names.length === 0) return [];
+  const r = await db.query(`
+    SELECT DISTINCT n.name
+      FROM unnest($2::text[]) AS n(name)
+      JOIN "Contexts" c ON c.id <> $1
+       AND (${normalizedNameSql('c."displayName"')} = n.name
+            OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(
+                         CASE WHEN jsonb_typeof(c."extendedAttributes"->'aliases') = 'array'
+                              THEN c."extendedAttributes"->'aliases' ELSE '[]'::jsonb END) AS a(v)
+                        WHERE ${normalizedNameSql('a.v')} = n.name))`, [contextId, names]);
+  return r.rows.map(x => x.name);
 }
 
 /** The current Accountable of a context, or null. Runs inside a transaction too (query only). */

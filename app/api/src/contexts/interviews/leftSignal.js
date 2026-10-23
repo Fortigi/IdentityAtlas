@@ -14,11 +14,15 @@
 //                        longer, former(ly), quit, departed, moved on; uitgestroomd,
 //                        vertrokken, weg, niet meer, gestopt, voormalig(e), oud-…
 //                        — except a notOwner claim ("no longer the owner" gives up
-//                        the role, not the context)
+//                        the role, not the context), and one sentences.js corrected
+//                        (CORRECTED_CURRENT in its value: the sentence says current)
 //
 // Words are matched whole ("weg" is not "wegwerken", "left" not "leftover"). Pure.
 
 export const GONE_STATUSES = Object.freeze(['former', 'left']);
+// The mark sentences.js puts in a claim's value when the sentence says the person
+// is in it now: such a claim says nothing about leaving, whatever its words.
+export const CORRECTED_CURRENT = 'corrected: the sentence says current';
 
 const LEFT_RE = /(?<![\p{L}\p{N}])(?:left|no longer|former(?:ly)?|quit|departed|moved on|uitgestroomd|vertrokken|weg|niet meer|gestopt|voormalige?)(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])oud-\p{L}/iu;
 
@@ -34,5 +38,6 @@ export function leftSignal(claim) {
   if (claim.claimKind !== 'role' && claim.claimKind !== 'roleHistory') return false;
   // "I'm no longer the owner" gives up a role, not the context.
   if (claim.attribute === 'notOwner') return false;
+  if (String(claim.value ?? '').includes(CORRECTED_CURRENT)) return false;
   return saysLeft(claim.value) || saysLeft(claim.periodText);
 }

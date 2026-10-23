@@ -48,6 +48,15 @@ export function subjectLabel(claim) {
   return claim.subjectDisplayName || claim.subjectName || '';
 }
 
+// Below this the claim may be wrong (the model was unsure, or the sentence check
+// in the API found no word for current or gone): the review says so.
+export const LOW_CONFIDENCE = 0.4;
+
+/** A claim to read against its quote before confirming. */
+export function isLowConfidence(claim) {
+  return typeof claim.confidence === 'number' && claim.confidence < LOW_CONFIDENCE;
+}
+
 /** A match a person should check before confirming. */
 export function isUncertainMatch(claim) {
   return claim.subjectMatch === 'fuzzy' || claim.subjectMatch === 'firstName';
