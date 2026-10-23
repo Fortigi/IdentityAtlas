@@ -1,0 +1,3 @@
+- Fixed: Account Linking no longer treats accounts a sync has removed as orphans. A removed account (one a full sync no longer finds in its source system) is no longer scored, is never newly linked to an identity, and no longer counts towards "orphans remaining" on a run.
+- Fixed: the Orphaned Accounts report and the Orphaned Accounts context no longer list accounts that have been removed from their source system, so a review is no longer spent on accounts that no longer exist.
+- Accounts that were already linked to a person before they were removed stay linked — removal never detaches history — and an account that reappears in a later sync becomes linkable again.

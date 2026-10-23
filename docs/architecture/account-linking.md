@@ -81,7 +81,11 @@ The two name signals are mutually exclusive — only the signal whose `level` eq
 
 ### Candidate scope = orphans only
 
-The only accounts the engine ever considers are **orphan Principals** — Principals with no `IdentityMembers` row — excluding `ServicePrincipal`, `ManagedIdentity`, and `AIAgent` principal types. Accounts already attached to an Identity (e.g. by the crawler's IdentityFilter) are never disturbed. Candidates per orphan are narrowed by indexing identities on employeeId, email-local-part (raw and prefix-stripped), normalized display name, and an order-independent surname+given key, so only plausible identities are scored.
+The only accounts the engine ever considers are **orphan Principals** — *live* Principals with no `IdentityMembers` row — excluding `ServicePrincipal`, `ManagedIdentity`, and `AIAgent` principal types. Accounts already attached to an Identity (e.g. by the crawler's IdentityFilter) are never disturbed. Candidates per orphan are narrowed by indexing identities on employeeId, email-local-part (raw and prefix-stripped), normalized display name, and an order-independent surname+given key, so only plausible identities are scored.
+
+**Accounts a sync has removed are not orphans.** A full sync does not delete a principal that vanished from its source — it stamps `deletedAt` and keeps the row ([soft delete](soft-delete.md)). A tombstoned account is therefore excluded from the candidate set, from the `orphansRemaining` statistic, and from the Orphaned Accounts report and context: it is not work the analyst still has to do. The symmetric half of that decision is that an account linked *before* it was removed **stays linked** — soft delete never detaches a person's history, and re-ingesting the account clears the stamp and makes it linkable again.
+
+That one definition — the `Principals` anti-join against `IdentityMembers`, restricted to live rows and human principal types — lives only in [`accountlinking/orphanQuery.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/accountlinking/orphanQuery.js). Callers that need a different projection build their query with its `orphanPrincipalsSql()` rather than re-inlining the anti-join; the engine's two hand-written copies are what let the live-rows filter go missing from all three selections ([#1442](https://github.com/Fortigi/IdentityAtlas/issues/1442)).
 
 ### Confidence scoring + writes
 
@@ -104,7 +108,7 @@ Account Linking runs on a schedule and on demand. Configuration and run history 
 
 ## The "Orphaned Accounts" context
 
-Orphan-ness is **never modelled as a property** on the principal — it is context membership. The [`orphaned-accounts`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/orphaned-accounts.js) context plugin (a `targetType: 'Principal'` generated context) emits a tree of every Principal not linked to any Identity, sub-grouped by detected account type (`Admin` / `Guest` / `Service` / `Shared` / `Secondary`). It runs:
+Orphan-ness is **never modelled as a property** on the principal — it is context membership. The [`orphaned-accounts`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/orphaned-accounts.js) context plugin (a `targetType: 'Principal'` generated context) emits a tree of every live Principal not linked to any Identity, sub-grouped by detected account type (`Admin` / `Guest` / `Service` / `Shared` / `Secondary`). It runs:
 
 - standalone from Admin → Contexts, and
 - automatically as the final step of every Account Linking run, so the context always reflects what linking could not attach.

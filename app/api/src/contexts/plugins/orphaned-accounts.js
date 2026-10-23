@@ -1,6 +1,6 @@
 // orphaned-accounts plugin.
 //
-// Emits a generated Context tree of Principals that are NOT linked to any
+// Emits a generated Context tree of live Principals that are NOT linked to any
 // Identity (no IdentityMembers row), sub-grouped by detected account type
 // (Admin / Guest / Service / Shared / Secondary). Orphan-ness is modelled as
 // context membership, never a property on the principal.
@@ -21,7 +21,8 @@ export default {
   displayName: 'Orphaned Accounts',
   description:
     'Groups Principals that are not linked to any Identity into a context, sub-grouped by detected account ' +
-    'type (Admin/Guest/Service/Shared/Secondary). Refreshed automatically by the Account Linking run.',
+    'type (Admin/Guest/Service/Shared/Secondary). Accounts a sync has removed from their source system are ' +
+    'left out. Refreshed automatically by the Account Linking run.',
   targetType: 'Principal',
   parametersSchema: { type: 'object', required: [], properties: {} },
 
