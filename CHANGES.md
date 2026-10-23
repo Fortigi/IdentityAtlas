@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the report builder failing with a permission error for users who may build custom reports but not ask questions in plain language. They now get the builder without the "Describe it" (local model) panel.
+
+## Changes in this PR
+
 - Added the "Risky Applications (Entra ID)" report: every enterprise application, managed identity and AI agent gets a 0–100 risk score with the findings behind it. It covers apps on a public list of malicious apps, Microsoft look-alikes, high-risk app-only permissions, admin and user consent, public-client flows (ROPC), wildcard or http redirect URIs, secrets that never expire or are hidden on the enterprise application, departed or guest owners, and unused apps that keep powerful permissions.
 - The report says which checks it could not run because a crawler option was off, and leaves Microsoft's own apps out unless asked.
 

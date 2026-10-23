@@ -1,1 +1,0 @@
-- Fixed the report builder failing with a permission error for users who may build custom reports but not ask questions in plain language. They now get the builder without the "Describe it" (local model) panel.
