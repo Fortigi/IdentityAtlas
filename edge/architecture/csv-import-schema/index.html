@@ -5854,6 +5854,24 @@
 <td>Primary email / UPN</td>
 </tr>
 <tr>
+<td><code>EmployeeId</code></td>
+<td>string</td>
+<td>no</td>
+<td>HR employee number. The same number as <code>Identities.csv → EmployeeId</code>: it is Account Linking's strongest signal, so supplying it here is what lets an account be correlated to its person automatically</td>
+</tr>
+<tr>
+<td><code>GivenName</code></td>
+<td>string</td>
+<td>no</td>
+<td>First name. Used by Account Linking's name signals</td>
+</tr>
+<tr>
+<td><code>Surname</code></td>
+<td>string</td>
+<td>no</td>
+<td>Last name. Used by Account Linking's name signals</td>
+</tr>
+<tr>
 <td><code>PrincipalType</code></td>
 <td>string</td>
 <td>no</td>
@@ -6168,7 +6186,7 @@
 - Source-specific fields (Omada's <code>ODWBusiKey</code>, SAP's <code>AGR_NAME</code>, a logical application's configuration-management reference) are preserved
 - The UI can show them on detail pages under "Extended Attributes"
 - No schema changes needed to support new source fields</p>
-<p>Column names match case-insensitively, so <code>department</code> is the <code>Department</code> column, not an extra one. Blank values are not stored, and a column named like an ingest bookkeeping field (<code>id</code>, <code>systemId</code>, <code>extendedAttributes</code>, <code>createdAt</code>, <code>updatedAt</code>, <code>deletedAt</code>) is never forwarded.</p>
+<p>A <strong>schema</strong> column's name matches case-insensitively, so <code>department</code> is the <code>Department</code> column, not an extra one. An <strong>extra</strong> column, by contrast, keeps the spelling your header gives it, and the ingest matches a field to a real database column case-sensitively — so an extra column is stored as an extended attribute under its own name, and only an exact camelCase match (<code>employeeId</code>) would reach a real column. Don't rely on that: if a value belongs in a real column, the file needs an official schema column for it (which is why <code>Users.csv</code> has <code>EmployeeId</code>, <code>GivenName</code> and <code>Surname</code> — see #1441). Blank values are not stored, and a column named like an ingest bookkeeping field (<code>id</code>, <code>systemId</code>, <code>extendedAttributes</code>, <code>createdAt</code>, <code>updatedAt</code>, <code>deletedAt</code>) is never forwarded.</p>
 <p>Three files do <strong>not</strong> keep extra columns, and the job log names the ones it ignores: <code>Assignments.csv</code> (tens of millions of rows — an attribute per assignment costs more than it is worth), and <code>IdentityMembers.csv</code> / <code>ContextMembers.csv</code> (their tables have no attribute storage).</p>
 <p><strong>6. Standard CSV quoting, failing loudly</strong></p>
 <p>Files are parsed as RFC 4180: a quoted value may contain the delimiter, a doubled quote or a line break, so distinguished names (<code>"CN=x,OU=y,DC=z"</code>) load intact from a comma-delimited file. A row that cannot be parsed fails the import with its file and line; nothing is loaded as shifted columns, and a failed run never reconciles away existing rows.</p>
