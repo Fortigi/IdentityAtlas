@@ -119,7 +119,9 @@ describe('the reads and undo', () => {
   it('passes from and to through as strings, and drops a repeated parameter', async () => {
     vi.mocked(view.contextActivity).mockResolvedValue({ period: { from: '2026-01-01', to: '2026-03-31' } });
     await request(app).get(`/api/contexts/${ID}/activity?from=2026-01-01&to=2026-03-31`);
-    expect(vi.mocked(view.contextActivity).mock.calls[0].slice(1)).toEqual([ID, { from: '2026-01-01', to: '2026-03-31' }]);
+    expect(vi.mocked(view.contextActivity).mock.calls[0].slice(1)).toEqual([ID, { from: '2026-01-01', to: '2026-03-31', includeSubUnits: undefined }]);
+    await request(app).get(`/api/contexts/${ID}/activity?includeSubUnits=false`);
+    expect(vi.mocked(view.contextActivity).mock.calls[1][2]).toEqual({ from: undefined, to: undefined, includeSubUnits: 'false' });
     await request(app).get(`/api/contexts/${ID}/activity/summary?from=a&from=b`);
     expect(vi.mocked(view.activitySummary).mock.calls[0][2]).toEqual({ from: undefined, to: undefined });
   });

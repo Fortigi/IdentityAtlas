@@ -2637,7 +2637,16 @@ paths:
                   aiUsed: { type: boolean }
                   aiFields: { type: array, items: { type: string } }
                   hasChildren: { type: boolean }
-                  subUnitCount: { type: integer }
+                  subUnitCount: { type: integer, description: Units below the context, every level }
+                  levels: { type: integer, description: How many levels deep the tree below the context goes }
+                  contextColumnMatches:
+                    type: object
+                    description: Per column, how many of its (sampled) distinct values name the context or a unit below it
+                    additionalProperties:
+                      type: object
+                      properties:
+                        matched: { type: integer }
+                        distinct: { type: integer }
                   previousUpload: { type: object, nullable: true }
         '400':
           description: The file cannot be read, or the context is not a unit or application
@@ -2656,9 +2665,11 @@ paths:
       operationId: previewContextActivity
       description: >
         Applies the mapping to the draft without writing: rows readable and skipped (no date, no
-        amount, no person), how the sub-unit values matched (key, name, fuzzy, ambiguous, not found,
-        with samples), how the people matched, the period, and the rows of earlier uploads of the
-        same source on this context that the period replaces.
+        amount, no person), how the unit values matched (the context itself, key, name, fuzzy,
+        ambiguous, not found, with samples), the distribution (rows on the context itself, on units
+        below it — how many units, how deep — unmatched, ambiguous, empty), how the people matched,
+        the period, and the rows of earlier uploads of the same source on this context that the
+        period replaces.
       security:
         - EntraIdBearer: []
       requestBody:
@@ -2693,8 +2704,9 @@ paths:
       description: >
         In one transaction: deletes the rows earlier uploads of the same source on this context hold
         for the file's period (so an overlapping export is never counted twice), records the upload
-        and inserts its rows. Rows whose sub-unit matched nothing are not imported. Changes no
-        membership and no access.
+        and inserts its rows — on the context itself or any unit below it; the replace covers every
+        row an earlier upload on this context wrote, whatever level it landed on. Rows whose unit
+        matched nothing (or two units) are not imported. Changes no membership and no access.
       security:
         - EntraIdBearer: []
       requestBody:
@@ -2721,6 +2733,7 @@ paths:
                   replaced: { type: integer }
                   notImported: { type: integer }
                   period: { type: object, nullable: true }
+                  distribution: { type: object, description: As the preview reports it }
                   subjects: { type: object }
         '400':
           description: The mapping is incomplete, or no row can be imported
@@ -2741,12 +2754,15 @@ paths:
         per month, in four groups compared with the context's current members — memberAndActive,
         activeNotMember, memberNoActivity, activeUnknown (a name that matched nobody). A context of
         resources has no members to compare: its groups are active and activeUnknown. The two
-        middle groups are suggestions only. Needs `data.read`.
+        middle groups are suggestions only. With includeSubUnits (the default on a context with
+        units below it) the activity of the context and every unit below it is compared with the
+        members of all of them. Needs `data.read`.
       security:
         - EntraIdBearer: []
       parameters:
         - { name: from, in: query, schema: { type: string, format: date } }
         - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: includeSubUnits, in: query, schema: { type: string, enum: ['true', 'false', '1', '0'] } }
       responses:
         '200':
           description: The groups (period null when the context has no activity)
@@ -2755,6 +2771,7 @@ paths:
               schema:
                 type: object
                 properties:
+                  includeSubUnits: { type: boolean }
                   period: { type: object, nullable: true }
                   months: { type: array, items: { type: string } }
                   unit: { type: string, nullable: true }
@@ -2782,7 +2799,8 @@ paths:
       description: >
         For a parent (a tree's root): one line per direct sub-unit, over its whole subtree — total
         amount, active people, how many of them are not a member, how many members had no activity,
-        and the amount per month — plus the totals per month. Needs `data.read`.
+        and the amount per month — preceded by a line for the context itself (itself true) when rows
+        landed on it, plus the totals per month. Needs `data.read`.
       security:
         - EntraIdBearer: []
       parameters:
@@ -3427,7 +3445,8 @@ components:
       required: [sourceLabel, dateColumn]
       properties:
         sourceLabel: { type: string, maxLength: 80, description: The source; a later upload of the same source on the same context replaces the overlapping period }
-        contextColumn: { type: string, nullable: true, description: The column naming the sub-unit a row lands on (only on a context with sub-units) }
+        contextColumn: { type: string, nullable: true, description: "The column naming the unit a row lands on: the context itself or any unit below it, matched by key, then name (only on a context with units below it; without one every row lands on the context itself)" }
+        emptyContext: { type: string, enum: [self, skip], description: Where a row with an empty unit cell goes — the context itself (default) or left out }
         subjectNameColumn: { type: string, nullable: true }
         subjectEmailColumn: { type: string, nullable: true }
         dateColumn: { type: string }

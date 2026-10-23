@@ -28,6 +28,14 @@ describe('mergeActivityReply', () => {
     expect(mergeActivityReply(noChildren, { contextColumn: 'Klant' }, COLUMNS, { hasChildren: false }).aiFields).toEqual([]);
   });
 
+  it('keeps the unit column the guess chose by its values; fills one in only when the guess had none', () => {
+    expect(mergeActivityReply(guess, { contextColumn: 'Omschrijving' }, COLUMNS, { hasChildren: true })).toEqual({ mapping: guess, aiFields: [] });
+    const none = { ...guess, contextColumn: null };
+    const { mapping, aiFields } = mergeActivityReply(none, { contextColumn: 'Omschrijving' }, COLUMNS, { hasChildren: true });
+    expect(aiFields).toEqual(['contextColumn']);
+    expect(mapping.contextColumn).toBe('Omschrijving');
+  });
+
   it('may fill in what the guess lacked without being blocked by its other gaps', () => {
     const incomplete = { ...guess, dateColumn: null, subjectNameColumn: null };
     const { mapping, aiFields } = mergeActivityReply(incomplete, { dateColumn: 'Datum' }, COLUMNS, { hasChildren: true });

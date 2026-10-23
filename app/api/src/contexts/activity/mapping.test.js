@@ -3,7 +3,7 @@ import { checkActivityMapping, MAX_SOURCE_LABEL } from './mapping.js';
 
 const COLUMNS = ['Client', 'User', 'Email', 'Start Date', 'Duration (decimal)', 'Task', 'Description'];
 const good = {
-  sourceLabel: ' Clockify ', contextColumn: 'Client', subjectNameColumn: 'User', subjectEmailColumn: 'Email',
+  sourceLabel: ' Clockify ', contextColumn: 'Client', emptyContext: 'skip', subjectNameColumn: 'User', subjectEmailColumn: 'Email',
   dateColumn: 'Start Date', dateOrder: 'mdy', amountColumn: 'Duration (decimal)', unit: 'hours', kindColumn: 'Task',
   attributeColumns: ['Description', 'Description'],
 };
@@ -35,8 +35,15 @@ describe('checkActivityMapping', () => {
   });
 
   it('a sub-unit column is refused on a context without sub-units', () => {
-    expect(checkActivityMapping(good, COLUMNS, { hasChildren: false }).errors).toEqual([expect.stringMatching(/no sub-units/)]);
+    expect(checkActivityMapping(good, COLUMNS, { hasChildren: false }).errors).toEqual([expect.stringMatching(/no units below it/)]);
     expect(checkActivityMapping({ ...good, contextColumn: null }, COLUMNS).errors).toEqual([]);
+  });
+
+  it('rows without a unit go to this unit unless they are left out', () => {
+    expect(checkActivityMapping(good, COLUMNS, { hasChildren: true }).mapping.emptyContext).toBe('skip');
+    for (const v of [undefined, 'self', 'elsewhere', 1]) {
+      expect(checkActivityMapping({ ...good, emptyContext: v }, COLUMNS, { hasChildren: true }).mapping.emptyContext, String(v)).toBe('self');
+    }
   });
 
   it('one column cannot play two roles', () => {

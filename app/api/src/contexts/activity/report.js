@@ -3,7 +3,8 @@
 //   defaultPeriod(latest)                     → { from, to }  the 12 calendar months up to the latest date
 //   monthsBetween(from, to)                   → ['2026-01', …]
 //   peopleGroups({ targetType, aggregates, members, names, months })
-//   childSummary({ targetType, children, branchOf, aggregates, members, months })
+//   childSummary({ targetType, children, self, branchOf, aggregates, members, months })
+//   distinctMembers(members)                  → one entry per member id
 //
 // Pure. Activity is evidence, never membership: a context's CURRENT members are
 // compared with who was active on it in the period, and the result is four
@@ -149,6 +150,13 @@ export function peopleGroups({ targetType, aggregates, members, names, months })
   };
 }
 
+/** One entry per member id: a person who is a member of two units of a subtree is one member of it. */
+export function distinctMembers(members) {
+  const seen = new Map();
+  for (const m of members) if (!seen.has(m.memberId)) seen.set(m.memberId, m);
+  return [...seen.values()];
+}
+
 function emptyChild(child, months) {
   return {
     contextId: child.id, displayName: child.displayName, total: 0, people: new Set(), notMember: new Set(), unknown: new Set(),
@@ -185,40 +193,50 @@ function idleMembers(child, active, { cmp, sets }) {
 /**
  * The activity table of a parent: one line per direct sub-unit, each over its
  * whole subtree (a row on a grandchild counts for its child), with the two
- * suggestion counts. "Active, not a member" is judged on the context the row
- * landed on; "member, no activity" counts the sub-unit's own members.
+ * suggestion counts, and — first — a line "itself" for the rows on the parent
+ * itself, when it has any. "Active, not a member" is judged on the context the
+ * row landed on; "member, no activity" counts the line's own members.
  * @param {object} args
  * @param {string} args.targetType
  * @param {object[]} args.children   the direct sub-units { id, displayName }
+ * @param {object} [args.self]       the parent { id, displayName }: its own rows make the "itself" line
  * @param {Map} args.branchOf        context id → the direct sub-unit it lies under
- * @param {object[]} args.aggregates rows on any context below the parent
+ * @param {object[]} args.aggregates rows on the parent or any context below it
  * @param {object[]} args.members    store.personMembersOf() rows of those contexts
  * @param {string[]} args.months
  */
-export function childSummary({ targetType, children, branchOf, aggregates, members, months }) {
+// One line of the table from its tally.
+function lineOf(c, e, active, ctx) {
+  return {
+    contextId: c.id, displayName: c.displayName, itself: !!c.itself, total: round2(e.total), activePeople: e.people.size,
+    activeNotMember: e.notMember.size, activeUnknown: e.unknown.size,
+    memberNoActivity: idleMembers(c, active, ctx),
+    perMonth: ctx.months.map(month => ({ month, amount: round2(e.months.get(month)) })),
+  };
+}
+
+const byTotal = (a, b) => b.total - a.total || a.displayName.localeCompare(b.displayName);
+
+export function childSummary({ targetType, children, self = null, branchOf, aggregates, members, months }) {
   const cmp = compareColumn(targetType);
-  const unit = primaryUnitOf(aggregates);
-  const sets = memberSets(members);
-  const entries = new Map(children.map(c => [c.id, emptyChild(c, months)]));
-  const activeByChild = new Map(children.map(c => [c.id, new Set()]));
+  const ctx = { cmp, unit: primaryUnitOf(aggregates), sets: memberSets(members), months };
+  const lines = self ? [{ ...self, itself: true }, ...children] : children;
+  const lineOfContext = (id) => (self && id === self.id ? self.id : branchOf.get(id));
+  const entries = new Map(lines.map(c => [c.id, emptyChild(c, months)]));
+  const active = new Map(lines.map(c => [c.id, new Set()]));
   for (const row of aggregates) {
-    const branch = branchOf.get(row.contextId);
-    const entry = entries.get(branch);
+    const line = lineOfContext(row.contextId);
+    const entry = entries.get(line);
     if (!entry) continue;
-    tally(entry, row, { cmp, unit, sets });
-    if (cmp && row[cmp]) activeByChild.get(branch).add(row[cmp]);
+    tally(entry, row, ctx);
+    if (cmp && row[cmp]) active.get(line).add(row[cmp]);
   }
-  const rows = children.map(c => {
-    const e = entries.get(c.id);
-    return {
-      contextId: c.id, displayName: c.displayName, total: round2(e.total), activePeople: e.people.size,
-      activeNotMember: e.notMember.size, activeUnknown: e.unknown.size,
-      memberNoActivity: idleMembers(c, activeByChild.get(c.id), { cmp, sets }),
-      perMonth: months.map(month => ({ month, amount: round2(e.months.get(month)) })),
-    };
-  }).sort((a, b) => b.total - a.total || a.displayName.localeCompare(b.displayName));
-  const perMonth = months.map((month, i) => ({ month, amount: round2(rows.reduce((s, r) => s + r.perMonth[i].amount, 0)) }));
-  return { unit, comparable: !!cmp, children: rows, totals: { total: round2(rows.reduce((s, r) => s + r.total, 0)), perMonth } };
+  const own = self ? lineOf(lines[0], entries.get(self.id), active.get(self.id), ctx) : null;
+  const rows = children.map(c => lineOf(c, entries.get(c.id), active.get(c.id), ctx)).sort(byTotal);
+  // The parent's own line only when it has rows of its own.
+  const all = own && entries.get(self.id).people.size > 0 ? [own, ...rows] : rows;
+  const perMonth = months.map((month, i) => ({ month, amount: round2(all.reduce((s, r) => s + r.perMonth[i].amount, 0)) }));
+  return { unit: ctx.unit, comparable: !!cmp, children: all, totals: { total: round2(all.reduce((s, r) => s + r.total, 0)), perMonth } };
 }
 
 /** context id → the direct sub-unit of `rootId` it lies under (the sub-unit itself included). */

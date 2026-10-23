@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { matchContexts, buildContextMatcher, matchSubjects, subjectKey } from './match.js';
+import { matchContexts, buildContextMatcher, namesAUnit, matchSubjects, subjectKey } from './match.js';
 
 const units = [
   { id: 'c1', externalId: 'K-001', displayName: 'Northwind Traders' },
@@ -33,10 +33,52 @@ describe('buildContextMatcher', () => {
   });
 });
 
+describe('buildContextMatcher over a subtree and the context itself', () => {
+  const SELF = { id: 'root', externalId: 'CUST', displayName: 'Customers' };
+  const TREE = [
+    { id: 'c1', externalId: 'K-001', displayName: 'Northwind Traders' },         // a child
+    { id: 'g1', externalId: null, displayName: 'Platform Rebuild' },              // a grandchild under c1
+    { id: 'g2', externalId: null, displayName: 'Support' },                       // two units named Support,
+    { id: 'c2', externalId: null, displayName: 'Support' },                       // at two levels
+    { id: 'g3', externalId: null, displayName: 'Customers' },                     // shares the root's name
+  ];
+  const match = buildContextMatcher(TREE, SELF);
+
+  it('a grandchild matches by name like a child', () => {
+    expect(match('Platform Rebuild')).toEqual({ id: 'g1', kind: 'name' });
+    expect(match('k-001')).toEqual({ id: 'c1', kind: 'key' });
+  });
+
+  it('the context own name or key lands on the context itself, even when a unit below shares it', () => {
+    expect(match('customers')).toEqual({ id: 'root', kind: 'self' });
+    expect(match(' CUST ')).toEqual({ id: 'root', kind: 'self' });
+  });
+
+  it('a name two units share at two levels is ambiguous, never the shallower one', () => {
+    expect(match('Support')).toEqual({ ambiguous: true });
+  });
+
+  it('a near miss of a grandchild is fuzzy, with the name it matched', () => {
+    expect(match('Platform Rebiuld')).toMatchObject({ id: 'g1', kind: 'fuzzy', matchedName: 'Platform Rebuild' });
+  });
+
+  it('without the context itself its name is just another unit name', () => {
+    expect(buildContextMatcher(TREE)('Customers')).toEqual({ id: 'g3', kind: 'name' });
+  });
+});
+
+describe('namesAUnit', () => {
+  it('is true for a key or a normalised name, false otherwise (no near misses)', () => {
+    const names = namesAUnit([{ externalId: 'K-001', displayName: 'Northwind Traders' }, { externalId: null, displayName: 'Jansen, Jan' }]);
+    expect([' k-001', 'NORTHWIND traders', 'Jan Jansen', 'Northwind Trader', '', null].map(names)).toEqual([true, true, true, false, false, false]);
+  });
+});
+
 describe('matchContexts', () => {
   it('maps each value to its sub-unit and counts the misses with the rows they hold back', () => {
-    const { ids, stats } = matchContexts(units, new Map([['K-001', 4], ['Contoso Bakeri', 2], ['Fabrikam', 3], ['Unknown Ltd', 5]]));
+    const { ids, outcome, stats } = matchContexts(units, new Map([['K-001', 4], ['Contoso Bakeri', 2], ['Fabrikam', 3], ['Unknown Ltd', 5]]));
     expect([...ids]).toEqual([['K-001', 'c1'], ['Contoso Bakeri', 'c2']]);
+    expect([...outcome]).toEqual([['Fabrikam', 'ambiguous'], ['Unknown Ltd', 'unmatched']]);
     expect(stats).toMatchObject({ matched: 2, fuzzy: 1, byName: 0, unmatched: 1, ambiguous: 1 });
     expect(stats.unmatchedSamples).toEqual([
       { kind: 'Context', value: 'Fabrikam', reason: 'ambiguous', rows: 3 },

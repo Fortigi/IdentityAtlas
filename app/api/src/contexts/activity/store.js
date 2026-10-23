@@ -14,19 +14,25 @@ export const MAX_HISTORY = 100;
 /** The context an export is uploaded on, or null. */
 export async function loadContext(db, id) {
   return db.queryOne(`
-    SELECT id, "displayName", "targetType", "contextCategory", "parentContextId"
+    SELECT id, "externalId", "displayName", "targetType", "contextCategory", "parentContextId"
       FROM "Contexts" WHERE id = $1`, [id]);
 }
 
-/** Every context below `id` (all levels): { id, externalId, displayName, parentContextId }. */
+/**
+ * Every context below `id` (all levels): { id, externalId, displayName, parentContextId, depth }
+ * — depth 1 is a direct sub-unit. Cycle-safe: a corrupt parent chain (A → B → A) stops where an
+ * id repeats on the path, and the context itself is never one of its own descendants.
+ */
 export async function descendantsOf(db, id) {
   return (await db.query(`
     WITH RECURSIVE below AS (
-      SELECT c.id, c."externalId", c."displayName", c."parentContextId" FROM "Contexts" c WHERE c."parentContextId" = $1
+      SELECT c.id, c."externalId", c."displayName", c."parentContextId", 1 AS depth FROM "Contexts" c WHERE c."parentContextId" = $1
       UNION ALL
-      SELECT c.id, c."externalId", c."displayName", c."parentContextId" FROM "Contexts" c JOIN below b ON c."parentContextId" = b.id
-    )
-    SELECT id, "externalId", "displayName", "parentContextId" FROM below`, [id])).rows;
+      SELECT c.id, c."externalId", c."displayName", c."parentContextId", b.depth + 1 FROM "Contexts" c JOIN below b ON c."parentContextId" = b.id
+    ) CYCLE id SET "isCycle" USING "cyclePath"
+    SELECT id, "externalId", "displayName", "parentContextId", depth
+      FROM below WHERE NOT "isCycle" AND id <> $1
+     ORDER BY depth, "displayName"`, [id])).rows;
 }
 
 /** The latest upload on this context, of this source when one is named (its mapping starts a re-upload), or null. */

@@ -14,9 +14,11 @@ let root;
 beforeEach(async () => { root = await mkdtemp(join(tmpdir(), 'ctx-act-svc-')); process.env.UPLOAD_ROOT = root; });
 afterEach(async () => { delete process.env.UPLOAD_ROOT; await rm(root, { recursive: true, force: true }); });
 
-const ROOT = { id: '00000000-0000-4000-8000-000000000001', displayName: 'Customers', targetType: 'Identity', contextCategory: 'OrganizationalUnit', parentContextId: null };
-const NORTHWIND = { id: '00000000-0000-4000-8000-0000000000a1', externalId: 'K-001', displayName: 'Northwind Traders', parentContextId: ROOT.id };
-const CONTOSO = { id: '00000000-0000-4000-8000-0000000000a2', externalId: 'K-002', displayName: 'Contoso Bakery', parentContextId: ROOT.id };
+const ROOT = { id: '00000000-0000-4000-8000-000000000001', externalId: null, displayName: 'Customers', targetType: 'Identity', contextCategory: 'OrganizationalUnit', parentContextId: null };
+const NORTHWIND = { id: '00000000-0000-4000-8000-0000000000a1', externalId: 'K-001', displayName: 'Northwind Traders', parentContextId: ROOT.id, depth: 1 };
+const CONTOSO = { id: '00000000-0000-4000-8000-0000000000a2', externalId: 'K-002', displayName: 'Contoso Bakery', parentContextId: ROOT.id, depth: 1 };
+// A project below Northwind: a grandchild of the root.
+const PLATFORM = { id: '00000000-0000-4000-8000-0000000000b1', externalId: null, displayName: 'Platform Rebuild', parentContextId: NORTHWIND.id, depth: 2 };
 
 function fakeDb({ contexts = [ROOT], below = [NORTHWIND, CONTOSO], previous = null, replaced = [] } = {}) {
   const s = { writes: [] };
@@ -115,10 +117,15 @@ describe('previewActivity', () => {
     expect(p).toMatchObject({
       rowCount: 6, readable: 5, skipped: { 'no date': 1, 'no amount': 0, 'no person': 0 },
       period: { start: '2026-01-15', end: '2026-04-18' }, unit: 'hours',
-      rowsToImport: 3, rowsNotPlaced: 2, rowsUnknownPerson: 1, subUnitsReached: 2,
+      rowsToImport: 4, rowsNotPlaced: 1, rowsUnknownPerson: 1, subUnitsReached: 3,
       replaces: { rows: 7, uploads: [{ id: 'U-old', fileName: 'q1.csv', uploadedAt: '2026-04-01', rows: 7 }] },
     });
     expect(p.contexts).toMatchObject({ matched: 2, unmatched: 1, emptyRows: 1 });
+    // The row without a client lands on the root itself (the default).
+    expect(p.distribution).toEqual({
+      onSelf: 1, onSubUnits: 3, subUnits: 2, deepestLevel: 1, unmatched: 1, ambiguous: 0, empty: 1, emptyTo: 'self',
+      unmatchedSamples: [{ value: 'Unknown Ltd', rows: 1 }], ambiguousSamples: [],
+    });
     expect(p.contexts.unmatchedSamples).toEqual([{ kind: 'Context', value: 'Unknown Ltd', reason: 'not found', rows: 1 }]);
     expect(p.subjects).toMatchObject({ matched: 2, unmatched: 1 });
     expect(p.sample[0]).toEqual({ context: 'Northwind Traders', subject: 'Vera Example', date: '2026-04-18', amount: 1.5, kind: 'Build' });
@@ -142,20 +149,44 @@ describe('applyActivity', () => {
     const a = await analyzed(s);
     const out = await applyActivity({ uploadDraftId: a.uploadDraftId, mapping: a.guess }, ROOT.id, 'analyst@example.org', { db: s.db });
     expect(out).toEqual({
-      uploadId: 'U-new', contextId: ROOT.id, imported: 3, replaced: 7, notImported: 3,
+      uploadId: 'U-new', contextId: ROOT.id, imported: 4, replaced: 7, notImported: 2,
       period: { start: '2026-01-15', end: '2026-04-18' }, subjects: expect.objectContaining({ matched: 2 }),
+      distribution: expect.objectContaining({ onSelf: 1, onSubUnits: 3, unmatched: 1 }),
     });
     const [del, head, insert] = s.writes;
     expect(del.params).toEqual([ROOT.id, 'Clockify', '2026-01-15', '2026-04-18']);
-    expect(head.params.slice(6, 10)).toEqual([6, 3, 3, 'analyst@example.org']);
+    expect(head.params.slice(6, 10)).toEqual([6, 4, 2, 'analyst@example.org']);
     // Columns: contextId, principalId, identityId, subjectName, … (store.js INSERT_ROWS).
-    expect(insert.params[2]).toEqual([NORTHWIND.id, NORTHWIND.id, CONTOSO.id]);
-    expect(insert.params[3]).toEqual(['P-vera', 'P-tom', null]);
-    expect(insert.params[4]).toEqual(['I-vera', 'I-tom', null]);
-    expect(insert.params[5]).toEqual(['Vera Example', 'Tom Sample', 'Ghost Person']);
-    expect(insert.params[8]).toEqual([1.5, 2, 0.5]);
+    expect(insert.params[2]).toEqual([NORTHWIND.id, NORTHWIND.id, CONTOSO.id, ROOT.id]);
+    expect(insert.params[3]).toEqual(['P-vera', 'P-tom', null, 'P-vera']);
+    expect(insert.params[4]).toEqual(['I-vera', 'I-tom', null, 'I-vera']);
+    expect(insert.params[5]).toEqual(['Vera Example', 'Tom Sample', 'Ghost Person', 'Vera Example']);
+    expect(insert.params[8]).toEqual([1.5, 2, 0.5, 1]);
     // The draft is gone after the import.
     expect(await readdir(join(root, 'context-uploads'))).not.toContain(`${a.uploadDraftId}.data`);
+  });
+
+  it('on a parent, rows land on the root itself, a child and a grandchild — and a re-upload replaces them all, keyed by the root', async () => {
+    const TREE = [NORTHWIND, CONTOSO, PLATFORM];
+    const text = [HEAD,
+      line('Platform Rebuild', 'Vera Example', 'vera@example.org', '04/18/2026', '1.00'),
+      line('Customers', 'Vera Example', 'vera@example.org', '04/17/2026', '2.00'),
+      line('K-002', 'Vera Example', 'vera@example.org', '04/16/2026', '3.00'),
+      line('', 'Vera Example', 'vera@example.org', '04/15/2026', '4.00'),
+    ].join('\n');
+    const s = fakeDb({ below: TREE, replaced: [{ id: 'U-old', rows: 9 }] });
+    const a = await analyzed(s, text);
+    expect(a).toMatchObject({ subUnitCount: 3, levels: 2, contextColumnMatches: { Client: { matched: 3, distinct: 3 }, Project: { matched: 0, distinct: 1 } } });
+    expect(a.guess.contextColumn).toBe('Client');
+    const out = await applyActivity({ uploadDraftId: a.uploadDraftId, mapping: { ...a.guess, emptyContext: 'skip' } }, ROOT.id, 'x', { db: s.db });
+    expect(out.distribution).toMatchObject({ onSelf: 1, onSubUnits: 2, subUnits: 2, deepestLevel: 2, empty: 1, emptyTo: 'skip' });
+    const [del, head, insert] = s.writes;
+    // The replace window is the file's period on the root (the upload's context), whatever level
+    // its earlier rows landed on — the row left out still counts for the period.
+    expect(del.params).toEqual([ROOT.id, 'Clockify', '2026-04-15', '2026-04-18']);
+    expect(head.params[0]).toBe(ROOT.id);
+    expect(insert.params[2]).toEqual([PLATFORM.id, ROOT.id, CONTOSO.id]);
+    expect(out).toMatchObject({ imported: 3, notImported: 1, replaced: 9 });
   });
 
   it('on a context without sub-units every row lands on the context itself', async () => {

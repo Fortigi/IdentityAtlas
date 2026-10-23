@@ -11,11 +11,12 @@ import { parseList } from '../upload/parse.js';
 import { profileColumns } from '../upload/profile.js';
 import { saveDraft, loadDraft, deleteDraft, sweepDrafts } from '../upload/drafts.js';
 import { UploadError } from '../upload/service.js';
-import { guessActivityMapping } from './guess.js';
+import { guessActivityMapping, contextColumnMatches } from './guess.js';
 import { refineActivityGuess } from './aiRefine.js';
 import { checkActivityMapping } from './mapping.js';
 import { readActivityRows } from './rows.js';
-import { matchContexts, matchSubjects, subjectKey } from './match.js';
+import { matchSubjects, subjectKey } from './match.js';
+import { placeEntries } from './placement.js';
 import { loadContext, descendantsOf, latestUploadOf, replacedBy, writeUpload } from './store.js';
 
 // An activity export is longer than a list: a year of time entries of a few
@@ -24,7 +25,6 @@ import { loadContext, descendantsOf, latestUploadOf, replacedBy, writeUpload } f
 export const MAX_ACTIVITY_ROWS = 500_000;
 export const ACTIVITY_CATEGORIES = ['OrganizationalUnit', 'LogicalApplication'];
 const MAX_SAMPLE_ROWS = 10;
-const EMPTY_VALUE = '(empty)';
 
 async function contextOrThrow(db, contextId) {
   const context = await loadContext(db, contextId);
@@ -44,7 +44,9 @@ function savedMappingFits(saved, columns, hasChildren) {
 
 /**
  * Step 1: store the file, describe its columns and guess the mapping.
- * @returns {Promise<object>} { uploadDraftId, fileName, rowCount, columns, guess, aiUsed, aiFields, hasChildren, subUnitCount, previousUpload }
+ * @returns {Promise<object>} { uploadDraftId, fileName, rowCount, columns, guess, aiUsed, aiFields, hasChildren,
+ *   subUnitCount, levels, contextColumnMatches, previousUpload } — contextColumnMatches: per column, how
+ *   many of its distinct values name this unit or one below it ({ matched, distinct }).
  */
 export async function analyzeActivity({ buffer, fileName, uploadedBy, contextId }, { db, refine = refineActivityGuess } = {}) {
   await sweepDrafts();
@@ -53,9 +55,8 @@ export async function analyzeActivity({ buffer, fileName, uploadedBy, contextId 
   const profile = profileColumns(columns, rows);
   const units = await descendantsOf(db, context.id);
   const hasChildren = units.length > 0;
-  const childNames = units.flatMap(u => [u.displayName, u.externalId]).filter(Boolean);
 
-  const heuristic = guessActivityMapping({ fileName, profile, rows, childNames });
+  const heuristic = guessActivityMapping({ fileName, profile, rows, units, self: context });
   const previous = await latestUploadOf(db, context.id, heuristic.sourceLabel);
   const saved = savedMappingFits(previous, columns, hasChildren);
   const refined = saved ? { mapping: saved, aiUsed: false, aiFields: [] } : await refine({ fileName, profile, guess: heuristic, hasChildren });
@@ -71,30 +72,10 @@ export async function analyzeActivity({ buffer, fileName, uploadedBy, contextId 
     aiFields: refined.aiFields,
     hasChildren,
     subUnitCount: units.length,
+    levels: units.reduce((max, u) => Math.max(max, u.depth ?? 1), 0),
+    contextColumnMatches: contextColumnMatches({ profile, rows, units, self: context }),
     previousUpload: previous ? { id: previous.id, fileName: previous.fileName, uploadedAt: previous.uploadedAt, mappingReused: !!saved } : null,
   };
-}
-
-// Row counts per sub-unit value (an empty cell counted as EMPTY_VALUE).
-function contextValueCounts(entries) {
-  const counts = new Map();
-  for (const e of entries) {
-    const v = e.contextValue ?? EMPTY_VALUE;
-    counts.set(v, (counts.get(v) ?? 0) + 1);
-  }
-  return counts;
-}
-
-// The context each entry lands on: the uploaded-on context itself, or the
-// matched sub-unit (null: not imported).
-function placeEntries(entries, mapping, context, units) {
-  if (!mapping.contextColumn) return { placed: entries.map(e => ({ ...e, contextId: context.id })), contexts: null };
-  const counts = contextValueCounts(entries);
-  counts.delete(EMPTY_VALUE);
-  const { ids, stats } = matchContexts(units, counts);
-  const placed = entries.map(e => ({ ...e, contextId: e.contextValue ? ids.get(e.contextValue) ?? null : null }));
-  const emptyRows = entries.filter(e => !e.contextValue).length;
-  return { placed, contexts: { ...stats, emptyRows } };
 }
 
 function distinctSubjects(entries) {
@@ -114,7 +95,7 @@ async function prepare({ uploadDraftId, mapping: input }, contextId, db) {
   if (errors.length) throw new UploadError(400, 'The mapping is not complete.', errors);
 
   const read = readActivityRows(rows, mapping);
-  const { placed, contexts } = placeEntries(read.entries, mapping, context, units);
+  const { placed, contexts, distribution } = placeEntries(read.entries, mapping, context, units);
   const landed = placed.filter(e => e.contextId);
   const subjects = await matchSubjects(db, distinctSubjects(landed));
   const out = landed.map(e => {
@@ -122,7 +103,7 @@ async function prepare({ uploadDraftId, mapping: input }, contextId, db) {
     return { ...e, principalId: who?.principalId ?? null, identityId: who?.identityId ?? null };
   });
   const replaces = await replacedBy(db, context.id, mapping.sourceLabel, read.period);
-  return { draft, context, units, rows, mapping, read, contexts, subjects, out, replaces };
+  return { draft, context, units, rows, mapping, read, contexts, distribution, subjects, out, replaces };
 }
 
 const unitName = (units, context) => {
@@ -143,6 +124,7 @@ export async function previewActivity(body, contextId, { db }) {
     period: p.read.period,
     unit: p.mapping.unit,
     contexts: p.contexts,
+    distribution: p.distribution,
     subjects: p.subjects.stats,
     rowsToImport: p.out.length,
     rowsNotPlaced: p.read.entries.length - p.out.length,
@@ -158,7 +140,7 @@ export async function previewActivity(body, contextId, { db }) {
 /** Step 3: write the upload. */
 export async function applyActivity(body, contextId, uploadedBy, { db }) {
   const p = await prepare(body, contextId, db);
-  if (p.out.length === 0) throw new UploadError(400, 'No row of the file can be imported: check the date, amount, person and sub-unit columns.');
+  if (p.out.length === 0) throw new UploadError(400, 'No row of the file can be imported: check the date, amount, person and unit columns.');
   const written = await writeUpload(db, {
     contextId: p.context.id, fileName: p.draft.fileName, sourceLabel: p.mapping.sourceLabel, mapping: p.mapping,
     period: p.read.period, rowCount: p.rows.length, matchedRows: p.out.length, unmatchedRows: p.rows.length - p.out.length,
@@ -172,6 +154,7 @@ export async function applyActivity(body, contextId, uploadedBy, { db }) {
     replaced: written.replaced,
     notImported: p.rows.length - p.out.length,
     period: p.read.period,
+    distribution: p.distribution,
     subjects: p.subjects.stats,
   };
 }

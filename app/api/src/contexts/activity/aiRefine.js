@@ -44,7 +44,9 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
  * Merge a model reply over the guess, one field at a time. A field is taken
  * only when it adds no problem the mapping did not already have (the guess may
  * itself be incomplete — a file without a recognisable date — and the model
- * may be the one to fill that in). Pure.
+ * may be the one to fill that in). The unit column is the model's only when the
+ * guess found none: the guess chose it by matching the file's values against
+ * the tree, which the model cannot see. Pure.
  */
 export function mergeActivityReply(guess, reply, columns, { hasChildren = false } = {}) {
   let merged = { ...guess };
@@ -52,6 +54,8 @@ export function mergeActivityReply(guess, reply, columns, { hasChildren = false 
   const aiFields = [];
   for (const field of FIELDS) {
     if (!reply || !(field in reply) || same(merged[field], reply[field])) continue;
+    // A unit column the guess chose by its values (it names units of the tree) stands.
+    if (field === 'contextColumn' && guess.contextColumn) continue;
     const { mapping, errors } = checkActivityMapping({ ...merged, [field]: reply[field] }, columns, { hasChildren });
     if (!errors.every(e => problems.includes(e))) continue;
     merged = mapping;

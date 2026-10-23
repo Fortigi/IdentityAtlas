@@ -9,7 +9,7 @@
 // names must be one of the file's — the mapping is caller input.
 
 import { columnOrNull, checkAttributes } from '../upload/mapping.js';
-import { UNITS, DATE_ORDERS } from './guess.js';
+import { UNITS, DATE_ORDERS, EMPTY_CONTEXT } from './guess.js';
 
 export const MAX_SOURCE_LABEL = 80;
 const ROLES = [
@@ -34,7 +34,7 @@ function checkRequired(mapping, hasChildren, errors) {
   if (!mapping.sourceLabel) errors.push('Name the source of this export (for example Clockify), so a later export of it replaces this one.');
   if (!mapping.dateColumn) errors.push('Choose the column that holds the date.');
   if (!mapping.subjectNameColumn && !mapping.subjectEmailColumn) errors.push('Choose the column that names the person (a name or an e-mail address).');
-  if (mapping.contextColumn && !hasChildren) errors.push('This context has no sub-units, so every row lands on it: leave the sub-unit column empty.');
+  if (mapping.contextColumn && !hasChildren) errors.push('This context has no units below it, so every row lands on it: leave the unit column empty.');
 }
 
 export function checkActivityMapping(input, columns, { hasChildren = false } = {}) {
@@ -46,6 +46,8 @@ export function checkActivityMapping(input, columns, { hasChildren = false } = {
   const mapping = {
     sourceLabel: text(m.sourceLabel).slice(0, MAX_SOURCE_LABEL),
     ...roles,
+    // A row whose unit cell is empty lands on this unit unless the analyst leaves such rows out.
+    emptyContext: EMPTY_CONTEXT.includes(m.emptyContext) ? m.emptyContext : 'self',
     dateOrder: DATE_ORDERS.includes(m.dateOrder) ? m.dateOrder : 'dmy',
     // Without an amount column every row is one event, whatever unit was sent.
     unit: roles.amountColumn ? (UNITS.includes(m.unit) ? m.unit : 'hours') : 'events',

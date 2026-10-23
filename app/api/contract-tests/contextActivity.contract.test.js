@@ -9,7 +9,10 @@
 //     and the recursive descendants query are valid and give the four groups and
 //     the per-child table;
 //   - undo removes one upload's rows only; deleting a context removes its rows;
-//     deleting an account leaves the row with principalId NULL.
+//     deleting an account leaves the row with principalId NULL;
+//   - on a deeper tree, rows land on the root itself and on a grandchild, a
+//     re-upload replaces them wherever they landed (keyed by the root), and the
+//     descendants query reports each unit's depth and stops on a parent cycle.
 //
 // Isolation on the shared contract DB: one system, a tree of fresh contexts and
 // accounts with a random suffix; everything is deleted in afterAll.
@@ -25,12 +28,16 @@ process.env.DATABASE_URL = process.env.CONTRACT_DB_URL;
 const db = await import('../src/db/connection.js');
 const { analyzeActivity, previewActivity, applyActivity } = await import('../src/contexts/activity/service.js');
 const { contextActivity, activitySummary } = await import('../src/contexts/activity/view.js');
-const { listUploads, deleteUpload } = await import('../src/contexts/activity/store.js');
+const { listUploads, deleteUpload, descendantsOf } = await import('../src/contexts/activity/store.js');
 
 const SUFFIX = randomUUID().slice(0, 8);
 const ROOT = randomUUID();
 const NORTH = randomUUID();
 const CONTOSO = randomUUID();
+// A second, deeper tree: TREE → CLIENT → PROJECT.
+const TREE = randomUUID();
+const CLIENT = randomUUID();
+const PROJECT = randomUUID();
 const P = {};
 const I = {};
 let pool;
@@ -89,6 +96,9 @@ beforeAll(async () => {
   await pool.query(ctx, [ROOT, `Customers ${SUFFIX}`, null, null]);
   await pool.query(ctx, [NORTH, NORTH_NAME, ROOT, `K1-${SUFFIX}`]);
   await pool.query(ctx, [CONTOSO, CONTOSO_NAME, ROOT, `K2-${SUFFIX}`]);
+  await pool.query(ctx, [TREE, `Portfolio ${SUFFIX}`, null, null]);
+  await pool.query(ctx, [CLIENT, `Fabrikam ${SUFFIX}`, TREE, null]);
+  await pool.query(ctx, [PROJECT, `Rollout ${SUFFIX}`, CLIENT, null]);
   // Vera and Kim are members of Northwind; nobody of Contoso.
   for (const id of [I.vera, I.kim]) {
     await pool.query(`INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy") VALUES ($1, 'Identity', $2, 'analyst')`, [NORTH, id]);
@@ -96,7 +106,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await pool.query('DELETE FROM "Contexts" WHERE id = ANY($1::uuid[])', [[NORTH, CONTOSO, ROOT]]);
+  await pool.query('UPDATE "Contexts" SET "parentContextId" = NULL WHERE id = ANY($1::uuid[])', [[TREE, CLIENT, PROJECT]]);
+  await pool.query('DELETE FROM "Contexts" WHERE id = ANY($1::uuid[])', [[NORTH, CONTOSO, ROOT, PROJECT, CLIENT, TREE]]);
   await pool.query('DELETE FROM "Identities" WHERE id = ANY($1::uuid[])', [Object.values(I)]);
   await pool.query('DELETE FROM "Principals" WHERE "systemId" = $1', [systemId]);
   await pool.query('DELETE FROM "Systems" WHERE id = $1', [systemId]);
@@ -179,5 +190,43 @@ describe('activity upload on a tree root (real PostgreSQL)', () => {
     expect(kept).toMatchObject({ principalId: null, identityId: I.vera });
     await pool.query('DELETE FROM "Contexts" WHERE id = $1', [NORTH]);
     expect(await rowsOf([NORTH])).toEqual([]);
+  });
+});
+
+describe('activity upload on a deeper tree (real PostgreSQL)', () => {
+  // Client column: the tree itself, its grandchild, an empty cell.
+  const file = (dates) => Buffer.from([
+    HEAD,
+    row(`Portfolio ${SUFFIX}`, ...vera(), dates[0], '1.00'),
+    row(`Rollout ${SUFFIX}`, ...vera(), dates[1], '2.00'),
+    row('', ...vera(), dates[2], '4.00'),
+  ].join('
+'));
+  const onTree = async () => (await rowsOf([TREE, CLIENT, PROJECT])).map(r => [r.contextId, r.d, r.amount]);
+
+  it('reports each unit below with its depth', async () => {
+    expect((await descendantsOf(db, TREE)).map(d => [d.id, d.depth])).toEqual([[CLIENT, 1], [PROJECT, 2]]);
+  });
+
+  it('lands rows on the tree itself and on a grandchild, and a re-upload replaces them all', async () => {
+    const a = await analyzeActivity({ buffer: file(['05/04/2026', '05/05/2026', '05/06/2026']), fileName: 'may.csv', uploadedBy: 'x', contextId: TREE }, { db });
+    expect(a).toMatchObject({ subUnitCount: 2, levels: 2 });
+    const first = await applyActivity({ uploadDraftId: a.uploadDraftId, mapping: a.guess }, TREE, 'x', { db });
+    expect(first.distribution).toMatchObject({ onSelf: 2, onSubUnits: 1, deepestLevel: 2, empty: 1 });
+    expect(await onTree()).toEqual([[TREE, '2026-05-04', 1], [PROJECT, '2026-05-05', 2], [TREE, '2026-05-06', 4]]);
+    const b = await analyzeActivity({ buffer: file(['05/04/2026', '05/05/2026', '05/06/2026']), fileName: 'may-again.csv', uploadedBy: 'x', contextId: TREE }, { db });
+    const again = await applyActivity({ uploadDraftId: b.uploadDraftId, mapping: { ...b.guess, emptyContext: 'skip' } }, TREE, 'x', { db });
+    expect(again).toMatchObject({ imported: 2, replaced: 3 });
+    expect(await onTree()).toEqual([[TREE, '2026-05-04', 1], [PROJECT, '2026-05-05', 2]]);
+    const s = await activitySummary(db, TREE);
+    expect(s.children.map(c => [c.contextId, c.itself, c.total])).toEqual([[TREE, true, 1], [CLIENT, false, 2]]);
+    const own = await contextActivity(db, TREE, { includeSubUnits: 'false' });
+    expect(own.groups.find(g => g.key === 'activeNotMember').people[0].amount).toBe(1);
+  });
+
+  it('the descendants query stops on a parent cycle and never returns the context itself', async () => {
+    await pool.query('UPDATE "Contexts" SET "parentContextId" = $1 WHERE id = $2', [PROJECT, TREE]);
+    expect((await descendantsOf(db, TREE)).map(d => d.id)).toEqual([CLIENT, PROJECT]);
+    await pool.query('UPDATE "Contexts" SET "parentContextId" = NULL WHERE id = $1', [TREE]);
   });
 });

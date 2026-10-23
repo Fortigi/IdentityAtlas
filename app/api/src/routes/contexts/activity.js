@@ -5,7 +5,8 @@
 //   POST   /api/contexts/:id/activity/analyze            multipart `file` → columns + best-guess mapping
 //   POST   /api/contexts/:id/activity/preview            { uploadDraftId, mapping } → what apply would do
 //   POST   /api/contexts/:id/activity/apply              { uploadDraftId, mapping } → the upload run
-//   GET    /api/contexts/:id/activity?from&to            its people in four groups vs its members
+//   GET    /api/contexts/:id/activity?from&to&includeSubUnits  its people in four groups vs its members
+//                                                        (includeSubUnits: the units below too; default on a parent)
 //   GET    /api/contexts/:id/activity/summary?from&to    a parent: per sub-unit × month
 //   GET    /api/contexts/:id/activity/uploads            the upload history
 //   DELETE /api/contexts/:id/activity/uploads/:uploadId  undo one upload
@@ -72,7 +73,7 @@ router.post('/contexts/:id/activity/apply', ...write, async (req, res) => {
 
 router.get('/contexts/:id/activity', ...read, async (req, res) => {
   try {
-    res.json(await contextActivity(db, req.params.id, periodQuery(req)));
+    res.json(await contextActivity(db, req.params.id, { ...periodQuery(req), includeSubUnits: param(req.query.includeSubUnits) }));
   } catch (err) {
     sendFailure(res, err, 'Reading the activity');
   }

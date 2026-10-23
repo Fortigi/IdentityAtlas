@@ -1,15 +1,18 @@
 // Context activity — which context a row lands on, and who did it.
 //
-//   matchContexts(units, values)   → { ids: Map(value → contextId), stats }    pure
+//   matchContexts(units, values, { self }) → { ids: Map(value → contextId), outcome, stats }    pure
+//   namesAUnit(units)              → (value) → true when it is a unit's key or normalised name    pure
 //   matchSubjects(db, subjects)    → { resolved: Map(key → { principalId, identityId, kind }), stats }
 //   subjectKey({ subjectName, subjectEmail }) → the key one person's rows share
 //
-// Contexts. A row's sub-unit value is compared with the sub-units below the
-// context the export is uploaded on (every level): first its key (the
-// context's externalId, case-insensitive), then its name through the shared
+// Contexts. A row's unit value is compared with the context the export is
+// uploaded on and every context below it (the whole subtree, every level).
+// The uploaded-on context comes first: a value that is its own key or name
+// lands on it, whatever lies below. Then the subtree: first the key (the
+// context's externalId, case-insensitive), then the name through the shared
 // name matcher (lib/nameMatch.js: normalised-equal, then a near miss reported
-// as fuzzy). A value two sub-units share is ambiguous, and its rows are not
-// imported — never guessed.
+// as fuzzy). A value two units of the subtree share — at one level or at two —
+// is ambiguous, and its rows are not imported: never guessed.
 //
 // People. The list upload's member matching (upload/members.js loadCandidates +
 // buildMatcher) does the work, for accounts and for people both: the e-mail
@@ -18,7 +21,7 @@
 // person's primary account — so the comparison with a context's members works
 // whether the context groups people or accounts.
 
-import { buildNameMatcher } from '../../lib/nameMatch.js';
+import { buildNameMatcher, normalizeName } from '../../lib/nameMatch.js';
 import { loadCandidates, buildMatcher, emptyStats, countHit, countMiss } from '../upload/members.js';
 
 const fold = (v) => String(v ?? '').trim().toLowerCase();
@@ -37,11 +40,27 @@ function keyIndex(units) {
   return index;
 }
 
-/** (value) → { id, kind } | { ambiguous: true } | null, over `units` ({ id, externalId, displayName }). */
-export function buildContextMatcher(units) {
-  const byKey = keyIndex(units);
-  const byName = buildNameMatcher(units.map(u => ({ id: u.id, name: u.displayName })));
+/**
+ * (value) → true when it is the key or the normalised name of one of `units` —
+ * the cheap, exact test the guess scores a column with (no near misses).
+ */
+export function namesAUnit(units) {
+  const keys = new Set(units.map(u => fold(u.externalId)).filter(Boolean));
+  const names = new Set(units.map(u => normalizeName(u.displayName)).filter(Boolean));
+  return (value) => keys.has(fold(value)) || names.has(normalizeName(value));
+}
+
+/**
+ * (value) → { id, kind } | { ambiguous: true } | null, over `units` ({ id, externalId, displayName })
+ * and `self` — the context the upload is made on, whose own key or name wins (kind 'self').
+ */
+export function buildContextMatcher(units, self = null) {
+  const pool = self ? [...units, self] : units;
+  const isSelf = self ? namesAUnit([self]) : () => false;
+  const byKey = keyIndex(pool);
+  const byName = buildNameMatcher(pool.map(u => ({ id: u.id, name: u.displayName })));
   return (value) => {
+    if (isSelf(value)) return { id: self.id, kind: 'self' };
     const ids = byKey.get(fold(value));
     if (ids) return ids.size > 1 ? { ambiguous: true } : { id: [...ids][0], kind: 'key' };
     return byName(value);
@@ -49,23 +68,27 @@ export function buildContextMatcher(units) {
 }
 
 /**
- * @param {object[]} units   the sub-units: { id, externalId, displayName }
- * @param {Map<string, number>} values  sub-unit value → how many rows carry it
- * @returns {{ ids: Map<string,string>, stats: object }} stats as upload/members.js
- *   reports them, each unmatched sample with the rows it holds back.
+ * @param {object[]} units   the units below: { id, externalId, displayName }
+ * @param {Map<string, number>} values  unit value → how many rows carry it
+ * @param {{ self?: object }} [opts]  the uploaded-on context ({ id, externalId, displayName })
+ * @returns {{ ids: Map<string,string>, outcome: Map<string,string>, stats: object }} ids for the
+ *   values that matched, outcome ('ambiguous' | 'unmatched') for the ones that did not; stats as
+ *   upload/members.js reports them, each unmatched sample with the rows it holds back.
  */
-export function matchContexts(units, values) {
-  const match = buildContextMatcher(units);
+export function matchContexts(units, values, { self = null } = {}) {
+  const match = buildContextMatcher(units, self);
   const ids = new Map();
+  const outcome = new Map();
   const stats = emptyStats();
   for (const [value, rows] of values) {
     const hit = match(value);
     if (hit?.id) { ids.set(value, hit.id); countHit(stats, 'Context', value, hit); continue; }
+    outcome.set(value, hit?.ambiguous ? 'ambiguous' : 'unmatched');
     countMiss(stats, 'Context', value, !!hit?.ambiguous);
     const sample = stats.unmatchedSamples.at(-1);
     if (sample?.value === value) sample.rows = rows;
   }
-  return { ids, stats };
+  return { ids, outcome, stats };
 }
 
 const RANK = { key: 3, name: 2, fuzzy: 1 };

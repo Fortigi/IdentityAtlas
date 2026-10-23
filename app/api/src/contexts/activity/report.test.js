@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  defaultPeriod, monthsBetween, peopleGroups, childSummary, branchMap, primaryUnitOf, personKey, compareColumn,
+  defaultPeriod, monthsBetween, peopleGroups, childSummary, branchMap, primaryUnitOf, personKey, compareColumn, distinctMembers,
 } from './report.js';
 
 // One aggregate row as store.activityAggregates returns it.
@@ -110,6 +110,13 @@ describe('peopleGroups', () => {
   });
 });
 
+describe('distinctMembers', () => {
+  it('keeps one entry per member id, the first one seen', () => {
+    const list = [member('I1', 'Vera', 'A'), member('I2', 'Tom', 'A'), member('I1', 'Vera', 'B')];
+    expect(distinctMembers(list).map(m => [m.memberId, m.contextId])).toEqual([['I1', 'A'], ['I2', 'A']]);
+  });
+});
+
 describe('branchMap', () => {
   it('maps every context below the root to the direct sub-unit it lies under', () => {
     const below = [
@@ -143,6 +150,29 @@ describe('childSummary', () => {
     expect(b).toMatchObject({ contextId: 'B', total: 5, activePeople: 2, activeNotMember: 1, activeUnknown: 1, memberNoActivity: 0 });
     expect(z).toMatchObject({ contextId: 'Z', total: 0, activePeople: 0, memberNoActivity: 1 });
     expect(s.totals).toEqual({ total: 11, perMonth: [{ month: '2026-03', amount: 2 }, { month: '2026-04', amount: 9 }] });
+  });
+
+  it('with the parent given, its own rows make a first "itself" line, counted in the totals', () => {
+    const self = { id: 'ROOT', displayName: 'Customers' };
+    const own = [
+      agg({ contextId: 'ROOT', identityId: 'I1', month: '2026-03', amount: 0.5 }),
+      agg({ contextId: 'ROOT', identityId: 'I5', month: '2026-04', amount: 0.25 }),
+    ];
+    const rootMembers = [...members, member('I5', 'Sam', 'ROOT'), member('I6', 'Lee', 'ROOT')];
+    const s = childSummary({ targetType: 'Identity', children, self, branchOf, aggregates: [...aggregates, ...own], members: rootMembers, months: MONTHS });
+    const [itself, a] = s.children;
+    // I1 is no member of the root (not a member); I5 is; I6 is a root member without activity.
+    expect(itself).toMatchObject({ contextId: 'ROOT', displayName: 'Customers', itself: true, total: 0.75, activePeople: 2, activeNotMember: 1, memberNoActivity: 1 });
+    expect(itself.perMonth).toEqual([{ month: '2026-03', amount: 0.5 }, { month: '2026-04', amount: 0.25 }]);
+    // The children are unchanged by the root's rows.
+    expect(a).toMatchObject({ contextId: 'A', total: 6, itself: false });
+    expect(s.children).toHaveLength(4);
+    expect(s.totals.total).toBe(11.75);
+  });
+
+  it('with the parent given but no rows on it, there is no "itself" line', () => {
+    const s = childSummary({ targetType: 'Identity', children, self: { id: 'ROOT', displayName: 'Customers' }, branchOf, aggregates, members, months: MONTHS });
+    expect(s.children.map(c => c.contextId)).toEqual(['A', 'B', 'Z']);
   });
 
   it('a tree of resources counts people but makes no member suggestions', () => {

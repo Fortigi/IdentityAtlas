@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { contextActivity, activitySummary, requestedPeriod } from './view.js';
+import { contextActivity, activitySummary, requestedPeriod, requestedSubUnits } from './view.js';
 
 const UNIT = { id: 'C', displayName: 'Northwind Traders', targetType: 'Identity', contextCategory: 'OrganizationalUnit', parentContextId: 'R' };
 const ROOT = { id: 'R', displayName: 'Customers', targetType: 'Identity', contextCategory: 'OrganizationalUnit', parentContextId: null };
@@ -62,7 +62,7 @@ describe('contextActivity', () => {
 
   it('without any activity says so and reads nothing more', async () => {
     const { db, asked } = fakeDb({ latest: null });
-    expect(await contextActivity(db, 'C')).toEqual({ contextId: 'C', targetType: 'Identity', period: null, months: [], groups: [] });
+    expect(await contextActivity(db, 'C')).toEqual({ contextId: 'C', targetType: 'Identity', includeSubUnits: false, period: null, months: [], groups: [] });
     expect(asked).toEqual([]);
   });
 
@@ -72,13 +72,70 @@ describe('contextActivity', () => {
   });
 });
 
+describe('requestedSubUnits', () => {
+  it('is null when not asked, else true or false', () => {
+    expect(requestedSubUnits(undefined)).toBeNull();
+    expect(['true', '1', 'false', '0'].map(requestedSubUnits)).toEqual([true, true, false, false]);
+  });
+
+  it('refuses anything else, an inherited property name included', () => {
+    for (const v of ['yes', '', 'toString', 'constructor']) expect(() => requestedSubUnits(v), v).toThrow(expect.objectContaining({ status: 400 }));
+  });
+});
+
+describe('contextActivity on a parent — include sub-units', () => {
+  const below = [{ id: 'C', parentContextId: 'R', displayName: 'Northwind Traders', depth: 1 }, { id: 'C1', parentContextId: 'C', displayName: 'Team', depth: 2 }];
+  // Vera is a member of the team below; Ann of the root itself. Vera is active on the team.
+  const members = [
+    { contextId: 'C1', memberId: 'I1', memberType: 'Identity', displayName: 'Vera Example' },
+    { contextId: 'R', memberId: 'I3', memberType: 'Identity', displayName: 'Ann Sample' },
+    { contextId: 'C', memberId: 'I3', memberType: 'Identity', displayName: 'Ann Sample' },
+  ];
+  const group = (v, key) => v.groups.find(g => g.key === key).people;
+
+  it('by default on a parent: the activity of the root and every unit below, against the members of all of them', async () => {
+    const { db, asked } = fakeDb({ context: ROOT, below, members, aggregates: [agg({ contextId: 'C1' })] });
+    const v = await contextActivity(db, 'R');
+    expect(v.includeSubUnits).toBe(true);
+    expect(asked[0].ids).toEqual(['R', 'C', 'C1']);
+    expect(db.query.mock.calls.find(c => c[0].includes('FROM "ContextMembers"'))[1][0]).toEqual(['R', 'C', 'C1']);
+    expect(group(v, 'memberAndActive').map(p => p.identityId)).toEqual(['I1']);
+    // Ann is a member of two units of the tree: one member without activity, not two.
+    expect(group(v, 'memberNoActivity').map(p => p.memberId)).toEqual(['I3']);
+  });
+
+  it('switched off: only the rows on the root itself, against its own members — and the tree is not read', async () => {
+    const { db, asked } = fakeDb({ context: ROOT, below, members: members.filter(m => m.contextId === 'R'), aggregates: [] });
+    const v = await contextActivity(db, 'R', { includeSubUnits: 'false' });
+    expect(v.includeSubUnits).toBe(false);
+    expect(asked[0].ids).toEqual(['R']);
+    expect(db.query.mock.calls.some(c => c[0].includes('WITH RECURSIVE below'))).toBe(false);
+  });
+
+  it('switched on for a leaf it is just the leaf', async () => {
+    const { db, asked } = fakeDb({ below: [], aggregates: [agg()] });
+    const v = await contextActivity(db, 'C', { includeSubUnits: 'true' });
+    expect(v.includeSubUnits).toBe(true);
+    expect(asked[0].ids).toEqual(['C']);
+  });
+});
+
 describe('activitySummary', () => {
-  it('reads every context below and sums per direct sub-unit', async () => {
+  it('reads the root and every context below, and sums per direct sub-unit', async () => {
     const below = [{ id: 'C', parentContextId: 'R', displayName: 'Northwind Traders' }, { id: 'C1', parentContextId: 'C', displayName: 'Team' }];
     const { db, asked } = fakeDb({ context: ROOT, below, aggregates: [agg(), agg({ contextId: 'C1', amount: 3 })] });
     const s = await activitySummary(db, 'R');
-    expect(asked[0].ids).toEqual(['C', 'C1']);
-    expect(s.children).toEqual([expect.objectContaining({ contextId: 'C', total: 5, activePeople: 1 })]);
+    expect(asked[0].ids).toEqual(['R', 'C', 'C1']);
+    expect(s.children).toEqual([expect.objectContaining({ contextId: 'C', total: 5, activePeople: 1, itself: false })]);
+    expect(s.totals.total).toBe(5);
+  });
+
+  it('rows on the root itself make a first line "itself"', async () => {
+    const below = [{ id: 'C', parentContextId: 'R', displayName: 'Northwind Traders' }];
+    const { db } = fakeDb({ context: ROOT, below, aggregates: [agg({ amount: 4 }), agg({ contextId: 'R', amount: 1 })] });
+    const s = await activitySummary(db, 'R');
+    expect(s.children.map(c => [c.contextId, c.itself, c.total])).toEqual([['R', true, 1], ['C', false, 4]]); // first, though smaller
+    expect(s.children[0].displayName).toBe('Customers');
     expect(s.totals.total).toBe(5);
   });
 
