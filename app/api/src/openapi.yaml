@@ -3115,6 +3115,7 @@ paths:
     get:
       tags: [Contexts]
       summary: One interview, with its transcript
+      description: The interview with its full transcript and where each claim's quote stands in it, for the transcript view.
       operationId: getContextInterview
       security:
         - EntraIdBearer: []
@@ -3223,7 +3224,7 @@ paths:
               properties:
                 kind: { $ref: '#/components/schemas/ContextClaimKind' }
                 value: { type: string, maxLength: 2000 }
-                subject: { type: string, description: The person a role, roleHistory or membership claim is about, as named }
+                subject: { type: string, description: 'The person a role, roleHistory or membership claim is about, as named' }
                 attribute: { type: string, maxLength: 80, description: The attribute of a property claim }
                 relation: { $ref: '#/components/schemas/ContextClaimRelation' }
                 membership: { type: string, enum: [current, former, joined, left], description: The status of a membership claim }
