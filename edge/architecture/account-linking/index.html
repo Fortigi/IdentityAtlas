@@ -5669,7 +5669,58 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 <li><strong><code>onlyLinkTypes</code></strong> — only these account types are attached to a person. <code>Service</code> and <code>Shared</code> accounts are deliberately left out so they fall through to the Orphaned Accounts context rather than being glued onto a person.</li>
 </ul>
 <h3 id="graded-name-matching-ambiguity-guard">Graded name matching + ambiguity guard<a class="headerlink" href="#graded-name-matching-ambiguity-guard" title="Permanent link">&para;</a></h3>
-<p>Names are parsed from <code>displayName</code> (falling back to <code>givenName</code>/<code>surname</code>) with role/company qualifiers like <code>(OGD)</code>, <code>[extern]</code>, or <code>(ADM-azure)</code> stripped, so <code>Euson, Robin (OGD)</code> and <code>(ADM-azure) Euson, Robin</code> both reduce to <code>{euson, robin}</code>. Both <code>Surname, Given</code> and <code>Given Surname</code> orderings are handled.</p>
+<p><code>nameVariants</code> reduces a person to <strong>every name they are known by</strong>, each a <code>{ given, surname, initial, key, variant }</code>. There are two independent sources and neither is authoritative, so both are kept:</p>
+<table>
+<thead>
+<tr>
+<th>Variant</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the columns</td>
+<td>the structured <code>givenName</code> / <code>surname</code> fields</td>
+</tr>
+<tr>
+<td>the display name</td>
+<td>the parsed free-text <code>displayName</code></td>
+</tr>
+<tr>
+<td>one half from each</td>
+<td>whichever half a column leaves empty, filled from the display name</td>
+</tr>
+</tbody>
+</table>
+<p>Identical variants collapse, so the common case — every source spelling the person the same way — is a single name.</p>
+<p><code>variant</code> records <em>which</em> of the person's names each one is, which is what the ambiguity guard below weighs:</p>
+<table>
+<thead>
+<tr>
+<th><code>variant</code></th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inUse</code></td>
+<td>the name they are known by, which is what their accounts are spelled with: the display name's halves, or a column the display name does not contradict</td>
+</tr>
+<tr>
+<td><code>birth</code></td>
+<td>a surname only the <code>surname</code> column holds while the display name spells a different one — the birth surname behind a partner name or a double name</td>
+</tr>
+</tbody>
+</table>
+<p>A column surname is only read as a birth name where a parsed display surname actually disagrees with it. A source that fills the columns and nothing else is stating the name in use like any other, and a key two of a person's names collapse onto keeps the stronger of the two variants (<code>nameKeyVariants</code> in <code>engine.helpers.js</code>).</p>
+<p>Why both: HR sources routinely hold the <strong>birth surname</strong> in the <code>surname</code> column while the display name, and the accounts provisioned from it, carry the <strong>name in use</strong> — a partner name or a double name. Reading only the columns unlinks everyone whose name in use differs from their birth name (the larger population by far); reading only the display name re-opens the title mis-parse below. So a person is indexed under all of their names, and <code>bestNameMatch</code> takes the strongest match across every pair — a match on either name counts.</p>
+<p>When the display name <em>is</em> parsed, three things happen before the halves are taken:</p>
+<ol>
+<li><strong>Role/company qualifiers are stripped</strong> — <code>(OGD)</code>, <code>[extern]</code>, <code>(ADM-azure)</code> — so <code>Euson, Robin (OGD)</code> and <code>(ADM-azure) Euson, Robin</code> both reduce to <code>{euson, robin}</code>. Both <code>Surname, Given</code> and <code>Given Surname</code> orderings are handled.</li>
+<li><strong>Pre- and post-nominal titles are stripped</strong> — <code>drs.</code>, <code>dr.</code>, <code>ir.</code>, <code>ing.</code>, <code>prof.</code>, <code>MSc</code>, <code>BSc</code>, <code>MBA</code>, <code>LLM</code>, <code>PhD</code>, … — repeatedly, from both ends, so <code>Prof. dr. ir. Willem van der Laan MSc</code> reduces to <code>{willem, vanderlaan}</code>. The strip never removes so much that fewer than two name tokens remain, which is what keeps a genuine short surname that happens to spell a degree (<code>Jan Ma</code>) intact.</li>
+<li><strong>The surname keeps its particles.</strong> In the <code>Given Surname</code> ordering the surname runs from the first particle (<code>van</code>, <code>de</code>, <code>den</code>, <code>der</code>, <code>ter</code>, <code>ten</code>, …) to the end of the name, including a hyphenated compound whose tail is a particle (<code>Schilder-van der Steen</code>). With no particle present it is the last token only, so inconsistently-recorded middle names still collapse (<code>John Michael Doe</code> → <code>{john, doe}</code>). Taking only the last token instead would reduce every <code>van den Berg</code> in a tenant to <code>berg</code>, and conflate <code>van der Steen</code> with <code>Schilder-van der Steen</code>.</li>
+</ol>
+<p>The title and particle lists live next to <code>QUALIFIER_RE</code> in <code>classifier.js</code>; they are not per-tenant editable today.</p>
 <p><code>nameMatchLevel</code> returns the strongest of:</p>
 <table>
 <thead>
@@ -5698,9 +5749,16 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 </tbody>
 </table>
 <p>The two name signals are mutually exclusive — only the signal whose <code>level</code> equals the computed best level fires.</p>
-<p><strong>Ambiguity guard:</strong> a <em>name-only</em> best match (no strong email/employeeId signal) that ties in confidence across multiple identities is too risky to auto-pick, so the engine leaves the account orphaned for manual review rather than guess.</p>
+<p><strong>Ambiguity guard:</strong> a <em>name-only</em> best match (no strong email/employeeId signal) that ties in confidence across multiple identities is too risky to auto-pick, so the engine leaves the account orphaned for manual review rather than guess. Two genuine namesakes therefore produce a review item, not a guess — including when one of them carries a title in their display name and the other does not, which previously hid one of the pair from the candidate set and made the guess look certain.</p>
+<p>A name tie is read <strong>per name key</strong> (<code>resolveNameTie</code> in <code>engine.helpers.js</code>) before it is treated as a tie at all. Since a person is indexed under several names, the question is asked once per name the account carries: if exactly one of the equally-scoring identities has the strongest claim to one of those names, it is the match. It stays a tie, and the account goes to review, when no name singles anyone out or when different names single out different people. The resolution does not depend on the order identities were indexed in.</p>
+<p>Within one key the claims are usually unequal, and <strong>a match is only as strong as its weaker side</strong>: it is a match on the name in use when the account <em>and</em> the identity are both spelled that way under that key, and a birth-name match when either side holds it only in a structured column. Accounts are provisioned from the name in use, so where both kinds meet under one key the name in use wins outright:</p>
+<ul>
+<li>An <code>Anna Jansen</code> account, an identity called <code>Anna Jansen</code>, and a second identity called <code>Anna de Boer-Jansen</code> whose HR record still carries <code>Jansen</code> in its <code>surname</code> column — all three under <code>jansen|anna</code>. The account is the first one's; the birth surname does not make it a review item. Indexing the birth-name variant without this rule turned links the engine used to make into ties.</li>
+<li>Equally strong claims still tie: two people who both <em>go by</em> the name, or two for whom it is equally a birth surname, send the account to review.</li>
+<li>Where the account itself carries the key only in its own <code>surname</code> column, neither side's claim is the name in use and the claims are left unranked — that key is an old name on both sides, so ranking it would hand the account to a stranger over the name it is actually spelled with.</li>
+</ul>
 <h3 id="candidate-scope-orphans-only">Candidate scope = orphans only<a class="headerlink" href="#candidate-scope-orphans-only" title="Permanent link">&para;</a></h3>
-<p>The only accounts the engine ever considers are <strong>orphan Principals</strong> — Principals with no <code>IdentityMembers</code> row — excluding <code>ServicePrincipal</code>, <code>ManagedIdentity</code>, and <code>AIAgent</code> principal types. Accounts already attached to an Identity (e.g. by the crawler's IdentityFilter) are never disturbed. Candidates per orphan are narrowed by indexing identities on employeeId, email-local-part (raw and prefix-stripped), normalized display name, and an order-independent surname+given key, so only plausible identities are scored.</p>
+<p>The only accounts the engine ever considers are <strong>orphan Principals</strong> — Principals with no <code>IdentityMembers</code> row — excluding <code>ServicePrincipal</code>, <code>ManagedIdentity</code>, and <code>AIAgent</code> principal types. Accounts already attached to an Identity (e.g. by the crawler's IdentityFilter) are never disturbed. Candidates per orphan are narrowed by indexing identities on employeeId, email-local-part (raw and prefix-stripped), normalized display name, and an order-independent surname+given key <strong>per name the person is known by</strong>, so only plausible identities are scored and neither the birth name nor the name in use is a dead end.</p>
 <h3 id="confidence-scoring-writes">Confidence scoring + writes<a class="headerlink" href="#confidence-scoring-writes" title="Permanent link">&para;</a></h3>
 <p><code>scoreMatch</code> sums the weights of every matched signal, capped at 100. <code>buildLinks</code> keeps the highest-scoring candidate above <code>linkThreshold</code> per orphan. When <code>runLinking</code> writes the links into <code>IdentityMembers</code>:</p>
 <ul>
