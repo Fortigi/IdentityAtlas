@@ -2,6 +2,7 @@ import { memberKindLabel } from '@ui/utils/contextStyles';
 import ContextPeople from '@ui/components/contexts/ContextPeople';
 import WorkflowsArea from '@ui/components/contexts/workflows/WorkflowsArea';
 import ContextDetails from '@ui/components/contexts/ContextDetails';
+import ActivitySection from '@ui/components/contexts/activity/ActivitySection';
 import UnitVariants from './UnitVariants';
 import { useUnitVariants } from './useUnitVariants';
 import { memberCountText } from './variants.helpers';
@@ -9,7 +10,8 @@ import { memberCountText } from './variants.helpers';
 // The facts a templated context shows first — who answers for it (with a
 // suggestion while no Accountable is set), what it holds, its sub-units, the
 // same unit as other kinds of member — then the remaining attributes (More
-// details), and below them the workflows that start from it. `profile` is an
+// details), below them the workflows that start from it, and the activity
+// uploaded onto it (shown only when there is some). `profile` is an
 // entry of profiles.js; it supplies the vocabulary. `analyst`: the reader can
 // edit contexts (More details then carries the raw classification).
 // onShowMembers / onShowSubUnits make the counts links to the lists below.
@@ -38,6 +40,7 @@ export default function ContextProfile({ profile, attrs, subContexts = [], onOpe
         <ContextDetails attrs={attrs} hasProfile analyst={analyst} />
       </section>
       <WorkflowsArea attrs={attrs} variants={variants} variantsLoading={loading} onOpenDetail={onOpenDetail} />
+      <ActivitySection attrs={attrs} subContexts={subContexts} onOpenDetail={onOpenDetail} />
     </>
   );
 }

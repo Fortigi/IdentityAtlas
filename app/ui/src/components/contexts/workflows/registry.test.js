@@ -3,6 +3,7 @@ import { actionCardsFor } from './registry';
 import MatrixCard from './MatrixCard';
 import DownloadReportCard from './DownloadReportCard';
 import ComingSoonCard from './ComingSoonCard';
+import UploadActivityCard from '@ui/components/contexts/activity/UploadActivityCard';
 
 const APP = { id: 'app', contextCategory: 'LogicalApplication', targetType: 'Resource' };
 const unit = targetType => ({ id: targetType, contextCategory: 'OrganizationalUnit', targetType });
@@ -10,17 +11,17 @@ const unit = targetType => ({ id: targetType, contextCategory: 'OrganizationalUn
 describe('action registry', () => {
   const cardsOf = attrs => actionCardsFor(attrs).map(c => c.Card);
 
-  it('gives an application the matrix, the entitlement report and the ownership survey, in that order', () => {
-    expect(cardsOf(APP)).toEqual([MatrixCard, DownloadReportCard, ComingSoonCard]);
+  it('gives an application the matrix, the entitlement report, activity upload and the ownership survey, in that order', () => {
+    expect(cardsOf(APP)).toEqual([MatrixCard, DownloadReportCard, UploadActivityCard, ComingSoonCard]);
     // On its template, whatever it holds.
-    expect(cardsOf({ ...APP, targetType: undefined })).toEqual([MatrixCard, DownloadReportCard, ComingSoonCard]);
+    expect(cardsOf({ ...APP, targetType: undefined })).toEqual([MatrixCard, DownloadReportCard, UploadActivityCard, ComingSoonCard]);
   });
 
   const keysOf = (attrs, opts) => actionCardsFor(attrs, opts).map(c => c.key);
 
-  it('gives a unit of accounts or people the matrix, the unit report and the survey', () => {
+  it('gives a unit of accounts or people the matrix, the unit report, activity upload and the survey', () => {
     for (const t of ['Identity', 'Principal']) {
-      expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'download-unit-report', 'manager-survey', 'review-members']);
+      expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'download-unit-report', 'upload-activity', 'manager-survey', 'review-members']);
     }
     const card = actionCardsFor(unit('Principal')).find(c => c.key === 'download-unit-report');
     expect(card.Card).toBe(DownloadReportCard);
@@ -28,7 +29,7 @@ describe('action registry', () => {
   });
 
   it('gives a unit of resources (or systems) no report card', () => {
-    for (const t of ['Resource', 'System']) expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'manager-survey', 'review-members']);
+    for (const t of ['Resource', 'System']) expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'upload-activity', 'manager-survey', 'review-members']);
   });
 
   it('words the survey per template: an owner for an application, a manager for a unit', () => {

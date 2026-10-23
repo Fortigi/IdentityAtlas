@@ -179,3 +179,11 @@ describe('ContextProfile — logical application', () => {
     expect(screen.getByRole('button', { name: 'Resources 31' })).toHaveAttribute('aria-pressed', 'true');
   });
 });
+
+describe('ContextProfile — activity', () => {
+  it('reads the activity of the unit and shows no section while it has none', async () => {
+    const { authFetch } = mount();
+    await waitFor(() => expect(authFetch.mock.calls.map(([u]) => String(u))).toContain('/api/contexts/c-ppl/activity/uploads'));
+    expect(screen.queryByRole('region', { name: 'Activity' })).toBeNull();
+  });
+});
