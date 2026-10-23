@@ -1,20 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitValues, detectShape, profileColumns, isEmailLike } from './profile.js';
-
-describe('splitValues', () => {
-  it.each([
-    ['a@x.nl; b@x.nl', ['a@x.nl', 'b@x.nl']],
-    ['a@x.nl, b@x.nl', ['a@x.nl', 'b@x.nl']],
-    ['one\ntwo\r\nthree', ['one', 'two', 'three']],
-    // A semicolon wins over commas: names written "Surname, Given" stay whole.
-    ['Doe, John; Roe, Jane', ['Doe, John', 'Roe, Jane']],
-    ['  single  ', ['single']],
-    [';;', []],
-    [null, []],
-  ])('%j → %j', (cell, expected) => {
-    expect(splitValues(cell)).toEqual(expected);
-  });
-});
+import { detectShape, profileColumns, isEmailLike } from './profile.js';
 
 describe('detectShape', () => {
   it('needs 80 %: four e-mail addresses out of five is email, three is text', () => {
@@ -24,6 +9,12 @@ describe('detectShape', () => {
 
   it('a cell of several addresses still counts as email', () => {
     expect(detectShape(['a@x.nl;b@x.nl'])).toBe('email');
+  });
+
+  it('a SharePoint person / lookup column is lookup — and claims in one are email', () => {
+    expect(detectShape(['Ann Example;#27', 'Ann Example;#27;#Bo Sample;#16', 'Cy Test;#3', 'Di Test;#4', 'plain'])).toBe('lookup');
+    expect(detectShape(['Ann Example;#27', 'plain', 'plain', 'Cy Test;#3', 'Di Test;#4'])).toBe('text');
+    expect(detectShape(['i:0#.f|membership|ann@x.nl;#27'])).toBe('email');
   });
 
   it.each([[['12', '-3.5', '1.234.567'], 'number'], [['2026-10-01', '1-10-2026'], 'date'], [[], 'text']])('%j → %s', (values, shape) => {
@@ -50,6 +41,11 @@ describe('profileColumns', () => {
 
   it('measures the share of cells holding several values', () => {
     expect(leden).toMatchObject({ shape: 'email', multiValued: 0.333 });
+  });
+
+  it('a lookup cell with one name and its id is ONE value; with two names it is several', () => {
+    const [team] = profileColumns(['Team'], [{ Team: 'Ann Example;#27' }, { Team: 'Ann Example;#27;#Bo Sample;#16' }]);
+    expect(team).toMatchObject({ shape: 'lookup', multiValued: 0.5 });
   });
 
   it('an empty column has uniqueness 0, not NaN', () => {

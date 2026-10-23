@@ -16,7 +16,7 @@
 // `warnings` do not (a parent key that is not in the list — the unit goes under
 // the root). Both are capped at MAX_MESSAGES sentences, with a count of the rest.
 
-import { splitValues } from './profile.js';
+import { splitValues, singleValue } from './cellValues.js';
 
 export const MAX_MESSAGES = 20;
 // The externalId of a list's root context; no row may use it as its key.
@@ -33,7 +33,7 @@ function newUnit(row, mapping, index) {
   return {
     key: cell(row, mapping.keyColumn),
     name: cell(row, mapping.nameColumn),
-    owner: cell(row, mapping.ownerColumn) || null,
+    owner: singleValue(cell(row, mapping.ownerColumn)) || null,
     responsibles: [],
     parentKey: cell(row, mapping.parentColumn) || null,
     attributes,
@@ -50,7 +50,8 @@ function addRowValues(unit, row, mapping) {
   addValues(unit.responsibles, splitValues(cell(row, mapping.responsibleColumn)));
   for (const m of mapping.memberColumns) {
     const raw = cell(row, m.column);
-    const values = m.shape === 'long' ? (raw ? [raw] : []) : splitValues(raw);
+    const one = m.shape === 'long' ? singleValue(raw) : '';
+    const values = m.shape === 'long' ? (one ? [one] : []) : splitValues(raw);
     unit.members[m.kind] ??= [];
     addValues(unit.members[m.kind], values);
   }

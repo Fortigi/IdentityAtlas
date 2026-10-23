@@ -132,6 +132,21 @@ describe('memberKindOf / templateOf', () => {
     expect(memberKindOf({ name: 'Kolom 3', shape: 'email', multiValued: 0 })).toBeNull();
   });
 
+  it('so does an unlabelled SharePoint person / lookup column', () => {
+    expect(memberKindOf({ name: 'Kolom 4', shape: 'lookup', multiValued: 0.5 })).toBe('Principal');
+    expect(memberKindOf({ name: 'Kolom 4', shape: 'lookup', multiValued: 0 })).toBeNull();
+  });
+
+  it('a SharePoint export: the title is the name, the owner and the Team lookup are owner and members', () => {
+    const rows = [
+      { Title: 'Unit A', Eigenaar: 'Ann Example', Kolom: 'Ann Example;#27;#Bo Sample;#16' },
+      { Title: 'Unit B', Eigenaar: 'Bo Sample', Kolom: 'Bo Sample;#16' },
+    ];
+    // The lookup column comes first and is unique per row, yet it is never the name.
+    const g = guessFor('teams.xlsx', ['Kolom', 'Title', 'Eigenaar'], rows);
+    expect(g).toMatchObject({ nameColumn: 'Title', ownerColumn: 'Eigenaar', memberColumns: [{ column: 'Kolom', kind: 'Principal', shape: 'list' }] });
+  });
+
   it('an application word in the file name or the name header makes it an application list', () => {
     expect(templateOf('Applicaties.xlsx', { name: 'Naam' })).toBe('LogicalApplication');
     expect(templateOf('lijst.xlsx', { name: 'Application name' })).toBe('LogicalApplication');

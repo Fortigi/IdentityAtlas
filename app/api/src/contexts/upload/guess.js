@@ -72,18 +72,21 @@ export function listNameFrom(fileName) {
 }
 
 // ─── Column roles ────────────────────────────────────────────────────────
+// Shapes whose values name accounts, never the unit itself.
+const PERSON_SHAPES = new Set(['email', 'lookup']);
 const isFull = (c, rowCount) => c.nonEmpty > 0 && c.nonEmpty >= rowCount;
 
 /** The member kind a header names, or null. */
 export function memberKindOf(column) {
   for (const kind of MEMBER_KINDS) if (says(column.name, MEMBER_WORDS[kind])) return kind;
-  // An unlabelled column of several e-mail addresses per cell holds accounts.
-  if (column.shape === 'email' && column.multiValued > 0) return 'Principal';
+  // An unlabelled column of several e-mail addresses — or a SharePoint person /
+  // lookup column ("Name;#27;#Other;#16") — per cell holds accounts.
+  if (PERSON_SHAPES.has(column.shape) && column.multiValued > 0) return 'Principal';
   return null;
 }
 
 function pickName(cols) {
-  const free = cols.filter(c => !memberKindOf(c) && c.shape !== 'email');
+  const free = cols.filter(c => !memberKindOf(c) && !PERSON_SHAPES.has(c.shape));
   return free.find(c => NAME_EXACT.has(squash(c.name)))
     ?? free.find(c => says(c.name, NAME_WORDS) && !says(c.name, OWNER_WORDS) && !says(c.name, RESPONSIBLE_WORDS))
     ?? free.find(c => c.shape === 'text' && c.uniqueness === 1)

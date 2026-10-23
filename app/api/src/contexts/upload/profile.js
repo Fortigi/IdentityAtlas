@@ -8,15 +8,18 @@
 //     nonEmpty:    rows with a non-blank value
 //     distinct:    distinct trimmed values among those
 //     uniqueness:  distinct / nonEmpty, 0..1 rounded to 3 decimals (0 for an empty column)
-//     shape:       'email' | 'number' | 'date' | 'text' — the first that at least
-//                  80 % of the non-empty values have, else text
+//     shape:       'email' | 'lookup' | 'number' | 'date' | 'text' — the first that
+//                  at least 80 % of the non-empty values have, else text. 'lookup'
+//                  is a SharePoint person or lookup column ("Name;#27", cellValues.js)
 //     multiValued: share (0..1) of the non-empty values that hold more than one
-//                  item (split on ; , or a line break) — a members cell
+//                  item (cellValues.js splitValues) — a members cell
 //     samples:     up to 5 distinct values, in file order
 //   }
 //
 // Ported from the Org Info prototype (orgtruth/import/profileColumns.js); the
 // boolean shape is dropped (nothing in an upload reads it) and multiValued is new.
+
+import { splitValues, isLookupCell } from './cellValues.js';
 
 export const SAMPLE_COUNT = 5;
 export const SHAPE_SHARE = 0.8;
@@ -26,18 +29,6 @@ const EMAIL = /^[^\s@;,]+@[^\s@;,]+\.[^\s@;,]+$/;
 /** One e-mail address (or UPN). */
 export function isEmailLike(v) {
   return EMAIL.test(v);
-}
-
-const parts = (text, re) => text.split(re).map(s => s.trim()).filter(Boolean);
-
-/**
- * The items of one cell, trimmed, blanks dropped: split on `;` or a line break;
- * only a cell with neither is split on `,` — so "Doe, John; Roe, Jane" stays two
- * names, while "a@x.nl, b@x.nl" is two addresses.
- */
-export function splitValues(cell) {
-  const text = String(cell ?? '');
-  return /[;\r\n]/.test(text) ? parts(text, /[;\r\n]+/) : parts(text, /,/);
 }
 
 function isEmailListLike(v) {
@@ -57,7 +48,7 @@ function isDateLike(v) {
     || /^\d{1,2}[-/.]\d{1,2}[-/.]\d{4}$/.test(v);
 }
 
-const SHAPES = [['email', isEmailListLike], ['number', isNumberLike], ['date', isDateLike]];
+const SHAPES = [['email', isEmailListLike], ['lookup', isLookupCell], ['number', isNumberLike], ['date', isDateLike]];
 
 export function detectShape(values) {
   if (values.length === 0) return 'text';
