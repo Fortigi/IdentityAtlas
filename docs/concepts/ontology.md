@@ -149,9 +149,10 @@ flowchart LR
     root["Resource<br/><small>resourceType</small>"]:::Resource
     subgraph g_Application["Application"]
       direction LR
+      t_AppRegistration["AppRegistration<br/><small>entra-id</small>"]:::Resource
       t_Application["Application<br/><small>demo, entra-id</small>"]:::Resource
       t_Service["Service<br/><small>midpoint</small>"]:::Resource
-      t_Application ~~~ t_Service
+      t_AppRegistration ~~~ t_Application ~~~ t_Service
     end
     subgraph g_BusinessRole["Business role"]
       direction LR

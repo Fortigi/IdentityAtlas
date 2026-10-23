@@ -4,7 +4,8 @@
 // Only the web App Service talks to it. There is no VNet in this deployment shape,
 // so ingress is public and an API key is REQUIRED: llama-server refuses every
 // request without it (LLAMA_API_KEY — see the env block), and the web app sends it
-// as a bearer token. The container holds no data, no credentials and no identity.
+// as a bearer token. The container holds no data, no credentials and no identity
+// of its own (only the image-pull identity, when the images come from a private ACR).
 //
 // Cost shape: minReplicas 0, so it runs only while a report is being described.
 // Azure bills per second of activity; idle costs nothing.
@@ -30,9 +31,15 @@ param promptCacheStorageName string
 @description('Container image, e.g. ghcr.io/fortigi/identity-atlas-report-generator:latest')
 param image string
 
-@description('API key the web app must send. Generated per deployment by main.bicep.')
+@description('API key the web app must send. Generated once by the bootstrap script and read from Key Vault (see report-generator-kv-key.bicep).')
 @secure()
 param apiKey string
+
+@description('Registry host the image is pulled from, e.g. contoso.azurecr.io. Only used with pullIdentityId.')
+param registryServer string = ''
+
+@description('Image-pull identity (resource ID) for a private Azure Container Registry. Empty = anonymous pull from a public registry.')
+param pullIdentityId string = ''
 
 @description('CPU cores. Consumption requires memory = 2x cpu (2 -> 4Gi).')
 param cpu string = '2'
@@ -46,13 +53,18 @@ param scaleToZeroAfterSeconds int = 300
 @description('Caller IPs allowed to reach the ingress (the web app outbound set). Empty = any IP, and the API key is the only control.')
 param allowedCallerIps array = []
 
+var privateRegistry = !empty(pullIdentityId)
+
 resource app 'Microsoft.App/containerApps@2024-10-02-preview' = {
   name: '${namePrefix}-report-generator'
   location: location
+  // Holds no identity of its own; only the image-pull identity, and only for a private registry.
+  identity: privateRegistry ? { type: 'UserAssigned', userAssignedIdentities: { '${pullIdentityId}': {} } } : null
   properties: {
     managedEnvironmentId: envId
     configuration: {
       activeRevisionsMode: 'Single'
+      registries: privateRegistry ? [{ server: registryServer, identity: pullIdentityId }] : []
       ingress: {
         // Public, because a Consumption-only environment has no VNet. The API key is
         // the control; the IP rules below narrow it further to the web app outbound

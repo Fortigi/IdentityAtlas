@@ -6,6 +6,12 @@ what a *release line* is.
 
 Today that line is **`release/5.9`**, branched from `v5.9.1`.
 
+> **Releasing this line is blocked by the main-first rule.** The cut workflows
+> now refuse any commit that is not on `main` (`tools/release/Assert-ReleaseFromMain.ps1`).
+> The Dependabot updates merged into `release/5.9` are not on `main` and were
+> not approved, so step 4 below no longer works. Whether to retire the line or
+> give it a reviewed path onto `main` is still open.
+
 ```
 v5.9.1 ──→ release/5.9 ──→ 5.9.2 ──→ 5.9.3 …     what customers run
                 ↑

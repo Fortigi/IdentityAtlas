@@ -11,7 +11,8 @@ vi.mock('./service.js', () => ({
 }));
 
 import { query, queryOne } from '../db/connection.js';
-import { runSpec } from './service.js';
+import { loadValues, runSpec } from './service.js';
+import { loadExtFields } from './extFields.js';
 import { listAllReports, resolveReport, reportMetadata } from '../reports/registry.js';
 import {
   prepareSavedReport, createSavedReport, updateSavedReport, deleteSavedReport, getSavedReport, toReportTemplate,
@@ -114,6 +115,33 @@ describe('saved reports in the report registry', () => {
     expect((await listAllReports()).map(r => r.name)).not.toContain(`custom-${ID}`);
     queryOne.mockResolvedValueOnce(ROW);
     expect(await resolveReport(`custom-${ID}`)).toBeNull();
+  });
+
+  // A deployment with a dozen custom reports built each one's lookups separately
+  // and in parallel: on a cold cache that was a dozen whole-table discoveries at
+  // once, which drained the connection pool and failed the Reports page with a 500.
+  it('lists many saved reports on ONE read of the lookups, not one per report', async () => {
+    const ids = Array.from({ length: 12 }, (_, i) => `3f1c2a9e-6b1d-4c2e-9a7b-${String(i).padStart(12, '0')}`);
+    query.mockResolvedValueOnce({ rows: ids.map((id, i) => ({ ...ROW, id, name: `Report ${i}` })) });
+    loadValues.mockClear();
+    loadExtFields.mockClear();
+
+    const custom = (await listAllReports()).filter(r => r.source === 'custom');
+
+    expect(custom.map(r => r.name).sort()).toEqual(ids.map(id => `custom-${id}`).sort());
+    // Every one of them was still validated against the lookups it was handed.
+    expect(custom.every(r => r.columns[0]?.label === 'Name')).toBe(true);
+    expect(loadValues).toHaveBeenCalledTimes(1);
+    expect(loadExtFields).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads no lookups at all when nobody has saved a report', async () => {
+    query.mockResolvedValueOnce({ rows: [] });
+    loadValues.mockClear();
+    loadExtFields.mockClear();
+    expect((await listAllReports()).some(r => r.source === 'custom')).toBe(false);
+    expect(loadValues).not.toHaveBeenCalled();
+    expect(loadExtFields).not.toHaveBeenCalled();
   });
 
   it('is listed next to the built-ins and resolved by name', async () => {

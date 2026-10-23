@@ -96,9 +96,9 @@ export async function deleteSavedReport(id) {
  * it — would validate down to a smaller report here, and the column headers in
  * the report list would stop matching the rows that running it returns.
  */
-export async function toReportTemplate(row) {
-  const extFields = await loadExtFields();
-  const { spec } = validateSpec(row.definition, await loadValues(), extFields);
+export async function toReportTemplate(row, lookups) {
+  const { values, extFields } = lookups || await loadLookups();
+  const { spec } = validateSpec(row.definition, values, extFields);
   let compiled = { columns: [] };
   try {
     if (spec) compiled = compileSpec(spec, extFields);
@@ -129,11 +129,19 @@ export async function toReportTemplate(row) {
   };
 }
 
+// What validating a definition needs, read once. The list validates every saved
+// report against the same lookups, so it reads them once rather than once per report.
+async function loadLookups() {
+  return { values: await loadValues(), extFields: await loadExtFields() };
+}
+
 registerReportSource({
   async list() {
     if (!(await isFeatureEnabled('customReports'))) return [];
-    return Promise.all((await listSavedReports()).map(row => toReportTemplate(row)));
-
+    const rows = await listSavedReports();
+    if (rows.length === 0) return [];
+    const lookups = await loadLookups();
+    return Promise.all(rows.map(row => toReportTemplate(row, lookups)));
   },
   async get(name) {
     if (!name.startsWith(SAVED_PREFIX)) return null;

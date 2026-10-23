@@ -6,14 +6,16 @@
 # Usage:
 #   1. Go to Actions → Cut Release → Run workflow
 #   2. Enter the version (e.g. "5.2.0" — major.minor.patch) and optionally a ref (default: main)
-#   3. The workflow creates tag v5.2.0 on that ref
-#   4. A GitHub release is created with IdentityAtlas-portable.zip and
-#      IdentityAtlas-portable-postgres.zip attached
+#   3. The workflow creates tag v5.2.0 on that ref — which must be a commit on
+#      main (tools/release/Assert-ReleaseFromMain.ps1 refuses anything else)
+#   4. A GitHub release is created with IdentityAtlas-portable.zip,
+#      IdentityAtlas-portable-postgres.zip and IdentityAtlas-azure-X.Y.Z.zip
+#      (the Azure template pinned to this release's images) attached
 #   5. docker-publish builds and pushes :latest + :5.2.0.0
 #
 # Hotfixes (shipping a bugfix without including features already on main):
-#   1. git checkout -b bugfixes/fix-foo v5.2.0   ← branch from the tag, not main
-#   2. Fix the bug, push the branch
+#   1. Merge the fix to main through an approved PR first
+#   2. git checkout -b bugfixes/fix-foo v5.2.0 && git cherry-pick -x <main commit>
 #   3. Run Actions → Cut Hotfix with the branch name and new version (e.g. 5.2.1)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -58,6 +60,16 @@ jobs:
           token: ${{ steps.bot-token.outputs.token }}
           fetch-depth: 0
 
+      # Only code already merged to main (approved PR) may be released. Loaded
+      # from this workflow's own commit, never from the ref being released.
+      - name: Refuse a ref that is not on main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Run Cut Release from main (it ran from $GITHUB_REF)."; exit 1
+          fi
+          git show "$GITHUB_WORKFLOW_SHA:tools/release/Assert-ReleaseFromMain.ps1" > "$RUNNER_TEMP/assert.ps1"
+          pwsh -NoProfile -File "$RUNNER_TEMP/assert.ps1" -Mode Release -Ref HEAD
+
       - name: Create and push release tag
         run: |
           VERSION="${{ github.event.inputs.version }}"
@@ -87,6 +99,16 @@ jobs:
       # script so cut-release / cut-beta / cut-hotfix cannot drift apart.
       - name: Build portable Windows ZIPs
         run: bash .github/scripts/build_portable_zips.sh
+
+      # The Azure template, pinned to THIS release's images: azure/ at this tag
+      # with imageTag defaulting to the image version, attached to the release as
+      # IdentityAtlas-azure-<version>.zip. Loaded from this workflow's own commit
+      # (like the main-only check), so an older hotfix branch without the script
+      # is still packaged; a template from before imageTag gets no package.
+      - name: Package the Azure template
+        run: |
+          git show "$GITHUB_WORKFLOW_SHA:tools/release/New-AzureTemplatePackage.ps1" > "$RUNNER_TEMP/package-azure.ps1"
+          pwsh -NoProfile -File "$RUNNER_TEMP/package-azure.ps1" -Version "${VERSION}.0" -OutFile "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip"
 
       - name: Generate release notes
         run: |
@@ -128,7 +150,7 @@ jobs:
         # continue-on-error: this step only polishes wording — release-notes.md already has valid,
         # ready-to-ship content from the deterministic step above. A rejected/unentitled model call
         # (see dor-agent.yml) must never block cutting a release; worst case we ship the raw bullets.
-        uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1
+        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: "--allowedTools Read,Write"
@@ -184,9 +206,13 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
+          ASSETS=(app/api/dist-node-launcher/release/IdentityAtlas-portable.zip
+                  app/api/dist-node-launcher/release/IdentityAtlas-portable-postgres.zip)
+          if [ -f "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip" ]; then
+            ASSETS+=("$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip")
+          fi
           gh release create "$TAG" \
-            app/api/dist-node-launcher/release/IdentityAtlas-portable.zip \
-            app/api/dist-node-launcher/release/IdentityAtlas-portable-postgres.zip \
+            "${ASSETS[@]}" \
             --title "$TAG" \
             --notes-file release-notes.md \
             --latest

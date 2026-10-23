@@ -159,16 +159,12 @@ downloader needs. See
 ## Where releases can be cut from
 
 Both `cut-release` and `cut-beta` take a **`ref` input** (branch, tag or commit;
-default `main`), and `cut-hotfix` takes a **branch name**. Nothing in the
-tooling requires a release to come from `main` HEAD — a release can be cut from
-a branch whose content was fixed at an earlier point.
-
-That capability is unused today. Whether to adopt it — a maintained
-`release/5.N` line with its own dependency updates and patch releases, versus
-releasing from `main` on a cadence — is an open policy question, not something
-this tooling decides. The notes machinery is correct either way: the baseline
-rule above was written specifically so a patch cut from a maintained line is
-described against its own line.
+default `main`), and `cut-hotfix` takes a **branch name**. A release need not
+come from `main` HEAD, but everything in it must be **on `main`**:
+`tools/release/Assert-ReleaseFromMain.ps1` refuses a `ref` that is not a commit
+on `main`, and a hotfix branch whose commits are not `-x` cherry-picks of
+commits on `main` (see the branching strategy). The notes machinery is correct
+either way: the baseline rule above describes a patch against its own line.
 
 ## Testing
 

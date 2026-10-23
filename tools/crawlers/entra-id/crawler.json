@@ -2,7 +2,7 @@
   "type": "entra-id",
   "emits": {
     "principalTypes": ["User", "ServicePrincipal", "ManagedIdentity", "AIAgent"],
-    "resourceTypes": ["Group", "GroupOwnership", "BusinessRole", "Application", "DelegatedPermission", "AppRole", "EntraDirectoryRole", "ApplicationPermission", "ServicePrincipalOwnership", "ApplicationOwnership"],
+    "resourceTypes": ["Group", "GroupOwnership", "BusinessRole", "Application", "DelegatedPermission", "AppRole", "EntraDirectoryRole", "ApplicationPermission", "ServicePrincipalOwnership", "ApplicationOwnership", "AppRegistration"],
     "contextTypes": [],
     "open": []
   },

@@ -321,6 +321,10 @@ ia:Application a owl:Class ; rdfs:subClassOf ia:Resource ; ia:typeValue "Applica
     ia:emittedBy "demo", "entra-id" ;
     rdfs:label "Application" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "An enterprise application (service principal) as a resource. Grants nothing by itself; parent of its app roles and permissions." .
+ia:AppRegistration a owl:Class ; rdfs:subClassOf ia:Application ; ia:typeValue "AppRegistration" ;
+    ia:emittedBy "entra-id" ;
+    rdfs:label "App registration" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An app registration (id = application object id; appId joins it to its service principal). Grants nothing and has no assignments; carries the app's security set-up (credential metadata, redirect URIs, required resource access, federated credentials)." .
 ia:AppRole a owl:Class ; rdfs:subClassOf ia:TechnicalRole ; ia:typeValue "AppRole" ;
     ia:emittedBy "demo", "entra-id" ;
     rdfs:label "App role" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;

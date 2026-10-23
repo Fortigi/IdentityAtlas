@@ -12,3 +12,4 @@
 - CI now enforces that every type has exactly one template, that what holding a resource reaches matches the effective-access engine, that every control permission is linked to what it controls, and that an account reaches a resource only through an assignment held Direct, Indirect or Eligible
 - Each crawler now declares the types it writes; CI fails when a crawler starts writing a type that is not in the ontology
 - CI now also fails when a context plugin starts writing a context type, or grouping a different kind of entity, that the ontology does not describe
+- The core ontology now describes Entra app registrations, so the app-registration data the Entra ID crawler collects is a recognised resource type
