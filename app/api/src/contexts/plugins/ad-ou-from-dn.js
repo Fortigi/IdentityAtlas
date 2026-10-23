@@ -20,6 +20,7 @@ export default {
   displayName: 'Active Directory OU Tree',
   description: 'Parses an LDAP distinguished name from Principals into a nested OU hierarchy. DC components are ignored; OU components (outer-to-inner) form the tree. Defaults to extendedAttributes.onPremisesDistinguishedName (Entra crawler convention).',
   targetType: 'Principal',
+  contextTypes: ['OrganisationalUnit'],
   parametersSchema: {
     type: 'object',
     required: ['scopeSystemId'],

@@ -49,9 +49,9 @@ People, service accounts, bots — anything that can hold permissions.
 | `ExternalId` | string | yes | Unique identifier (employee number, sAMAccountName, etc.) |
 | `DisplayName` | string | yes | Full name |
 | `Email` | string | no | Primary email / UPN |
-| `PrincipalType` | string | no | One of: `User`, `ServicePrincipal`, `ExternalUser`, `SharedMailbox`. Default: `User` |
+| `PrincipalType` | string | no | One of: `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox`. Any other value falls back to `User`. Default: `User` |
 | `JobTitle` | string | no | |
-| `Department` | string | no | Used to derive OrgUnit contexts when no `Contexts.csv` is provided |
+| `Department` | string | no | Stored on the account; the `department-from-principal` context plugin can turn it into `Department` contexts |
 | `ManagerExternalId` | string | no | The `ExternalId` of another row in this file — the person's manager. Feeds the org chart, the manager-hierarchy contexts and the "reports to" filters. Order does not matter: the manager may appear anywhere in the file, or have been imported earlier. A row naming itself is ignored, and a manager that is not in the file (and not already imported) leaves the field empty and is counted in the job's warnings rather than stored as a link to nobody |
 | `SystemName` | string | no | Like Resources — links to a system. Omit for single-system imports |
 | `Enabled` | bool | no | `true`/`false`. Default: `true` |
@@ -84,16 +84,28 @@ Parent–child links between resources (role nesting, group membership, business
 
 #### 6. `Contexts.csv` (optional)
 
-Organisational units, departments, cost centres. If omitted, contexts are derived automatically from `Users.csv → Department` column.
+Organisational units, departments, cost centres. Every row becomes a `synced` context. If omitted, no synced contexts are created; run the `department-from-principal` context plugin to derive department contexts from `Users.csv → Department` instead.
 
 | Column | Type | Required | Description |
 |--------|------|----------|-------------|
 | `ExternalId` | string | yes | |
 | `DisplayName` | string | yes | |
-| `ContextType` | string | no | `Department` (default), `CostCenter`, `Division`, `Team` |
+| `ContextType` | string | no | Free text, e.g. `OrgUnit` (default), `Department`, `CostCenter`, `Division`, `Team` |
+| `TargetType` | string | no | What the context groups: `Identity` (default), `Principal`, `Resource` or `System`. A child should have the same `TargetType` as its parent |
 | `Description` | string | no | |
 | `ParentExternalId` | string | no | For hierarchical org structures |
+| `OwnerUserId` | string | no | Owner of the grouping (free text) |
 | `SystemName` | string | no | |
+
+#### 6b. `ContextMembers.csv` (optional)
+
+Explicit membership of a context. Synced as one set; `SystemName` is ignored (see below).
+
+| Column | Type | Required | Description |
+|--------|------|----------|-------------|
+| `ContextExternalId` | string | yes | Must match an `ExternalId` from `Contexts.csv` |
+| `MemberExternalId` | string | yes | ExternalId of the member |
+| `MemberType` | string | yes | `Identity`, `Principal`, `Resource` or `System` — the context's `TargetType` |
 
 #### 7. `Identities.csv` (optional)
 
@@ -176,7 +188,7 @@ A `SystemName` that `Systems.csv` does not declare still loads — into the craw
 | Scenario | Files needed |
 |----------|-------------|
 | **Basic permission review** | `Resources.csv` + `Users.csv` + `Assignments.csv` |
-| **With org structure** | + `Contexts.csv` (or just `Department` column in `Users.csv`) + `ContextMembers.csv` for explicit membership |
+| **With org structure** | + `Contexts.csv` + `ContextMembers.csv` for explicit membership (or just the `Department` column in `Users.csv`, turned into contexts by the `department-from-principal` plugin) |
 | **Multi-system** | + `Systems.csv` + `SystemName` column in other files |
 | **With identity correlation** | + `Identities.csv` + `IdentityMembers.csv` |
 | **With access reviews** | + `Certifications.csv` |

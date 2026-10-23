@@ -23,6 +23,7 @@ export default {
     'Groups Principals that are not linked to any Identity into a context, sub-grouped by detected account ' +
     'type (Admin/Guest/Service/Shared/Secondary). Refreshed automatically by the Account Linking run.',
   targetType: 'Principal',
+  contextTypes: ['OrphanedAccounts'],
   parametersSchema: { type: 'object', required: [], properties: {} },
 
   async run(params, ctx) {

@@ -461,40 +461,44 @@ Version history for the business role resource record. Same format as [`GET /api
 
 ### Contexts
 
-Contexts represent organizational and structural groupings (departments, divisions, cost centers, teams, etc.) that belong to Identities — the real persons — not to individual system accounts. The `contextType` column discriminates between context types.
+Contexts represent organizational and structural groupings (departments, OUs, manager hierarchies, tags, clusters, etc.). Each context groups exactly one kind of entity, named by its `targetType` (`Identity`, `Principal`, `Resource` or `System`); the `contextType` column discriminates between context types and `variant` says whether it was synced, generated or made by hand.
 
 | Endpoint | Method | Description |
 |---|---|---|
 | `/api/contexts` | `GET` | Flat list of contexts with hierarchy pointers |
-| `/api/contexts/tree` | `GET` | Pre-built nested tree structure for the Org Chart page |
-| `/api/contexts/:id` | `GET` | Context detail with member count and sub-context list |
-| `/api/contexts/:id/members` | `GET` | Paginated list of identities (and their correlated principals) in this context |
+| `/api/contexts/tree` | `GET` | Pre-built nested tree structure (optionally `?root=<id>` for one subtree) |
+| `/api/contexts/:id` | `GET` | Context detail with members, member counts and sub-context list |
+| `/api/contexts/:id/members` | `GET` | Paginated list of members — identities, principals, resources or systems, per the context's `targetType` |
 
-**GET /api/contexts/tree response excerpt:**
+**GET /api/contexts/tree response excerpt** (an array with one entry per root context):
 
 ```json
-{
-  "tree": [
-    {
-      "id": "ctx-001",
-      "displayName": "Finance",
-      "contextType": "Department",
-      "memberCount": 142,
-      "children": [
-        {
-          "id": "ctx-007",
-          "displayName": "Finance - Controllers",
-          "contextType": "Team",
-          "memberCount": 23,
-          "children": []
-        }
-      ]
-    }
-  ]
-}
+[
+  {
+    "id": "ctx-001",
+    "variant": "generated",
+    "targetType": "Principal",
+    "displayName": "Finance",
+    "contextType": "Department",
+    "directMemberCount": 142,
+    "totalMemberCount": 165,
+    "children": [
+      {
+        "id": "ctx-007",
+        "variant": "manual",
+        "targetType": "Principal",
+        "displayName": "Finance - Controllers",
+        "contextType": "Team",
+        "directMemberCount": 23,
+        "totalMemberCount": 23,
+        "children": []
+      }
+    ]
+  }
+]
 ```
 
-**Reads From:** `Contexts` + `Identities` + `IdentityMembers`
+**Reads From:** `Contexts` + `ContextMembers` + the member table of the context's `targetType`
 
 ---
 

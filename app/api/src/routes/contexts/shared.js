@@ -4,10 +4,12 @@
 // share one definition. No behaviour change — pure code move.
 
 import { requirePermission } from '../../middleware/auth.js';
+import { CONTEXT_TARGET_TYPES } from '../../ingest/validation.js';
 
 export const useSql = process.env.USE_SQL === 'true';
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export const TARGET_TYPES = new Set(['Identity', 'Resource', 'Principal', 'System']);
+// One list for the ingest and the contexts routes (and the core ontology check).
+export const TARGET_TYPES = new Set(CONTEXT_TARGET_TYPES);
 
 // Same admin who configures context-algorithm plugins owns the resulting
 // contexts (and manual contexts edited here through the UI).

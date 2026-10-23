@@ -139,6 +139,7 @@ export default {
     'one child context per distinct value, each holding the matching resources as members. Lets ' +
     'you ask "who can access any VM / any storage account?".',
   targetType: 'Resource',
+  contextTypes: ['ResourceTypeRoot', 'ResourceType', 'ResourcePlane', 'ResourceRole'],
   parametersSchema: {
     type: 'object',
     required: ['scopeSystemId'],
