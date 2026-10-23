@@ -100,6 +100,20 @@ describe('decideClaim', () => {
     expect(claimUpdate(db).params[1]).toBe('edited');
   });
 
+  it('a property of one of the context\'s resources is knowledge only: the context and the resource stay as they are', async () => {
+    const db = fakeDb({ ...base, claimKind: 'property', subjectKind: 'Resource', attribute: 'owner', value: 'Piet Jansen' });
+    const r = await decide(db, { status: 'confirmed' });
+    expect(r.effect).toEqual({ kind: 'none' });
+    expect(db.writes.map(w => w.sql.split(' ').slice(0, 2).join(' '))).toEqual(['UPDATE "ContextClaims"']);
+    expect(claimUpdate(db).params[1]).toBe('confirmed');
+  });
+
+  it('a description answered in a survey goes under a survey heading, not an interview heading', async () => {
+    const db = fakeDb({ ...base, fromSurvey: true });
+    await decide(db, { status: 'confirmed' });
+    expect(db.writes[0].params[1]).toBe('From survey answered by Anna Voorbeeld, 2026-10-01:\nPlans the shifts of the nursing staff');
+  });
+
   it('a Responsible suggestion becomes a role with the claim as its source', async () => {
     const db = fakeDb({ ...base, claimKind: 'role', attribute: 'dayToDay', principalId: PIET, roleSuggestion: 'Responsible' });
     const r = await decide(db, { status: 'confirmed' });

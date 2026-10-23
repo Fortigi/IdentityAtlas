@@ -76,10 +76,11 @@ erDiagram
         uuid identityId FK
         uuid interviewId FK
         uuid principalId FK
-        string proposedBy "model, analyst"
+        string proposedBy "model, analyst, respondent"
         string relevance "high, low"
+        uuid resourceId FK
         string roleSuggestion "Accountable, Responsible"
-        string subjectKind "Context, Person"
+        string subjectKind "Context, Person, Resource"
         string subjectMatch "interviewee, key, name, fuzzy, firstName"
     }
     ContextInterviews {
@@ -177,6 +178,7 @@ erDiagram
     Identities |o--o{ ContextClaims : "identityId"
     ContextInterviews |o--o{ ContextClaims : "interviewId"
     Principals |o--o{ ContextClaims : "principalId"
+    Resources |o--o{ ContextClaims : "resourceId"
     Contexts |o--o{ ContextInterviews : "contextId"
     Identities |o--o{ ContextInterviews : "identityId"
     Principals |o--o{ ContextInterviews : "principalId"

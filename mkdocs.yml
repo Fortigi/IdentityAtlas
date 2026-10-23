@@ -186,6 +186,7 @@ nav:
           - Template UI: architecture/template-ui.md
           - Context Upload: architecture/context-upload.md
           - Context Interviews: architecture/context-interviews.md
+          - Survey Templates: architecture/survey-templates.md
           - Ownership and Manager Surveys (spec): architecture/ownership-survey.md
           - Crawler Architecture: architecture/crawler-architecture.md
           - SQL Connector Delta Loading: architecture/sql-connector-delta.md

@@ -56,6 +56,7 @@ import systemsRouter from './routes/systems.js';
 import resourcesRouter from './routes/resources.js';
 import attributeLabelsRouter from './routes/attributeLabels.js';
 import contextsRouter from './routes/contexts.js';
+import surveysRouter from './routes/surveys.js';
 import contextPluginsRouter from './routes/contextPlugins.js';
 import lookupsRouter from './routes/lookups.js';
 import reportsRouter from './routes/reports.js';
@@ -348,7 +349,7 @@ export function createApp() {
   //     auth/resolveMe.js.
   app.get('/api/auth-me', authMiddleware, async (req, res) => {
     if (!isAuthEnabled()) {
-      return res.json({ enabled: false, hasWildcard: true, roles: [], permissions: [], me: null, contextOwner: null });
+      return res.json({ enabled: false, hasWildcard: true, roles: [], permissions: [], me: null, contextOwner: null, surveyRespondent: false });
     }
     const perms = req.user?.permissions || new Set();
     const hasWildcard = perms.has('*');
@@ -364,6 +365,9 @@ export function createApp() {
       // contextIds — those plus their variants — the scope the API enforces, so
       // the UI only offers what will open.
       contextOwner: owner ? { contexts: owner.contexts, contextIds: [...owner.contextIds] } : null,
+      // Set for a caller let in only to answer a survey sent to them: the UI
+      // opens their surveys instead of the app.
+      surveyRespondent: req.user?.surveyRespondent === true,
     });
   });
 
@@ -394,6 +398,8 @@ export function createApp() {
   app.use('/api', authMiddleware, systemsRouter);
   app.use('/api', authMiddleware, resourcesRouter);
   app.use('/api', authMiddleware, attributeLabelsRouter);
+  // Before contextsRouter: /contexts/:id/surveys is the surveys router's.
+  app.use('/api', authMiddleware, surveysRouter);
   app.use('/api', authMiddleware, contextsRouter);
   // Reports — an analyst read surface (it exposes nothing the Contexts page
   // doesn't already show), so plain auth, no admin permission gate.

@@ -117,6 +117,13 @@ describe('retryExtraction', () => {
     store.getInterview.mockResolvedValue(interview());
     await expect(retryExtraction(CTX, IV, { db: fakeDb(), enabled: () => false }, now)).rejects.toMatchObject({ status: 503 });
   });
+
+  it('refuses a survey answer (409) even with a model: its claims come from the answers', async () => {
+    store.getInterview.mockResolvedValue(interview({ extractionStatus: 'done', surveyRequestId: 'aaaaaaaa-0000-4000-8000-0000000000ff' }));
+    const start = vi.fn();
+    await expect(retryExtraction(CTX, IV, { db: fakeDb(), enabled: () => true, start }, now)).rejects.toMatchObject({ status: 409, message: /survey answer/ });
+    expect(start).not.toHaveBeenCalled();
+  });
 });
 
 describe('addManualClaim', () => {

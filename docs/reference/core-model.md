@@ -534,7 +534,7 @@ Edge: `principalId` or `identityId` → `resourceId`.
 | `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor; on ContextInterviews the interviewee, on ContextClaims the account the claim is about. Ingest alias: `principalExternalId`, `userExternalId`. |
 | `principalType` | `ia:principalType` | text |  | The kind of account. On Principals it selects the subclass; on ResourceAssignments it is a denormalised copy of the holder's type. |
 | `propagationScope` | `ia:propagationScope` | text | `self`, `descendants`, `selfAndDescendants` | Where along a containment hierarchy the assignment applies. |
-| `resourceId` | `ia:resourceId` | uuid | → Resources | The resource that is held. Ingest alias: `resourceExternalId`. |
+| `resourceId` | `ia:resourceId` | uuid | → Resources | The resource that is held. On ContextClaims the resource of the context a claim is about (a survey asked per entitlement). Ingest alias: `resourceExternalId`. |
 | `resourceType` | `ia:resourceType` | text |  | The kind of resource (open vocabulary). On Resources it selects the subclass; on ResourceAssignments it is a denormalised copy used to partition reconciles. |
 | `state` | `ia:state` | text |  | The source system's state word for the assignment (for example Delivered). |
 | `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. |
@@ -597,15 +597,17 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `periodText` | `ia:periodText` | text |  | The period as said (early years, now). |
 | `periodTo` | `ia:periodTo` | date |  | The end of the period the claim is about, when the interview gives one. |
 | `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor; on ContextInterviews the interviewee, on ContextClaims the account the claim is about. Ingest alias: `principalExternalId`, `userExternalId`. |
-| `proposedBy` | `ia:proposedBy` | text | `model`, `analyst` | Who proposed the claim. |
+| `proposedBy` | `ia:proposedBy` | text | `model`, `analyst`, `respondent` | Who proposed the claim. |
 | `quote` | `ia:quote` | text |  | The words of the transcript the claim rests on, verbatim. |
 | `quoteEnd` | `ia:quoteEnd` | integer |  | Where the quote ends in the stored transcript (exclusive). |
 | `quoteStart` | `ia:quoteStart` | integer |  | Where the quote starts in the stored transcript (a string offset), for the transcript view. NULL when not found. |
 | `relevance` | `ia:relevance` | text | `high`, `low` | How much the claim matters for identity and access governance, by fixed rules and the model's own tier. NULL (before tiers) reads as high. |
+| `resourceId` | `ia:resourceId` | uuid | → Resources | The resource that is held. On ContextClaims the resource of the context a claim is about (a survey asked per entitlement). Ingest alias: `resourceExternalId`. |
 | `roleSuggestion` | `ia:roleSuggestion` | text | `Accountable`, `Responsible` | The ContextRole a confirmed role claim becomes, by fixed rules on its relation. |
-| `subjectKind` | `ia:subjectKind` | text | `Context`, `Person` | Whether the claim is about the context or a person. |
+| `subjectKind` | `ia:subjectKind` | text | `Context`, `Person`, `Resource` | Whether the claim is about the context or a person. |
 | `subjectMatch` | `ia:subjectMatch` | text | `interviewee`, `key`, `name`, `fuzzy`, `firstName` | How the person was matched; NULL when they were not. |
 | `subjectName` | `ia:subjectName` | text |  | The person as named in the interview, matched or not. |
+| `surveyQuestionId` | `ia:surveyQuestionId` | text |  | The survey question the claim answers (its id in the survey template). NULL for a claim from a transcript. |
 | `value` | `ia:value` | text |  | What the claim says. |
 
 ### ContextInterviews
@@ -629,6 +631,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `language` | `ia:language` | text |  | The language of the transcript (en, nl). |
 | `model` | `ia:model` | text |  | The model that read it. |
 | `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor; on ContextInterviews the interviewee, on ContextClaims the account the claim is about. Ingest alias: `principalExternalId`, `userExternalId`. |
+| `surveyRequestId` | `ia:surveyRequestId` | uuid |  | The survey (SurveyRequests.id) this interview is the answer to; its transcript is the questions and answers. NULL for an uploaded transcript. SurveyRequests is outside the core model. |
 | `transcript` | `ia:transcript` | text |  | The transcript as plain text, one line per turn; every quote is a verbatim part of it. |
 
 ## Value lists
@@ -685,6 +688,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 |---|---|---|
 | `model` | `ia:ClaimProposer_model` | The local model, reading the transcript. |
 | `analyst` | `ia:ClaimProposer_analyst` | An analyst, by hand. |
+| `respondent` | `ia:ClaimProposer_respondent` | The person who answered a survey; the survey template says what each answer claims. |
 
 ### Claim relevance
 
@@ -714,6 +718,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 |---|---|---|
 | `Context` | `ia:ClaimSubjectKind_Context` | The context the interview is about. |
 | `Person` | `ia:ClaimSubjectKind_Person` | A person named in the interview. |
+| `Resource` | `ia:ClaimSubjectKind_Resource` | One of the context's resources (an entitlement), asked about per row in a survey. Knowledge only: the resource is never changed. |
 
 ### Context category
 
