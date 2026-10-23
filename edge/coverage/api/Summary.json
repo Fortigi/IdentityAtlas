@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generatedon": "2026-10-23T08:05:27Z",
+    "generatedon": "2026-10-23T08:12:40Z",
     "parser": "MultiReport (2x LCov)",
     "assemblies": 1,
     "classes": 315,
@@ -8,7 +8,7 @@
     "coveredlines": 13903,
     "uncoveredlines": 937,
     "coverablelines": 14840,
-    "totallines": 48444,
+    "totallines": 48451,
     "linecoverage": 93.6,
     "coveredbranches": 10685,
     "totalbranches": 12397,
@@ -21,7 +21,7 @@
  },
   "coverage": {
     "assemblies": [
-      { "name": "Default", "classes": 315, "coverage": 93.6, "coveredlines": 13903, "coverablelines": 14840, "totallines": 48444, "branchcoverage": 86.1, "coveredbranches": 10685, "totalbranches": 12397, "methodcoverage": 89.7, "fullmethodcoverage": 89.6, "coveredmethods": 2983, "fullcoveredmethods": 2981, "totalmethods": 3325, "classesinassembly": [
+      { "name": "Default", "classes": 315, "coverage": 93.6, "coveredlines": 13903, "coverablelines": 14840, "totallines": 48451, "branchcoverage": 86.1, "coveredbranches": 10685, "totalbranches": 12397, "methodcoverage": 89.7, "fullmethodcoverage": 89.6, "coveredmethods": 2983, "fullcoveredmethods": 2981, "totalmethods": 3325, "classesinassembly": [
         { "name": "src/accountlinking/classifier.js", "coverage": 100, "coveredlines": 58, "coverablelines": 58, "totallines": 130, "branchcoverage": 95.5, "coveredbranches": 86, "totalbranches": 90, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 10, "fullcoveredmethods": 10, "totalmethods": 10 },
         { "name": "src/accountlinking/defaultRules.js", "coverage": 100, "coveredlines": 1, "coverablelines": 1, "totallines": 22, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": null, "fullmethodcoverage": null, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 0 },
         { "name": "src/accountlinking/engine.helpers.js", "coverage": 100, "coveredlines": 34, "coverablelines": 34, "totallines": 82, "branchcoverage": 100, "coveredbranches": 25, "totalbranches": 25, "methodcoverage": 73.3, "fullmethodcoverage": 100, "coveredmethods": 11, "fullcoveredmethods": 15, "totalmethods": 15 },
@@ -113,7 +113,7 @@
         { "name": "src/lib/crawlerJobQueue.js", "coverage": 100, "coveredlines": 9, "coverablelines": 9, "totallines": 59, "branchcoverage": 100, "coveredbranches": 9, "totalbranches": 9, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 2, "fullcoveredmethods": 2, "totalmethods": 2 },
         { "name": "src/lib/dateOnly.js", "coverage": 100, "coveredlines": 3, "coverablelines": 3, "totallines": 13, "branchcoverage": 100, "coveredbranches": 9, "totalbranches": 9, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "src/lib/entitySearch.js", "coverage": 100, "coveredlines": 58, "coverablelines": 58, "totallines": 155, "branchcoverage": 97.4, "coveredbranches": 76, "totalbranches": 78, "methodcoverage": 93.3, "fullmethodcoverage": 100, "coveredmethods": 14, "fullcoveredmethods": 15, "totalmethods": 15 },
-        { "name": "src/lib/extKeys.js", "coverage": 100, "coveredlines": 11, "coverablelines": 11, "totallines": 51, "branchcoverage": 100, "coveredbranches": 13, "totalbranches": 13, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 4, "fullcoveredmethods": 4, "totalmethods": 4 },
+        { "name": "src/lib/extKeys.js", "coverage": 100, "coveredlines": 11, "coverablelines": 11, "totallines": 58, "branchcoverage": 100, "coveredbranches": 13, "totalbranches": 13, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 4, "fullcoveredmethods": 4, "totalmethods": 4 },
         { "name": "src/lib/httpJson.js", "coverage": 100, "coveredlines": 22, "coverablelines": 22, "totallines": 62, "branchcoverage": 84.6, "coveredbranches": 11, "totalbranches": 13, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 6 },
         { "name": "src/lib/jobConfig.js", "coverage": 100, "coveredlines": 4, "coverablelines": 4, "totallines": 25, "branchcoverage": 100, "coveredbranches": 6, "totalbranches": 6, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "src/lib/jsonb.js", "coverage": 100, "coveredlines": 5, "coverablelines": 5, "totallines": 19, "branchcoverage": 100, "coveredbranches": 4, "totalbranches": 4, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
