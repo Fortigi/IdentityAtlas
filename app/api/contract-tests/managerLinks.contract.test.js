@@ -229,8 +229,15 @@ async function identityManagerOf(externalId) {
   return r.rows[0];
 }
 
+// The marker prefixes the external id, not just the employeeId: the external id
+// is what the deterministic id is hashed from, so a manager reference and the
+// manager's own row have to be built from the SAME string or the link resolves
+// into a namespace slot nobody occupies — which is indistinguishable from the
+// "manager nobody loaded" case this file also tests.
 const anIdentity = (externalId, displayName, managerExternalId) => ({
-  externalId, displayName, employeeId: `${IDENTITY_MARKER}-${externalId}`,
+  externalId: `${IDENTITY_MARKER}-${externalId}`,
+  displayName,
+  employeeId: `${IDENTITY_MARKER}-${externalId}`,
   ...(managerExternalId === undefined ? {} : { managerIdentityExternalId: `${IDENTITY_MARKER}-${managerExternalId}` }),
 });
 
