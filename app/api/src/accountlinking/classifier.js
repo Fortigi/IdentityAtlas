@@ -163,23 +163,52 @@ function parseDisplayName(dn) {
 }
 
 /**
- * Parse a person name into { given, surname, initial, key }.
- * The explicit givenName/surname fields are the primary source — they are the
- * structured columns, while the display name is free text carrying titles and
- * qualifiers. The display name fills whichever half the columns leave empty.
- * `key` is the order-independent surname+given token (for candidate indexing).
+ * One parsed name: { given, surname, initial, key }. `key` is the
+ * order-independent surname+given token used for candidate indexing.
  */
-export function parseName(displayName, givenName, surname) {
+const parsedName = (given, sur) => ({
+  given,
+  surname: sur,
+  initial: given.slice(0, 1),
+  key: sur ? [sur, given].filter(Boolean).sort().join('|') : '',
+});
+
+/**
+ * Every name a person may be known by, deduped.
+ *
+ * There are two independent sources and neither is authoritative, so **both**
+ * are kept rather than one preferred over the other:
+ *
+ *   - the structured `givenName` / `surname` columns, and
+ *   - the parsed free-text `displayName`.
+ *
+ * HR sources routinely hold the **birth surname** in the `surname` column while
+ * the display name — and the accounts — carry the **name in use**: a partner
+ * name or a double name. Reading only the columns therefore unlinks everyone
+ * whose name in use differs from their birth name, and reading only the display
+ * name re-opens the title/particle mis-parse (a title parsed as the surname).
+ * A person is indexed under all of their names and a match on any one counts.
+ *
+ * @returns {Array<{given: string, surname: string, initial: string, key: string}>}
+ */
+export function nameVariants(displayName, givenName, surname) {
   const dn = String(displayName || '').replace(QUALIFIER_RE, ' ').trim();
   const parsed = parseDisplayName(dn);
-  const given = parseField(givenName) || normToken(parsed.given);
-  const sur = parseField(surname) || normToken(parsed.sur);
-  return {
-    given,
-    surname: sur,
-    initial: given.slice(0, 1),
-    key: sur ? [sur, given].filter(Boolean).sort().join('|') : '',
+  const dGiven = normToken(parsed.given);
+  const dSur = normToken(parsed.sur);
+  const fGiven = parseField(givenName);
+  const fSur = parseField(surname);
+
+  const out = [];
+  const add = (given, sur) => {
+    if (!given && !sur) return;
+    if (out.some(v => v.given === given && v.surname === sur)) return;
+    out.push(parsedName(given, sur));
   };
+  add(fGiven, fSur);                       // the structured columns on their own
+  add(fGiven || dGiven, fSur || dSur);     // a column for one half, the display name for the other
+  add(dGiven, dSur);                       // the display name on its own
+  return out;
 }
 
 /**
@@ -193,4 +222,23 @@ export function nameMatchLevel(a, b) {
   if (a.given && b.given && a.given === b.given) return 'full';
   if (a.initial && b.initial && a.initial === b.initial) return 'surnameInitial';
   return 'none';
+}
+
+const LEVEL_RANK = { none: 0, surnameInitial: 1, full: 2 };
+
+/**
+ * The strongest `nameMatchLevel` over every pair of names the two sides are
+ * known by — a match on the name in use counts as much as one on the birth
+ * name, whichever source each side happens to carry it in.
+ */
+export function bestNameMatch(aVariants, bVariants) {
+  let best = 'none';
+  for (const a of aVariants) {
+    for (const b of bVariants) {
+      const level = nameMatchLevel(a, b);
+      if (LEVEL_RANK[level] > LEVEL_RANK[best]) best = level;
+      if (best === 'full') return best;
+    }
+  }
+  return best;
 }

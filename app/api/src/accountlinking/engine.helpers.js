@@ -8,7 +8,7 @@ import {
   normalizeName,
   emailLocalPart,
   stripKnownPrefixes,
-  parseName,
+  nameVariants,
 } from './classifier.js';
 
 /** Normalise any scalar to a trimmed, lower-cased comparison token. */
@@ -18,8 +18,16 @@ export const norm = (v) => (v == null ? '' : String(v).trim().toLowerCase());
 export const fullName = (o, suffixes = []) =>
   normalizeName([o.givenName, o.surname].filter(Boolean).join(' '), suffixes);
 
-/** Parse a principal/identity row into a comparable person name. */
-export const personName = (o) => parseName(o.displayName, o.givenName, o.surname);
+/** Every comparable name a principal/identity row is known by. */
+export const personNames = (o) => nameVariants(o.displayName, o.givenName, o.surname);
+
+/**
+ * The name keys a person is indexed under, each once. Two of their names can
+ * collapse onto one key (the key sorts its halves, so a display name recorded
+ * `Surname Given` yields the same key as the columns) — listed twice, the person
+ * fills a key bucket on their own and can never be its sole match.
+ */
+export const nameKeys = (o) => [...new Set(personNames(o).map(v => v.key).filter(Boolean))];
 
 export function prefixesFrom(rules) {
   return (rules.signals || []).find(s => s.type === 'prefix')?.stripPrefixes || [];
@@ -45,7 +53,7 @@ export function indexIdentities(identities) {
     push(byEmployeeId, norm(idy.employeeId), idy);
     push(byEmailLocal, emailLocalPart(idy.email), idy);
     push(byName, normalizeName(idy.displayName) || fullName(idy), idy);
-    push(byNameKey, personName(idy).key, idy);
+    for (const key of nameKeys(idy)) push(byNameKey, key, idy);
   }
   return { byEmployeeId, byEmailLocal, byName, byNameKey };
 }
@@ -62,8 +70,36 @@ export function collectCandidates(orphan, indexes, { prefixes, suffixes }) {
   addAll(byEmailLocal.get(emailLocalPart(orphan.email)));
   addAll(byEmailLocal.get(stripKnownPrefixes(emailLocalPart(orphan.email), prefixes)));
   addAll(byName.get(normalizeName(orphan.displayName, suffixes) || fullName(orphan, suffixes)));
-  addAll(byNameKey.get(personName(orphan).key));
+  for (const key of nameKeys(orphan)) addAll(byNameKey.get(key));
   return candidates;
+}
+
+/**
+ * Break a tie between equally-scoring candidates **per name key**, or decline.
+ *
+ * A person is indexed under every name they are known by — their name in use
+ * and the birth surname an HR column holds — so a name tie is not one question
+ * but one per name. The tie resolves when exactly one of the tied identities is
+ * the only one matching under some name the account carries: two people who
+ * share only a birth surname then do not block the match that is unique on the
+ * name in use. It stays unresolved (and the account goes to review) when no name
+ * singles anyone out, or when different names single out different people.
+ *
+ * @param {object} orphan  the account being placed
+ * @param {Array<{identityId: string}>} tied  the equally-scoring top candidates
+ * @param {Map<string, object[]>} byNameKey  the name-key index
+ * @returns {object|null} the winning candidate, or null if still ambiguous
+ */
+export function resolveNameTie(orphan, tied, byNameKey) {
+  const tiedIds = new Set(tied.map(c => c.identityId));
+  const soleMatches = new Set();
+  for (const key of nameKeys(orphan)) {
+    const underKey = (byNameKey.get(key) || []).filter(idy => tiedIds.has(idy.id));
+    if (underKey.length === 1) soleMatches.add(underKey[0].id);
+  }
+  if (soleMatches.size !== 1) return null;
+  const [winner] = soleMatches;
+  return tied.find(c => c.identityId === winner);
 }
 
 /**

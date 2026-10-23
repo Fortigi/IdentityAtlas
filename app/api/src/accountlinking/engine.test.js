@@ -411,3 +411,92 @@ describe('buildLinks - owners with a titled display name (#1439)', () => {
     )).toHaveLength(0);
   });
 });
+
+// ── Birth surname vs name in use (#1439) ─────────────────────────────────────
+//
+// HR sources keep the BIRTH surname in the `surname` column while the display
+// name — and the accounts provisioned from it — carry the name in use: a partner
+// name or a double name. Reading the columns instead of the display name fixed
+// the title mis-parse but unlinked these people instead, which is the larger
+// population by far. Both names are now indexed, and ties are weighed per name.
+
+describe('buildLinks - an owner whose birth surname differs from her name in use (#1439)', () => {
+  // Born "de Wit", known as "Bakker-de Wit". HR writes the birth name in the
+  // column and the name in use in the display name; her accounts carry the latter.
+  const owner = {
+    id: 'owner', displayName: 'Anna Bakker-de Wit', givenName: 'Anna', surname: 'de Wit',
+    email: 'anna.dewit@corp.example', employeeId: 'E300',
+  };
+  // A different person who shares only the birth surname.
+  const namesake = {
+    id: 'namesake', displayName: 'Anna de Wit', givenName: 'Anna', surname: 'de Wit',
+    email: 'a.dewit@corp.example', employeeId: 'E301',
+  };
+  // No address and no employee id, so the name is the only evidence there is.
+  const account = (id, displayName, extra = {}) =>
+    ({ id, displayName, email: null, employeeId: null, ...extra });
+
+  it('links an account that carries the NAME IN USE', () => {
+    // The regression: indexed under the column alone she is known only as
+    // "Anna de Wit", her own account matches nobody, and it stays orphaned.
+    const links = buildLinks([account('p1', 'Anna Bakker-de Wit')], [owner], DEFAULT_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ identityId: 'owner', signals: ['fullName'] });
+    expect(links[0].confidence).toBe(60);
+  });
+
+  it('still links an account that carries the BIRTH surname', () => {
+    // The paired case, and the reason the columns are read at all: a system fed
+    // from the HR columns spells her the old way.
+    const links = buildLinks([account('p2', 'Anna de Wit')], [owner], DEFAULT_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('owner');
+  });
+
+  it('places an account carrying BOTH spellings on the one person called that', () => {
+    // An account provisioned from HR has the birth surname in its column and the
+    // name in use in its display name, so it matches both people and ties at 60.
+    // Read across the whole candidate set that tie sends it to review; read per
+    // name, only one person is called "Bakker-de Wit" and she gets it.
+    const orphan = account('p3', 'Anna Bakker-de Wit', { givenName: 'Anna', surname: 'de Wit' });
+    const links = buildLinks([orphan], [owner, namesake], DEFAULT_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('owner');
+  });
+
+  it('places it there whichever order the identities arrive in', () => {
+    // Candidates are scored in index order and the first of an equal pair wins,
+    // which says nothing about who the account belongs to. Resolved from that
+    // winner alone, this same account would land on the namesake instead.
+    const orphan = account('p3', 'Anna Bakker-de Wit', { givenName: 'Anna', surname: 'de Wit' });
+    const links = buildLinks([orphan], [namesake, owner], DEFAULT_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('owner');
+  });
+
+  it('still refuses when the account only carries the name the two people share', () => {
+    // The guard that must survive the per-key counting: this account really could
+    // be either person's, so it goes to review rather than to a guess.
+    expect(buildLinks([account('p4', 'Anna de Wit')], [owner, namesake], DEFAULT_RULES))
+      .toHaveLength(0);
+  });
+
+  it('does not link an account that carries only half of the double name', () => {
+    // Widening the names a person is indexed under must not widen what matches:
+    // "Anna Bakker" is neither of her names.
+    expect(buildLinks([account('p5', 'Anna Bakker')], [owner, namesake], DEFAULT_RULES))
+      .toHaveLength(0);
+  });
+
+  it('keeps linking a titled display name, which is what #1439 fixed first', () => {
+    // The two halves of the issue have to hold at once: the title strip is still
+    // in force while the columns are no longer the only source.
+    const titled = {
+      id: 'titled', displayName: 'Jan de Vries MSc', givenName: 'Jan', surname: 'de Vries',
+      email: 'jan.devries@corp.example', employeeId: 'E100',
+    };
+    const links = buildLinks([account('p6', 'Jan de Vries')], [titled], DEFAULT_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('titled');
+  });
+});

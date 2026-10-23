@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyAccount, emailLocalPart, normalizeName, stripKnownPrefixes, parseName, nameMatchLevel, compileAccountTypeRules } from './classifier.js';
+import { classifyAccount, emailLocalPart, normalizeName, stripKnownPrefixes, nameVariants, nameMatchLevel, bestNameMatch, compileAccountTypeRules } from './classifier.js';
 import { DEFAULT_RULES } from './defaultRules.js';
 
 describe('classifyAccount', () => {
@@ -37,29 +37,48 @@ describe('match helpers', () => {
   });
 });
 
-describe('parseName', () => {
+// ── Helpers for the name-parsing tests ───────────────────────────────────────
+//
+// nameVariants returns EVERY name a person is known by — the structured
+// givenName/surname columns, the parsed display name, and one half from each —
+// because an HR source and the accounts it describes often spell the same person
+// differently (birth surname vs name in use). A person with only one name source
+// has exactly one variant, which is what most cases below are about; `keysOf`
+// is for the cases where the sources genuinely disagree.
+
+const EMPTY_NAME = { given: '', surname: '', initial: '', key: '' };
+/** The first (and, for a single-source person, only) name a person reduces to. */
+const one = (dn, g, s) => nameVariants(dn, g, s)[0] ?? EMPTY_NAME;
+/** Every candidate-index key a person is indexed under, sorted (empties dropped,
+ *  as the index itself drops them — a name with no surname indexes nothing). */
+const keysOf = (dn, g, s) => nameVariants(dn, g, s).map(v => v.key).filter(Boolean).sort();
+
+describe('nameVariants', () => {
   it('parses "Surname, Given" and strips qualifiers', () => {
-    expect(parseName('Euson, Robin (OGD)')).toMatchObject({ given: 'robin', surname: 'euson' });
-    expect(parseName('(ADM-azure) Euson, Robin')).toMatchObject({ given: 'robin', surname: 'euson' });
+    expect(one('Euson, Robin (OGD)')).toMatchObject({ given: 'robin', surname: 'euson' });
+    expect(one('(ADM-azure) Euson, Robin')).toMatchObject({ given: 'robin', surname: 'euson' });
   });
   it('parses "Given Surname"', () => {
-    expect(parseName('Robin Euson')).toMatchObject({ given: 'robin', surname: 'euson' });
+    expect(one('Robin Euson')).toMatchObject({ given: 'robin', surname: 'euson' });
   });
   it('produces an order-independent key', () => {
-    expect(parseName('Euson, Robin').key).toBe(parseName('Robin Euson').key);
+    expect(one('Euson, Robin').key).toBe(one('Robin Euson').key);
   });
-  it('falls back to explicit given/surname fields', () => {
-    expect(parseName('', 'Robin', 'Euson')).toMatchObject({ given: 'robin', surname: 'euson' });
+  it('reads the explicit given/surname fields', () => {
+    expect(one('', 'Robin', 'Euson')).toMatchObject({ given: 'robin', surname: 'euson' });
+  });
+  it('yields one name when every source spells it the same way', () => {
+    expect(nameVariants('Euson, Robin', 'Robin', 'Euson')).toHaveLength(1);
   });
 });
 
 describe('nameMatchLevel', () => {
-  const n = (dn) => parseName(dn);
+  const n = (dn) => one(dn);
   it('full match on same given + surname despite qualifiers', () => {
     expect(nameMatchLevel(n('Euson, Robin (OGD)'), n('(ADM-azure) Euson, Robin'))).toBe('full');
   });
   it('surnameInitial when only the initial matches', () => {
-    expect(nameMatchLevel(parseName('', 'R', 'Euson'), n('Euson, Robin'))).toBe('surnameInitial');
+    expect(nameMatchLevel(one('', 'R', 'Euson'), n('Euson, Robin'))).toBe('surnameInitial');
   });
   it('none when surnames differ', () => {
     expect(nameMatchLevel(n('Smith, Jane'), n('Euson, Robin'))).toBe('none');
@@ -186,66 +205,75 @@ describe('classifyAccount - guest detection', () => {
   });
 });
 
-describe('parseName - forms and fallbacks', () => {
+describe('nameVariants - forms and fallbacks', () => {
   it('parses "Surname, Given" and takes only the FIRST given token', () => {
     // "Doe, John Michael" -> given "john", not "john michael": middle names appear
     // inconsistently across systems, so including them would split one person in two.
-    expect(parseName('Doe, John Michael')).toMatchObject({ given: 'john', surname: 'doe' });
+    expect(one('Doe, John Michael')).toMatchObject({ given: 'john', surname: 'doe' });
   });
 
   it('parses "Given Surname" using the FIRST and LAST tokens', () => {
     // Middle names again: the surname is the last token, not the second.
-    expect(parseName('John Michael Doe')).toMatchObject({ given: 'john', surname: 'doe' });
+    expect(one('John Michael Doe')).toMatchObject({ given: 'john', surname: 'doe' });
   });
 
   it('treats a lone token as a SURNAME, not a given name', () => {
     // A mononym or a display name that is just "Doe". Surname is the field
     // nameMatchLevel requires, so guessing wrong here means the name never matches
     // anything at all.
-    expect(parseName('Doe')).toMatchObject({ given: '', surname: 'doe' });
+    expect(one('Doe')).toMatchObject({ given: '', surname: 'doe' });
   });
 
   it('collapses runs of whitespace rather than producing empty tokens', () => {
-    expect(parseName('John    Doe')).toMatchObject({ given: 'john', surname: 'doe' });
-    expect(parseName('  John   Michael   Doe  ')).toMatchObject({ given: 'john', surname: 'doe' });
+    expect(one('John    Doe')).toMatchObject({ given: 'john', surname: 'doe' });
+    expect(one('  John   Michael   Doe  ')).toMatchObject({ given: 'john', surname: 'doe' });
   });
 
-  it('prefers the explicit given/surname fields over re-parsing the display name', () => {
-    // The structured HR/directory columns are already clean; the display name is the
-    // free-text field that carries titles and qualifiers. So the columns are the primary
-    // source and the display name only fills whichever half they leave empty -- the other
-    // way round, a clean surname column is discarded in favour of a parsed title (#1439).
-    expect(parseName('Doe, John', 'Jane', 'Smith')).toMatchObject({ given: 'jane', surname: 'smith' });
-    expect(parseName('', 'John', 'Doe')).toMatchObject({ given: 'john', surname: 'doe' });
-    // Each half falls back independently: supply one column, parse the other.
-    expect(parseName('Doe, John', '', 'Smith')).toMatchObject({ given: 'john', surname: 'smith' });
-    expect(parseName('Doe, John', 'Jane', '')).toMatchObject({ given: 'jane', surname: 'doe' });
+  it('keeps the explicit columns AND the parsed display name, not one or the other', () => {
+    // Neither source is authoritative: the columns are clean but often hold the birth
+    // surname, while the display name carries the name in use the accounts are spelled
+    // with. Dropping either half is a regression in one direction or the other (#1439),
+    // so both are indexed and a match on either counts.
+    expect(keysOf('Doe, John', 'Jane', 'Smith')).toEqual(['doe|john', 'jane|smith']);
+    expect(keysOf('', 'John', 'Doe')).toEqual(['doe|john']);
+  });
+
+  it('fills whichever half a column leaves empty from the display name', () => {
+    // A half-populated column pair is still worth a name of its own: "Smith" with no
+    // given name matches nothing, so the display name supplies the other half.
+    expect(keysOf('Doe, John', '', 'Smith')).toEqual(['doe|john', 'john|smith', 'smith']);
+    expect(keysOf('Doe, John', 'Jane', '')).toEqual(['doe|jane', 'doe|john']);
     // A lone display-name token fills surname, so only the GIVEN comes from the column.
-    expect(parseName('Doe', 'John', '')).toMatchObject({ given: 'john', surname: 'doe' });
+    expect(keysOf('Doe', 'John', '')).toEqual(['doe', 'doe|john']);
   });
 
   it('strips bracketed qualifiers before parsing', () => {
-    expect(parseName('John Doe (Admin)')).toMatchObject({ given: 'john', surname: 'doe' });
-    expect(parseName('Doe, John [Contractor]')).toMatchObject({ given: 'john', surname: 'doe' });
+    expect(one('John Doe (Admin)')).toMatchObject({ given: 'john', surname: 'doe' });
+    expect(one('Doe, John [Contractor]')).toMatchObject({ given: 'john', surname: 'doe' });
   });
 
   it('builds an order-independent key, and none at all without a surname', () => {
     // The key indexes candidates, so it must be the same whichever way round the name
     // arrived. Without a surname there is nothing to index on and the key must be empty
     // rather than a given-name-only key that would collide across unrelated people.
-    expect(parseName('Doe, John').key).toBe(parseName('John Doe').key);
-    expect(parseName('Doe, John').key).toBe('doe|john');
-    expect(parseName('', 'John', '').key).toBe('');
+    expect(one('Doe, John').key).toBe(one('John Doe').key);
+    expect(one('Doe, John').key).toBe('doe|john');
+    expect(one('', 'John', '').key).toBe('');
+  });
+
+  it('yields no name at all for a person with no name anywhere', () => {
+    expect(nameVariants('', '', '')).toEqual([]);
+    expect(nameVariants(null, null, null)).toEqual([]);
   });
 
   it('exposes the given-name initial', () => {
-    expect(parseName('John Doe').initial).toBe('j');
-    expect(parseName('Doe').initial).toBe('');
+    expect(one('John Doe').initial).toBe('j');
+    expect(one('Doe').initial).toBe('');
   });
 });
 
 describe('nameMatchLevel - levels', () => {
-  const n = (dn, g, s) => parseName(dn, g, s);
+  const n = (dn, g, s) => one(dn, g, s);
 
   it('is full only when surname AND given name agree', () => {
     expect(nameMatchLevel(n('John Doe'), n('John Doe'))).toBe('full');
@@ -294,62 +322,63 @@ describe('nameMatchLevel - levels', () => {
 // turns a title into a name, so the real owner stops matching and the account is
 // linked to a namesake instead -- access rolls up to the wrong person.
 
-describe('parseName - titles and multi-word surnames (#1439)', () => {
-  it('uses the clean given/surname columns rather than the title-bearing display name', () => {
-    // The reported case: surname parses as 'msc', so the owner is indexed under
-    // {jan, msc} and is never even a candidate for her own account.
-    expect(parseName('Jan de Vries MSc', 'Jan', 'de Vries'))
-      .toMatchObject({ given: 'jan', surname: 'devries' });
+describe('nameVariants - titles and multi-word surnames (#1439)', () => {
+  it('reads the title-bearing display name without turning the title into a name', () => {
+    // The reported case: the LAST token is 'MSc', so the owner was indexed under
+    // {jan, msc} and was never even a candidate for her own account. Whether the
+    // columns are present or not, no name she is indexed under is 'msc'.
+    expect(keysOf('Jan de Vries MSc', 'Jan', 'de Vries')).toEqual(['devries|jan']);
+    expect(keysOf('Jan de Vries MSc')).toEqual(['devries|jan']);
   });
 
   it('strips post-nominal titles when only a display name is available', () => {
-    expect(parseName('Jan de Vries MSc')).toMatchObject({ given: 'jan', surname: 'devries' });
-    expect(parseName('Anna Bakker PhD')).toMatchObject({ given: 'anna', surname: 'bakker' });
+    expect(one('Jan de Vries MSc')).toMatchObject({ given: 'jan', surname: 'devries' });
+    expect(one('Anna Bakker PhD')).toMatchObject({ given: 'anna', surname: 'bakker' });
   });
 
   it('strips pre-nominal titles when only a display name is available', () => {
-    expect(parseName('drs. Anna Bakker')).toMatchObject({ given: 'anna', surname: 'bakker' });
-    expect(parseName('ir. Jeroen Visser')).toMatchObject({ given: 'jeroen', surname: 'visser' });
+    expect(one('drs. Anna Bakker')).toMatchObject({ given: 'anna', surname: 'bakker' });
+    expect(one('ir. Jeroen Visser')).toMatchObject({ given: 'jeroen', surname: 'visser' });
   });
 
   it('strips a stack of titles on both sides of the name', () => {
     // Several titles at once, which a single-shot strip would only half remove.
-    expect(parseName('Prof. dr. ir. Willem van der Laan MSc'))
+    expect(one('Prof. dr. ir. Willem van der Laan MSc'))
       .toMatchObject({ given: 'willem', surname: 'vanderlaan' });
   });
 
   it('keeps the particles as part of the surname', () => {
     // 'berg' is not this person's surname: every other "van den Berg" in the tenant
     // reduces to the same token, so a name match stops meaning anything.
-    expect(parseName('Jeroen van den Berg').surname).toBe('vandenberg');
-    expect(parseName('Mark ter Horst').surname).toBe('terhorst');
+    expect(one('Jeroen van den Berg').surname).toBe('vandenberg');
+    expect(one('Mark ter Horst').surname).toBe('terhorst');
   });
 
   it('does not conflate a particle surname with its hyphenated compound', () => {
     // Two different people and two different families -- the last-word rule scores
     // them as the same surname, which is the one non-title wrong link in the report.
-    expect(parseName('Mark van der Steen').surname)
-      .not.toBe(parseName('Lisa Schilder-van der Steen').surname);
-    expect(parseName('Lisa Schilder-van der Steen')).toMatchObject({ given: 'lisa', surname: 'schildervandersteen' });
+    expect(one('Mark van der Steen').surname)
+      .not.toBe(one('Lisa Schilder-van der Steen').surname);
+    expect(one('Lisa Schilder-van der Steen')).toMatchObject({ given: 'lisa', surname: 'schildervandersteen' });
   });
 
   it('still collapses a middle name into the given+last pair', () => {
     // The paired negative: the surname grows only from a known particle onwards, not
     // from "everything after the given name" -- otherwise the middle names that appear
     // inconsistently across systems would split one person into two.
-    expect(parseName('Anna Maria Bakker')).toMatchObject({ given: 'anna', surname: 'bakker' });
-    expect(parseName('John Michael Doe')).toMatchObject({ given: 'john', surname: 'doe' });
+    expect(one('Anna Maria Bakker')).toMatchObject({ given: 'anna', surname: 'bakker' });
+    expect(one('John Michael Doe')).toMatchObject({ given: 'john', surname: 'doe' });
   });
 
   it('matches the same person across a titled and an untitled display name', () => {
     // What the linking engine actually asks: the HR record and the account are one person.
-    expect(nameMatchLevel(parseName('Jan de Vries MSc', 'Jan', 'de Vries'), parseName('Jan de Vries')))
+    expect(bestNameMatch(nameVariants('Jan de Vries MSc', 'Jan', 'de Vries'), nameVariants('Jan de Vries')))
       .toBe('full');
-    expect(parseName('Jan de Vries MSc', 'Jan', 'de Vries').key).toBe(parseName('Jan de Vries').key);
+    expect(keysOf('Jan de Vries MSc', 'Jan', 'de Vries')).toContain(one('Jan de Vries').key);
   });
 
   it('still separates two people whose surnames differ only by a particle', () => {
-    expect(nameMatchLevel(parseName('Mark van der Steen'), parseName('Mark Steen'))).toBe('none');
+    expect(nameMatchLevel(one('Mark van der Steen'), one('Mark Steen'))).toBe('none');
   });
 
   it('does not let a hyphenated GIVEN name start the surname', () => {
@@ -357,22 +386,91 @@ describe('parseName - titles and multi-word surnames (#1439)', () => {
     // hyphenated first or middle name is just a name token -- treat it as a surname
     // start and "Anna Maria-Louise Bakker" stops matching "Anna Bakker", which is
     // the same person under a system that records no middle name.
-    expect(parseName('Anna Maria-Louise Bakker')).toMatchObject({ given: 'anna', surname: 'bakker' });
-    expect(nameMatchLevel(parseName('Anna Maria-Louise Bakker'), parseName('Anna Bakker'))).toBe('full');
+    expect(one('Anna Maria-Louise Bakker')).toMatchObject({ given: 'anna', surname: 'bakker' });
+    expect(nameMatchLevel(one('Anna Maria-Louise Bakker'), one('Anna Bakker'))).toBe('full');
   });
 
   it('reads a trailing comma as a surname with no given name', () => {
     // "Doe," is what a source with an empty given-name column writes. The surname
     // half must still land -- it is the half nameMatchLevel requires, so losing it
     // means the account matches nothing at all rather than matching too much.
-    expect(parseName('Doe,')).toMatchObject({ given: '', surname: 'doe' });
-    expect(parseName('de Vries,', '', '')).toMatchObject({ given: '', surname: 'devries' });
+    expect(one('Doe,')).toMatchObject({ given: '', surname: 'doe' });
+    expect(one('de Vries,', '', '')).toMatchObject({ given: '', surname: 'devries' });
   });
 
   it('keeps a short surname that happens to spell a degree', () => {
     // The title strip never takes a name down to fewer than two tokens, so the
     // surname of someone called "Jan Ma" survives being spelled like an MA.
-    expect(parseName('Jan Ma')).toMatchObject({ given: 'jan', surname: 'ma' });
-    expect(parseName('Ma, Jan')).toMatchObject({ given: 'jan', surname: 'ma' });
+    expect(one('Jan Ma')).toMatchObject({ given: 'jan', surname: 'ma' });
+    expect(one('Ma, Jan')).toMatchObject({ given: 'jan', surname: 'ma' });
+  });
+});
+
+// ── Birth surname vs name in use (#1439) ─────────────────────────────────────
+//
+// The follow-up regression. Reading the structured columns INSTEAD of the parsed
+// display name fixed the title mis-parse but broke the far more common case: HR
+// holds the birth surname in `surname`, while the display name and the accounts
+// carry the name in use (a partner name, a double name). On the synthetic
+// dataset that left 469 previously-correct links unlinked. So both names are
+// kept, and a match on either one counts.
+
+describe('nameVariants - birth surname and name in use (#1439)', () => {
+  // HR: born "de Wit", known as "Bakker-de Wit" since she married.
+  const hr = () => nameVariants('Anna Bakker-de Wit', 'Anna', 'de Wit');
+
+  it('indexes a person under BOTH her birth surname and her name in use', () => {
+    expect(keysOf('Anna Bakker-de Wit', 'Anna', 'de Wit'))
+      .toEqual(['anna|bakkerdewit', 'anna|dewit']);
+  });
+
+  it('matches an account that carries the name in use', () => {
+    // The account the directory actually holds. Column-only parsing indexes her
+    // as {anna, dewit} alone, this account matches nothing, and her own account
+    // is left orphaned -- the 397-link half of the regression.
+    expect(bestNameMatch(hr(), nameVariants('Anna Bakker-de Wit'))).toBe('full');
+  });
+
+  it('still matches an account that carries the birth surname', () => {
+    // The paired case: a system that was fed the HR columns spells her the old
+    // way, and that has to keep working -- it is why the columns are read at all.
+    expect(bestNameMatch(hr(), nameVariants('Anna de Wit'))).toBe('full');
+    expect(bestNameMatch(hr(), nameVariants('', 'Anna', 'de Wit'))).toBe('full');
+  });
+
+  it('matches on the initial through either name', () => {
+    expect(bestNameMatch(hr(), nameVariants('A. Bakker-de Wit'))).toBe('surnameInitial');
+    expect(bestNameMatch(hr(), nameVariants('A. de Wit'))).toBe('surnameInitial');
+  });
+
+  it('does not match a stranger who shares neither name', () => {
+    // Widening the name set must not widen what matches: two names each, four
+    // comparisons, and all four have to decline.
+    expect(bestNameMatch(hr(), nameVariants('Anna Visser', 'Anna', 'Visser'))).toBe('none');
+    expect(bestNameMatch(hr(), nameVariants('Bakker, Anna'))).toBe('none');
+  });
+});
+
+describe('bestNameMatch', () => {
+  it('takes the STRONGEST level across the name pairs, not the first or the last', () => {
+    // Her birth name matches only on the initial, her name in use matches in full.
+    // Returning the first or the weakest comparison downgrades a certain match to
+    // 'surnameInitial', which scores 45 instead of 60 and can drop under the
+    // threshold -- the account silently stops linking.
+    const hr = nameVariants('Anna Bakker-de Wit', 'Anna', 'de Wit');
+    expect(bestNameMatch(hr, nameVariants('A. de Wit'))).toBe('surnameInitial');
+    expect(bestNameMatch(hr, nameVariants('Anna Bakker-de Wit', 'A', 'de Wit'))).toBe('full');
+  });
+
+  it('is symmetric', () => {
+    const a = nameVariants('Anna Bakker-de Wit', 'Anna', 'de Wit');
+    const b = nameVariants('Anna Bakker-de Wit');
+    expect(bestNameMatch(a, b)).toBe(bestNameMatch(b, a));
+  });
+
+  it('is none when either side has no name at all', () => {
+    expect(bestNameMatch(nameVariants('Anna de Wit'), [])).toBe('none');
+    expect(bestNameMatch([], nameVariants('Anna de Wit'))).toBe('none');
+    expect(bestNameMatch([], [])).toBe('none');
   });
 });

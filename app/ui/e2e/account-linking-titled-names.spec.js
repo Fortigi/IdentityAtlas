@@ -5,15 +5,15 @@
  *
  * Reported symptom, walked here end to end: an orphan account named
  * "Jan de Vries" showed up under the *untitled* namesake's Linked Accounts,
- * while the person it belongs to — "Jan de Vries MSc" in HR — showed none.
- * `parseName` read the first word of the display name as the given name and the
+ * while the person it belongs to — "Jan de Vries MSc" in HR — showed none. The
+ * name parser read the first word of the display name as the given name and the
  * LAST as the surname, so a title became the surname ("msc") and a particle
  * surname lost its particles ("van den Berg" → "berg"). The owner was indexed
  * under a name nobody has, stopped being a candidate for her own account, and
  * the account went to whoever still spelled the same.
  *
- * Three families are seeded, each a different face of the same defect, and all
- * three are decided by ONE linking run:
+ * Four families are seeded, each a different face of the same defect, and all
+ * four are decided by ONE linking run:
  *
  *   A  titled owner, no namesake   → her account must land on HER
  *                                    (before the fix: linked to nobody)
@@ -23,8 +23,13 @@
  *   C  "Bakker-van der Hoeve"      → two different families; the account must
  *      vs "van der Hoeve"            land on neither
  *                                    (before the fix: the last word matched)
+ *   D  birth surname in the HR     → her account, which carries the name in use,
+ *      column, name in use in the    must land on HER, and not be blocked by the
+ *      display name + a namesake     namesake who shares only the birth surname
+ *      on the birth surname          (the first fix read the columns INSTEAD of
+ *                                    the display name and left her unlinked)
  *
- * A is what makes B and C meaningful: it proves the run actually linked
+ * A and D are what make B and C meaningful: they prove the run actually linked
  * something, so "no link" in B and C is a decision and not a run that did
  * nothing.
  *
@@ -46,7 +51,7 @@ const API = `${BASE}/api`;
 // Lower-case alphanumerics only: the name parser folds everything else away.
 const TOKEN = randomUUID().replace(/-/g, '').slice(0, 8);
 
-/** The three families, as the HR source and the accounts spell them. */
+/** The four families, as the HR source and the accounts spell them. */
 const FAMILIES = {
   // Particle surname + a post-nominal title, exactly as reported.
   a: { given: 'Jan', surname: `de Vriesz${TOKEN}`, title: 'MSc' },
@@ -54,6 +59,10 @@ const FAMILIES = {
   b: { given: 'Lotte', surname: `van der Steenz${TOKEN}`, title: 'MSc' },
   // A hyphenated compound whose tail is another family's whole surname.
   c: { compound: `Bakker-van der Hoevez${TOKEN}`, plain: `van der Hoevez${TOKEN}`, given: 'Mark' },
+  // Born "de Wittz", known as "Bakker-de Wittz": HR holds the birth surname in
+  // the column and the name in use in the display name. Plus a different person
+  // who is really called by the birth surname.
+  d: { given: 'Sanne', birth: `de Wittz${TOKEN}`, inUse: `Bakker-de Wittz${TOKEN}` },
 };
 
 const plain = (f) => `${f.given} ${f.surname}`;
@@ -62,7 +71,8 @@ const titled = (f) => `${f.given} ${f.surname} ${f.title}`;
 /** Ids are minted up front so the seed, the assertions and the cleanup agree. */
 const IDS = {
   ownerA: randomUUID(), ownerB: randomUUID(), namesakeB: randomUUID(), ownerC: randomUUID(),
-  orphanA: randomUUID(), orphanB: randomUUID(), orphanC: randomUUID(),
+  ownerD: randomUUID(), namesakeD: randomUUID(),
+  orphanA: randomUUID(), orphanB: randomUUID(), orphanC: randomUUID(), orphanD: randomUUID(),
 };
 
 /** State the seed creates and the teardown has to give back. */
@@ -96,14 +106,15 @@ const identity = (id, displayName, given, surname) => ({
 
 /**
  * An account with no address and no employee id, so the name signals are the
- * only evidence there is — which is the condition the defect needed.
+ * only evidence there is — which is the condition the defect needed. `extra`
+ * carries the name columns for an account provisioned from an HR record.
  */
-const orphanAccount = (id, displayName) => ({
-  id, displayName, principalType: 'User', accountEnabled: true,
+const orphanAccount = (id, displayName, extra = {}) => ({
+  id, displayName, principalType: 'User', accountEnabled: true, ...extra,
 });
 
 /**
- * Seed a system, three HR identities and three orphan accounts. Returns false
+ * Seed a system, six HR identities and four orphan accounts. Returns false
  * when the deployment won't allow it (mock mode, or an API key that may not
  * ingest), which is the only reason this spec skips.
  */
@@ -126,7 +137,7 @@ async function seed() {
   seeded.systemId = (await sys.json()).systemIds?.[0];
   if (!seeded.systemId) return false;
 
-  const { a, b, c } = FAMILIES;
+  const { a, b, c, d } = FAMILIES;
   await ingest('identities', {
     records: [
       // A: the only person of her name, and HR spells her with a title.
@@ -136,6 +147,10 @@ async function seed() {
       identity(IDS.namesakeB, plain(b), b.given, b.surname),
       // C: a hyphenated compound surname, no title involved.
       identity(IDS.ownerC, `${c.given} ${c.compound}`, c.given, c.compound),
+      // D: display name and column disagree — name in use vs birth surname.
+      identity(IDS.ownerD, `${d.given} ${d.inUse}`, d.given, d.birth),
+      // ...and someone who really is called by that birth surname.
+      identity(IDS.namesakeD, `${d.given} ${d.birth}`, d.given, d.birth),
     ],
   });
 
@@ -145,6 +160,11 @@ async function seed() {
       orphanAccount(IDS.orphanB, plain(b)),
       // C's account spells the OTHER family — it must not be absorbed.
       orphanAccount(IDS.orphanC, `${c.given} ${c.plain}`),
+      // D's account carries the name in use in its display name, as the
+      // directory has it, and the birth surname in its column, as HR fed it —
+      // so it matches BOTH D's owner and the namesake, and only the owner is
+      // actually called by the name in use.
+      orphanAccount(IDS.orphanD, `${d.given} ${d.inUse}`, { givenName: d.given, surname: d.birth }),
     ],
   });
   return true;
@@ -154,12 +174,12 @@ async function seed() {
  * Give the deployment its rows back: the identities (which cascades the links
  * this run wrote), then the accounts, then the system and the key.
  *
- * Principals are a soft-delete table, so the three throwaway accounts are
+ * Principals are a soft-delete table, so the four throwaway accounts are
  * tombstoned rather than removed and the tombstone purge finalises them after
  * the history-retention window — that is the ingest contract, not something to
  * work around here. A tombstoned account is still counted as an orphan today
  * (#1442), so they are reclassified as non-human first: that is the one class
- * no human-facing surface reports on, and it keeps three ex-fixtures off a real
+ * no human-facing surface reports on, and it keeps four ex-fixtures off a real
  * deployment's Orphaned Accounts report while they age out.
  *
  * The system row itself can only be disabled — the API has no delete for
@@ -168,9 +188,12 @@ async function seed() {
  */
 async function unseed() {
   if (seeded.apiKey && seeded.systemId) {
-    await ingest('identities', { deletedIds: [IDS.ownerA, IDS.ownerB, IDS.namesakeB, IDS.ownerC] }).catch(() => {});
+    await ingest('identities', {
+      deletedIds: [IDS.ownerA, IDS.ownerB, IDS.namesakeB, IDS.ownerC, IDS.ownerD, IDS.namesakeD],
+    }).catch(() => {});
     await ingest('principals', {
-      records: [IDS.orphanA, IDS.orphanB, IDS.orphanC].map(id => ({ id, principalType: 'ServicePrincipal' })),
+      records: [IDS.orphanA, IDS.orphanB, IDS.orphanC, IDS.orphanD]
+        .map(id => ({ id, principalType: 'ServicePrincipal' })),
     }).catch(() => {});
     // An empty FULL batch is how a source says "this scope is empty now".
     await ingest('principals', { syncMode: 'full' }).catch(() => {});
@@ -238,11 +261,11 @@ test.describe('Account Linking — titled HR names and particle surnames (#1439)
     await unseed();
   });
 
-  test('one run decides all three families correctly', async ({ page }) => {
+  test('one run decides all four families correctly', async ({ page }) => {
     if (!seeded.ready) { test.skip(true, 'Could not seed through the ingest API (SQL mode required)'); return; }
     test.setTimeout(240000);
 
-    const { a, b, c } = FAMILIES;
+    const { a, b, c, d } = FAMILIES;
 
     // ── The reporter's path: Admin → Account Linking → Run ──────────────
     await runAccountLinking(page);
@@ -269,6 +292,18 @@ test.describe('Account Linking — titled HR names and particle surnames (#1439)
 
     // ── C: two families that share a surname tail stay apart ────────────
     expect(await linkedAccountNames(IDS.ownerC)).not.toContain(`${c.given} ${c.plain}`);
+
+    // ── D: the name in use finds her, the birth surname does not block it ──
+    // HR has her as "de Wittz", the account as "Bakker-de Wittz", and someone
+    // else really is a "de Wittz". Reading only the columns leaves this account
+    // orphaned; counting the tie across both names sends it to review. Neither
+    // is right — exactly one person is called "Bakker-de Wittz".
+    await openIdentityFromList(page, `${d.given} ${d.inUse}`);
+    const panelD = await linkedAccountsPanel(page);
+    await expect(panelD.getByRole('button', { name: `${d.given} ${d.inUse}`, exact: true }))
+      .toBeVisible({ timeout: 15000 });
+    expect(await linkedAccountNames(IDS.ownerD)).toEqual([`${d.given} ${d.inUse}`]);
+    expect(await linkedAccountNames(IDS.namesakeD)).toEqual([]);
   });
 
   test('the accounts it declined to place are still shown as orphans', async () => {
@@ -285,5 +320,6 @@ test.describe('Account Linking — titled HR names and particle surnames (#1439)
     expect(orphanIds.has(IDS.orphanB)).toBe(true);
     expect(orphanIds.has(IDS.orphanC)).toBe(true);
     expect(orphanIds.has(IDS.orphanA)).toBe(false);
+    expect(orphanIds.has(IDS.orphanD)).toBe(false);
   });
 });

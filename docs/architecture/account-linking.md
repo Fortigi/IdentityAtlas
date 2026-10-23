@@ -65,7 +65,17 @@ The dictionary is shipped with sensible defaults (`DEFAULT_RULES`) and is editab
 
 ### Graded name matching + ambiguity guard
 
-`parseName` reduces a person to `{ given, surname }`, and it reads the structured `givenName` / `surname` columns **first** — they are the clean, per-field values a directory or HR source already provides. The free-text `displayName` only fills whichever half the columns leave empty, and each half falls back independently.
+`nameVariants` reduces a person to **every name they are known by**, each a `{ given, surname, initial, key }`. There are two independent sources and neither is authoritative, so both are kept:
+
+| Variant | Source |
+|---|---|
+| the columns | the structured `givenName` / `surname` fields |
+| the display name | the parsed free-text `displayName` |
+| one half from each | whichever half a column leaves empty, filled from the display name |
+
+Identical variants collapse, so the common case — every source spelling the person the same way — is a single name.
+
+Why both: HR sources routinely hold the **birth surname** in the `surname` column while the display name, and the accounts provisioned from it, carry the **name in use** — a partner name or a double name. Reading only the columns unlinks everyone whose name in use differs from their birth name (the larger population by far); reading only the display name re-opens the title mis-parse below. So a person is indexed under all of their names, and `bestNameMatch` takes the strongest match across every pair — a match on either name counts.
 
 When the display name *is* parsed, three things happen before the halves are taken:
 
@@ -87,9 +97,11 @@ The two name signals are mutually exclusive — only the signal whose `level` eq
 
 **Ambiguity guard:** a *name-only* best match (no strong email/employeeId signal) that ties in confidence across multiple identities is too risky to auto-pick, so the engine leaves the account orphaned for manual review rather than guess. Two genuine namesakes therefore produce a review item, not a guess — including when one of them carries a title in their display name and the other does not, which previously hid one of the pair from the candidate set and made the guess look certain.
 
+A name tie is read **per name key** (`resolveNameTie` in `engine.helpers.js`) before it is treated as a tie at all. Since a person is indexed under several names, the question is asked once per name the account carries: if exactly one of the equally-scoring identities is the *only* match under one of those names, it is the match — two people who share only a birth surname do not veto the person who is uniquely the name in use. It stays a tie, and the account goes to review, when no name singles anyone out (the account carries only the shared name) or when different names single out different people. The resolution does not depend on the order identities were indexed in.
+
 ### Candidate scope = orphans only
 
-The only accounts the engine ever considers are **orphan Principals** — Principals with no `IdentityMembers` row — excluding `ServicePrincipal`, `ManagedIdentity`, and `AIAgent` principal types. Accounts already attached to an Identity (e.g. by the crawler's IdentityFilter) are never disturbed. Candidates per orphan are narrowed by indexing identities on employeeId, email-local-part (raw and prefix-stripped), normalized display name, and an order-independent surname+given key, so only plausible identities are scored.
+The only accounts the engine ever considers are **orphan Principals** — Principals with no `IdentityMembers` row — excluding `ServicePrincipal`, `ManagedIdentity`, and `AIAgent` principal types. Accounts already attached to an Identity (e.g. by the crawler's IdentityFilter) are never disturbed. Candidates per orphan are narrowed by indexing identities on employeeId, email-local-part (raw and prefix-stripped), normalized display name, and an order-independent surname+given key **per name the person is known by**, so only plausible identities are scored and neither the birth name nor the name in use is a dead end.
 
 ### Confidence scoring + writes
 
