@@ -73,7 +73,14 @@ const router = Router();
 //
 // An analyst holds both (the seed RoleMiner role carries them), so nothing
 // they could do before stops working.
+//
+//   builder — the model-free routes both surfaces stand on: the catalog, name
+//             lookup, "did you mean" resolve, running a definition and opening a
+//             saved one. Either permission is enough. Someone who may only build
+//             still gets the report builder, just without the model (interpret
+//             and status stay behind askGate).
 const askGate = [requirePermission('data.read.reports'), requireFeature('customReports')];
+const builderGate = [requirePermission('data.read.reports', 'data.write.reports'), requireFeature('customReports')];
 const analystGate = [requirePermission('data.write.reports'), requireFeature('customReports')];
 const adminGate = [requirePermission('admin.llm'), requireFeature('customReports')];
 
@@ -86,7 +93,7 @@ function fail(res, route, err, status = 500) {
 }
 
 
-router.get('/nl-reports/catalog', askGate, async (req, res) => {
+router.get('/nl-reports/catalog', builderGate, async (req, res) => {
   try {
     const values = await loadValues();
     // This deployment's own extendedAttributes fields are part of the catalog the
@@ -119,7 +126,7 @@ router.get('/nl-reports/catalog', askGate, async (req, res) => {
 });
 
 // GET /api/nl-reports/lookup?entity=resource&q=mat — names for the compare reference picker
-router.get('/nl-reports/lookup', askGate, async (req, res) => {
+router.get('/nl-reports/lookup', builderGate, async (req, res) => {
   const entity = String(req.query.entity || '');
   const text = String(req.query.q || '').trim();
   if (!Object.hasOwn(ENTITIES, entity)) return res.status(400).json({ error: 'Unknown entity' });
@@ -272,7 +279,7 @@ export { applyResolveChoice };
 
 // POST /api/nl-reports/resolve { spec, choice? } — apply the answer to a "did you mean"
 // confirmation and look the named objects up again. No model involved.
-router.post('/nl-reports/resolve', askGate, async (req, res) => {
+router.post('/nl-reports/resolve', builderGate, async (req, res) => {
   if (!req.body?.spec || typeof req.body.spec !== 'object') return res.status(400).json({ error: 'spec is required' });
   try {
     const values = await loadValues();
@@ -336,7 +343,7 @@ async function rememberRun(req, { logId, conversationId }, result) {
   });
 }
 
-router.post('/nl-reports/run', askGate, async (req, res) => {
+router.post('/nl-reports/run', builderGate, async (req, res) => {
   if (!req.body?.spec || typeof req.body.spec !== 'object') return res.status(400).json({ error: 'spec is required' });
   const ids = parseRunIds(req.body);
   if (ids.error) return res.status(400).json({ error: ids.error });
@@ -382,7 +389,7 @@ router.get('/nl-reports/conversations/:id', askGate, async (req, res) => {
   }
 });
 
-router.get('/nl-reports/saved/:id', askGate, async (req, res) => {
+router.get('/nl-reports/saved/:id', builderGate, async (req, res) => {
   try {
     const row = await getSavedReport(req.params.id);
     if (!row) return res.status(404).json({ error: 'Report not found' });
