@@ -1,1 +1,0 @@
-- Updated third-party dependencies of the API and web UI to versions that fix newly published security advisories (zod, body-parser, multer, undici, fast-uri, ip-address)
