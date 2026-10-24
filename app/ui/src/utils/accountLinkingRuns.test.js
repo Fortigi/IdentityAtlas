@@ -32,6 +32,28 @@ describe('completionNotice', () => {
   it('shows an em dash for an unknown orphan count but zero for unknown link counts', () => {
     expect(completionNotice({})).toBe('Linking complete — 0 linked, 0 updated, — orphans remaining.');
   });
+
+  it('reports the re-linked matches on the run that actually re-linked them', () => {
+    // The first run after the level-scoped guard lands re-links the whole class the old
+    // reading held or detached. Without this clause that restore is invisible, and an
+    // analyst sees a few thousand accounts change owner with nothing saying why.
+    expect(completionNotice({
+      linksCreated: 2100, linksUpdated: 0, orphansRemaining: 4, nameOnlyMatches: 80,
+      linksRemoved: 0, linksRestored: 2043,
+    })).toBe('Linking complete — 2100 linked, 0 updated, 4 orphans remaining, '
+      + '80 name-only matches held for review, 0 name-only links removed, '
+      + '2043 previously-held matches re-linked.');
+  });
+
+  it('says nothing about re-linking on an ordinary run that restored none', () => {
+    // Unlike the figures above, zero is not a finding here: every later run reports 0 and
+    // a standing "0 previously-held matches re-linked" would read as a thing to look into.
+    expect(completionNotice({
+      linksCreated: 1, linksUpdated: 0, orphansRemaining: 4, nameOnlyMatches: 3,
+      linksRemoved: 0, linksRestored: 0,
+    })).toBe('Linking complete — 1 linked, 0 updated, 4 orphans remaining, '
+      + '3 name-only matches held for review, 0 name-only links removed.');
+  });
 });
 
 describe('latestNameOnlyRun', () => {

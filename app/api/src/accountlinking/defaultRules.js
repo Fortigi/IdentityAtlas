@@ -51,8 +51,9 @@ export const DEFAULT_RULES = {
   linkThreshold: 50,
   onlyLinkTypes: ['Admin', 'Guest', 'Secondary'],
   // Policy: a name match on its own may attach an account to a person, but only
-  // while that name points at exactly one of them. A name shared with a second
-  // person — spelled the same, or sharing its surname and given initial — says
+  // while that name points at exactly one of them. A name a second person
+  // answers to at the level the match rests on — spelled the same, or sharing
+  // its surname and given initial where nobody is spelled it exactly — says
   // nothing about which of the two the account belongs to, and the wrong one
   // then inherits that person's access review, risk score and leaver handling.
   // Those matches are held for review on the run instead. Sources that carry

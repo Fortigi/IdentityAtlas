@@ -72,13 +72,23 @@ describe('buildLinks', () => {
     expect(stats.suggestions.map(s => s.principalId).sort()).toEqual(['admogd', 'ogd']);
   });
 
-  it('holds back the name-only accounts of a person with a near-namesake', () => {
-    // The same two accounts, same rules as the first case — the only difference is
-    // a second Euson whose given name shares Robin's initial. The name no longer
-    // says which of them these accounts belong to, so they go to review while the
-    // one corroborated by the email prefix still links.
-    const withNamesake = [...EUSON, { id: 'rachel', displayName: 'Euson, Rachel', email: 'rachel.euson@por.com' }];
-    const { links, stats } = buildLinks(EUSON_ORPHANS, withNamesake, DEFAULT_RULES);
+  it('still links them when the only other Euson merely shares Robin’s initial', () => {
+    // The same two accounts, same rules as the first case, plus a second Euson whose
+    // given name happens to start with an R. "Euson, Robin" is still the spelling of
+    // exactly one person, and Rachel is no competing answer to a name she is not
+    // called — holding these back cost the link for no gain (#1460).
+    const nearNamesake = [...EUSON, { id: 'rachel', displayName: 'Euson, Rachel', email: 'rachel.euson@por.com' }];
+    const { links, stats } = buildLinks(EUSON_ORPHANS, nearNamesake, DEFAULT_RULES);
+    expect(links.map(l => l.principalId).sort()).toEqual(['adm', 'admogd', 'ogd']);
+    expect(stats).toEqual({ nameOnlyMatches: 0, suggestions: [] });
+  });
+
+  it('holds back the name-only accounts of a person with a real namesake', () => {
+    // The paired case on the same input: a second person who really is called "Euson,
+    // Robin". Now the name does not say which of them these accounts belong to, so
+    // they go to review while the one corroborated by the email prefix still links.
+    const namesake = [...EUSON, { id: 'robin2', displayName: 'Euson, Robin', email: 'r.euson.2@por.com' }];
+    const { links, stats } = buildLinks(EUSON_ORPHANS, namesake, DEFAULT_RULES);
     expect(links.map(l => l.principalId)).toEqual(['adm']);
     expect(stats.suggestions.map(s => s.principalId).sort()).toEqual(['admogd', 'ogd']);
     expect(stats.suggestions[0].reason).toBe('ambiguousName');
@@ -436,15 +446,20 @@ describe('buildLinks - the name-uniqueness guard', () => {
   });
 });
 
-// ── buildLinks: a near-identical namesake (#1440) ────────────────────────────
+// ── buildLinks: a near-identical namesake (#1440, as scoped by #1460) ────────
 //
 // The case a tie between top-scoring candidates cannot see: the real owner's name is
-// spelled a little differently, so she scores BELOW the namesake who matches cleanly and
-// never ties with him. The account is handed to the wrong person with no indication the
-// name was shared. Every wrong link in the measured dataset behind #1440 was this case.
-// Reading the name at the surname + given initial level as well is what finds her.
+// spelled a little differently, so she scores BELOW the candidate who matches cleanly and
+// never ties with him. Reading the name at the surname + given initial level as well is
+// what finds her — but only where the account is an exact match for nobody. An account
+// somebody IS spelled is that person's, and a near spelling is not a rival to it (#1460).
+//
+// (The wrong links measured behind #1440 were classified afterwards: all 44 were the
+// titled/particle class #1443 fixed — a plain account whose owner's record carries a
+// title — and none was a short form like Jan for Johannes. Titles strip before keying, so
+// those still tie at the exact level and are still held; see the #1460 suite below.)
 
-describe('buildLinks - a near-identical namesake (#1440)', () => {
+describe('buildLinks - a near-identical namesake (#1440, as scoped by #1460)', () => {
   const rules = (over = {}) => ({
     signals: [
       { name: 'email',    type: 'exact', field: 'email', weight: 90 },
@@ -462,34 +477,38 @@ describe('buildLinks - a near-identical namesake (#1440)', () => {
   const jan = { id: 'jan', displayName: 'Jan Jansen', email: 'jan.jansen@corp.example' };
   const johannes = { id: 'johannes', displayName: 'Johannes Jansen', email: 'johannes.jansen@corp.example' };
 
-  it('holds back the clean match while a near-identical name is in the tenant', () => {
-    // Read only at full-name level this is one candidate, one match, no tie — and the
-    // account is confidently attached to Jan although Johannes may well be its owner.
+  it('links the clean match although a near-identical name stands behind it', () => {
+    // Johannes may be a plausible owner of a "Jan Jansen" account, but Jan is the one
+    // actually spelled that — and on the reporter's dataset refusing every such match
+    // cost ~1,700 correct links per run for no measured wrong link avoided (#1460).
     const { links, stats } = buildLinks([account], [jan, johannes], rules());
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ identityId: 'jan', confidence: 60, signals: ['fullName'] });
+    expect(stats).toEqual({ nameOnlyMatches: 0, suggestions: [] });
+  });
+
+  it('holds the same match back once a second person is spelled the name too', () => {
+    // The paired case on identical input bar one identity, and the protection that does
+    // survive: two people really are called "Jan Jansen", so the name settles nothing.
+    const twin = { id: 'twin', displayName: 'Jan Jansen', email: 'j.jansen@corp.example' };
+    const { links, stats } = buildLinks([account], [jan, twin, johannes], rules());
     expect(links).toHaveLength(0);
     expect(stats.nameOnlyMatches).toBe(1);
     expect(stats.suggestions[0]).toMatchObject({
       identityId: 'jan',
       confidence: 60,
       reason: 'ambiguousName',
-      rivals: [{ identityId: 'johannes', identityName: 'Johannes Jansen' }],
+      // Johannes is not named: he does not answer to the name this match rests on.
+      rivals: [{ identityId: 'twin', identityName: 'Jan Jansen' }],
       rivalCount: 1,
     });
   });
 
-  it('links the very same match once the near-identical name is gone', () => {
-    // The paired case on identical input bar one identity: without a rival the name
-    // identifies exactly one person, and a display-name-only source links on that.
-    const { links, stats } = buildLinks([account], [jan], rules());
-    expect(links).toHaveLength(1);
-    expect(links[0]).toMatchObject({ identityId: 'jan', confidence: 60, signals: ['fullName'] });
-    expect(stats).toEqual({ nameOnlyMatches: 0, suggestions: [] });
-  });
-
-  it('links it despite the near-identical name when a second signal corroborates it', () => {
+  it('links it despite a namesake when a second signal corroborates it', () => {
     // The guard only ever applies to a match resting on the name alone.
+    const twin = { id: 'twin', displayName: 'Jan Jansen', email: 'j.jansen@corp.example' };
     const corroborated = { ...account, email: 'jan.jansen@corp.example' };
-    const { links } = buildLinks([corroborated], [jan, johannes], rules());
+    const { links } = buildLinks([corroborated], [jan, twin], rules());
     expect(links.map(l => l.identityId)).toEqual(['jan']);
   });
 
@@ -498,7 +517,7 @@ describe('buildLinks - a near-identical namesake (#1440)', () => {
     // ordinary. The names still match, so the match is still held — and the record has
     // to say so with nulls rather than drop the fields and render as blank rows.
     const fromColumns = { id: 'p2', givenName: 'Jan', surname: 'Jansen' };
-    const namelessRival = { id: 'anon', givenName: 'Johannes', surname: 'Jansen' };
+    const namelessRival = { id: 'anon', givenName: 'Jan', surname: 'Jansen' };
     const { links, stats } = buildLinks([fromColumns], [jan, namelessRival], rules());
 
     expect(links).toHaveLength(0);
@@ -511,10 +530,10 @@ describe('buildLinks - a near-identical namesake (#1440)', () => {
   });
 
   it('names at most a handful of rivals but counts them all', () => {
-    // A common surname in a large tenant produces more rivals than are worth storing on
+    // A common name in a large tenant produces more rivals than are worth storing on
     // the run row; the count must stay true so the card can say how many it is not showing.
     const crowd = [jan, ...Array.from({ length: MAX_NAME_ONLY_RIVALS + 3 }, (_, i) => ({
-      id: `j${i}`, displayName: `Jo${i} Jansen`,
+      id: `j${i}`, displayName: 'Jan Jansen', email: `jan.jansen.${i}@corp.example`,
     }))];
     const { stats } = buildLinks([account], crowd, rules());
     expect(stats.suggestions[0].rivals).toHaveLength(MAX_NAME_ONLY_RIVALS);
@@ -563,6 +582,7 @@ describe('buildLinks - allowNameOnlyLinks: false', () => {
       signals: ['fullName'],
       accountType: 'Secondary',
       reason: 'uncorroborated',
+      matchLevel: 'full',
       rivals: [],
       rivalCount: 0,
     }]);

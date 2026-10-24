@@ -38,11 +38,12 @@
  */
 
 import { test, expect } from '@playwright/test';
+import {
+  BASE, openIngestSession, closeIngestSession, linkingRules,
+  linkedPrincipalIds, orphanReport, runAccountLinkingFromAdmin,
+} from './accountLinkingSeed';
 
 test.describe.configure({ mode: 'serial' });
-
-const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
-const API = `${BASE}/api`;
 
 // ROWS_PER_PAGE in src/components/reports/ListReportRenderer.jsx. Restated
 // rather than imported: Playwright does not transpile that JSX module.
@@ -91,23 +92,10 @@ const NAMESAKE_DEPARTED = {
   email: 'j.hurke2e1442.departed@e2e.invalid',
 };
 
-let apiKey = null;    // the ingest key, issued once per run
-let crawlerId = null;
-let systemId = null;
+/** The ingest connector + system, opened once per run. */
+let session = null;
 /** Why the fixture could not be set up, if it could not — each test skips on it. */
 let unavailable = null;
-
-const json = (res) => res.json().catch(() => ({}));
-
-/** An ingest call as the registered connector. */
-async function ingest(entity, body) {
-  const res = await fetch(`${API}/ingest/${entity}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(body),
-  });
-  return { ok: res.ok, status: res.status, body: await json(res) };
-}
 
 /**
  * A full principals sync carrying exactly `accounts`. Any other principal of
@@ -115,8 +103,7 @@ async function ingest(entity, body) {
  * whole report is about.
  */
 function syncAccounts(accounts) {
-  return ingest('principals', {
-    systemId,
+  return session.ingest('principals', {
     syncMode: 'full',
     records: accounts.map(a => ({
       id: a.id,
@@ -140,7 +127,7 @@ function syncAccounts(accounts) {
  * leaves — which is the state cleanup wants.
  */
 function removeAllAccounts(accounts) {
-  return ingest('principals', { systemId, syncMode: 'delta', records: [], deletedIds: accounts.map(a => a.id) });
+  return session.ingest('principals', { deletedIds: accounts.map(a => a.id) });
 }
 
 /**
@@ -148,54 +135,25 @@ function removeAllAccounts(accounts) {
  * full sync here would reconcile the whole table.
  */
 function seedIdentity(identity) {
-  return ingest('identities', { systemId, syncMode: 'delta', records: [identity] });
+  return session.ingest('identities', { records: [identity] });
 }
 
 /** Hard-delete a person, which cascades their IdentityMembers rows. */
 function dropIdentity(id) {
-  return ingest('identities', { systemId, syncMode: 'delta', records: [], deletedIds: [id] });
-}
-
-/** The Orphaned Accounts report as the API serves it — every row, not just a page. */
-async function orphanReport() {
-  const res = await fetch(`${API}/reports/orphaned-accounts/rows`);
-  expect(res.ok, 'GET /api/reports/orphaned-accounts/rows should succeed').toBe(true);
-  return res.json();
+  return session.ingest('identities', { deletedIds: [id] });
 }
 
 const orphanNames = (report) => report.rows.map(r => r.displayName);
 
-/** The principals currently attached to one of the fixture's people. */
-async function linkedPrincipalIds(identityId = IDENTITY.id) {
-  const res = await fetch(`${API}/identities/${identityId}`);
-  if (!res.ok) return [];
-  return ((await res.json()).members || []).map(m => m.principalId);
-}
-
 test.beforeAll(async () => {
   // One connector per run; its key is returned once and never again.
-  const res = await fetch(`${API}/admin/crawlers`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      displayName: `e2e-1442-ingest-${Date.now()}`,
-      description: 'Temporary ingest key for the removed-account orphan spec (#1442).',
-      permissions: ['ingest'],
-    }),
+  session = await openIngestSession({
+    displayName: `e2e-1442-ingest-${Date.now()}`,
+    description: 'Temporary ingest key for the removed-account orphan spec (#1442).',
+    system: SYSTEM,
   });
-  if (res.status !== 201) {
-    // Mock mode (USE_SQL=false) has no Crawlers table and no ingest to drive.
-    unavailable = `could not register an ingest connector (HTTP ${res.status})`;
-    return;
-  }
-  const crawler = await res.json();
-  apiKey = crawler.apiKey;
-  crawlerId = crawler.id;
-
-  const system = await ingest('systems', { syncMode: 'delta', records: [SYSTEM] });
-  systemId = system.body.systemIds?.[0];
-  if (!systemId) {
-    unavailable = `could not register the fixture system (HTTP ${system.status})`;
+  if (!session.ok) {
+    unavailable = session.reason;
     return;
   }
 
@@ -213,20 +171,11 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  if (!apiKey) return;
-  // Hard-delete the identities (cascades their IdentityMembers rows) so a re-run
-  // starts with every account orphaned again, then tombstone the accounts so
-  // nothing this spec seeded shows up on any live surface.
-  if (systemId) {
-    await dropIdentity(IDENTITY.id);
-    await dropIdentity(NAMESAKE.id);
-    await removeAllAccounts([LIVE, DEPARTED, NAMESAKE_DEPARTED]);
-  }
-  await fetch(`${API}/admin/crawlers/${crawlerId}`, {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ permanent: true }),
-  });
+  // Tombstone the accounts so nothing this spec seeded shows up on any live surface, then
+  // hard-delete the identities (which cascades their IdentityMembers rows) so a re-run
+  // starts with every account orphaned again.
+  if (session?.systemId) await removeAllAccounts([LIVE, DEPARTED, NAMESAKE_DEPARTED]);
+  await closeIngestSession(session, { identityIds: [IDENTITY.id, NAMESAKE.id] });
 });
 
 test.beforeEach(async () => {
@@ -267,25 +216,10 @@ async function revealRow(page, report, displayName) {
   return page.getByRole('button', { name: displayName, exact: true });
 }
 
-/** Admin → Account Linking → Run now, waited out to completion. */
+/** Admin → Account Linking → Run now, plus the figure this spec reads off the notice. */
 async function runLinkingFromAdmin(page) {
-  // Reload rather than goto: a second run in the same test would otherwise find
-  // the previous run's "Linking complete" still on screen and pass instantly.
-  await page.goto(`${BASE}/#admin?sub=account-linking`);
-  await page.reload();
-  const runNow = page.getByRole('button', { name: 'Run now' });
-  await expect(runNow).toBeVisible({ timeout: 30000 });
-  await runNow.click();
-
-  // The page polls the run and reports the outcome when it finishes.
-  await expect(page.getByText(/Linking complete/)).toBeVisible({ timeout: 120000 });
+  await runAccountLinkingFromAdmin(page);
   await expect(page.getByText(/orphans remaining/)).toBeVisible();
-}
-
-/** The active rules, so a re-tuned deployment skips instead of failing. */
-async function linkingRules() {
-  const config = await (await fetch(`${API}/account-linking/config`)).json();
-  return config.rules || {};
 }
 
 test.describe('Orphaned Accounts and an account the sync removed', () => {
@@ -321,7 +255,7 @@ test.describe('Orphaned Accounts and an account the sync removed', () => {
   });
 
   test('Account Linking attaches the live account and never the removed one', async ({ page }) => {
-    const rules = await linkingRules();
+    const rules = (await linkingRules()) || {};
     // The live twin links on its employeeId (an exact signal, weight 95). A
     // tenant that raised the threshold past it, or that stopped linking plain
     // secondary accounts, has no control to assert — and without the control
@@ -335,14 +269,14 @@ test.describe('Orphaned Accounts and an account the sync removed', () => {
     // so the removed account is a tombstone *before* linking ever sees it.
     expect((await syncAccounts([LIVE, DEPARTED])).ok).toBe(true);
     expect((await syncAccounts([LIVE])).ok).toBe(true);
-    expect(await linkedPrincipalIds()).not.toContain(DEPARTED.id);
+    expect(await linkedPrincipalIds(IDENTITY.id)).not.toContain(DEPARTED.id);
 
     await runLinkingFromAdmin(page);
 
     // Control and regression in one assertion: the live account was attached to
     // the person it matches, the removed one was not — even though it carries
     // the same employeeId and would have scored identically.
-    expect(await linkedPrincipalIds()).toEqual([LIVE.id]);
+    expect(await linkedPrincipalIds(IDENTITY.id)).toEqual([LIVE.id]);
 
     // The removed account is not outstanding work either: it is absent from the
     // orphan report the run leaves behind.
@@ -350,7 +284,7 @@ test.describe('Orphaned Accounts and an account the sync removed', () => {
   });
 
   test('a removed leaver’s account is never attached to a live person of the same name', async ({ page }) => {
-    const rules = await linkingRules();
+    const rules = (await linkingRules()) || {};
     // The leaver's account matches the namesake on `fullName` and nothing else,
     // so a tenant that raised the certainty slider above that weight would not
     // link it even while it is live — no control, no regression.

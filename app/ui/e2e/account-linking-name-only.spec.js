@@ -1,36 +1,42 @@
 // @ts-check
 //
 // Account linking must not attach an account to a person on a display name somebody else
-// answers to (#1440). Against the live, demo-data-loaded deployment this spec checks, end
-// to end:
+// answers to — at the level the match rests on (#1440, scoped by #1460). Against the live
+// deployment this spec checks, end to end:
 //
 //   1. the shipped policy is readable from the active rules, and a real run honours it,
 //   2. the run reports what it held back and what it removed, with the evidence and the
 //      reason,
 //   3. an account the run held back is NOT linked in the resulting data,
 //   4. a second run over the same data detaches nothing — the policy converges instead of
-//      churning every name-only link on every run.
+//      churning every name-only link on every run,
+//   5. the reporter's path for #1460: an account whose full name exactly one person is
+//      spelled LINKS although others share its surname and first initial, while a real
+//      namesake stays held — and the held-for-review card says which name the rivals
+//      actually share.
 //
-// (3) and (4) are the assertions a unit test cannot make: they read the stored links back
-// through the identities API, and they run the engine twice against one database. A run
-// that both reports a match as held and writes it, or a cleanup that keeps detaching links
-// it immediately re-creates, fails here while every mocked test stays green.
+// (3), (4) and (5) are the assertions a unit test cannot make: they read the stored links
+// back through the identities API, and they run the engine twice against one database. A
+// run that both reports a match as held and writes it, or a cleanup that keeps detaching
+// links it immediately re-creates, fails here while every mocked test stays green. (4) is
+// also the retroactive half of #1460: a link made on a name shared only at the weaker
+// level must survive the next run's stale-link scan.
+//
+// The #1460 fixture is seeded through the ingest API under a system of its own and a
+// per-run name token — the demo dataset's realism slice has surname+initial collisions by
+// construction, but pre-links its cross-system accounts on employeeId, so the symptom is
+// not guaranteed out of the box.
 //
 // The run is a real POST, so this spec changes deployment state — it links accounts the
 // same way the post-crawl auto-run does. That is deliberate: a dry-run would not prove the
 // writes.
 
 import { test, expect } from '@playwright/test';
-
-const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
-const API = `${BASE}/api`;
-
-/** The active rules, with the shipped defaults merged in by the API. */
-async function fetchRules() {
-  const res = await fetch(`${API}/account-linking/config`);
-  if (!res.ok) return null;
-  return (await res.json())?.rules ?? null;
-}
+import { randomUUID } from 'crypto';
+import {
+  BASE, API, openIngestSession, closeIngestSession, linkingRules,
+  runAccountLinkingFromAdmin, linkedAccountNames,
+} from './accountLinkingSeed';
 
 /** Signal names that are a name match and nothing else — mirrors nameSignalNames(). */
 function nameSignalNames(rules) {
@@ -56,13 +62,107 @@ async function runLinking() {
   return null;
 }
 
+/** The newest completed run, as the card reads it. */
+async function latestRun() {
+  const res = await fetch(`${API}/account-linking/runs`);
+  if (!res.ok) return null;
+  return ((await res.json())?.data ?? []).find(r => r.status === 'completed') ?? null;
+}
+
+// ── The #1460 fixture ────────────────────────────────────────────────────────
+//
+// Two families, both seeded with single-token surnames so the name parser cannot read a
+// particle as the surname and confuse the question being asked here.
+//
+//   SHARED  three unrelated people whose given names all start with Y. An account spelled
+//           exactly one of their names must land on HER — that is the regression.
+//   TWIN    two people really called the same thing, plus a third one initial away. The
+//           account must stay held, and the rival named must be the real namesake only.
+const TOKEN = randomUUID().replace(/-/g, '').slice(0, 8);
+const SHARED = `Elmahdiz${TOKEN}`;
+const TWIN = `Benaliz${TOKEN}`;
+
+const IDS = {
+  youssef: randomUUID(), yasmina: randomUUID(), yassin: randomUUID(),
+  karim: randomUUID(), karimTwin: randomUUID(), khalid: randomUUID(),
+  orphanYoussef: randomUUID(), orphanKarim: randomUUID(),
+};
+
+const NAMES = {
+  youssef: `Youssef ${SHARED}`,
+  yasmina: `Yasmina ${SHARED}`,
+  yassin: `Yassin ${SHARED}`,
+  karim: `Karim ${TWIN}`,
+  khalid: `Khalid ${TWIN}`,
+};
+
+/** An HR person: a display name, clean columns and an address of her own. */
+const person = (id, displayName) => {
+  const [given, surname] = displayName.split(' ');
+  return {
+    id, displayName, givenName: given, surname,
+    email: `${given}.${surname}.${id.slice(0, 4)}@e2e-1460.example`.toLowerCase(),
+    employeeId: `E2E1460-${id.slice(0, 8)}`,
+    companyName: 'E2E #1460',
+  };
+};
+
+/**
+ * A directory account with no address and no employee id, so the name signals are the
+ * only evidence there is — the condition the regression needs.
+ */
+const orphanAccount = (id, displayName) => ({
+  id, displayName, principalType: 'User', accountEnabled: true,
+});
+
 let rules;
 let completedRun;
+let seeded = null;
 
 test.beforeAll(async () => {
-  rules = await fetchRules();
+  rules = await linkingRules();
   test.skip(!rules, 'account-linking config endpoint not available to this user');
+
+  seeded = await openIngestSession({
+    displayName: `e2e-1460-${TOKEN}`,
+    description: 'Throwaway key for the #1460 account-linking E2E. Removed by the spec.',
+    system: { systemType: 'HR', tenantId: `e2e-1460-${TOKEN}`, displayName: `E2E #1460 HR (${TOKEN})` },
+  });
+  if (seeded.ok) {
+    await seeded.mustIngest('identities', {
+      records: [
+        person(IDS.youssef, NAMES.youssef),
+        person(IDS.yasmina, NAMES.yasmina),
+        person(IDS.yassin, NAMES.yassin),
+        person(IDS.karim, NAMES.karim),
+        person(IDS.karimTwin, NAMES.karim),
+        person(IDS.khalid, NAMES.khalid),
+      ],
+    });
+    await seeded.mustIngest('principals', {
+      records: [
+        orphanAccount(IDS.orphanYoussef, NAMES.youssef),
+        orphanAccount(IDS.orphanKarim, NAMES.karim),
+      ],
+    });
+  }
+
   completedRun = await runLinking();
+});
+
+test.afterAll(async () => {
+  if (seeded?.systemId) {
+    // Off every human-facing surface on the way out: a tombstoned account is no longer an
+    // orphan, but the rows outlive the retention window.
+    await seeded.ingest('principals', {
+      records: [IDS.orphanYoussef, IDS.orphanKarim].map(id => ({ id, principalType: 'ServicePrincipal' })),
+    }).catch(() => {});
+    await seeded.ingest('principals', { deletedIds: [IDS.orphanYoussef, IDS.orphanKarim] }).catch(() => {});
+  }
+  await closeIngestSession(seeded, {
+    identityIds: [IDS.youssef, IDS.yasmina, IDS.yassin, IDS.karim, IDS.karimTwin, IDS.khalid],
+    systemNote: 'Disabled leftover of the #1460 account-linking E2E.',
+  });
 });
 
 test.describe('Account linking — no auto-link on a name somebody else answers to', () => {
@@ -166,5 +266,81 @@ test.describe('Account linking — no auto-link on a name somebody else answers 
     const table = page.getByRole('table', { name: /Name-only matches held for review/i });
     const empty = page.getByText(/held nothing back|No completed run has reported/i);
     expect(await table.count() + await empty.count()).toBeGreaterThan(0);
+  });
+});
+
+// ── The reporter's path for #1460 ────────────────────────────────────────────
+//
+// Admin → Account Linking → Run now, then read the result the reporter read: the account
+// spelled exactly one person's name was held with rivals who are not called that, and
+// ~1,700 correct links per run were lost to it. Both halves are walked here — the
+// release, and the hold that must survive it — because releasing everything would also
+// make the first assertion pass.
+
+test.describe('Account linking — a rival counts at the level the match rests on (#1460)', () => {
+  test.describe.configure({ mode: 'serial', timeout: 300000 });
+
+  test.beforeEach(() => {
+    test.skip(!seeded?.ok, 'could not seed through the ingest API (SQL mode required)');
+    // The fixture matches on the name alone, at full-name strength. A deployment that
+    // raised the certainty slider past that weight, or stopped linking plain secondary
+    // accounts, would hold both accounts for reasons that have nothing to do with #1460.
+    const nameWeight = (rules?.signals || []).find(s => s.name === 'fullName')?.weight ?? 0;
+    test.skip(
+      !(rules?.onlyLinkTypes || []).includes('Secondary') || (rules?.linkThreshold ?? 0) > nameWeight,
+      'the deployment\'s linking rules would not link a name-only match',
+    );
+  });
+
+  test('the account only one person is spelled lands on her, through the UI', async ({ page }) => {
+    await runAccountLinkingFromAdmin(page);
+
+    // The regression: "Youssef" is nobody else's name here, so this account is his — even
+    // though Yasmina and Yassin stand one initial away.
+    expect(await linkedAccountNames(IDS.youssef)).toEqual([NAMES.youssef]);
+    // ...and the two who merely share the surname and initial did not inherit it.
+    expect(await linkedAccountNames(IDS.yasmina)).toEqual([]);
+    expect(await linkedAccountNames(IDS.yassin)).toEqual([]);
+
+    // Through the identity page, which is where the reporter looked.
+    await page.goto(`/#identity:${IDS.youssef}`);
+    await page.getByRole('tab', { name: /Relationships/i }).click();
+    const panel = page.locator('div:has(> h3:text-is("Linked Accounts"))');
+    await expect(panel.getByRole('button', { name: NAMES.youssef, exact: true })).toBeVisible({ timeout: 15000 });
+  });
+
+  test('a real namesake still holds the match, and only the namesake is named', async () => {
+    // The paired case, and what stops the fix reducing to "whoever matches best wins":
+    // two people really are called "Karim", so nothing in the name says which.
+    expect(await linkedAccountNames(IDS.karim)).toEqual([]);
+    expect(await linkedAccountNames(IDS.karimTwin)).toEqual([]);
+
+    const run = await latestRun();
+    const held = (run?.nameOnlySuggestions ?? []).find(s => s.principalId === IDS.orphanKarim);
+    expect(held, `the run did not report the held match for ${NAMES.karim} `
+      + `(stored list is capped at 500; this run held ${run?.nameOnlyMatches})`).toBeTruthy();
+
+    expect(held.reason).toBe('ambiguousName');
+    expect(held.matchLevel).toBe('full');
+    // Khalid shares the surname and the initial and is NOT a rival: he does not answer to
+    // the name this match rests on. Naming him is what used to hold Youssef's account.
+    expect(held.rivals.map(r => r.identityName)).toEqual([NAMES.karim]);
+    expect(held.rivalCount).toBe(1);
+  });
+
+  test('the held-for-review card says which name the rivals share', async ({ page }) => {
+    await page.goto(`${BASE}/#admin?sub=account-linking`);
+    await page.waitForLoadState('networkidle');
+
+    const table = page.getByRole('table', { name: /Name-only matches held for review/i });
+    if (!(await table.isVisible({ timeout: 15000 }).catch(() => false))) {
+      test.skip(true, 'Account Linking admin tab not available to this user (needs admin.crawlers)');
+    }
+
+    const row = table.locator('tr', { hasText: NAMES.karim }).first();
+    await expect(row).toBeVisible({ timeout: 15000 });
+    await expect(row.getByText(/full name also answered to by/i)).toBeVisible();
+    // The account that linked is not on the card at all — it is not held, it is placed.
+    await expect(table.locator('tr', { hasText: NAMES.youssef })).toHaveCount(0);
   });
 });

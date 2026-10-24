@@ -205,9 +205,11 @@ describe('runLinking — soft-deleted principals', () => {
 // A name-only match against the IDENTITY fixture: same parsed name, unrelated email,
 // no employee id. Scores 60 on fullName alone.
 const NAME_ONLY_ORPHAN = { id: 'p-namesake', displayName: 'Doe, John', email: 'jd@elsewhere.com' };
-// A second identity whose given name shares John's initial, which is what makes the
-// account's name ambiguous without ever scoring high enough to tie with him.
-const NEAR_IDENTITY = { id: 'idy-2', displayName: 'Doe, Jane', email: 'jane.doe@contoso.com', employeeId: 'E2' };
+// A second identity really called the same thing, which is what makes the account's
+// name ambiguous: both are spelled it, so the name says nothing about which of them the
+// account belongs to. (Someone merely one initial away is not a rival to a name this
+// account is an exact match for -- see the #1460 suite in engine.test.js.)
+const NAMESAKE_IDENTITY = { id: 'idy-2', displayName: 'Doe, John', email: 'j.doe@contoso.com', employeeId: 'E2' };
 
 /** The fields written by the run's final 'completed' UPDATE, as a column→value object. */
 function completionFields(db) {
@@ -224,7 +226,7 @@ function memberDeletes(db) {
 
 describe('runLinking — the name-uniqueness guard', () => {
   it('writes no link for an ambiguous name-only orphan and reports it on the run row', async () => {
-    const db = makeDb({ orphans: [NAME_ONLY_ORPHAN], identities: [IDENTITY, NEAR_IDENTITY] });
+    const db = makeDb({ orphans: [NAME_ONLY_ORPHAN], identities: [IDENTITY, NAMESAKE_IDENTITY] });
     const { runLinking } = await loadEngine(db);
 
     await runLinking(RUN_ID);
@@ -235,7 +237,8 @@ describe('runLinking — the name-uniqueness guard', () => {
     expect(fields.nameOnlyMatches).toBe(1);
     expect(JSON.parse(fields.nameOnlySuggestions)).toEqual([expect.objectContaining({
       principalId: 'p-namesake', identityId: 'idy-1', confidence: 60, signals: ['fullName'],
-      reason: 'ambiguousName', rivals: [{ identityId: 'idy-2', identityName: 'Doe, Jane' }],
+      reason: 'ambiguousName', matchLevel: 'full',
+      rivals: [{ identityId: 'idy-2', identityName: 'Doe, John' }],
     })]);
   });
 
@@ -257,7 +260,7 @@ describe('runLinking — the name-uniqueness guard', () => {
   it('still links the corroborated orphan and reports nothing held back', async () => {
     // The admin account whose email prefix matches is untouched by the guard even with
     // the near-identical identity present, and the run says so.
-    const db = makeDb({ identities: [IDENTITY, NEAR_IDENTITY] });
+    const db = makeDb({ identities: [IDENTITY, NAMESAKE_IDENTITY] });
     const { runLinking } = await loadEngine(db);
 
     await runLinking(RUN_ID);
@@ -277,14 +280,61 @@ describe('runLinking — the name-uniqueness guard', () => {
     const fields = completionFields(db);
     expect(fields.nameOnlyMatches).toBe(0);
     expect(fields.linksRemoved).toBe(0);
+    expect(fields.linksRestored).toBe(0);
     expect(fields.nameOnlySuggestions).toBe('[]');
   });
 });
 
+describe('runLinking — the restored-links counter (#1460)', () => {
+  // One initial away from "Doe, John": the cross-level reading counted her as a rival
+  // and held the match, so a link made on this name is one the previous policy refused.
+  const NEAR_IDENTITY = { id: 'idy-3', displayName: 'Doe, Jane', email: 'jane.doe@contoso.com', employeeId: 'E3' };
+
+  it('counts a link it made on a name shared only at the weaker level', async () => {
+    const db = makeDb({ orphans: [NAME_ONLY_ORPHAN], identities: [IDENTITY, NEAR_IDENTITY] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    const fields = completionFields(db);
+    expect(fields.linksCreated).toBe(1);
+    expect(fields.linksRestored).toBe(1);
+  });
+
+  it('counts nothing when no other identity is even near the name', async () => {
+    // The paired case on identical input bar the second identity: this link was never
+    // held, so reporting it as restored would invite an analyst to review a non-event.
+    const db = makeDb({ orphans: [NAME_ONLY_ORPHAN] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(completionFields(db).linksCreated).toBe(1);
+    expect(completionFields(db).linksRestored).toBe(0);
+  });
+
+  it('counts nothing on the next run, when the link is merely refreshed', async () => {
+    // The figure reports the one-off restore. Same orphan, same near-namesake, but the
+    // member row already exists — a run that kept counting it would report the same
+    // ~2,000 re-links every hour forever.
+    const db = makeDb({
+      orphans: [NAME_ONLY_ORPHAN], identities: [IDENTITY, NEAR_IDENTITY],
+      existing: { analystOverride: null },
+    });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    const fields = completionFields(db);
+    expect(fields.linksUpdated).toBe(1);
+    expect(fields.linksRestored).toBe(0);
+  });
+});
+
 describe('runLinking — retroactive removal of name-only links', () => {
-  // A name-only link to idy-1, and an account name that NEAR_IDENTITY also answers to.
+  // A name-only link to idy-1, and an account name that NAMESAKE_IDENTITY is spelled too.
   const scoredNameOnly = { identityId: 'idy-1', principalId: 'p-old', linkSignals: 'fullName', displayName: 'Doe, John' };
-  const withNamesake = { orphans: [], members: [scoredNameOnly], identities: [IDENTITY, NEAR_IDENTITY] };
+  const withNamesake = { orphans: [], members: [scoredNameOnly], identities: [IDENTITY, NAMESAKE_IDENTITY] };
 
   it('detaches a name-only link the guard would no longer make, and recomputes the count', async () => {
     const db = makeDb(withNamesake);

@@ -17,9 +17,11 @@ import { query } from '../db/connection.js';
 
 const STRICT = { ...DEFAULT_RULES, allowNameOnlyLinks: false };
 
-// Two people whose given names share an initial, and one nobody is near.
+// Two people really called the same thing, a third one initial away from them,
+// and one nobody is near.
 const IDENTITIES = [
   { id: 'jan', displayName: 'Jan Jansen' },
+  { id: 'twin', displayName: 'Jan Jansen' },
   { id: 'johannes', displayName: 'Johannes Jansen' },
   { id: 'euson', displayName: 'Euson, Robin' },
 ];
@@ -40,9 +42,9 @@ beforeEach(() => { query.mockReset(); });
 
 describe('removeStaleNameOnlyLinks - the shipped policy', () => {
   it('detaches a link whose name a second person also answers to', () => {
-    // 'Jan Jansen' is also a plausible spelling of Johannes, so the engine would no
-    // longer make this link: it is exactly the wrong link #1440 reported, and leaving
-    // it attached would mean the guard only ever applied to new data.
+    // A second person really is called 'Jan Jansen', so the engine would no longer make
+    // this link: it is exactly the wrong link #1440 reported, and leaving it attached
+    // would mean the guard only ever applied to new data.
     stageMembers([{ identityId: 'jan', principalId: 'p-amb', linkSignals: 'fullName', displayName: 'Jan Jansen' }]);
     return removeStaleNameOnlyLinks(DEFAULT_RULES, IDENTITIES).then((removed) => {
       expect(removed).toBe(1);

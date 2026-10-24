@@ -1,10 +1,11 @@
 // Admin → Account Linking → "Name-only matches (held for review)".
 //
-// Read-only. Account linking refuses to attach an account to a person on a display-name
-// shared with somebody else, because a namesake — or an owner whose name is spelled
-// slightly differently — produces a confidently wrong link. Counting the refusals is not
-// enough to act on them, so each run also records WHICH account nearly linked to WHOM, on
-// what evidence, and who else answers to the name; this card shows the newest run's list.
+// Read-only. Account linking refuses to attach an account to a person on a display name
+// somebody else answers to at the level the match rests on, because a namesake — or, where
+// nobody is spelled the name at all, an owner whose name is spelled slightly differently —
+// produces a confidently wrong link. Counting the refusals is not enough to act on them,
+// so each run also records WHICH account nearly linked to WHOM, on what evidence, which
+// name the rivals share and who they are; this card shows the newest run's list.
 //
 // There is deliberately no confirm/reject action here: a reviewable link object is its own
 // feature (it would have to not act as linked while awaiting review). The analyst acts
@@ -16,6 +17,19 @@ import { useFetch } from '@ui/hooks/useFetch';
 import { latestNameOnlyRun } from '@ui/utils/accountLinkingRuns';
 
 const CELL = 'px-3 py-2 align-top';
+
+/**
+ * What the rivals of an ambiguous hold actually share with the account, which is not the
+ * same finding in the two cases: at `full` they are spelled exactly its name, at
+ * `surnameInitial` the account is an exact match for nobody and they merely share its
+ * surname and first initial. One sentence for both would send the analyst looking for a
+ * namesake who does not exist. A run stored before the level was recorded cannot say
+ * which, so it keeps the wording that makes no claim either way.
+ */
+const SHARED_NAME = {
+  full: 'full name also answered to by',
+  surnameInitial: 'surname and first initial also shared by',
+};
 
 /**
  * Why the match was held, which is what tells the analyst what to do with it: a name
@@ -30,7 +44,9 @@ function WhyHeld({ s }) {
   const unlisted = (s.rivalCount ?? rivals.length) - rivals.length;
   return (
     <div className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
-      name also answered to by {rivals.map(r => r.identityName || r.identityId).join(', ') || 'another identity'}
+      {SHARED_NAME[s.matchLevel] || 'name also answered to by'}
+      {' '}
+      {rivals.map(r => r.identityName || r.identityId).join(', ') || 'another identity'}
       {unlisted > 0 && ` and ${unlisted} more`}
     </div>
   );

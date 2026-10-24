@@ -1,6 +1,6 @@
 // Reading an account-linking run row.
 //
-// The three columns the name-only guard added are NULLABLE, and the null means "this run
+// The columns the name-only guard added are NULLABLE, and the null means "this run
 // predates the feature" — which is a different statement from "the run looked and found
 // none". Both readers below turn on that distinction, so they live here together rather
 // than being re-derived at each call site.
@@ -17,6 +17,9 @@ export function completionNotice(run) {
   ];
   if (run.nameOnlyMatches != null) parts.push(`${run.nameOnlyMatches} name-only matches held for review`);
   if (run.linksRemoved != null) parts.push(`${run.linksRemoved} name-only links removed`);
+  // Reported only when it happened: on an ordinary run this is 0, and a clause saying so
+  // would invite the reader to look for a restore that never took place.
+  if (run.linksRestored) parts.push(`${run.linksRestored} previously-held matches re-linked`);
   return `Linking complete — ${parts.join(', ')}.`;
 }
 
