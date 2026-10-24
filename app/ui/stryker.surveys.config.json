@@ -1,0 +1,48 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Survey templates in the UI (docs/architecture/survey-templates.md): the form's branching, progress, answer edits, the draft shape and paging (surveyText.js), the survey link in the hash (surveyRoute.js), the editor's JSON parse and starting definition (templateEditor.helpers.js), the send body and its summary (send.helpers.js), the roster built from claims — newest claim wins, rejected counts for nothing, green/red/amber (roster.helpers.js), the form itself with its draft saver, read-only and on-behalf states (SurveyForm.jsx) and the answer controls that hand back the API's shape (AnswerInput.jsx). WHY: a branch that opens on the wrong answer asks a question nobody should get, a draft that keeps a half-typed correction is refused by the API and loses the respondent's work, a roster that lets an older claim win shows someone who left as still working there. TEST INCLUDE: the helpers unit tests and the survey mount tests. MUTATOR SET: StringLiteral and ObjectLiteral excluded, matching the sibling configs. NOT YET MEASURED: break is deliberately absent until a first run measures a score.",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.surveys.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-ui-surveys.json"
+  },
+  "mutate": [
+    "src/components/surveys/surveyText.js",
+    "src/components/surveys/surveyRoute.js",
+    "src/components/surveys/templateEditor.helpers.js",
+    "src/components/surveys/SurveyForm.jsx",
+    "src/components/surveys/AnswerInput.jsx",
+    "src/components/contexts/surveys/send.helpers.js",
+    "src/components/contexts/surveys/roster.helpers.js"
+  ],
+  "mutationExclusions": {
+    "src/components/surveys/MySurveys.jsx": "Presentational list of GET /api/surveys/mine with a status pill; the overdue rule is isOverdue in surveyText.js (mutated here) and the open, empty, unmapped and error cases are asserted by surveyPages.mount.test.jsx.",
+    "src/components/surveys/SurveyTemplates.jsx": "A table of templates with an edit link and an archive toggle calling fixed API paths; both are asserted by surveyPages.mount.test.jsx, the editing itself is TemplateEditor.",
+    "src/components/surveys/TemplateEditor.jsx": "A form over parseJson / NEW_DEFINITION (mutated here) and the API's own definition check, which is mutated in app/api; the invalid-JSON, API-error, POST and PUT paths are asserted by surveyPages.mount.test.jsx.",
+    "src/components/SurveysPage.jsx": "Page chrome: two tabs (Templates only with data.write.contexts) and the survey route from surveyRoute.js (mutated here); tab gating and opening a survey by its link are asserted by surveyPages.mount.test.jsx.",
+    "src/components/SurveyRespondentPage.jsx": "Bare shell for a respondent: header, sign out, and the list or the form by the survey route (mutated in surveyRoute.js); both views and sign-out are asserted by surveyPages.mount.test.jsx.",
+    "src/components/contexts/surveys/SendSurveyCard.jsx": "Presentational card listing the surveys sent, with a withdraw confirmation calling one fixed API path; the summary wording is sentSummary (mutated here), and listing, withdrawing and the reader gate are asserted by surveyCards.mount.test.jsx.",
+    "src/components/contexts/surveys/SendSurveyModal.jsx": "A form over sendBody (mutated here) that posts once; the body sent, the Send gate and the refusal path are asserted by surveyCards.mount.test.jsx.",
+    "src/components/contexts/surveys/RosterCard.jsx": "Draws buildRoster / rosterCounts (mutated here in roster.helpers.js) as a coloured table in a modal; the colour per state, the italic for unreviewed rows and the legend counts are asserted by surveyCards.mount.test.jsx."
+  },
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70
+  },
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false
+}
