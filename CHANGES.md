@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Fixed: Account Linking no longer treats accounts a sync has removed as orphans. A removed account (one a full sync no longer finds in its source system) is no longer scored, is never newly linked to an identity, and no longer counts towards "orphans remaining" on a run.
+- Fixed: a removed account can no longer be attached to the wrong person. Where linking first ran after a sync that had removed accounts, a leaver's account could be matched on the name alone to a *different*, still-employed colleague who shares that name — a namesake, or someone whose record still holds the leaver's surname — handing that colleague the leaver's account and every permission on it. Removed accounts are no longer linking candidates, so those links are not made.
+- Fixed: the Orphaned Accounts report and the Orphaned Accounts context no longer list accounts that have been removed from their source system, so a review is no longer spent on accounts that no longer exist.
+- Accounts that were already linked to a person before they were removed stay linked — removal never detaches history — and an account that reappears in a later sync becomes linkable again.
+- Security: updated bundled dependencies to clear four high-severity and two moderate advisories, covering denial-of-service and request-handling issues in file upload, HTTP client, schema validation and URI parsing libraries.
+
+## Changes in this PR
+
 - Account linking no longer links an account to a person on a display name that somebody else answers to. A name that identifies exactly one person still links on its own, so a source carrying nothing but display names (a badge system, many ERPs) keeps linking; a name shared with a second person — spelled the same, or sharing its surname and first initial — is held for review instead.
 - A near-identical namesake now counts: an account named "Jan Jansen" is no longer attached to the Jan Jansen in the directory while a Johannes Jansen, whose name is spelled a little differently, may be its real owner.
 - Each linking run reports how many name-only matches it held for review and lists them — the account, the identity it nearly linked to, the confidence, the signals, why it was held and who else answers to the name — in a new "Name-only matches (held for review)" card in Admin → Account Linking.
