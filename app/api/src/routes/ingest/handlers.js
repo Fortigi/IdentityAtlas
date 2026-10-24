@@ -144,10 +144,11 @@ function createIngestHandler(entityType) {
       const delErr = await applyDeletes(body, entityType, tableName, result, allowed);
       if (delErr) return res.status(delErr.status).json(delErr.body);
 
-      // A single batch IS the whole principals load (a crawler that needs more
-      // than one opens a session instead), so this is the point at which a
-      // manager link can be told apart from one whose manager had not arrived.
-      const managerLinks = await repairManagerLinks(db, tableName, body.systemId, batchHasManagerLink(normalized));
+      // A single batch IS the whole principals (or identities) load — a crawler
+      // that needs more than one opens a session instead — so this is the point
+      // at which a dangling manager link can be told apart from one whose
+      // manager had not arrived yet.
+      const managerLinks = await repairManagerLinks(db, tableName, body.systemId, batchHasManagerLink(normalized, tableName));
 
       // Context-tree acyclicity is enforced at the database (migration 059's
       // deferred trigger) — a cyclic batch aborts the ingest() commit above and is
