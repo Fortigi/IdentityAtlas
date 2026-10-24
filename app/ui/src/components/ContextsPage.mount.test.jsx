@@ -72,6 +72,8 @@ function api({ roots = ROOTS, answer = () => undefined } = {}) {
     const tree = /^\/api\/contexts\/tree\?root=([^&]+)/.exec(u);
     if (tree) return SUBTREES[decodeURIComponent(tree[1])] || [];
     if (u === '/api/contexts') return { data: roots };
+    const resolve = /^\/api\/context-trees\/resolve\?contextId=(.+)$/.exec(u);
+    if (resolve) return resolveAnswer(decodeURIComponent(resolve[1]), roots);
     const m = /^\/api\/contexts\/([^/?]+)(\/[^?]*)?/.exec(u);
     if (!m) return undefined;
     const [, id, sub] = m;
@@ -81,6 +83,18 @@ function api({ roots = ROOTS, answer = () => undefined } = {}) {
     if (sub === '/roles') return [];
     return undefined;
   });
+}
+
+// Which tree a context is in, as GET /api/context-trees/resolve answers: an
+// imported tree is maintained in its source, every other tree can be adjusted.
+function resolveAnswer(id, roots) {
+  const ctx = roots.find(r => r.id === id) || ALL[id];
+  if (!ctx) return undefined;
+  const synced = ctx.variant === 'synced';
+  return {
+    treeKey: `tree:${id}`, kind: ctx.variant, name: ctx.displayName, targetType: ctx.targetType,
+    canAdjust: !synced, reason: synced ? 'This tree is maintained in its source' : undefined,
+  };
 }
 
 // A reader: signed in, may read contexts but not change them.
@@ -244,12 +258,16 @@ describe('ContextsPage — links inside the detail', () => {
 });
 
 describe('ContextsPage — who may change a tree', () => {
-  it('an imported tree offers no ⋯ menu, no add-sub-unit and no rename', async () => {
+  it('an imported tree offers only Adjust tree (disabled, with why) in its ⋯, no add-sub-unit and no rename', async () => {
     const { authFetch, user } = mount();
     await screen.findByText('Backend Squad');
-    // The derived tree beside it does.
     expect(menuFor('Engineering Org')).toBeInTheDocument();
-    expect(menuFor('Sales OUs')).toBeNull();
+    await user.click(menuFor('Sales OUs'));
+    const menu = screen.getByRole('menu', { name: 'Actions for Sales OUs' });
+    await within(menu).findByText('This tree is maintained in its source');
+    expect(within(menu).getAllByRole('menuitem').map(i => i.textContent)).toEqual(['Adjust treeThis tree is maintained in its source']);
+    expect(within(menu).getByRole('menuitem')).toHaveAttribute('aria-disabled', 'true');
+    await user.keyboard('{Escape}');
     await user.click(screen.getByRole('button', { name: 'Expand Sales OUs' }));
     await screen.findByText('EMEA Sales');
     const synced = group('Imported · Active Directory');
@@ -295,9 +313,9 @@ describe('ContextsPage — editing the tree', () => {
       },
     });
     await screen.findByText('Backend Squad');
-    // A manager-hierarchy tree is derived: Refresh and Delete.
+    // A manager-hierarchy tree is derived: Refresh, Adjust tree and Delete.
     let menu = await openMenu(user, 'Engineering Org');
-    expect(within(menu).getAllByRole('menuitem').map(i => i.textContent)).toEqual(['Refresh', 'Delete this tree…']);
+    await waitFor(() => expect(within(menu).getAllByRole('menuitem').map(i => i.textContent)).toEqual(['Refresh', 'Adjust tree', 'Delete this tree…']));
     await user.click(within(menu).getByRole('menuitem', { name: 'Delete this tree…' }));
     expect(await screen.findByText(/Delete "Engineering Org" and every unit under it\?/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -310,7 +328,7 @@ describe('ContextsPage — editing the tree', () => {
     await shownContext('Sales OUs');
   });
 
-  it('an uploaded list is imported, yet offers Re-import… alone; it opens the wizard on that list', async () => {
+  it('an uploaded list is imported, yet offers Re-import… (beside Adjust tree); it opens the wizard on that list', async () => {
     const UPLOADED = {
       ...SYNCED, id: 'root-upl', displayName: 'Klanten', scopeSystemId: 42, scopeSystemName: 'Klanten (upload)', scopeSystemType: 'Upload',
     };
@@ -320,10 +338,12 @@ describe('ContextsPage — editing the tree', () => {
       answer: (u) => (u === '/api/contexts/uploads' ? { data: lists } : undefined),
     });
     await waitFor(() => expect(menuFor('Klanten')).toBeInTheDocument());
-    // The other imported tree still has no menu: only an upload list is re-imported here.
-    expect(menuFor('Sales OUs')).toBeNull();
+    // Only an upload list is re-imported here; another imported tree has just Adjust tree.
+    const other = await openMenu(user, 'Sales OUs');
+    expect(within(other).queryByRole('menuitem', { name: 'Re-import…' })).toBeNull();
+    await user.keyboard('{Escape}');
     const menu = await openMenu(user, 'Klanten');
-    expect(within(menu).getAllByRole('menuitem').map(i => i.textContent)).toEqual(['Re-import…']);
+    expect(within(menu).getAllByRole('menuitem').map(i => i.textContent)).toEqual(['Re-import…', expect.stringMatching(/^Adjust tree/)]);
     await user.click(within(menu).getByRole('menuitem', { name: 'Re-import…' }));
     expect(await screen.findByText('New context tree')).toBeInTheDocument();
     const picker = await screen.findByRole('combobox', { name: 'Update an existing list' });
@@ -338,13 +358,34 @@ describe('ContextsPage — editing the tree', () => {
     expect(menuFor('Klanten')).toBeNull();
   });
 
-  it('a tree created here offers Delete but not Refresh', async () => {
+  it('a tree created here offers Adjust tree and Delete but not Refresh', async () => {
     const MANUAL = { ...GEN, id: 'root-man', displayName: 'Projects', variant: 'manual', sourceAlgorithmName: null };
     const { user } = mount({ roots: [MANUAL], select: null });
     await waitFor(() => expect(menuFor('Projects')).toBeInTheDocument());
     expect(within(pane()).getByRole('heading', { level: 3 })).toHaveTextContent('Created here');
     const menu = await openMenu(user, 'Projects');
-    expect(within(menu).getAllByRole('menuitem').map(i => i.textContent)).toEqual(['Delete this tree…']);
+    await waitFor(() => expect(within(menu).getAllByRole('menuitem').map(i => i.textContent)).toEqual(['Adjust tree', 'Delete this tree…']));
+  });
+
+  it('Adjust tree opens the tree\'s Adjust tree tab, from the ⋯ menu and from the unit\'s header', async () => {
+    const { user, onOpenDetail } = mount();
+    await screen.findByText('Backend Squad');
+    const menu = await openMenu(user, 'Engineering Org');
+    const item = within(menu).getByRole('menuitem', { name: /^Adjust tree/ });
+    await waitFor(() => expect(item).not.toHaveAttribute('aria-disabled'));
+    await user.click(item);
+    expect(onOpenDetail).toHaveBeenLastCalledWith('adjust-tree', 'tree:root-gen', 'Adjust: Engineering Org');
+    expect(screen.queryByRole('menu', { name: 'Actions for Engineering Org' })).toBeNull();
+    await user.click(await within(detailPane()).findByRole('button', { name: 'Adjust tree' }));
+    expect(onOpenDetail).toHaveBeenCalledTimes(2);
+    expect(onOpenDetail).toHaveBeenLastCalledWith('adjust-tree', 'tree:root-gen', 'Adjust: Engineering Org');
+  });
+
+  it('a reader is offered no Adjust tree in the unit\'s header', async () => {
+    mount({ auth: READER });
+    await screen.findByText('Backend Squad');
+    await shownContext('Engineering Org');
+    expect(within(detailPane()).queryByRole('button', { name: 'Adjust tree' })).toBeNull();
   });
 
   it('surfaces a delete error when the API rejects', async () => {

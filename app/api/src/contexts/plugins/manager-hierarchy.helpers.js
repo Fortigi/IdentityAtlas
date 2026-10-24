@@ -118,9 +118,17 @@ export function buildManagerContexts(managerIds, byId, rootExt, naming) {
 }
 
 // The manager answers for their node: one Accountable role per manager that is
-// an account of the system (a ghost manager has no row to point at).
-export function buildManagerRoles(managerIds, byId) {
-  return [...managerIds].filter(id => byId.has(id)).map(id => ({ contextExternalId: id, principalId: id, role: 'Accountable' }));
+// an account of the system (a ghost manager has no row to point at). A unit
+// split off a manager's people ("<managerId>::<value>") is theirs too.
+export function buildManagerRoles(managerIds, byId, contexts = []) {
+  const roles = [...managerIds].filter(id => byId.has(id)).map(id => ({ contextExternalId: id, principalId: id, role: 'Accountable' }));
+  for (const c of contexts) {
+    const [managerId, value] = String(c.externalId).split('::');
+    if (value !== undefined && managerIds.has(managerId) && byId.has(managerId)) {
+      roles.push({ contextExternalId: c.externalId, principalId: managerId, role: 'Accountable' });
+    }
+  }
+  return roles;
 }
 
 // Every principal with an effective manager becomes a member of that manager's

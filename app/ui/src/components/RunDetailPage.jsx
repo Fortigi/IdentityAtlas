@@ -1,11 +1,14 @@
 ﻿import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { formatDurationMs } from '@ui/utils/formatters';
+import AdjustTreePage from '@ui/components/adjustTree/AdjustTreePage';
 
 // ─── Plugin Run Detail Page ───────────────────────────────────────────────────
 // Opens in a detail tab via hash #run:<uuid>. Polls
 // GET /api/context-plugins/runs/:id every 1s while status is queued/running
-// and stops once it reaches a terminal state (succeeded/failed).
+// and stops once it reaches a terminal state (succeeded/failed). A run that
+// succeeded and names the tree it built (`treeKey`) turns into the Adjust tree
+// screen on that tree, under one line about the run.
 
 const TERMINAL = new Set(['succeeded', 'failed']);
 
@@ -64,9 +67,16 @@ export default function RunDetailPage({ runId, onClose }) {
 
   const statusMeta = STATUS_META[run.status] || STATUS_META.queued;
   const isDone = TERMINAL.has(run.status);
-  const durationMs = isDone && run.finishedAt
-    ? (new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime())
-    : null;
+  const durationMs = runDurationMs(run, isDone);
+
+  if (run.status === 'succeeded' && run.treeKey) {
+    return (
+      <div className="space-y-3">
+        <RunSummaryLine run={run} durationMs={durationMs} onClose={onClose} />
+        <AdjustTreePage treeKey={run.treeKey} embedded />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -162,6 +172,32 @@ const STATUS_META = {
   succeeded: { label: 'Succeeded', className: 'bg-green-100 text-green-700 border-green-200' },
   failed:    { label: 'Failed',    className: 'bg-red-100 text-red-700 dark:text-red-400 border-red-200 dark:border-red-700' },
 };
+
+// How long a finished run took, in ms; null while it runs or without an end.
+function runDurationMs(run, isDone) {
+  if (!isDone || !run.finishedAt) return null;
+  return new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime();
+}
+
+// One line about a finished run, above the tree it built.
+function RunSummaryLine({ run, durationMs, onClose }) {
+  const counts = [
+    `${run.contextsCreated ?? 0} units created`,
+    `${run.contextsUpdated ?? 0} updated`,
+    `${run.contextsRemoved ?? 0} removed`,
+    `${run.membersAdded ?? 0} members added`,
+    `${run.membersRemoved ?? 0} removed`,
+  ].join(' · ');
+  return (
+    <div data-testid="run-summary" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+      <span className="font-medium text-gray-900 dark:text-white">{run.algorithmDisplayName || run.algorithmName}</span>
+      <span className={`text-[11px] px-2 py-0.5 rounded border ${STATUS_META.succeeded.className}`}>{STATUS_META.succeeded.label}</span>
+      <span>{durationMs != null ? `took ${formatDurationMs(durationMs)} · ` : ''}{counts}</span>
+      <span className="flex-1" />
+      <button type="button" onClick={onClose} className="text-sm text-gray-600 underline hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">Close</button>
+    </div>
+  );
+}
 
 function Stat({ label, value }) {
   return (

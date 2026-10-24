@@ -1,0 +1,52 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "The Adjust tree screen (docs/architecture/adjust-tree.md section 5): the pure rules (adjustTree.helpers.js: building the tree, what a drop means, which units a search shows, which adjustments belong to a unit, the id of a unit just added), the data hook and its write routes (useAdjustTree.js), what each button, drop and Needs-attention fix writes (useAdjustTreeActions.js), the resolve state of the Adjust tree entry points (useTreeResolve.js), the one DndContext and the open/closed state of the tree (AdjustTreeView.jsx) and the parameter-form field choice (schemaFieldKind / enumOptions live in NewContextWizard.helpers.js, mutated by its own scope when it gets one). WHY: a drop that posts the wrong toParentId, a move into the unit's own subtree that is let through, or an Undo that takes back the wrong adjustments changes the organisation tree every consumer reads. Run: cd app/ui && npm run test:mutation:adjusttree. TEST INCLUDE traces the importers: the helper unit test, the hook tests, and the mounted page tests that drive the screen through the stubbed API. MUTATOR SET: StringLiteral and ObjectLiteral excluded, matching the sibling configs. NOT YET MEASURED: break is deliberately absent until a first run measures a score.",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.adjusttree.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-ui-adjusttree.json"
+  },
+  "mutate": [
+    "src/components/adjustTree/adjustTree.helpers.js",
+    "src/components/adjustTree/useAdjustTree.js",
+    "src/components/adjustTree/useAdjustTreeActions.js",
+    "src/components/adjustTree/useTreeResolve.js",
+    "src/components/adjustTree/AdjustTreeView.jsx"
+  ],
+  "mutationExclusions": {
+    "src/components/adjustTree/AdjustTreePage.jsx": "Composition shell: wires useAdjustTree, useAdjustTreeActions and the panes together. Its two decisions (selection falls back to the first top unit; read only without data.write.contexts or when the tree says canAdjust false) are asserted both ways by AdjustTreePage.mount.test.jsx.",
+    "src/components/adjustTree/AdjustTreeHeader.jsx": "Presentational bar: the source line comes from sourceText() in adjustTree.helpers.js (mutated here); Refresh only on a generated tree for an editor is asserted both ways by AdjustTreePanels.mount.test.jsx.",
+    "src/components/adjustTree/AdjustTreeRow.jsx": "Presentational row: marks, counts and the drop/selection classes come from unitMarks() / countText() in adjustTree.helpers.js (mutated here); the drag wiring is dnd-kit's, and what a drop means is resolveDrop(), mutated here and driven by AdjustTreeView.dnd.mount.test.jsx.",
+    "src/components/adjustTree/AdjustTreeMembers.jsx": "Presentational list of a unit's members read through useFetch; the member detail line is memberDetail() in adjustTree.helpers.js (mutated here). The lazy read of open units only is asserted by AdjustTreePage.mount.test.jsx.",
+    "src/components/adjustTree/AdjustTreeSidePanel.jsx": "Presentational tab strip: the badge counts are attention.length and liveAdjustments() (mutated here), asserted by name in AdjustTreePanels.mount.test.jsx.",
+    "src/components/adjustTree/AdjustmentsPanel.jsx": "Presentational log: the status pill is statusMeta() and the who/when line byLine() in adjustTree.helpers.js (mutated here). Undo / Redo / Follow / Remove call useAdjustTreeActions (mutated here); each route is asserted by AdjustTreePanels.mount.test.jsx.",
+    "src/components/adjustTree/AttentionPanel.jsx": "Presentational list: which fix is offered is actionAllowed() in adjustTree.helpers.js and what a fix writes is useAdjustTreeActions.attention(), both mutated here; reader vs editor is asserted by AdjustTreePage.mount.test.jsx.",
+    "src/components/adjustTree/UnitPanel.jsx": "Presentational facts and the action buttons that open one form; the adjustments shown on a unit are adjustmentsForUnit() (mutated here), asserted on three units by AdjustTreePanels.mount.test.jsx.",
+    "src/components/adjustTree/UnitActionForms.jsx": "Forms that build one adjustment body each from their fields plus withReason() (mutated here); every body is asserted field for field by AdjustTreePage.mount.test.jsx and AdjustTreePanels.mount.test.jsx.",
+    "src/components/adjustTree/SplitForm.jsx": "Form: by attribute value in a tree of people, by picked members elsewhere (isPeopleTree(), mutated here). Both bodies, the value list per attribute and the disabled submit are asserted by AdjustTreePanels.mount.test.jsx.",
+    "src/components/adjustTree/ActionForm.jsx": "Presentational frame shared by the unit forms: reason field, disabled submit while busy or invalid. The trimmed reason reaching the body is asserted by AdjustTreePage.mount.test.jsx ('Reorg').",
+    "src/components/adjustTree/GroupBar.jsx": "Presentational: the shared parent is commonParentId() (mutated here); the add-then-move sequence lives in useAdjustTree.groupUnits (mutated here), asserted by AdjustTreePage.mount.test.jsx and useAdjustTree.test.jsx.",
+    "src/components/adjustTree/AdjustTreeAction.jsx": "Presentational menu item and button over useTreeResolve (mutated here): enabled, disabled with the reason, or absent, each asserted by AdjustTreeAction.mount.test.jsx and ContextsPage.mount.test.jsx.",
+    "src/components/contexts/NewContextSchemaFields.jsx": "Form controls of the plugin parameter form: the enum labels come from enumOptions() in NewContextWizard.helpers.js; the values each control stores (enum by position, (not set) as undefined, ids of picked people) are asserted by NewContextSchemaForm.mount.test.jsx."
+  },
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70
+  },
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false
+}

@@ -124,13 +124,17 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
 
   // The edit callbacks a tree gets when its edits persist and the user may
   // write; a reader (or an imported tree) gets none, so no +, rename, drag or ⋯.
-  // An uploaded list is the one imported tree with a ⋯: Re-import… only.
+  // An imported tree gets a ⋯ with Adjust tree (and Re-import… for an uploaded list).
+  // Adjust tree opens the tree's own Adjust tree tab (the API says, once the
+  // menu is open, whether this tree can be adjusted and why not).
+  const openAdjust = (treeKey, title) => onOpenDetail?.('adjust-tree', treeKey, title);
   function editProps(variant) {
     if (variant === 'synced' && canWrite) {
       return {
-        renderRootActions: (root) => (isUploadedList(root)
-          ? <TreeRootMenu root={root} onReimport={(r) => openWizard(r.scopeSystemId)} />
-          : null),
+        renderRootActions: (root) => (
+          <TreeRootMenu root={root} onAdjust={openAdjust}
+            onReimport={isUploadedList(root) ? (r) => openWizard(r.scopeSystemId) : undefined} />
+        ),
       };
     }
     if (!isEditableTree(variant, canWrite)) return {};
@@ -144,7 +148,7 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
         return (
           <TreeRootMenu
             root={root} label={suffix ? `${root.displayName} · ${suffix}` : undefined}
-            onRefresh={edits.syncTree} refreshing={edits.syncing} onDelete={edits.deleteTree}
+            onRefresh={edits.syncTree} refreshing={edits.syncing} onDelete={edits.deleteTree} onAdjust={openAdjust}
           />
         );
       },

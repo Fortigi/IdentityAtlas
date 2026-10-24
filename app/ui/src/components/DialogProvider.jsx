@@ -8,6 +8,7 @@
 //   if (await dialog.confirm({ message: 'Delete this?', danger: true })) { ... }
 //   const name = await dialog.prompt({ message: 'New name?', defaultValue: cur });
 //   dialog.toast('Saved', { variant: 'success' });   // non-blocking, auto-dismiss
+//   dialog.toast('Moved', { action: { label: 'Undo', onClick: undo } }); // with one action
 //
 // confirm/prompt render as Modals (resolve when the user acts); alert-style
 // notices surface as auto-dismissing toasts top-right. One provider near the app
@@ -60,7 +61,7 @@ export function DialogProvider({ children }) {
       : (messageOrOpts || {});
     const id = ++toastIdRef.current;
     const variant = TOAST_VARIANTS[opts.variant] ? opts.variant : 'info';
-    setToasts((list) => [...list, { id, message: opts.message, title: opts.title, variant }]);
+    setToasts((list) => [...list, { id, message: opts.message, title: opts.title, variant, action: opts.action }]);
     const ttl = opts.duration ?? 4500;
     if (ttl > 0) setTimeout(() => dismissToast(id), ttl);
     return id;
@@ -144,6 +145,13 @@ export function DialogProvider({ children }) {
               {t.title && <p className="font-semibold">{t.title}</p>}
               <p className="whitespace-pre-line break-words">{t.message}</p>
             </div>
+            {t.action && (
+              <button
+                type="button"
+                onClick={() => { dismissToast(t.id); t.action.onClick(); }}
+                className="shrink-0 font-medium underline hover:no-underline"
+              >{t.action.label}</button>
+            )}
             <button
               onClick={() => dismissToast(t.id)}
               className="shrink-0 opacity-70 hover:opacity-100"

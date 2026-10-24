@@ -1,0 +1,7 @@
+- Added the Adjust tree screen: correct a generated or imported tree (manager hierarchy, uploaded lists, logical applications) by dragging units and people, renaming, adding a grouping level, splitting a unit, and setting an (interim) manager
+- Corrections are kept as adjustments with who, when and why, survive every refresh and sync of the source, and can be undone one by one
+- When the source renames or re-keys a unit or a department, the adjustment asks for a decision and proposes where it went, instead of silently dropping or following it
+- Added a Needs attention list: split candidates, people that could not be placed, interim managers whose end date passed, and adjustments the source now agrees with
+- The manager hierarchy can now start from a chosen top (by job title or by person), name units after their people instead of their manager, split a manager's people by department, collect what does not fit in a Not placed unit, and leave out disabled accounts
+- Running a tree now opens it in the Adjust tree screen instead of a "done" message
+- Fixed: a unit added or moved by hand under a generated unit was deleted when the source dropped that unit; it is now kept at the top level
