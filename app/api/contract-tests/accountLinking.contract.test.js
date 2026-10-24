@@ -10,7 +10,9 @@
 // (reconcileStale stamps "deletedAt" instead of removing the row) is not a
 // linking candidate, is not counted as a remaining orphan, and — the half the
 // acceptance measurement showed matters most — is never attached to the live
-// namesake it would otherwise match. A link made *before* the removal is kept.
+// namesake it would otherwise match. A link made *before* the removal is kept —
+// including (#1461) a link made on the name alone, which the name-only cleanup
+// introduced by #1450 is otherwise free to re-judge and detach.
 //
 // The database is shared with the other contract files, so the membership
 // assertions are scoped to this file's own identities and the orphan count is
@@ -34,7 +36,11 @@ const ids = {
   departed: randomUUID(),
   unmatched: randomUUID(),
   kept: randomUUID(),
+  nameOnlyKept: randomUUID(),
 };
+
+// The namesake who only appears after the account is already gone (#1461).
+const LATE_NAMESAKE_ID = randomUUID();
 
 // ── the namesake fixtures ────────────────────────────────────────────────────
 //
@@ -87,7 +93,7 @@ const NAMESAKES = [
 ];
 
 /** Every identity this file seeds — deleting one cascades its IdentityMembers. */
-const IDENTITY_IDS = [ids.identity, ...NAMESAKES.map(n => n.identity.id)];
+const IDENTITY_IDS = [ids.identity, LATE_NAMESAKE_ID, ...NAMESAKES.map(n => n.identity.id)];
 
 beforeAll(async () => {
   // db/connection.js builds its pool lazily from DATABASE_URL, so this has to
@@ -240,5 +246,38 @@ describe.each(NAMESAKES)('runLinking — a removed account and the live person $
     expect((await runLinking()).status).toBe('completed');
 
     expect(await memberIdsOf(fx.identity.id)).toEqual([]);
+  });
+});
+
+describe('runLinking — the name-only cleanup and removed accounts (#1461)', () => {
+  it('keeps a name-only link to a sync-removed account when a namesake later appears', async () => {
+    // The "keeps a link made before the account was removed" case above survives
+    // the cleanup only because its link carries an employeeId, which the cleanup
+    // skips. This is the same decision for a link made on the name alone — the
+    // one kind of link the cleanup does re-judge.
+    //
+    // Control half first: while the account is live and the name points at one
+    // person, the link is made on `fullName` at weight 60, exactly the link
+    // #1450's cleanup exists to re-judge.
+    await insertIdentity(ids.identity, 'Tenbergalct, Marit', { email: 'marit.tenbergalct@al-ct.invalid' });
+    await insertPrincipal(ids.nameOnlyKept, 'Tenbergalct, Marit', { email: 'mt.unrelatedalct@al-ct.invalid' });
+
+    await runLinking();
+    const [linked] = await membersOf(ids.identity);
+    expect(linked?.principalId).toBe(ids.nameOnlyKept);
+    expect(linked?.linkSignals).toBe('fullName'); // name-only: inside the cleanup's scope
+
+    // Now a full sync removes the account, and a second person of the same name
+    // joins the directory — so the name no longer points at one identity.
+    await softDelete(ids.nameOnlyKept);
+    await insertIdentity(LATE_NAMESAKE_ID, 'Tenbergalct, Marit', { email: 'marit.tenbergalct2@al-ct.invalid' });
+
+    expect((await runLinking()).status).toBe('completed');
+
+    // #1442: a removed account is never re-judged, so the link stays exactly as
+    // written. Detaching it cannot be corrected by the same run — a tombstone is
+    // not in the orphan pool, so it neither re-links nor surfaces for review, and
+    // the identity silently loses the account and every grant on it.
+    expect(await membersOf(ids.identity)).toEqual([linked]);
   });
 });
