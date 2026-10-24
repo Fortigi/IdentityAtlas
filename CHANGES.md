@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed clicking an app in the Risky Applications and High-risk Application Permissions reports showing "HTTP 404": the row now opens the app's service-principal detail page
+
+## Changes in this PR
+
 - Excel export now works in the rotated matrix layout (subjects as rows, resources as columns), for example the matrix opened from a logical-application context. The workbook matches the on-screen grid: resource type and name headers, one row per subject with department and job title, membership letters per resource, governed cells highlighted, plus the usual Legend sheet with the shareable link.
 
 ## Changes in this PR
