@@ -527,3 +527,267 @@ describe('buildLinks - the corroboration guard', () => {
     expect(stats.suggestions[0].signals).toEqual(['fuzzyName']);
   });
 });
+
+// The #1439 cases below are about how a name is matched and how a name tie is
+// resolved, so they opt in to name-only links and read the links alone. Under
+// the corroboration guard (the default) every one of these name-only matches is
+// held for review instead -- the last block covers that interaction.
+const NAME_ONLY_RULES = { ...DEFAULT_RULES, allowNameOnlyLinks: true };
+const linksFor = (orphans, identities, rules) => buildLinks(orphans, identities, rules).links;
+
+// ── Titled HR display names (#1439) ──────────────────────────────────────────
+//
+// The reporter-visible symptom of the name-parsing defect, through the default
+// rules: an account belonging to someone whose HR display name carries a title
+// is attached to an untitled namesake, while its real owner shows no accounts.
+
+describe('buildLinks - owners with a titled display name (#1439)', () => {
+  const titledOwner = {
+    id: 'owner', displayName: 'Jan de Vries MSc', givenName: 'Jan', surname: 'de Vries',
+    email: 'jan.devries@corp.example', employeeId: 'E100',
+  };
+  // An account from a system that carries neither address nor employee id, so the
+  // name signals are the only evidence there is.
+  const orphan = { id: 'p1', displayName: 'Jan de Vries', email: null, employeeId: null };
+
+  it('links the orphan account to its titled owner', () => {
+    const links = linksFor([orphan], [titledOwner], NAME_ONLY_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ identityId: 'owner', signals: ['fullName'] });
+    expect(links[0].confidence).toBe(60); // name-only evidence, reported honestly
+  });
+
+  it('leaves a genuine namesake tie for review instead of picking the untitled one', () => {
+    // Both people really are called Jan de Vries. Today only the untitled one is even
+    // found, so the account is confidently attached to the wrong person; once both are
+    // candidates the existing ambiguity guard correctly declines to guess.
+    const identities = [
+      titledOwner,
+      {
+        id: 'namesake', displayName: 'Jan de Vries', givenName: 'Jan', surname: 'de Vries',
+        email: 'j.devries@corp.example', employeeId: 'E200',
+      },
+    ];
+    expect(linksFor([orphan], identities, NAME_ONLY_RULES)).toHaveLength(0);
+  });
+
+  it('still links the namesake when a strong signal breaks the tie', () => {
+    // The paired case: the guard must only fire on name-only evidence.
+    const identities = [
+      titledOwner,
+      {
+        id: 'namesake', displayName: 'Jan de Vries', givenName: 'Jan', surname: 'de Vries',
+        email: 'j.devries@corp.example', employeeId: 'E200',
+      },
+    ];
+    const withId = { ...orphan, employeeId: 'E200' };
+    const links = linksFor([withId], identities, NAME_ONLY_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('namesake');
+  });
+
+  it('does not link an account whose surname only shares the particle tail', () => {
+    // 'van der Steen' and 'Schilder-van der Steen' are two families.
+    const identities = [{
+      id: 'schilder', displayName: 'Lisa Schilder-van der Steen',
+      givenName: 'Lisa', surname: 'Schilder-van der Steen', email: 'l.schilder@corp.example',
+    }];
+    expect(linksFor(
+      [{ id: 'p2', displayName: 'Lisa van der Steen', email: null, employeeId: null }],
+      identities, NAME_ONLY_RULES,
+    )).toHaveLength(0);
+  });
+});
+
+// ── Birth surname vs name in use (#1439) ─────────────────────────────────────
+//
+// HR sources keep the BIRTH surname in the `surname` column while the display
+// name — and the accounts provisioned from it — carry the name in use: a partner
+// name or a double name. Reading the columns instead of the display name fixed
+// the title mis-parse but unlinked these people instead, which is the larger
+// population by far. Both names are now indexed, and ties are weighed per name.
+
+describe('buildLinks - an owner whose birth surname differs from her name in use (#1439)', () => {
+  // Born "de Wit", known as "Bakker-de Wit". HR writes the birth name in the
+  // column and the name in use in the display name; her accounts carry the latter.
+  const owner = {
+    id: 'owner', displayName: 'Anna Bakker-de Wit', givenName: 'Anna', surname: 'de Wit',
+    email: 'anna.dewit@corp.example', employeeId: 'E300',
+  };
+  // A different person who shares only the birth surname.
+  const namesake = {
+    id: 'namesake', displayName: 'Anna de Wit', givenName: 'Anna', surname: 'de Wit',
+    email: 'a.dewit@corp.example', employeeId: 'E301',
+  };
+  // No address and no employee id, so the name is the only evidence there is.
+  const account = (id, displayName, extra = {}) =>
+    ({ id, displayName, email: null, employeeId: null, ...extra });
+
+  it('links an account that carries the NAME IN USE', () => {
+    // The regression: indexed under the column alone she is known only as
+    // "Anna de Wit", her own account matches nobody, and it stays orphaned.
+    const links = linksFor([account('p1', 'Anna Bakker-de Wit')], [owner], NAME_ONLY_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ identityId: 'owner', signals: ['fullName'] });
+    expect(links[0].confidence).toBe(60);
+  });
+
+  it('still links an account that carries the BIRTH surname', () => {
+    // The paired case, and the reason the columns are read at all: a system fed
+    // from the HR columns spells her the old way.
+    const links = linksFor([account('p2', 'Anna de Wit')], [owner], NAME_ONLY_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('owner');
+  });
+
+  it('places an account carrying BOTH spellings on the one person called that', () => {
+    // An account provisioned from HR has the birth surname in its column and the
+    // name in use in its display name, so it matches both people and ties at 60.
+    // Read across the whole candidate set that tie sends it to review; read per
+    // name, only one person is called "Bakker-de Wit" and she gets it.
+    const orphan = account('p3', 'Anna Bakker-de Wit', { givenName: 'Anna', surname: 'de Wit' });
+    const links = linksFor([orphan], [owner, namesake], NAME_ONLY_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('owner');
+  });
+
+  it('places it there whichever order the identities arrive in', () => {
+    // Candidates are scored in index order and the first of an equal pair wins,
+    // which says nothing about who the account belongs to. Resolved from that
+    // winner alone, this same account would land on the namesake instead.
+    const orphan = account('p3', 'Anna Bakker-de Wit', { givenName: 'Anna', surname: 'de Wit' });
+    const links = linksFor([orphan], [namesake, owner], NAME_ONLY_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('owner');
+  });
+
+  it('gives an account spelled with the shared name to the person called that', () => {
+    // "Anna de Wit" is the namesake's name in use and only the owner's birth
+    // surname, so the two claims to it are not equal: the directory named this
+    // account after the person who goes by it.
+    const links = linksFor([account('p4', 'Anna de Wit')], [owner, namesake], NAME_ONLY_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('namesake');
+  });
+
+  it('does not link an account that carries only half of the double name', () => {
+    // Widening the names a person is indexed under must not widen what matches:
+    // "Anna Bakker" is neither of her names.
+    expect(linksFor([account('p5', 'Anna Bakker')], [owner, namesake], NAME_ONLY_RULES))
+      .toHaveLength(0);
+  });
+
+  it('keeps linking a titled display name, which is what #1439 fixed first', () => {
+    // The two halves of the issue have to hold at once: the title strip is still
+    // in force while the columns are no longer the only source.
+    const titled = {
+      id: 'titled', displayName: 'Jan de Vries MSc', givenName: 'Jan', surname: 'de Vries',
+      email: 'jan.devries@corp.example', employeeId: 'E100',
+    };
+    const links = linksFor([account('p6', 'Jan de Vries')], [titled], NAME_ONLY_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('titled');
+  });
+});
+
+// ── A birth surname must not tie up a plain directory account (#1439) ────────
+//
+// Indexing the birth-name variant puts a second person under a name key that
+// used to hold one. An ordinary directory account — a display name and nothing
+// else — then matches two identities, ties, and goes to review although it was
+// linked correctly before. The two claims to that key are not equal: the account
+// is named after the name in use, so the person who is actually called that gets
+// it and the one who only carries it as a birth surname does not block her.
+
+describe('buildLinks - a birth surname does not tie up a name that is unique in use (#1439)', () => {
+  // She is called Jansen and her accounts are spelled that way.
+  const owner = {
+    id: 'owner', displayName: 'Anna Jansen', givenName: 'Anna', surname: 'Jansen',
+    email: 'anna.jansen@corp.example', employeeId: 'E400',
+  };
+  // Someone else entirely, known as "de Boer-Jansen"; HR still records her birth
+  // surname "Jansen" in the column, which is what puts her under 'jansen|anna'.
+  const otherFamily = {
+    id: 'other', displayName: 'Anna de Boer-Jansen', givenName: 'Anna', surname: 'Jansen',
+    email: 'anna.deboer@corp.example', employeeId: 'E401',
+  };
+  // A directory account with no address and no employee id: the name is all the
+  // evidence there is, which is the condition that makes this a tie at all.
+  const account = { id: 'p1', displayName: 'Anna Jansen', email: null, employeeId: null };
+
+  it('links the account to the identity whose name in use it carries', () => {
+    const links = linksFor([account], [owner, otherFamily], NAME_ONLY_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ identityId: 'owner', signals: ['fullName'] });
+    expect(links[0].confidence).toBe(60);
+  });
+
+  it('links it there whichever order the identities arrive in', () => {
+    const links = linksFor([account], [otherFamily, owner], NAME_ONLY_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('owner');
+  });
+
+  it('links it exactly as it would with the other family absent', () => {
+    // The point of the fix stated as the regression it is: adding a person who
+    // merely used to be called Jansen must not change this account's outcome.
+    expect(linksFor([account], [owner, otherFamily], NAME_ONLY_RULES))
+      .toEqual(linksFor([account], [owner], NAME_ONLY_RULES));
+  });
+
+  it('still refuses when both of them are really called Jansen', () => {
+    // The ambiguity guard is untouched for the case it exists for: two people
+    // who both go by the name, and nothing to choose between them.
+    const twin = { ...otherFamily, displayName: 'Anna Jansen' };
+    expect(linksFor([account], [owner, twin], NAME_ONLY_RULES)).toHaveLength(0);
+  });
+
+  it('still refuses when the name is a birth surname for both of them', () => {
+    // Neither goes by Jansen now, so neither has the stronger claim to this
+    // account and it is left for an analyst.
+    const alsoBorn = { ...owner, displayName: 'Anna Bakker-Jansen' };
+    expect(linksFor([account], [alsoBorn, otherFamily], NAME_ONLY_RULES)).toHaveLength(0);
+  });
+
+  it('still links the other family’s own account', () => {
+    // The paired positive: preferring the name in use must not cost the person
+    // whose name it is not — her own account is spelled her way.
+    const hers = { id: 'p2', displayName: 'Anna de Boer-Jansen', email: null, employeeId: null };
+    const links = linksFor([hers], [owner, otherFamily], NAME_ONLY_RULES);
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('other');
+  });
+});
+
+describe('buildLinks - a per-name tie under the corroboration guard (#1439 x #1440)', () => {
+  const owner = {
+    id: 'owner', displayName: 'Anna Jansen', givenName: 'Anna', surname: 'Jansen',
+    email: 'anna.jansen@corp.example', employeeId: 'E400',
+  };
+  const otherFamily = {
+    id: 'other', displayName: 'Anna de Boer-Jansen', givenName: 'Anna', surname: 'Jansen',
+    email: 'anna.deboer@corp.example', employeeId: 'E401',
+  };
+  const account = { id: 'p1', displayName: 'Anna Jansen', email: null, employeeId: null };
+
+  it('holds a tie the name resolves for review, suggesting the person it resolved to', () => {
+    // Per-name resolution settles who the account belongs to, but the evidence is
+    // still a name alone, so the default guard must not turn it into a link. The
+    // suggestion names the resolved owner -- not whichever tied identity was
+    // scored first -- and carries no ambiguity, because none is left.
+    const { links, stats } = buildLinks([account], [otherFamily, owner], DEFAULT_RULES);
+    expect(links).toHaveLength(0);
+    expect(stats.nameOnlyMatches).toBe(1);
+    expect(stats.suggestions).toHaveLength(1);
+    expect(stats.suggestions[0]).toMatchObject({ identityId: 'owner', identityName: 'Anna Jansen', ties: 1 });
+  });
+
+  it('reports the tie count when no name singles anyone out', () => {
+    // The paired case: two people who both go by the name stay ambiguous, and the
+    // suggestion says so.
+    const twin = { ...owner, id: 'twin', employeeId: 'E402', email: 'a.jansen@corp.example' };
+    const { links, stats } = buildLinks([account], [owner, twin], DEFAULT_RULES);
+    expect(links).toHaveLength(0);
+    expect(stats.suggestions[0].ties).toBe(2);
+  });
+});

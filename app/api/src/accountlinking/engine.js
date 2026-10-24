@@ -29,18 +29,19 @@ import {
   normalizeName,
   emailLocalPart,
   stripKnownPrefixes,
-  nameMatchLevel,
+  bestNameMatch,
 } from './classifier.js';
 import {
   norm,
   fullName,
-  personName,
+  personNames,
   prefixesFrom,
   suffixesFrom,
   nameSignalNames,
   isNameOnly,
   indexIdentities,
   collectCandidates,
+  resolveNameTie,
   aggregateByIdentity,
 } from './engine.helpers.js';
 import { removeStaleNameOnlyLinks } from './staleNameOnlyLinks.js';
@@ -66,7 +67,7 @@ export function scoreMatch(orphan, identity, rules = DEFAULT_RULES) {
   // exclusive: only the signal whose level equals the computed best level fires.
   let level;
   const getLevel = () => {
-    if (level === undefined) level = nameMatchLevel(personName(orphan), personName(identity));
+    if (level === undefined) level = bestNameMatch(personNames(orphan), personNames(identity));
     return level;
   };
   for (const sig of (rules.signals || [])) {
@@ -131,25 +132,22 @@ export function buildLinks(orphans, identities, rules = DEFAULT_RULES) {
 }
 
 /**
- * Best above-threshold candidate identity for a set, plus the tie count at that
- * confidence. Candidates are scored in insertion order; the first to reach the
- * high-water mark wins, later equal scores only bump `ties`.
- * @returns {{ best: object|null, ties: number }}
+ * Best above-threshold candidate identity for a set, and every above-threshold
+ * candidate (which the ambiguity guard needs to see the ties). Candidates are
+ * scored in insertion order; the first to reach the high-water mark wins.
+ * @returns {{ best: object|null, scored: object[] }}
  */
 function pickBest(orphan, candidates, rules, threshold) {
+  const scored = [];
   let best = null;
-  let ties = 0;
   for (const idy of candidates.values()) {
     const { confidence, signals } = scoreMatch(orphan, idy, rules);
     if (confidence < threshold) continue;
-    if (!best || confidence > best.confidence) {
-      best = { identityId: idy.id, identityName: idy.displayName ?? null, confidence, signals };
-      ties = 1;
-    } else if (confidence === best.confidence) {
-      ties++;
-    }
+    const candidate = { identityId: idy.id, identityName: idy.displayName ?? null, confidence, signals };
+    scored.push(candidate);
+    if (!best || confidence > best.confidence) best = candidate;
   }
-  return { best, ties };
+  return { best, scored };
 }
 
 /** The held-for-review record of a name-only match: who nearly linked to whom, and why. */
@@ -180,20 +178,30 @@ function buildLinkForOrphan(orphan, ctx) {
   if (!onlyTypes.has(accountType)) return null;
 
   const candidates = collectCandidates(orphan, indexes, { prefixes, suffixes });
-  const { best, ties } = pickBest(orphan, candidates, rules, threshold);
+  const { best, scored } = pickBest(orphan, candidates, rules, threshold);
   if (!best) return null;
+
+  // A name-only match that ties across identities is read per name first: an
+  // account carries several names, and a namesake on one of them does not veto
+  // the person who is the only match on another (see resolveNameTie). Only a
+  // tie that survives that is ambiguous.
+  const nameOnly = isNameOnly(best.signals, nameSigs);
+  const tied = scored.filter(s => s.confidence === best.confidence);
+  const resolved = nameOnly && tied.length > 1 ? resolveNameTie(orphan, tied, indexes.byNameKey) : best;
+  const winner = resolved ?? best;
+  const ties = resolved ? 1 : tied.length;
 
   const link = {
     principalId: orphan.id,
-    identityId: best.identityId,
-    confidence: best.confidence,
-    signals: best.signals,
+    identityId: winner.identityId,
+    confidence: winner.confidence,
+    signals: winner.signals,
     accountType,
     accountTypePattern: pattern,
     displayName: orphan.displayName ?? null,
     accountEnabled: orphan.accountEnabled ?? null,
   };
-  if (!isNameOnly(best.signals, nameSigs)) return { link, suggestion: null };
+  if (!nameOnly) return { link, suggestion: null };
 
   // Two guards on a match that rests on name signals alone:
   //   - Corroboration: a name is not evidence enough on its own. Without a
@@ -203,7 +211,7 @@ function buildLinkForOrphan(orphan, ctx) {
   //   - Ambiguity: a name-only match that ties across identities has no
   //     evidence to prefer one of them, so it is never auto-picked.
   const blocked = !allowNameOnly || ties > 1;
-  return { link: blocked ? null : link, suggestion: suggestionFrom(orphan, best, accountType, ties) };
+  return { link: blocked ? null : link, suggestion: suggestionFrom(orphan, winner, accountType, ties) };
 }
 
 async function loadRules(configId) {
