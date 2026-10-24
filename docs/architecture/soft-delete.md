@@ -67,7 +67,7 @@ On the next ingest that *does* include the entity, the upsert's `ON CONFLICT …
 | **Role-mining UI lists** | A **"Include deleted"** toggle (`useEntityPage` → `includeDeleted`); deleted rows show a `DeletedBadge`. |
 | **Detail pages** | Always shown, with a **"Deleted in source"** badge — including the entity's deleted assignments. |
 | **Matrix** (`vw_ResourceUserPermissionAssignments`) | **Excluded.** The matview filters out any cell whose assignment, holder, or target is tombstoned (`deletedAt IS NULL` + `NOT EXISTS` a deleted principal/resource), so the live access picture never shows access via a deleted entity. `NOT EXISTS` (not a join) is used so a row whose endpoint is merely missing is kept — only explicit tombstones are excluded. |
-| **Account Linking** (candidate set, `orphansRemaining`, the Orphaned Accounts report + context) | **Excluded.** A tombstoned account is not an orphan: it is never newly linked to an identity and never counted as outstanding work ([account linking](account-linking.md) → *Candidate scope*). An account linked *before* it was tombstoned stays linked — soft-delete never detaches a person's history. |
+| **Account Linking** (candidate set, `orphansRemaining`, the Orphaned Accounts report + context) | **Excluded.** A tombstoned account is not an orphan: it is never newly linked to an identity and never counted as outstanding work ([account linking](account-linking.md) → *Candidate scope*). This is what stops a leaver's account being attached to a live namesake — the leaver's own identity is gone, so the namesake is the only thing left matching it. An account linked *before* it was tombstoned stays linked — soft-delete never detaches a person's history. |
 
 ## Relationship to `_history`
 

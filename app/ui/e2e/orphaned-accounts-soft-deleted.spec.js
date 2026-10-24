@@ -20,11 +20,17 @@
  *   4. full-sync again with one of them missing — what the reporter did;
  *   5. the report now lists the live account and not the removed one;
  *   6. run Account Linking from Admin and confirm the removed account was not
- *      attached to the identity it matches, while its live twin was.
+ *      attached to the identity it matches, while its live twin was;
+ *   7. the same for the worst case the acceptance measurement of #1442 turned
+ *      up — a leaver whose account matches a *different*, live person who
+ *      happens to share their name, on the name alone. The leaver has no
+ *      identity of their own, so that namesake is the only candidate and
+ *      nothing ties: before the fix, the live namesake inherited the leaver's
+ *      account and every grant on it.
  *
  * Everything the spec seeds lives in its own system, under fixed ids, so a
  * re-run reuses the same rows instead of accumulating new ones, and the final
- * cleanup removes the identity and tombstones the accounts.
+ * cleanup removes the identities and tombstones the accounts.
  *
  * Serial: the steps share seeded state, and the linking run in the second test
  * attaches the live account — which would remove it from the orphan report the
@@ -46,6 +52,11 @@ const ROWS_PER_PAGE = 100;
 // a system — so every run upserts this one row instead of registering another.
 const SYSTEM = { displayName: 'E2E — removed-account fixture', systemType: 'e2e', tenantId: 'e2e-1442' };
 
+// Both twin accounts and their identity share this, so each scores the
+// employeeId signal (weight 95) against the identity and nothing else in the
+// dataset.
+const EMPLOYEE_ID = 'E2E-1442-EMP';
+
 // Fixed ids, for the same reason. The display names deliberately match none of
 // the Admin/Guest/Service/Shared classification patterns, so both accounts
 // classify as `Secondary` and the only thing separating them is the sync.
@@ -53,16 +64,32 @@ const LIVE = {
   id: '1442e2e0-0000-4000-8000-000000000001',
   displayName: 'Euson, Robin (e2e-1442 live)',
   email: 'robin.euson.e2e1442@e2e.invalid',
+  employeeId: EMPLOYEE_ID,
 };
 const DEPARTED = {
   id: '1442e2e0-0000-4000-8000-000000000002',
   displayName: 'Euson, Robin (e2e-1442 removed)',
   email: 'robin.euson.e2e1442.removed@e2e.invalid',
+  employeeId: EMPLOYEE_ID,
 };
 const IDENTITY = { id: '1442e2e0-0000-4000-8000-000000000003', displayName: 'Robin Euson (e2e-1442)' };
-// Both accounts and the identity share this, so each scores the employeeId
-// signal (weight 95) against the identity and nothing else in the dataset.
-const EMPLOYEE_ID = 'E2E-1442-EMP';
+
+// The namesake pair. The leaver's account carries no employeeId and an email
+// local part of its own, so the ONLY thing connecting it to this live person is
+// the name they are both spelled with — the `fullName` signal, weight 60, over
+// the default threshold of 50. `(left the company)` is a display-name qualifier
+// the name parser strips, so both sides reduce to the same {jordy, van den
+// hurke2e1442} and the match is at full-name strength.
+const NAMESAKE = {
+  id: '1442e2e0-0000-4000-8000-000000000004',
+  displayName: 'Jordy van den Hurke2e1442 (e2e-1442)',
+  email: 'jordy.hurke2e1442@e2e.invalid',
+};
+const NAMESAKE_DEPARTED = {
+  id: '1442e2e0-0000-4000-8000-000000000005',
+  displayName: 'van den Hurke2e1442, Jordy (left the company)',
+  email: 'j.hurke2e1442.departed@e2e.invalid',
+};
 
 let apiKey = null;    // the ingest key, issued once per run
 let crawlerId = null;
@@ -95,11 +122,38 @@ function syncAccounts(accounts) {
       id: a.id,
       displayName: a.displayName,
       email: a.email,
-      employeeId: EMPLOYEE_ID,
+      // Only the twins carry one; the namesake pair must match on name alone.
+      employeeId: a.employeeId ?? null,
       principalType: 'User',
       accountEnabled: true,
     })),
   });
+}
+
+/**
+ * Tombstone every account this spec seeded, whatever state it is in.
+ *
+ * Not `syncAccounts([])`: an **unscoped** empty full batch is deliberately a
+ * no-op ("nothing to say", see ingest/engine.js) rather than "this system has
+ * nothing at all", so it would leave the fixture's accounts live. A delta
+ * `deletedIds` stamps `deletedAt` on them — the same tombstone a reconcile
+ * leaves — which is the state cleanup wants.
+ */
+function removeAllAccounts(accounts) {
+  return ingest('principals', { systemId, syncMode: 'delta', records: [], deletedIds: accounts.map(a => a.id) });
+}
+
+/**
+ * Seed a person. Delta, never full: identities are not scoped to a system, so a
+ * full sync here would reconcile the whole table.
+ */
+function seedIdentity(identity) {
+  return ingest('identities', { systemId, syncMode: 'delta', records: [identity] });
+}
+
+/** Hard-delete a person, which cascades their IdentityMembers rows. */
+function dropIdentity(id) {
+  return ingest('identities', { systemId, syncMode: 'delta', records: [], deletedIds: [id] });
 }
 
 /** The Orphaned Accounts report as the API serves it — every row, not just a page. */
@@ -111,9 +165,9 @@ async function orphanReport() {
 
 const orphanNames = (report) => report.rows.map(r => r.displayName);
 
-/** The principals currently attached to the fixture's identity. */
-async function linkedPrincipalIds() {
-  const res = await fetch(`${API}/identities/${IDENTITY.id}`);
+/** The principals currently attached to one of the fixture's people. */
+async function linkedPrincipalIds(identityId = IDENTITY.id) {
+  const res = await fetch(`${API}/identities/${identityId}`);
   if (!res.ok) return [];
   return ((await res.json()).members || []).map(m => m.principalId);
 }
@@ -145,24 +199,28 @@ test.beforeAll(async () => {
     return;
   }
 
-  // The person both accounts belong to. Delta, never full: identities are not
-  // scoped to a system, so a full sync here would reconcile the whole table.
-  const identity = await ingest('identities', {
-    systemId,
-    syncMode: 'delta',
-    records: [{ id: IDENTITY.id, displayName: IDENTITY.displayName, employeeId: EMPLOYEE_ID }],
+  // The person both twin accounts belong to, and the live namesake the
+  // leaver's account must never reach.
+  const identity = await seedIdentity({
+    id: IDENTITY.id, displayName: IDENTITY.displayName, employeeId: EMPLOYEE_ID,
   });
-  if (!identity.ok) unavailable = `could not seed the fixture identity (HTTP ${identity.status})`;
+  const namesake = await seedIdentity({
+    id: NAMESAKE.id, displayName: NAMESAKE.displayName, email: NAMESAKE.email,
+  });
+  if (!identity.ok || !namesake.ok) {
+    unavailable = `could not seed the fixture identities (HTTP ${identity.status}/${namesake.status})`;
+  }
 });
 
 test.afterAll(async () => {
   if (!apiKey) return;
-  // Hard-delete the identity (cascades its IdentityMembers rows) so a re-run
-  // starts with both accounts orphaned again, then tombstone the accounts so
+  // Hard-delete the identities (cascades their IdentityMembers rows) so a re-run
+  // starts with every account orphaned again, then tombstone the accounts so
   // nothing this spec seeded shows up on any live surface.
   if (systemId) {
-    await ingest('identities', { systemId, syncMode: 'delta', records: [], deletedIds: [IDENTITY.id] });
-    await syncAccounts([]);
+    await dropIdentity(IDENTITY.id);
+    await dropIdentity(NAMESAKE.id);
+    await removeAllAccounts([LIVE, DEPARTED, NAMESAKE_DEPARTED]);
   }
   await fetch(`${API}/admin/crawlers/${crawlerId}`, {
     method: 'DELETE',
@@ -209,6 +267,27 @@ async function revealRow(page, report, displayName) {
   return page.getByRole('button', { name: displayName, exact: true });
 }
 
+/** Admin → Account Linking → Run now, waited out to completion. */
+async function runLinkingFromAdmin(page) {
+  // Reload rather than goto: a second run in the same test would otherwise find
+  // the previous run's "Linking complete" still on screen and pass instantly.
+  await page.goto(`${BASE}/#admin?sub=account-linking`);
+  await page.reload();
+  const runNow = page.getByRole('button', { name: 'Run now' });
+  await expect(runNow).toBeVisible({ timeout: 30000 });
+  await runNow.click();
+
+  // The page polls the run and reports the outcome when it finishes.
+  await expect(page.getByText(/Linking complete/)).toBeVisible({ timeout: 120000 });
+  await expect(page.getByText(/orphans remaining/)).toBeVisible();
+}
+
+/** The active rules, so a re-tuned deployment skips instead of failing. */
+async function linkingRules() {
+  const config = await (await fetch(`${API}/account-linking/config`)).json();
+  return config.rules || {};
+}
+
 test.describe('Orphaned Accounts and an account the sync removed', () => {
   test('the report lists a live orphan and drops the one the sync removed', async ({ page }) => {
     // Sync 1 — both accounts exist in the source, so both are live orphans.
@@ -242,8 +321,7 @@ test.describe('Orphaned Accounts and an account the sync removed', () => {
   });
 
   test('Account Linking attaches the live account and never the removed one', async ({ page }) => {
-    const config = await (await fetch(`${API}/account-linking/config`)).json();
-    const rules = config.rules || {};
+    const rules = await linkingRules();
     // The live twin links on its employeeId (an exact signal, weight 95). A
     // tenant that raised the threshold past it, or that stopped linking plain
     // secondary accounts, has no control to assert — and without the control
@@ -259,14 +337,7 @@ test.describe('Orphaned Accounts and an account the sync removed', () => {
     expect((await syncAccounts([LIVE])).ok).toBe(true);
     expect(await linkedPrincipalIds()).not.toContain(DEPARTED.id);
 
-    await page.goto(`${BASE}/#admin?sub=account-linking`);
-    const runNow = page.getByRole('button', { name: 'Run now' });
-    await expect(runNow).toBeVisible({ timeout: 30000 });
-    await runNow.click();
-
-    // The page polls the run and reports the outcome when it finishes.
-    await expect(page.getByText(/Linking complete/)).toBeVisible({ timeout: 120000 });
-    await expect(page.getByText(/orphans remaining/)).toBeVisible();
+    await runLinkingFromAdmin(page);
 
     // Control and regression in one assertion: the live account was attached to
     // the person it matches, the removed one was not — even though it carries
@@ -276,5 +347,42 @@ test.describe('Orphaned Accounts and an account the sync removed', () => {
     // The removed account is not outstanding work either: it is absent from the
     // orphan report the run leaves behind.
     expect(orphanNames(await orphanReport())).not.toContain(DEPARTED.displayName);
+  });
+
+  test('a removed leaver’s account is never attached to a live person of the same name', async ({ page }) => {
+    const rules = await linkingRules();
+    // The leaver's account matches the namesake on `fullName` and nothing else,
+    // so a tenant that raised the certainty slider above that weight would not
+    // link it even while it is live — no control, no regression.
+    const nameWeight = (rules.signals || []).find(s => s.name === 'fullName')?.weight ?? 0;
+    test.skip(
+      !(rules.onlyLinkTypes || []).includes('Secondary') || (rules.linkThreshold ?? 0) > nameWeight,
+      'the deployment\'s linking rules would not link a name-only match',
+    );
+
+    // The control first: while the leaver's account is live, the shared name IS
+    // enough — the engine cannot know the two Jordys are different people, which
+    // is exactly why the removal has to be the thing that stops it. This is the
+    // wrong link the base build made.
+    expect((await syncAccounts([NAMESAKE_DEPARTED, LIVE])).ok).toBe(true);
+    await runLinkingFromAdmin(page);
+    expect(await linkedPrincipalIds(NAMESAKE.id)).toEqual([NAMESAKE_DEPARTED.id]);
+
+    // Now unwind that link and replay the reporter's order instead: the account
+    // was gone from the source before linking ever ran. Dropping and re-seeding
+    // the namesake cascades the member row away, leaving the same two rows.
+    expect((await dropIdentity(NAMESAKE.id)).ok).toBe(true);
+    expect((await seedIdentity(NAMESAKE)).ok).toBe(true);
+    expect(await linkedPrincipalIds(NAMESAKE.id)).toEqual([]);
+
+    // The next full sync carries the rest of the population but not the leaver,
+    // so the reconcile tombstones that account — it is removed, not deleted.
+    expect((await syncAccounts([LIVE])).ok).toBe(true);
+
+    await runLinkingFromAdmin(page);
+
+    // The namesake does not inherit a leaver's account, or its access with it.
+    expect(await linkedPrincipalIds(NAMESAKE.id)).toEqual([]);
+    expect(orphanNames(await orphanReport())).not.toContain(NAMESAKE_DEPARTED.displayName);
   });
 });

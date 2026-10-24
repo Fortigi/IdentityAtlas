@@ -308,7 +308,7 @@ Available under Admin > Account Linking. Configures the deterministic, dictionar
 - **Editable dictionary** — weighted match signals (employeeId / email / email-prefix / graded name) and regex account-type rules.
 - **Certainty slider** — the `linkThreshold`; raise it to require stronger evidence before an account is auto-linked.
 - **Schedules + Run now** — schedule recurring runs or trigger one immediately; each run's progress and counts are shown.
-- **Removed accounts are left out** — an account a sync no longer finds in its source system is not an orphan: it is never linked to a person and not counted in "orphans remaining". An account that was already linked before it was removed stays linked, so the person's history is kept.
+- **Removed accounts are left out** — an account a sync no longer finds in its source system is not an orphan: it is never linked to a person and not counted in "orphans remaining". That also keeps a leaver's account away from a colleague who happens to share their name, which is otherwise the only match left once the leaver is gone from HR. An account that was already linked before it was removed stays linked, so the person's history is kept.
 
 Editing the config and starting runs requires the `admin.crawlers` permission. See [Account Linking](../architecture/account-linking.md).
 
