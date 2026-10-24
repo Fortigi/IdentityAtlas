@@ -26,10 +26,11 @@ const RUN_ID = 'run-1';
 
 // A mocked db whose queryOne dispatches by SQL fragment. The caller supplies the
 // responses for the two preservation lookups.
-function makeDb({ rejected = null, existing = null } = {}) {
+function makeDb({ rejected = null, existing = null, orphans = [ORPHAN], members = [], identities = [IDENTITY] } = {}) {
   const query = vi.fn(async (sql) => {
-    if (/FROM "Principals"/.test(sql)) return { rows: [ORPHAN] };
-    if (/FROM "Identities"/.test(sql)) return { rows: [IDENTITY] };
+    if (/FROM "IdentityMembers" m/.test(sql)) return { rows: members };
+    if (/FROM "Principals" p/.test(sql)) return { rows: orphans };
+    if (/FROM "Identities" i/.test(sql)) return { rows: identities };
     return { rows: [] }; // UPDATE/INSERT IdentityMembers, UPDATE Identities, run updates
   });
   const queryOne = vi.fn(async (sql) => {
@@ -160,6 +161,197 @@ describe('loadRules', () => {
     const { runLinking } = await loadEngine(db);
     await expect(runLinking(RUN_ID)).resolves.not.toThrow();
     expect(memberWrites(db).length).toBeGreaterThan(0);
+  });
+});
+
+// ── The name-uniqueness guard, end to end through a run ──────────────────────
+//
+// Three things the run owes the operator: it must not create a name-only link to a person
+// somebody else answers to, it must remove the ones made before the guard existed
+// (otherwise the data that motivated the guard stays wrong forever), and it must report
+// both on its own row. Every one of these is silent when broken -- the run still says
+// "completed".
+
+// A name-only match against the IDENTITY fixture: same parsed name, unrelated email,
+// no employee id. Scores 60 on fullName alone.
+const NAME_ONLY_ORPHAN = { id: 'p-namesake', displayName: 'Doe, John', email: 'jd@elsewhere.com' };
+// A second identity whose given name shares John's initial, which is what makes the
+// account's name ambiguous without ever scoring high enough to tie with him.
+const NEAR_IDENTITY = { id: 'idy-2', displayName: 'Doe, Jane', email: 'jane.doe@contoso.com', employeeId: 'E2' };
+
+/** The fields written by the run's final 'completed' UPDATE, as a column→value object. */
+function completionFields(db) {
+  const call = db.query.mock.calls.find(c =>
+    /UPDATE "AccountLinkingRuns"/.test(c[0]) && Array.isArray(c[1]) && c[1].includes('completed'));
+  if (!call) return null;
+  const cols = [...call[0].matchAll(/"(\w+)" = \$\d+/g)].map(m => m[1]);
+  return Object.fromEntries(cols.map((c, i) => [c, call[1][i + 1]]));
+}
+
+function memberDeletes(db) {
+  return db.query.mock.calls.filter(c => /DELETE FROM "IdentityMembers"/.test(c[0]));
+}
+
+describe('runLinking — the name-uniqueness guard', () => {
+  it('writes no link for an ambiguous name-only orphan and reports it on the run row', async () => {
+    const db = makeDb({ orphans: [NAME_ONLY_ORPHAN], identities: [IDENTITY, NEAR_IDENTITY] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(memberWrites(db)).toHaveLength(0);
+    const fields = completionFields(db);
+    expect(fields.linksCreated).toBe(0);
+    expect(fields.nameOnlyMatches).toBe(1);
+    expect(JSON.parse(fields.nameOnlySuggestions)).toEqual([expect.objectContaining({
+      principalId: 'p-namesake', identityId: 'idy-1', confidence: 60, signals: ['fullName'],
+      reason: 'ambiguousName', rivals: [{ identityId: 'idy-2', identityName: 'Doe, Jane' }],
+    })]);
+  });
+
+  it('links that same orphan when nobody else answers to its name', async () => {
+    // The paired case on identical input bar the second identity: a display-name-only
+    // account whose name is unique IS linked, and the run reports nothing held back.
+    const db = makeDb({ orphans: [NAME_ONLY_ORPHAN] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(memberWrites(db).some(sql => /INSERT\s+INTO\s+"IdentityMembers"/.test(sql))).toBe(true);
+    const fields = completionFields(db);
+    expect(fields.linksCreated).toBe(1);
+    expect(fields.nameOnlyMatches).toBe(0);
+    expect(JSON.parse(fields.nameOnlySuggestions)).toEqual([]);
+  });
+
+  it('still links the corroborated orphan and reports nothing held back', async () => {
+    // The admin account whose email prefix matches is untouched by the guard even with
+    // the near-identical identity present, and the run says so.
+    const db = makeDb({ identities: [IDENTITY, NEAR_IDENTITY] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(memberWrites(db).length).toBeGreaterThan(0);
+    const fields = completionFields(db);
+    expect(fields.nameOnlyMatches).toBe(0);
+    expect(JSON.parse(fields.nameOnlySuggestions)).toEqual([]);
+  });
+
+  it('reports zeroes rather than nothing on an empty tenant', async () => {
+    const db = makeDb({ orphans: [] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    const fields = completionFields(db);
+    expect(fields.nameOnlyMatches).toBe(0);
+    expect(fields.linksRemoved).toBe(0);
+    expect(fields.nameOnlySuggestions).toBe('[]');
+  });
+});
+
+describe('runLinking — retroactive removal of name-only links', () => {
+  // A name-only link to idy-1, and an account name that NEAR_IDENTITY also answers to.
+  const scoredNameOnly = { identityId: 'idy-1', principalId: 'p-old', linkSignals: 'fullName', displayName: 'Doe, John' };
+  const withNamesake = { orphans: [], members: [scoredNameOnly], identities: [IDENTITY, NEAR_IDENTITY] };
+
+  it('detaches a name-only link the guard would no longer make, and recomputes the count', async () => {
+    const db = makeDb(withNamesake);
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(memberDeletes(db).map(c => c[1])).toEqual([['idy-1', 'p-old']]);
+    expect(db.query.mock.calls.some(c =>
+      /UPDATE\s+"Identities"/.test(c[0]) && /"accountCount"/.test(c[0]) && c[1][0] === 'idy-1')).toBe(true);
+    expect(completionFields(db).linksRemoved).toBe(1);
+  });
+
+  it('leaves that same link attached when nobody else answers to its name', async () => {
+    // The paired case: the policy removes the links it would no longer make, not every
+    // link that rests on a name — an upgrade must not churn a whole tenant's worth.
+    const db = makeDb({ orphans: [], members: [scoredNameOnly] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(memberDeletes(db)).toHaveLength(0);
+    expect(completionFields(db).linksRemoved).toBe(0);
+  });
+
+  it('removes it under allowNameOnlyLinks: false even though the name is unique', async () => {
+    // Under that policy the engine would make no name-only link at all, so none may stay.
+    const db = makeDb({ orphans: [], members: [scoredNameOnly] });
+    db.queryOne = vi.fn(async (sql) => {
+      if (/AccountLinkingConfig/.test(sql)) return { rules: { allowNameOnlyLinks: false } };
+      if (/COUNT\(\*\)/.test(sql)) return { n: 0 };
+      return null;
+    });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(memberDeletes(db).map(c => c[1])).toEqual([['idy-1', 'p-old']]);
+    expect(completionFields(db).linksRemoved).toBe(1);
+  });
+
+  it('runs the removal BEFORE loading orphans, so a detached account re-scores in the same run', async () => {
+    // Ordering is the whole mechanism: remove first and the account is an orphan again by
+    // the time candidates are gathered, so it is re-judged in this run rather than being
+    // skipped for one. Reversed, a detached account would simply vanish until the next run.
+    const db = makeDb(withNamesake);
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    const sqls = db.query.mock.calls.map(c => c[0]);
+    const deleteAt = sqls.findIndex(s => /DELETE FROM "IdentityMembers"/.test(s));
+    const orphanLoadAt = sqls.findIndex(s => /FROM "Principals" p/.test(s));
+    expect(deleteAt).toBeGreaterThanOrEqual(0);
+    expect(deleteAt).toBeLessThan(orphanLoadAt);
+  });
+
+  it('loads the identities BEFORE the removal, so it can tell unique names from shared ones', async () => {
+    // The removal reads the name indexes. Built from an empty list, every name points at
+    // nobody and every name-only link on the tenant is detached.
+    const db = makeDb(withNamesake);
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    const sqls = db.query.mock.calls.map(c => c[0]);
+    const identityLoadAt = sqls.findIndex(s => /FROM "Identities" i/.test(s));
+    const scanAt = sqls.findIndex(s => /FROM "IdentityMembers" m/.test(s));
+    expect(identityLoadAt).toBeGreaterThanOrEqual(0);
+    expect(identityLoadAt).toBeLessThan(scanAt);
+  });
+
+  it('leaves a corroborated link attached', async () => {
+    const db = makeDb({
+      ...withNamesake,
+      members: [{ identityId: 'idy-1', principalId: 'p-keep', linkSignals: 'email,fullName', displayName: 'Doe, John' }],
+    });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(memberDeletes(db)).toHaveLength(0);
+    expect(completionFields(db).linksRemoved).toBe(0);
+  });
+
+  it('only considers engine-scored, analyst-untouched rows', async () => {
+    // The exclusions are in the WHERE clause, so what is asserted here is that the clause
+    // is actually there -- an analyst decision and a crawler-sourced link must never be
+    // candidates for removal, whatever their signals say.
+    const db = makeDb({ orphans: [], members: [] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    const scan = db.query.mock.calls.map(c => c[0]).find(s => /FROM "IdentityMembers" m/.test(s));
+    expect(scan).toMatch(/"linkConfidence" IS NOT NULL/);
+    expect(scan).toMatch(/"analystOverride" IS NULL/);
   });
 });
 
