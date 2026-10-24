@@ -9,6 +9,9 @@
 //     always gets their bare owner page: the API answers 403 for everything
 //     else, so the app would be a screen of errors. This wins over a share link
 //     for the same reason.
+//   - a survey respondent (signed in without a role, owning no context, with a
+//     survey sent to them) gets their surveys and nothing else, for the same
+//     reason.
 //   - a share link ("#shared:<token>", #1166) renders the recipient's bare
 //     shared-matrix shell.
 //
@@ -22,10 +25,11 @@ import App from './App';
 import { parseSharedRoute } from './App.helpers';
 import { useHashPage } from './hooks/useHashPage';
 import { useAuth } from './auth/AuthGate';
-import { isContextOwnerSession } from './auth/authMeState';
+import { isContextOwnerSession, isSurveyRespondentSession } from './auth/authMeState';
 
 const SharedMatrixPage = lazy(() => import('./components/SharedMatrixPage'));
 const ContextOwnerPage = lazy(() => import('./components/ContextOwnerPage'));
+const SurveyRespondentPage = lazy(() => import('./components/SurveyRespondentPage'));
 
 function Waiting({ label }) {
   return (
@@ -45,6 +49,14 @@ export default function AppRoot() {
     return (
       <Suspense fallback={<Waiting label="Loading your contexts..." />}>
         <ContextOwnerPage />
+      </Suspense>
+    );
+  }
+
+  if (isSurveyRespondentSession(auth)) {
+    return (
+      <Suspense fallback={<Waiting label="Loading your surveys..." />}>
+        <SurveyRespondentPage />
       </Suspense>
     );
   }

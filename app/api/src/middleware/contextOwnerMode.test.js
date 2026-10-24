@@ -39,6 +39,9 @@ vi.mock('../auth/contextOwner.js', () => ({
   resolveReportContexts: (...a) => owners.resolveReportContexts(...a),
 }));
 
+const respondents = vi.hoisted(() => ({ isSurveyRespondent: null }));
+vi.mock('../auth/surveyRespondent.js', () => ({ isSurveyRespondent: (...a) => respondents.isSurveyRespondent(...a) }));
+
 vi.mock('../db/connection.js');
 const { query, queryOne } = await import('../db/connection.js');
 const { resetContextOwnerSettingForTests } = await import('../auth/contextOwnerSetting.js');
@@ -55,6 +58,8 @@ const { createApp } = await import('../app.js');
 const app = createApp();
 
 const OWNER_OID = '22222222-2222-4222-8222-222222222222';
+const RESPONDENT_OID = '66666666-6666-4666-8666-666666666666';
+const REQ = 'ffffffff-0000-4000-8000-000000000001';
 const MINE = 'aaaaaaaa-0000-4000-8000-000000000001';
 const VARIANT = 'aaaaaaaa-0000-4000-8000-000000000002';
 const OTHER = 'aaaaaaaa-0000-4000-8000-000000000003';
@@ -85,6 +90,7 @@ beforeEach(async () => {
   queryOne.mockResolvedValue(null);
   owners.resolveContextOwner = vi.fn(async (user) => (user.oid === OWNER_OID ? OWNER : null));
   owners.resolveReportContexts = vi.fn(async (_pool, wanted) => wanted);
+  respondents.isSurveyRespondent = vi.fn(async (user) => user.oid === RESPONDENT_OID);
 });
 
 describe('the admin switch', () => {
@@ -289,6 +295,50 @@ describe('switch on — the report download', () => {
   it('is refused for any other report, even with their own context', async () => {
     expect(denied(await ownerGet(`/api/reports/stale-accounts/export?format=csv&contexts=${MINE}`))).toBe(true);
     expect(denied(await ownerGet(`/api/reports/application-access-review/rows?contexts=${MINE}`))).toBe(true);
+  });
+});
+
+describe('switch on — answering a survey', () => {
+  beforeEach(async () => { await setSwitch(true); });
+  const respondent = () => as([], RESPONDENT_OID);
+  const insufficient = (res) => res.status === 403 && res.body?.error === 'Insufficient permissions';
+
+  it('a roleless person a survey was sent to reaches the survey routes and the shell despite AUTH_REQUIRED_ROLES — and nothing else', async () => {
+    cfg.requiredRoles = ['IdentityAtlas.Read'];
+    const me = await request(app).get('/api/auth-me').set(respondent());
+    expect(me.status).toBe(200);
+    expect(me.body.surveyRespondent).toBe(true);
+    expect(me.body.contextOwner).toBeNull();
+    for (const [method, path] of [['get', '/api/surveys/mine'], ['get', `/api/surveys/requests/${REQ}`],
+      ['put', `/api/surveys/requests/${REQ}/answers`], ['post', `/api/surveys/requests/${REQ}/submit`]]) {
+      expect(insufficient(await request(app)[method](path).set(respondent()).send({})), `${method} ${path}`).toBe(false);
+    }
+    expect(insufficient(await request(app).get('/api/contexts').set(respondent()))).toBe(true);
+    expect(insufficient(await request(app).get(`/api/surveys/templates`).set(respondent()))).toBe(true);
+    expect(insufficient(await request(app).delete(`/api/surveys/requests/${REQ}`).set(respondent()))).toBe(true);
+  });
+
+  it('is not asked about anything but a survey route or the shell, and someone without a survey keeps the 403', async () => {
+    cfg.requiredRoles = ['IdentityAtlas.Read'];
+    await request(app).get('/api/users').set(respondent());
+    expect(respondents.isSurveyRespondent).not.toHaveBeenCalled();
+    const stranger = as([], '55555555-5555-4555-8555-555555555555');
+    expect(insufficient(await request(app).get('/api/surveys/mine').set(stranger))).toBe(true);
+    expect((await request(app).get('/api/auth-me').set(stranger)).status).toBe(403);
+  });
+
+  it('a context owner may answer a survey too — the only writes on their list', async () => {
+    for (const [method, path] of [['get', '/api/surveys/mine'], ['put', `/api/surveys/requests/${REQ}/answers`], ['post', `/api/surveys/requests/${REQ}/submit`]]) {
+      expect(denied(await request(app)[method](path).set(as([])).send({})), `${method} ${path}`).toBe(false);
+    }
+    expect(denied(await request(app).delete(`/api/surveys/requests/${REQ}`).set(as([])))).toBe(true);
+    expect(denied(await request(app).post(`/api/contexts/${MINE}/surveys`).set(as([])).send({}))).toBe(true);
+  });
+
+  it('with the switch off, a respondent is not let in past AUTH_REQUIRED_ROLES', async () => {
+    await setSwitch(false);
+    cfg.requiredRoles = ['IdentityAtlas.Read'];
+    expect(insufficient(await request(app).get('/api/surveys/mine').set(respondent()))).toBe(true);
   });
 });
 

@@ -100,6 +100,8 @@ export async function retryExtraction(contextId, interviewId, deps, now = Date.n
   const { db, enabled, start } = defaults(deps);
   const interview = await store.getInterview(db, contextId, interviewId);
   if (!interview) throw new InterviewError(404, 'Interview not found');
+  // A survey's answers are claims already; there is nothing for a model to read.
+  if (interview.surveyRequestId) throw new InterviewError(409, 'This is a survey answer; its claims come from the answers, not from a model.');
   if (!enabled()) throw new InterviewError(503, 'No local model is configured; add claims by hand instead.');
   const started = interview.extractionStartedAt ? new Date(interview.extractionStartedAt).getTime() : 0;
   if (interview.extractionStatus === 'running' && now - started < STALE_RUN_MS) {

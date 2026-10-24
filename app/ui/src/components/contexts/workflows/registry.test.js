@@ -3,6 +3,8 @@ import { actionCardsFor } from './registry';
 import MatrixCard from './MatrixCard';
 import DownloadReportCard from './DownloadReportCard';
 import UploadInterviewCard from '@ui/components/contexts/interviews/UploadInterviewCard';
+import SendSurveyCard from '@ui/components/contexts/surveys/SendSurveyCard';
+import RosterCard from '@ui/components/contexts/surveys/RosterCard';
 
 const APP = { id: 'app', contextCategory: 'LogicalApplication', targetType: 'Resource' };
 const unit = targetType => ({ id: targetType, contextCategory: 'OrganizationalUnit', targetType });
@@ -11,36 +13,39 @@ describe('action registry', () => {
   const cardsOf = attrs => actionCardsFor(attrs).map(c => c.Card);
   const keysOf = (attrs, opts) => actionCardsFor(attrs, opts).map(c => c.key);
 
-  it('gives an application the matrix, the entitlement report and the interview upload, in that order', () => {
-    expect(cardsOf(APP)).toEqual([MatrixCard, DownloadReportCard, UploadInterviewCard]);
+  it('gives an application the matrix, the entitlement report, the interview upload and the survey, in that order', () => {
+    expect(cardsOf(APP)).toEqual([MatrixCard, DownloadReportCard, UploadInterviewCard, SendSurveyCard]);
     // On its template, whatever it holds.
-    expect(cardsOf({ ...APP, targetType: undefined })).toEqual([MatrixCard, DownloadReportCard, UploadInterviewCard]);
+    expect(cardsOf({ ...APP, targetType: undefined })).toEqual([MatrixCard, DownloadReportCard, UploadInterviewCard, SendSurveyCard]);
   });
 
-  it('gives a unit of accounts or people the matrix, the unit report and the interview upload', () => {
+  it('gives a unit of accounts or people the matrix, the unit report, the roster, the interview upload and the survey', () => {
     for (const t of ['Identity', 'Principal']) {
-      expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'download-unit-report', 'upload-interview']);
+      expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'download-unit-report', 'roster', 'upload-interview', 'send-survey']);
     }
     const card = actionCardsFor(unit('Principal')).find(c => c.key === 'download-unit-report');
     expect(card.Card).toBe(DownloadReportCard);
     expect(card.props).toMatchObject({ report: 'unit-members', title: 'Download unit report', testId: 'action-download-unit-report' });
+    expect(actionCardsFor(unit('Identity')).find(c => c.key === 'roster').Card).toBe(RosterCard);
   });
 
-  it('gives a unit of resources (or systems) no report card', () => {
-    for (const t of ['Resource', 'System']) expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'upload-interview']);
+  it('gives a unit of resources (or systems) no report card and no roster', () => {
+    for (const t of ['Resource', 'System']) expect(keysOf(unit(t)), t).toEqual(['view-in-matrix', 'upload-interview', 'send-survey']);
   });
 
-  it('offers no announced-but-unbuilt cards', () => {
+  it('offers no announced-but-unbuilt cards: the survey card is the built one, and there is no member review card', () => {
     for (const attrs of [APP, unit('Identity'), unit('Principal'), unit('Resource')]) {
-      expect(keysOf(attrs).filter(k => /survey|review-members/.test(k))).toEqual([]);
+      expect(actionCardsFor(attrs).filter(c => /survey/.test(c.key)).map(c => c.Card)).toEqual([SendSurveyCard]);
+      expect(keysOf(attrs).filter(k => /review-members/.test(k))).toEqual([]);
     }
   });
 
-  // A context owner's read-only page: no matrix (an in-app page they cannot open)
-  // and no interview upload (an analyst's move); the reports stay.
-  it('keeps only the reports on a read-only shared view', () => {
+  // A context owner's read-only page: no matrix (an in-app page they cannot open),
+  // no interview upload and no survey sending (an analyst's moves); the reports
+  // and a unit's roster stay.
+  it('keeps the reports and the roster on a read-only shared view', () => {
     expect(keysOf(APP, { sharedView: true })).toEqual(['download-report']);
-    expect(keysOf(unit('Identity'), { sharedView: true })).toEqual(['download-unit-report']);
+    expect(keysOf(unit('Identity'), { sharedView: true })).toEqual(['download-unit-report', 'roster']);
     expect(keysOf(unit('Resource'), { sharedView: true })).toEqual([]);
   });
 

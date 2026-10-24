@@ -147,6 +147,15 @@ describe('property — the interview gives another value than the context holds'
     const pairs = findContradictions({ context: { ...UPLOAD, extendedAttributes: null }, claims: [a, b, c] }).filter(x => x.rule === 'claims');
     expect(pairs.map(x => [x.claim.statement, x.other.statement])).toEqual([['Interview: Hosting is on premises', 'Interview: hosting is Azure']]);
   });
+
+  it('a property of one of the context\'s resources is not the context\'s attribute, and is compared per resource', () => {
+    const R1 = 'cccccccc-0000-4000-8000-0000000000a1';
+    const R2 = 'cccccccc-0000-4000-8000-0000000000a2';
+    const res = (resourceId, value, over = {}) => claim({ claimKind: 'property', subjectKind: 'Resource', resourceId, attribute: 'sector', value, ...over });
+    const out = find({ claims: [res(R1, 'Piet', { interviewedAt: '2026-10-03' }), res(R2, 'Kees'), res(R1, 'Anna')] });
+    expect(out.filter(c => c.rule === 'property')).toEqual([]);
+    expect(out.filter(c => c.rule === 'claims').map(x => [x.claim.statement, x.other.statement])).toEqual([['Interview: sector is Piet', 'Interview: sector is Anna']]);
+  });
 });
 
 describe('claims — two interviews disagree about one person', () => {

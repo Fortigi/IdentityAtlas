@@ -23,6 +23,7 @@ import { ensureMasterKey } from './secrets/masterKeyStore.js';
 import { rebindLegacySecrets } from './secrets/vault.js';
 import { startScheduler } from './scheduler.js';
 import { seedContextAlgorithms } from './contexts/seedAlgorithms.js';
+import { seedSurveyTemplates } from './contexts/surveys/seed.js';
 import { migrateCrawlerSecretsToVault } from './secrets/migrateCrawlerSecrets.js';
 import { purgeExpiredTombstones } from './ingest/tombstonePurge.js';
 import { revokeIdleTokens } from './auth/readTokens.js';
@@ -360,6 +361,13 @@ export async function bootstrapWorker() {
       // so this can fail on fresh boots if that migration hasn't run yet —
       // it just means the Contexts plugins picker will be empty until next boot.
       console.warn('Context-algorithm seeding skipped:', err.message);
+    }
+    try {
+      await seedSurveyTemplates();
+    } catch (err) {
+      // Non-critical: before migration 100 there is no table yet; the built-in
+      // survey templates are added on the next boot.
+      console.warn('Survey-template seeding skipped:', err.message);
     }
     try {
       await ensureTagRoots();

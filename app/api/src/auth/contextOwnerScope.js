@@ -6,7 +6,8 @@
 // keeping it a table: a route added to the API tomorrow is closed to them until
 // someone adds it here on purpose.
 //
-// Reads only. A context owner cannot change a role, a member or a setting.
+// Reads only — but for answering a survey sent to them. A context owner cannot
+// change a role, a member or a setting.
 //
 // Paths are compared as middleware/auth.js guardPath() hands them over: the
 // full /api/... path, without the query string, lower-cased. Context ids are
@@ -62,6 +63,27 @@ export const REPORT_EXPORTS = new Map([
   [UNIT_REPORT_EXPORT_PATH, ['includeSubUnits']],
 ]);
 
+// Answering a survey (routes/surveys.js): the person's own list, the form, a
+// draft and the submit — the only writes on this list. The route itself checks
+// that the survey was sent to the caller (contexts/surveys/service.js).
+export const SURVEY_RESPONDENT_PATHS = [
+  { method: 'GET', shape: /^\/api\/surveys\/mine$/ },
+  { method: 'GET', shape: new RegExp(`^/api/surveys/requests/${UUID}$`) },
+  { method: 'GET', shape: new RegExp(`^/api/surveys/requests/${UUID}/people$`) },
+  { method: 'PUT', shape: new RegExp(`^/api/surveys/requests/${UUID}/answers$`) },
+  { method: 'POST', shape: new RegExp(`^/api/surveys/requests/${UUID}/submit$`) },
+];
+
+/** Whether a request is one of a survey respondent's. */
+export function isSurveyRespondentPath(method, path) {
+  return SURVEY_RESPONDENT_PATHS.some(p => p.method === method && p.shape.test(path));
+}
+
+/** What a person with a survey to answer, and no other access, may reach: the shell and the survey routes. */
+export function surveyRespondentAllows(method, path) {
+  return isSurveyRespondentPath(method, path) || (method === 'GET' && SHELL_PATHS.has(path));
+}
+
 export const ALLOW = Object.freeze({ allow: true });
 export const DENY = Object.freeze({ allow: false });
 
@@ -91,6 +113,7 @@ export function reportExportVerdict(query, contextIds, refused = REPORT_EXPORTS.
 // { allow: false, resolve: [...] } when the answer depends on what the named
 // contexts resolve to.
 export function contextOwnerVerdict({ method, path, query }, contextIds) {
+  if (isSurveyRespondentPath(method, path)) return ALLOW;
   if (method !== 'GET') return DENY;
   if (SHELL_PATHS.has(path)) return ALLOW;
   for (const shape of CONTEXT_PATHS) {

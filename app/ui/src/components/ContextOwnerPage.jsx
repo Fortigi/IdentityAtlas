@@ -21,6 +21,10 @@ import { SharedViewContext } from '@ui/contexts/SharedViewContext';
 import ErrorBoundary from './ErrorBoundary';
 import Brand from './app/Brand';
 import ContextDetailPage from './ContextDetailPage';
+import MySurveys from './surveys/MySurveys';
+import SurveyForm from './surveys/SurveyForm';
+import { useSurveyRoute } from './surveys/surveyRoute';
+import { useHashPage } from '@ui/hooks/useHashPage';
 
 const ROLE_BADGE = {
   Accountable: 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-700',
@@ -35,12 +39,16 @@ function RoleBadge({ role }) {
   );
 }
 
-function OwnerHeader({ isDark, userName, onSignOut }) {
+function OwnerHeader({ isDark, userName, onSignOut, surveysOpen, onToggleSurveys }) {
   return (
     <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
       <div className="px-6 py-3 flex items-center gap-4">
         <Brand isDark={isDark} />
         <div className="flex-1" />
+        <button type="button" onClick={onToggleSurveys} aria-pressed={surveysOpen}
+          className="rounded px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-900/30">
+          {surveysOpen ? 'Your contexts' : 'Your surveys'}
+        </button>
         {userName && <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{userName}</span>}
         {onSignOut && (
           <button type="button" onClick={onSignOut}
@@ -84,6 +92,11 @@ export default function ContextOwnerPage() {
     [contextOwner, contexts],
   );
   const [selectedId, setSelectedId] = useState(contexts[0]?.id ?? null);
+  // Surveys sent to the owner (#surveys or #surveys?request=<id>) replace the context view.
+  const [requestId, openRequest] = useSurveyRoute();
+  const [page] = useHashPage();
+  const surveysOpen = page === 'surveys';
+  const toggleSurveys = () => { window.location.hash = surveysOpen ? '' : 'surveys'; };
 
   // The context page asks to open things; only another context in scope (a
   // variant of this unit) opens, in place. Anything else would be a 403.
@@ -96,15 +109,26 @@ export default function ContextOwnerPage() {
       <SharedViewContext.Provider value={true}>
         <ErrorBoundary>
           <div className="flex-1 min-h-0 flex flex-col bg-gray-50 dark:bg-gray-900">
-            <OwnerHeader isDark={isDark} userName={account?.name || account?.username} onSignOut={logout} />
-            <div className="flex-1 min-h-0 flex">
-              {contexts.length > 1 && <ContextList contexts={contexts} selectedId={selectedId} onSelect={setSelectedId} />}
-              <main className="flex-1 min-w-0 overflow-y-auto p-6">
-                {selectedId && (
-                  <ContextDetailPage key={selectedId} contextId={selectedId} embedded onOpenDetail={openDetail} />
-                )}
-              </main>
-            </div>
+            <OwnerHeader isDark={isDark} userName={account?.name || account?.username} onSignOut={logout}
+              surveysOpen={surveysOpen} onToggleSurveys={toggleSurveys} />
+            {surveysOpen
+              ? (
+                <main className="flex-1 min-w-0 overflow-y-auto p-6">
+                  {requestId
+                    ? <SurveyForm requestId={requestId} onDone={() => openRequest(null)} />
+                    : <div className="mx-auto max-w-3xl"><MySurveys onOpen={openRequest} /></div>}
+                </main>
+              )
+              : (
+                <div className="flex-1 min-h-0 flex">
+                  {contexts.length > 1 && <ContextList contexts={contexts} selectedId={selectedId} onSelect={setSelectedId} />}
+                  <main className="flex-1 min-w-0 overflow-y-auto p-6">
+                    {selectedId && (
+                      <ContextDetailPage key={selectedId} contextId={selectedId} embedded onOpenDetail={openDetail} />
+                    )}
+                  </main>
+                </div>
+              )}
           </div>
         </ErrorBoundary>
       </SharedViewContext.Provider>

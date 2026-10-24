@@ -69,6 +69,9 @@ const UNDOCUMENTED_FILES = new Set([
   'riskProfiles.js',
   'riskScores.js',
   'riskScoringRuns.js',
+  // Survey templates (docs/architecture/survey-templates.md): an experimental
+  // surface still changing shape; documented once the template format settles.
+  'surveys.js',
   'systems.js',
   'tags.js',
   'updates.js',

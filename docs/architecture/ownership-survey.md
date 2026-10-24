@@ -1,9 +1,11 @@
 # Ownership survey (spec, not built)
 
-**Status:** specification only. The context page's Actions area shows disabled cards marked *Coming
-soon*: *Start ownership survey* on logical applications, *Start manager survey* and *Review team
-members* on organisational units. Nothing behind them exists yet. All three are analyst actions and are
-left out of a context owner's read-only page.
+**Status:** superseded by [Survey templates](survey-templates.md). The questions below are built
+as survey templates (*Application intake*, *Unit roster*, *Customer check*), sent from the *Send
+survey* card. One decision differs from this spec: an answer is not a role change with
+`addedBy = 'survey'` but a **claim**, reviewed like an interview's — the knowledge-graph step this spec
+already foresaw. Still open from here: outbound e-mail, reminders, and the "not me, and I don't know
+whose" path. The rest of this page is kept as the original reasoning.
 
 ## Why
 

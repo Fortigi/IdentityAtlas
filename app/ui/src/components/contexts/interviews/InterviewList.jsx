@@ -3,6 +3,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { useDialog } from '@ui/components/dialogContext';
 import ManualClaimForm from './ManualClaimForm';
 import { extractionLabel } from './claims.helpers';
+import { surveyHash } from '@ui/components/surveys/surveyRoute';
 
 // ─── The interviews of this context (analysts only) ──────────────────────
 // Each with who and when, how far the model got (the message says what it left
@@ -64,13 +65,16 @@ export default function InterviewList({ contextId, interviews, onChanged, onView
           <li key={iv.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5 text-sm text-gray-900 dark:text-gray-200">
             <span className="font-medium">{iv.intervieweeName}</span>
             <span className="text-xs text-gray-600 dark:text-gray-400">{iv.interviewedAt} · {iv.fileName}</span>
-            <ExtractionStatus interview={iv} />
+            {/* A survey answer is not read by a model: its claims are the answers (docs/architecture/survey-templates.md). */}
+            {iv.surveyRequestId
+              ? <a href={`#${surveyHash(iv.surveyRequestId)}`} className="rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-800 dark:bg-blue-900/30 dark:text-blue-200">survey</a>
+              : <ExtractionStatus interview={iv} />}
             <span className="text-xs text-gray-600 dark:text-gray-400">{iv.proposed ?? 0} to review · {iv.confirmed ?? 0} confirmed</span>
             {onViewTranscript && (
               <button type="button" className={BTN} onClick={() => onViewTranscript(iv.id)}
-                aria-label={`View the transcript of the interview with ${iv.intervieweeName}, ${iv.interviewedAt}`}>View transcript</button>
+                aria-label={`View the transcript of the interview with ${iv.intervieweeName}, ${iv.interviewedAt}`}>{iv.surveyRequestId ? 'View answers' : 'View transcript'}</button>
             )}
-            {CAN_RETRY.has(iv.extractionStatus) && <button type="button" className={BTN} onClick={() => retry(iv)}>Read again</button>}
+            {!iv.surveyRequestId && CAN_RETRY.has(iv.extractionStatus) && <button type="button" className={BTN} onClick={() => retry(iv)}>Read again</button>}
             <button type="button" className={BTN} onClick={() => setAdding(iv)}>Add claim</button>
             <button type="button" className={BTN} onClick={() => remove(iv)}>Delete</button>
             {iv.extractionMessage && <p className="w-full text-xs text-gray-600 dark:text-gray-400">{iv.extractionMessage}</p>}

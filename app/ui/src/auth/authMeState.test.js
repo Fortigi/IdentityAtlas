@@ -6,7 +6,7 @@
 // or a missing field that defaults the wrong way.
 
 import { describe, it, expect } from 'vitest';
-import { degradedPermState, permStateFromAuthMe, isContextOwnerSession } from './authMeState';
+import { degradedPermState, permStateFromAuthMe, isContextOwnerSession, isSurveyRespondentSession } from './authMeState';
 
 describe('degradedPermState', () => {
   it('fails closed — no permissions, no wildcard', () => {
@@ -126,5 +126,29 @@ describe('isContextOwnerSession', () => {
 
   it('treats a missing permission set as none', () => {
     expect(isContextOwnerSession({ ...base, permissions: null })).toBe(true);
+  });
+});
+
+describe('surveyRespondent', () => {
+  it('is true only when auth-me says exactly true; false in the degraded state', () => {
+    expect(permStateFromAuthMe({ surveyRespondent: true }).surveyRespondent).toBe(true);
+    expect(permStateFromAuthMe({ surveyRespondent: 'yes' }).surveyRespondent).toBe(false);
+    expect(permStateFromAuthMe({}).surveyRespondent).toBe(false);
+    expect(degradedPermState().surveyRespondent).toBe(false);
+  });
+
+  const base = { permissionsLoaded: true, hasWildcard: false, permissions: new Set(), contextOwner: null, surveyRespondent: true };
+  it('a respondent session: loaded, no permission, no context owned, a survey sent', () => {
+    expect(isSurveyRespondentSession(base)).toBe(true);
+    expect(isSurveyRespondentSession({ ...base, permissions: null })).toBe(true);
+  });
+
+  it('is not one before auth-me, with the wildcard or a permission, without a survey, or for a context owner (who gets the owner page)', () => {
+    expect(isSurveyRespondentSession({ ...base, permissionsLoaded: false })).toBe(false);
+    expect(isSurveyRespondentSession({ ...base, hasWildcard: true })).toBe(false);
+    expect(isSurveyRespondentSession({ ...base, permissions: new Set(['data.read']) })).toBe(false);
+    expect(isSurveyRespondentSession({ ...base, surveyRespondent: false })).toBe(false);
+    expect(isSurveyRespondentSession({ ...base, contextOwner: { contexts: [{ id: 'c1' }] } })).toBe(false);
+    expect(isSurveyRespondentSession()).toBe(false);
   });
 });
