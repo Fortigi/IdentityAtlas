@@ -81,6 +81,38 @@ describe('removeStaleNameOnlyLinks - the shipped policy', () => {
   });
 });
 
+describe('removeStaleNameOnlyLinks - rivalry at the matched level (#1460)', () => {
+  // Three unrelated people sharing a surname whose given names all start with Y.
+  const EL_MAHDI = [
+    { id: 'youssef', displayName: 'Youssef El Mahdi' },
+    { id: 'yasmina', displayName: 'Yasmina El Mahdi' },
+    { id: 'yassin', displayName: 'Yassin El Mahdi' },
+  ];
+
+  it('leaves a link whose name is the exact spelling of only its own identity', async () => {
+    // This is the retroactive half of the regression: the same reading that holds
+    // the new match detaches the stored one, so the first run after an upgrade
+    // strips the whole class off the identities that already had them.
+    stageMembers([{
+      identityId: 'youssef', principalId: 'p-you', linkSignals: 'fullName', displayName: 'Youssef El Mahdi',
+    }]);
+    expect(await removeStaleNameOnlyLinks(DEFAULT_RULES, EL_MAHDI)).toBe(0);
+    expect(deletes()).toHaveLength(0);
+    expect(countRecomputes()).toHaveLength(0);
+  });
+
+  it('still detaches a link whose name a second person is spelled exactly too', async () => {
+    // The paired case: a real namesake means the engine would not make this link
+    // today, so leaving it attached would keep the guard new-data-only.
+    const twin = { id: 'twin', displayName: 'Youssef El Mahdi' };
+    stageMembers([{
+      identityId: 'youssef', principalId: 'p-twin', linkSignals: 'fullName', displayName: 'Youssef El Mahdi',
+    }]);
+    expect(await removeStaleNameOnlyLinks(DEFAULT_RULES, [...EL_MAHDI, twin])).toBe(1);
+    expect(deletes().map(c => c[1])).toEqual([['youssef', 'p-twin']]);
+  });
+});
+
 describe('removeStaleNameOnlyLinks - allowNameOnlyLinks: false', () => {
   it('removes a name-only link and recomputes its identity account count once', () => {
     // Under the stricter policy the engine makes no name-only link at all, so even the

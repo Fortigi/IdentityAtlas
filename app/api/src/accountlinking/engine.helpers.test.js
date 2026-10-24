@@ -579,6 +579,66 @@ describe('nameClaim - name in use vs birth surname under one key (#1439)', () =>
   });
 });
 
+// ── Rivalry is scoped to the matched level (#1460) ───────────────────────────
+//
+// A claim is weighed at the level the name's own evidence rests on. Read across
+// both levels at once, every identity sharing a surname and first initial votes
+// against a spelling only one of them answers to: "Youssef El Mahdi" is held
+// because Yasmina and Yassin exist, though neither is called that. The exact
+// level therefore decides whenever anybody is spelled the name, and the initial
+// level only steps in when nobody is — which is the level an account that shows
+// no full name (#1455) rests on, and where the near-identical rival of #1440 is
+// still counted.
+
+describe('nameClaim - rivalry is scoped to the level the name matches at (#1460)', () => {
+  const youssef = { id: 'youssef', displayName: 'Youssef El Mahdi' };
+  const yasmina = { id: 'yasmina', displayName: 'Yasmina El Mahdi' };
+  const yassin = { id: 'yassin', displayName: 'Yassin El Mahdi' };
+  const account = { id: 'o', displayName: 'Youssef El Mahdi' };
+
+  it('points at the one person spelled exactly this name, despite initial-level rivals', () => {
+    expect(nameClaim(account, indexIdentities([youssef, yasmina, yassin])).sole).toBe(youssef);
+  });
+
+  it('names only the matched level’s rivals as claimants', () => {
+    // The claimant list is what a held match shows the analyst as "who else
+    // answers to this name". Yasmina and Yassin do not answer to it, so listing
+    // them describes the hold wrongly as well as causing it.
+    expect(nameClaim(account, indexIdentities([youssef, yasmina, yassin])).claimants).toEqual([youssef]);
+  });
+
+  it('points at nobody when a second person is spelled exactly the same', () => {
+    // Two real namesakes tie at the exact level, which is the case the guard
+    // exists for: scoping rivalry to the matched level must not reduce to
+    // "whoever matches best wins".
+    const twin = { id: 'twin', displayName: 'Youssef El Mahdi' };
+    const claim = nameClaim(account, indexIdentities([youssef, twin, yasmina]));
+    expect(claim.sole).toBeNull();
+    expect(claim.claimants).toEqual([youssef, twin]);
+  });
+
+  it('points at nobody when the namesake’s spelling differs only by a title', () => {
+    // #1443's measured wrong-link class: a title is stripped before keying, so
+    // "drs. Youssef El Mahdi" is the same name and shares the exact key.
+    const titled = { id: 'titled', displayName: 'drs. Youssef El Mahdi' };
+    expect(nameClaim(account, indexIdentities([youssef, titled])).sole).toBeNull();
+  });
+
+  it('weighs a name nobody is spelled exactly at the initial level instead', () => {
+    // "Youri" is nobody's name here, so this account's evidence sits at the
+    // initial level — where two people stand, and it still points at neither.
+    const claim = nameClaim({ id: 'o2', displayName: 'Youri El Mahdi' }, indexIdentities([youssef, yassin]));
+    expect(claim.sole).toBeNull();
+    expect(claim.claimants).toEqual([youssef, yassin]);
+  });
+
+  it('points at the only person sharing the surname and initial when nobody is spelled it', () => {
+    // The paired case, and what #1455 rests on: the initial level is load-bearing
+    // precisely where the exact level has nothing to say.
+    expect(nameClaim({ id: 'o3', displayName: 'Youri El Mahdi' }, indexIdentities([youssef])).sole).toBe(youssef);
+  });
+});
+
 describe('nameKeyVariants', () => {
   it('says which of the person’s names each index key is', () => {
     expect([...nameKeyVariants({ displayName: 'Anna Bakker-de Wit', givenName: 'Anna', surname: 'de Wit' })])
