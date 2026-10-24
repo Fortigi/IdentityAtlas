@@ -4,3 +4,4 @@
 - Name-only links made by earlier runs are re-examined on the next run: the ones the policy would no longer make are detached and re-evaluated, and the rest are left exactly where they are. Analyst-confirmed links and links supplied by a crawler are never touched.
 - The run-completion notice now also reports the name-only matches held for review and the name-only links removed.
 - A new "Link on a name match alone" setting next to the certainty slider holds back every name-only match, including unambiguous ones, for installations that want a name to never be evidence enough on its own. It is on by default, including on existing installations after upgrade.
+- Updated bundled dependencies to clear newly published advisories flagged by the dependency audit: high-severity fixes for `multer` (file-upload denial of service), `body-parser`, `undici` and `zod`, plus moderate fixes in `fast-uri`, `ip-address`, `iconv-lite` and `qs`.
