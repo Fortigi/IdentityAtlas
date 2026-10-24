@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed enterprise applications that have only consent grants (such as PnP Management Shell) disappearing as resources after every full Entra ID crawl; links to them no longer end in "HTTP 404"
+- Every enterprise application now has a resource after a full crawl, not only the apps with app roles, consent grants, owners or app-only permissions
+
+## Changes in this PR
+
 - Fixed clicking an app in the Risky Applications and High-risk Application Permissions reports showing "HTTP 404": the row now opens the app's service-principal detail page
 
 ## Changes in this PR

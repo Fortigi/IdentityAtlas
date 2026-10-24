@@ -1,2 +1,0 @@
-- Fixed enterprise applications that have only consent grants (such as PnP Management Shell) disappearing as resources after every full Entra ID crawl; links to them no longer end in "HTTP 404"
-- Every enterprise application now has a resource after a full crawl, not only the apps with app roles, consent grants, owners or app-only permissions
