@@ -5884,7 +5884,7 @@ know renders an explanatory panel rather than breaking the page.</p>
 <tr>
 <td><code>orphaned-accounts</code></td>
 <td><code>list</code></td>
-<td>Accounts with no <code>IdentityMembers</code> row — i.e. belonging to no identity — excluding service principals, managed identities and AI agents, with the detected account type for each.</td>
+<td>Live accounts with no <code>IdentityMembers</code> row — i.e. belonging to no identity — excluding service principals, managed identities and AI agents, with the detected account type for each.</td>
 </tr>
 <tr>
 <td><code>application-access-review</code></td>
@@ -6036,11 +6036,14 @@ tenants) are left out unless <code>includeMicrosoft</code> is on.</p>
 </tr>
 </tbody>
 </table>
-<p>Orphaned Accounts shares its definition with the <code>orphaned-accounts</code> <strong>context plugin</strong> via
-<code>app/api/src/accountlinking/orphanQuery.js</code>. That is deliberate: the report and the context answer
-the same question, so they must not be able to drift apart. Note that before account linking has run
-there are no <code>IdentityMembers</code> at all, so every account is legitimately listed — the report's
-description says so.</p>
+<p>Orphaned Accounts shares its definition with the <code>orphaned-accounts</code> <strong>context plugin</strong> and the
+account-linking engine via <code>app/api/src/accountlinking/orphanQuery.js</code>. That is deliberate: all three
+answer the same question, so they must not be able to drift apart — and they did, which is how the
+live-rows filter came to be missing from every one of them (<a href="https://github.com/Fortigi/IdentityAtlas/issues/1442">#1442</a>).
+An account a sync has <strong>removed</strong> from its source is therefore not listed: a full sync tombstones it
+(<code>deletedAt</code>) rather than deleting the row, and a removed account is not an orphan waiting to be
+linked. Note that before account linking has run there are no <code>IdentityMembers</code> at all, so every live
+account is legitimately listed — the report's description says so.</p>
 <h2 id="parameters-that-mean-an-entity-x-lookup">Parameters that mean an entity — <code>x-lookup</code><a class="headerlink" href="#parameters-that-mean-an-entity-x-lookup" title="Permanent link">&para;</a></h2>
 <p>A parameter whose value is an entity (an application, a system, a business role) should be <strong>picked</strong>,
 not typed: a name can match several entities, and a report parameterised by a typed name silently

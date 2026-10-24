@@ -5646,6 +5646,10 @@
 <td><strong>Matrix</strong> (<code>vw_ResourceUserPermissionAssignments</code>)</td>
 <td><strong>Excluded.</strong> The matview filters out any cell whose assignment, holder, or target is tombstoned (<code>deletedAt IS NULL</code> + <code>NOT EXISTS</code> a deleted principal/resource), so the live access picture never shows access via a deleted entity. <code>NOT EXISTS</code> (not a join) is used so a row whose endpoint is merely missing is kept — only explicit tombstones are excluded.</td>
 </tr>
+<tr>
+<td><strong>Account Linking</strong> (candidate set, <code>orphansRemaining</code>, the Orphaned Accounts report + context)</td>
+<td><strong>Excluded.</strong> A tombstoned account is not an orphan: it is never newly linked to an identity and never counted as outstanding work (<a href="../account-linking/">account linking</a> → <em>Candidate scope</em>). This is what stops a leaver's account being attached to a live namesake — the leaver's own identity is gone, so the namesake is the only thing left matching it. An account linked <em>before</em> it was tombstoned stays linked — soft-delete never detaches a person's history.</td>
+</tr>
 </tbody>
 </table>
 <h2 id="relationship-to-_history">Relationship to <code>_history</code><a class="headerlink" href="#relationship-to-_history" title="Permanent link">&para;</a></h2>

@@ -6411,6 +6411,7 @@ accounts that have been removed (soft-deleted) are not counted.</p>
 <li><strong>Editable dictionary</strong> — weighted match signals (employeeId / email / email-prefix / graded name) and regex account-type rules.</li>
 <li><strong>Certainty slider</strong> — the <code>linkThreshold</code>; raise it to require stronger evidence before an account is auto-linked.</li>
 <li><strong>Schedules + Run now</strong> — schedule recurring runs or trigger one immediately; each run's progress and counts are shown.</li>
+<li><strong>Removed accounts are left out</strong> — an account a sync no longer finds in its source system is not an orphan: it is never linked to a person and not counted in "orphans remaining". That also keeps a leaver's account away from a colleague who happens to share their name, which is otherwise the only match left once the leaver is gone from HR. An account that was already linked before it was removed stays linked, so the person's history is kept.</li>
 </ul>
 <p>Editing the config and starting runs requires the <code>admin.crawlers</code> permission. See <a href="../../architecture/account-linking/">Account Linking</a>.</p>
 <hr />
