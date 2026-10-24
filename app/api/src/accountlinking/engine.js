@@ -2,12 +2,16 @@
 //
 // Replaces the v4 PowerShell "account correlation" job that was never ported
 // to v5. Account linking is top-down: for each existing Identity, find orphan
-// accounts (Principals with no IdentityMembers row) that belong to that person
-// — admin (`adm-jdoe`), guest, or a plain secondary account — and attach them
-// with a confidence score.
+// accounts (live Principals with no IdentityMembers row) that belong to that
+// person — admin (`adm-jdoe`), guest, or a plain secondary account — and attach
+// them with a confidence score.
 //
-//   - Candidate scope: ONLY orphan Principals. Accounts already attached to an
-//     Identity (e.g. by the crawler's IdentityFilter) are never disturbed.
+//   - Candidate scope: ONLY orphan Principals, as orphanQuery.js defines them —
+//     live accounts attached to no Identity. Accounts already attached to an
+//     Identity (e.g. by the crawler's IdentityFilter) are never disturbed, and
+//     neither are accounts a full sync has removed: an account linked before it
+//     was deleted stays linked (history), but a tombstone is never newly
+//     attached and never counted as a remaining orphan.
 //   - Matching is deterministic rule application against a dictionary
 //     (defaultRules.js, editable via AccountLinkingConfig.rules). No LLM.
 //   - A match resting on name signals alone links only where the account's name
@@ -34,6 +38,7 @@ import {
   stripKnownPrefixes,
   bestNameMatch,
 } from './classifier.js';
+import { ORPHAN_QUERY_PARAMS, orphanPrincipalsSql } from './orphanQuery.js';
 import {
   norm,
   fullName,
@@ -249,13 +254,7 @@ async function loadRules(configId) {
 }
 
 async function countOrphans() {
-  const r = await db.queryOne(`
-    SELECT COUNT(*)::int AS n
-      FROM "Principals" p
-      LEFT JOIN "IdentityMembers" m ON m."principalId" = p."id"
-     WHERE m."principalId" IS NULL
-       AND COALESCE(p."principalType", '') NOT IN ('ServicePrincipal', 'ManagedIdentity', 'AIAgent')
-  `);
+  const r = await db.queryOne(orphanPrincipalsSql(`COUNT(*)::int AS n`), ORPHAN_QUERY_PARAMS);
   return r?.n ?? 0;
 }
 
@@ -351,14 +350,10 @@ export async function runLinking(runId, configId = null) {
     const linksRemoved = await removeStaleNameOnlyLinks(rules, identities);
 
     await updateRun({ step: 'Loading orphan accounts', pct: 20 });
-    const orphans = (await db.query(`
-      SELECT p."id", p."displayName", p."email", p."employeeId", p."givenName", p."surname",
-             p."accountEnabled", p."extendedAttributes"
-        FROM "Principals" p
-        LEFT JOIN "IdentityMembers" m ON m."principalId" = p."id"
-       WHERE m."principalId" IS NULL
-         AND COALESCE(p."principalType", '') NOT IN ('ServicePrincipal', 'ManagedIdentity', 'AIAgent')
-    `)).rows;
+    const orphans = (await db.query(orphanPrincipalsSql(
+      `p."id", p."displayName", p."email", p."employeeId", p."givenName", p."surname",
+       p."accountEnabled", p."extendedAttributes"`,
+    ), ORPHAN_QUERY_PARAMS)).rows;
 
     await updateRun({ step: 'Matching accounts', pct: 45, candidatesScanned: orphans.length });
     const { links, stats } = buildLinks(orphans, identities, rules);

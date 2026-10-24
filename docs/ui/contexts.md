@@ -83,7 +83,7 @@ The built-in plugins include:
 | Department from Principal | Principal | The `department` attribute |
 | Active Directory OU Tree | Principal | The LDAP distinguished name (OU path) |
 | Principal Type Tree | Principal | Account type (user, service principal, …) |
-| Orphaned Accounts | Principal | Accounts not linked to any identity, bucketed by type |
+| Orphaned Accounts | Principal | Live accounts not linked to any identity, bucketed by type (accounts a sync has removed are left out) |
 | Resource Cluster | Resource | Name-token clustering of resources |
 | Resource Type Tree | Resource | Resource type (and, for Azure, the resource plane) |
 | Scope Hierarchy | Resource | The Azure management-group → subscription → resource-group nesting |
