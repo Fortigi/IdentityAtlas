@@ -5643,7 +5643,7 @@
 <tbody>
 <tr>
 <td><code>rules</code></td>
-<td>The editable dictionary: weighted <code>signals</code>, regex <code>accountTypeRules</code>, the <code>linkThreshold</code> (the certainty slider), and <code>onlyLinkTypes</code>.</td>
+<td>The editable dictionary: weighted <code>signals</code>, regex <code>accountTypeRules</code>, the <code>linkThreshold</code> (the certainty slider), <code>onlyLinkTypes</code>, and <code>allowNameOnlyLinks</code>.</td>
 </tr>
 <tr>
 <td><code>schedules</code></td>
@@ -5655,7 +5655,44 @@
 </tr>
 </tbody>
 </table>
-<p>Runs can also be triggered on demand from the same Admin page; each run records its progress in <code>AccountLinkingRuns</code>. Editing config and starting runs requires the <code>admin.crawlers</code> permission. See <a href="../../architecture/account-linking/">Account Linking</a> for the engine and dictionary.</p>
+<p>Keys inside <code>rules</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>signals</code></td>
+<td>5 shipped signals</td>
+<td>Weighted match rules. An account links to the candidate identity with the highest summed weight that clears <code>linkThreshold</code>.</td>
+</tr>
+<tr>
+<td><code>accountTypeRules</code></td>
+<td>4 shipped rules</td>
+<td>Regex patterns classifying an account as Admin / Guest / Service / Shared.</td>
+</tr>
+<tr>
+<td><code>linkThreshold</code></td>
+<td><code>50</code></td>
+<td>Minimum confidence to auto-link — the certainty slider in the UI.</td>
+</tr>
+<tr>
+<td><code>onlyLinkTypes</code></td>
+<td><code>["Admin", "Guest", "Secondary"]</code></td>
+<td>Only these account types are ever attached to a person.</td>
+</tr>
+<tr>
+<td><code>allowNameOnlyLinks</code></td>
+<td><code>true</code></td>
+<td>A match whose signals are all name signals links where that name identifies exactly one person; where a second person answers to the same name — or to one sharing its surname and first initial — the match is counted and held for review instead, and any such link made earlier is removed on the next run. Set to <code>false</code> — unchecking <strong>"Link on a name match alone"</strong> in Admin → Account Linking — to hold back <em>every</em> name-only match, which stops a display-name-only source linking at all. Only a literal <code>false</code> opts out; a config that never stored the key runs the shipped policy.</td>
+</tr>
+</tbody>
+</table>
+<p>Runs can also be triggered on demand from the same Admin page; each run records its progress in <code>AccountLinkingRuns</code>, including how many name-only matches it held for review and why (<code>nameOnlyMatches</code>, <code>nameOnlySuggestions</code>) and how many name-only links it removed because the policy would no longer create them (<code>linksRemoved</code>). Editing config and starting runs requires the <code>admin.crawlers</code> permission. See <a href="../../architecture/account-linking/">Account Linking</a> for the engine and dictionary.</p>
 <hr />
 <h2 id="where-settings-actually-live">Where settings actually live<a class="headerlink" href="#where-settings-actually-live" title="Permanent link">&para;</a></h2>
 <table>
